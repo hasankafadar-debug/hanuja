@@ -1,0 +1,19 @@
+# Local-only developer notes for Hanuja
+
+Add this file as `CLAUDE.local.md` and keep it gitignored.
+
+## Local environment
+- Local app URL: http://localhost:3000
+- Local seller panel URL: http://localhost:3001
+- Local admin panel URL: http://localhost:3002
+
+## Sandbox / test placeholders
+- Test seller IBAN: TR00 0000 0000 0000 0000 0000 00
+- Test customer account: test-customer@example.com
+- Test seller account: test-seller@example.com
+- Test admin account: test-admin@example.com
+
+## Local reminders
+- Use only sandbox payment credentials.
+- Do not use production API keys locally.
+- Do not disable payout hold logic even in demo flows unless explicitly testing that case.

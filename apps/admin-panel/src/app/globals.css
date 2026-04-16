@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Hanuja Brand Design Tokens — Admin Panel (apps/admin-panel)
+ *
+ * Values sourced from packages/config/brand/hanuja.brand.ts
+ * Admin panel tone: dense but readable, control-oriented, risk-aware.
+ * Slightly darker muted tones to help distinguish operational surfaces.
+ */
+:root {
+  /* — Colors — */
+  --color-primary: #1a1a2e;
+  --color-primary-fg: #ffffff;
+  --color-secondary: #16213e;
+  --color-secondary-fg: #ffffff;
+  --color-accent: #e94560;
+  --color-accent-fg: #ffffff;
+  --color-surface: #ffffff;
+  --color-background: #f1f5f9;
+  --color-border: #cbd5e1;
+  --color-muted: #e2e8f0;
+  --color-muted-fg: #475569;
+  --color-destructive: #dc2626;
+  --color-destructive-fg: #ffffff;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+
+  /* — Typography — */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* — Border Radius — (tightest for dense admin UI) */
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-full: 9999px;
+}
+
+@layer base {
+  * {
+    @apply border-border box-border;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

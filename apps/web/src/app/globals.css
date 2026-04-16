@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Hanuja Brand Design Tokens — Storefront (apps/web)
+ *
+ * Values are sourced from packages/config/brand/hanuja.brand.ts
+ * To swap brand: update hanuja.brand.ts OR run `pnpm new-client`
+ * to generate a new brand file and update these variables.
+ *
+ * Rule: Never hardcode color/font values in component files.
+ * All components read these CSS custom properties via Tailwind.
+ *
+ * Storefront tone: curated, warm, premium — inspiring & conversion-oriented.
+ */
+:root {
+  /* — Colors — */
+  --color-primary: #1a1a2e;
+  --color-primary-fg: #ffffff;
+  --color-secondary: #16213e;
+  --color-secondary-fg: #ffffff;
+  --color-accent: #e94560;
+  --color-accent-fg: #ffffff;
+  --color-surface: #ffffff;
+  --color-background: #fafafa;
+  --color-border: #e5e7eb;
+  --color-muted: #f3f4f6;
+  --color-muted-fg: #6b7280;
+  --color-destructive: #ef4444;
+  --color-destructive-fg: #ffffff;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+
+  /* — Typography — */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Playfair Display', 'Georgia', serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* — Border Radius — */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+}
+
+@layer base {
+  * {
+    @apply border-border box-border;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+  }
+}

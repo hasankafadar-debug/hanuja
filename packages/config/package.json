@@ -1,0 +1,26 @@
+{
+  "name": "@hanuja/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./prettier": "./prettier.config.js",
+    "./eslint/base": "./eslint/base.js",
+    "./tailwind/preset": "./tailwind/preset.ts",
+    "./tsconfig/base": "./tsconfig/base.json",
+    "./tsconfig/nextjs": "./tsconfig/nextjs.json",
+    "./tsconfig/library": "./tsconfig/library.json",
+    "./brand": "./brand/index.ts",
+    "./brand/hanuja": "./brand/hanuja.brand.ts",
+    "./env": "./src/env.ts"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  },
+  "peerDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

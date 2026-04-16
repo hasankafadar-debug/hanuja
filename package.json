@@ -1,0 +1,46 @@
+{
+  "name": "hanuja",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "turbo run format",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:generate": "pnpm --filter @hanuja/db exec prisma generate",
+    "db:migrate": "pnpm --filter @hanuja/db exec prisma migrate dev",
+    "db:migrate:deploy": "pnpm --filter @hanuja/db exec prisma migrate deploy",
+    "db:seed": "pnpm --filter @hanuja/db exec tsx seeds/seed.ts",
+    "db:studio": "pnpm --filter @hanuja/db exec prisma studio",
+    "new-client": "tsx tools/generators/new-client.ts",
+    "validate-brand": "tsx tools/validators/validate-brand.ts",
+    "brand-swap": "tsx tools/scripts/brand-swap.ts",
+    "check-env": "tsx tools/scripts/check-env.ts",
+    "search:seed": "tsx tools/scripts/seed-search.ts",
+    "worker": "tsx api/worker.ts",
+    "worker:dev": "tsx --watch api/worker.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/s3-request-presigner": "^3.600.0"
+  },
+  "devDependencies": {
+    "@prisma/client": "6.19.3",
+    "@typescript-eslint/eslint-plugin": "7",
+    "@typescript-eslint/parser": "7",
+    "dotenv": "^16.4.5",
+    "eslint": "8",
+    "eslint-config-next": "15",
+    "next": "^15.5.14",
+    "prettier": "^3.3.0",
+    "prettier-plugin-tailwindcss": "^0.6.0",
+    "tsx": "^4.15.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.5",
+    "zod": "^3.23.0"
+  }
+}

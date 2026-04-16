@@ -1,0 +1,75 @@
+# Hanuja local development infrastructure
+# Usage: docker compose up -d
+# Then copy .env.example -> .env and fill in credentials
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hanuja_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hanuja
+      POSTGRES_PASSWORD: hanuja_dev_password
+      POSTGRES_DB: hanuja_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hanuja -d hanuja_dev']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: hanuja_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    container_name: hanuja_meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: 'hanuja_meili_dev_key'
+      MEILI_ENV: 'development'
+    ports:
+      - '7700:7700'
+    volumes:
+      - meilisearch_data:/meili_data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:7700/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: hanuja_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Worker produces no HTTP traffic — no ports needed
+
+volumes:
+  postgres_data:
+  redis_data:
+  meilisearch_data:

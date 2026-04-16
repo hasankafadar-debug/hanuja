@@ -1,0 +1,7 @@
+{
+  "extends": "@hanuja/config/tsconfig/library",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src"]
+}

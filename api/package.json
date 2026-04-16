@@ -1,0 +1,26 @@
+{
+  "name": "@hanuja/api",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./routes/*": "./routes/*.ts",
+    "./services/*": "./services/*.ts",
+    "./repositories/*": "./repositories/*.ts",
+    "./domain/*": "./domain/*.ts",
+    "./lib/*": "./lib/*.ts",
+    "./jobs/*": "./jobs/*.ts"
+  },
+  "dependencies": {
+    "@hanuja/security": "workspace:*",
+    "@prisma/client": "6.19.3",
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.0.0",
+    "iyzipay": "^2.0.67",
+    "nodemailer": "^6.9.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.0",
+    "typescript": "^5.4.5"
+  }
+}

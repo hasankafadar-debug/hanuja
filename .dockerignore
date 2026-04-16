@@ -1,0 +1,35 @@
+# Build outputs
+.next
+dist
+build
+
+# Dependencies (will be installed fresh in Docker)
+node_modules
+**/node_modules
+
+# Environment files (injected via Coolify env vars)
+.env
+.env.local
+.env.*.local
+
+# Dev tools
+.git
+.gitignore
+.github
+
+# Test files
+tests
+coverage
+
+# Local dev
+docker-compose.yml
+*.dockerfile
+Dockerfile.*
+
+# Turbo cache
+.turbo
+
+# Editor
+.vscode
+.idea
+*.log

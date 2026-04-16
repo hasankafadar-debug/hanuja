@@ -1,0 +1,48 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Hanuja — BullMQ Worker (api/jobs)
+# Runs payout-maturity, delivery-confirmation, search-sync, notification,
+# payout-batch, media-processing, fulfillment-risk workers.
+# Build context: repo root
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM node:22-alpine AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
+
+# ── Install dependencies ───────────────────────────────────────────────────────
+FROM base AS deps
+WORKDIR /app
+
+COPY pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY package.json ./
+COPY api/package.json ./api/package.json
+COPY db/package.json ./db/package.json
+COPY packages/ui/package.json ./packages/ui/package.json
+COPY packages/config/package.json ./packages/config/package.json
+COPY packages/types/package.json ./packages/types/package.json
+COPY packages/seo/package.json ./packages/seo/package.json
+COPY packages/security/package.json ./packages/security/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY apps/seller-panel/package.json ./apps/seller-panel/package.json
+COPY apps/admin-panel/package.json ./apps/admin-panel/package.json
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts
+
+# ── Production runner ──────────────────────────────────────────────────────────
+FROM deps AS runner
+WORKDIR /app
+
+COPY . .
+
+# Generate Prisma client
+RUN pnpm --filter @hanuja/db run generate
+
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 worker
+USER worker
+
+CMD ["node", "--import", "tsx/esm", "api/jobs/worker-entrypoint.ts"]

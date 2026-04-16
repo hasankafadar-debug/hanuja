@@ -1,0 +1,151 @@
+/**
+ * Penalty Service — applies, offsets, and waives seller penalties.
+ *
+ * Standard penalty: 20% of product amount (CLAUDE.md 2.4 / 07-marketplace-finance-rules.md)
+ * Applied on: seller rejection, 20-day breach cancellation.
+ * Waiver: admin-only, auditable, original record preserved.
+ */
+import type { PrismaClient, PenaltyReason } from '@prisma/client'
+import { Decimal } from '@prisma/client/runtime/client'
+import { NotFoundError, ForbiddenError } from '../lib/errors'
+import { createPenaltyRepository } from '../repositories/penalty.repository'
+import { createOrderRepository } from '../repositories/order.repository'
+import { createOrderLineRepository } from '../repositories/order-line.repository'
+import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
+import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
+import {
+  calculatePenalty,
+  STANDARD_PENALTY_RATE,
+} from '../domain/penalty-calculator'
+
+interface PenaltyServiceDeps {
+  prisma: PrismaClient
+}
+
+export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
+  const penalties = createPenaltyRepository(prisma)
+  const orders = createOrderRepository(prisma)
+  const orderLines = createOrderLineRepository(prisma)
+  const ledger = createSellerLedgerRepository(prisma)
+  const auditLog = createAdminAuditLogRepository(prisma)
+
+  return {
+    /**
+     * Evaluate and apply penalty after seller rejection or 20-day breach.
+     * Called after order moves to cancelled_due_to_seller_rejection or
+     * cancelled_due_to_20day_breach.
+     *
+     * Records penalty in seller ledger as a debit entry.
+     */
+    async applyForCancellation(params: {
+      orderId: string
+      sellerId: string
+      reason: PenaltyReason
+    }) {
+      const order = await orders.findById(params.orderId)
+      if (!order) throw new NotFoundError('Order', params.orderId)
+
+      // Check if penalty already applied (idempotency)
+      const existing = await penalties.findByOrderId(params.orderId)
+      if (existing) return existing
+
+      const lines = await orderLines.findByOrderIdForSeller(params.orderId, params.sellerId)
+      if (!lines.length) throw new NotFoundError('OrderLine', params.orderId)
+
+      const productAmount = lines.reduce(
+        (sum, l) => sum.plus(l.totalPrice),
+        new Decimal(0),
+      )
+
+      const penaltyAmount = calculatePenalty(productAmount, STANDARD_PENALTY_RATE)
+
+      return prisma.$transaction(async (tx) => {
+        const penalty = await penalties.create(
+          {
+            sellerId: params.sellerId,
+            orderId: params.orderId,
+            reason: params.reason,
+            baseAmount: productAmount,
+            rate: STANDARD_PENALTY_RATE,
+            penaltyAmount,
+          },
+          tx as PrismaClient,
+        )
+
+        // Record as debit in seller ledger — negative amount
+        await ledger.createEntry({
+          sellerId: params.sellerId,
+          type: 'penalty',
+          amount: penaltyAmount.negated(),
+          orderId: params.orderId,
+          penaltyId: penalty.id,
+          note: `Ceza: ${params.reason} — ${penaltyAmount.toFixed(2)} TRY`,
+        })
+
+        return penalty
+      })
+    },
+
+    /**
+     * Waive a penalty — admin only, reason required.
+     * Original penalty record is PRESERVED with status='waived'.
+     * Reversal ledger entry is created to cancel the debit effect.
+     */
+    async waive(params: {
+      penaltyId: string
+      adminActorId: string
+      waiverReason: string
+    }) {
+      const penalty = await penalties.findById(params.penaltyId)
+      if (!penalty) throw new NotFoundError('Penalty', params.penaltyId)
+
+      if (penalty.status === 'waived') {
+        return penalty // Idempotent
+      }
+
+      return prisma.$transaction(async (tx) => {
+        const waived = await penalties.waive(params.penaltyId, {
+          waivedBy: params.adminActorId,
+          waiverReason: params.waiverReason,
+        })
+
+        // Reversal ledger entry — credits back the deducted amount
+        await ledger.createEntry({
+          sellerId: penalty.sellerId,
+          type: 'manual_adjustment',
+          amount: penalty.penaltyAmount, // Positive — reverses the original debit
+          orderId: penalty.orderId,
+          penaltyId: penalty.id,
+          note: `Ceza muafiyeti: ${params.waiverReason}`,
+          createdBy: params.adminActorId,
+        })
+
+        await auditLog.createEntry({
+          actorId: params.adminActorId,
+          actionType: 'penalty_waived',
+          targetType: 'penalty',
+          targetId: params.penaltyId,
+          previousData: { status: penalty.status, penaltyAmount: penalty.penaltyAmount },
+          newData: { status: 'waived' },
+          reason: params.waiverReason,
+        })
+
+        return waived
+      })
+    },
+
+    listForSeller(sellerId: string, skip?: number, take?: number) {
+      return penalties.listBySeller({
+        sellerId,
+        ...(skip !== undefined ? { skip } : {}),
+        ...(take !== undefined ? { take } : {}),
+      })
+    },
+
+    listForAdmin(params: Parameters<typeof penalties.listForAdmin>[0]) {
+      return penalties.listForAdmin(params)
+    },
+  }
+}
+
+export type PenaltyService = ReturnType<typeof createPenaltyService>

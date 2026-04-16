@@ -1,0 +1,26 @@
+node_modules
+.next
+dist
+build
+coverage
+.turbo
+.env
+.env.local
+.env.*.local
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Prisma
+prisma/dev.db
+
+# Claude local files
+CLAUDE.local.md
+.claude/settings.local.json
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

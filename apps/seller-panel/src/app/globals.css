@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Hanuja Brand Design Tokens — Seller Panel (apps/seller-panel)
+ *
+ * Values sourced from packages/config/brand/hanuja.brand.ts
+ * Seller panel tone: practical, clear, efficient, status-driven.
+ * Slightly cooler/flatter background than storefront for operational focus.
+ */
+:root {
+  /* — Colors — */
+  --color-primary: #1a1a2e;
+  --color-primary-fg: #ffffff;
+  --color-secondary: #16213e;
+  --color-secondary-fg: #ffffff;
+  --color-accent: #e94560;
+  --color-accent-fg: #ffffff;
+  --color-surface: #ffffff;
+  --color-background: #f8fafc;
+  --color-border: #e2e8f0;
+  --color-muted: #f1f5f9;
+  --color-muted-fg: #64748b;
+  --color-destructive: #ef4444;
+  --color-destructive-fg: #ffffff;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+
+  /* — Typography — */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* — Border Radius — (tighter for operational UI) */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+}
+
+@layer base {
+  * {
+    @apply border-border box-border;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

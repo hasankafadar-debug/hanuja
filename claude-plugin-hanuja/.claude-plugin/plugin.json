@@ -1,0 +1,8 @@
+{
+  "name": "hanuja",
+  "version": "0.1.0",
+  "description": "Reusable Claude Code plugin for Hanuja marketplace workflows",
+  "author": {
+    "name": "OpenAI scaffold"
+  }
+}
