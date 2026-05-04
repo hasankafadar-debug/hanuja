@@ -3,27 +3,35 @@
  *
  * All routes require authentication AND seller role, except:
  *   /giris         — login page
- *   /onboarding/*  — new seller onboarding (requires auth, not yet a seller)
+ *   /onboarding/*  — legacy onboarding path, redirected to /basvuru
  *   /api/*         — API routes (auth handles internally)
  *
  * Role enforcement:
  *   - Unauthenticated → /giris
- *   - Authenticated customer (no seller role) on non-onboarding page → /onboarding
+ *   - Authenticated customer (no seller role) on non-seller page → /basvuru
  *   - Authenticated seller → allow
  *   - Admin trying to access seller panel → allow (for support purposes)
  */
 import { betterFetch } from '@better-fetch/fetch'
 import { NextResponse, type NextRequest } from 'next/server'
 
+function applySecurityHeaders(response: NextResponse): void {
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('Content-Security-Policy', "frame-ancestors 'none'")
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+}
+
 interface Session {
   user: {
     id: string
     email: string
     role: string
+    mustChangePassword?: boolean
   }
 }
 
-const PUBLIC_PATHS = ['/giris', '/api']
+const PUBLIC_PATHS = ['/giris', '/api', '/basvuru/tesekkur', '/sifremi-unuttum', '/sifre-olustur', '/sifre-sifirla']
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p))
@@ -32,8 +40,16 @@ function isPublic(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  if (pathname.startsWith('/onboarding')) {
+    const res = NextResponse.redirect(new URL('/basvuru', request.url))
+    applySecurityHeaders(res)
+    return res
+  }
+
   if (isPublic(pathname)) {
-    return NextResponse.next()
+    const res = NextResponse.next()
+    applySecurityHeaders(res)
+    return res
   }
 
   const { data: session } = await betterFetch<Session>(
@@ -48,18 +64,36 @@ export async function middleware(request: NextRequest) {
   if (!session?.user) {
     const loginUrl = new URL('/giris', request.url)
     loginUrl.searchParams.set('callbackUrl', pathname)
-    return NextResponse.redirect(loginUrl)
+    const res = NextResponse.redirect(loginUrl)
+    applySecurityHeaders(res)
+    return res
   }
 
   const role = session.user.role
 
-  // Customer trying to access panel pages (not onboarding) → push to onboarding
-  if (role === 'customer' && !pathname.startsWith('/onboarding')) {
-    return NextResponse.redirect(new URL('/onboarding', request.url))
+  if (role === 'seller' && session.user.mustChangePassword && pathname !== '/sifre-olustur') {
+    const res = NextResponse.redirect(new URL('/sifre-olustur', request.url))
+    applySecurityHeaders(res)
+    return res
+  }
+
+  // Customer trying to access seller panel pages → push to application flow
+  if (role === 'customer' && pathname === '/') {
+    const res = NextResponse.redirect(new URL('/giris', request.url))
+    applySecurityHeaders(res)
+    return res
+  }
+
+  if (role === 'customer' && !pathname.startsWith('/basvuru')) {
+    const res = NextResponse.redirect(new URL('/basvuru', request.url))
+    applySecurityHeaders(res)
+    return res
   }
 
   // Seller or admin → allow all panel routes
-  return NextResponse.next()
+  const response = NextResponse.next()
+  applySecurityHeaders(response)
+  return response
 }
 
 export const config = {

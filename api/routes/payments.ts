@@ -32,14 +32,20 @@ export async function approveEft(
 ) {
   try {
     const body = await req.json()
-    const { evidenceNote } = z
-      .object({ evidenceNote: z.string().optional() })
+    const parsed = z
+      .object({
+        evidenceNote: z.string().optional(),
+        discountAmount: z.number().int().min(0).optional(), // Kuruş cinsinden (1 TRY = 100)
+        discountReason: z.string().max(200).optional(),
+      })
       .parse(body)
     const svc = getPaymentService()
     const result = await svc.approveEftPayment({
       orderId,
       adminActorId,
-      ...(evidenceNote !== undefined ? { evidenceNote } : {}),
+      ...(parsed.evidenceNote !== undefined ? { evidenceNote: parsed.evidenceNote } : {}),
+      ...(parsed.discountAmount !== undefined ? { discountAmount: parsed.discountAmount } : {}),
+      ...(parsed.discountReason !== undefined ? { discountReason: parsed.discountReason } : {}),
     })
     return ok(result)
   } catch (err) {

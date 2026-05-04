@@ -1,13 +1,49 @@
 /**
- * E2E — Storefront checkout flow
- *
- * Critical journey: browse → product → cart → checkout → order confirmation
- * Tests that the customer-facing flow works end-to-end.
- *
- * Run against a running local dev environment.
- * Requires: pnpm dev, seeded database, sandbox payment credentials.
+ * E2E - Storefront checkout flow
  */
-import { test, expect } from '@playwright/test'
+import { execSync } from 'child_process'
+import { fileURLToPath } from 'url'
+import * as path from 'path'
+import { test, expect, type Page } from '@playwright/test'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const ROOT = path.resolve(__dirname, '../../..')
+const TEST_EMAIL = 'playwright-eft@hanuja.test'
+const TEST_PASSWORD = 'PlaywrightEFT1234!'
+
+async function loginCustomer(page: Page) {
+  await page.goto('/giris')
+  await page.getByLabel(/E-posta/i).fill(TEST_EMAIL)
+  await page.getByLabel(/Sifre|Şifre/i).fill(TEST_PASSWORD)
+  await page.getByRole('button', { name: /Giris Yap|Giriş Yap/i }).click()
+  await expect(page).toHaveURL(/hesabim|\/$/, { timeout: 15_000 })
+}
+
+async function openFirstCategory(page: Page) {
+  await page.goto('/kategori')
+  const categoryLink = page.locator('a[href*="/kategori/"]').first()
+  await expect(categoryLink).toBeVisible()
+  await categoryLink.click()
+  await page.waitForLoadState('networkidle')
+}
+
+async function openFirstProduct(page: Page) {
+  await openFirstCategory(page)
+  const productLink = page.locator('a[href*="/urun/"]').first()
+  await expect(productLink).toBeVisible()
+  await productLink.click()
+  await page.waitForLoadState('networkidle')
+}
+
+test.beforeAll(() => {
+  const script = path.join(ROOT, 'tests/e2e/setup/ensure-test-customer.ts')
+  execSync(`pnpm exec tsx "${script}"`, {
+    cwd: ROOT,
+    env: { ...process.env },
+    stdio: 'pipe',
+  })
+})
 
 test.describe('checkout journey', () => {
   test.beforeEach(async ({ page }) => {
@@ -16,62 +52,47 @@ test.describe('checkout journey', () => {
 
   test('homepage loads with product categories', async ({ page }) => {
     await expect(page).toHaveTitle(/Hanuja/)
-    // Featured categories should be visible
-    await expect(page.getByText('Mobilya')).toBeVisible()
-    await expect(page.getByText('Dekor')).toBeVisible()
+    await expect(page.locator('a[href="/kategori/mobilya"]').first()).toBeVisible()
+    await expect(page.locator('a[href="/kategori/ev-dekorasyon"]').first()).toBeVisible()
   })
 
   test('category page shows products', async ({ page }) => {
-    await page.goto('/kategori/mobilya')
-    // Should render products
-    await expect(page.getByTestId('product-card')).toHaveCount({ min: 1 } as Parameters<ReturnType<typeof page.getByTestId>['toHaveCount']>[0])
+    await openFirstCategory(page)
+    await expect(page.getByTestId('product-card').first()).toBeVisible()
   })
 
   test('product detail page renders correctly', async ({ page }) => {
-    // Navigate to a known test product
-    await page.goto('/urun/masif-mese-orta-sehpa')
+    await openFirstProduct(page)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    await expect(page.getByText('Sepete Ekle')).toBeVisible()
+    await expect(page.getByTestId('add-to-cart')).toBeVisible()
   })
 
   test('add to cart and view cart', async ({ page }) => {
-    await page.goto('/urun/masif-mese-orta-sehpa')
-    await page.getByText('Sepete Ekle').click()
+    await loginCustomer(page)
+    await openFirstProduct(page)
+    await page.getByTestId('add-to-cart').click()
     await page.goto('/sepet')
-    await expect(page.getByTestId('cart-item')).toHaveCount({ min: 1 } as Parameters<ReturnType<typeof page.getByTestId>['toHaveCount']>[0])
+    await expect(page.getByTestId('cart-item').first()).toBeVisible()
   })
 
   test('checkout requires authentication', async ({ page }) => {
-    await page.goto('/sepet')
-    // Unauthenticated checkout attempt should redirect to login
-    await page.getByText('Siparişi Tamamla').click()
+    await page.goto('/odeme')
     await expect(page).toHaveURL(/giris/)
   })
 
   test('authenticated checkout flow completes', async ({ page }) => {
-    // Log in as test customer
-    await page.goto('/giris')
-    await page.getByLabel('E-posta').fill('test-customer@hanuja.test')
-    await page.getByLabel('Şifre').fill('TestPassword123!')
-    await page.getByRole('button', { name: 'Giriş Yap' }).click()
-    await expect(page).toHaveURL('/')
+    await loginCustomer(page)
+    await openFirstProduct(page)
+    await page.getByTestId('add-to-cart').click()
 
-    // Add product to cart
-    await page.goto('/urun/masif-mese-orta-sehpa')
-    await page.getByText('Sepete Ekle').click()
-
-    // Go to cart and checkout
     await page.goto('/sepet')
-    await page.getByText('Siparişi Tamamla').click()
-
-    // Should be on checkout or payment page
+    await page.getByTestId('cart-checkout').click()
     await expect(page).toHaveURL(/siparis|odeme|checkout/)
   })
 
   test('blog page is accessible and SEO-safe', async ({ page }) => {
     await page.goto('/blog')
     await expect(page).toHaveTitle(/.+/)
-    // Should not show 404
     await expect(page.getByText('404')).not.toBeVisible()
   })
 
@@ -83,13 +104,13 @@ test.describe('checkout journey', () => {
 
 test.describe('SEO route integrity', () => {
   test('category route uses /kategori/ prefix', async ({ page }) => {
-    await page.goto('/kategori/mobilya')
+    await openFirstCategory(page)
     await expect(page).not.toHaveURL(/^\/mobilya/)
     expect(page.url()).toContain('/kategori/')
   })
 
   test('product route uses /urun/ prefix', async ({ page }) => {
-    await page.goto('/urun/masif-mese-orta-sehpa')
+    await openFirstProduct(page)
     expect(page.url()).toContain('/urun/')
   })
 
@@ -99,23 +120,19 @@ test.describe('SEO route integrity', () => {
   })
 
   test('page has canonical meta tag', async ({ page }) => {
-    await page.goto('/urun/masif-mese-orta-sehpa')
+    await openFirstProduct(page)
     const canonical = page.locator('link[rel="canonical"]')
-    await expect(canonical).toHaveAttribute('href', /\/urun\/masif-mese-orta-sehpa/)
+    await expect(canonical).toHaveAttribute('href', /\/urun\//)
   })
 })
 
 test.describe('customer order tracking', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/giris')
-    await page.getByLabel('E-posta').fill('test-customer@hanuja.test')
-    await page.getByLabel('Şifre').fill('TestPassword123!')
-    await page.getByRole('button', { name: 'Giriş Yap' }).click()
+    await loginCustomer(page)
   })
 
   test('order list shows customer orders', async ({ page }) => {
     await page.goto('/siparis')
-    // Should show orders or empty state
     const hasOrders = (await page.getByTestId('order-row').count()) > 0
     const hasEmptyState = (await page.getByTestId('empty-state').count()) > 0
     expect(hasOrders || hasEmptyState).toBe(true)
@@ -123,10 +140,8 @@ test.describe('customer order tracking', () => {
 
   test('order detail page shows status', async ({ page }) => {
     await page.goto('/siparis')
-    const firstOrder = page.getByTestId('order-row').first()
-    if (await firstOrder.isVisible()) {
-      await firstOrder.click()
-      // Should be on a detail page
+    if ((await page.getByTestId('order-row').count()) > 0) {
+      await page.getByTestId('order-row').first().getByRole('link', { name: /Detay/i }).click()
       await expect(page).toHaveURL(/\/siparis\//)
     }
   })

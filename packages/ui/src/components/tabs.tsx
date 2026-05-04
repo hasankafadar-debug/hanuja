@@ -65,14 +65,16 @@ export interface TabsTriggerProps {
   children: React.ReactNode
   className?: string
   disabled?: boolean
+  type?: "button" | "submit" | "reset"
 }
 
-function TabsTrigger({ value, children, className, disabled }: TabsTriggerProps) {
+function TabsTrigger({ value, children, className, disabled, type = "button" }: TabsTriggerProps) {
   const { activeTab, setActiveTab } = useTabs()
   const isActive = activeTab === value
 
   return (
     <button
+      type={type}
       role="tab"
       aria-selected={isActive}
       disabled={disabled}

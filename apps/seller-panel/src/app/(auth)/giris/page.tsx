@@ -1,23 +1,57 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
+import { TurnstileWidget } from '@hanuja/ui'
+
+async function verifyTurnstile(token: string): Promise<string | null> {
+  const res = await fetch('/api/turnstile-verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, action: 'seller-login' }),
+  })
+  if (res.ok) return null
+  const data = (await res.json()) as { message?: string }
+  return data.message ?? 'Güvenlik doğrulaması başarısız. Lütfen tekrar deneyin.'
+}
 
 function SellerLoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') ?? '/panel'
+  const callbackUrl = searchParams.get('callbackUrl') ?? '/dashboard'
+
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileKey, setTurnstileKey] = useState(0)
+
+  const handleTurnstileChange = useCallback((token: string) => {
+    setTurnstileToken(token)
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (!turnstileToken) {
+      setError('Lütfen önce güvenlik doğrulamasını tamamlayın.')
+      return
+    }
+
     setLoading(true)
+
+    const verifyError = await verifyTurnstile(turnstileToken)
+    if (verifyError) {
+      setError(verifyError)
+      setTurnstileKey((k) => k + 1)
+      setLoading(false)
+      return
+    }
 
     const { error: authError } = await signIn.email({
       email,
@@ -27,6 +61,7 @@ function SellerLoginForm() {
 
     if (authError) {
       setError('E-posta veya şifre hatalı.')
+      setTurnstileKey((k) => k + 1)
       setLoading(false)
       return
     }
@@ -69,13 +104,20 @@ function SellerLoginForm() {
           />
         </div>
 
+        <TurnstileWidget
+          key={turnstileKey}
+          siteKey={turnstileSiteKey}
+          action="seller-login"
+          onChange={handleTurnstileChange}
+        />
+
         {error && (
           <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
         )}
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !turnstileToken}
           className="w-full rounded-lg bg-neutral-900 text-white text-sm font-medium py-2.5 hover:bg-neutral-700 disabled:opacity-50 transition"
         >
           {loading ? 'Giriş yapılıyor…' : 'Giriş Yap'}
@@ -84,13 +126,15 @@ function SellerLoginForm() {
 
       <p className="mt-6 text-center text-sm text-neutral-500">
         Satıcı hesabın yok mu?{' '}
-        <a
-          href={process.env.NEXT_PUBLIC_WEB_URL ?? 'http://localhost:3000'}
-          className="font-medium text-neutral-900 hover:underline"
-        >
-          Hanuja'ya üye ol
+        <a href="/basvuru" className="font-medium text-neutral-900 hover:underline">
+          Mağaza başvurusu yap
         </a>
-        {' '}ve başvur.
+      </p>
+
+      <p className="mt-3 text-center text-sm text-neutral-500">
+        <a href="/sifremi-unuttum" className="font-medium text-neutral-900 hover:underline">
+          Şifrenizi mi unuttunuz?
+        </a>
       </p>
     </div>
   )

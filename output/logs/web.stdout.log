@@ -1,0 +1,652 @@
+
+> web@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\web
+> next dev --port 3000
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3000
+   - Network:      http://172.21.0.1:3000
+
+ ✓ Starting...
+ ✓ Compiled /instrumentation in 458ms (31 modules)
+ ✓ Ready in 3.6s
+ ○ Compiling / ...
+ ✓ Compiled / in 6.1s (1375 modules)
+ GET / 200 in 7969ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 4s (1808 modules)
+ GET / 200 in 2638ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=640&q=75 500 in 5494ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=640&q=75 500 in 5411ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=640&q=75 500 in 5496ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=640&q=75 500 in 5386ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 5494ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 5370ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 5493ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 5353ms
+ GET / 200 in 273ms
+ GET / 200 in 122ms
+ ○ Compiling /kayit ...
+ ✓ Compiled /kayit in 1550ms (1960 modules)
+ GET /kayit 200 in 2369ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 2.2s (2682 modules)
+ POST /api/auth/sign-up/email 200 in 4610ms
+ ○ Compiling /hesabim ...
+ ✓ Compiled /hesabim in 1930ms (2723 modules)
+ GET /hesabim 200 in 2262ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 1009ms (2751 modules)
+ GET /api/user/profile 200 in 1559ms
+ GET /api/user/profile 200 in 38ms
+ ○ Compiling /kategori/[...slug] ...
+ ✓ Compiled /kategori/[...slug] in 1179ms (2639 modules)
+ GET /kategori/mobilya 200 in 3777ms
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 1685ms (2674 modules)
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 4740ms
+ GET / 200 in 413ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 2.2s (2064 modules)
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 3659ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 2687ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 3657ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 2670ms
+ ○ Compiling /sepet ...
+ ✓ Compiled /sepet in 2.1s (2079 modules)
+ GET /sepet 200 in 3039ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 2.3s (2827 modules)
+ GET /api/cart 401 in 3079ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 1934ms (2834 modules)
+ GET /giris?callbackUrl=%2Fsepet 200 in 2479ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 975ms (2031 modules)
+ POST /api/auth/sign-in/email 200 in 1851ms
+ GET /sepet 200 in 913ms
+ GET /sepet 200 in 1031ms
+ GET /api/cart 200 in 166ms
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 504ms
+ POST /api/cart 201 in 85ms
+ GET /sepet 200 in 64ms
+ GET /api/cart 200 in 45ms
+ GET /api/cart 200 in 200ms
+ ✓ Compiled in 1194ms (1269 modules)
+ ✓ Compiled in 2.9s (1944 modules)
+ GET /sepet 200 in 689ms
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 682ms
+ ✓ Compiled in 1980ms (1944 modules)
+ GET /sepet 200 in 542ms
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 546ms
+ ○ Compiling /blog ...
+ ✓ Compiled /blog in 2.3s (1939 modules)
+ GET /sepet 200 in 2535ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 3.3s (2025 modules)
+ GET /api/cart 200 in 4114ms
+ GET /sepet 200 in 1316ms
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 1315ms
+ ○ Compiling /odeme ...
+ ✓ Compiled /odeme in 1607ms (2706 modules)
+ GET /odeme 200 in 2031ms
+ GET /api/cart 200 in 451ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 2.7s (2712 modules)
+ GET /api/checkout/addresses 200 in 3097ms
+ GET /api/cart 200 in 2654ms
+ GET /api/checkout/addresses 200 in 49ms
+ ○ Compiling /arama ...
+ ✓ Compiled /arama in 3.9s (2711 modules)
+ GET /blog 200 in 5154ms
+ GET /arama?q=sehpa 200 in 6455ms
+ ✓ Compiled in 1994ms (1953 modules)
+ GET /odeme 200 in 1025ms
+ GET /blog 200 in 1034ms
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 1049ms
+ GET /arama?q=sehpa 200 in 1540ms
+ GET /arama?q=sehpa 200 in 468ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1017ms (1279 modules)
+ GET / 200 in 1732ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 2.5s (2020 modules)
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 4058ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 3116ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 4061ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 3099ms
+ GET /odeme 200 in 1303ms
+ GET /blog 200 in 1314ms
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 1321ms
+ GET / 200 in 1344ms
+ GET /arama?q=sehpa 200 in 1343ms
+ GET /arama?q=lamba 200 in 418ms
+ ○ Compiling /sepet ...
+ ✓ Compiled /sepet in 1709ms (1202 modules)
+ GET /sepet 200 in 2054ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 3.5s (1950 modules)
+ GET /api/cart 200 in 4416ms
+ GET /api/cart 200 in 48ms
+ GET /odeme 200 in 162ms
+ GET /api/cart 200 in 90ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 845ms (1956 modules)
+ GET /api/checkout/addresses 200 in 2107ms
+ GET /api/cart 200 in 2095ms
+ GET /api/checkout/addresses 200 in 98ms
+ ○ Compiling /mesafeli-satis ...
+ ✓ Compiled /mesafeli-satis in 2.9s (2644 modules)
+ GET /odeme 200 in 1488ms
+ GET /odeme 200 in 1491ms
+ GET /mesafeli-satis 200 in 4441ms
+ GET /blog 200 in 1543ms
+ GET /arama?q=lamba 200 in 1557ms
+ GET /arama?q=sehpa 200 in 1588ms
+ GET /mesafeli-satis 200 in 310ms
+ ○ Compiling /iade-iptal ...
+ ✓ Compiled /iade-iptal in 2.5s (1835 modules)
+ GET /iade-iptal 200 in 3373ms
+ GET /iade-iptal 200 in 261ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 1315ms (1907 modules)
+ POST /api/checkout/addresses 201 in 1938ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 2.9s (2593 modules)
+ POST /api/checkout/order 201 in 3584ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 2.9s (2610 modules)
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b?yeni=1&odeme=eft 200 in 5655ms
+ GET /iade-iptal 200 in 88ms
+ ○ Compiling /gizlilik-politikasi ...
+ ✓ Compiled /gizlilik-politikasi in 1398ms (2610 modules)
+ GET /gizlilik-politikasi 200 in 1810ms
+ GET /gizlilik-politikasi 200 in 115ms
+ ○ Compiling /kullanim-kosullari ...
+ ✓ Compiled /kullanim-kosullari in 1444ms (2612 modules)
+ GET /kullanim-kosullari 200 in 1697ms
+ ○ Compiling /mesafeli-satis ...
+ ✓ Compiled /mesafeli-satis in 1972ms (1941 modules)
+ GET /mesafeli-satis 200 in 2180ms
+ ○ Compiling /_error ...
+ ✓ Compiled /kvkk in 4.2s (2706 modules)
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 5.9s (2745 modules)
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fsehpa-mese-01-main.jpg&w=1920&q=75 500 in 12504ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com%2Fproducts%2Fsehpa-mese-01-main.jpg&w=1920&q=75 500 in 11677ms
+ GET /api/checkout/addresses 200 in 6268ms
+ GET /api/cart 200 in 6290ms
+ GET /api/checkout/addresses 200 in 2117ms
+ GET /kvkk 200 in 11128ms
+ GET /api/cart 200 in 1139ms
+ ○ Compiling /hesabim ...
+ ✓ Compiled /hesabim in 3.8s (2081 modules)
+ GET /hesabim 200 in 4051ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 1376ms (2086 modules)
+ GET /api/user/profile 200 in 1853ms
+ GET /api/user/profile 200 in 50ms
+ ○ Compiling /hesabim/adresler ...
+ ✓ Compiled /siparis in 7.4s (2766 modules)
+ GET /hesabim/adresler 200 in 10733ms
+ GET /siparis 200 in 8575ms
+ GET /hesabim 200 in 3077ms
+ GET /hesabim/adresler 200 in 87ms
+ ○ Compiling /api/user/addresses ...
+ ✓ Compiled /api/user/addresses in 2.8s (2766 modules)
+ GET /api/user/addresses 200 in 3220ms
+ GET /api/user/addresses 200 in 43ms
+ GET /hesabim 200 in 128ms
+ GET /api/user/profile 200 in 48ms
+ GET /api/user/profile 200 in 45ms
+ GET /siparis 200 in 118ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 1932ms (2091 modules)
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 2375ms
+ GET /siparis 200 in 511ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 163ms
+ ○ Compiling /sepet ...
+ ✓ Compiled /sepet in 4.4s (1898 modules)
+ GET /sepet 200 in 4752ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 967ms (1930 modules)
+ GET /api/cart 200 in 1674ms
+ GET /api/cart 200 in 63ms
+ GET /odeme 200 in 146ms
+ GET /api/cart 200 in 81ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 747ms (1930 modules)
+ GET /api/checkout/addresses 200 in 1956ms
+ GET /api/cart 200 in 1945ms
+ GET /api/checkout/addresses 200 in 72ms
+ ○ Compiling /mesafeli-satis ...
+ ✓ Compiled /mesafeli-satis in 2.7s (1933 modules)
+ GET /mesafeli-satis 200 in 3244ms
+ ✓ Compiled in 78.4s (1862 modules)
+ GET /odeme 200 in 78219ms
+ GET /odeme 200 in 78399ms
+ GET /odeme 200 in 485ms
+ GET /odeme 200 in 277ms
+ GET /blog 200 in 2581ms
+ GET /blog 200 in 80896ms
+ GET /arama?q=lamba 200 in 80863ms
+ GET /arama?q=lamba 200 in 2593ms
+ GET /arama?q=sehpa 200 in 2590ms
+ GET /arama?q=sehpa 200 in 80871ms
+ ✓ Compiled in 2s (688 modules)
+ GET /odeme 200 in 601ms
+ GET /odeme 200 in 602ms
+ GET /blog 200 in 622ms
+ GET /arama?q=sehpa 200 in 773ms
+ GET /arama?q=lamba 200 in 791ms
+ ✓ Compiled in 839ms (688 modules)
+ GET /odeme 200 in 814ms
+ GET /odeme 200 in 816ms
+ GET /blog 200 in 848ms
+ GET /arama?q=lamba 200 in 850ms
+ GET /arama?q=sehpa 200 in 854ms
+ ✓ Compiled in 7.1s (1854 modules)
+ GET /odeme 200 in 1589ms
+ GET /odeme 200 in 1592ms
+ GET /blog 200 in 1656ms
+ GET /arama?q=lamba 200 in 1697ms
+ GET /arama?q=sehpa 200 in 1714ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 1348ms (1912 modules)
+ ✓ Compiled (1919 modules)
+ GET /api/checkout/addresses 200 in 11130ms
+ GET /api/checkout/addresses 200 in 11134ms
+ GET /api/cart 200 in 11146ms
+ GET /api/cart 200 in 11824ms
+ GET /odeme 200 in 7663ms
+ GET /odeme 200 in 7666ms
+ GET /blog 200 in 7690ms
+ GET /arama?q=lamba 200 in 7723ms
+ GET /arama?q=sehpa 200 in 7726ms
+ ✓ Compiled in 814ms (690 modules)
+ GET /odeme 200 in 802ms
+ GET /odeme 200 in 810ms
+ GET /blog 200 in 828ms
+ GET /arama?q=lamba 200 in 832ms
+ GET /arama?q=sehpa 200 in 839ms
+ ✓ Compiled in 2.1s (2609 modules)
+ GET /api/checkout/addresses 200 in 1476ms
+ GET /api/cart 200 in 1529ms
+ GET /api/checkout/addresses 200 in 1510ms
+ GET /api/cart 200 in 1532ms
+ GET /odeme 200 in 1751ms
+ GET /odeme 200 in 1752ms
+ GET /blog 200 in 1774ms
+ GET /arama?q=lamba 200 in 1782ms
+ GET /arama?q=sehpa 200 in 1795ms
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3000
+   - Network:      http://172.21.0.1:3000
+
+ ✓ Starting...
+ ✓ Compiled /instrumentation in 444ms (31 modules)
+ ✓ Ready in 5.6s
+ ○ Compiling / ...
+ ✓ Compiled / in 12.4s (1376 modules)
+ ○ Compiling /kayit ...
+ ✓ Compiled /kayit in 2.7s (1210 modules)
+ GET /kayit 200 in 3883ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 4.2s (1923 modules)
+ POST /api/auth/sign-up/email 200 in 7648ms
+ ○ Compiling /hesabim ...
+ ✓ Compiled /hesabim in 2.1s (1970 modules)
+ GET /hesabim 200 in 2519ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 1770ms (2011 modules)
+ GET /api/user/profile 200 in 2830ms
+ GET /api/user/profile 200 in 77ms
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 2.8s (2356 modules)
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 6108ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 1526ms (2354 modules)
+ POST /api/cart 401 in 2493ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 2.3s (2361 modules)
+ GET /giris?callbackUrl=%2Furun%2Fmasif-mese-orta-sehpa-dogal 200 in 2956ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 1029ms (1863 modules)
+ POST /api/auth/sign-in/email 200 in 1913ms
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 2023ms
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 2181ms
+ POST /api/cart 201 in 169ms
+ ○ Compiling /sepet ...
+ ✓ Compiled /sepet in 3s (2393 modules)
+ GET /sepet 200 in 3782ms
+ ✓ Compiled in 900ms (521 modules)
+ GET /sepet 200 in 356ms
+ GET /sepet 200 in 140ms
+ GET /api/cart 200 in 797ms
+ GET /api/cart 200 in 90ms
+ ○ Compiling /odeme ...
+ ✓ Compiled /odeme in 2.7s (2399 modules)
+ GET /odeme 200 in 2984ms
+ GET /api/cart 200 in 746ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 4.4s (2405 modules)
+ GET /api/cart 200 in 5501ms
+ GET /api/checkout/addresses 200 in 5528ms
+ GET /api/checkout/addresses 200 in 5540ms
+ POST /api/checkout/addresses 201 in 77ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 3.5s (2398 modules)
+ GET /api/checkout/contracts-preview?addressId=cmo65dvne0005uljws47su4cx&paymentMethod=card 200 in 4484ms
+ GET /api/checkout/contracts-preview?addressId=cmo65dvne0005uljws47su4cx&paymentMethod=eft 200 in 132ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 3.2s (2411 modules)
+ POST /api/checkout/order 201 in 4426ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 5.8s (2423 modules)
+ GET /siparis/cmo65gxsd0007uljw7x7xhacu?yeni=1&odeme=eft 200 in 10338ms
+ GET /sepet 200 in 99ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 1465ms (1899 modules)
+ GET /api/cart 200 in 1944ms
+ GET /api/cart 200 in 94ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 1665ms (1882 modules)
+ GET /api/checkout/contracts-preview?addressId=cmo5z7ufc0005ulq0cflnumg6&paymentMethod=card 200 in 2484ms
+ GET /odeme 200 in 711ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 1025ms (1886 modules)
+ ✓ Compiled (1888 modules)
+ GET /api/checkout/addresses 200 in 3281ms
+ GET /api/cart 200 in 3293ms
+ GET /api/checkout/contracts-preview?addressId=cmo5z7ufc0005ulq0cflnumg6&paymentMethod=card 200 in 87ms
+ GET /api/checkout/contracts-preview?addressId=cmo5z7ufc0005ulq0cflnumg6&paymentMethod=eft 200 in 85ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 6.2s (2380 modules)
+ ✓ Compiled in 1ms (1886 modules)
+ GET /api/checkout/addresses 200 in 10668ms
+ GET /odeme 200 in 7454ms
+ GET /sepet 200 in 7461ms
+ GET /api/cart 200 in 10726ms
+ ○ Compiling /hesabim ...
+ ✓ Compiled /hesabim in 2.8s (1856 modules)
+ GET /hesabim 200 in 3205ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 1930ms (1887 modules)
+ GET /api/user/profile 200 in 2912ms
+ GET /hesabim 200 in 915ms
+ GET /api/user/profile 200 in 65ms
+ GET /hesabim 200 in 57ms
+ ○ Compiling /hesabim/adresler ...
+ ✓ Compiled /hesabim/adresler in 3.7s (2108 modules)
+ GET /hesabim/adresler 200 in 4084ms
+ GET /sepet 200 in 691ms
+ GET /hesabim/adresler 200 in 371ms
+ ○ Compiling /api/user/addresses ...
+ ✓ Compiled /api/user/addresses in 2.6s (2110 modules)
+ GET /api/user/addresses 200 in 3644ms
+ GET /api/user/addresses 200 in 309ms
+ GET /sepet 200 in 1284ms
+ GET /hesabim/adresler 200 in 1286ms
+ ○ Compiling /siparis ...
+ ✓ Compiled /siparis in 2.2s (2115 modules)
+ GET /siparis 200 in 2957ms
+ GET /sepet 200 in 910ms
+ GET /siparis 200 in 424ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 295ms
+ GET /hesabim 200 in 143ms
+ GET /api/user/profile 200 in 87ms
+ GET /api/user/profile 200 in 78ms
+ GET /hesabim/adresler 200 in 89ms
+ GET /api/user/addresses 200 in 77ms
+ GET /api/user/addresses 200 in 59ms
+ GET /siparis 200 in 118ms
+ GET /hesabim 200 in 77ms
+ GET /api/user/profile 200 in 54ms
+ GET /api/user/profile 200 in 45ms
+ GET /siparis 200 in 99ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 155ms
+ GET /sepet 200 in 56ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 2.2s (1485 modules)
+ GET /api/cart 200 in 2947ms
+ GET /api/cart 200 in 74ms
+ ○ Compiling /odeme ...
+ ✓ Compiled /odeme in 1431ms (1495 modules)
+ GET /odeme 200 in 1680ms
+ ○ Compiling /api/checkout/addresses ...
+ GET /api/cart 200 in 644ms
+ ✓ Compiled /api/checkout/addresses in 2.4s (1501 modules)
+ GET /api/cart 200 in 3707ms
+ GET /api/checkout/addresses 200 in 3716ms
+ GET /api/checkout/addresses 200 in 3745ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 1630ms (1503 modules)
+ GET /api/checkout/contracts-preview?addressId=cmo5z7ufc0005ulq0cflnumg6&paymentMethod=card 200 in 2008ms
+ GET /hesabim 200 in 185ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 1975ms (1508 modules)
+ GET /api/user/profile 200 in 2511ms
+ GET /siparis 200 in 697ms
+ GET /api/user/profile 200 in 110ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 208ms
+ ✓ Compiled in 2.2s (1458 modules)
+ GET /sepet 200 in 1854ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 1849ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 10.6s (2004 modules)
+ ✓ Compiled in 0ms (1496 modules)
+ GET /api/cart 200 in 5116ms
+ GET /sepet 200 in 4328ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 4273ms
+ ✓ Compiled in 2.5s (540 modules)
+ GET /sepet 200 in 2439ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 2469ms
+ GET /sepet 200 in 479ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 473ms
+ GET /sepet 200 in 320ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 307ms
+ ✓ Compiled in 7.6s (2003 modules)
+ GET /sepet 200 in 3162ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 3167ms
+ ✓ Compiled in 4.3s (2003 modules)
+ GET /sepet 200 in 1156ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 1124ms
+ ✓ Compiled in 1876ms (2003 modules)
+ GET /sepet 200 in 893ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 863ms
+ ✓ Compiled in 8.6s (2005 modules)
+ GET /sepet 200 in 1444ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 1447ms
+ ✓ Compiled in 2.9s (2005 modules)
+ GET /sepet 200 in 1170ms
+ GET /siparis/cmo5z86ag0007ulq0dbxczs6b 200 in 1168ms
+ ○ Compiling / ...
+ ✓ Compiled / in 8.9s (2310 modules)
+ GET / 200 in 10171ms
+ GET /sepet 200 in 1312ms
+ GET / 200 in 499ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 4.8s (2720 modules)
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 8025ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 6968ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 8015ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 6946ms
+ GET /sepet 200 in 4704ms
+ GET / 200 in 4774ms
+ GET /sepet 200 in 363ms
+ GET / 200 in 363ms
+ ✓ Compiled in 2.8s (2734 modules)
+ GET /sepet 200 in 816ms
+ GET / 200 in 820ms
+ ○ Compiling /hesabim ...
+ ✓ Compiled /hesabim in 5.4s (1913 modules)
+ GET /hesabim 200 in 6024ms
+ GET /sepet 200 in 783ms
+ GET /hesabim 200 in 224ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 3s (1944 modules)
+ GET /api/user/profile 200 in 3998ms
+ GET /api/user/profile 200 in 71ms
+ GET /siparis 200 in 260ms
+ GET /sepet 200 in 88ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 2s (1950 modules)
+ GET /api/cart 200 in 2611ms
+ GET /api/cart 200 in 83ms
+ GET /odeme 200 in 179ms
+ GET /api/cart 200 in 120ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 1950ms (1956 modules)
+ GET /api/cart 200 in 3645ms
+ GET /api/checkout/addresses 200 in 3668ms
+ GET /api/checkout/addresses 200 in 3700ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 1227ms (1958 modules)
+ GET /api/checkout/contracts-preview?addressId=cmo5z7ufc0005ulq0cflnumg6&paymentMethod=card 200 in 1597ms
+ GET /api/checkout/contracts-preview?addressId=cmo5z7ufc0005ulq0cflnumg6&paymentMethod=eft 200 in 79ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 2.8s (1946 modules)
+ POST /api/checkout/order 201 in 3654ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 1452ms (1964 modules)
+ GET /siparis/cmo67g0xa000juljwcqrqw1z8?yeni=1&odeme=eft 200 in 2442ms
+ GET / 200 in 312ms
+ GET /hesabim 200 in 103ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /_error in 5.3s (2794 modules)
+ GET /api/user/profile 200 in 6105ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 6517ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 5382ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 6512ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 5363ms
+ GET /api/user/profile 200 in 904ms
+ GET /sepet 200 in 1452ms
+ GET /hesabim 200 in 1469ms
+ GET /siparis 200 in 159ms
+ GET / 200 in 297ms
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 14.3s (2803 modules)
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 16742ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 15764ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 16741ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 15741ms
+ GET /sepet 200 in 2766ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 16368ms
+ ○ Compiling /kategori/[...slug] ...
+ ✓ Compiled /kategori/[...slug] in 7.4s (2629 modules)
+ GET /sepet 200 in 701ms
+ GET /kategori/mobilya 200 in 10457ms
+ GET /kategori/mobilya 200 in 286ms
+ GET /kategori/mobilya?siralama=price-asc 200 in 128ms
+ GET /urun/mese-duvar-raf-sistemi-mod%C3%BCler 200 in 590ms
+ GET /kategori/mobilya?siralama=price-asc 200 in 496ms
+ GET /kategori/dekor 200 in 126ms
+ GET /urun/pirinc-mumluk-seti-3lu-altin 200 in 448ms
+ ○ Compiling /_error ...
+ ✓ Compiled /api/cart in 3.3s (2742 modules)
+ ✓ Compiled (2774 modules)
+ POST /api/cart 201 in 4836ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=1920&q=75 500 in 13520ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=1920&q=75 500 in 8157ms
+ GET /sepet 200 in 194ms
+ GET /api/cart 200 in 68ms
+ GET /api/cart 200 in 98ms
+ ○ Compiling /api/cart/items/[itemId] ...
+ ✓ Compiled /api/cart/items/[itemId] in 1311ms (2776 modules)
+ PATCH /api/cart/items/cmo683b0c000xuljwatesq5ef 200 in 3752ms
+ GET /api/cart 200 in 67ms
+ ○ Compiling /odeme ...
+ ✓ Compiled /odeme in 1025ms (2109 modules)
+ GET /odeme 200 in 1387ms
+ GET /api/cart 200 in 490ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 3.4s (2115 modules)
+ GET /api/cart 200 in 5157ms
+ GET /api/checkout/addresses 200 in 5181ms
+ GET /api/checkout/addresses 200 in 5185ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 2.1s (2104 modules)
+ GET /api/checkout/contracts-preview?addressId=cmo5z7ufc0005ulq0cflnumg6&paymentMethod=eft 200 in 2501ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 3s (2119 modules)
+ POST /api/checkout/order 201 in 3484ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 2.8s (2132 modules)
+ GET /siparis/cmo684h83000zuljwycw0xuun?yeni=1&odeme=eft 200 in 3428ms
+ GET /api/cart 200 in 911ms
+ GET /api/checkout/addresses 200 in 912ms
+ GET /api/cart 200 in 1193ms
+ GET /api/checkout/addresses 200 in 1222ms
+ GET / 200 in 3678ms
+ GET /sepet 200 in 152ms
+ GET /sepet 200 in 91ms
+ GET /api/cart 200 in 72ms
+ GET /api/cart 200 in 65ms
+ ✓ Compiled in 6.5s (2618 modules)
+ GET /sepet 200 in 938ms
+ GET /sepet 200 in 946ms
+ ✓ Compiled in 9.7s (2618 modules)
+ GET /sepet 200 in 624ms
+ GET /sepet 200 in 623ms
+ GET /sepet 200 in 104ms
+ ○ Compiling /hesabim ...
+ ✓ Compiled /hesabim in 7.3s (1933 modules)
+ GET /hesabim 200 in 7656ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 3.3s (1964 modules)
+ GET /api/user/profile 200 in 4692ms
+ GET /api/user/profile 200 in 51ms
+ ○ Compiling /siparis ...
+ ✓ Compiled /siparis in 3.2s (1958 modules)
+ GET /siparis 200 in 3861ms
+ GET /sepet 200 in 91ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 2.2s (1964 modules)
+ GET /api/cart 200 in 2641ms
+ GET /api/cart 200 in 59ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1083ms (1950 modules)
+ GET / 200 in 1578ms
+ ○ Compiling /kategori/[...slug] ...
+ ✓ Compiled /_error in 7s (2806 modules)
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 8048ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 7023ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 8043ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 7005ms
+ GET /kategori/mobilya 200 in 8230ms
+ GET /kategori/mobilya 200 in 463ms
+ GET /sepet 200 in 1080ms
+ GET /kategori/mobilya 200 in 109ms
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 4.6s (2110 modules)
+ GET /urun/mese-duvar-raf-sistemi-mod%C3%BCler 200 in 8971ms
+ GET /kategori/mobilya 200 in 761ms
+ GET /urun/rattan-konsol-aynali-dogal 200 in 400ms
+ POST /api/cart 201 in 540ms
+ GET /sepet 200 in 131ms
+ GET /api/cart 200 in 81ms
+ GET /api/cart 200 in 85ms
+ ○ Compiling /api/cart/items/[itemId] ...
+ ✓ Compiled /api/cart/items/[itemId] in 4.1s (1953 modules)
+ PATCH /api/cart/items/cmo6962of001duljw2y7hnkk5 200 in 4840ms
+ GET /api/cart 200 in 69ms
+ ○ Compiling /odeme ...
+ ✓ Compiled /odeme in 1034ms (1966 modules)
+ GET /odeme 200 in 1390ms
+ GET /api/cart 200 in 461ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 5.3s (1972 modules)
+ GET /api/cart 200 in 7526ms
+ GET /api/checkout/addresses 200 in 7573ms
+ GET /api/checkout/addresses 200 in 7620ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 3.6s (1957 modules)
+ GET /api/checkout/contracts-preview?addressId=cmo5z7ufc0005ulq0cflnumg6&paymentMethod=eft 200 in 4029ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 3.4s (1972 modules)
+ POST /api/checkout/order 201 in 3899ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 7.7s (1985 modules)
+ GET /siparis/cmo69a3x6001fuljw4yvjzvnm?yeni=1&odeme=eft 200 in 8514ms
+C:\Users\Hasan\Desktop\Claude marketplace\apps\web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  web@0.1.0 dev: `next dev --port 3000`
+Exit status 3221225786

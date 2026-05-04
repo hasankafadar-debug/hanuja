@@ -59,17 +59,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           amount: new Decimal(paidPrice ?? '0'),
         })
 
-        // Sepeti temizle
-        const order = await prisma.order.findUnique({
-          where: { id: orderId },
-          select: { customerId: true },
-        })
-        if (order?.customerId) {
-          await prisma.cartItem.deleteMany({
-            where: { cart: { userId: order.customerId } },
-          })
-        }
-
         break
       }
 

@@ -1,0 +1,161 @@
+
+> web@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\web
+> next dev --port 3000
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3000
+   - Network:      http://172.21.0.1:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Compiled /instrumentation in 388ms (50 modules)
+[startup] Database connection is ready.
+ ✓ Ready in 3.6s
+ ○ Compiling / ...
+ ✓ Compiled / in 5.6s (1490 modules)
+ GET / 200 in 7261ms
+ GET / 200 in 274ms
+ ○ Compiling /hesabim/favoriler ...
+ ✓ Compiled /hesabim/favoriler in 1818ms (1658 modules)
+ GET /hesabim/favoriler 200 in 2302ms
+ ○ Compiling /api/user/favorites ...
+ ✓ Compiled /api/user/favorites in 2.4s (2432 modules)
+ GET /api/user/favorites 200 in 3426ms
+ GET /api/user/favorites 200 in 3440ms
+ ○ Compiling /kategori/[...slug] ...
+ ✓ Compiled /kategori/[...slug] in 1398ms (2462 modules)
+ GET /kategori/ev/ev-mobilya/ev-mobilya-dresuar-konsol 200 in 3403ms
+ ○ Compiling /api/user/favorites/ids ...
+ ✓ Compiled /api/user/favorites/ids in 694ms (2464 modules)
+ GET /api/user/favorites/ids 200 in 1089ms
+ GET /api/user/favorites/ids 200 in 1100ms
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 1222ms (2523 modules)
+ GET /urun/rattan-konsol-aynali-dogal 200 in 3732ms
+ ○ Compiling /api/user/favorites/[productId] ...
+ ✓ Compiled /_error in 4.5s (2962 modules)
+ GET /api/cart/count 200 in 5776ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=1920&q=75 500 in 6358ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=1920&q=75 500 in 5002ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-side.jpg&w=1920&q=75 500 in 5971ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-side.jpg&w=1920&q=75 500 in 4991ms
+ POST /api/user/favorites 200 in 2389ms
+ GET /urun/rattan-konsol-aynali-dogal 200 in 4488ms
+ GET /urun/rattan-konsol-aynali-dogal 200 in 168ms
+ GET /api/user/favorites/prod_konsol_01 200 in 6949ms
+ ○ Compiling /api/products/[slug]/reviews/eligibility ...
+ ✓ Compiled /api/products/[slug]/reviews/eligibility in 1491ms (2965 modules)
+ GET /api/products/rattan-konsol-aynali-dogal/reviews/eligibility 200 in 3658ms
+ GET /api/products/rattan-konsol-aynali-dogal/reviews/eligibility 200 in 54ms
+ GET /kategori/ev/ev-mobilya/ev-mobilya-sifonyer-komodin 200 in 319ms
+ GET /kategori/ev/ev-mobilya/ev-mobilya-bank 200 in 136ms
+ GET /kategori/ev/ev-mobilya/ev-mobilya-sandalye-tabure 200 in 117ms
+ GET /kategori/ev/ev-mobilya/ev-mobilya-sehpa-modelleri 200 in 123ms
+ GET /api/user/favorites/ids 200 in 100ms
+ GET /api/user/favorites/ids 200 in 104ms
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 722ms
+ GET /api/user/favorites/prod_sehpa_01 200 in 85ms
+ GET /api/cart/count 200 in 105ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=1920&q=75 500 in 5875ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=1920&q=75 500 in 310ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-detail.jpg&w=1920&q=75 500 in 5480ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-detail.jpg&w=1920&q=75 500 in 293ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-room.jpg&w=1920&q=75 500 in 5479ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-room.jpg&w=1920&q=75 500 in 282ms
+ ✓ Compiled in 2.4s (2006 modules)
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 934ms
+ ○ Compiling / ...
+ ✓ Compiled / in 756ms (1319 modules)
+ GET / 200 in 1638ms
+ ○ Compiling /kategori ...
+ ✓ Compiled /kategori in 1577ms (2026 modules)
+ GET /kategori 200 in 2436ms
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 826ms
+ ○ Compiling /api/cart/count ...
+ ✓ Compiled /api/cart/count in 770ms (2050 modules)
+ GET /api/cart/count 200 in 2030ms
+ GET /kategori/ev 200 in 2309ms
+ ○ Compiling /api/user/favorites/ids ...
+ ✓ Compiled /_error in 1972ms (2883 modules)
+ GET /api/user/favorites/ids 401 in 2628ms
+ GET /api/user/favorites/ids 401 in 2724ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 4397ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 1849ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 4396ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 1840ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 2805ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1831ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 2804ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1818ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 789ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 247ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 232ms
+ GET /api/cart/count 200 in 63ms
+ ○ Compiling /api/user/favorites/[productId] ...
+ ✓ Compiled /api/user/favorites/[productId] in 1055ms (2197 modules)
+ GET /api/user/favorites/prod_bahce_01 401 in 1345ms
+ GET /urun/masif-mese-orta-sehpa-dogal 200 in 818ms
+ GET /api/user/favorites/prod_sehpa_01 200 in 93ms
+ GET /api/cart/count 200 in 112ms
+ ○ Compiling /sepet ...
+ ✓ Compiled /sepet in 2.4s (2016 modules)
+ GET /sepet 200 in 2933ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 1055ms (2742 modules)
+ GET /api/cart 200 in 1684ms
+ GET /api/cart 200 in 65ms
+ ○ Compiling /kullanim-kosullari ...
+ ✓ Compiled /kullanim-kosullari in 1511ms (2745 modules)
+ GET /kullanim-kosullari 200 in 1836ms
+ GET /api/cart 200 in 412ms
+ GET /api/cart 200 in 59ms
+ ○ Compiling /odeme ...
+ ✓ Compiled /odeme in 2.7s (2767 modules)
+ GET /odeme 200 in 3154ms
+ GET /api/cart 200 in 337ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 2.8s (2773 modules)
+ GET /api/cart 200 in 3370ms
+ GET /api/checkout/addresses 200 in 3391ms
+ GET /api/checkout/addresses 200 in 3390ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 1143ms (2775 modules)
+ GET /api/checkout/contracts-preview?addressId=cmofjfezg001vulxsix208heb&paymentMethod=card 200 in 1553ms
+ POST /api/checkout/addresses 201 in 82ms
+ GET /api/checkout/contracts-preview?addressId=cmol2jnas0003ulgww6uptjk4&paymentMethod=card 200 in 97ms
+ GET /api/checkout/contracts-preview?addressId=cmol2jnas0003ulgww6uptjk4&paymentMethod=eft 200 in 93ms
+ GET /api/checkout/contracts-preview?addressId=cmol2jnas0003ulgww6uptjk4&paymentMethod=card 200 in 106ms
+ GET /api/checkout/contracts-preview?addressId=cmol2jnas0003ulgww6uptjk4&paymentMethod=eft 200 in 80ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 2.5s (2740 modules)
+ POST /api/checkout/order 403 in 3360ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1731ms (1239 modules)
+ GET / 200 in 3134ms
+ ○ Compiling /api/user/favorites/ids ...
+ ✓ Compiled /_error in 4s (2888 modules)
+ GET /api/user/favorites/ids 200 in 4764ms
+ GET /api/cart/count 200 in 4820ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 5098ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 3966ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 5102ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 3953ms
+ GET / 200 in 1016ms
+ GET /kategori/ofis/ofis-mobilya 200 in 306ms
+ GET /api/user/favorites/ids 200 in 112ms
+ GET /api/user/favorites/ids 200 in 109ms
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 3.5s (2939 modules)
+ GET /urun/masif-ceviz-calisma-masasi-140cm 200 in 6621ms
+ GET /api/cart/count 200 in 423ms
+ ○ Compiling /api/user/favorites/[productId] ...
+ ✓ Compiled /api/user/favorites/[productId] in 2.9s (2217 modules)
+ GET /api/user/favorites/prod_masa_01 200 in 3421ms
+ ○ Compiling /api/user/favorites ...
+ ✓ Compiled /api/user/favorites in 1478ms (2211 modules)
+ POST /api/user/favorites 200 in 1864ms
+ ○ Compiling /api/products/[slug]/reviews/eligibility ...
+ ✓ Compiled /api/products/[slug]/reviews/eligibility in 1754ms (2067 modules)
+ GET /api/products/masif-ceviz-calisma-masasi-140cm/reviews/eligibility 200 in 2334ms
+ GET /api/products/masif-ceviz-calisma-masasi-140cm/reviews/eligibility 200 in 55ms
+[?25h

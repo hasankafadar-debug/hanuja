@@ -8,3 +8,10 @@ export type Seller = {
   status: SellerStatus
   createdAt: Date
 }
+
+export type SellerDashboardMetrics = {
+  pendingOrders: number
+  averagePreparationDays: number
+  cancellationRate: number
+  supplierFailureRate: number
+}

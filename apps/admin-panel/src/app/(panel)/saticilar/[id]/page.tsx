@@ -1,33 +1,61 @@
-import type { Metadata } from 'next'
-import Link from 'next/link'
-import { notFound } from 'next/navigation'
-import { Badge, PageHeader, Separator, StatusBadge, Tabs, TabsList, TabsTrigger, TabsContent } from '@hanuja/ui'
-import { ArrowLeft, ShieldAlert } from 'lucide-react'
-import { getAdminSession } from '@/lib/admin-session'
-import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { SellerStatusButtons } from '@/components/seller-status-buttons'
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import {
+  Badge,
+  PageHeader,
+  Separator,
+  StatusBadge,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@hanuja/ui";
+import {
+  ArrowLeft,
+  ShieldAlert,
+  FileText,
+  ExternalLink,
+  CheckCircle2,
+  XCircle,
+  Clock,
+} from "lucide-react";
+import { getAdminSession } from "@/lib/admin-session";
+import { createPrismaForRoute } from "@hanuja/api/lib/prisma";
+import { maskIban } from "@hanuja/security";
+import { SellerStatusButtons } from "@/components/seller-status-buttons";
+import { DocumentReviewActions } from "@/components/document-review-actions";
+import { SellerAdminActions } from "@/components/seller-admin-actions";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
-interface Props { params: Promise<{ id: string }> }
+interface Props {
+  params: Promise<{ id: string }>;
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params
-  return { title: `Satıcı — ${id.slice(-8).toUpperCase()}` }
+  const { id } = await params;
+  return { title: `Satıcı — ${id.slice(-8).toUpperCase()}` };
 }
 
-const STATUS_MAP: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' | 'secondary' }> = {
-  active: { label: 'Aktif', variant: 'success' },
-  pending: { label: 'Onay Bekliyor', variant: 'warning' },
-  suspended: { label: 'Askıya Alındı', variant: 'destructive' },
-  rejected: { label: 'Reddedildi', variant: 'secondary' },
-}
+const STATUS_MAP: Record<
+  string,
+  {
+    label: string;
+    variant: "success" | "warning" | "destructive" | "secondary";
+  }
+> = {
+  active: { label: "Aktif", variant: "success" },
+  pending: { label: "Onay Bekliyor", variant: "warning" },
+  suspended: { label: "Askıya Alındı", variant: "destructive" },
+  rejected: { label: "Reddedildi", variant: "secondary" },
+};
 
 export default async function SellerDetailPage({ params }: Props) {
-  await getAdminSession()
+  await getAdminSession();
 
-  const { id } = await params
-  const prisma = createPrismaForRoute()
+  const { id } = await params;
+  const prisma = createPrismaForRoute();
 
   // Satıcı + profil + aktif banka bilgisi
   const seller = await prisma.seller.findUnique({
@@ -37,74 +65,85 @@ export default async function SellerDetailPage({ params }: Props) {
       bankDetails: { where: { isActive: true }, take: 1 },
       user: { select: { email: true } },
     },
-  })
+  });
 
-  if (!seller) notFound()
+  if (!seller) notFound();
 
   // Sipariş sayısı ve hacmi
   const orderAgg = await prisma.orderLine.aggregate({
     where: { sellerId: id },
     _count: { id: true },
     _sum: { totalPrice: true },
-  })
+  });
 
   // Ürün sayısı
-  const productCount = await prisma.product.count({ where: { sellerId: id } })
+  const productCount = await prisma.product.count({ where: { sellerId: id } });
 
   // Payout özeti — duruma göre toplamlar
   const payoutGroups = await prisma.payout.groupBy({
-    by: ['status'],
+    by: ["status"],
     where: { sellerId: id },
     _sum: { netAmount: true },
-  })
+  });
 
   const payoutMap = new Map(
     payoutGroups.map((g) => [g.status, Number(g._sum.netAmount ?? 0)]),
-  )
+  );
 
   const pendingPayout =
-    (payoutMap.get('hold_active') ?? 0) + (payoutMap.get('payout_blocked') ?? 0)
+    (payoutMap.get("hold_active") ?? 0) +
+    (payoutMap.get("payout_blocked") ?? 0);
   const readyPayout =
-    (payoutMap.get('payout_ready') ?? 0) + (payoutMap.get('payout_scheduled') ?? 0)
-  const paidPayout = payoutMap.get('payout_paid') ?? 0
+    (payoutMap.get("payout_ready") ?? 0) +
+    (payoutMap.get("payout_scheduled") ?? 0);
+  const paidPayout = payoutMap.get("payout_paid") ?? 0;
 
   // Ledger bakiyesi
   const ledgerAgg = await prisma.sellerLedgerEntry.aggregate({
     where: { sellerId: id },
     _sum: { amount: true },
-  })
-  const ledgerBalance = Number(ledgerAgg._sum.amount ?? 0)
+  });
+  const ledgerBalance = Number(ledgerAgg._sum.amount ?? 0);
 
   // Komisyon kesintisi toplamı
   const commissionAgg = await prisma.orderLine.aggregate({
     where: { sellerId: id },
     _sum: { commissionAmount: true },
-  })
-  const commissionTotal = Number(commissionAgg._sum.commissionAmount ?? 0)
+  });
+  const commissionTotal = Number(commissionAgg._sum.commissionAmount ?? 0);
+
+  // KYC belgeler
+  const kycDocuments = await prisma.sellerDocument.findMany({
+    where: { sellerId: id },
+    orderBy: { createdAt: "desc" },
+  });
 
   // Ceza listesi
   const penalties = await prisma.penalty.findMany({
     where: { sellerId: id },
     include: { order: { select: { id: true } } },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: "desc" },
     take: 20,
-  })
+  });
 
   const penaltyTotal = penalties
-    .filter((p) => p.status !== 'waived')
+    .filter((p) => p.status !== "waived")
     .reduce(
       (sum, p) =>
         sum +
-        (typeof p.penaltyAmount === 'object'
+        (typeof p.penaltyAmount === "object"
           ? (p.penaltyAmount as { toNumber(): number }).toNumber()
           : Number(p.penaltyAmount)),
       0,
-    )
+    );
 
-  const activeBankDetail = seller.bankDetails[0] ?? null
-  const statusInfo = STATUS_MAP[seller.status] ?? { label: seller.status, variant: 'secondary' as const }
-  const totalOrders = orderAgg._count.id
-  const isNegativeBalance = ledgerBalance < 0
+  const activeBankDetail = seller.bankDetails[0] ?? null;
+  const statusInfo = STATUS_MAP[seller.status] ?? {
+    label: seller.status,
+    variant: "secondary" as const,
+  };
+  const totalOrders = orderAgg._count.id;
+  const isNegativeBalance = ledgerBalance < 0;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -112,39 +151,64 @@ export default async function SellerDetailPage({ params }: Props) {
         <Link
           href="/saticilar"
           className="mb-3 inline-flex items-center gap-1.5 text-sm"
-          style={{ color: 'var(--color-muted-fg)' }}
+          style={{ color: "var(--color-muted-fg)" }}
         >
           <ArrowLeft className="h-4 w-4" /> Satıcılara Dön
         </Link>
         <div className="flex items-start justify-between gap-4">
           <PageHeader
             title={seller.displayName}
-            description={`ID: ${id.slice(-8).toUpperCase()} · Katılım: ${new Date(seller.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+            description={`ID: ${id.slice(-8).toUpperCase()} · Katılım: ${new Date(seller.createdAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}`}
           />
-          <SellerStatusButtons sellerId={seller.id} currentStatus={seller.status} />
+          <div className="flex flex-col items-end gap-2">
+            <SellerStatusButtons
+              sellerId={seller.id}
+              currentStatus={seller.status}
+            />
+            <SellerAdminActions sellerId={seller.id} />
+          </div>
         </div>
       </div>
 
       {/* Özet kartlar */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { label: 'Toplam Sipariş', value: totalOrders },
-          { label: 'Bekleyen Hakediş', value: pendingPayout > 0 ? `₺${pendingPayout.toLocaleString('tr-TR')}` : '—' },
-          { label: 'Toplam Ödenen', value: paidPayout > 0 ? `₺${paidPayout.toLocaleString('tr-TR')}` : '—' },
-          { label: 'Toplam Ceza', value: penaltyTotal > 0 ? `₺${penaltyTotal.toLocaleString('tr-TR')}` : '—' },
+          { label: "Toplam Sipariş", value: totalOrders },
+          {
+            label: "Bekleyen Hakediş",
+            value:
+              pendingPayout > 0
+                ? `₺${pendingPayout.toLocaleString("tr-TR")}`
+                : "—",
+          },
+          {
+            label: "Toplam Ödenen",
+            value:
+              paidPayout > 0 ? `₺${paidPayout.toLocaleString("tr-TR")}` : "—",
+          },
+          {
+            label: "Toplam Ceza",
+            value:
+              penaltyTotal > 0
+                ? `₺${penaltyTotal.toLocaleString("tr-TR")}`
+                : "—",
+          },
         ].map((stat) => (
           <div
             key={stat.label}
             className="rounded-xl border p-4"
             style={{
-              borderColor: 'var(--color-border)',
-              backgroundColor: 'var(--color-surface)',
+              borderColor: "var(--color-border)",
+              backgroundColor: "var(--color-surface)",
             }}
           >
-            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            <p className="text-xs" style={{ color: "var(--color-muted-fg)" }}>
               {stat.label}
             </p>
-            <p className="mt-1 text-xl font-bold" style={{ color: 'var(--color-primary)' }}>
+            <p
+              className="mt-1 text-xl font-bold"
+              style={{ color: "var(--color-primary)" }}
+            >
               {stat.value}
             </p>
           </div>
@@ -154,6 +218,20 @@ export default async function SellerDetailPage({ params }: Props) {
       <Tabs defaultValue="profile">
         <TabsList>
           <TabsTrigger value="profile">Profil</TabsTrigger>
+          <TabsTrigger value="kyc">
+            Belgeler
+            {kycDocuments.filter((d) => d.status === "pending").length > 0 && (
+              <span
+                className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold"
+                style={{
+                  backgroundColor: "var(--color-warning)",
+                  color: "#fff",
+                }}
+              >
+                {kycDocuments.filter((d) => d.status === "pending").length}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="finance">Finans</TabsTrigger>
           <TabsTrigger value="penalties">Cezalar</TabsTrigger>
         </TabsList>
@@ -163,23 +241,28 @@ export default async function SellerDetailPage({ params }: Props) {
           <div
             className="rounded-xl border p-5"
             style={{
-              borderColor: 'var(--color-border)',
-              backgroundColor: 'var(--color-surface)',
+              borderColor: "var(--color-border)",
+              backgroundColor: "var(--color-surface)",
             }}
           >
-            <dl className="divide-y text-sm" style={{ borderColor: 'var(--color-border)' }}>
+            <dl
+              className="divide-y text-sm"
+              style={{ borderColor: "var(--color-border)" }}
+            >
               {[
-                { label: 'E-posta', value: seller.user.email },
-                { label: 'Şehir', value: seller.profile?.city ?? '—' },
-                { label: 'Ürün Sayısı', value: productCount },
+                { label: "E-posta", value: seller.user.email },
+                { label: "Şehir", value: seller.profile?.city ?? "—" },
+                { label: "Ürün Sayısı", value: productCount },
                 {
-                  label: 'Durum',
+                  label: "Durum",
                   value: (
-                    <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                    <Badge variant={statusInfo.variant}>
+                      {statusInfo.label}
+                    </Badge>
                   ),
                 },
                 {
-                  label: 'Profil Doğrulama',
+                  label: "Profil Doğrulama",
                   value: seller.profile?.isVerified ? (
                     <Badge variant="success">Doğrulanmış</Badge>
                   ) : (
@@ -187,9 +270,12 @@ export default async function SellerDetailPage({ params }: Props) {
                   ),
                 },
               ].map(({ label, value }) => (
-                <div key={label} className="flex items-center justify-between py-3">
-                  <dt style={{ color: 'var(--color-muted-fg)' }}>{label}</dt>
-                  <dd style={{ color: 'var(--color-primary)' }}>{value}</dd>
+                <div
+                  key={label}
+                  className="flex items-center justify-between py-3"
+                >
+                  <dt style={{ color: "var(--color-muted-fg)" }}>{label}</dt>
+                  <dd style={{ color: "var(--color-primary)" }}>{value}</dd>
                 </div>
               ))}
             </dl>
@@ -199,17 +285,22 @@ export default async function SellerDetailPage({ params }: Props) {
           <div
             className="rounded-xl border p-5"
             style={{
-              borderColor: 'var(--color-border)',
-              backgroundColor: 'var(--color-surface)',
+              borderColor: "var(--color-border)",
+              backgroundColor: "var(--color-surface)",
             }}
           >
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+              <h3
+                className="font-semibold"
+                style={{ color: "var(--color-primary)" }}
+              >
                 Banka Bilgileri
               </h3>
               {activeBankDetail ? (
-                <Badge variant={activeBankDetail.isVerified ? 'success' : 'warning'}>
-                  {activeBankDetail.isVerified ? 'Doğrulanmış' : 'Doğrulanmadı'}
+                <Badge
+                  variant={activeBankDetail.isVerified ? "success" : "warning"}
+                >
+                  {activeBankDetail.isVerified ? "Doğrulanmış" : "Doğrulanmadı"}
                 </Badge>
               ) : (
                 <Badge variant="secondary">Banka Bilgisi Yok</Badge>
@@ -217,26 +308,161 @@ export default async function SellerDetailPage({ params }: Props) {
             </div>
             {activeBankDetail ? (
               <>
-                <p className="text-sm font-mono" style={{ color: 'var(--color-muted-fg)' }}>
-                  {activeBankDetail.iban.replace(/(.{4})/g, '$1 ').trim()}
+                <p
+                  className="text-sm font-mono"
+                  style={{ color: "var(--color-muted-fg)" }}
+                >
+                  {maskIban(activeBankDetail.iban)}
                 </p>
-                <p className="text-sm mt-1" style={{ color: 'var(--color-muted-fg)' }}>
+                <p
+                  className="text-sm mt-1"
+                  style={{ color: "var(--color-muted-fg)" }}
+                >
                   {activeBankDetail.accountHolder} · {activeBankDetail.bankName}
                 </p>
               </>
             ) : (
-              <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+              <p className="text-sm" style={{ color: "var(--color-muted-fg)" }}>
                 Aktif banka bilgisi tanımlanmamış.
               </p>
             )}
             <p
               className="mt-2 text-xs flex items-center gap-1"
-              style={{ color: 'var(--color-muted-fg)' }}
+              style={{ color: "var(--color-muted-fg)" }}
             >
-              <ShieldAlert className="h-3.5 w-3.5" /> Tam IBAN yalnızca yetkili finans
-              admin tarafından görülebilir.
+              <ShieldAlert className="h-3.5 w-3.5" /> Tam IBAN yalnızca yetkili
+              finans admin tarafından görülebilir.
             </p>
           </div>
+        </TabsContent>
+
+        {/* KYC Belgeler */}
+        <TabsContent value="kyc" className="mt-5">
+          {kycDocuments.length === 0 ? (
+            <div
+              className="rounded-xl border px-5 py-10 text-center"
+              style={{
+                borderColor: "var(--color-border)",
+                backgroundColor: "var(--color-surface)",
+              }}
+            >
+              <FileText
+                className="mx-auto h-8 w-8 mb-2"
+                style={{ color: "var(--color-muted-fg)" }}
+              />
+              <p className="text-sm" style={{ color: "var(--color-muted-fg)" }}>
+                Bu satıcı henüz belge yüklemedi.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {kycDocuments.map((doc) => {
+                const statusIcon =
+                  doc.status === "approved" ? (
+                    <CheckCircle2
+                      className="h-4 w-4"
+                      style={{ color: "var(--color-success)" }}
+                    />
+                  ) : doc.status === "rejected" ? (
+                    <XCircle
+                      className="h-4 w-4"
+                      style={{ color: "var(--color-destructive)" }}
+                    />
+                  ) : (
+                    <Clock
+                      className="h-4 w-4"
+                      style={{ color: "var(--color-warning)" }}
+                    />
+                  );
+
+                const statusLabel =
+                  doc.status === "approved"
+                    ? "Onaylandı"
+                    : doc.status === "rejected"
+                      ? "Reddedildi"
+                      : "İnceleniyor";
+
+                const TYPE_LABELS: Record<string, string> = {
+                  identity: "Kimlik Belgesi",
+                  tax_certificate: "Vergi Levhası",
+                  trade_registry: "Ticaret Sicil Gazetesi",
+                  signature_circular: "İmza Sirküleri",
+                  bank_statement: "Banka Hesap Cüzdanı",
+                  other: "Diğer Belge",
+                };
+
+                return (
+                  <div
+                    key={doc.id}
+                    className="rounded-xl border p-4 space-y-3"
+                    style={{
+                      borderColor:
+                        doc.status === "pending"
+                          ? "var(--color-warning)"
+                          : "var(--color-border)",
+                      backgroundColor: "var(--color-surface)",
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <FileText
+                        className="h-5 w-5 mt-0.5 flex-shrink-0"
+                        style={{ color: "var(--color-muted-fg)" }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p
+                            className="text-sm font-medium"
+                            style={{ color: "var(--color-primary)" }}
+                          >
+                            {TYPE_LABELS[doc.type] ?? doc.type}
+                          </p>
+                          <span className="inline-flex items-center gap-1 text-xs">
+                            {statusIcon} {statusLabel}
+                          </span>
+                        </div>
+                        <p
+                          className="text-xs mt-0.5"
+                          style={{ color: "var(--color-muted-fg)" }}
+                        >
+                          {doc.fileName} ·{" "}
+                          {new Date(doc.createdAt).toLocaleDateString("tr-TR", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                        {doc.adminNote && (
+                          <p
+                            className="text-xs mt-1 italic"
+                            style={{ color: "var(--color-muted-fg)" }}
+                          >
+                            Not: {doc.adminNote}
+                          </p>
+                        )}
+                      </div>
+                      <a
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-shrink-0 rounded p-1.5 hover:bg-black/5"
+                        title="Belgeyi görüntüle"
+                      >
+                        <ExternalLink
+                          className="h-4 w-4"
+                          style={{ color: "var(--color-muted-fg)" }}
+                        />
+                      </a>
+                    </div>
+                    {doc.status === "pending" && (
+                      <div className="pt-1">
+                        <DocumentReviewActions documentId={doc.id} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
 
         {/* Finans */}
@@ -244,59 +470,77 @@ export default async function SellerDetailPage({ params }: Props) {
           <div
             className="rounded-xl border p-5"
             style={{
-              borderColor: 'var(--color-border)',
-              backgroundColor: 'var(--color-surface)',
+              borderColor: "var(--color-border)",
+              backgroundColor: "var(--color-surface)",
             }}
           >
-            <h3 className="mb-4 font-semibold" style={{ color: 'var(--color-primary)' }}>
+            <h3
+              className="mb-4 font-semibold"
+              style={{ color: "var(--color-primary)" }}
+            >
               Cari Hesap Özeti
             </h3>
             <Separator className="mb-4" />
-            <dl className="divide-y text-sm" style={{ borderColor: 'var(--color-border)' }}>
+            <dl
+              className="divide-y text-sm"
+              style={{ borderColor: "var(--color-border)" }}
+            >
               {[
                 {
-                  label: 'Toplam Komisyon Kesintisi',
-                  value: `-₺${commissionTotal.toLocaleString('tr-TR')}`,
+                  label: "Toplam Komisyon Kesintisi",
+                  value: `-₺${commissionTotal.toLocaleString("tr-TR")}`,
                   danger: commissionTotal > 0,
                 },
                 {
-                  label: 'Toplam Ceza Kesintisi',
-                  value: penaltyTotal > 0 ? `-₺${penaltyTotal.toLocaleString('tr-TR')}` : '—',
+                  label: "Toplam Ceza Kesintisi",
+                  value:
+                    penaltyTotal > 0
+                      ? `-₺${penaltyTotal.toLocaleString("tr-TR")}`
+                      : "—",
                   danger: penaltyTotal > 0,
                 },
                 {
-                  label: 'Beklemede (Hold + Bloke)',
-                  value: pendingPayout > 0 ? `₺${pendingPayout.toLocaleString('tr-TR')}` : '—',
+                  label: "Beklemede (Hold + Bloke)",
+                  value:
+                    pendingPayout > 0
+                      ? `₺${pendingPayout.toLocaleString("tr-TR")}`
+                      : "—",
                   danger: false,
                 },
                 {
-                  label: 'Ödenmeye Hazır',
-                  value: readyPayout > 0 ? `₺${readyPayout.toLocaleString('tr-TR')}` : '—',
+                  label: "Ödenmeye Hazır",
+                  value:
+                    readyPayout > 0
+                      ? `₺${readyPayout.toLocaleString("tr-TR")}`
+                      : "—",
                   danger: false,
                 },
                 {
-                  label: 'Ödenen Hakediş',
-                  value: paidPayout > 0 ? `₺${paidPayout.toLocaleString('tr-TR')}` : '—',
+                  label: "Ödenen Hakediş",
+                  value:
+                    paidPayout > 0
+                      ? `₺${paidPayout.toLocaleString("tr-TR")}`
+                      : "—",
                   danger: false,
                 },
                 {
-                  label: 'Ledger Bakiyesi',
+                  label: "Ledger Bakiyesi",
                   value: isNegativeBalance
-                    ? `-₺${Math.abs(ledgerBalance).toLocaleString('tr-TR')}`
+                    ? `-₺${Math.abs(ledgerBalance).toLocaleString("tr-TR")}`
                     : ledgerBalance > 0
-                    ? `₺${ledgerBalance.toLocaleString('tr-TR')}`
-                    : '₺0',
+                      ? `₺${ledgerBalance.toLocaleString("tr-TR")}`
+                      : "₺0",
                   danger: isNegativeBalance,
                 },
               ].map(({ label, value, danger }) => (
                 <div key={label} className="flex justify-between py-3">
-                  <dt style={{ color: 'var(--color-muted-fg)' }}>{label}</dt>
+                  <dt style={{ color: "var(--color-muted-fg)" }}>{label}</dt>
                   <dd
                     className="font-medium"
                     style={{
                       color: danger
-                        ? 'var(--color-destructive)'
-                        : 'var(--color-primary)',
+                        ? "var(--color-destructive)"
+                        : "var(--color-primary)",
                     }}
                   >
                     {value}
@@ -312,71 +556,82 @@ export default async function SellerDetailPage({ params }: Props) {
           <div
             className="rounded-xl border overflow-hidden"
             style={{
-              borderColor: 'var(--color-border)',
-              backgroundColor: 'var(--color-surface)',
+              borderColor: "var(--color-border)",
+              backgroundColor: "var(--color-surface)",
             }}
           >
             {penalties.length === 0 ? (
-              <p className="p-6 text-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+              <p
+                className="p-6 text-center text-sm"
+                style={{ color: "var(--color-muted-fg)" }}
+              >
                 Ceza kaydı yok.
               </p>
             ) : (
               <table className="w-full text-sm">
-                <thead style={{ backgroundColor: 'var(--color-muted)' }}>
+                <thead style={{ backgroundColor: "var(--color-muted)" }}>
                   <tr>
-                    {['Sipariş', 'Tutar', 'Sebep', 'Tarih', 'Durum'].map((h) => (
-                      <th
-                        key={h}
-                        className="px-4 py-3 text-left text-xs font-semibold"
-                        style={{ color: 'var(--color-muted-fg)' }}
-                      >
-                        {h}
-                      </th>
-                    ))}
+                    {["Sipariş", "Tutar", "Sebep", "Tarih", "Durum"].map(
+                      (h) => (
+                        <th
+                          key={h}
+                          className="px-4 py-3 text-left text-xs font-semibold"
+                          style={{ color: "var(--color-muted-fg)" }}
+                        >
+                          {h}
+                        </th>
+                      ),
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {penalties.map((p) => {
                     const amount =
-                      typeof p.penaltyAmount === 'object'
+                      typeof p.penaltyAmount === "object"
                         ? (p.penaltyAmount as { toNumber(): number }).toNumber()
-                        : Number(p.penaltyAmount)
+                        : Number(p.penaltyAmount);
                     return (
                       <tr
                         key={p.id}
                         className="border-t"
-                        style={{ borderColor: 'var(--color-border)' }}
+                        style={{ borderColor: "var(--color-border)" }}
                       >
                         <td className="px-4 py-3">
                           <Link
                             href={`/siparisler/${p.orderId}`}
                             className="hover:underline font-medium"
-                            style={{ color: 'var(--color-accent)' }}
+                            style={{ color: "var(--color-accent)" }}
                           >
                             #{p.orderId.slice(-8).toUpperCase()}
                           </Link>
                         </td>
                         <td
                           className="px-4 py-3 font-medium"
-                          style={{ color: 'var(--color-destructive)' }}
+                          style={{ color: "var(--color-destructive)" }}
                         >
-                          ₺{amount.toLocaleString('tr-TR')}
+                          ₺{amount.toLocaleString("tr-TR")}
                         </td>
-                        <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
+                        <td
+                          className="px-4 py-3"
+                          style={{ color: "var(--color-muted-fg)" }}
+                        >
                           {p.reason}
                         </td>
-                        <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                          {new Date(p.createdAt).toLocaleDateString('tr-TR', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
+                        <td
+                          className="px-4 py-3"
+                          style={{ color: "var(--color-muted-fg)" }}
+                        >
+                          {new Date(p.createdAt).toLocaleDateString("tr-TR", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
                           })}
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={p.status as never} />
                         </td>
                       </tr>
-                    )
+                    );
                   })}
                 </tbody>
               </table>
@@ -385,5 +640,5 @@ export default async function SellerDetailPage({ params }: Props) {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

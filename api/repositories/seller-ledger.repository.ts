@@ -1,5 +1,13 @@
 import type { LedgerEntryType, PrismaClient } from '@prisma/client'
-import type { Decimal } from '@prisma/client/runtime/client'
+import { Decimal } from '@prisma/client/runtime/client'
+
+type DecimalLike = Decimal | number | string | null | undefined
+
+export function coerceDecimal(value: DecimalLike): Decimal {
+  if (value instanceof Decimal) return value
+  if (value === null || value === undefined) return new Decimal(0)
+  return new Decimal(value)
+}
 
 export function createSellerLedgerRepository(prisma: PrismaClient) {
   return {
@@ -10,25 +18,41 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
       sellerId: string
       type: LedgerEntryType
       amount: Decimal
+      referenceType?: string
+      referenceId?: string
+      description?: string
       orderId?: string
       payoutId?: string
       penaltyId?: string
       note?: string
       createdBy?: string
-    }) {
-      // exactOptionalPropertyTypes: filter undefined values before Prisma create
-      const payload: Record<string, unknown> = {
-        sellerId: data.sellerId,
-        type: data.type,
-        amount: data.amount,
-      }
-      if (data.orderId !== undefined) payload.orderId = data.orderId
-      if (data.payoutId !== undefined) payload.payoutId = data.payoutId
-      if (data.penaltyId !== undefined) payload.penaltyId = data.penaltyId
-      if (data.note !== undefined) payload.note = data.note
-      if (data.createdBy !== undefined) payload.createdBy = data.createdBy
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return prisma.sellerLedgerEntry.create({ data: payload as any })
+    }, tx?: PrismaClient) {
+      const client = tx ?? prisma
+      return client.sellerLedgerEntry.aggregate({
+        where: { sellerId: data.sellerId },
+        _sum: { amount: true },
+      }).then((result) => {
+        const previousBalance = coerceDecimal(result._sum.amount)
+        const balanceAfter = previousBalance.plus(coerceDecimal(data.amount))
+        const referenceType =
+          data.referenceType ??
+          (data.orderId ? 'order' : data.payoutId ? 'payout' : data.penaltyId ? 'penalty' : 'manual')
+        const referenceId = data.referenceId ?? data.orderId ?? data.payoutId ?? data.penaltyId ?? 'manual'
+        const description = data.description ?? data.note
+
+        return client.sellerLedgerEntry.create({
+          data: {
+            sellerId: data.sellerId,
+            type: data.type,
+            amount: data.amount,
+            balanceAfter,
+            referenceType,
+            referenceId,
+            ...(description !== undefined ? { description } : {}),
+            ...(data.createdBy !== undefined ? { createdBy: data.createdBy } : {}),
+          },
+        })
+      })
     },
 
     /**
@@ -44,7 +68,7 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
         _count: { id: true },
       })
       return {
-        balance: result._sum.amount ?? (0 as unknown as Decimal),
+        balance: coerceDecimal(result._sum.amount),
         entries: result._count.id,
       }
     },
@@ -52,6 +76,8 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
     listBySeller(params: {
       sellerId: string
       type?: LedgerEntryType
+      from?: Date
+      to?: Date
       skip?: number
       take?: number
     }) {
@@ -59,10 +85,62 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
         where: {
           sellerId: params.sellerId,
           ...(params.type !== undefined ? { type: params.type } : {}),
+          ...((params.from !== undefined || params.to !== undefined)
+            ? {
+                createdAt: {
+                  ...(params.from !== undefined ? { gte: params.from } : {}),
+                  ...(params.to !== undefined ? { lte: params.to } : {}),
+                },
+              }
+            : {}),
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         ...(params.skip !== undefined ? { skip: params.skip } : {}),
         take: params.take ?? 30,
+      })
+    },
+
+    async getOpeningBalance(sellerId: string, before: Date) {
+      const result = await prisma.sellerLedgerEntry.aggregate({
+        where: {
+          sellerId,
+          createdAt: { lt: before },
+        },
+        _sum: { amount: true },
+      })
+
+      return coerceDecimal(result._sum.amount)
+    },
+
+    async getPenaltyDeducted(sellerId: string) {
+      const result = await prisma.sellerLedgerEntry.aggregate({
+        where: {
+          sellerId,
+          OR: [
+            { type: 'penalty' },
+            { referenceType: 'penalty' },
+          ],
+        },
+        _sum: { amount: true },
+      })
+
+      const total = coerceDecimal(result._sum?.amount)
+      return total.lessThan(0) ? total.negated() : total
+    },
+
+    findByReference(params: {
+      sellerId: string
+      type?: LedgerEntryType
+      referenceType: string
+      referenceId: string
+    }) {
+      return prisma.sellerLedgerEntry.findFirst({
+        where: {
+          sellerId: params.sellerId,
+          referenceType: params.referenceType,
+          referenceId: params.referenceId,
+          ...(params.type !== undefined ? { type: params.type } : {}),
+        },
       })
     },
 

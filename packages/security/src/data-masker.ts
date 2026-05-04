@@ -35,6 +35,27 @@ export function maskEmail(email: string): string {
   return `${visible}***@${domain}`
 }
 
+// ── Customer name ─────────────────────────────────────────────────────────────
+
+/**
+ * Masks a customer name to first name + last name initial.
+ * Used in seller-facing surfaces so sellers cannot collect full identity.
+ * "Ahmet Yılmaz" → "Ahmet Y."
+ * "Ali Veli Doğan" → "Ali D." (last token's initial)
+ * "Ahmet" → "Ahmet"
+ */
+export function maskCustomerName(name: string | null | undefined): string {
+  if (!name) return '-'
+  const trimmed = name.trim()
+  if (trimmed.length === 0) return '-'
+  const parts = trimmed.split(/\s+/)
+  if (parts.length === 1) return parts[0] ?? '-'
+  const first = parts[0] ?? ''
+  const last = parts[parts.length - 1] ?? ''
+  const initial = last.charAt(0).toUpperCase()
+  return `${first} ${initial}.`
+}
+
 // ── Phone ─────────────────────────────────────────────────────────────────────
 
 /**

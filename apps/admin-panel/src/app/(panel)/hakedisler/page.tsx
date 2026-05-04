@@ -46,7 +46,7 @@ export default async function PayoutsAdminPage() {
   const rows = payouts as unknown as PayoutRow[]
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-testid="admin-payouts-page">
       <PageHeader title="Hakedişler" description="Satıcı hakediş durumları ve ödemeler" />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

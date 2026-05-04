@@ -13,6 +13,7 @@ import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.r
 import { isWithinReturnWindow } from '../domain/penalty-calculator'
 import { assertTransition } from '../domain/order-state-machine'
 import { refundPayment as iyzicoRefund } from '../lib/iyzico'
+import { assertNoContactSharing } from './contact-sharing-guard.service'
 
 interface ReturnServiceDeps {
   prisma: PrismaClient
@@ -208,6 +209,8 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
       if (returnRequest.status === 'rejected' || returnRequest.status === 'refund_completed') {
         throw new ConflictError('Kapalı iade talebine mesaj eklenemez')
       }
+
+      assertNoContactSharing(params.body)
 
       return prisma.returnMessage.create({
         data: {

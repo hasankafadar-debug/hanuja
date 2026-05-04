@@ -17,13 +17,19 @@
  */
 import crypto from 'node:crypto'
 
-// iyzipay is a CommonJS package with no official TypeScript declarations.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const Iyzipay = require('iyzipay') as new (opts: {
+type IyzipayConstructor = new (opts: {
   apiKey: string
   secretKey: string
   uri: string
 }) => IyzipayInstance
+
+// iyzipay is CommonJS and triggers webpack warnings when statically analyzed.
+// Load it lazily only when a payment/refund action actually runs.
+function loadIyzipay(): IyzipayConstructor {
+  // eslint-disable-next-line no-eval
+  const runtimeRequire = eval('require') as NodeRequire
+  return runtimeRequire('iyzipay') as IyzipayConstructor
+}
 
 // ─── Internal types for the iyzipay SDK ─────────────────────────────────────
 
@@ -152,6 +158,7 @@ function createClient(): IyzipayInstance {
   if (!process.env.IYZICO_API_KEY || !process.env.IYZICO_SECRET_KEY) {
     throw new Error('IYZICO_API_KEY veya IYZICO_SECRET_KEY tanımlı değil')
   }
+  const Iyzipay = loadIyzipay()
   return new Iyzipay({
     apiKey: process.env.IYZICO_API_KEY,
     secretKey: process.env.IYZICO_SECRET_KEY,

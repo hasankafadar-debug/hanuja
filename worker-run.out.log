@@ -1,0 +1,9 @@
+
+
+> hanuja@0.1.0 worker C:\Users\Hasan\Desktop\Claude marketplace
+> tsx api/worker.ts
+
+[worker] Starting Hanuja BullMQ workers...
+[workers] Started 8 BullMQ workers
+[worker] All workers running. Waiting for jobs...
+ ELIFECYCLE  Command failed with exit code 1073807364.

@@ -6,6 +6,8 @@
  * All amounts are formatted as Turkish Lira (₺).
  */
 
+import { PLATFORM_LEGAL_INFO } from '../platform-info'
+
 export interface EmailTemplate {
   subject: string
   html: string
@@ -39,7 +41,7 @@ function layout(title: string, body: string): string {
           <td style="background:#f9f9f9;padding:16px 32px;border-top:1px solid #eeeeee;">
             <p style="margin:0;font-size:12px;color:#999999;">
               Bu e-posta Hanuja tarafından otomatik olarak gönderilmiştir.
-              Sorularınız için <a href="mailto:destek@hanuja.com" style="color:#999999;">destek@hanuja.com</a> adresine ulaşabilirsiniz.
+              Sorularınız için <a href="mailto:${PLATFORM_LEGAL_INFO.supportEmail}" style="color:#999999;">${PLATFORM_LEGAL_INFO.supportEmail}</a> adresine ulaşabilirsiniz.
             </p>
           </td>
         </tr>
@@ -56,6 +58,14 @@ export function orderConfirmationTemplate(params: {
   orderNumber: string
   totalAmount: string
   items: Array<{ name: string; quantity: number; price: string }>
+  paymentMethod: 'card' | 'eft'
+  bankTransferInstructions?: {
+    bankName: string
+    accountHolder: string
+    iban: string
+    reference: string
+    missing?: boolean
+  }
 }): EmailTemplate {
   const itemRows = params.items
     .map(
@@ -68,12 +78,47 @@ export function orderConfirmationTemplate(params: {
     )
     .join('')
 
+  const paymentLabel = params.paymentMethod === 'eft' ? 'Havale / EFT' : 'Kredi Kartı'
+  const bankInstructions =
+    params.paymentMethod === 'eft'
+      ? params.bankTransferInstructions?.missing
+        ? `
+    <p style="margin:16px 0 0;font-size:14px;color:#555;">
+      Banka bilgileri için lütfen destek ekibimizle iletişime geçin.
+    </p>
+  `
+        : `
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f9f9;border-radius:6px;padding:16px;margin:16px 0 24px;">
+      <tr>
+        <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Banka:</strong></td>
+        <td style="font-size:14px;color:#333;padding:6px 0;">${params.bankTransferInstructions?.bankName ?? '-'}</td>
+      </tr>
+      <tr>
+        <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Hesap Sahibi:</strong></td>
+        <td style="font-size:14px;color:#333;padding:6px 0;">${params.bankTransferInstructions?.accountHolder ?? '-'}</td>
+      </tr>
+      <tr>
+        <td style="font-size:14px;color:#555;padding:6px 0;"><strong>IBAN:</strong></td>
+        <td style="font-size:14px;color:#333;padding:6px 0;"><strong>${params.bankTransferInstructions?.iban ?? '-'}</strong></td>
+      </tr>
+      <tr>
+        <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Açıklama / Referans:</strong></td>
+        <td style="font-size:14px;color:#333;padding:6px 0;">${params.bankTransferInstructions?.reference ?? params.orderNumber}</td>
+      </tr>
+    </table>
+    <p style="margin:0 0 24px;font-size:14px;color:#555;">
+      Ödemeniz onaylandıktan sonra siparişiniz hazırlanmaya başlanacaktır.
+    </p>
+  `
+      : ''
+
   const body = `
     <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Siparişiniz Alındı</h2>
     <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${params.customerName},</p>
     <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${params.orderNumber}</strong> numaralı siparişinizi aldık. Ödemeniz onaylandıktan sonra satıcıya iletilecektir.
+      <strong>#${params.orderNumber}</strong> numaralı siparişinizi aldık.
     </p>
+    <p style="margin:0 0 12px;font-size:14px;color:#555;"><strong>Ödeme Yöntemi:</strong> ${paymentLabel}</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
       <thead>
         <tr>
@@ -84,13 +129,14 @@ export function orderConfirmationTemplate(params: {
       </thead>
       <tbody>${itemRows}</tbody>
     </table>
+    ${bankInstructions}
     <p style="text-align:right;font-size:16px;font-weight:bold;color:#1a1a1a;">Toplam: ${params.totalAmount}</p>
   `
 
   return {
     subject: `Siparişiniz Alındı — #${params.orderNumber}`,
     html: layout('Siparişiniz Alındı', body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişinizi aldık. Toplam: ${params.totalAmount}`,
+    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişinizi aldık. Ödeme yöntemi: ${paymentLabel}. Toplam: ${params.totalAmount}${params.paymentMethod === 'eft' ? ` Referans: ${params.bankTransferInstructions?.reference ?? params.orderNumber}.` : ''}`,
   }
 }
 
@@ -148,6 +194,26 @@ export function deliveryConfirmedTemplate(params: {
 }
 
 /** Return request confirmation — sent to customer */
+export function invoiceUploadedTemplate(params: {
+  customerName: string
+  orderNumber: string
+}): EmailTemplate {
+  const body = `
+    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Faturanız Hazır</h2>
+    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${params.customerName},</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#555;">
+      <strong>#${params.orderNumber}</strong> numaralı siparişiniz için satıcı faturası yüklendi.
+      Faturanızı sipariş detayınızdan veya Faturalarım sayfasından görüntüleyebilirsiniz.
+    </p>
+  `
+
+  return {
+    subject: `Faturanız Hazır — #${params.orderNumber}`,
+    html: layout('Faturanız Hazır', body),
+    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişiniz için satıcı faturası yüklendi. Faturanızı hesabınızdan görüntüleyebilirsiniz.`,
+  }
+}
+
 export function returnRequestTemplate(params: {
   customerName: string
   orderNumber: string
@@ -242,3 +308,7 @@ export function penaltyAppliedTemplate(params: {
     text: `Merhaba ${params.sellerName}, #${params.orderNumber} için ${params.penaltyAmount} ceza uygulandı. Sebep: ${params.penaltyReason}`,
   }
 }
+
+export { sellerApprovalTemplate } from './seller-approval'
+export { sellerPasswordResetTemplate } from './seller-password-reset'
+export { sellerDocumentsRequestedTemplate } from './seller-documents-requested'

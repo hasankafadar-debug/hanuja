@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Input, Label, Spinner } from '@hanuja/ui'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface UserProfile {
   id: string
@@ -36,7 +37,7 @@ export default function AccountProfilePage() {
     setError(null)
     setSuccess(false)
     try {
-      const res = await fetch('/api/user/profile', {
+      const res = await csrfFetch('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: form.name }),

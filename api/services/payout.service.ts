@@ -6,8 +6,6 @@
  * - 30-day hold is mandatory after delivery_confirmed.
  * - Open return or dispute BLOCKS payout — no exceptions without admin override.
  * - All payout state changes are auditable.
- *
- * See: 07-marketplace-finance-rules.md, docs/07-operations/payout-lifecycle.md
  */
 import type { PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
@@ -18,6 +16,7 @@ import { createOrderLineRepository } from '../repositories/order-line.repository
 import { createSellerRepository } from '../repositories/seller.repository'
 import { createReturnRequestRepository } from '../repositories/return-request.repository'
 import { createDisputeRepository } from '../repositories/dispute.repository'
+import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import {
   calculateNetPayout,
@@ -32,7 +31,7 @@ interface PayoutServiceDeps {
 
 export function createPayoutService({
   prisma,
-  systemDefaultCommissionRate = new Decimal('0.10'), // 10% default
+  systemDefaultCommissionRate = new Decimal('0.10'),
 }: PayoutServiceDeps) {
   const payouts = createPayoutRepository(prisma)
   const orders = createOrderRepository(prisma)
@@ -40,14 +39,10 @@ export function createPayoutService({
   const sellers = createSellerRepository(prisma)
   const returnRequests = createReturnRequestRepository(prisma)
   const disputes = createDisputeRepository(prisma)
+  const ledger = createSellerLedgerRepository(prisma)
   const auditLog = createAdminAuditLogRepository(prisma)
 
   return {
-    /**
-     * Activate payout hold after delivery_confirmed.
-     * Creates the Payout record with initial deduction breakdown.
-     * Called by delivery.service after delivery_confirmed transition.
-     */
     async activateHold(params: {
       orderId: string
       deliveryConfirmedAt: Date
@@ -55,7 +50,6 @@ export function createPayoutService({
       const order = await orders.findById(params.orderId)
       if (!order) throw new NotFoundError('Order', params.orderId)
 
-      // Idempotency guard — don't create duplicate payout records
       const existing = await payouts.findByOrderId(params.orderId)
       if (existing) return existing
 
@@ -63,18 +57,12 @@ export function createPayoutService({
       if (!lines.length) throw new ConflictError('Sipariş kalemleri bulunamadı')
 
       const holdUntil = calculateHoldUntil(params.deliveryConfirmedAt)
-
-      // Create one payout per seller if multi-seller order
-      const sellerIds = [...new Set(lines.map((l) => l.sellerId))]
+      const sellerIds = [...new Set(lines.map((line) => line.sellerId))]
       const created = []
 
       for (const sellerId of sellerIds) {
-        const sellerLines = lines.filter((l) => l.sellerId === sellerId)
-        const grossAmount = sellerLines.reduce(
-          (sum, l) => sum.plus(l.totalPrice),
-          new Decimal(0),
-        )
-
+        const sellerLines = lines.filter((line) => line.sellerId === sellerId)
+        const grossAmount = sellerLines.reduce((sum, line) => sum.plus(line.totalPrice), new Decimal(0))
         const commissionAmount = grossAmount.mul(systemDefaultCommissionRate).toDecimalPlaces(2)
         const couponShareAmount = new Decimal(0)
         const cargoChargeAmount = new Decimal(0)
@@ -94,38 +82,72 @@ export function createPayoutService({
           adjustmentAmount,
         })
 
-        const payout = await payouts.create({
-          sellerId,
-          orderId: params.orderId,
-          grossAmount,
-          commissionAmount,
-          couponShareAmount,
-          cargoChargeAmount,
-          adFeeAmount,
-          penaltyAmount,
-          refundAmount,
-          adjustmentAmount,
-          netAmount,
-          holdStartedAt: params.deliveryConfirmedAt,
-          holdUntil,
-        })
+        created.push(
+          await payouts.create({
+            sellerId,
+            orderId: params.orderId,
+            grossAmount,
+            commissionAmount,
+            couponShareAmount,
+            cargoChargeAmount,
+            adFeeAmount,
+            penaltyAmount,
+            refundAmount,
+            adjustmentAmount,
+            netAmount,
+            holdStartedAt: params.deliveryConfirmedAt,
+            holdUntil,
+          }).then(async (payout) => {
+            const saleEntry = await ledger.findByReference({
+              sellerId,
+              type: 'sale',
+              referenceType: 'order',
+              referenceId: params.orderId,
+            })
+            if (!saleEntry) {
+              await ledger.createEntry({
+                sellerId,
+                type: 'sale',
+                amount: grossAmount,
+                referenceType: 'order',
+                referenceId: params.orderId,
+                description: 'Brut satis',
+              })
+            }
 
-        created.push(payout)
+            const commissionEntry = await ledger.findByReference({
+              sellerId,
+              type: 'commission',
+              referenceType: 'payout',
+              referenceId: payout.id,
+            })
+            if (!commissionEntry && commissionAmount.gt(0)) {
+              await ledger.createEntry({
+                sellerId,
+                type: 'commission',
+                amount: commissionAmount.negated(),
+                referenceType: 'payout',
+                referenceId: payout.id,
+                description: 'Platform komisyonu',
+              })
+            }
+
+            return payout
+          }),
+        )
       }
 
       return created
     },
 
-    /**
-     * Check if a payout is ready for release.
-     * Returns null if blocked, or payout record if ready.
-     */
     async checkReadiness(payoutId: string) {
       const payout = await payouts.findById(payoutId)
       if (!payout) throw new NotFoundError('Payout', payoutId)
 
       if (payout.status === 'payout_paid') return { ready: false, reason: 'already_paid' }
-      if (payout.status === 'payout_blocked') return { ready: false, reason: payout.blockedReason ?? 'blocked' }
+      if (payout.status === 'payout_blocked') {
+        return { ready: false, reason: payout.blockedReason ?? 'blocked' }
+      }
 
       if (!payout.holdUntil || !isHoldExpired(payout.holdUntil)) {
         return {
@@ -134,13 +156,11 @@ export function createPayoutService({
         }
       }
 
-      const openReturns = await returnRequests.countOpenByOrderId(payout.orderId)
-      if (openReturns > 0) {
+      if (await returnRequests.countOpenByOrderId(payout.orderId)) {
         return { ready: false, reason: 'Açık iade talebi var' }
       }
 
-      const openDisputes = await disputes.countOpenByOrderId(payout.orderId)
-      if (openDisputes > 0) {
+      if (await disputes.countOpenByOrderId(payout.orderId)) {
         return { ready: false, reason: 'Açık uyuşmazlık var' }
       }
 
@@ -149,13 +169,36 @@ export function createPayoutService({
         return { ready: false, reason: 'Satıcı hesabı aktif değil' }
       }
 
+      const activeBankDetail = await prisma.sellerBankDetail.findFirst({
+        where: {
+          sellerId: payout.sellerId,
+          isActive: true,
+          status: 'ACTIVE',
+          isVerified: true,
+        },
+        select: { id: true },
+      })
+      if (!activeBankDetail) {
+        return { ready: false, reason: 'Doğrulanmış aktif banka hesabı bulunamadı' }
+      }
+
+      const pendingOrBlockedChange = await prisma.sellerBankDetail.findFirst({
+        where: {
+          sellerId: payout.sellerId,
+          status: { in: ['PENDING_ACTIVATION', 'BLOCKED'] },
+        },
+        select: { status: true },
+      })
+      if (pendingOrBlockedChange) {
+        return {
+          ready: false,
+          reason: `Banka hesabı değişikliği incelemede: ${pendingOrBlockedChange.status}`,
+        }
+      }
+
       return { ready: true, payout }
     },
 
-    /**
-     * Release payout hold — admin action, fully auditable.
-     * Only proceeds if readiness check passes.
-     */
     async release(params: {
       payoutId: string
       adminActorId: string
@@ -182,9 +225,6 @@ export function createPayoutService({
       return updated
     },
 
-    /**
-     * Block payout — admin action (open dispute, fraud, etc).
-     */
     async block(params: {
       payoutId: string
       adminActorId: string
@@ -208,9 +248,6 @@ export function createPayoutService({
       return updated
     },
 
-    /**
-     * Mark payout as paid — called after bank transfer is processed.
-     */
     async markPaid(params: {
       payoutId: string
       adminActorId: string
@@ -225,12 +262,33 @@ export function createPayoutService({
 
       const updated = await payouts.markPaid(params.payoutId, params.batchId)
 
+      const payoutLedgerEntry = await ledger.findByReference({
+        sellerId: payout.sellerId,
+        type: 'payout',
+        referenceType: 'payout',
+        referenceId: payout.id,
+      })
+      if (!payoutLedgerEntry) {
+        await ledger.createEntry({
+          sellerId: payout.sellerId,
+          type: 'payout',
+          amount: payout.netAmount.negated(),
+          referenceType: 'payout',
+          referenceId: payout.id,
+          description: 'EFT',
+          createdBy: params.adminActorId,
+        })
+      }
+
       await auditLog.createEntry({
         actorId: params.adminActorId,
         actionType: 'payout_released',
         targetType: 'payout',
         targetId: params.payoutId,
-        newData: { paidAt: new Date(), ...(params.batchId !== undefined ? { batchId: params.batchId } : {}) },
+        newData: {
+          paidAt: new Date(),
+          ...(params.batchId !== undefined ? { batchId: params.batchId } : {}),
+        },
       })
 
       return updated

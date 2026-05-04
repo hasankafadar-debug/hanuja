@@ -1,0 +1,109 @@
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+ ⨯ ../../api/jobs/notification-dispatch.job.ts
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts
+    1: Sistem belirtilen dosyayı bulamıyor. (os error 2)
+
+Import trace for requested module:
+../../api/jobs/notification-dispatch.job.ts
+../../api/services/notification.service.ts
+../../api/services/support-ticket.service.ts
+./src/app/(panel)/destek/page.tsx
+ ⨯ ../../api/services/notification.service.ts
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\Hasan\Desktop\Claude marketplace\api\services\notification.service.ts
+    1: Sistem belirtilen dosyayı bulamıyor. (os error 2)
+
+Import trace for requested module:
+../../api/services/notification.service.ts
+../../api/services/support-ticket.service.ts
+./src/app/(panel)/destek/page.tsx
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+ ⨯ [TypeError: controller[kState].transformAlgorithm is not a function] {
+  digest: '1176623973'
+}
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+SyntaxError: Unexpected end of JSON input
+    at JSON.parse (<anonymous>)
+    at POST (src\app\api\turnstile-verify\route.ts:5:27)
+  3 |
+  4 | export async function POST(req: NextRequest) {
+> 5 |   const body = (await req.json()) as { token?: string; action?: string }
+    |                           ^
+  6 |   const token = body.token ?? ''
+  7 |   const action = body.action
+  8 |   const rawIp =
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.

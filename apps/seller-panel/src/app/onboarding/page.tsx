@@ -1,96 +1,97 @@
-/**
- * Seller Onboarding — 3-step form.
- *
- * Step 1: Mağaza Bilgileri (store name, slug, description)
- * Step 2: İşletme Bilgileri (company type, tax number, address)
- * Step 3: Banka Bilgileri (IBAN, account holder name)
- *
- * On completion: POST /api/seller/onboarding → creates Seller record,
- * sets user role to "seller", redirects to /panel.
- *
- * Security: This page is only reachable by authenticated users without
- * a seller role (enforced in middleware.ts).
- */
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { TurnstileWidget } from '@hanuja/ui'
+import { hasMatchingNormalizedTokens } from '@hanuja/security'
+import { authClient, useSession } from '@/lib/auth-client'
+import {
+  type CompanyType,
+  getTaxNumberFieldMeta,
+  normalizePhone,
+  normalizeTaxNumber,
+  validateBusinessStep,
+  validateContactStep,
+} from '@/lib/onboarding'
 
-type CompanyType = 'individual' | 'sole_proprietorship' | 'limited' | 'joint_stock' | 'other'
-
-interface StepMagaza {
-  storeName: string
-  slug: string
-  description: string
+type StepMagaza = {
   city: string
+  description: string
+  slug: string
+  storeName: string
 }
 
-interface StepIsletme {
-  companyType: CompanyType
-  companyName: string
-  taxNumber: string
-  taxOffice: string
+type StepIsletme = {
   address: string
   city: string
+  companyName: string
+  companyType: CompanyType
   district: string
+  mersis: string
   postalCode: string
+  taxNumber: string
+  taxOffice: string
 }
 
-interface StepBanka {
+type StepBanka = {
   accountHolderName: string
-  iban: string
   bankName: string
+  iban: string
 }
 
-const STEPS = ['Mağaza', 'İşletme', 'Banka'] as const
+type SessionUser = {
+  email?: string
+  emailVerified?: boolean
+  phone?: string | null
+}
 
-function SlugInput({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (v: string) => void
-}) {
-  function normalize(raw: string) {
-    return raw
-      .toLowerCase()
-      .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
-      .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
+const STEPS = ['Magaza', 'Isletme', 'Banka'] as const
 
-  return (
-    <div className="flex rounded-lg border border-neutral-300 overflow-hidden focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-neutral-900/10 transition">
-      <span className="px-3 py-2 bg-neutral-50 text-sm text-neutral-400 border-r border-neutral-300 whitespace-nowrap">
-        hanuja.com/magaza/
-      </span>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(normalize(e.target.value))}
-        placeholder="magazanim-adi"
-        className="flex-1 px-3 py-2 text-sm outline-none bg-white"
-        maxLength={60}
-      />
-    </div>
-  )
+function autoSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\u011f/g, 'g')
+    .replace(/\u00fc/g, 'u')
+    .replace(/\u015f/g, 's')
+    .replace(/\u0131/g, 'i')
+    .replace(/\u00f6/g, 'o')
+    .replace(/\u00e7/g, 'c')
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+function normalizeIban(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 26)
+}
+
+function formatIban(value: string): string {
+  return normalizeIban(value).replace(/(.{4})/g, '$1 ').trim()
 }
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { data: sessionData, isPending: sessionLoading } = useSession()
+
+  const sessionUser = (sessionData?.user ?? null) as SessionUser | null
+  const email = sessionUser?.email ?? ''
+  const emailVerified = Boolean(sessionUser?.emailVerified)
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+
   const [step, setStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendMessage, setResendMessage] = useState<string | null>(null)
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [phone, setPhone] = useState('')
   const [magaza, setMagaza] = useState<StepMagaza>({
     storeName: '',
     slug: '',
     description: '',
     city: '',
   })
-
   const [isletme, setIsletme] = useState<StepIsletme>({
     companyType: 'individual',
     companyName: '',
@@ -100,272 +101,511 @@ export default function OnboardingPage() {
     city: '',
     district: '',
     postalCode: '',
+    mersis: '',
   })
-
   const [banka, setBanka] = useState<StepBanka>({
     accountHolderName: '',
     iban: '',
     bankName: '',
   })
 
+  const verificationJustCompleted = searchParams.get('verified') === '1'
+  const taxField = getTaxNumberFieldMeta(isletme.companyType)
+
+  useEffect(() => {
+    if (sessionUser?.phone && !phone) {
+      setPhone(normalizePhone(sessionUser.phone))
+    }
+  }, [phone, sessionUser?.phone])
+
   function handleMagazaChange(field: keyof StepMagaza, value: string) {
     setMagaza((prev) => {
       const next = { ...prev, [field]: value }
-      // Auto-generate slug from storeName if slug hasn't been manually changed
-      if (field === 'storeName' && prev.slug === autoSlug(prev.storeName)) {
+
+      if (field === 'storeName' && (!prev.slug || prev.slug === autoSlug(prev.storeName))) {
         next.slug = autoSlug(value)
       }
+
       return next
     })
   }
 
-  function autoSlug(name: string) {
-    return name
-      .toLowerCase()
-      .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
-      .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
+  async function handleResendVerification() {
+    if (!email) {
+      setResendMessage('E-posta adresiniz okunamadi. Sayfayi yenileyip tekrar deneyin.')
+      return
+    }
+
+    setResendLoading(true)
+    setResendMessage(null)
+
+    try {
+      const result = await authClient.sendVerificationEmail({
+        email,
+        callbackURL: `${window.location.origin}/basvuru?verified=1`,
+      })
+
+      if (result?.error) {
+        setResendMessage(result.error.message ?? 'Doğrulama e-postası gönderilemedi.')
+        return
+      }
+
+      setResendMessage('Doğrulama e-postası tekrar gönderildi.')
+    } catch {
+      setResendMessage('Doğrulama e-postası gönderilemedi. Lütfen tekrar deneyin.')
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
+  function goToBusinessStep() {
+    if (!magaza.storeName || !magaza.slug || !magaza.description || !magaza.city) {
+      setError('Lütfen mağaza bilgilerini eksiksiz doldurun.')
+      return
+    }
+
+    const contactError = validateContactStep(phone, emailVerified)
+    if (contactError) {
+      setError(contactError)
+      return
+    }
+
+    setError(null)
+    setStep(1)
+  }
+
+  function goToBankStep() {
+    const businessError = validateBusinessStep({
+      address: isletme.address,
+      city: isletme.city,
+      companyName: isletme.companyName,
+      companyType: isletme.companyType,
+      district: isletme.district,
+      taxNumber: isletme.taxNumber,
+      taxOffice: isletme.taxOffice,
+    })
+
+    if (businessError) {
+      setError(businessError)
+      return
+    }
+
+    setError(null)
+    setStep(2)
   }
 
   async function handleSubmit() {
     setError(null)
-    setSubmitting(true)
 
-    // Normalize IBAN: remove spaces
-    const cleanIban = banka.iban.replace(/\s/g, '').toUpperCase()
-
-    const res = await fetch('/api/seller/onboarding', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ magaza, isletme, banka: { ...banka, iban: cleanIban } }),
-    })
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      setError(body.message ?? 'Bir hata oluştu. Lütfen tekrar deneyin.')
-      setSubmitting(false)
+    const contactError = validateContactStep(phone, emailVerified)
+    if (contactError) {
+      setError(contactError)
       return
     }
 
-    router.push('/panel?onboarding=success')
+    const businessError = validateBusinessStep({
+      address: isletme.address,
+      city: isletme.city,
+      companyName: isletme.companyName,
+      companyType: isletme.companyType,
+      district: isletme.district,
+      taxNumber: isletme.taxNumber,
+      taxOffice: isletme.taxOffice,
+    })
+
+    if (businessError) {
+      setError(businessError)
+      return
+    }
+
+    if (!banka.accountHolderName || !banka.iban || !banka.bankName) {
+      setError('Lütfen banka bilgilerini eksiksiz doldurun.')
+      return
+    }
+
+    if (!hasMatchingNormalizedTokens(banka.accountHolderName, isletme.companyName)) {
+      setError('IBAN hesap sahibi, şirket veya işletme adı ile aynı olmalı.')
+      return
+    }
+
+    if (!turnstileToken) {
+      setError('Başvuruyu göndermeden önce insan doğrulamasını tamamlayın.')
+      return
+    }
+
+    setSubmitting(true)
+
+    try {
+      const res = await fetch('/api/seller/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          magaza,
+          isletme: {
+            ...isletme,
+            taxNumber: normalizeTaxNumber(isletme.companyType, isletme.taxNumber),
+          },
+          banka: {
+            ...banka,
+            iban: normalizeIban(banka.iban),
+          },
+          phone: normalizePhone(phone),
+          turnstileToken,
+        }),
+      })
+
+      if (!res.ok) {
+        const raw = await res.text()
+        let message = 'Başvuru gönderilemedi. Lütfen tekrar deneyin.'
+
+        try {
+          const body = JSON.parse(raw) as { message?: string; error?: { message?: string } }
+          message = body.message ?? body.error?.message ?? message
+        } catch {
+          if (raw.trim()) {
+            message = raw
+          }
+        }
+
+        setError(message)
+        return
+      }
+
+      router.push('/basvuru/tesekkur')
+    } catch {
+      setError('Bağlantı hatası oluştu. Lütfen tekrar deneyin.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <div className="min-h-screen bg-neutral-50">
-      {/* Header */}
       <div className="border-b border-neutral-200 bg-white px-6 py-4">
         <p className="text-sm font-semibold text-neutral-900">Hanuja Satıcı Başvurusu</p>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-10">
-        {/* Progress */}
-        <div className="flex items-center gap-2 mb-10">
-          {STEPS.map((label, i) => (
-            <div key={label} className="flex items-center gap-2 flex-1 last:flex-none">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0 ${
-                i < step
-                  ? 'bg-neutral-900 text-white'
-                  : i === step
-                    ? 'border-2 border-neutral-900 text-neutral-900'
-                    : 'border-2 border-neutral-200 text-neutral-400'
-              }`}>
-                {i < step ? (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : (
-                  i + 1
-                )}
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <div className="mb-10 flex items-center gap-2">
+          {STEPS.map((label, index) => (
+            <div key={label} className="flex flex-1 items-center gap-2 last:flex-none">
+              <div
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium ${
+                  index < step
+                    ? 'bg-neutral-900 text-white'
+                    : index === step
+                      ? 'border-2 border-neutral-900 text-neutral-900'
+                      : 'border-2 border-neutral-200 text-neutral-400'
+                }`}
+              >
+                {index + 1}
               </div>
-              <span className={`text-sm ${i === step ? 'font-medium text-neutral-900' : 'text-neutral-400'}`}>
+              <span className={index === step ? 'text-sm font-medium text-neutral-900' : 'text-sm text-neutral-400'}>
                 {label}
               </span>
-              {i < STEPS.length - 1 && (
-                <div className={`flex-1 h-px ${i < step ? 'bg-neutral-900' : 'bg-neutral-200'}`} />
-              )}
+              {index < STEPS.length - 1 ? (
+                <div className={`h-px flex-1 ${index < step ? 'bg-neutral-900' : 'bg-neutral-200'}`} />
+              ) : null}
             </div>
           ))}
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-neutral-200 p-8">
-          {/* ── Step 0: Mağaza Bilgileri ─────────────────────────────────── */}
-          {step === 0 && (
+        <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
+          {verificationJustCompleted ? (
+            <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              E-posta adresiniz doğrulandı. Başvurunuza devam edebilirsiniz.
+            </div>
+          ) : null}
+
+          {step === 0 ? (
             <>
-              <h2 className="text-lg font-semibold text-neutral-900 mb-1">Mağaza Bilgileri</h2>
-              <p className="text-sm text-neutral-500 mb-6">Mağazanızın müşterilere görünecek bilgilerini girin.</p>
+              <h2 className="mb-1 text-lg font-semibold text-neutral-900">Mağaza ve İletişim Bilgileri</h2>
+              <p className="mb-6 text-sm text-neutral-500">
+                Mağazanızın görünecek bilgilerini ve zorunlu iletişim detaylarını girin.
+              </p>
 
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
                     Mağaza Adı <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    required
                     value={magaza.storeName}
-                    onChange={(e) => handleMagazaChange('storeName', e.target.value)}
+                    onChange={(event) => handleMagazaChange('storeName', event.target.value)}
                     maxLength={100}
-                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
                     placeholder="Örn: Atelier Noa"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
                     Mağaza URL'si <span className="text-red-500">*</span>
                   </label>
-                  <SlugInput
-                    value={magaza.slug}
-                    onChange={(v) => setMagaza((p) => ({ ...p, slug: v }))}
-                  />
+                  <div className="flex overflow-hidden rounded-lg border border-neutral-300 transition focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-neutral-900/10">
+                    <span className="whitespace-nowrap border-r border-neutral-300 bg-neutral-50 px-3 py-2 text-sm text-neutral-400">
+                      hanuja.com.tr/magaza/
+                    </span>
+                    <input
+                      type="text"
+                      value={magaza.slug}
+                      onChange={(event) =>
+                        setMagaza((prev) => ({ ...prev, slug: autoSlug(event.target.value) }))
+                      }
+                      placeholder="magazam"
+                      className="flex-1 px-3 py-2 text-sm outline-none"
+                      maxLength={60}
+                    />
+                  </div>
                   <p className="mt-1 text-xs text-neutral-400">
-                    Küçük harf, rakam ve tire kullanabilirsiniz. Sonradan değiştirilemez.
+                    Sadece küçük harf, rakam ve tire kullanabilirsiniz.
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
                     Mağaza Tanıtımı <span className="text-red-500">*</span>
                   </label>
                   <textarea
-                    required
                     value={magaza.description}
-                    onChange={(e) => handleMagazaChange('description', e.target.value)}
-                    rows={3}
+                    onChange={(event) => handleMagazaChange('description', event.target.value)}
+                    rows={4}
                     maxLength={500}
-                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition resize-none"
-                    placeholder="Mağazanızı ve ürünlerinizi kısaca tanıtın…"
+                    className="w-full resize-none rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+                    placeholder="Mağazanızı ve ürünlerinizi kısaca tanıtın."
                   />
-                  <p className="text-right text-xs text-neutral-400 mt-1">{magaza.description.length}/500</p>
+                  <p className="mt-1 text-right text-xs text-neutral-400">{magaza.description.length}/500</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
                     Şehir <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    required
                     value={magaza.city}
-                    onChange={(e) => handleMagazaChange('city', e.target.value)}
-                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
-                    placeholder="İstanbul"
+                    onChange={(event) => handleMagazaChange('city', event.target.value)}
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+                    placeholder="Istanbul"
                   />
+                </div>
+
+                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                  <h3 className="mb-4 text-sm font-semibold text-neutral-900">İletişim Bilgileri</h3>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-neutral-700">
+                        E-posta <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        readOnly
+                        value={sessionLoading ? 'Yükleniyor...' : email}
+                        className="w-full rounded-lg border border-neutral-300 bg-neutral-100 px-3 py-2 text-sm text-neutral-600 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-neutral-700">
+                        Telefon <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        value={phone}
+                        onChange={(event) => setPhone(normalizePhone(event.target.value))}
+                        className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+                        placeholder="05XXXXXXXXX"
+                      />
+                      <p className="mt-1 text-xs text-neutral-400">
+                        Bildirim ve başvuru iletişimleri için geçerli bir Türkiye cep telefonu girin.
+                      </p>
+                    </div>
+                  </div>
+
+                  {emailVerified ? (
+                    <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                      E-posta adresiniz doğrulanmış durumda.
+                    </p>
+                  ) : (
+                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      <p className="font-medium">Basvuru icin e-posta dogrulamasi zorunlu.</p>
+                      <p className="mt-1 text-xs text-amber-800">
+                        Devam etmeden once e-posta adresinizi dogrulayin. Gerekirse baglantiyi tekrar gonderebiliriz.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleResendVerification}
+                        disabled={resendLoading || sessionLoading || !email}
+                        className="mt-3 rounded-lg border border-amber-300 px-3 py-2 text-xs font-medium text-amber-900 transition hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        {resendLoading ? 'Gönderiliyor...' : 'Doğrulama e-postasını tekrar gönder'}
+                      </button>
+                      {resendMessage ? (
+                        <p className="mt-2 text-xs text-amber-900">{resendMessage}</p>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="mt-8 flex justify-end">
                 <button
-                  onClick={() => {
-                    if (!magaza.storeName || !magaza.slug || !magaza.description || !magaza.city) {
-                      setError('Lütfen tüm alanları doldurun.')
-                      return
-                    }
-                    setError(null)
-                    setStep(1)
-                  }}
-                  className="rounded-lg bg-neutral-900 text-white text-sm font-medium px-6 py-2.5 hover:bg-neutral-700 transition"
+                  type="button"
+                  onClick={goToBusinessStep}
+                  className="rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700"
                 >
-                  Devam →
+                  Devam
                 </button>
               </div>
             </>
-          )}
+          ) : null}
 
-          {/* ── Step 1: İşletme Bilgileri ─────────────────────────────────── */}
-          {step === 1 && (
+          {step === 1 ? (
             <>
-              <h2 className="text-lg font-semibold text-neutral-900 mb-1">İşletme Bilgileri</h2>
-              <p className="text-sm text-neutral-500 mb-6">
-                Faturalandırma ve yasal uyum için işletme bilgilerinizi girin.
+              <h2 className="mb-1 text-lg font-semibold text-neutral-900">İşletme Bilgileri</h2>
+              <p className="mb-6 text-sm text-neutral-500">
+                Faturalandırma ve yasal inceleme için işletme bilgilerinizi girin.
               </p>
 
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
                     İşletme Türü <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={isletme.companyType}
-                    onChange={(e) => setIsletme((p) => ({ ...p, companyType: e.target.value as CompanyType }))}
-                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition bg-white"
+                    onChange={(event) =>
+                      setIsletme((prev) => ({
+                        ...prev,
+                        companyType: event.target.value as CompanyType,
+                        taxNumber: normalizeTaxNumber(event.target.value as CompanyType, prev.taxNumber),
+                      }))
+                    }
+                    className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
                   >
                     <option value="individual">Şahıs (Bireysel)</option>
                     <option value="sole_proprietorship">Şahıs Şirketi</option>
-                    <option value="limited">Limited Şirketi (Ltd. Şti.)</option>
-                    <option value="joint_stock">Anonim Şirketi (A.Ş.)</option>
+                    <option value="limited">Limited Sirketi</option>
+                    <option value="joint_stock">Anonim Sirketi</option>
                     <option value="other">Diğer</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
-                    Vergi / TC Kimlik No <span className="text-red-500">*</span>
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
+                    {taxField.label} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    required
+                    inputMode="numeric"
                     value={isletme.taxNumber}
-                    onChange={(e) => setIsletme((p) => ({ ...p, taxNumber: e.target.value }))}
-                    maxLength={11}
-                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
-                    placeholder="10 veya 11 hane"
+                    onChange={(event) =>
+                      setIsletme((prev) => ({
+                        ...prev,
+                        taxNumber: normalizeTaxNumber(prev.companyType, event.target.value),
+                      }))
+                    }
+                    maxLength={taxField.maxLength}
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+                    placeholder={taxField.placeholder}
+                  />
+                  <p className="mt-1 text-xs text-neutral-400">{taxField.helperText}</p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
+                    Ticari Ünvan <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={isletme.companyName}
+                    onChange={(event) => setIsletme((prev) => ({ ...prev, companyName: event.target.value }))}
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+                    placeholder="Şirket veya işletme ünvanı"
                   />
                 </div>
 
-                {isletme.companyType !== 'individual' && (
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">
-                      Vergi Dairesi <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={isletme.taxOffice}
-                      onChange={(e) => setIsletme((p) => ({ ...p, taxOffice: e.target.value }))}
-                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
-                      placeholder="Beyoğlu Vergi Dairesi"
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
+                    Vergi Dairesi <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={isletme.taxOffice}
+                    onChange={(event) => setIsletme((prev) => ({ ...prev, taxOffice: event.target.value }))}
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+                    placeholder="Bağlı olduğunuz vergi dairesi"
+                  />
+                </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
                     Açık Adres <span className="text-red-500">*</span>
                   </label>
                   <textarea
-                    required
                     value={isletme.address}
-                    onChange={(e) => setIsletme((p) => ({ ...p, address: e.target.value }))}
-                    rows={2}
-                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition resize-none"
-                    placeholder="Mahalle, cadde, sokak, no…"
+                    onChange={(event) => setIsletme((prev) => ({ ...prev, address: event.target.value }))}
+                    rows={3}
+                    className="w-full resize-none rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+                    placeholder="Mahalle, cadde, sokak, bina no"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    <label className="mb-1 block text-sm font-medium text-neutral-700">
                       Şehir <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
-                      required
                       value={isletme.city}
-                      onChange={(e) => setIsletme((p) => ({ ...p, city: e.target.value }))}
-                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
+                      onChange={(event) => setIsletme((prev) => ({ ...prev, city: event.target.value }))}
+                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">
-                      İlçe
+                    <label className="mb-1 block text-sm font-medium text-neutral-700">
+                      İlçe <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={isletme.district}
-                      onChange={(e) => setIsletme((p) => ({ ...p, district: e.target.value }))}
-                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
+                      onChange={(event) => setIsletme((prev) => ({ ...prev, district: event.target.value }))}
+                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-neutral-700">Posta Kodu</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={isletme.postalCode}
+                      onChange={(event) =>
+                        setIsletme((prev) => ({
+                          ...prev,
+                          postalCode: event.target.value.replace(/\D/g, '').slice(0, 5),
+                        }))
+                      }
+                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+                      placeholder="34000"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-neutral-700">MERSIS</label>
+                    <input
+                      type="text"
+                      value={isletme.mersis}
+                      onChange={(event) => setIsletme((prev) => ({ ...prev, mersis: event.target.value }))}
+                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+                      placeholder="Varsa MERSİS numarası"
                     />
                   </div>
                 </div>
@@ -373,123 +613,119 @@ export default function OnboardingPage() {
 
               <div className="mt-8 flex justify-between">
                 <button
+                  type="button"
                   onClick={() => setStep(0)}
-                  className="rounded-lg border border-neutral-300 text-neutral-700 text-sm font-medium px-6 py-2.5 hover:bg-neutral-50 transition"
+                  className="rounded-lg border border-neutral-300 px-6 py-2.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
                 >
-                  ← Geri
+                  Geri
                 </button>
                 <button
-                  onClick={() => {
-                    if (!isletme.taxNumber || !isletme.address || !isletme.city) {
-                      setError('Lütfen zorunlu alanları doldurun.')
-                      return
-                    }
-                    setError(null)
-                    setStep(2)
-                  }}
-                  className="rounded-lg bg-neutral-900 text-white text-sm font-medium px-6 py-2.5 hover:bg-neutral-700 transition"
+                  type="button"
+                  onClick={goToBankStep}
+                  className="rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700"
                 >
-                  Devam →
+                  Devam
                 </button>
               </div>
             </>
-          )}
+          ) : null}
 
-          {/* ── Step 2: Banka Bilgileri ────────────────────────────────────── */}
-          {step === 2 && (
+          {step === 2 ? (
             <>
-              <h2 className="text-lg font-semibold text-neutral-900 mb-1">Banka Bilgileri</h2>
-              <p className="text-sm text-neutral-500 mb-2">
-                Satış bedelinizin aktarılacağı banka hesabı bilgilerini girin.
+              <h2 className="mb-1 text-lg font-semibold text-neutral-900">Banka Bilgileri</h2>
+              <p className="mb-2 text-sm text-neutral-500">
+                Ödemelerin aktarılacağı banka hesabını girin. Admin onayından sonra aktifleştirilir.
               </p>
-              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800 mb-6">
-                <strong>Önemli:</strong> IBAN bilgileri admin onayından sonra aktif hale gelir.
-                İlk ödemeler doğrulama tamamlandıktan sonra yapılacaktır.
+              <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                IBAN hesap sahibi, başvurduğunuz şirket veya işletme adı ile uyumlu olmalı.
               </div>
 
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
                     Hesap Sahibi Adı <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    required
                     value={banka.accountHolderName}
-                    onChange={(e) => setBanka((p) => ({ ...p, accountHolderName: e.target.value }))}
-                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
+                    onChange={(event) =>
+                      setBanka((prev) => ({ ...prev, accountHolderName: event.target.value }))
+                    }
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
                     placeholder="Ad Soyad veya Şirket Adı"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
                     IBAN <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    required
-                    value={banka.iban}
-                    onChange={(e) => setBanka((p) => ({ ...p, iban: e.target.value.toUpperCase() }))}
-                    maxLength={32}
-                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm font-mono outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
+                    value={formatIban(banka.iban)}
+                    onChange={(event) =>
+                      setBanka((prev) => ({ ...prev, iban: normalizeIban(event.target.value) }))
+                    }
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 font-mono text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
                     placeholder="TR00 0000 0000 0000 0000 0000 00"
                   />
-                  <p className="mt-1 text-xs text-neutral-400">TR ile başlayan 26 karakter</p>
+                  <p className="mt-1 text-xs text-neutral-400">TR ile başlayan 26 karakterlik IBAN girin.</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
                     Banka Adı <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    required
                     value={banka.bankName}
-                    onChange={(e) => setBanka((p) => ({ ...p, bankName: e.target.value }))}
-                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
-                    placeholder="Garanti BBVA, İş Bankası…"
+                    onChange={(event) => setBanka((prev) => ({ ...prev, bankName: event.target.value }))}
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+                    placeholder="Garanti BBVA, İş Bankası"
                   />
+                </div>
+
+                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                  <p className="mb-3 text-sm font-medium text-neutral-900">İnsan doğrulaması</p>
+                  <TurnstileWidget
+                    action="seller-onboarding"
+                    onChange={setTurnstileToken}
+                    siteKey={turnstileSiteKey}
+                    className="max-w-full"
+                  />
+                  <p className="mt-2 text-xs text-neutral-500">
+                    Başvuruyu göndermeden önce bu doğrulama zorunludur.
+                  </p>
                 </div>
               </div>
 
-              {error && (
-                <p className="mt-4 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
-              )}
-
               <div className="mt-8 flex justify-between">
                 <button
+                  type="button"
                   onClick={() => setStep(1)}
-                  className="rounded-lg border border-neutral-300 text-neutral-700 text-sm font-medium px-6 py-2.5 hover:bg-neutral-50 transition"
+                  className="rounded-lg border border-neutral-300 px-6 py-2.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
                 >
-                  ← Geri
+                  Geri
                 </button>
                 <button
-                  onClick={() => {
-                    if (!banka.accountHolderName || !banka.iban || !banka.bankName) {
-                      setError('Lütfen tüm alanları doldurun.')
-                      return
-                    }
-                    handleSubmit()
-                  }}
-                  disabled={submitting}
-                  className="rounded-lg bg-neutral-900 text-white text-sm font-medium px-6 py-2.5 hover:bg-neutral-700 disabled:opacity-50 transition"
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting || sessionLoading}
+                  className="rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Kaydediliyor…' : 'Başvuruyu Tamamla'}
+                  {submitting ? 'Başvuru gönderiliyor...' : 'Başvuruyu Tamamla'}
                 </button>
               </div>
             </>
-          )}
+          ) : null}
 
-          {/* Shared error (step 0 and 1 validation) */}
-          {error && step < 2 && (
-            <p className="mt-4 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
-          )}
+          {error ? (
+            <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+          ) : null}
         </div>
 
-        <p className="text-center text-xs text-neutral-400 mt-6">
-          Başvurunuz genellikle 1-3 iş günü içinde değerlendirilir.
-          Onay sonrası ürün eklemeye başlayabilirsiniz.
+        <p className="mt-6 text-center text-xs text-neutral-400">
+          Başvurular genellikle 1-3 iş günü içinde incelenir. Onay sonrası ürün eklemeye başlayabilirsiniz.
         </p>
       </div>
     </div>

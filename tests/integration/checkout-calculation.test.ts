@@ -10,12 +10,14 @@
  */
 import { describe, it, expect } from 'vitest'
 import { Decimal } from '../__mocks__/prisma-runtime'
+import {
+  calculateShippingFee as calculateShippingFeeTry,
+  FREE_SHIPPING_THRESHOLD_TRY,
+} from '../../api/domain/shipping'
 
 // ── Extracted business constants ──────────────────────────────────────────────
 
 const SYSTEM_DEFAULT_COMMISSION_RATE = new Decimal('0.15')
-const FREE_SHIPPING_THRESHOLD = new Decimal('1500')
-const FLAT_SHIPPING_FEE = new Decimal('99')
 const PENALTY_RATE = new Decimal('0.20') // 20% of product price
 
 // ── Helpers (mirror checkout.service.ts logic) ────────────────────────────────
@@ -36,9 +38,7 @@ interface OrderLineSummary {
 }
 
 function calculateShipping(subtotal: Decimal): Decimal {
-  return subtotal.greaterThan(FREE_SHIPPING_THRESHOLD) || subtotal.equals(FREE_SHIPPING_THRESHOLD)
-    ? new Decimal(0)
-    : FLAT_SHIPPING_FEE
+  return new Decimal(calculateShippingFeeTry(subtotal.toNumber()))
 }
 
 function resolveCommissionRate(
@@ -210,7 +210,7 @@ describe('Checkout calculation — coupon discount', () => {
   it('shipping is calculated on pre-discount subtotal', () => {
     // Subtotal ₺1600, discount ₺200 → post-discount ₺1400
     // But shipping decision uses ₺1600 (pre-discount) → free shipping
-    const subtotal = new Decimal(1600)
+    const subtotal = new Decimal(FREE_SHIPPING_THRESHOLD_TRY + 100)
     const shipping = calculateShipping(subtotal)
     expect(shipping.toNumber()).toBe(0) // free shipping based on pre-discount
   })

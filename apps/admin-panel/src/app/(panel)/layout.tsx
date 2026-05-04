@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { SidebarNav, type NavSection } from '@hanuja/ui'
+import { NotificationBell, SidebarNav, type NavSection } from '@hanuja/ui'
 import {
   LayoutDashboard,
   Store,
@@ -10,10 +10,18 @@ import {
   RotateCcw,
   Package,
   ScrollText,
+  Landmark,
   Settings,
   Shield,
   MessageCircleWarning,
+  LifeBuoy,
+  Image,
+  LayoutTemplate,
+  MessageSquare,
 } from 'lucide-react'
+import { getAdminSession } from '@/lib/admin-session'
+import { MobileNav } from './_components/mobile-nav'
+import { UserMenu } from './_components/user-menu'
 
 export const metadata: Metadata = {
   title: {
@@ -41,6 +49,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Ödemeler', href: '/odemeler', icon: <CreditCard className="h-4 w-4" /> },
       { label: 'Hakedişler', href: '/hakedisler', icon: <Wallet className="h-4 w-4" /> },
+      { label: 'Banka Değişiklikleri', href: '/saticilar/banka-degisiklikleri', icon: <Landmark className="h-4 w-4" /> },
       { label: 'Cezalar', href: '/cezalar', icon: <AlertOctagon className="h-4 w-4" /> },
       { label: 'Finans Özeti', href: '/finans', icon: <ScrollText className="h-4 w-4" /> },
     ],
@@ -50,7 +59,16 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'İadeler', href: '/iadeler', icon: <RotateCcw className="h-4 w-4" /> },
       { label: 'Uyuşmazlıklar', href: '/uyusmazliklar', icon: <MessageCircleWarning className="h-4 w-4" /> },
+      { label: 'Yorumlar', href: '/yorumlar', icon: <MessageSquare className="h-4 w-4" /> },
+      { label: 'Destek Talepleri', href: '/destek', icon: <LifeBuoy className="h-4 w-4" /> },
       { label: 'Denetim Günlüğü', href: '/denetim', icon: <Shield className="h-4 w-4" /> },
+    ],
+  },
+  {
+    title: 'İçerik',
+    items: [
+      { label: 'Ana Sayfa', href: '/anasayfa', icon: <LayoutTemplate className="h-4 w-4" /> },
+      { label: 'Medya', href: '/medya', icon: <Image className="h-4 w-4" /> },
     ],
   },
   {
@@ -61,7 +79,11 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ]
 
-export default function AdminPanelLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminPanelLayout({ children }: { children: React.ReactNode }) {
+  const session = await getAdminSession()
+  const displayName = session.user.name || session.user.email?.split('@')[0] || 'Admin'
+  const initial = displayName.charAt(0).toUpperCase()
+
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
       {/* Sidebar */}
@@ -95,16 +117,15 @@ export default function AdminPanelLayout({ children }: { children: React.ReactNo
           className="flex h-14 items-center justify-between border-b px-4 sm:px-6"
           style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         >
-          <div className="md:hidden">
+          <div className="flex items-center gap-3 md:hidden">
+            <MobileNav sections={NAV_SECTIONS} />
             <span className="font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}>
               Hanuja Admin
             </span>
           </div>
           <div className="ml-auto flex items-center gap-3">
-            <span className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>Admin</span>
-            <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
-              A
-            </div>
+            <NotificationBell apiPath="/api/notifications" />
+            <UserMenu displayName={displayName} initial={initial} />
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">

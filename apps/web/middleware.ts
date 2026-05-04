@@ -19,7 +19,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 import {
   generateCsrfToken,
   getCsrfCookieOptions,
+  getMirrorCsrfCookieOptions,
   CSRF_COOKIE_NAME,
+  CSRF_MIRROR_COOKIE_NAME,
 } from '@hanuja/security'
 
 interface Session {
@@ -80,13 +82,20 @@ export async function middleware(request: NextRequest) {
     response = NextResponse.next()
   }
 
-  // Set CSRF cookie if missing (rotated on new sessions naturally)
+  // Set CSRF cookies if missing.
+  // Two cookies with the same token value:
+  //   hanuja-csrf        — HttpOnly, unreadable by JS (server comparison target)
+  //   hanuja-csrf-mirror — NOT HttpOnly, JS reads this to set x-csrf-token header
   if (!existingCsrf) {
     const token = generateCsrfToken()
     const isProduction = process.env['NODE_ENV'] === 'production'
-    const cookieOpts = getCsrfCookieOptions(isProduction)
-    response.cookies.set(CSRF_COOKIE_NAME, token, cookieOpts)
+    response.cookies.set(CSRF_COOKIE_NAME, token, getCsrfCookieOptions(isProduction))
+    response.cookies.set(CSRF_MIRROR_COOKIE_NAME, token, getMirrorCsrfCookieOptions(isProduction))
   }
+
+  // Security headers safe for storefront (no X-Frame-Options: DENY — Iyzico 3DS uses iframes)
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
 
   return response
 }

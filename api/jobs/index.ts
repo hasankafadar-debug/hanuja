@@ -9,6 +9,7 @@ import { startNotificationDispatchWorker } from './notification-dispatch.job'
 import { startPayoutBatchWorker } from './payout-batch.job'
 import { startMediaProcessingWorker } from './media-processing.job'
 import { startFulfillmentRiskWorker } from './fulfillment-risk.job'
+import { startIbanActivationWorker } from './iban-activation.job'
 
 export function startAllWorkers() {
   const workers = [
@@ -19,6 +20,7 @@ export function startAllWorkers() {
     startPayoutBatchWorker(),
     startMediaProcessingWorker(),
     startFulfillmentRiskWorker(),
+    startIbanActivationWorker(),
   ]
 
   console.log(`[workers] Started ${workers.length} BullMQ workers`)

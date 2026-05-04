@@ -1,7 +1,8 @@
 /**
- * Notification Dispatch Job — sends in-app and email notifications.
+ * Notification Dispatch Job â€” sends in-app and email notifications.
  * Idempotent: deduplication is handled by the notification record's existence.
  */
+import { NotificationType as NotificationTypeEnum } from '@prisma/client'
 import { Worker, Job } from 'bullmq'
 import { redis } from '../lib/redis'
 import { QUEUE_NAMES } from '../lib/queue'
@@ -11,14 +12,18 @@ import {
   orderConfirmationTemplate,
   shipmentNotificationTemplate,
   deliveryConfirmedTemplate,
+  invoiceUploadedTemplate,
   returnRequestTemplate,
   payoutProcessedTemplate,
   penaltyAppliedTemplate,
 } from '../lib/email-templates'
 
+type CanonicalNotificationType = (typeof NotificationTypeEnum)[keyof typeof NotificationTypeEnum]
+type LegacyNotificationType = 'order_confirmed' | 'payout_processed'
+
 export interface NotificationDispatchJobData {
   userId: string
-  type: string
+  type: CanonicalNotificationType | LegacyNotificationType
   title: string
   body: string
   data?: Record<string, unknown>
@@ -27,31 +32,72 @@ export interface NotificationDispatchJobData {
 }
 
 /** Notification types that warrant an email */
-const EMAIL_NOTIFICATION_TYPES = new Set([
-  'ORDER_CONFIRMED',
-  'ORDER_SHIPPED',
-  'DELIVERY_CONFIRMED',
-  'RETURN_REQUESTED',
-  'PAYOUT_PROCESSED',
-  'PENALTY_APPLIED',
+const EMAIL_NOTIFICATION_TYPES = new Set<CanonicalNotificationType>([
+  NotificationTypeEnum.order_placed,
+  NotificationTypeEnum.order_shipped,
+  NotificationTypeEnum.order_delivery_confirmed,
+  NotificationTypeEnum.return_requested,
+  NotificationTypeEnum.payout_paid,
+  NotificationTypeEnum.penalty_applied,
+  NotificationTypeEnum.invoice_uploaded,
 ])
 
+function normalizeNotificationType(type: string) {
+  return type.trim().replace(/-/g, '_').toUpperCase()
+}
+
+const CANONICAL_NOTIFICATION_TYPE_LOOKUP = new Map<string, CanonicalNotificationType>(
+  Object.values(NotificationTypeEnum).map((type) => [normalizeNotificationType(type), type]),
+)
+
+const LEGACY_NOTIFICATION_TYPE_ALIASES: Record<string, CanonicalNotificationType> = {
+  ORDER_CONFIRMED: NotificationTypeEnum.order_placed,
+  PAYOUT_PROCESSED: NotificationTypeEnum.payout_paid,
+}
+
+export function resolveNotificationType(type: string): CanonicalNotificationType | null {
+  const normalizedType = normalizeNotificationType(type)
+  return (
+    LEGACY_NOTIFICATION_TYPE_ALIASES[normalizedType] ??
+    CANONICAL_NOTIFICATION_TYPE_LOOKUP.get(normalizedType) ??
+    null
+  )
+}
+
 async function buildEmailPayload(
-  type: string,
+  type: CanonicalNotificationType,
   data: Record<string, unknown> | undefined,
 ): Promise<{ subject: string; html: string; text: string } | null> {
   if (!data) return null
 
   switch (type) {
-    case 'ORDER_CONFIRMED':
+    case NotificationTypeEnum.order_placed:
       return orderConfirmationTemplate({
         customerName: String(data['customerName'] ?? ''),
         orderNumber: String(data['orderNumber'] ?? ''),
         totalAmount: String(data['totalAmount'] ?? ''),
         items: (data['items'] as Array<{ name: string; quantity: number; price: string }>) ?? [],
+        paymentMethod: data['paymentMethod'] === 'eft' ? 'eft' : 'card',
+        ...((data['bankTransferInstructions'] as {
+          bankName: string
+          accountHolder: string
+          iban: string
+          reference: string
+          missing?: boolean
+        } | undefined)
+          ? {
+              bankTransferInstructions: data['bankTransferInstructions'] as {
+                bankName: string
+                accountHolder: string
+                iban: string
+                reference: string
+                missing?: boolean
+              },
+            }
+          : {}),
       })
 
-    case 'ORDER_SHIPPED':
+    case NotificationTypeEnum.order_shipped:
       return shipmentNotificationTemplate({
         customerName: String(data['customerName'] ?? ''),
         orderNumber: String(data['orderNumber'] ?? ''),
@@ -59,20 +105,21 @@ async function buildEmailPayload(
         cargoCompany: String(data['cargoCompany'] ?? ''),
       })
 
-    case 'DELIVERY_CONFIRMED':
+    case NotificationTypeEnum.order_delivery_confirmed:
       return deliveryConfirmedTemplate({
         customerName: String(data['customerName'] ?? ''),
         orderNumber: String(data['orderNumber'] ?? ''),
       })
 
-    case 'RETURN_REQUESTED':
+    case NotificationTypeEnum.return_requested:
       return returnRequestTemplate({
         customerName: String(data['customerName'] ?? ''),
         orderNumber: String(data['orderNumber'] ?? ''),
         returnReason: String(data['returnReason'] ?? ''),
       })
 
-    case 'PAYOUT_PROCESSED':
+    case NotificationTypeEnum.payout_paid:
+    case NotificationTypeEnum.seller_payout_paid:
       return payoutProcessedTemplate({
         sellerName: String(data['sellerName'] ?? ''),
         payoutAmount: String(data['payoutAmount'] ?? ''),
@@ -80,7 +127,8 @@ async function buildEmailPayload(
         periodDescription: String(data['periodDescription'] ?? ''),
       })
 
-    case 'PENALTY_APPLIED':
+    case NotificationTypeEnum.penalty_applied:
+    case NotificationTypeEnum.seller_penalty_applied:
       return penaltyAppliedTemplate({
         sellerName: String(data['sellerName'] ?? ''),
         orderNumber: String(data['orderNumber'] ?? ''),
@@ -88,39 +136,66 @@ async function buildEmailPayload(
         penaltyReason: String(data['penaltyReason'] ?? ''),
       })
 
+    case NotificationTypeEnum.invoice_uploaded:
+      return invoiceUploadedTemplate({
+        customerName: String(data['customerName'] ?? ''),
+        orderNumber: String(data['orderNumber'] ?? ''),
+      })
+
     default:
       return null
   }
 }
 
-async function processNotificationDispatch(job: Job<NotificationDispatchJobData>) {
+export async function processNotificationDispatch(job: Job<NotificationDispatchJobData>) {
   const { userId, type, title, body, data, emailTo } = job.data
+  const canonicalType = resolveNotificationType(type)
 
-  // Create in-app notification record
+  if (!canonicalType) {
+    console.warn('[notification-dispatch] Skipping notification with invalid type.', {
+      jobId: job.id,
+      type,
+      userId,
+    })
+    return
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  })
+
+  if (!user) {
+    console.warn('[notification-dispatch] Skipping notification for missing user.', {
+      jobId: job.id,
+      type: canonicalType,
+      userId,
+    })
+    return
+  }
+
   await prisma.notification.create({
     data: {
-      userId,
-      type: type as never,
+      userId: user.id,
+      type: canonicalType,
       title,
       body,
       data: data as never,
     },
   })
 
-  // Send email if this notification type warrants it and we have an address
-  if (emailTo && EMAIL_NOTIFICATION_TYPES.has(type)) {
-    const emailPayload = await buildEmailPayload(type, data)
+  if (emailTo && EMAIL_NOTIFICATION_TYPES.has(canonicalType)) {
+    const emailPayload = await buildEmailPayload(canonicalType, data)
     if (emailPayload) {
       try {
         await sendEmail({ to: emailTo, ...emailPayload })
       } catch (err) {
-        // Email failure should not fail the job — in-app notification already saved
-        console.error(`[notification-dispatch] Email send failed for ${type}:`, err)
+        console.error(`[notification-dispatch] Email send failed for ${canonicalType}:`, err)
       }
     }
   }
 
-  console.log(`[notification-dispatch] Dispatched to user ${userId}: ${type}`)
+  console.log(`[notification-dispatch] Dispatched to user ${userId}: ${canonicalType}`)
 }
 
 export function startNotificationDispatchWorker() {

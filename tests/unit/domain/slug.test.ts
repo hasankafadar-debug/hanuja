@@ -4,7 +4,7 @@
  * docs/04-seo/seo-url-slug-rules.md
  */
 import { describe, it, expect } from 'vitest'
-import { normalizeSlug, isValidSlug } from '../../../api/domain/slug'
+import { buildSlugWithSuffix, normalizeSlug, isValidSlug } from '../../../api/domain/slug'
 
 describe('normalizeSlug', () => {
   it('converts Turkish characters correctly', () => {
@@ -110,5 +110,23 @@ describe('isValidSlug', () => {
   it('accepts slugs with numbers', () => {
     expect(isValidSlug('sehpa-2024')).toBe(true)
     expect(isValidSlug('3lu-set')).toBe(true)
+  })
+})
+
+describe('buildSlugWithSuffix', () => {
+  it('returns the base slug for the first candidate', () => {
+    expect(buildSlugWithSuffix('masif-mese-sehpa', 1)).toBe('masif-mese-sehpa')
+  })
+
+  it('appends numeric suffixes for later candidates', () => {
+    expect(buildSlugWithSuffix('masif-mese-sehpa', 2)).toBe('masif-mese-sehpa-2')
+    expect(buildSlugWithSuffix('masa', 5)).toBe('masa-5')
+  })
+
+  it('truncates long slugs before appending suffixes', () => {
+    const longSlug = 'a'.repeat(80)
+    const suffixed = buildSlugWithSuffix(longSlug, 12)
+    expect(suffixed.length).toBeLessThanOrEqual(80)
+    expect(suffixed.endsWith('-12')).toBe(true)
   })
 })

@@ -3,7 +3,7 @@ import type { BrandConfig } from './brand.config'
 /**
  * Hanuja default brand.
  *
- * Palette: deep navy + warm red accent — premium, curated, trustworthy.
+ * Palette: dark charcoal + warm cream + golden-beige — curated, premium, trustworthy.
  * Designed to work for the Hanuja marketplace template.
  *
  * Client swap: copy this file to {client-slug}.brand.ts and change values.
@@ -14,33 +14,44 @@ export const hanujaBrand: BrandConfig = {
   slug: 'hanuja',
 
   colors: {
-    primary: '#1a1a2e',
-    primaryFg: '#ffffff',
+    // DARK (#1a1a18) — koyu zemin / primary metin rengi
+    primary: '#1a1a18',
+    // CREAM (#e8e2d4) — koyu zemin üstünde ön plan (logo, header metni)
+    primaryFg: '#e8e2d4',
 
-    secondary: '#16213e',
-    secondaryFg: '#ffffff',
+    // MID (#9c8e7a) — ikincil metin / şerit
+    secondary: '#9c8e7a',
+    secondaryFg: '#1a1a18',
 
-    accent: '#e94560',
-    accentFg: '#ffffff',
+    // TAN (#c8b89a) — altın-bej vurgu
+    accent: '#c8b89a',
+    accentFg: '#1a1a18',
 
-    surface: '#ffffff',
-    background: '#fafafa',
+    // Çok açık krem — kart / bileşen arkaplanı
+    surface: '#f0eee9',
+    // Krem — sayfa arkaplanı
+    background: '#e8e2d4',
 
-    border: '#e5e7eb',
+    // Kremin bir ton koyusu
+    border: '#d6cfbe',
 
-    muted: '#f3f4f6',
-    mutedFg: '#6b7280',
+    muted: '#ede7d8',
+    mutedFg: '#9c8e7a',
 
-    destructive: '#ef4444',
+    destructive: '#dc2626',
     destructiveFg: '#ffffff',
 
-    success: '#22c55e',
-    warning: '#f59e0b',
+    success: '#16a34a',
+    warning: '#d97706',
   },
 
   typography: {
-    fontSans: "'Inter', system-ui, sans-serif",
-    fontDisplay: "'Playfair Display', 'Georgia', serif",
+    // Menü, buton, fiyat, etiket
+    fontSans: "'Outfit', system-ui, sans-serif",
+    // Gövde, paragraf, açıklama
+    fontBody: "'DM Sans', system-ui, sans-serif",
+    // Ürün başlığı, editoryal, hero
+    fontDisplay: "'Cormorant Garamond', Georgia, serif",
     fontMono: "'JetBrains Mono', 'Fira Code', monospace",
   },
 

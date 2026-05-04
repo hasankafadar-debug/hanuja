@@ -30,6 +30,7 @@ loadDotEnv({ path: path.join(repoRoot, '.env') })
 interface EnvVar {
   key: string
   required: boolean
+  requiredInProd?: boolean
   description: string
   /** If true, must be a real non-placeholder value in production */
   sensitiveInProd?: boolean
@@ -57,6 +58,10 @@ const ENV_VARS: EnvVar[] = [
   { key: 'IYZICO_BASE_URL', required: true, description: 'Iyzico base URL (sandbox or live)', apps: ['api'] },
   { key: 'IYZICO_WEBHOOK_SECRET', required: true, sensitiveInProd: true, description: 'Iyzico webhook HMAC secret', apps: ['api'] },
 
+  // Turnstile
+  { key: 'NEXT_PUBLIC_TURNSTILE_SITE_KEY', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Cloudflare Turnstile site key', apps: ['web', 'seller-panel', 'admin-panel'] },
+  { key: 'TURNSTILE_SECRET_KEY', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Cloudflare Turnstile secret key', apps: ['api', 'web'] },
+
   // Storage
   { key: 'R2_ACCOUNT_ID', required: true, description: 'Cloudflare R2 account ID', apps: ['api'] },
   { key: 'R2_ACCESS_KEY_ID', required: true, sensitiveInProd: true, description: 'R2 access key', apps: ['api'] },
@@ -75,10 +80,15 @@ const ENV_VARS: EnvVar[] = [
   { key: 'SMTP_USER', required: false, description: 'SMTP authentication user', apps: ['api'] },
   { key: 'SMTP_PASS', required: false, sensitiveInProd: true, description: 'SMTP password', apps: ['api'] },
   { key: 'SMTP_FROM', required: false, description: 'From address for outgoing emails', apps: ['api'] },
+  { key: 'INVOICE_ALIASING_ENABLED', required: false, description: 'Invoice aliasing feature flag', apps: ['all'] },
+  { key: 'INBOUND_EMAIL_DOMAIN', required: false, requiredInProd: true, description: 'Inbound invoice email domain, e.g. fatura.hanuja.tr', apps: ['api', 'web'] },
+  { key: 'POSTMARK_INBOUND_WEBHOOK_USER', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Postmark inbound webhook basic auth user', apps: ['web'] },
+  { key: 'POSTMARK_INBOUND_WEBHOOK_PASS', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Postmark inbound webhook basic auth password', apps: ['web'] },
 
   // App metadata
   { key: 'NEXT_PUBLIC_SITE_NAME', required: false, description: 'Site display name', apps: ['web'] },
   { key: 'NEXT_PUBLIC_SITE_URL', required: false, description: 'Canonical site URL', apps: ['web'] },
+  { key: 'AUTO_APPROVE_CLEAN_PRODUCTS', required: false, description: 'Auto-publish clean products flag', apps: ['all'] },
 ]
 
 const PLACEHOLDER_PATTERNS = [
@@ -90,6 +100,7 @@ const PLACEHOLDER_PATTERNS = [
   /^""$/,
   /^''$/,
   /sandbox.*api.*key/i,
+  /dev-turnstile-bypass/i,
 ]
 
 function isPlaceholder(value: string): boolean {
@@ -115,7 +126,7 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
     const value = process.env[envVar.key]
 
     if (!value || value.trim() === '') {
-      if (envVar.required) {
+      if (envVar.required || (isProd && envVar.requiredInProd)) {
         missing.push(`${envVar.key}  (${envVar.description})`)
       } else {
         warnings.push(`${envVar.key}  (optional — ${envVar.description})`)
@@ -132,6 +143,10 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
     // Auth secret length check
     if (envVar.key === 'BETTER_AUTH_SECRET' && value.length < 32) {
       warnings.push(`BETTER_AUTH_SECRET is too short (${value.length} chars). Use at least 32.`)
+    }
+
+    if (isProd && envVar.key === 'TURNSTILE_SECRET_KEY' && value === 'dev-turnstile-bypass') {
+      missing.push('TURNSTILE_SECRET_KEY must not use the development bypass token in production.')
     }
   }
 

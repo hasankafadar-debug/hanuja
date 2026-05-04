@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq'
-import { redis } from './redis'
+import { getRedis } from './redis'
 
 export const QUEUE_NAMES = {
   PAYOUT_MATURITY: 'payout-maturity',
@@ -10,23 +10,46 @@ export const QUEUE_NAMES = {
   NOTIFICATION_DISPATCH: 'notification-dispatch',
   MEDIA_PROCESSING: 'media-processing',
   PAYOUT_BATCH: 'payout-batch',
+  IBAN_ACTIVATION: 'iban-activation',
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
 
-const connection = redis
+const globalForQueues = globalThis as unknown as {
+  queues?: Partial<Record<QueueName, Queue>>
+}
+
+function getQueue(name: QueueName): Queue {
+  const queues = (globalForQueues.queues ??= {})
+  const existing = queues[name]
+
+  if (existing) {
+    return existing
+  }
+
+  const queue = new Queue(name, { connection: getRedis() })
+  queues[name] = queue
+  return queue
+}
+
+function createQueueProxy(name: QueueName): Queue {
+  return new Proxy({} as Queue, {
+    get(_target, prop) {
+      const queue = getQueue(name)
+      const value = Reflect.get(queue as object, prop, queue)
+      return typeof value === 'function' ? value.bind(queue) : value
+    },
+  })
+}
 
 // All queues use the same Redis connection.
 // Workers are defined separately in api/jobs/.
-export const payoutMaturityQueue = new Queue(QUEUE_NAMES.PAYOUT_MATURITY, { connection })
-export const deliverySilentConfirmQueue = new Queue(QUEUE_NAMES.DELIVERY_SILENT_CONFIRM, {
-  connection,
-})
-export const reconciliationQueue = new Queue(QUEUE_NAMES.RECONCILIATION, { connection })
-export const searchIndexSyncQueue = new Queue(QUEUE_NAMES.SEARCH_INDEX_SYNC, { connection })
-export const notificationDispatchQueue = new Queue(QUEUE_NAMES.NOTIFICATION_DISPATCH, {
-  connection,
-})
-export const mediaProcessingQueue = new Queue(QUEUE_NAMES.MEDIA_PROCESSING, { connection })
-export const payoutBatchQueue = new Queue(QUEUE_NAMES.PAYOUT_BATCH, { connection })
-export const fulfillmentRiskQueue = new Queue(QUEUE_NAMES.FULFILLMENT_RISK, { connection })
+export const payoutMaturityQueue = createQueueProxy(QUEUE_NAMES.PAYOUT_MATURITY)
+export const deliverySilentConfirmQueue = createQueueProxy(QUEUE_NAMES.DELIVERY_SILENT_CONFIRM)
+export const reconciliationQueue = createQueueProxy(QUEUE_NAMES.RECONCILIATION)
+export const searchIndexSyncQueue = createQueueProxy(QUEUE_NAMES.SEARCH_INDEX_SYNC)
+export const notificationDispatchQueue = createQueueProxy(QUEUE_NAMES.NOTIFICATION_DISPATCH)
+export const mediaProcessingQueue = createQueueProxy(QUEUE_NAMES.MEDIA_PROCESSING)
+export const payoutBatchQueue = createQueueProxy(QUEUE_NAMES.PAYOUT_BATCH)
+export const fulfillmentRiskQueue = createQueueProxy(QUEUE_NAMES.FULFILLMENT_RISK)
+export const ibanActivationQueue = createQueueProxy(QUEUE_NAMES.IBAN_ACTIVATION)

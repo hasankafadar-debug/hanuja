@@ -1,17 +1,25 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Button, StatusBadge, PageHeader, Separator } from '@hanuja/ui'
-import { ArrowLeft, Truck, MapPin, AlertTriangle } from 'lucide-react'
+import { LegalDocumentDialog, PageHeader, Separator, StatusBadge } from '@hanuja/ui'
+import { ArrowLeft, FileText, MapPin, UserRound } from 'lucide-react'
+import { maskCustomerName } from '@hanuja/security'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createOrderService } from '@hanuja/api/services/order.service'
+import { createOrderDocumentService } from '@hanuja/api/services/order-document.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import ShipmentForm from './_components/shipment-form'
+import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import InvoiceAliasCard from './_components/invoice-alias-card'
+import InvoiceUploadCard from './_components/invoice-upload-card'
+import OrderTimeline from './_components/order-timeline'
+import OrderWorkflowCard from './_components/order-workflow-card'
 import RejectButton from './_components/reject-button'
 
 export const dynamic = 'force-dynamic'
 
-interface Props { params: Promise<{ id: string }> }
+interface Props {
+  params: Promise<{ id: string }>
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
@@ -22,164 +30,281 @@ export default async function SellerOrderDetailPage({ params }: Props) {
   const { id } = await params
   const { seller } = await getSellerFromSession()
 
-  const svc = createOrderService({ prisma: createPrismaForRoute() })
-  const order = await svc.getOrderForSeller(id, seller.id)
+  const prisma = createPrismaForRoute()
+  const service = createOrderService({ prisma })
+  const order = await service.getOrderForSeller(id, seller.id)
 
   if (!order) notFound()
+
+  const invoiceAlias = await createOrderDocumentService({ prisma })
+    .ensureInvoiceAliasForSeller(id, seller.id)
+    .catch(() => null)
 
   type OrderLine = {
     id: string
     quantity: number
     unitPrice: { toNumber(): number } | number
+    commissionAmount?: { toNumber(): number } | number
     product: { id: string; name: string; slug: string } | null
   }
+
   type Shipment = {
     id: string
+    cargoProvider: string | null
     trackingNumber: string | null
     status: string
   }
 
-  const lines = order.lines as unknown as OrderLine[]
-  const shipments = (order.shipments ?? []) as unknown as Shipment[]
-  const latestShipment = shipments[0]
+  type LegalSnapshot = {
+    distanceSalesHtml: string
+    preInformationHtml: string
+  } | null
 
-  const grossAmount = lines.reduce((sum, l) => {
-    const price = typeof l.unitPrice === 'object' ? l.unitPrice.toNumber() : Number(l.unitPrice)
-    return sum + price * l.quantity
-  }, 0)
-
-  // 15% commission placeholder — real rate comes from payout record when created
-  const commissionRate = 0.15
-  const commission = Math.round(grossAmount * commissionRate)
-  const netAmount = grossAmount - commission
-
-  const date = new Date(order.createdAt).toLocaleDateString('tr-TR', {
-    day: 'numeric', month: 'long', year: 'numeric',
-  })
-
-  // 20-day deadline from payment confirmation
-  const paymentConfirmedAt = (order as { paymentConfirmedAt?: Date | null }).paymentConfirmedAt
-  let deadlineText: string | null = null
-  let daysLeft: number | null = null
-  if (paymentConfirmedAt) {
-    const deadline = new Date(paymentConfirmedAt)
-    deadline.setDate(deadline.getDate() + 20)
-    daysLeft = Math.ceil((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    deadlineText = deadline.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+  type SellerInvoice = {
+    id: string
+    fileName: string
+    uploadedAt: Date
   }
 
-  const canShip = ['seller_queue_ready', 'seller_accepted', 'preparing', 'awaiting_shipment'].includes(order.status)
+  type Address = {
+    fullName: string
+    addressLine1: string
+    addressLine2?: string | null
+    district: string
+    city: string
+    postalCode: string
+  } | null
+
+  type Customer = {
+    name?: string | null
+    email?: string | null
+  } | null
+
+  type Penalty = {
+    id: string
+    penaltyAmount: { toNumber(): number } | number
+    reason: string
+    status: string
+  }
+
+  type StatusHistory = {
+    id: string
+    toStatus: string
+    note?: string | null
+    reason?: string | null
+    createdAt: Date
+  }
+
+  const lines = order.lines as unknown as OrderLine[]
+  const shipments = (order.shipments ?? []) as unknown as Shipment[]
+  const legalSnapshot = (order.legalSnapshot ?? null) as LegalSnapshot
+  const sellerInvoice = ((order.sellerInvoices ?? []) as unknown as SellerInvoice[])[0] ?? null
+  const latestShipment = shipments[0] ?? null
+  const address = (order.address ?? null) as Address
+  const customer = (order.customer ?? null) as Customer
+  const penalties = (order.penalties ?? []) as unknown as Penalty[]
+  const statusHistory = (order.statusHistory ?? []) as unknown as StatusHistory[]
+
+  const toNumber = (value: unknown) => {
+    if (value === null || value === undefined) return 0
+    if (typeof value === 'object' && 'toNumber' in (value as object)) {
+      return (value as { toNumber(): number }).toNumber()
+    }
+    return Number(value)
+  }
+
+  const date = new Date(order.createdAt).toLocaleDateString('tr-TR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+
   const canReject = ['seller_queue_ready', 'seller_reviewing'].includes(order.status)
+  const distanceSalesDownloadHref = `/api/seller/orders/${id}/contracts/distance-sales`
+  const preInformationDownloadHref = `/api/seller/orders/${id}/contracts/pre-information`
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <Link href="/siparisler" className="mb-3 inline-flex items-center gap-1.5 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-          <ArrowLeft className="h-4 w-4" /> Siparişlere Dön
-        </Link>
-        <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <Link
+            href="/siparisler"
+            className="mb-3 inline-flex items-center gap-1.5 text-sm"
+            style={{ color: 'var(--color-muted-fg)' }}
+          >
+            <ArrowLeft className="h-4 w-4" /> Siparişlere Dön
+          </Link>
           <PageHeader
-            title={`Sipariş #${id.slice(-8).toUpperCase()}`}
+            title={`Sipariş ${formatOrderDisplayNumber(order.publicNumber, order.id)}`}
             description={date}
           />
-          <StatusBadge status={order.status as Parameters<typeof StatusBadge>[0]['status']} />
         </div>
+        <StatusBadge status={order.status as Parameters<typeof StatusBadge>[0]['status']} />
       </div>
 
-      {/* 20-day deadline warning */}
-      {deadlineText && daysLeft !== null && daysLeft <= 10 && (
-        <div
-          className="flex items-start gap-3 rounded-xl border p-4"
-          style={{ borderColor: '#f59e0b', backgroundColor: '#fffbeb' }}
-        >
-          <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0" style={{ color: '#f59e0b' }} />
-          <div>
-            <p className="text-sm font-semibold" style={{ color: '#92400e' }}>
-              Kargo Son Tarihi: {deadlineText}
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: '#92400e' }}>
-              {daysLeft > 0
-                ? `Kalan süre: ${daysLeft} gün. 20 günlük taahhüt aşılırsa %20 ceza uygulanabilir.`
-                : 'Kargo süresi dolmuş! Admin incelemesinde.'}
-            </p>
-          </div>
-        </div>
-      )}
+      <div className="grid gap-6 xl:grid-cols-[1.6fr,1fr]">
+        <div className="space-y-6">
+          <section
+            className="rounded-xl border p-5"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <h2 className="mb-4 text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
+              Ürünler
+            </h2>
+            <div className="space-y-4">
+              {lines.map((line) => {
+                const total = toNumber(line.unitPrice) * line.quantity
+                return (
+                  <div key={line.id} className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                        {line.product?.name ?? 'Ürün'}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                        {line.quantity} adet
+                      </p>
+                    </div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                      ₺{total.toLocaleString('tr-TR')}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
 
-      {/* Order items */}
-      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-        <h2 className="mb-4 font-semibold" style={{ color: 'var(--color-primary)' }}>Ürünler</h2>
-        <div className="space-y-3">
-          {lines.map((line) => {
-            const price = typeof line.unitPrice === 'object' ? line.unitPrice.toNumber() : Number(line.unitPrice)
-            return (
-              <div key={line.id} className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-sm" style={{ color: 'var(--color-primary)' }}>
-                    {line.product?.name ?? 'Ürün'}
-                  </p>
-                  <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>{line.quantity} adet</p>
-                </div>
-                <span className="font-medium text-sm" style={{ color: 'var(--color-primary)' }}>
-                  ₺{(price * line.quantity).toLocaleString('tr-TR')}
-                </span>
+          <OrderWorkflowCard
+            orderId={id}
+            status={order.status}
+            trackingNumber={latestShipment?.trackingNumber ?? null}
+            cargoProvider={latestShipment?.cargoProvider ?? null}
+          />
+
+          <OrderTimeline items={statusHistory} />
+
+          <section
+            className="rounded-xl border p-5"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <div className="mb-4 flex items-center gap-2">
+              <FileText className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+              <h2 className="text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
+                Sipariş Belgeleri
+              </h2>
+            </div>
+            {legalSnapshot ? (
+              <div className="flex flex-wrap gap-2">
+                <LegalDocumentDialog
+                  title="Mesafeli Satış Sözleşmesi"
+                  html={legalSnapshot.distanceSalesHtml}
+                  triggerLabel="Mesafeli Satış Sözleşmesi"
+                  triggerVariant="outline"
+                  downloadHref={distanceSalesDownloadHref}
+                />
+                <LegalDocumentDialog
+                  title="Ön Bilgilendirme Formu"
+                  html={legalSnapshot.preInformationHtml}
+                  triggerLabel="Ön Bilgilendirme Formu"
+                  triggerVariant="outline"
+                  downloadHref={preInformationDownloadHref}
+                />
               </div>
-            )
-          })}
+            ) : (
+              <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                Bu sipariş için sözleşme kaydı bulunamadı.
+              </p>
+            )}
+          </section>
+
+          <InvoiceUploadCard
+            orderId={id}
+            currentInvoice={
+              sellerInvoice
+                ? {
+                    fileName: sellerInvoice.fileName,
+                    uploadedAt: new Date(sellerInvoice.uploadedAt).toLocaleDateString('tr-TR', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }),
+                  }
+                : null
+            }
+          />
+
+          <InvoiceAliasCard aliasEmail={invoiceAlias?.aliasEmail ?? null} />
+
+          {canReject ? (
+            <div className="flex justify-end">
+              <RejectButton orderId={id} />
+            </div>
+          ) : null}
         </div>
-        <Separator className="my-4" />
-        <div className="space-y-1.5 text-sm">
-          <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-            <span>Brüt tutar</span>
-            <span>₺{grossAmount.toLocaleString('tr-TR')}</span>
-          </div>
-          <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-            <span>Komisyon (%{Math.round(commissionRate * 100)})</span>
-            <span>-₺{commission.toLocaleString('tr-TR')}</span>
-          </div>
-          <div className="flex justify-between font-semibold" style={{ color: 'var(--color-primary)' }}>
-            <span>Net Hakediş (tahmini)</span>
-            <span>₺{netAmount.toLocaleString('tr-TR')}</span>
-          </div>
+
+        <div className="space-y-6">
+          <section
+            className="rounded-xl border p-5"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <div className="mb-4 flex items-center gap-2">
+              <UserRound className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+              <h2 className="text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
+                Müşteri ve Teslimat
+              </h2>
+            </div>
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                  {address?.fullName ?? maskCustomerName(customer?.name)}
+                </p>
+              </div>
+              <Separator />
+              <div className="flex items-start gap-2">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--color-accent)' }} />
+                <p style={{ color: 'var(--color-muted-fg)' }}>
+                  {address
+                    ? [address.addressLine1, address.addressLine2, `${address.district} / ${address.city}`, address.postalCode]
+                        .filter(Boolean)
+                        .join(', ')
+                    : 'Teslimat adresi mevcut değil.'}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {penalties.length > 0 ? (
+            <section
+              className="rounded-xl border p-5"
+              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+            >
+              <h2 className="mb-4 text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
+                Ceza Kayıtları
+              </h2>
+              <div className="space-y-3">
+                {penalties.map((penalty) => (
+                  <div
+                    key={penalty.id}
+                    className="rounded-lg border p-3"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                        {penalty.reason}
+                      </p>
+                      <StatusBadge status={penalty.status} />
+                    </div>
+                    <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                      ₺{toNumber(penalty.penaltyAmount).toLocaleString('tr-TR')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
-        <p className="mt-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          * Net hakediş, teslimat onayından itibaren 30 gün sonra ödenir.
-        </p>
-      </section>
-
-      {/* Delivery address */}
-      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-        <h2 className="mb-3 font-semibold flex items-center gap-2" style={{ color: 'var(--color-primary)' }}>
-          <MapPin className="h-4 w-4" /> Teslimat Adresi
-        </h2>
-        <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-          {(order as { shippingAddress?: string | null }).shippingAddress ?? 'Adres bilgisi mevcut değil.'}
-        </p>
-      </section>
-
-      {/* Existing tracking */}
-      {latestShipment?.trackingNumber && (
-        <section className="rounded-xl border p-5" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-          <h2 className="mb-3 font-semibold flex items-center gap-2" style={{ color: 'var(--color-primary)' }}>
-            <Truck className="h-4 w-4" /> Kargo Takip
-          </h2>
-          <p className="font-mono text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            {latestShipment.trackingNumber}
-          </p>
-        </section>
-      )}
-
-      {/* Shipment form */}
-      {canShip && (
-        <ShipmentForm orderId={id} />
-      )}
-
-      {/* Reject */}
-      {canReject && (
-        <div className="flex justify-end">
-          <RejectButton orderId={id} />
-        </div>
-      )}
+      </div>
     </div>
   )
 }

@@ -29,6 +29,23 @@ export function handleError(error: unknown): NextResponse {
     )
   }
 
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    ((error as { code?: string }).code === 'P2021' || (error as { code?: string }).code === 'P2022')
+  ) {
+    return NextResponse.json(
+      {
+        success: false,
+        code: 'SCHEMA_OUT_OF_SYNC',
+        message:
+          'Veritabanı şeması uygulama ile uyumlu görünmüyor. Lütfen migration durumunu kontrol edip `pnpm db:migrate:deploy` çalıştırın.',
+      },
+      { status: 503 },
+    )
+  }
+
   // Don't leak internals in production
   console.error('[API Error]', error)
   return NextResponse.json(

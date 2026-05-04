@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Button, EmptyState, Spinner, Input, Label } from '@hanuja/ui'
 import { MapPin, Plus, X } from 'lucide-react'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface Address {
   id: string
@@ -85,7 +86,7 @@ export default function AddressesPage() {
     try {
       const url = editId ? `/api/user/addresses/${editId}` : '/api/user/addresses'
       const method = editId ? 'PATCH' : 'POST'
-      const res = await fetch(url, {
+      const res = await csrfFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -111,7 +112,7 @@ export default function AddressesPage() {
   async function handleDelete(id: string) {
     if (!confirm('Bu adresi silmek istediğinizden emin misiniz?')) return
     try {
-      await fetch(`/api/user/addresses/${id}`, { method: 'DELETE' })
+      await csrfFetch(`/api/user/addresses/${id}`, { method: 'DELETE' })
       await loadAddresses()
     } catch {
       setError('Adres silinemedi.')
@@ -120,7 +121,7 @@ export default function AddressesPage() {
 
   async function handleSetDefault(id: string) {
     try {
-      await fetch(`/api/user/addresses/${id}`, { method: 'PUT' })
+      await csrfFetch(`/api/user/addresses/${id}`, { method: 'PUT' })
       await loadAddresses()
     } catch {
       setError('Varsayılan adres değiştirilemedi.')
@@ -236,11 +237,10 @@ export default function AddressesPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="postalCode">Posta Kodu *</Label>
+              <Label htmlFor="postalCode">Posta Kodu (opsiyonel)</Label>
               <Input
                 id="postalCode"
                 maxLength={5}
-                required
                 value={form.postalCode}
                 onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))}
               />
@@ -338,7 +338,7 @@ export default function AddressesPage() {
                 {addr.addressLine1}
                 {addr.addressLine2 ? `, ${addr.addressLine2}` : ''}
                 <br />
-                {addr.district} / {addr.city} {addr.postalCode}
+                {[addr.district, '/', addr.city, addr.postalCode].filter(Boolean).join(' ')}
               </p>
             </div>
           ))}

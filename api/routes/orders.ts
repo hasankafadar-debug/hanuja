@@ -8,6 +8,7 @@ import { ok, handleError } from '../lib/response'
 import { UnauthorizedError, ForbiddenError } from '../lib/errors'
 import { createOrderService } from '../services/order.service'
 import { createPrismaForRoute } from '../lib/prisma'
+import { getSellerOrderStatusesForTab, isSellerOrderTab } from '../domain/seller-order-tabs'
 
 // Schema definitions
 const sellerRejectSchema = z.object({
@@ -61,8 +62,20 @@ export async function listSellerOrders(req: NextRequest, sellerId: string) {
     const url = new URL(req.url)
     const skip = Number(url.searchParams.get('skip') ?? '0')
     const take = Number(url.searchParams.get('take') ?? '20')
+    const query = url.searchParams.get('q')?.trim() ?? undefined
+    const tabParam = url.searchParams.get('tab')?.trim()
+    const fromParam = url.searchParams.get('from')?.trim()
+    const toParam = url.searchParams.get('to')?.trim()
     const svc = getOrderService()
-    const orders = await svc.listForSellerQueue(sellerId, skip, take)
+    const orders = await svc.listForSellerQueue({
+      sellerId,
+      ...(query ? { query } : {}),
+      ...(tabParam && isSellerOrderTab(tabParam) ? { status: getSellerOrderStatusesForTab(tabParam) } : {}),
+      ...(fromParam ? { from: new Date(`${fromParam}T00:00:00.000Z`) } : {}),
+      ...(toParam ? { to: new Date(`${toParam}T23:59:59.999Z`) } : {}),
+      skip,
+      take,
+    })
     return ok(orders)
   } catch (err) {
     return handleError(err)

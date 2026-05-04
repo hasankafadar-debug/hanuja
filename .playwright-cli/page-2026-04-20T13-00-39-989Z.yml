@@ -1,0 +1,18 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - text: Hanuja
+      - paragraph [ref=e5]: Admin
+    - generic [ref=e6]:
+      - heading "Admin Girisi" [level=1] [ref=e7]
+      - generic [ref=e8]:
+        - generic [ref=e9]:
+          - generic [ref=e10]: E-posta
+          - textbox "E-posta" [ref=e11]: admin@hanuja.com.tr
+        - generic [ref=e12]:
+          - generic [ref=e13]: Sifre
+          - textbox "Sifre" [ref=e14]: Admin1234!
+        - button "Giris Yap" [ref=e15] [cursor=pointer]
+  - button "Open Next.js Dev Tools" [ref=e21] [cursor=pointer]:
+    - img [ref=e22]
+  - alert [ref=e25]

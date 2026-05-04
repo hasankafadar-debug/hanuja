@@ -1,0 +1,10 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "404" [level=1] [ref=e3]
+    - heading "Sayfa Bulunamadı" [level=2] [ref=e4]
+    - paragraph [ref=e5]: Aradığınız sayfa mevcut değil veya taşınmış olabilir.
+    - link "Panele Dön" [ref=e6] [cursor=pointer]:
+      - /url: /
+  - button "Open Next.js Dev Tools" [ref=e12] [cursor=pointer]:
+    - img [ref=e13]
+  - alert [ref=e16]

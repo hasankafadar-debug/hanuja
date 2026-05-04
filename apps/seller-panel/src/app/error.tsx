@@ -2,6 +2,22 @@
 
 import { useEffect } from 'react'
 
+function getFriendlyMessage(error: Error) {
+  const message = error.message.toLowerCase()
+  const isSchemaMismatch =
+    message.includes('p2021') ||
+    message.includes('p2022') ||
+    message.includes('does not exist in the current database') ||
+    message.includes('table') ||
+    message.includes('column')
+
+  if (isSchemaMismatch) {
+    return 'Seller panel veritabani semasi uygulama ile uyumlu gorunmuyor. Lutfen migration adimlarini uygulayip sayfayi tekrar yukleyin.'
+  }
+
+  return 'Sayfa yuklenirken beklenmeyen bir hata meydana geldi. Lutfen tekrar deneyin.'
+}
+
 export default function GlobalError({
   error,
   reset,
@@ -15,13 +31,11 @@ export default function GlobalError({
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 text-center">
-      <h2 className="text-2xl font-semibold mb-2">Bir sorun oluştu</h2>
-      <p className="text-muted-foreground mb-6 max-w-md">
-        Sayfa yüklenirken beklenmeyen bir hata meydana geldi. Lütfen tekrar deneyin.
-      </p>
+      <h2 className="mb-2 text-2xl font-semibold">Bir sorun oluştu</h2>
+      <p className="mb-6 max-w-md text-muted-foreground">{getFriendlyMessage(error)}</p>
       <button
         onClick={reset}
-        className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
       >
         Tekrar Dene
       </button>

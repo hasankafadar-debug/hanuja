@@ -47,14 +47,26 @@ export class Decimal {
     return String(this.value)
   }
 
+  toFixed(dp: number): string {
+    return this.value.toFixed(dp)
+  }
+
   greaterThan(other: Decimal | string | number): boolean {
     const o = other instanceof Decimal ? other.value : parseFloat(String(other))
     return this.value > o
   }
 
+  gt(other: Decimal | string | number): boolean {
+    return this.greaterThan(other)
+  }
+
   lessThan(other: Decimal | string | number): boolean {
     const o = other instanceof Decimal ? other.value : parseFloat(String(other))
     return this.value < o
+  }
+
+  lt(other: Decimal | string | number): boolean {
+    return this.lessThan(other)
   }
 
   equals(other: Decimal | string | number): boolean {
@@ -68,5 +80,15 @@ export class Decimal {
 
   isZero(): boolean {
     return this.value === 0
+  }
+
+  negated(): Decimal {
+    return new Decimal(-this.value)
+  }
+
+  static max(left: Decimal | string | number, right: Decimal | string | number): Decimal {
+    const leftValue = left instanceof Decimal ? left.value : parseFloat(String(left))
+    const rightValue = right instanceof Decimal ? right.value : parseFloat(String(right))
+    return new Decimal(Math.max(leftValue, rightValue))
   }
 }

@@ -58,6 +58,8 @@ Apps run at:
 - **Seller panel**: http://localhost:3001
 - **Admin panel**: http://localhost:3002
 
+If login or signup returns a `500` error locally, first verify PostgreSQL is reachable on `localhost:5432`, then rerun `pnpm db:migrate` and `pnpm db:seed`.
+
 ---
 
 ## Goals

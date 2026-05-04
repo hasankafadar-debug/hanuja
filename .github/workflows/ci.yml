@@ -47,3 +47,144 @@ jobs:
         run: pnpm build
         env:
           SKIP_ENV_VALIDATION: true
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          REDIS_URL: redis://localhost:6379
+          BETTER_AUTH_SECRET: ci-test-secret-32-chars-minimum-xxxx
+          BETTER_AUTH_URL: https://hanuja.com
+          NEXT_PUBLIC_APP_URL: https://hanuja.com
+          SELLER_PANEL_URL: https://satici.hanuja.com
+          ADMIN_PANEL_URL: https://admin.hanuja.com
+          IYZICO_API_KEY: ${{ secrets.IYZICO_API_KEY || 'ci-iyzico-key' }}
+          IYZICO_SECRET_KEY: ${{ secrets.IYZICO_SECRET_KEY || 'ci-iyzico-secret' }}
+          IYZICO_BASE_URL: https://sandbox-api.iyzipay.com
+          IYZICO_WEBHOOK_SECRET: ${{ secrets.IYZICO_WEBHOOK_SECRET || 'ci-webhook-secret' }}
+          R2_ACCOUNT_ID: ci-r2-account
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || 'ci-r2-key' }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || 'ci-r2-secret' }}
+          R2_BUCKET_NAME: hanuja-media
+          R2_PUBLIC_URL: https://media.hanuja.com
+          R2_PUBLIC_HOSTNAME: media.hanuja.com
+          MEILISEARCH_URL: http://localhost:7700
+          MEILISEARCH_ADMIN_KEY: ${{ secrets.MEILISEARCH_ADMIN_KEY || 'ci-meili-key' }}
+          MEILISEARCH_SEARCH_KEY: ci-meili-search-key
+
+      - name: Check production env vars
+        run: pnpm check-env --env=prod
+        continue-on-error: false
+        env:
+          # Provide CI placeholder values so the checker can validate structure.
+          # Real secrets are validated via placeholder-pattern detection in production.
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          REDIS_URL: redis://localhost:6379
+          BETTER_AUTH_SECRET: ci-test-secret-32-chars-minimum-xxxx
+          BETTER_AUTH_URL: https://hanuja.com
+          NEXT_PUBLIC_APP_URL: https://hanuja.com
+          SELLER_PANEL_URL: https://satici.hanuja.com
+          ADMIN_PANEL_URL: https://admin.hanuja.com
+          IYZICO_API_KEY: ${{ secrets.IYZICO_API_KEY || 'ci-iyzico-key' }}
+          IYZICO_SECRET_KEY: ${{ secrets.IYZICO_SECRET_KEY || 'ci-iyzico-secret' }}
+          IYZICO_BASE_URL: https://sandbox-api.iyzipay.com
+          IYZICO_WEBHOOK_SECRET: ${{ secrets.IYZICO_WEBHOOK_SECRET || 'ci-webhook-secret' }}
+          R2_ACCOUNT_ID: ci-r2-account
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || 'ci-r2-key' }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || 'ci-r2-secret' }}
+          R2_BUCKET_NAME: hanuja-media
+          R2_PUBLIC_URL: https://media.hanuja.com
+          MEILISEARCH_URL: http://localhost:7700
+          MEILISEARCH_ADMIN_KEY: ${{ secrets.MEILISEARCH_ADMIN_KEY || 'ci-meili-key' }}
+          MEILISEARCH_SEARCH_KEY: ci-meili-search-key
+
+  e2e:
+    name: Playwright E2E Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: quality
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hanuja
+          POSTGRES_PASSWORD: hanuja
+          POSTGRES_DB: hanuja_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Run database migrations
+        run: pnpm db:migrate:deploy
+        env:
+          DATABASE_URL: postgresql://hanuja:hanuja@localhost:5432/hanuja_test
+
+      - name: Verify migration status
+        run: pnpm db:migrate:status
+        env:
+          DATABASE_URL: postgresql://hanuja:hanuja@localhost:5432/hanuja_test
+
+      - name: Seed test data
+        run: pnpm db:seed
+        env:
+          DATABASE_URL: postgresql://hanuja:hanuja@localhost:5432/hanuja_test
+        continue-on-error: true
+
+      - name: Build apps
+        run: pnpm build
+        env:
+          SKIP_ENV_VALIDATION: true
+          DATABASE_URL: postgresql://hanuja:hanuja@localhost:5432/hanuja_test
+          REDIS_URL: redis://localhost:6379
+          BETTER_AUTH_SECRET: ci-test-secret-32-chars-minimum-x
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Run Playwright smoke tests
+        run: pnpm --filter web test:e2e
+        env:
+          DATABASE_URL: postgresql://hanuja:hanuja@localhost:5432/hanuja_test
+          REDIS_URL: redis://localhost:6379
+          BETTER_AUTH_SECRET: ci-test-secret-32-chars-minimum-x
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7

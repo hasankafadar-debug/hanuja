@@ -1,0 +1,352 @@
+
+> hanuja@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace
+> turbo run dev --parallel
+
+
+   • Packages in scope: @hanuja/api, @hanuja/config, @hanuja/db, @hanuja/security, @hanuja/seo, @hanuja/tests, @hanuja/types, @hanuja/ui, admin-panel, seller-panel, web
+   • Running dev in 11 packages
+   • Remote caching disabled
+
+seller-panel:dev: cache bypass, force executing 2e9474f93226075e
+web:dev: cache bypass, force executing 0668cb79ddc6e43f
+admin-panel:dev: cache bypass, force executing 419a933dd1b7fe3e
+admin-panel:dev: 
+admin-panel:dev: > admin-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\admin-panel
+seller-panel:dev: 
+web:dev: 
+web:dev: > web@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\web
+seller-panel:dev: > seller-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\seller-panel
+admin-panel:dev: > next dev --port 3002
+admin-panel:dev: 
+seller-panel:dev: > next dev --port 3001
+web:dev: > next dev --port 3000
+seller-panel:dev: 
+web:dev: 
+web:dev:    ▲ Next.js 15.5.14
+web:dev:    - Local:        http://localhost:3000
+web:dev:    - Network:      http://172.21.0.1:3000
+web:dev:    - Environments: .env.local
+web:dev: 
+web:dev:  ✓ Starting...
+admin-panel:dev:    ▲ Next.js 15.5.14
+seller-panel:dev:    ▲ Next.js 15.5.14
+admin-panel:dev:    - Local:        http://localhost:3002
+seller-panel:dev:    - Local:        http://localhost:3001
+seller-panel:dev:    - Network:      http://172.21.0.1:3001
+admin-panel:dev:    - Network:      http://172.21.0.1:3002
+admin-panel:dev:    - Environments: .env.local
+seller-panel:dev:    - Environments: .env.local
+seller-panel:dev: 
+seller-panel:dev:  ✓ Starting...
+admin-panel:dev: 
+admin-panel:dev:  ✓ Starting...
+seller-panel:dev:  ○ Compiling /instrumentation ...
+web:dev:  ○ Compiling /instrumentation ...
+admin-panel:dev:  ○ Compiling /instrumentation ...
+admin-panel:dev:  ✓ Compiled /instrumentation in 1961ms (31 modules)
+admin-panel:dev:  ✓ Ready in 5.7s
+seller-panel:dev:  ✓ Compiled /instrumentation in 2.1s (31 modules)
+seller-panel:dev:  ✓ Ready in 5.8s
+web:dev:  ✓ Compiled /instrumentation in 2.5s (50 modules)
+web:dev: [startup] Database connection check failed. {
+web:dev:   message: '\n' +
+web:dev:     'Invalid `prisma.$queryRaw()` invocation:\n' +
+web:dev:     '\n' +
+web:dev:     '\n' +
+web:dev:     'Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`'
+web:dev: }
+web:dev:  ✓ Ready in 6.3s
+web:dev:  ○ Compiling / ...
+seller-panel:dev:  ○ Compiling / ...
+admin-panel:dev:  ○ Compiling / ...
+admin-panel:dev:  ✓ Compiled / in 3.2s (659 modules)
+seller-panel:dev:  ✓ Compiled / in 3.3s (659 modules)
+seller-panel:dev:  GET / 200 in 4467ms
+admin-panel:dev:  GET / 200 in 5166ms
+web:dev:  ✓ Compiled / in 8.9s (1389 modules)
+web:dev:  GET / 200 in 10362ms
+web:dev:  GET / 200 in 342ms
+web:dev:  ⚠ Cross origin request detected from 127.0.0.1 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+web:dev: Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+web:dev:  ○ Compiling /api/cart/count ...
+web:dev:  ✓ Compiled /api/cart/count in 3.9s (2196 modules)
+web:dev:  GET /api/cart/count 200 in 4952ms
+web:dev:  ○ Compiling /sepet ...
+web:dev:  ✓ Compiled /sepet in 1864ms (2243 modules)
+web:dev:  GET /sepet 200 in 2200ms
+web:dev:  ○ Compiling /api/cart ...
+web:dev:  ✓ Compiled /api/cart in 1413ms (2246 modules)
+web:dev:  GET /api/cart 401 in 2128ms
+web:dev:  GET /api/cart 401 in 62ms
+web:dev:  ○ Compiling /giris ...
+web:dev:  ✓ Compiled /giris in 1589ms (2410 modules)
+web:dev:  GET /giris?callbackUrl=%2Fsepet 200 in 1858ms
+web:dev:  GET /giris?callbackUrl=%2Fsepet 200 in 79ms
+web:dev:  ○ Compiling /api/auth/[...all] ...
+web:dev:  ✓ Compiled /api/auth/[...all] in 1003ms (2413 modules)
+web:dev: [auth] Database readiness check failed. {
+web:dev:   url: 'http://localhost:3000/api/auth/sign-in/email',
+web:dev:   message: '\n' +
+web:dev:     'Invalid `prisma.$queryRaw()` invocation:\n' +
+web:dev:     '\n' +
+web:dev:     '\n' +
+web:dev:     'Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`'
+web:dev: }
+web:dev:  POST /api/auth/sign-in/email 503 in 2805ms
+web:dev:  ○ Compiling /kayit ...
+web:dev:  ✓ Compiled /kayit in 1378ms (2420 modules)
+web:dev:  GET /kayit 200 in 1878ms
+web:dev: [auth] Database readiness check failed. {
+web:dev:   url: 'http://localhost:3000/api/auth/sign-up/email',
+web:dev:   message: '\n' +
+web:dev:     'Invalid `prisma.$queryRaw()` invocation:\n' +
+web:dev:     '\n' +
+web:dev:     '\n' +
+web:dev:     'Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`'
+web:dev: }
+web:dev:  POST /api/auth/sign-up/email 503 in 407ms
+web:dev:  GET /giris?callbackUrl=/sepet 200 in 148ms
+web:dev:  GET /sepet 200 in 189ms
+web:dev:  GET /api/cart/count 200 in 178ms
+web:dev:  GET /api/cart/count 200 in 253ms
+web:dev:  GET /api/cart 401 in 255ms
+web:dev:  GET /api/cart 401 in 84ms
+web:dev:  GET /giris?callbackUrl=%2Fsepet 200 in 193ms
+web:dev:  GET /giris?callbackUrl=%2Fsepet 200 in 56ms
+web:dev:  GET / 200 in 515ms
+web:dev:  GET /api/cart/count 200 in 44ms
+seller-panel:dev:  ○ Compiling /basvuru ...
+seller-panel:dev:  ✓ Compiled /basvuru in 6s (2112 modules)
+seller-panel:dev: 2026-04-21T08:57:49.298Z ERROR [Better Auth]: INTERNAL_SERVER_ERROR Error [PrismaClientKnownRequestError]: 
+seller-panel:dev: Invalid `prisma.session.findFirst()` invocation:
+seller-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`
+seller-panel:dev:     at async BasvuruPage (src\app\basvuru\page.tsx:12:19)
+seller-panel:dev:   10 |
+seller-panel:dev:   11 | export default async function BasvuruPage() {
+seller-panel:dev: > 12 |   const session = await auth.api.getSession({ headers: await headers() })
+seller-panel:dev:      |                   ^
+seller-panel:dev:   13 |
+seller-panel:dev:   14 |   if (!session?.user) {
+seller-panel:dev:   15 |     redirect('/giris?callbackUrl=/basvuru') {
+seller-panel:dev:   code: 'P6001',
+seller-panel:dev:   meta: [Object],
+seller-panel:dev:   clientVersion: '6.19.3'
+seller-panel:dev: }
+seller-panel:dev:  ⨯ [Error [APIError]: Failed to get session] {
+seller-panel:dev:   status: 'INTERNAL_SERVER_ERROR',
+seller-panel:dev:   body: [Object],
+seller-panel:dev:   headers: {},
+seller-panel:dev:   statusCode: 500,
+seller-panel:dev:   digest: '3914836991'
+seller-panel:dev: }
+seller-panel:dev:  GET /basvuru 200 in 8414ms
+web:dev:  GET / 200 in 301ms
+web:dev: 2026-04-21T08:58:04.835Z ERROR [Better Auth]: INTERNAL_SERVER_ERROR Error [PrismaClientKnownRequestError]: 
+web:dev: Invalid `prisma.session.findFirst()` invocation:
+web:dev: 
+web:dev: 
+web:dev: Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`
+web:dev:     at async GET (src\app\api\cart\count\route.ts:12:21)
+web:dev:   10 | export async function GET() {
+web:dev:   11 |   try {
+web:dev: > 12 |     const session = await auth.api.getSession({ headers: await headers() })
+web:dev:      |                     ^
+web:dev:   13 |     if (!session?.user) {
+web:dev:   14 |       return ok({ count: 0 })
+web:dev:   15 |     } {
+web:dev:   code: 'P6001',
+web:dev:   meta: [Object],
+web:dev:   clientVersion: '6.19.3'
+web:dev: }
+web:dev: [API Error] [Error [APIError]: Failed to get session] {
+web:dev:   status: 'INTERNAL_SERVER_ERROR',
+web:dev:   body: [Object],
+web:dev:   headers: {},
+web:dev:   statusCode: 500
+web:dev:  GET /api/cart/count 500 in 228ms
+web:dev: }
+web:dev:  ○ Compiling /hesabim ...
+web:dev:  ✓ Compiled /hesabim in 2.2s (2417 modules)
+web:dev:  GET /hesabim 200 in 2499ms
+web:dev:  ○ Compiling /api/user/profile ...
+web:dev:  ✓ Compiled /api/user/profile in 1295ms (2422 modules)
+web:dev: 2026-04-21T08:58:16.470Z ERROR [Better Auth]: INTERNAL_SERVER_ERROR Error [PrismaClientKnownRequestError]: 
+web:dev: Invalid `prisma.session.findFirst()` invocation:
+web:dev: 
+web:dev: 
+web:dev: Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`
+web:dev:     at async GET (src\app\api\user\profile\route.ts:11:21)
+web:dev:    9 | export async function GET() {
+web:dev:   10 |   try {
+web:dev: > 11 |     const session = await auth.api.getSession({ headers: await headers() })
+web:dev:      |                     ^
+web:dev:   12 |     if (!session?.user) throw new UnauthorizedError()
+web:dev:   13 |     return getProfile(session.user.id)
+web:dev:   14 |   } catch (err) { {
+web:dev:   code: 'P6001',
+web:dev:   meta: [Object],
+web:dev:   clientVersion: '6.19.3'
+web:dev: }
+web:dev: [API Error] [Error [APIError]: Failed to get session] {
+web:dev:   status: 'INTERNAL_SERVER_ERROR',
+web:dev:   body: [Object],
+web:dev:   headers: {},
+web:dev:   statusCode: 500
+web:dev: }
+web:dev:  GET /api/user/profile 500 in 1926ms
+web:dev: 2026-04-21T08:58:16.612Z ERROR [Better Auth]: INTERNAL_SERVER_ERROR Error [PrismaClientKnownRequestError]: 
+web:dev: Invalid `prisma.session.findFirst()` invocation:
+web:dev: 
+web:dev: 
+web:dev: Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`
+web:dev:     at async GET (src\app\api\user\profile\route.ts:11:21)
+web:dev:    9 | export async function GET() {
+web:dev:   10 |   try {
+web:dev: > 11 |     const session = await auth.api.getSession({ headers: await headers() })
+web:dev:      |                     ^
+web:dev:   12 |     if (!session?.user) throw new UnauthorizedError()
+web:dev:   13 |     return getProfile(session.user.id)
+web:dev:   14 |   } catch (err) { {
+web:dev:   code: 'P6001',
+web:dev:   meta: [Object],
+web:dev:   clientVersion: '6.19.3'
+web:dev: }
+web:dev: [API Error] [Error [APIError]: Failed to get session] {
+web:dev:   status: 'INTERNAL_SERVER_ERROR',
+web:dev:  GET /api/user/profile 500 in 119ms
+web:dev:   body: [Object],
+web:dev:   headers: {},
+web:dev:   statusCode: 500
+web:dev: }
+web:dev:  GET /hesabim 200 in 188ms
+web:dev:  GET /giris 200 in 93ms
+web:dev:  ○ Compiling /api/auth/[...all] ...
+web:dev:  ✓ Compiled /api/auth/[...all] in 808ms (1914 modules)
+web:dev: [auth] Database readiness check failed. {
+web:dev:   url: 'http://localhost:3000/api/auth/sign-in/email',
+web:dev:   message: '\n' +
+web:dev:     'Invalid `prisma.$queryRaw()` invocation:\n' +
+web:dev:     '\n' +
+web:dev:     '\n' +
+web:dev:     'Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`'
+web:dev: }
+web:dev:  POST /api/auth/sign-in/email 503 in 1071ms
+web:dev: [auth] Database readiness check failed. {
+web:dev:   url: 'http://localhost:3000/api/auth/sign-in/email',
+web:dev:   message: '\n' +
+web:dev:     'Invalid `prisma.$queryRaw()` invocation:\n' +
+web:dev:     '\n' +
+web:dev:     '\n' +
+web:dev:     'Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`'
+web:dev: }
+web:dev:  POST /api/auth/sign-in/email 503 in 51ms
+web:dev: [auth] Database readiness check failed. {
+web:dev:   url: 'http://localhost:3000/api/auth/sign-in/email',
+web:dev:   message: '\n' +
+web:dev:     'Invalid `prisma.$queryRaw()` invocation:\n' +
+web:dev:     '\n' +
+web:dev:     '\n' +
+web:dev:     'Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`'
+web:dev: }
+web:dev:  POST /api/auth/sign-in/email 503 in 45ms
+seller-panel:dev:  ○ Compiling / ...
+seller-panel:dev:  ✓ Compiled / in 844ms (1544 modules)
+seller-panel:dev:  GET / 200 in 1190ms
+seller-panel:dev:  ○ Compiling /dashboard ...
+seller-panel:dev:  ✓ Compiled /dashboard in 2.9s (2217 modules)
+seller-panel:dev: 2026-04-21T08:59:18.758Z ERROR [Better Auth]: INTERNAL_SERVER_ERROR Error [PrismaClientKnownRequestError]: 
+seller-panel:dev: Invalid `prisma.session.findFirst()` invocation:
+seller-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`
+seller-panel:dev:     at async getSellerFromSession (src\lib\seller-session.ts:15:19)
+seller-panel:dev:     at async SellerPanelLayout (src\app\(panel)\layout.tsx:62:22)
+seller-panel:dev:   13 |
+seller-panel:dev:   14 | export async function getSellerFromSession() {
+seller-panel:dev: > 15 |   const session = await auth.api.getSession({ headers: await headers() })
+seller-panel:dev:      |                   ^
+seller-panel:dev:   16 |   if (!session?.user) {
+seller-panel:dev:   17 |     redirect('/giris')
+seller-panel:dev:   18 |   } {
+seller-panel:dev:   code: 'P6001',
+seller-panel:dev:   meta: [Object],
+seller-panel:dev:   clientVersion: '6.19.3'
+seller-panel:dev: }
+seller-panel:dev: 2026-04-21T08:59:18.790Z ERROR [Better Auth]: INTERNAL_SERVER_ERROR Error [PrismaClientKnownRequestError]: 
+seller-panel:dev: Invalid `prisma.session.findFirst()` invocation:
+seller-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`
+seller-panel:dev:     at async getSellerFromSession (src\lib\seller-session.ts:15:19)
+seller-panel:dev:     at async SellerDashboardPage (src\app\(panel)\dashboard\page.tsx:15:22)
+seller-panel:dev:   13 |
+seller-panel:dev:   14 | export async function getSellerFromSession() {
+seller-panel:dev: > 15 |   const session = await auth.api.getSession({ headers: await headers() })
+seller-panel:dev:      |                   ^
+seller-panel:dev:   16 |   if (!session?.user) {
+seller-panel:dev:   17 |     redirect('/giris')
+seller-panel:dev:   18 |   } {
+seller-panel:dev:   code: 'P6001',
+seller-panel:dev:   meta: [Object],
+seller-panel:dev:   clientVersion: '6.19.3'
+seller-panel:dev: }
+seller-panel:dev:  ⨯ [Error [APIError]: Failed to get session] {
+seller-panel:dev:   status: 'INTERNAL_SERVER_ERROR',
+seller-panel:dev:   body: [Object],
+seller-panel:dev:   headers: {},
+seller-panel:dev:   statusCode: 500,
+seller-panel:dev:   digest: '3914836991'
+seller-panel:dev: }
+seller-panel:dev:  ⨯ [Error [APIError]: Failed to get session] {
+seller-panel:dev:   status: 'INTERNAL_SERVER_ERROR',
+seller-panel:dev:   body: [Object],
+seller-panel:dev:   headers: {},
+seller-panel:dev:   statusCode: 500,
+seller-panel:dev:   digest: '3914836991'
+seller-panel:dev: }
+seller-panel:dev:  GET /dashboard 200 in 4117ms
+admin-panel:dev:  GET / 200 in 148ms
+admin-panel:dev:  ○ Compiling /dashboard ...
+admin-panel:dev:  ✓ Compiled /dashboard in 6.2s (2028 modules)
+admin-panel:dev:  GET /dashboard 200 in 7482ms
+admin-panel:dev:  ○ Compiling /giris ...
+admin-panel:dev:  ✓ Compiled /giris in 1082ms (2036 modules)
+admin-panel:dev:  GET /giris 200 in 1543ms
+admin-panel:dev:  ○ Compiling /api/auth/[...all] ...
+admin-panel:dev:  ✓ Compiled /api/auth/[...all] in 959ms (2042 modules)
+admin-panel:dev: [admin-auth] Database readiness check failed. {
+admin-panel:dev:   url: 'http://localhost:3002/api/auth/sign-in/email',
+admin-panel:dev:   message: '\n' +
+admin-panel:dev:     'Invalid `prisma.$queryRaw()` invocation:\n' +
+admin-panel:dev:     '\n' +
+admin-panel:dev:     '\n' +
+admin-panel:dev:     'Error validating datasource `db`: the URL must start with the protocol `prisma://` or `prisma+postgres://`'
+admin-panel:dev: }
+admin-panel:dev:  POST /api/auth/sign-in/email 503 in 3111ms
+seller-panel:dev:  ○ Compiling /api/health ...
+web:dev:  ○ Compiling /api/health ...
+admin-panel:dev:  ○ Compiling /api/health ...
+web:dev:  ✓ Compiled /api/health in 5.1s (1641 modules)
+seller-panel:dev:  ✓ Compiled /api/health in 5.4s (2306 modules)
+admin-panel:dev:  ✓ Compiled /api/health in 4.9s (1123 modules)
+admin-panel:dev:  GET /giris 200 in 816ms
+admin-panel:dev:  GET /api/health 503 in 7122ms
+seller-panel:dev:  GET /api/health 503 in 7778ms
+web:dev:  GET /api/health 503 in 7673ms
+admin-panel:dev:  GET /api/health 503 in 69ms
+web:dev:  GET /api/health 503 in 171ms
+seller-panel:dev:  ELIFECYCLE  Command failed with exit code 4294967295.
+ ELIFECYCLE  Command failed with exit code 4294967295.
+admin-panel:dev:  ELIFECYCLE  Command failed with exit code 4294967295.
+web:dev:  ELIFECYCLE  Command failed with exit code 4294967295.
+admin-panel:dev: [?25h
+seller-panel:dev: [?25h
+web:dev: [?25h
+
+ Tasks:    0 successful, 3 total
+Cached:    0 cached, 3 total
+  Time:    11m27.946s 
+Failed:    web#dev
+

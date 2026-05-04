@@ -1,0 +1,64 @@
+
+> seller-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\seller-panel
+> next dev --port 3001
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3001
+   - Network:      http://172.21.0.1:3001
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Compiled /instrumentation in 773ms (31 modules)
+ ✓ Ready in 3.6s
+ ○ Compiling / ...
+ ✓ Compiled / in 3.8s (680 modules)
+ GET / 200 in 4444ms
+ GET / 200 in 251ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 6.5s (2445 modules)
+ GET /dashboard 200 in 1573ms
+ GET /dashboard 200 in 9370ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 1580ms (2460 modules)
+ GET /api/notifications?limit=15 200 in 2232ms
+ ○ Compiling /urunler/ice-aktar ...
+ ✓ Compiled /urunler/ice-aktar in 2.1s (2489 modules)
+ GET /urunler/ice-aktar 200 in 3489ms
+ GET /api/notifications?limit=15 200 in 105ms
+ ○ Compiling /api/seller/products/import/preview ...
+ ✓ Compiled /api/seller/products/import/preview in 2.7s (2882 modules)
+ POST /api/seller/products/import/preview 200 in 9709ms
+ ○ Compiling /api/seller/products/barcode/check ...
+ ✓ Compiled /api/seller/products/barcode/check in 977ms (2884 modules)
+ POST /api/seller/products/barcode/check 200 in 1383ms
+ ✓ Compiled in 2.3s (2474 modules)
+ GET /urunler/ice-aktar 200 in 1130ms
+ GET /urunler/ice-aktar 200 in 759ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 590ms (1958 modules)
+ GET /api/notifications?limit=15 200 in 1082ms
+ ○ Compiling /api/seller/products/import/preview ...
+ ✓ Compiled /api/seller/products/import/preview in 985ms (2351 modules)
+ POST /api/seller/products/import/preview 200 in 7487ms
+ ○ Compiling /api/seller/products/barcode/check ...
+ ✓ Compiled /api/seller/products/barcode/check in 607ms (2353 modules)
+ POST /api/seller/products/barcode/check 200 in 842ms
+ ○ Compiling /api/seller/products/import/commit ...
+ ✓ Compiled /api/seller/products/import/commit in 1965ms (2900 modules)
+ POST /api/seller/products/import/commit 400 in 2920ms
+ ✓ Compiled in 938ms (545 modules)
+ GET /urunler/ice-aktar 200 in 1162ms
+ GET /urunler/ice-aktar 200 in 121ms
+ ○ Compiling /urunler ...
+ ✓ Compiled /urunler in 1780ms (2904 modules)
+ GET /urunler 200 in 3224ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 3.1s (2922 modules)
+ GET /api/notifications?limit=15 200 in 3169ms
+ GET /urunler 200 in 765ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg 500 in 4441ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg 500 in 4642ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg 500 in 4726ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg 500 in 4802ms
+ GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2F30894ae0-f8a5-476a-8bdc-a33fcaa4fae9.jpeg 200 in 4793ms
+[?25h

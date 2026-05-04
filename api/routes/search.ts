@@ -1,37 +1,20 @@
 /**
- * Search route handlers — Meilisearch-powered product search.
- *
- * Meilisearch is a read projection only.
- * All results are from the published-products index — unpublished items never appear.
+ * Search route handlers - Meilisearch-backed product search with PG fallback.
  */
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { PRODUCT_SEARCH_SORT_VALUES } from '../domain/search'
+import { createPrismaForRoute } from '../lib/prisma'
 import { ok, handleError } from '../lib/response'
-import { searchIndex } from '../lib/meilisearch'
+import { createSearchService } from '../services/search.service'
 
 const searchQuerySchema = z.object({
   q: z.string().min(1).max(200),
   categorySlug: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  sort: z.enum(['price:asc', 'price:desc', 'name:asc']).optional(),
+  sort: z.enum(PRODUCT_SEARCH_SORT_VALUES).optional(),
 })
-
-export interface ProductSearchHit {
-  id: string
-  slug: string
-  name: string
-  description: string
-  price: number
-  categoryId: string
-  categorySlug: string
-  categoryName: string
-  sellerId: string
-  storeSlug: string
-  storeName: string
-  imageUrl: string | null
-  stock: number
-}
 
 // GET /api/search?q=&categorySlug=&page=&limit=&sort=
 export async function searchProducts(req: NextRequest) {
@@ -39,36 +22,15 @@ export async function searchProducts(req: NextRequest) {
     const url = new URL(req.url)
     const raw = Object.fromEntries(url.searchParams.entries())
     const params = searchQuerySchema.parse(raw)
-
-    const offset = (params.page - 1) * params.limit
-    const filter = params.categorySlug ? `categorySlug = "${params.categorySlug}"` : undefined
-    const sort = params.sort ? [params.sort] : undefined
-
-    const result = await searchIndex<ProductSearchHit>({
-      indexName: 'products',
+    const service = createSearchService({ prisma: createPrismaForRoute() })
+    const result = await service.searchProducts({
       q: params.q,
-      ...(filter ? { filter } : {}),
-      ...(sort ? { sort } : {}),
-      limit: params.limit,
-      offset,
-      facets: ['categorySlug', 'categoryName'],
-      attributesToRetrieve: [
-        'id', 'slug', 'name', 'description', 'price',
-        'categoryId', 'categorySlug', 'categoryName',
-        'sellerId', 'storeSlug', 'storeName', 'imageUrl', 'stock',
-      ],
-    })
-
-    return ok({
-      hits: result.hits,
-      totalHits: result.totalHits,
       page: params.page,
       limit: params.limit,
-      totalPages: Math.ceil(result.totalHits / params.limit),
-      facets: result.facetDistribution,
-      processingTimeMs: result.processingTimeMs,
-      query: params.q,
+      ...(params.categorySlug ? { categorySlug: params.categorySlug } : {}),
+      ...(params.sort ? { sort: params.sort } : {}),
     })
+    return ok(result)
   } catch (err) {
     return handleError(err)
   }

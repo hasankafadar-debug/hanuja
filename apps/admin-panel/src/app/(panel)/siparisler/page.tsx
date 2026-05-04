@@ -1,61 +1,182 @@
 import type { Metadata } from 'next'
+import type { OrderStatus } from '@prisma/client'
 import Link from 'next/link'
-import { StatusBadge, PageHeader } from '@hanuja/ui'
+import { Button, PageHeader, StatusBadge } from '@hanuja/ui'
+import { Download } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { AdminListControls } from '@/components/admin-list-controls'
+import { UrlPagination } from '@/components/url-pagination'
+import {
+  buildDateRange,
+  getPagination,
+  getPrimaryStatusValue,
+  parseAdminListParams,
+  type RawAdminSearchParams,
+} from '@/lib/admin-list-params'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = { title: 'Siparişler' }
+export const metadata: Metadata = { title: 'Siparisler' }
 
 const TWENTY_DAYS_MS = 20 * 24 * 60 * 60 * 1000
 
-export default async function AdminOrdersPage() {
+const STATUS_OPTIONS = [
+  { value: 'draft', label: 'Taslak' },
+  { value: 'checkout_started', label: 'Ödeme başladı' },
+  { value: 'payment_pending', label: 'Ödeme bekliyor' },
+  { value: 'bank_transfer_waiting', label: 'Havale bekliyor' },
+  { value: 'bank_transfer_confirmed', label: 'Havale onaylandı' },
+  { value: 'payment_confirmed', label: 'Ödeme onaylandı' },
+  { value: 'payment_failed', label: 'Ödeme başarısız' },
+  { value: 'payment_cancelled', label: 'Ödeme iptal' },
+  { value: 'seller_queue_ready', label: 'Satici kuyrugu' },
+  { value: 'seller_reviewing', label: 'Satici inceliyor' },
+  { value: 'seller_accepted', label: 'Satici onayladi' },
+  { value: 'seller_rejected', label: 'Satici reddetti' },
+  { value: 'preparing', label: 'Hazirlaniyor' },
+  { value: 'awaiting_shipment', label: 'Kargo bekliyor' },
+  { value: 'shipped', label: 'Kargoda' },
+  { value: 'delivered', label: 'Teslim edildi' },
+  { value: 'delivery_confirmation_pending', label: 'Teslim onayi bekliyor' },
+  { value: 'delivery_confirmed', label: 'Teslim onaylandi' },
+  { value: 'cancelled_by_customer', label: 'Musteri iptali' },
+  { value: 'cancelled_by_admin', label: 'Admin iptali' },
+  { value: 'cancelled_due_to_payment_failure', label: 'Ödeme nedeniyle iptal' },
+  { value: 'cancelled_due_to_seller_rejection', label: 'Satici reddi iptali' },
+  { value: 'cancelled_due_to_20day_breach', label: '20 gun ihlali iptali' },
+  { value: 'return_requested', label: 'Iade talep edildi' },
+  { value: 'return_under_review', label: 'Iade inceleniyor' },
+  { value: 'return_approved', label: 'Iade onaylandi' },
+  { value: 'return_rejected', label: 'Iade reddedildi' },
+  { value: 'return_in_transit', label: 'Iade kargoda' },
+  { value: 'return_received', label: 'Iade alindi' },
+  { value: 'refund_pending', label: 'Geri odeme bekliyor' },
+  { value: 'refund_completed', label: 'Geri odeme tamamlandi' },
+  { value: 'dispute_open', label: 'Uyusmazlik acik' },
+  { value: 'dispute_resolved', label: 'Uyusmazlik cozuldu' },
+]
+
+const INVOICE_OPTIONS = [
+  { value: 'missing', label: 'Faturasi olmayanlar' },
+  { value: 'present', label: 'Faturasi olanlar' },
+]
+
+function buildExportHref(params: {
+  q: string
+  status: string[]
+  invoice: string
+  seller: string
+  from: string
+  to: string
+}) {
+  const search = new URLSearchParams()
+  if (params.q) search.set('q', params.q)
+  if (params.status.length > 0) search.set('status', params.status.join(','))
+  if (params.invoice) search.set('invoice', params.invoice)
+  if (params.seller) search.set('seller', params.seller)
+  if (params.from) search.set('from', params.from)
+  if (params.to) search.set('to', params.to)
+  search.set('format', 'csv')
+  return `/api/admin/orders?${search.toString()}`
+}
+
+function normalizeInvoiceFilter(value: string): 'missing' | 'present' | undefined {
+  return value === 'missing' || value === 'present' ? value : undefined
+}
+
+export default async function AdminOrdersPage({
+  searchParams,
+}: {
+  searchParams?: Promise<RawAdminSearchParams>
+}) {
   await getAdminSession()
+
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const params = parseAdminListParams(resolvedSearchParams, { pageSize: 20 })
 
   const prisma = createPrismaForRoute()
   const svc = createOrderService({ prisma })
-  const orders = await svc.listForAdmin({ skip: 0, take: 50 })
+  const invoiceFilter = normalizeInvoiceFilter(params.invoice)
+  const result = await svc.listForAdmin({
+    ...(params.status.length > 0 ? { status: params.status as OrderStatus[] } : {}),
+    ...(params.q ? { query: params.q } : {}),
+    ...(params.seller ? { sellerId: params.seller } : {}),
+    ...(invoiceFilter ? { invoice: invoiceFilter } : {}),
+    ...buildDateRange(params),
+    ...getPagination(params),
+  })
 
   type OrderRow = {
     id: string
+    publicNumber?: number | null
     createdAt: Date
     status: string
     totalAmount: { toNumber(): number } | number
     lines: Array<{
-      seller: { profile: { storeName: string } | null } | null
+      seller: { displayName?: string | null; profile?: { companyName?: string | null } | null } | null
       product: { name: string } | null
     }>
     payments: Array<{ method: string; status: string }>
+    sellerInvoices: Array<{ id: string }>
   }
 
-  const rows = orders as unknown as OrderRow[]
+  const rows = result.rows as unknown as OrderRow[]
   const now = Date.now()
+  const totalPages = Math.max(1, Math.ceil(result.total / params.pageSize))
+  const exportHref = buildExportHref(params)
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Siparişler" description={`${rows.length} sipariş`} />
+      <PageHeader
+        title="Siparisler"
+        description={`${result.total} siparis`}
+        actions={
+          <Link href={exportHref}>
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4" />
+              Excel indir
+            </Button>
+          </Link>
+        }
+      />
+
+      <AdminListControls
+        searchValue={params.q}
+        searchPlaceholder="Siparis, musteri veya urun ara"
+        statusValue={getPrimaryStatusValue(params.status)}
+        statusOptions={STATUS_OPTIONS}
+        invoiceValue={params.invoice}
+        invoiceOptions={INVOICE_OPTIONS}
+        sellerValue={params.seller}
+        sellerPlaceholder="Satici ID"
+        fromValue={params.from}
+        toValue={params.to}
+        pageSize={params.pageSize}
+        showSellerFilter
+      />
 
       <div
-        className="rounded-xl border overflow-x-auto"
+        className="overflow-x-auto rounded-xl border"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         {rows.length === 0 ? (
           <p className="p-6 text-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Sipariş yok.
+            Siparis yok.
           </p>
         ) : (
-          <table className="w-full text-sm whitespace-nowrap">
+          <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Sipariş No', 'Satıcı', 'Tutar', 'Durum', 'Tarih', ''].map((h) => (
+                {['Siparis No', 'Satici', 'Tutar', 'Durum', 'Fatura', 'Tarih', ''].map((heading) => (
                   <th
-                    key={h}
+                    key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
                     style={{ color: 'var(--color-muted-fg)' }}
                   >
-                    {h}
+                    {heading}
                   </th>
                 ))}
               </tr>
@@ -66,7 +187,7 @@ export default async function AdminOrdersPage() {
                   typeof order.totalAmount === 'number'
                     ? order.totalAmount
                     : order.totalAmount.toNumber()
-                const sellerName = order.lines[0]?.seller?.profile?.storeName ?? '—'
+                const sellerName = order.lines[0]?.seller?.displayName ?? order.lines[0]?.seller?.profile?.companyName ?? '-'
                 const ageMs = now - new Date(order.createdAt).getTime()
                 const isDelayRisk =
                   ageMs > TWENTY_DAYS_MS &&
@@ -87,11 +208,11 @@ export default async function AdminOrdersPage() {
                         className="font-medium hover:underline"
                         style={{ color: 'var(--color-primary)' }}
                       >
-                        {order.id.slice(-10).toUpperCase()}
+                        {formatOrderDisplayNumber(order.publicNumber, order.id)}
                       </Link>
                       {isDelayRisk && (
                         <span className="ml-2 text-xs" style={{ color: '#f59e0b' }}>
-                          ⚠ Risk
+                          Risk
                         </span>
                       )}
                     </td>
@@ -99,14 +220,19 @@ export default async function AdminOrdersPage() {
                       {sellerName}
                     </td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
-                      ₺{amount.toLocaleString('tr-TR')}
+                      TRY {amount.toLocaleString('tr-TR')}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={order.status as never} />
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
+                      {order.sellerInvoices.length > 0 ? `${order.sellerInvoices.length} fatura` : 'Yok'}
+                    </td>
+                    <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
                       {new Date(order.createdAt).toLocaleDateString('tr-TR', {
-                        day: 'numeric', month: 'short', year: 'numeric',
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
                       })}
                     </td>
                     <td className="px-4 py-3">
@@ -115,7 +241,7 @@ export default async function AdminOrdersPage() {
                         className="text-xs hover:underline"
                         style={{ color: 'var(--color-accent)' }}
                       >
-                        Detay →
+                        Detay
                       </Link>
                     </td>
                   </tr>
@@ -124,6 +250,10 @@ export default async function AdminOrdersPage() {
             </tbody>
           </table>
         )}
+      </div>
+
+      <div className="flex justify-end">
+        <UrlPagination page={params.page} totalPages={totalPages} />
       </div>
     </div>
   )

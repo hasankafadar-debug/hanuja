@@ -1,9 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button, Separator, Spinner } from '@hanuja/ui'
-import { MapPin, CreditCard, Banknote, Plus, CheckCircle2, AlertTriangle, Lock } from 'lucide-react'
+import { AlertTriangle, Banknote, CheckCircle2, CreditCard, Lock, MapPin, Plus } from 'lucide-react'
+import { calculateShippingFee } from '@hanuja/api/domain/shipping'
+import { Button, Separator, Spinner, TurnstileWidget } from '@hanuja/ui'
+import LegalDocumentDialog from '@/components/legal-document-dialog'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface Address {
   id: string
@@ -23,6 +26,11 @@ interface CartSummary {
   subtotal: string
 }
 
+interface LegalPreview {
+  distanceSalesHtml: string
+  preInformationHtml: string
+}
+
 type PaymentMethod = 'card' | 'eft'
 
 interface CardForm {
@@ -31,10 +39,8 @@ interface CardForm {
   expireMonth: string
   expireYear: string
   cvc: string
+  identityNumber: string
 }
-
-const FREE_SHIPPING_THRESHOLD = 1500
-const FLAT_SHIPPING = 99
 
 function formatPrice(value: string | number) {
   return Number(value).toLocaleString('tr-TR', {
@@ -45,23 +51,32 @@ function formatPrice(value: string | number) {
 
 export default function CheckoutPage() {
   const router = useRouter()
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+  const selectedOptionBorderColor = 'var(--color-success)'
+
   const [addresses, setAddresses] = useState<Address[]>([])
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
   const [cartSummary, setCartSummary] = useState<CartSummary | null>(null)
+  const [legalPreview, setLegalPreview] = useState<LegalPreview | null>(null)
+  const [legalLoading, setLegalLoading] = useState(false)
+  const [legalError, setLegalError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showAddressForm, setShowAddressForm] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState('')
   const [cardForm, setCardForm] = useState<CardForm>({
     cardHolderName: '',
     cardNumber: '',
     expireMonth: '',
     expireYear: '',
     cvc: '',
+    identityNumber: '',
   })
   const [cardErrors, setCardErrors] = useState<Partial<CardForm>>({})
-  const hiddenFormRef = useRef<HTMLFormElement>(null)
+  const [acceptedMesafeliSatis, setAcceptedMesafeliSatis] = useState(false)
+  const [acceptedOnBilgilendirme, setAcceptedOnBilgilendirme] = useState(false)
   const [newAddress, setNewAddress] = useState({
     fullName: '',
     phone: '',
@@ -75,8 +90,8 @@ export default function CheckoutPage() {
   const loadData = useCallback(async () => {
     try {
       const [cartRes, addrRes] = await Promise.all([
-        fetch('/api/cart'),
-        fetch('/api/checkout/addresses'),
+        fetch('/api/cart', { cache: 'no-store' }),
+        fetch('/api/checkout/addresses', { cache: 'no-store' }),
       ])
 
       if (cartRes.status === 401 || addrRes.status === 401) {
@@ -95,93 +110,234 @@ export default function CheckoutPage() {
       setCartSummary({ itemCount: cart.itemCount, subtotal: cart.subtotal })
       setAddresses(addrs ?? [])
 
-      // Varsayılan adresi seç
-      const defaultAddr = (addrs ?? []).find((a: Address) => a.isDefault)
-      if (defaultAddr) setSelectedAddressId(defaultAddr.id)
+      const defaultAddress = (addrs ?? []).find((address: Address) => address.isDefault)
+      if (defaultAddress) {
+        setSelectedAddressId(defaultAddress.id)
+      }
     } catch {
-      setError('Sayfa yüklenirken hata oluştu')
+      setError('Sayfa yüklenirken hata oluştu.')
     } finally {
       setLoading(false)
     }
   }, [router])
 
   useEffect(() => {
-    loadData()
+    void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    setAcceptedMesafeliSatis(false)
+    setAcceptedOnBilgilendirme(false)
+  }, [paymentMethod, selectedAddressId])
+
+  useEffect(() => {
+    if (!selectedAddressId) {
+      setLegalPreview(null)
+      setLegalError(null)
+      setLegalLoading(false)
+      return
+    }
+
+    let cancelled = false
+    const addressId = selectedAddressId
+
+    async function loadLegalPreview() {
+      setLegalLoading(true)
+      setLegalError(null)
+
+      try {
+        const res = await fetch(
+          `/api/checkout/contracts-preview?addressId=${encodeURIComponent(addressId)}&paymentMethod=${paymentMethod}`,
+          { cache: 'no-store' },
+        )
+
+        if (res.status === 401) {
+          router.push('/giris?redirect=/odeme')
+          return
+        }
+
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          throw new Error(body.message ?? 'Sözleşmeler hazırlanamadı.')
+        }
+
+        if (!cancelled) {
+          setLegalPreview(body.data as LegalPreview)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLegalPreview(null)
+          setLegalError(err instanceof Error ? err.message : 'Sözleşmeler hazırlanamadı.')
+        }
+      } finally {
+        if (!cancelled) {
+          setLegalLoading(false)
+        }
+      }
+    }
+
+    void loadLegalPreview()
+
+    return () => {
+      cancelled = true
+    }
+  }, [paymentMethod, router, selectedAddressId])
 
   async function saveAddress() {
     if (!newAddress.fullName || !newAddress.addressLine1 || !newAddress.city) {
-      setError('Ad soyad, adres ve şehir zorunludur')
+      setError('Ad soyad, adres ve şehir zorunludur.')
       return
     }
+
     try {
-      const res = await fetch('/api/checkout/addresses', {
+      const res = await csrfFetch('/api/checkout/addresses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAddress),
       })
+
       if (!res.ok) {
-        const body = await res.json()
-        setError(body.message ?? 'Adres kaydedilemedi')
+        const body = await res.json().catch(() => ({}))
+        setError(body.message ?? 'Adres kaydedilemedi.')
         return
       }
+
       const { data: saved } = await res.json()
       setAddresses((prev) => [...prev, saved])
       setSelectedAddressId(saved.id)
       setShowAddressForm(false)
-      setNewAddress({ fullName: '', phone: '', addressLine1: '', district: '', city: '', postalCode: '', label: '' })
+      setNewAddress({
+        fullName: '',
+        phone: '',
+        addressLine1: '',
+        district: '',
+        city: '',
+        postalCode: '',
+        label: '',
+      })
     } catch {
-      setError('Adres kaydedilemedi')
+      setError('Adres kaydedilemedi.')
     }
   }
 
   function validateCardForm(): boolean {
-    const errs: Partial<CardForm> = {}
-    if (!cardForm.cardHolderName.trim()) errs.cardHolderName = 'Ad zorunludur'
+    const nextErrors: Partial<CardForm> = {}
+
+    if (!cardForm.cardHolderName.trim()) {
+      nextErrors.cardHolderName = 'Ad zorunludur.'
+    }
+
     const stripped = cardForm.cardNumber.replace(/\s/g, '')
-    if (!/^\d{15,19}$/.test(stripped)) errs.cardNumber = 'Geçersiz kart numarası'
-    if (!/^(0[1-9]|1[0-2])$/.test(cardForm.expireMonth)) errs.expireMonth = 'Geçersiz ay'
-    if (!/^\d{4}$/.test(cardForm.expireYear)) errs.expireYear = 'Geçersiz yıl'
-    if (!/^\d{3,4}$/.test(cardForm.cvc)) errs.cvc = 'Geçersiz CVC'
-    setCardErrors(errs)
-    return Object.keys(errs).length === 0
+    if (!/^\d{15,19}$/.test(stripped)) {
+      nextErrors.cardNumber = 'Gecersiz kart numarasi.'
+    }
+
+    if (!/^(0[1-9]|1[0-2])$/.test(cardForm.expireMonth)) {
+      nextErrors.expireMonth = 'Gecersiz ay.'
+    }
+
+    if (!/^\d{4}$/.test(cardForm.expireYear)) {
+      nextErrors.expireYear = 'Gecersiz yil.'
+    }
+
+    if (!/^\d{3,4}$/.test(cardForm.cvc)) {
+      nextErrors.cvc = 'Gecersiz CVC.'
+    }
+
+    if (!/^\d{11}$/.test(cardForm.identityNumber)) {
+      nextErrors.identityNumber = 'TC kimlik numarasi 11 haneli rakam olmali.'
+    }
+
+    setCardErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
   }
 
   async function placeOrder() {
     if (!selectedAddressId) {
-      setError('Lütfen bir teslimat adresi seçin')
+      setError('Lütfen bir teslimat adresi seçin.')
+      return
+    }
+
+    if (!legalPreview || legalLoading) {
+      setError('Siparişe özel sözleşmeler henüz hazır değil. Lütfen biraz sonra tekrar deneyin.')
+      return
+    }
+
+    if (!acceptedMesafeliSatis || !acceptedOnBilgilendirme) {
+      setError('Devam etmek için sözleşmeleri onaylayın.')
+      return
+    }
+
+    if (!turnstileToken) {
+      setError('Devam etmeden önce insan doğrulamasını tamamlayın.')
       return
     }
 
     if (paymentMethod === 'card') {
-      if (!validateCardForm()) return
-      // Kart ödemesi: hidden form aracılığıyla /api/payment/start'a submit et.
-      // Bu endpoint Iyzico 3DS HTML'ini döner ve tarayıcı o sayfayı görüntüler.
+      if (!validateCardForm()) {
+        return
+      }
+
       setSubmitting(true)
-      hiddenFormRef.current?.submit()
+      setError(null)
+
+      try {
+        const res = await csrfFetch('/api/payment/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            addressId: selectedAddressId,
+            cardHolderName: cardForm.cardHolderName,
+            cardNumber: cardForm.cardNumber.replace(/\s/g, ''),
+            expireMonth: cardForm.expireMonth,
+            expireYear: cardForm.expireYear,
+            cvc: cardForm.cvc,
+            identityNumber: cardForm.identityNumber,
+            turnstileToken,
+            acceptedDistanceSales: true,
+            acceptedPreInformation: true,
+          }),
+        })
+
+        const html = await res.text()
+        document.open()
+        document.write(html)
+        document.close()
+      } catch {
+        setError('Ödeme başlatılırken hata oluştu. Lütfen tekrar deneyin.')
+        setSubmitting(false)
+      }
+
       return
     }
 
-    // EFT / Havale akışı
     setSubmitting(true)
     setError(null)
 
     try {
-      const res = await fetch('/api/checkout/order', {
+      const res = await csrfFetch('/api/checkout/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addressId: selectedAddressId, paymentMethod: 'eft' }),
+        body: JSON.stringify({
+          addressId: selectedAddressId,
+          paymentMethod: 'eft',
+          turnstileToken,
+          acceptedDistanceSales: true,
+          acceptedPreInformation: true,
+        }),
       })
-      const body = await res.json()
+
+      const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(body.message ?? 'Sipariş oluşturulamadı')
+        setError(body.message ?? 'Siparis olusturulamadi.')
         setSubmitting(false)
         return
       }
+
       const orderId = body.data.order.id
       router.push(`/siparis/${orderId}?yeni=1&odeme=eft`)
     } catch {
-      setError('Sipariş oluşturulurken hata oluştu')
+      setError('Siparis olusturulurken hata olustu.')
       setSubmitting(false)
     }
   }
@@ -195,8 +351,10 @@ export default function CheckoutPage() {
   }
 
   const subtotal = Number(cartSummary?.subtotal ?? 0)
-  const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : FLAT_SHIPPING
+  const shipping = calculateShippingFee(subtotal)
   const total = subtotal + shipping
+  const hasAddress = Boolean(selectedAddressId)
+  const documentsReady = hasAddress && Boolean(legalPreview) && !legalLoading && !legalError
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
@@ -207,91 +365,92 @@ export default function CheckoutPage() {
         Ödeme
       </h1>
 
-      {error && (
+      {error ? (
         <div
           className="mb-6 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm"
           style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
         >
           <AlertTriangle className="h-4 w-4 shrink-0" />
           {error}
-          <button className="ml-auto" onClick={() => setError(null)}>✕</button>
+          <button type="button" className="ml-auto" onClick={() => setError(null)}>
+            x
+          </button>
         </div>
-      )}
+      ) : null}
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Adım 1: Teslimat Adresi */}
+        <div className="space-y-6 lg:col-span-2">
           <section
             className="rounded-xl border p-6"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
           >
-            <div className="flex items-center gap-2 mb-4">
+            <div className="mb-4 flex items-center gap-2">
               <MapPin className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
               <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
                 Teslimat Adresi
               </h2>
             </div>
 
-            {addresses.length === 0 && !showAddressForm && (
-              <p className="text-sm mb-3" style={{ color: 'var(--color-muted-fg)' }}>
+            {addresses.length === 0 && !showAddressForm ? (
+              <p className="mb-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
                 Kayıtlı adresiniz yok. Yeni adres ekleyin.
               </p>
-            )}
+            ) : null}
 
-            {/* Kayıtlı adresler */}
             <div className="space-y-3">
-              {addresses.map((addr) => (
+              {addresses.map((address) => (
                 <label
-                  key={addr.id}
+                  key={address.id}
                   className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors"
                   style={{
-                    borderColor: selectedAddressId === addr.id
-                      ? 'var(--color-accent)'
-                      : 'var(--color-border)',
-                    backgroundColor: selectedAddressId === addr.id
-                      ? 'color-mix(in srgb, var(--color-accent) 8%, transparent)'
-                      : 'transparent',
+                    borderColor:
+                      selectedAddressId === address.id
+                        ? selectedOptionBorderColor
+                        : 'var(--color-border)',
                   }}
                 >
                   <input
                     type="radio"
                     name="address"
-                    value={addr.id}
-                    checked={selectedAddressId === addr.id}
-                    onChange={() => setSelectedAddressId(addr.id)}
+                    value={address.id}
+                    checked={selectedAddressId === address.id}
+                    onChange={() => setSelectedAddressId(address.id)}
                     className="mt-0.5"
+                    style={{ accentColor: selectedOptionBorderColor }}
                   />
                   <div className="flex-1 text-sm">
                     <div className="flex items-center gap-2">
                       <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
-                        {addr.fullName}
+                        {address.fullName}
                       </span>
-                      {addr.label && (
+                      {address.label ? (
                         <span
                           className="rounded px-1.5 py-0.5 text-xs"
-                          style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-muted-fg)' }}
+                          style={{
+                            backgroundColor: 'var(--color-muted)',
+                            color: 'var(--color-muted-fg)',
+                          }}
                         >
-                          {addr.label}
+                          {address.label}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                     <p style={{ color: 'var(--color-muted-fg)' }}>
-                      {addr.addressLine1}
-                      {addr.addressLine2 && `, ${addr.addressLine2}`}
+                      {address.addressLine1}
+                      {address.addressLine2 ? `, ${address.addressLine2}` : ''}
                     </p>
                     <p style={{ color: 'var(--color-muted-fg)' }}>
-                      {addr.district} / {addr.city} {addr.postalCode}
+                      {[address.district, '/', address.city, address.postalCode].filter(Boolean).join(' ')}
                     </p>
-                    <p style={{ color: 'var(--color-muted-fg)' }}>{addr.phone}</p>
+                    <p style={{ color: 'var(--color-muted-fg)' }}>{address.phone}</p>
                   </div>
-                  {selectedAddressId === addr.id && (
-                    <CheckCircle2 className="h-4 w-4 mt-0.5" style={{ color: 'var(--color-accent)' }} />
-                  )}
+                  {selectedAddressId === address.id ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4" style={{ color: selectedOptionBorderColor }} />
+                  ) : null}
                 </label>
               ))}
             </div>
 
-            {/* Yeni adres formu */}
             {showAddressForm ? (
               <div
                 className="mt-4 space-y-3 rounded-lg border p-4"
@@ -305,9 +464,9 @@ export default function CheckoutPage() {
                   { key: 'phone', label: 'Telefon *', placeholder: '05XX XXX XX XX' },
                   { key: 'addressLine1', label: 'Adres *', placeholder: 'Mahalle, sokak, bina no...' },
                   { key: 'district', label: 'İlçe *', placeholder: 'İlçe' },
-                  { key: 'city', label: 'Şehir *', placeholder: 'İstanbul' },
-                  { key: 'postalCode', label: 'Posta Kodu *', placeholder: '34000' },
-                  { key: 'label', label: 'Etiket (isteğe bağlı)', placeholder: 'Ev, İş...' },
+                  { key: 'city', label: 'Şehir *', placeholder: 'İzmir' },
+                  { key: 'postalCode', label: 'Posta Kodu', placeholder: '35000' },
+                  { key: 'label', label: 'Etiket', placeholder: 'Ev, İş...' },
                 ].map(({ key, label, placeholder }) => (
                   <div key={key}>
                     <label className="mb-1 block text-xs" style={{ color: 'var(--color-muted-fg)' }}>
@@ -317,8 +476,8 @@ export default function CheckoutPage() {
                       type="text"
                       placeholder={placeholder}
                       value={newAddress[key as keyof typeof newAddress]}
-                      onChange={(e) =>
-                        setNewAddress((prev) => ({ ...prev, [key]: e.target.value }))
+                      onChange={(event) =>
+                        setNewAddress((prev) => ({ ...prev, [key]: event.target.value }))
                       }
                       className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
                       style={{
@@ -334,12 +493,13 @@ export default function CheckoutPage() {
                     Kaydet
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setShowAddressForm(false)}>
-                    İptal
+                    Iptal
                   </Button>
                 </div>
               </div>
             ) : (
               <button
+                type="button"
                 onClick={() => setShowAddressForm(true)}
                 className="mt-3 flex items-center gap-1.5 text-sm"
                 style={{ color: 'var(--color-accent)' }}
@@ -350,12 +510,11 @@ export default function CheckoutPage() {
             )}
           </section>
 
-          {/* Adım 2: Ödeme Yöntemi */}
           <section
             className="rounded-xl border p-6"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
           >
-            <div className="flex items-center gap-2 mb-4">
+            <div className="mb-4 flex items-center gap-2">
               <CreditCard className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
               <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
                 Ödeme Yöntemi
@@ -366,10 +525,8 @@ export default function CheckoutPage() {
               <label
                 className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
                 style={{
-                  borderColor: paymentMethod === 'card' ? 'var(--color-accent)' : 'var(--color-border)',
-                  backgroundColor: paymentMethod === 'card'
-                    ? 'color-mix(in srgb, var(--color-accent) 8%, transparent)'
-                    : 'transparent',
+                  borderColor:
+                    paymentMethod === 'card' ? selectedOptionBorderColor : 'var(--color-border)',
                 }}
               >
                 <input
@@ -378,6 +535,7 @@ export default function CheckoutPage() {
                   value="card"
                   checked={paymentMethod === 'card'}
                   onChange={() => setPaymentMethod('card')}
+                  style={{ accentColor: selectedOptionBorderColor }}
                 />
                 <CreditCard className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
                 <div>
@@ -385,25 +543,23 @@ export default function CheckoutPage() {
                     Kredi / Banka Kartı
                   </p>
                   <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                    Güvenli ödeme — Iyzico altyapısı
+                    Güvenli ödeme - Iyzico altyapısı
                   </p>
                 </div>
               </label>
 
-              {/* Kart formu — yalnızca card seçiliyken göster */}
-              {paymentMethod === 'card' && (
+              {paymentMethod === 'card' ? (
                 <div
-                  className="rounded-lg border p-4 space-y-3"
+                  className="space-y-3 rounded-lg border p-4"
                   style={{ borderColor: 'var(--color-border)' }}
                 >
-                  <div className="flex items-center gap-1.5 mb-1">
+                  <div className="mb-1 flex items-center gap-1.5">
                     <Lock className="h-3.5 w-3.5" style={{ color: 'var(--color-muted-fg)' }} />
                     <span className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                      Kart bilgileriniz şifreli iletilir, sunucularımızda saklanmaz.
+                      Kart bilgileriniz sifreli iletilir, sunucularimizda saklanmaz.
                     </span>
                   </div>
 
-                  {/* Kart üzerindeki isim */}
                   <div>
                     <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
                       Kart Üzerindeki İsim *
@@ -413,19 +569,28 @@ export default function CheckoutPage() {
                       autoComplete="cc-name"
                       placeholder="Ad Soyad"
                       value={cardForm.cardHolderName}
-                      onChange={(e) => setCardForm((p) => ({ ...p, cardHolderName: e.target.value }))}
+                      onChange={(event) =>
+                        setCardForm((prev) => ({ ...prev, cardHolderName: event.target.value }))
+                      }
                       className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
-                      style={{ borderColor: cardErrors.cardHolderName ? 'var(--color-danger)' : 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-primary)' }}
+                      style={{
+                        borderColor: cardErrors.cardHolderName
+                          ? 'var(--color-danger)'
+                          : 'var(--color-border)',
+                        backgroundColor: 'var(--color-bg)',
+                        color: 'var(--color-primary)',
+                      }}
                     />
-                    {cardErrors.cardHolderName && (
-                      <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{cardErrors.cardHolderName}</p>
-                    )}
+                    {cardErrors.cardHolderName ? (
+                      <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                        {cardErrors.cardHolderName}
+                      </p>
+                    ) : null}
                   </div>
 
-                  {/* Kart numarası */}
                   <div>
                     <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                      Kart Numarası *
+                      Kart Numarasi *
                     </label>
                     <input
                       type="text"
@@ -434,20 +599,27 @@ export default function CheckoutPage() {
                       placeholder="0000 0000 0000 0000"
                       maxLength={19}
                       value={cardForm.cardNumber}
-                      onChange={(e) => {
-                        const v = e.target.value.replace(/\D/g, '').slice(0, 16)
-                        const formatted = v.replace(/(.{4})/g, '$1 ').trim()
-                        setCardForm((p) => ({ ...p, cardNumber: formatted }))
+                      onChange={(event) => {
+                        const digits = event.target.value.replace(/\D/g, '').slice(0, 16)
+                        const formatted = digits.replace(/(.{4})/g, '$1 ').trim()
+                        setCardForm((prev) => ({ ...prev, cardNumber: formatted }))
                       }}
-                      className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 font-mono"
-                      style={{ borderColor: cardErrors.cardNumber ? 'var(--color-danger)' : 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-primary)' }}
+                      className="w-full rounded-lg border px-3 py-2 font-mono text-sm outline-none focus:ring-2"
+                      style={{
+                        borderColor: cardErrors.cardNumber
+                          ? 'var(--color-danger)'
+                          : 'var(--color-border)',
+                        backgroundColor: 'var(--color-bg)',
+                        color: 'var(--color-primary)',
+                      }}
                     />
-                    {cardErrors.cardNumber && (
-                      <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{cardErrors.cardNumber}</p>
-                    )}
+                    {cardErrors.cardNumber ? (
+                      <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                        {cardErrors.cardNumber}
+                      </p>
+                    ) : null}
                   </div>
 
-                  {/* Son kullanma tarihi + CVC */}
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
@@ -460,17 +632,31 @@ export default function CheckoutPage() {
                         placeholder="MM"
                         maxLength={2}
                         value={cardForm.expireMonth}
-                        onChange={(e) => setCardForm((p) => ({ ...p, expireMonth: e.target.value.replace(/\D/g, '').slice(0, 2) }))}
-                        className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 text-center"
-                        style={{ borderColor: cardErrors.expireMonth ? 'var(--color-danger)' : 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-primary)' }}
+                        onChange={(event) =>
+                          setCardForm((prev) => ({
+                            ...prev,
+                            expireMonth: event.target.value.replace(/\D/g, '').slice(0, 2),
+                          }))
+                        }
+                        className="w-full rounded-lg border px-3 py-2 text-center text-sm outline-none focus:ring-2"
+                        style={{
+                          borderColor: cardErrors.expireMonth
+                            ? 'var(--color-danger)'
+                            : 'var(--color-border)',
+                          backgroundColor: 'var(--color-bg)',
+                          color: 'var(--color-primary)',
+                        }}
                       />
-                      {cardErrors.expireMonth && (
-                        <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{cardErrors.expireMonth}</p>
-                      )}
+                      {cardErrors.expireMonth ? (
+                        <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                          {cardErrors.expireMonth}
+                        </p>
+                      ) : null}
                     </div>
+
                     <div>
                       <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                        Yıl *
+                        Yil *
                       </label>
                       <input
                         type="text"
@@ -479,14 +665,28 @@ export default function CheckoutPage() {
                         placeholder="YYYY"
                         maxLength={4}
                         value={cardForm.expireYear}
-                        onChange={(e) => setCardForm((p) => ({ ...p, expireYear: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                        className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 text-center"
-                        style={{ borderColor: cardErrors.expireYear ? 'var(--color-danger)' : 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-primary)' }}
+                        onChange={(event) =>
+                          setCardForm((prev) => ({
+                            ...prev,
+                            expireYear: event.target.value.replace(/\D/g, '').slice(0, 4),
+                          }))
+                        }
+                        className="w-full rounded-lg border px-3 py-2 text-center text-sm outline-none focus:ring-2"
+                        style={{
+                          borderColor: cardErrors.expireYear
+                            ? 'var(--color-danger)'
+                            : 'var(--color-border)',
+                          backgroundColor: 'var(--color-bg)',
+                          color: 'var(--color-primary)',
+                        }}
                       />
-                      {cardErrors.expireYear && (
-                        <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{cardErrors.expireYear}</p>
-                      )}
+                      {cardErrors.expireYear ? (
+                        <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                          {cardErrors.expireYear}
+                        </p>
+                      ) : null}
                     </div>
+
                     <div>
                       <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
                         CVC *
@@ -498,25 +698,71 @@ export default function CheckoutPage() {
                         placeholder="123"
                         maxLength={4}
                         value={cardForm.cvc}
-                        onChange={(e) => setCardForm((p) => ({ ...p, cvc: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                        className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 text-center"
-                        style={{ borderColor: cardErrors.cvc ? 'var(--color-danger)' : 'var(--color-border)', backgroundColor: 'var(--color-bg)', color: 'var(--color-primary)' }}
+                        onChange={(event) =>
+                          setCardForm((prev) => ({
+                            ...prev,
+                            cvc: event.target.value.replace(/\D/g, '').slice(0, 4),
+                          }))
+                        }
+                        className="w-full rounded-lg border px-3 py-2 text-center text-sm outline-none focus:ring-2"
+                        style={{
+                          borderColor: cardErrors.cvc
+                            ? 'var(--color-danger)'
+                            : 'var(--color-border)',
+                          backgroundColor: 'var(--color-bg)',
+                          color: 'var(--color-primary)',
+                        }}
                       />
-                      {cardErrors.cvc && (
-                        <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{cardErrors.cvc}</p>
-                      )}
+                      {cardErrors.cvc ? (
+                        <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                          {cardErrors.cvc}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
+                      TC Kimlik Numarasi *
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="12345678901"
+                      maxLength={11}
+                      value={cardForm.identityNumber}
+                      onChange={(event) =>
+                        setCardForm((prev) => ({
+                          ...prev,
+                          identityNumber: event.target.value.replace(/\D/g, '').slice(0, 11),
+                        }))
+                      }
+                      className="w-full rounded-lg border px-3 py-2 font-mono text-sm outline-none focus:ring-2"
+                      style={{
+                        borderColor: cardErrors.identityNumber
+                          ? 'var(--color-danger)'
+                          : 'var(--color-border)',
+                        backgroundColor: 'var(--color-bg)',
+                        color: 'var(--color-primary)',
+                      }}
+                    />
+                    {cardErrors.identityNumber ? (
+                      <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                        {cardErrors.identityNumber}
+                      </p>
+                    ) : null}
+                    <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                      Iyzico odeme guvenligi icin zorunludur. Sunucularimizda saklanmaz.
+                    </p>
+                  </div>
                 </div>
-              )}
+              ) : null}
 
               <label
                 className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
                 style={{
-                  borderColor: paymentMethod === 'eft' ? 'var(--color-accent)' : 'var(--color-border)',
-                  backgroundColor: paymentMethod === 'eft'
-                    ? 'color-mix(in srgb, var(--color-accent) 8%, transparent)'
-                    : 'transparent',
+                  borderColor:
+                    paymentMethod === 'eft' ? selectedOptionBorderColor : 'var(--color-border)',
                 }}
               >
                 <input
@@ -525,6 +771,7 @@ export default function CheckoutPage() {
                   value="eft"
                   checked={paymentMethod === 'eft'}
                   onChange={() => setPaymentMethod('eft')}
+                  style={{ accentColor: selectedOptionBorderColor }}
                 />
                 <Banknote className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
                 <div>
@@ -532,7 +779,7 @@ export default function CheckoutPage() {
                     Havale / EFT
                   </p>
                   <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                    Sipariş sonrası banka bilgileri gösterilir
+                    Siparis sonrasinda banka bilgileri gosterilir
                   </p>
                 </div>
               </label>
@@ -540,7 +787,6 @@ export default function CheckoutPage() {
           </section>
         </div>
 
-        {/* Sipariş özeti */}
         <div
           className="h-fit rounded-xl border p-6"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
@@ -548,38 +794,115 @@ export default function CheckoutPage() {
           <h2 className="mb-4 font-semibold" style={{ color: 'var(--color-primary)' }}>
             Sipariş Özeti
           </h2>
+
           <div className="space-y-3 text-sm">
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-              <span>{cartSummary?.itemCount ?? 0} ürün</span>
+              <span>{cartSummary?.itemCount ?? 0} urun</span>
               <span>₺{formatPrice(subtotal)}</span>
             </div>
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Kargo</span>
-              <span>
-                {shipping === 0 ? (
-                  <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span>
-                ) : (
-                  `₺${shipping}`
-                )}
-              </span>
+              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ucretsiz</span> : `₺${shipping}`}</span>
             </div>
             <Separator />
-            <div className="flex justify-between font-semibold text-base" style={{ color: 'var(--color-primary)' }}>
+            <div className="flex justify-between text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
               <span>Toplam</span>
               <span>₺{formatPrice(total)}</span>
             </div>
           </div>
 
+          {(!hasAddress || legalLoading || legalError) ? (
+            <div className="mt-5 rounded-lg border p-4 text-xs" style={{ borderColor: 'var(--color-border)' }}>
+              {!hasAddress ? (
+                <p style={{ color: 'var(--color-muted-fg)' }}>
+                  Siparişe özel sözleşmeleri görmek ve onaylamak için önce teslimat adresi seçin.
+                </p>
+              ) : legalLoading ? (
+                <div className="flex items-center gap-2" style={{ color: 'var(--color-muted-fg)' }}>
+                  <Spinner className="h-4 w-4" />
+                  Secili adrese gore sozlesmeler hazirlaniyor...
+                </div>
+              ) : legalError ? (
+                <p style={{ color: 'var(--color-danger)' }}>{legalError}</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="mt-5 space-y-3">
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-current"
+                checked={acceptedMesafeliSatis}
+                disabled={!documentsReady}
+                onChange={(event) => setAcceptedMesafeliSatis(event.target.checked)}
+              />
+              <div className="text-xs leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>
+                <LegalDocumentDialog
+                  title="Mesafeli Satış Sözleşmesi"
+                  description="Bu metin siparis anindaki musteri, teslimat adresi ve odeme yontemi bilgilerinize gore olusturulur."
+                  html={legalPreview?.distanceSalesHtml ?? ''}
+                  triggerLabel="Mesafeli Satış Sözleşmesi"
+                  disabled={!documentsReady}
+                  triggerClassName="h-auto px-0 py-0 text-xs font-medium underline underline-offset-2"
+                />
+                {' '}metnini okudum, kabul ediyorum.
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-current"
+                checked={acceptedOnBilgilendirme}
+                disabled={!documentsReady}
+                onChange={(event) => setAcceptedOnBilgilendirme(event.target.checked)}
+              />
+              <div className="text-xs leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>
+                <LegalDocumentDialog
+                  title="Ön Bilgilendirme Formu"
+                  description="Bu metin siparis oncesi bilgilendirme yukumlulugu kapsaminda sectiginiz adres ve odeme yontemiyle hazirlanir."
+                  html={legalPreview?.preInformationHtml ?? ''}
+                  triggerLabel="Ön Bilgilendirme Formu"
+                  disabled={!documentsReady}
+                  triggerClassName="h-auto px-0 py-0 text-xs font-medium underline underline-offset-2"
+                />
+                {' '}metnini okudum, kabul ediyorum.
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-lg border p-4" style={{ borderColor: 'var(--color-border)' }}>
+            <p className="mb-3 text-xs font-medium" style={{ color: 'var(--color-primary)' }}>
+              İnsan doğrulaması
+            </p>
+            <TurnstileWidget
+              action="checkout-submit"
+              className="max-w-full"
+              onChange={setTurnstileToken}
+              siteKey={turnstileSiteKey}
+            />
+            <p className="mt-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Siparisi onaylamak icin bu adim zorunludur.
+            </p>
+          </div>
+
           <Button
-            className="mt-6 w-full"
+            className="mt-4 w-full"
+            data-testid="checkout-submit"
             size="lg"
             onClick={placeOrder}
-            disabled={submitting || !selectedAddressId}
+            disabled={
+              submitting ||
+              !documentsReady ||
+              !acceptedMesafeliSatis ||
+              !acceptedOnBilgilendirme
+            }
           >
             {submitting ? (
               <span className="flex items-center gap-2">
                 <Spinner className="h-4 w-4" />
-                İşleniyor...
+                Isleniyor...
               </span>
             ) : paymentMethod === 'card' ? (
               'Ödemeye Geç'
@@ -588,35 +911,17 @@ export default function CheckoutPage() {
             )}
           </Button>
 
-          <p className="mt-3 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Siparişi onaylayarak{' '}
-            <a href="/sayfa/kullanim-kosullari" className="underline">
-              kullanım koşullarını
-            </a>{' '}
-            kabul etmiş olursunuz.
-          </p>
+          {!documentsReady ? (
+            <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Adres seçilip sözleşmeler hazırlanmadan sipariş onaylanamaz.
+            </p>
+          ) : !acceptedMesafeliSatis || !acceptedOnBilgilendirme ? (
+            <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Devam etmek için iki sözleşmeyi de onaylayın.
+            </p>
+          ) : null}
         </div>
       </div>
-
-      {/*
-        Hidden form — kart ödemesinde /api/payment/start'a POST eder.
-        Tarayıcı bu formu submit ettiğinde sunucu 3DS HTML döner ve sayfa değişir.
-        Kart verileri form üzerinden güvenli iletilir, React state'de yalnızca geçici tutulur.
-      */}
-      <form
-        ref={hiddenFormRef}
-        method="POST"
-        action="/api/payment/start"
-        style={{ display: 'none' }}
-        encType="application/x-www-form-urlencoded"
-      >
-        <input type="hidden" name="addressId" value={selectedAddressId ?? ''} />
-        <input type="hidden" name="cardHolderName" value={cardForm.cardHolderName} />
-        <input type="hidden" name="cardNumber" value={cardForm.cardNumber.replace(/\s/g, '')} />
-        <input type="hidden" name="expireMonth" value={cardForm.expireMonth} />
-        <input type="hidden" name="expireYear" value={cardForm.expireYear} />
-        <input type="hidden" name="cvc" value={cardForm.cvc} />
-      </form>
     </div>
   )
 }

@@ -14,21 +14,27 @@
     "db:generate": "pnpm --filter @hanuja/db exec prisma generate",
     "db:migrate": "pnpm --filter @hanuja/db exec prisma migrate dev",
     "db:migrate:deploy": "pnpm --filter @hanuja/db exec prisma migrate deploy",
+    "db:migrate:status": "pnpm --filter @hanuja/db exec prisma migrate status",
     "db:seed": "pnpm --filter @hanuja/db exec tsx seeds/seed.ts",
+    "db:seed:categories": "pnpm --filter @hanuja/db exec tsx seeds/categories-hipicon.ts",
     "db:studio": "pnpm --filter @hanuja/db exec prisma studio",
     "new-client": "tsx tools/generators/new-client.ts",
     "validate-brand": "tsx tools/validators/validate-brand.ts",
     "brand-swap": "tsx tools/scripts/brand-swap.ts",
     "check-env": "tsx tools/scripts/check-env.ts",
     "search:seed": "tsx tools/scripts/seed-search.ts",
+    "media:backfill": "tsx tools/scripts/backfill-media-urls.ts",
+    "ledger:backfill": "tsx tools/scripts/backfill-seller-ledger.ts",
     "worker": "tsx api/worker.ts",
-    "worker:dev": "tsx --watch api/worker.ts"
+    "worker:dev": "tsx --watch api/worker.ts",
+    "release-check": "pnpm db:migrate:status && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm check-env --env=prod"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",
     "@aws-sdk/s3-request-presigner": "^3.600.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.45.0",
     "@prisma/client": "6.19.3",
     "@typescript-eslint/eslint-plugin": "7",
     "@typescript-eslint/parser": "7",

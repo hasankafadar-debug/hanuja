@@ -1,0 +1,104 @@
+
+> seller-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\seller-panel
+> next dev --port 3001
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3001
+   - Network:      http://172.21.0.1:3001
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Compiled /instrumentation in 379ms (31 modules)
+ ✓ Ready in 3.4s
+ ○ Compiling /urunler/[id] ...
+ ✓ Compiled /urunler/[id] in 5.7s (2432 modules)
+ GET /urunler/cmon87umu0001ulnko69co917 200 in 9656ms
+ ○ Compiling /api/media/fetch ...
+ ✓ Compiled /api/notifications in 5.8s (2885 modules)
+ GET /api/notifications?limit=15 200 in 5833ms
+ ○ Compiling /urunler ...
+ GET /urunler/cmon87umu0001ulnko69co917 200 in 2224ms
+ ✓ Compiled /urunler in 2.1s (2878 modules)
+ GET /urunler 200 in 3766ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg 500 in 506ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg 500 in 676ms
+ GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2F30894ae0-f8a5-476a-8bdc-a33fcaa4fae9.jpeg 200 in 670ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg 500 in 772ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg 500 in 851ms
+ GET /api/notifications?limit=15 200 in 60ms
+ GET /urunler 200 in 179ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 2.6s (2886 modules)
+ GET /giris 200 in 3125ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 1203ms (2889 modules)
+ POST /api/turnstile-verify 200 in 1301ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 1043ms (2892 modules)
+ POST /api/auth/sign-in/email 200 in 2899ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 1841ms (2910 modules)
+ GET /dashboard 200 in 2883ms
+ GET /dashboard 200 in 3476ms
+ GET /api/notifications?limit=15 200 in 71ms
+ GET /urunler 200 in 385ms
+ GET /api/notifications?limit=15 200 in 75ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg 500 in 393ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg 500 in 463ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg 500 in 536ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg 500 in 605ms
+ ✓ Compiled in 2.6s (2496 modules)
+ ✓ Compiled in 1734ms (2483 modules)
+ ✓ Compiled in 1092ms (2483 modules)
+ ✓ Compiled in 2.1s (2483 modules)
+ ✓ Compiled in 2.7s (2483 modules)
+ ✓ Compiled in 402ms (547 modules)
+ ✓ Compiled in 328ms (547 modules)
+ GET /urunler 200 in 2556ms
+ GET /giris 200 in 454ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 1523ms (1954 modules)
+ POST /api/turnstile-verify 200 in 1725ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 670ms (1957 modules)
+ POST /api/auth/sign-in/email 200 in 1399ms
+ GET /dashboard 200 in 681ms
+ GET /dashboard 200 in 1305ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 1096ms (1971 modules)
+ GET /api/notifications?limit=15 200 in 1545ms
+ ○ Compiling /urunler/toplu-yukle ...
+ ✓ Compiled /urunler/toplu-yukle in 4.3s (2545 modules)
+ GET /urunler/toplu-yukle 200 in 5937ms
+ GET /api/notifications?limit=15 200 in 118ms
+ GET /giris 200 in 149ms
+ POST /api/turnstile-verify 200 in 42ms
+ POST /api/auth/sign-in/email 200 in 246ms
+ GET /dashboard 200 in 337ms
+ GET /dashboard 200 in 651ms
+ GET /api/notifications?limit=15 200 in 41ms
+ GET /urunler/toplu-yukle 200 in 312ms
+ GET /api/notifications?limit=15 200 in 48ms
+ ○ Compiling /api/seller/products/bulk ...
+ ✓ Compiled /api/seller/products/bulk in 2.8s (2550 modules)
+ POST /api/seller/products/bulk 200 in 3677ms
+ ○ Compiling /urunler/toplu-guncelle ...
+ ✓ Compiled /urunler/toplu-guncelle in 2.9s (2534 modules)
+ GET /urunler/toplu-guncelle 200 in 4625ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 949ms (1994 modules)
+ GET /api/notifications?limit=15 200 in 1387ms
+ ○ Compiling /api/seller/products/bulk-update/template ...
+ ✓ Compiled /api/seller/products/bulk-update/template in 1637ms (2542 modules)
+ GET /api/seller/products/bulk-update/template 200 in 2094ms
+ ○ Compiling /api/seller/products/bulk-update ...
+ ✓ Compiled /api/seller/products/bulk-update in 2.2s (2537 modules)
+ POST /api/seller/products/bulk-update 200 in 2719ms
+ GET /urunler/toplu-guncelle 200 in 770ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 845ms (1986 modules)
+ GET /api/notifications?limit=15 200 in 1396ms
+ ○ Compiling /api/seller/products/bulk-update/template ...
+ ✓ Compiled /api/seller/products/bulk-update/template in 914ms (1989 modules)
+ GET /api/seller/products/bulk-update/template 200 in 1238ms
+[?25h

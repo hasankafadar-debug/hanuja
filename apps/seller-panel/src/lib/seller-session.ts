@@ -1,6 +1,6 @@
 /**
  * Server-side helper: resolves the authenticated seller from the current session.
- * Redirects to /giris if unauthenticated, /onboarding if seller profile not found.
+ * Redirects to /giris if unauthenticated, /basvuru if seller profile not found.
  */
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -22,7 +22,7 @@ export async function getSellerFromSession() {
   })
 
   if (!seller) {
-    redirect('/onboarding')
+    redirect('/basvuru')
   }
 
   return { session, seller }

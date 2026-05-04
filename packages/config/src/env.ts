@@ -30,6 +30,7 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
     .default('development'),
+  AUTO_APPROVE_CLEAN_PRODUCTS: z.enum(['true', 'false']).optional(),
 })
 
 /**

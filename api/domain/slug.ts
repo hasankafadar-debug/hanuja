@@ -30,6 +30,16 @@ export function normalizeSlug(input: string): string {
     .slice(0, 80)
 }
 
+export function buildSlugWithSuffix(baseSlug: string, suffix: number): string {
+  const normalizedBase = baseSlug.trim().replace(/^-+|-+$/g, '') || 'urun'
+  if (suffix <= 1) return normalizedBase
+
+  const suffixText = `-${suffix}`
+  const maxBaseLength = Math.max(1, 80 - suffixText.length)
+  const truncatedBase = normalizedBase.slice(0, maxBaseLength).replace(/-+$/g, '') || 'urun'
+  return `${truncatedBase}${suffixText}`
+}
+
 export function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{1,78}[a-z0-9]$/.test(slug)
 }

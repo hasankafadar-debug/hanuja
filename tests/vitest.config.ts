@@ -35,6 +35,14 @@ export default defineConfig({
         find: '~/api',
         replacement: resolve(ROOT, 'api'),
       },
+      {
+        find: /^@hanuja\/api\/(.*)$/,
+        replacement: `${resolve(ROOT, 'api')}/$1`,
+      },
+      {
+        find: /^@\//,
+        replacement: `${resolve(ROOT, 'apps/seller-panel/src')}/`,
+      },
     ],
   },
 })

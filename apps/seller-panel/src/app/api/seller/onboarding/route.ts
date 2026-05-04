@@ -1,156 +1,228 @@
 /**
  * POST /api/seller/onboarding
  *
- * Creates the Seller record, SellerBankDetail, and sets user role to "seller".
- * Only callable by authenticated users with role "customer" (not yet a seller).
- *
- * Business rules enforced:
- * - User must be authenticated
- * - User must not already have a Seller record
- * - IBAN must look valid (TR + 24 digits) — full bank verification is done by admin
- * - Slug must be unique
- * - Bank details are created with isVerified=false; admin must verify before payout
+ * Creates the seller record, inactive bank detail, updates the user's role
+ * and stores the verified contact phone.
  */
-import { NextResponse, type NextRequest } from 'next/server'
 import { headers } from 'next/headers'
+import { type NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { auth } from '@/lib/auth'
+import {
+  type CompanyType,
+  getTaxNumberError,
+  isValidPhone,
+  isValidTaxNumber,
+  normalizePhone,
+} from '@/lib/onboarding'
+import { verifyTurnstileToken } from '@hanuja/api/lib/turnstile'
+import { hasMatchingNormalizedTokens } from '@hanuja/security'
+import { handleError } from '@hanuja/api/lib/response'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 function isValidIban(iban: string): boolean {
-  const clean = iban.replace(/\s/g, '').toUpperCase()
-  return /^TR\d{24}$/.test(clean)
+  return /^TR\d{24}$/.test(iban.replace(/\s/g, '').toUpperCase())
 }
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$/.test(slug)
 }
 
+function isCompanyType(value: string): value is CompanyType {
+  return ['individual', 'sole_proprietorship', 'limited', 'joint_stock', 'other'].includes(value)
+}
+
 export async function POST(request: NextRequest) {
-  // ── Auth check ─────────────────────────────────────────────────────────────
-  const session = await auth.api.getSession({ headers: await headers() })
-
-  if (!session?.user) {
-    return NextResponse.json({ message: 'Oturum açmanız gerekiyor.' }, { status: 401 })
-  }
-
-  // ── Prevent duplicate seller creation ─────────────────────────────────────
-  const existingSeller = await prisma.seller.findUnique({
-    where: { userId: session.user.id },
-    select: { id: true },
-  })
-
-  if (existingSeller) {
-    return NextResponse.json(
-      { message: 'Bu hesap zaten bir satıcı hesabına bağlı.' },
-      { status: 409 },
-    )
-  }
-
-  // ── Parse body ────────────────────────────────────────────────────────────
-  let body: {
-    magaza: { storeName: string; slug: string; description: string; city: string }
-    isletme: {
-      companyType: string
-      companyName: string
-      taxNumber: string
-      taxOffice: string
-      address: string
-      city: string
-      district: string
-      postalCode: string
-    }
-    banka: { accountHolderName: string; iban: string; bankName: string }
-  }
-
   try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ message: 'Geçersiz istek.' }, { status: 400 })
-  }
+    const session = await auth.api.getSession({ headers: await headers() })
 
-  const { magaza, isletme, banka } = body
+    if (!session?.user) {
+      return NextResponse.json({ message: 'Oturum acmaniz gerekiyor.' }, { status: 401 })
+    }
 
-  // ── Validate required fields ───────────────────────────────────────────────
-  if (!magaza?.storeName || !magaza?.slug || !magaza?.description || !magaza?.city) {
-    return NextResponse.json({ message: 'Mağaza bilgileri eksik.' }, { status: 400 })
-  }
+    if (!session.user.emailVerified) {
+      return NextResponse.json(
+        { message: 'Basvuru yapmadan once e-posta adresinizi dogrulamaniz gerekir.' },
+        { status: 403 },
+      )
+    }
 
-  if (!isletme?.taxNumber || !isletme?.address || !isletme?.city) {
-    return NextResponse.json({ message: 'İşletme bilgileri eksik.' }, { status: 400 })
-  }
+    const existingSeller = await prisma.seller.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true, status: true },
+    })
 
-  if (!banka?.accountHolderName || !banka?.iban || !banka?.bankName) {
-    return NextResponse.json({ message: 'Banka bilgileri eksik.' }, { status: 400 })
-  }
+    if (existingSeller) {
+      return NextResponse.json(
+        {
+          message:
+            existingSeller.status === 'pending'
+              ? 'Basvurunuz zaten alinmis durumda.'
+              : 'Bu hesap zaten bir satici hesabina bagli.',
+        },
+        { status: 409 },
+      )
+    }
 
-  if (!isValidSlug(magaza.slug)) {
-    return NextResponse.json(
-      { message: 'Geçersiz mağaza URL\'si. Yalnızca küçük harf, rakam ve tire kullanabilirsiniz.' },
-      { status: 400 },
-    )
-  }
+    let body: {
+      banka: { accountHolderName: string; bankName: string; iban: string }
+      isletme: {
+        address: string
+        city: string
+        companyName: string
+        companyType: CompanyType
+        district: string
+        mersis?: string
+        postalCode?: string
+        taxNumber: string
+        taxOffice: string
+      }
+      magaza: { city: string; description: string; slug: string; storeName: string }
+      phone: string
+      turnstileToken: string
+    }
 
-  if (!isValidIban(banka.iban)) {
-    return NextResponse.json(
-      { message: 'Geçersiz IBAN. TR ile başlayan 26 karakterlik format bekleniyor.' },
-      { status: 400 },
-    )
-  }
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ message: 'Gecersiz istek.' }, { status: 400 })
+    }
 
-  // ── Slug uniqueness check ──────────────────────────────────────────────────
-  const slugTaken = await prisma.seller.findUnique({
-    where: { slug: magaza.slug },
-    select: { id: true },
-  })
+    const { banka, isletme, magaza, phone, turnstileToken } = body
 
-  if (slugTaken) {
-    return NextResponse.json(
-      { message: 'Bu mağaza URL\'si kullanılıyor. Farklı bir URL seçin.' },
-      { status: 409 },
-    )
-  }
+    if (!magaza?.storeName || !magaza?.slug || !magaza?.description || !magaza?.city) {
+      return NextResponse.json({ message: 'Magaza bilgileri eksik.' }, { status: 400 })
+    }
 
-  // ── Create Seller + BankDetail in a transaction ───────────────────────────
-  await prisma.$transaction(async (tx) => {
-    const seller = await tx.seller.create({
-      data: {
-        userId: session.user.id,
-        displayName: magaza.storeName,
-        slug: magaza.slug,
-        status: 'pending',
-        profile: {
-          create: {
-            bio: magaza.description ?? null,
-            city: magaza.city ?? null,
-            taxNumber: isletme.taxNumber ?? null,
+    if (
+      !isletme?.companyName ||
+      !isletme?.taxNumber ||
+      !isletme?.taxOffice ||
+      !isletme?.address ||
+      !isletme?.city ||
+      !isletme?.district ||
+      !isletme?.companyType
+    ) {
+      return NextResponse.json({ message: 'Isletme bilgileri eksik.' }, { status: 400 })
+    }
+
+    if (!banka?.accountHolderName || !banka?.iban || !banka?.bankName) {
+      return NextResponse.json({ message: 'Banka bilgileri eksik.' }, { status: 400 })
+    }
+
+    if (!isCompanyType(isletme.companyType)) {
+      return NextResponse.json({ message: 'Gecersiz isletme turu secildi.' }, { status: 400 })
+    }
+
+    const normalizedPhone = normalizePhone(phone)
+    if (!isValidPhone(normalizedPhone)) {
+      return NextResponse.json(
+        { message: 'Gecerli bir Turkiye cep telefonu numarasi girin.' },
+        { status: 400 },
+      )
+    }
+
+    if (!isValidTaxNumber(isletme.companyType, isletme.taxNumber)) {
+      return NextResponse.json(
+        { message: getTaxNumberError(isletme.companyType) },
+        { status: 400 },
+      )
+    }
+
+    if (!isValidSlug(magaza.slug)) {
+      return NextResponse.json(
+        { message: "Gecersiz magaza URL'si. Yalnizca kucuk harf, rakam ve tire kullanabilirsiniz." },
+        { status: 400 },
+      )
+    }
+
+    if (!isValidIban(banka.iban)) {
+      return NextResponse.json(
+        { message: 'Gecersiz IBAN. TR ile baslayan 26 karakterlik format bekleniyor.' },
+        { status: 400 },
+      )
+    }
+
+    const turnstileResult = await verifyTurnstileToken({
+      token: turnstileToken ?? '',
+      ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+      action: 'seller-onboarding',
+    })
+
+    if (!turnstileResult.success) {
+      return NextResponse.json(
+        { message: turnstileResult.message ?? 'Insan dogrulamasi tamamlanamadi.' },
+        { status: 400 },
+      )
+    }
+
+    if (!hasMatchingNormalizedTokens(banka.accountHolderName, isletme.companyName)) {
+      return NextResponse.json(
+        { message: 'IBAN hesap sahibi, sirket/isletme adi ile ayni olmalidir.' },
+        { status: 422 },
+      )
+    }
+
+    const slugTaken = await prisma.seller.findUnique({
+      where: { slug: magaza.slug },
+      select: { id: true },
+    })
+
+    if (slugTaken) {
+      return NextResponse.json(
+        { message: "Bu magaza URL'si kullaniliyor. Farkli bir URL secin." },
+        { status: 409 },
+      )
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const seller = await tx.seller.create({
+        data: {
+          userId: session.user.id,
+          displayName: magaza.storeName,
+          slug: magaza.slug,
+          status: 'pending',
+          profile: {
+            create: {
+              bio: magaza.description,
+              city: isletme.city,
+              companyName: isletme.companyName,
+              district: isletme.district,
+              legalAddress: isletme.address,
+              mersis: isletme.mersis?.trim() || null,
+              phone: normalizedPhone,
+              postalCode: isletme.postalCode?.trim() || null,
+              taxNumber: isletme.taxNumber,
+              taxOffice: isletme.taxOffice,
+            },
           },
         },
-      },
+      })
+
+      await tx.sellerBankDetail.create({
+        data: {
+          sellerId: seller.id,
+          accountHolder: banka.accountHolderName,
+          iban: banka.iban.replace(/\s/g, '').toUpperCase(),
+          bankName: banka.bankName,
+          isVerified: false,
+          isActive: false,
+        },
+      })
+
+      await tx.user.update({
+        where: { id: session.user.id },
+        data: {
+          role: 'seller',
+        },
+      })
     })
 
-    // Bank details: created with isVerified=false
-    // Admin must verify before first payout
-    await tx.sellerBankDetail.create({
-      data: {
-        sellerId: seller.id,
-        accountHolder: banka.accountHolderName,
-        iban: banka.iban, // stored normalized (no spaces)
-        bankName: banka.bankName,
-        isVerified: false,
-        isActive: false, // activated after admin verification
-      },
-    })
-
-    // Set user role to "seller" via Better Auth admin plugin
-    await tx.user.update({
-      where: { id: session.user.id },
-      data: { role: 'seller' },
-    })
-  })
-
-  return NextResponse.json({ success: true }, { status: 201 })
+    return NextResponse.json({ success: true }, { status: 201 })
+  } catch (error) {
+    return handleError(error)
+  }
 }

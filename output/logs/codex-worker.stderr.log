@@ -1,0 +1,686 @@
+[notification-dispatch] Job 5 failed: PrismaClientValidationError: 
+Invalid `prisma.notification.create()` invocation in
+C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:29
+
+  128 const normalizedType = normalizeNotificationType(type)
+  129 
+  130 // Create in-app notification record
+→ 131 await prisma.notification.create({
+        data: {
+          userId: "cmofi97ue0000ulbsvds6hupx",
+          type: "order_confirmed",
+                ~~~~~~~~~~~~~~~~~
+          title: "Siparişiniz Alındı — #ZJ31R647",
+          body: "Siparişiniz başarıyla alındı.",
+          data: {
+            orderId: "cmoh0kfuy000uuldczj31r647",
+            orderNumber: "ZJ31R647",
+            paymentMethod: "eft",
+            items: [
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              }
+            ],
+            totalAmount: "₺25000,00",
+            customerName: "Playwright Müşteri",
+            bankTransferInstructions: {
+              bankName: "",
+              accountHolder: "",
+              iban: "",
+              reference: "cmoh0kfuy000uuldczj31r647",
+              missing: true
+            }
+          }
+        }
+      })
+
+Invalid value for argument `type`. Expected NotificationType.
+    at Nn (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:33:1363)
+    at ei.handleRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6911)
+    at ei.handleAndLogRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6593)
+    at ei.request (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6300)
+    at async a (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:134:9551)
+    at async Worker.processNotificationDispatch (C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:3)
+    at async <anonymous> (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\bullmq@5.73.2\node_modules\bullmq\src\classes\worker.ts:994:26) {
+  clientVersion: '6.19.3'
+}
+[notification-dispatch] Job 4 failed: PrismaClientValidationError: 
+Invalid `prisma.notification.create()` invocation in
+C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:29
+
+  128 const normalizedType = normalizeNotificationType(type)
+  129 
+  130 // Create in-app notification record
+→ 131 await prisma.notification.create({
+        data: {
+          userId: "cmofi97ue0000ulbsvds6hupx",
+          type: "order_confirmed",
+                ~~~~~~~~~~~~~~~~~
+          title: "Siparişiniz Alındı — #7UYZOFOK",
+          body: "Siparişiniz başarıyla alındı.",
+          data: {
+            orderId: "cmoh0ghfl0009uldc7uyzofok",
+            orderNumber: "7UYZOFOK",
+            paymentMethod: "eft",
+            items: [
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              }
+            ],
+            totalAmount: "₺25000,00",
+            customerName: "Playwright Müşteri",
+            bankTransferInstructions: {
+              bankName: "",
+              accountHolder: "",
+              iban: "",
+              reference: "cmoh0ghfl0009uldc7uyzofok",
+              missing: true
+            }
+          }
+        }
+      })
+
+Invalid value for argument `type`. Expected NotificationType.
+    at Nn (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:33:1363)
+    at ei.handleRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6911)
+    at ei.handleAndLogRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6593)
+    at ei.request (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6300)
+    at async a (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:134:9551)
+    at async Worker.processNotificationDispatch (C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:3)
+    at async <anonymous> (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\bullmq@5.73.2\node_modules\bullmq\src\classes\worker.ts:994:26) {
+  clientVersion: '6.19.3'
+}
+[notification-dispatch] Job 4 failed: PrismaClientValidationError: 
+Invalid `prisma.notification.create()` invocation in
+C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:29
+
+  128 const normalizedType = normalizeNotificationType(type)
+  129 
+  130 // Create in-app notification record
+→ 131 await prisma.notification.create({
+        data: {
+          userId: "cmofi97ue0000ulbsvds6hupx",
+          type: "order_confirmed",
+                ~~~~~~~~~~~~~~~~~
+          title: "Siparişiniz Alındı — #7UYZOFOK",
+          body: "Siparişiniz başarıyla alındı.",
+          data: {
+            orderId: "cmoh0ghfl0009uldc7uyzofok",
+            orderNumber: "7UYZOFOK",
+            paymentMethod: "eft",
+            items: [
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              }
+            ],
+            totalAmount: "₺25000,00",
+            customerName: "Playwright Müşteri",
+            bankTransferInstructions: {
+              bankName: "",
+              accountHolder: "",
+              iban: "",
+              reference: "cmoh0ghfl0009uldc7uyzofok",
+              missing: true
+            }
+          }
+        }
+      })
+
+Invalid value for argument `type`. Expected NotificationType.
+    at Nn (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:33:1363)
+    at ei.handleRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6911)
+    at ei.handleAndLogRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6593)
+    at ei.request (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6300)
+    at async a (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:134:9551)
+    at async Worker.processNotificationDispatch (C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:3)
+    at async <anonymous> (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\bullmq@5.73.2\node_modules\bullmq\src\classes\worker.ts:994:26) {
+  clientVersion: '6.19.3'
+}
+[notification-dispatch] Job 5 failed: PrismaClientValidationError: 
+Invalid `prisma.notification.create()` invocation in
+C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:29
+
+  128 const normalizedType = normalizeNotificationType(type)
+  129 
+  130 // Create in-app notification record
+→ 131 await prisma.notification.create({
+        data: {
+          userId: "cmofi97ue0000ulbsvds6hupx",
+          type: "order_confirmed",
+                ~~~~~~~~~~~~~~~~~
+          title: "Siparişiniz Alındı — #ZJ31R647",
+          body: "Siparişiniz başarıyla alındı.",
+          data: {
+            orderId: "cmoh0kfuy000uuldczj31r647",
+            orderNumber: "ZJ31R647",
+            paymentMethod: "eft",
+            items: [
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              }
+            ],
+            totalAmount: "₺25000,00",
+            customerName: "Playwright Müşteri",
+            bankTransferInstructions: {
+              bankName: "",
+              accountHolder: "",
+              iban: "",
+              reference: "cmoh0kfuy000uuldczj31r647",
+              missing: true
+            }
+          }
+        }
+      })
+
+Invalid value for argument `type`. Expected NotificationType.
+    at Nn (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:33:1363)
+    at ei.handleRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6911)
+    at ei.handleAndLogRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6593)
+    at ei.request (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6300)
+    at async a (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:134:9551)
+    at async Worker.processNotificationDispatch (C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:3)
+    at async <anonymous> (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\bullmq@5.73.2\node_modules\bullmq\src\classes\worker.ts:994:26) {
+  clientVersion: '6.19.3'
+}
+[notification-dispatch] Job 7 failed: PrismaClientKnownRequestError: 
+Invalid `prisma.notification.create()` invocation in
+C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:29
+
+  128 const normalizedType = normalizeNotificationType(type)
+  129 
+  130 // Create in-app notification record
+→ 131 await prisma.notification.create(
+Foreign key constraint violated on the constraint: `notifications_userId_fkey`
+    at ei.handleRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:7268)
+    at ei.handleAndLogRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6593)
+    at ei.request (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6300)
+    at async a (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:134:9551)
+    at async Worker.processNotificationDispatch (C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:3)
+    at async <anonymous> (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\bullmq@5.73.2\node_modules\bullmq\src\classes\worker.ts:994:26) {
+  code: 'P2003',
+  meta: {
+    modelName: 'Notification',
+    constraint: 'notifications_userId_fkey'
+  },
+  clientVersion: '6.19.3'
+}
+[notification-dispatch] Job 4 failed: PrismaClientValidationError: 
+Invalid `prisma.notification.create()` invocation in
+C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:29
+
+  128 const normalizedType = normalizeNotificationType(type)
+  129 
+  130 // Create in-app notification record
+→ 131 await prisma.notification.create({
+        data: {
+          userId: "cmofi97ue0000ulbsvds6hupx",
+          type: "order_confirmed",
+                ~~~~~~~~~~~~~~~~~
+          title: "Siparişiniz Alındı — #7UYZOFOK",
+          body: "Siparişiniz başarıyla alındı.",
+          data: {
+            orderId: "cmoh0ghfl0009uldc7uyzofok",
+            orderNumber: "7UYZOFOK",
+            paymentMethod: "eft",
+            items: [
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              }
+            ],
+            totalAmount: "₺25000,00",
+            customerName: "Playwright Müşteri",
+            bankTransferInstructions: {
+              bankName: "",
+              accountHolder: "",
+              iban: "",
+              reference: "cmoh0ghfl0009uldc7uyzofok",
+              missing: true
+            }
+          }
+        }
+      })
+
+Invalid value for argument `type`. Expected NotificationType.
+    at Nn (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:33:1363)
+    at ei.handleRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6911)
+    at ei.handleAndLogRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6593)
+    at ei.request (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6300)
+    at async a (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:134:9551)
+    at async Worker.processNotificationDispatch (C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:3)
+    at async <anonymous> (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\bullmq@5.73.2\node_modules\bullmq\src\classes\worker.ts:994:26) {
+  clientVersion: '6.19.3'
+}
+[notification-dispatch] Job 5 failed: PrismaClientValidationError: 
+Invalid `prisma.notification.create()` invocation in
+C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:29
+
+  128 const normalizedType = normalizeNotificationType(type)
+  129 
+  130 // Create in-app notification record
+→ 131 await prisma.notification.create({
+        data: {
+          userId: "cmofi97ue0000ulbsvds6hupx",
+          type: "order_confirmed",
+                ~~~~~~~~~~~~~~~~~
+          title: "Siparişiniz Alındı — #ZJ31R647",
+          body: "Siparişiniz başarıyla alındı.",
+          data: {
+            orderId: "cmoh0kfuy000uuldczj31r647",
+            orderNumber: "ZJ31R647",
+            paymentMethod: "eft",
+            items: [
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              }
+            ],
+            totalAmount: "₺25000,00",
+            customerName: "Playwright Müşteri",
+            bankTransferInstructions: {
+              bankName: "",
+              accountHolder: "",
+              iban: "",
+              reference: "cmoh0kfuy000uuldczj31r647",
+              missing: true
+            }
+          }
+        }
+      })
+
+Invalid value for argument `type`. Expected NotificationType.
+    at Nn (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:33:1363)
+    at ei.handleRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6911)
+    at ei.handleAndLogRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6593)
+    at ei.request (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6300)
+    at async a (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:134:9551)
+    at async Worker.processNotificationDispatch (C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:3)
+    at async <anonymous> (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\bullmq@5.73.2\node_modules\bullmq\src\classes\worker.ts:994:26) {
+  clientVersion: '6.19.3'
+}
+[notification-dispatch] Job 7 failed: PrismaClientKnownRequestError: 
+Invalid `prisma.notification.create()` invocation in
+C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:29
+
+  128 const normalizedType = normalizeNotificationType(type)
+  129 
+  130 // Create in-app notification record
+→ 131 await prisma.notification.create(
+Foreign key constraint violated on the constraint: `notifications_userId_fkey`
+    at ei.handleRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:7268)
+    at ei.handleAndLogRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6593)
+    at ei.request (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6300)
+    at async a (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:134:9551)
+    at async Worker.processNotificationDispatch (C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:3)
+    at async <anonymous> (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\bullmq@5.73.2\node_modules\bullmq\src\classes\worker.ts:994:26) {
+  code: 'P2003',
+  meta: {
+    modelName: 'Notification',
+    constraint: 'notifications_userId_fkey'
+  },
+  clientVersion: '6.19.3'
+}
+[notification-dispatch] Job 8 failed: PrismaClientValidationError: 
+Invalid `prisma.notification.create()` invocation in
+C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:29
+
+  128 const normalizedType = normalizeNotificationType(type)
+  129 
+  130 // Create in-app notification record
+→ 131 await prisma.notification.create({
+        data: {
+          userId: "cmofi97ue0000ulbsvds6hupx",
+          type: "order_confirmed",
+                ~~~~~~~~~~~~~~~~~
+          title: "Siparişiniz Alındı — #I4ACMN66",
+          body: "Siparişiniz başarıyla alındı.",
+          data: {
+            orderId: "cmoj3pwl7000tulnki4acmn66",
+            orderNumber: "I4ACMN66",
+            paymentMethod: "eft",
+            items: [
+              {
+                name: "Masif Meşe Orta Sehpa — Doğal",
+                quantity: 1,
+                price: "₺2850,00"
+              },
+              {
+                name: "Masif Meşe Orta Sehpa — Doğal",
+                quantity: 1,
+                price: "₺2850,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              }
+            ],
+            totalAmount: "₺93200,00",
+            customerName: "Playwright Müşteri",
+            bankTransferInstructions: {
+              bankName: "",
+              accountHolder: "",
+              iban: "",
+              reference: "cmoj3pwl7000tulnki4acmn66",
+              missing: true
+            }
+          }
+        }
+      })
+
+Invalid value for argument `type`. Expected NotificationType.
+    at Nn (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:33:1363)
+    at ei.handleRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6911)
+    at ei.handleAndLogRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6593)
+    at ei.request (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6300)
+    at async a (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:134:9551)
+    at async Worker.processNotificationDispatch (C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:3)
+    at async <anonymous> (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\bullmq@5.73.2\node_modules\bullmq\src\classes\worker.ts:994:26) {
+  clientVersion: '6.19.3'
+}
+[notification-dispatch] Job 8 failed: PrismaClientValidationError: 
+Invalid `prisma.notification.create()` invocation in
+C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:29
+
+  128 const normalizedType = normalizeNotificationType(type)
+  129 
+  130 // Create in-app notification record
+→ 131 await prisma.notification.create({
+        data: {
+          userId: "cmofi97ue0000ulbsvds6hupx",
+          type: "order_confirmed",
+                ~~~~~~~~~~~~~~~~~
+          title: "Siparişiniz Alındı — #I4ACMN66",
+          body: "Siparişiniz başarıyla alındı.",
+          data: {
+            orderId: "cmoj3pwl7000tulnki4acmn66",
+            orderNumber: "I4ACMN66",
+            paymentMethod: "eft",
+            items: [
+              {
+                name: "Masif Meşe Orta Sehpa — Doğal",
+                quantity: 1,
+                price: "₺2850,00"
+              },
+              {
+                name: "Masif Meşe Orta Sehpa — Doğal",
+                quantity: 1,
+                price: "₺2850,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              }
+            ],
+            totalAmount: "₺93200,00",
+            customerName: "Playwright Müşteri",
+            bankTransferInstructions: {
+              bankName: "",
+              accountHolder: "",
+              iban: "",
+              reference: "cmoj3pwl7000tulnki4acmn66",
+              missing: true
+            }
+          }
+        }
+      })
+
+Invalid value for argument `type`. Expected NotificationType.
+    at Nn (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:33:1363)
+    at ei.handleRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6911)
+    at ei.handleAndLogRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6593)
+    at ei.request (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6300)
+    at async a (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:134:9551)
+    at async Worker.processNotificationDispatch (C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:3)
+    at async <anonymous> (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\bullmq@5.73.2\node_modules\bullmq\src\classes\worker.ts:994:26) {
+  clientVersion: '6.19.3'
+}
+[notification-dispatch] Job 8 failed: PrismaClientValidationError: 
+Invalid `prisma.notification.create()` invocation in
+C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:29
+
+  128 const normalizedType = normalizeNotificationType(type)
+  129 
+  130 // Create in-app notification record
+→ 131 await prisma.notification.create({
+        data: {
+          userId: "cmofi97ue0000ulbsvds6hupx",
+          type: "order_confirmed",
+                ~~~~~~~~~~~~~~~~~
+          title: "Siparişiniz Alındı — #I4ACMN66",
+          body: "Siparişiniz başarıyla alındı.",
+          data: {
+            orderId: "cmoj3pwl7000tulnki4acmn66",
+            orderNumber: "I4ACMN66",
+            paymentMethod: "eft",
+            items: [
+              {
+                name: "Masif Meşe Orta Sehpa — Doğal",
+                quantity: 1,
+                price: "₺2850,00"
+              },
+              {
+                name: "Masif Meşe Orta Sehpa — Doğal",
+                quantity: 1,
+                price: "₺2850,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              },
+              {
+                name: "Tik Bahçe Oturma Grubu — 2'li Koltuk Set",
+                quantity: 1,
+                price: "₺12500,00"
+              }
+            ],
+            totalAmount: "₺93200,00",
+            customerName: "Playwright Müşteri",
+            bankTransferInstructions: {
+              bankName: "",
+              accountHolder: "",
+              iban: "",
+              reference: "cmoj3pwl7000tulnki4acmn66",
+              missing: true
+            }
+          }
+        }
+      })
+
+Invalid value for argument `type`. Expected NotificationType.
+    at Nn (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:33:1363)
+    at ei.handleRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6911)
+    at ei.handleAndLogRequestError (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6593)
+    at ei.request (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:125:6300)
+    at async a (C:\Users\Hasan\Desktop\node_modules\.prisma\client\runtime\library.js:134:9551)
+    at async Worker.processNotificationDispatch (C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\notification-dispatch.job.ts:131:3)
+    at async <anonymous> (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\bullmq@5.73.2\node_modules\bullmq\src\classes\worker.ts:994:26) {
+  clientVersion: '6.19.3'
+}
+node:internal/modules/cjs/loader:1383
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module '../jobs/notification-dispatch.job'
+Require stack:
+- C:\Users\Hasan\Desktop\Claude marketplace\api\services\delivery.service.ts
+- C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\delivery-silent-confirmation.job.ts
+- C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\index.ts
+- C:\Users\Hasan\Desktop\Claude marketplace\api\worker.ts
+    at node:internal/modules/cjs/loader:1383:15
+    at nextResolveSimple (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\tsx@4.21.0\node_modules\tsx\dist\register-D46fvsV_.cjs:4:1004)
+    at C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\tsx@4.21.0\node_modules\tsx\dist\register-D46fvsV_.cjs:3:2630
+    at C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\tsx@4.21.0\node_modules\tsx\dist\register-D46fvsV_.cjs:3:1542
+    at resolveTsPaths (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\tsx@4.21.0\node_modules\tsx\dist\register-D46fvsV_.cjs:4:760)
+    at C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\tsx@4.21.0\node_modules\tsx\dist\register-D46fvsV_.cjs:4:1102
+    at m._resolveFilename (file:///C:/Users/Hasan/Desktop/Claude%20marketplace/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/register-B7jrtLTO.mjs:1:789)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Function._load (node:internal/modules/cjs/loader:1192:37) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\Users\\Hasan\\Desktop\\Claude marketplace\\api\\services\\delivery.service.ts',
+    'C:\\Users\\Hasan\\Desktop\\Claude marketplace\\api\\jobs\\delivery-silent-confirmation.job.ts',
+    'C:\\Users\\Hasan\\Desktop\\Claude marketplace\\api\\jobs\\index.ts',
+    'C:\\Users\\Hasan\\Desktop\\Claude marketplace\\api\\worker.ts'
+  ]
+}
+
+Node.js v22.20.0
+node:internal/modules/cjs/loader:1383
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module './notification.service'
+Require stack:
+- C:\Users\Hasan\Desktop\Claude marketplace\api\services\seller-bank.service.ts
+- C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\iban-activation.job.ts
+- C:\Users\Hasan\Desktop\Claude marketplace\api\jobs\index.ts
+- C:\Users\Hasan\Desktop\Claude marketplace\api\worker.ts
+    at node:internal/modules/cjs/loader:1383:15
+    at nextResolveSimple (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\tsx@4.21.0\node_modules\tsx\dist\register-D46fvsV_.cjs:4:1004)
+    at C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\tsx@4.21.0\node_modules\tsx\dist\register-D46fvsV_.cjs:3:2630
+    at C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\tsx@4.21.0\node_modules\tsx\dist\register-D46fvsV_.cjs:3:1542
+    at resolveTsPaths (C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\tsx@4.21.0\node_modules\tsx\dist\register-D46fvsV_.cjs:4:760)
+    at C:\Users\Hasan\Desktop\Claude marketplace\node_modules\.pnpm\tsx@4.21.0\node_modules\tsx\dist\register-D46fvsV_.cjs:4:1102
+    at m._resolveFilename (file:///C:/Users/Hasan/Desktop/Claude%20marketplace/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/register-B7jrtLTO.mjs:1:789)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Function._load (node:internal/modules/cjs/loader:1192:37) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\Users\\Hasan\\Desktop\\Claude marketplace\\api\\services\\seller-bank.service.ts',
+    'C:\\Users\\Hasan\\Desktop\\Claude marketplace\\api\\jobs\\iban-activation.job.ts',
+    'C:\\Users\\Hasan\\Desktop\\Claude marketplace\\api\\jobs\\index.ts',
+    'C:\\Users\\Hasan\\Desktop\\Claude marketplace\\api\\worker.ts'
+  ]
+}
+
+Node.js v22.20.0

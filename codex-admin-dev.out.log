@@ -1,0 +1,187 @@
+
+> admin-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\admin-panel
+> next dev --port 3002
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3002
+   - Network:      http://192.168.1.45:3002
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Compiled /instrumentation in 926ms (31 modules)
+ ✓ Ready in 4.5s
+ ○ Compiling / ...
+ ✓ Compiled / in 6.2s (680 modules)
+ GET / 200 in 7484ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 3.8s (1218 modules)
+ GET /giris 200 in 4824ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 576ms (1222 modules)
+ POST /api/turnstile-verify 200 in 851ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 4s (1946 modules)
+ POST /api/auth/sign-in/email 200 in 5963ms
+ GET /giris 200 in 752ms
+ POST /api/turnstile-verify 200 in 95ms
+ POST /api/auth/sign-in/email 200 in 681ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 4.2s (2424 modules)
+ GET /dashboard 200 in 6933ms
+ GET /dashboard 200 in 7042ms
+ GET /giris 200 in 190ms
+ POST /api/turnstile-verify 200 in 64ms
+ POST /api/auth/sign-in/email 200 in 234ms
+ GET /dashboard 200 in 319ms
+ ○ Compiling /odemeler ...
+ GET /dashboard 200 in 1071ms
+ ✓ Compiled /odemeler in 6.7s (2835 modules)
+ GET /odemeler 200 in 12365ms
+ GET /giris 200 in 302ms
+ POST /api/turnstile-verify 200 in 262ms
+ POST /api/auth/sign-in/email 200 in 1338ms
+ GET /dashboard 200 in 1507ms
+ GET /dashboard 200 in 1526ms
+ GET /odemeler 200 in 1235ms
+ GET /giris 200 in 105ms
+ POST /api/turnstile-verify 200 in 44ms
+ POST /api/auth/sign-in/email 200 in 275ms
+ GET /dashboard 200 in 339ms
+ ○ Compiling /hakedisler ...
+ GET /dashboard 200 in 1643ms
+ ✓ Compiled /hakedisler in 2.8s (2852 modules)
+ GET /hakedisler 200 in 3995ms
+ GET /giris 200 in 165ms
+ POST /api/turnstile-verify 200 in 47ms
+ POST /api/auth/sign-in/email 200 in 354ms
+ GET /dashboard 200 in 419ms
+ GET /dashboard 200 in 768ms
+ GET /hakedisler 200 in 281ms
+ GET /giris 200 in 166ms
+ POST /api/turnstile-verify 200 in 46ms
+ POST /api/auth/sign-in/email 200 in 255ms
+ GET /dashboard 200 in 347ms
+ GET /dashboard 200 in 802ms
+ GET /hakedisler 200 in 471ms
+ GET /giris 200 in 97ms
+ POST /api/turnstile-verify 200 in 40ms
+ POST /api/auth/sign-in/email 200 in 517ms
+ GET /dashboard 200 in 293ms
+ GET /dashboard 200 in 740ms
+ ○ Compiling /cezalar ...
+ ✓ Compiled /cezalar in 2s (2867 modules)
+ GET /cezalar 200 in 2909ms
+ GET /giris 200 in 164ms
+ POST /api/turnstile-verify 200 in 34ms
+ POST /api/auth/sign-in/email 200 in 224ms
+ GET /dashboard 200 in 425ms
+ GET /dashboard 200 in 951ms
+ GET /cezalar 200 in 518ms
+ GET /giris 200 in 135ms
+ POST /api/turnstile-verify 200 in 36ms
+ POST /api/auth/sign-in/email 200 in 259ms
+ GET /dashboard 200 in 407ms
+ ○ Compiling /saticilar ...
+ GET /dashboard 200 in 1320ms
+ ✓ Compiled /saticilar in 1985ms (2872 modules)
+ GET /saticilar 200 in 2714ms
+ GET /giris 200 in 227ms
+ POST /api/turnstile-verify 200 in 43ms
+ POST /api/auth/sign-in/email 200 in 300ms
+ GET /dashboard 200 in 549ms
+ GET /dashboard 200 in 968ms
+ GET /saticilar 200 in 515ms
+ GET /giris 200 in 159ms
+ POST /api/turnstile-verify 200 in 97ms
+ POST /api/auth/sign-in/email 200 in 297ms
+ GET /dashboard 200 in 488ms
+ GET /dashboard 200 in 1000ms
+ GET /saticilar 200 in 452ms
+ GET /giris 200 in 165ms
+ POST /api/turnstile-verify 200 in 30ms
+ POST /api/auth/sign-in/email 200 in 255ms
+ GET /dashboard 200 in 463ms
+ ○ Compiling /denetim ...
+ GET /dashboard 200 in 1474ms
+ ✓ Compiled /denetim in 2.7s (2878 modules)
+ GET /denetim 200 in 3461ms
+ GET /giris 200 in 125ms
+ POST /api/turnstile-verify 200 in 61ms
+ POST /api/auth/sign-in/email 200 in 330ms
+ GET /dashboard 200 in 640ms
+ GET /dashboard 200 in 1514ms
+ GET /denetim 200 in 1019ms
+ GET /giris 200 in 173ms
+ POST /api/turnstile-verify 200 in 57ms
+ POST /api/auth/sign-in/email 200 in 268ms
+ GET /dashboard 200 in 282ms
+ ○ Compiling /finans ...
+ GET /dashboard 200 in 1443ms
+ ✓ Compiled /finans in 1666ms (2881 modules)
+ GET /finans 200 in 2821ms
+ GET /giris 200 in 1623ms
+ GET /dashboard 200 in 2320ms
+ GET /giris 200 in 174ms
+ GET /odemeler 200 in 1140ms
+ GET /giris 200 in 194ms
+ GET /hakedisler 200 in 949ms
+ GET /giris 200 in 229ms
+ GET /cezalar 200 in 2740ms
+ GET /giris 200 in 2981ms
+ GET /saticilar 200 in 232ms
+ GET /giris 200 in 274ms
+ ○ Compiling /saticilar/banka-degisiklikleri ...
+ ✓ Compiled /saticilar/banka-degisiklikleri in 8.5s (2908 modules)
+ ✓ Compiled in 4.9s (538 modules)
+ GET /saticilar/banka-degisiklikleri 200 in 13628ms
+ GET /giris 200 in 1180ms
+ ○ Compiling /siparisler ...
+ ✓ Compiled /siparisler in 5.8s (2898 modules)
+ GET /siparisler 200 in 11413ms
+ GET /giris 200 in 291ms
+ ○ Compiling /urunler ...
+ ✓ Compiled /urunler in 1800ms (2916 modules)
+ GET /urunler 200 in 2380ms
+ GET /giris 200 in 216ms
+ ○ Compiling /iadeler ...
+ ✓ Compiled /iadeler in 1925ms (2921 modules)
+ GET /iadeler 200 in 2574ms
+ GET /giris 200 in 286ms
+ ○ Compiling /uyusmazliklar ...
+ ✓ Compiled /uyusmazliklar in 1629ms (2924 modules)
+ GET /uyusmazliklar 200 in 2786ms
+ GET /giris 200 in 575ms
+ ○ Compiling /finans ...
+ ✓ Compiled /finans in 1845ms (2401 modules)
+ GET /finans 200 in 2341ms
+ GET /giris 200 in 210ms
+ ○ Compiling /denetim ...
+ ✓ Compiled /denetim in 1955ms (2395 modules)
+ GET /denetim 200 in 2847ms
+ GET /giris 200 in 241ms
+ ○ Compiling /medya ...
+ ✓ Compiled /medya in 3.9s (2941 modules)
+ GET /medya 200 in 4488ms
+ GET /giris 200 in 250ms
+ ○ Compiling /destek ...
+ ✓ Compiled /destek in 2.1s (2946 modules)
+ GET /destek 200 in 2708ms
+ GET /giris 200 in 215ms
+ ○ Compiling /ayarlar ...
+ ✓ Compiled /ayarlar in 3.3s (2957 modules)
+ GET /ayarlar 200 in 3754ms
+ GET /giris 200 in 177ms
+ GET /giris 200 in 165ms
+ ○ Compiling / ...
+ ✓ Compiled / in 404.3s (2313 modules)
+ GET / 200 in 373449ms
+ GET / 200 in 373482ms
+ ✓ Compiled in 4.7s (550 modules)
+ ✓ Compiled in 11.1s (2859 modules)
+ ✓ Compiled in 4.2s (2861 modules)
+ ✓ Compiled in 3.9s (2862 modules)
+ ✓ Compiled in 507ms (550 modules)
+ ✓ Compiled in 1878ms (2874 modules)
+ ✓ Compiled in 6.3s (2862 modules)
+ ✓ Compiled in 369.9s (2312 modules)
+[?25h

@@ -8,13 +8,41 @@ interface Props {
   storeName: string
   bio: string
   phone: string
+  companyName: string
+  legalAddress: string
+  district: string
+  city: string
+  postalCode: string
+  taxOffice: string
+  taxNumber: string
+  mersis: string
 }
 
-export default function StoreProfileForm({ storeName, bio, phone }: Props) {
+export default function StoreProfileForm({
+  storeName,
+  bio,
+  phone,
+  companyName,
+  legalAddress,
+  district,
+  city,
+  postalCode,
+  taxOffice,
+  taxNumber,
+  mersis,
+}: Props) {
   const router = useRouter()
   const [name, setName] = useState(storeName)
   const [bioText, setBioText] = useState(bio)
   const [phoneText, setPhoneText] = useState(phone)
+  const [companyNameText, setCompanyNameText] = useState(companyName)
+  const [legalAddressText, setLegalAddressText] = useState(legalAddress)
+  const [districtText, setDistrictText] = useState(district)
+  const [cityText, setCityText] = useState(city)
+  const [postalCodeText, setPostalCodeText] = useState(postalCode)
+  const [taxOfficeText, setTaxOfficeText] = useState(taxOffice)
+  const [taxNumberText, setTaxNumberText] = useState(taxNumber)
+  const [mersisText, setMersisText] = useState(mersis)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -33,6 +61,14 @@ export default function StoreProfileForm({ storeName, bio, phone }: Props) {
           storeName: name,
           bio: bioText,
           phone: phoneText,
+          companyName: companyNameText,
+          legalAddress: legalAddressText,
+          district: districtText,
+          city: cityText,
+          postalCode: postalCodeText,
+          taxOffice: taxOfficeText,
+          taxNumber: taxNumberText,
+          mersis: mersisText,
         }),
       })
 
@@ -71,6 +107,81 @@ export default function StoreProfileForm({ storeName, bio, phone }: Props) {
           onChange={(e) => setPhoneText(e.target.value)}
           disabled={loading}
         />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="companyName">Ticari Unvan</Label>
+        <Input
+          id="companyName"
+          value={companyNameText}
+          onChange={(e) => setCompanyNameText(e.target.value)}
+          disabled={loading}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="taxOffice">Vergi Dairesi</Label>
+        <Input
+          id="taxOffice"
+          value={taxOfficeText}
+          onChange={(e) => setTaxOfficeText(e.target.value)}
+          disabled={loading}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="taxNumber">Vergi No / TC Kimlik No</Label>
+        <Input
+          id="taxNumber"
+          value={taxNumberText}
+          onChange={(e) => setTaxNumberText(e.target.value)}
+          disabled={loading}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="mersis">MERSİS</Label>
+        <Input
+          id="mersis"
+          value={mersisText}
+          onChange={(e) => setMersisText(e.target.value)}
+          disabled={loading}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="legalAddress">Yasal Adres</Label>
+        <Textarea
+          id="legalAddress"
+          rows={3}
+          value={legalAddressText}
+          onChange={(e) => setLegalAddressText(e.target.value)}
+          disabled={loading}
+        />
+      </div>
+      <div className="grid gap-5 sm:grid-cols-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="district">İlçe</Label>
+          <Input
+            id="district"
+            value={districtText}
+            onChange={(e) => setDistrictText(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="city">Şehir</Label>
+          <Input
+            id="city"
+            value={cityText}
+            onChange={(e) => setCityText(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="postalCode">Posta Kodu</Label>
+          <Input
+            id="postalCode"
+            value={postalCodeText}
+            onChange={(e) => setPostalCodeText(e.target.value)}
+            disabled={loading}
+          />
+        </div>
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="bio">Mağaza Açıklaması</Label>

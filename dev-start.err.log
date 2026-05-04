@@ -1,0 +1,4 @@
+ WARNING  --parallel is deprecated and will be removed in a future major version. Instead, define task behavior in your turbo.json task definitions using `persistent` and `with`.
+• turbo 2.9.4
+ ERROR  web#dev: command (C:\Users\Hasan\Desktop\Claude marketplace\apps\web) C:\Users\Hasan\AppData\Roaming\npm\pnpm.cmd run dev exited (-1)
+ ERROR  run failed: command  exited (-1)

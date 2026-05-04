@@ -1,10 +1,14 @@
 import type { Metadata } from 'next'
+import type { PenaltyStatus } from '@prisma/client'
 import Link from 'next/link'
 import { PageHeader } from '@hanuja/ui'
 import { getAdminSession } from '@/lib/admin-session'
 import { WaivePenaltyButton } from '@/components/waive-penalty-button'
 import { createPenaltyService } from '@hanuja/api/services/penalty.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { AdminListControls } from '@/components/admin-list-controls'
+import { UrlPagination } from '@/components/url-pagination'
+import { buildDateRange, getPagination, getPrimaryStatusValue, parseAdminListParams, type RawAdminSearchParams } from '@/lib/admin-list-params'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,12 +20,31 @@ const REASON_MAP: Record<string, string> = {
   other: 'Diğer',
 }
 
-export default async function PenaltiesPage() {
+const STATUS_OPTIONS = [
+  { value: 'applied', label: 'Uygulandı' },
+  { value: 'waived', label: 'Muaf tutuldu' },
+  { value: 'offset', label: 'Mahsup edildi' },
+]
+
+export default async function PenaltiesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<RawAdminSearchParams>
+}) {
   await getAdminSession()
+
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const params = parseAdminListParams(resolvedSearchParams, { pageSize: 20 })
 
   const prisma = createPrismaForRoute()
   const svc = createPenaltyService({ prisma })
-  const penalties = await svc.listForAdmin({ skip: 0, take: 50 })
+  const result = await svc.listForAdmin({
+    ...(params.status[0] ? { status: params.status[0] as PenaltyStatus } : {}),
+    ...(params.q ? { query: params.q } : {}),
+    ...(params.seller ? { sellerId: params.seller } : {}),
+    ...buildDateRange(params),
+    ...getPagination(params),
+  })
 
   type PenaltyRow = {
     id: string
@@ -31,15 +54,15 @@ export default async function PenaltiesPage() {
     status: string
     penaltyAmount: { toNumber(): number } | number
     createdAt: Date
-    waivedAt: Date | null
-    seller: { profile: { storeName: string } | null } | null
+    seller: { displayName: string; profile: { storeName: string } | null } | null
   }
 
-  const rows = penalties as unknown as PenaltyRow[]
+  const rows = result.rows as unknown as PenaltyRow[]
+  const totalPages = Math.max(1, Math.ceil(result.total / params.pageSize))
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Cezalar" description={`${rows.length} ceza kaydı`} />
+    <div className="space-y-6" data-testid="admin-penalties-page">
+      <PageHeader title="Cezalar" description={`${result.total} ceza kaydı`} />
 
       <div
         className="rounded-xl border p-4 text-sm"
@@ -47,13 +70,26 @@ export default async function PenaltiesPage() {
       >
         <strong style={{ color: 'var(--color-primary)' }}>Standart ceza oranı:</strong>{' '}
         <span style={{ color: 'var(--color-muted-fg)' }}>
-          Ürün tutarının %20'si. Satıcı cari hesabına borç kaydedilir ve gelecek hakedişlerden mahsup edilir.
+          Ürün tutarının %20&apos;si. Satıcı cari hesabına borç kaydedilir ve gelecek hakedişlerden mahsup edilir.
           İstisnai durumlarda yetkili admin muafiyet uygulayabilir.
         </span>
       </div>
 
+      <AdminListControls
+        searchValue={params.q}
+        searchPlaceholder="Sipariş veya satıcı ara"
+        statusValue={getPrimaryStatusValue(params.status)}
+        statusOptions={STATUS_OPTIONS}
+        sellerValue={params.seller}
+        sellerPlaceholder="Satıcı ID"
+        fromValue={params.from}
+        toValue={params.to}
+        pageSize={params.pageSize}
+        showSellerFilter
+      />
+
       <div
-        className="rounded-xl border overflow-x-auto"
+        className="overflow-x-auto rounded-xl border"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         {rows.length === 0 ? (
@@ -61,44 +97,46 @@ export default async function PenaltiesPage() {
             Ceza kaydı yok.
           </p>
         ) : (
-          <table className="w-full text-sm whitespace-nowrap">
+          <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Sipariş', 'Satıcı', 'Tutar', 'Sebep', 'Tarih', 'Durum', ''].map((h) => (
+                {['Sipariş', 'Satıcı', 'Tutar', 'Sebep', 'Tarih', 'Durum', ''].map((heading) => (
                   <th
-                    key={h}
+                    key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
                     style={{ color: 'var(--color-muted-fg)' }}
                   >
-                    {h}
+                    {heading}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((p) => {
-                const amount = typeof p.penaltyAmount === 'number' ? p.penaltyAmount : p.penaltyAmount.toNumber()
-                const storeName = p.seller?.profile?.storeName ?? p.sellerId.slice(0, 8)
-                const waived = p.status === 'waived'
+              {rows.map((penalty) => {
+                const amount = typeof penalty.penaltyAmount === 'number'
+                  ? penalty.penaltyAmount
+                  : penalty.penaltyAmount.toNumber()
+                const storeName = penalty.seller?.profile?.storeName ?? penalty.seller?.displayName ?? penalty.sellerId.slice(0, 8)
+                const waived = penalty.status === 'waived'
 
                 return (
                   <tr
-                    key={p.id}
+                    key={penalty.id}
                     className="border-t hover:bg-[var(--color-muted)]"
                     style={{ borderColor: 'var(--color-border)' }}
                   >
                     <td className="px-4 py-3">
                       <Link
-                        href={`/siparisler/${p.orderId}`}
+                        href={`/siparisler/${penalty.orderId}`}
                         className="hover:underline"
                         style={{ color: 'var(--color-accent)' }}
                       >
-                        {p.orderId.slice(-8).toUpperCase()}
+                        {penalty.orderId.slice(-8).toUpperCase()}
                       </Link>
                     </td>
                     <td className="px-4 py-3">
                       <Link
-                        href={`/saticilar/${p.sellerId}`}
+                        href={`/saticilar/${penalty.sellerId}`}
                         className="hover:underline"
                         style={{ color: 'var(--color-accent)' }}
                       >
@@ -109,24 +147,22 @@ export default async function PenaltiesPage() {
                       className="px-4 py-3 font-medium"
                       style={{ color: waived ? 'var(--color-muted-fg)' : 'var(--color-destructive)' }}
                     >
-                      {waived ? (
-                        <s>₺{amount.toLocaleString('tr-TR')}</s>
-                      ) : (
-                        `₺${amount.toLocaleString('tr-TR')}`
-                      )}
+                      {waived ? <s>₺{amount.toLocaleString('tr-TR')}</s> : `₺${amount.toLocaleString('tr-TR')}`}
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                      {REASON_MAP[p.reason] ?? p.reason}
+                      {REASON_MAP[penalty.reason] ?? penalty.reason}
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                      {new Date(p.createdAt).toLocaleDateString('tr-TR', {
-                        day: 'numeric', month: 'short', year: 'numeric',
+                      {new Date(penalty.createdAt).toLocaleDateString('tr-TR', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
                       })}
                     </td>
                     <td className="px-4 py-3">
                       {waived ? (
                         <span className="text-xs font-medium" style={{ color: 'var(--color-success)' }}>
-                          Muaf Tutuldu
+                          Muaf tutuldu
                         </span>
                       ) : (
                         <span className="text-xs font-medium" style={{ color: 'var(--color-destructive)' }}>
@@ -135,7 +171,7 @@ export default async function PenaltiesPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {!waived && <WaivePenaltyButton penaltyId={p.id} />}
+                      {!waived && <WaivePenaltyButton penaltyId={penalty.id} />}
                     </td>
                   </tr>
                 )
@@ -143,6 +179,10 @@ export default async function PenaltiesPage() {
             </tbody>
           </table>
         )}
+      </div>
+
+      <div className="flex justify-end">
+        <UrlPagination page={params.page} totalPages={totalPages} />
       </div>
     </div>
   )

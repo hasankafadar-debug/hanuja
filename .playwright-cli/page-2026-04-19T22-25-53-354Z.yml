@@ -1,0 +1,35 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - link "Hanuja" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - generic [ref=e6]:
+      - heading "Üye Ol" [level=1] [ref=e7]
+      - generic [ref=e8]:
+        - generic [ref=e9]:
+          - generic [ref=e10]: Ad Soyad
+          - textbox "Ad Soyad" [ref=e11]
+        - generic [ref=e12]:
+          - generic [ref=e13]: E-posta
+          - textbox "E-posta" [ref=e14]
+        - generic [ref=e15]:
+          - generic [ref=e16]: Şifre
+          - textbox "Şifre" [ref=e17]
+          - paragraph [ref=e18]: En az 8 karakter
+        - generic [ref=e19]:
+          - generic [ref=e20]: Şifre Tekrar
+          - textbox "Şifre Tekrar" [ref=e21]
+        - paragraph [ref=e22]:
+          - text: Üye olarak
+          - link "Kullanım Koşulları" [ref=e23] [cursor=pointer]:
+            - /url: /kullanim-kosullari
+          - text: ve
+          - link "Gizlilik Politikası" [ref=e24] [cursor=pointer]:
+            - /url: /gizlilik-politikasi
+          - text: "'nı kabul etmiş olursunuz."
+        - button "Üye Ol" [ref=e25] [cursor=pointer]
+      - paragraph [ref=e26]:
+        - text: Zaten hesabın var mı?
+        - link "Giriş Yap" [ref=e27] [cursor=pointer]:
+          - /url: /giris
+  - region "Notifications (F8)":
+    - list

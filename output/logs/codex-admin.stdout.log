@@ -1,0 +1,753 @@
+
+> admin-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\admin-panel
+> next dev --port 3002
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3002
+   - Network:      http://172.21.0.1:3002
+   - Environments: .env.local
+
+ ✓ Starting...
+ ○ Compiling /instrumentation ...
+ ✓ Compiled /instrumentation in 737ms (31 modules)
+ ✓ Ready in 5.5s
+ ○ Compiling /api/health ...
+ ✓ Compiled /api/health in 2.3s (441 modules)
+ GET /api/health 200 in 2733ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 2.8s (1204 modules)
+ GET /giris 200 in 3981ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 2.9s (1236 modules)
+ POST /api/turnstile-verify 200 in 3132ms
+ ○ Compiling /api/auth/[...all] ...
+ GET /giris 200 in 2197ms
+ ✓ Compiled /api/auth/[...all] in 2.4s (1946 modules)
+ GET /giris 200 in 421ms
+ POST /api/turnstile-verify 200 in 51ms
+ POST /api/auth/sign-in/email 200 in 314ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 2.1s (2432 modules)
+ GET /dashboard 200 in 4868ms
+ GET /dashboard 200 in 6052ms
+ GET /dashboard 200 in 749ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 2.4s (2446 modules)
+ GET /giris 200 in 1751ms
+ POST /api/turnstile-verify 200 in 38ms
+ POST /api/auth/sign-in/email 200 in 234ms
+ GET /dashboard 200 in 450ms
+ GET /dashboard 200 in 810ms
+ ○ Compiling /odemeler ...
+ ✓ Compiled /odemeler in 3s (2857 modules)
+ GET /api/notifications?limit=15 200 in 2160ms
+ GET /odemeler 200 in 4322ms
+ GET /api/notifications?limit=15 200 in 49ms
+ GET /giris 200 in 127ms
+ POST /api/turnstile-verify 200 in 45ms
+ POST /api/auth/sign-in/email 200 in 233ms
+ GET /dashboard 200 in 354ms
+ GET /dashboard 200 in 647ms
+ GET /odemeler 200 in 307ms
+ GET /giris 200 in 125ms
+ POST /api/turnstile-verify 200 in 34ms
+ POST /api/auth/sign-in/email 200 in 293ms
+ GET /dashboard 200 in 293ms
+ ○ Compiling /hakedisler ...
+ GET /dashboard 200 in 1211ms
+ ✓ Compiled /hakedisler in 2.4s (2874 modules)
+ GET /hakedisler 200 in 3080ms
+ GET /api/notifications?limit=15 200 in 151ms
+ GET /giris 200 in 106ms
+ POST /api/turnstile-verify 200 in 38ms
+ POST /api/auth/sign-in/email 200 in 214ms
+ GET /dashboard 200 in 331ms
+ GET /dashboard 200 in 651ms
+ GET /hakedisler 200 in 310ms
+ GET /api/notifications?limit=15 200 in 35ms
+ GET /giris 200 in 92ms
+ POST /api/turnstile-verify 200 in 29ms
+ POST /api/auth/sign-in/email 200 in 212ms
+ GET /dashboard 200 in 282ms
+ GET /dashboard 200 in 579ms
+ GET /hakedisler 200 in 295ms
+ GET /giris 200 in 119ms
+ POST /api/turnstile-verify 200 in 31ms
+ POST /api/auth/sign-in/email 200 in 220ms
+ GET /dashboard 200 in 301ms
+ GET /dashboard 200 in 874ms
+ ○ Compiling /cezalar ...
+ ✓ Compiled /cezalar in 1592ms (2889 modules)
+ GET /cezalar 200 in 2398ms
+ GET /giris 200 in 129ms
+ POST /api/turnstile-verify 200 in 34ms
+ POST /api/auth/sign-in/email 200 in 206ms
+ GET /dashboard 200 in 334ms
+ GET /dashboard 200 in 639ms
+ GET /cezalar 200 in 309ms
+ GET /api/notifications?limit=15 200 in 55ms
+ GET /giris 200 in 113ms
+ POST /api/turnstile-verify 200 in 36ms
+ POST /api/auth/sign-in/email 200 in 216ms
+ GET /dashboard 200 in 323ms
+ GET /dashboard 200 in 895ms
+ ○ Compiling /saticilar ...
+ ✓ Compiled /saticilar in 1531ms (2894 modules)
+ GET /saticilar 200 in 2204ms
+ GET /giris 200 in 98ms
+ POST /api/turnstile-verify 200 in 41ms
+ POST /api/auth/sign-in/email 200 in 198ms
+ GET /dashboard 200 in 413ms
+ GET /dashboard 200 in 691ms
+ GET /saticilar 200 in 324ms
+ GET /api/notifications?limit=15 200 in 54ms
+ GET /giris 200 in 97ms
+ POST /api/turnstile-verify 200 in 36ms
+ POST /api/auth/sign-in/email 200 in 192ms
+ GET /dashboard 200 in 276ms
+ GET /dashboard 200 in 599ms
+ GET /saticilar 200 in 351ms
+ GET /giris 200 in 93ms
+ POST /api/turnstile-verify 200 in 42ms
+ POST /api/auth/sign-in/email 200 in 204ms
+ GET /dashboard 200 in 297ms
+ ○ Compiling /denetim ...
+ GET /dashboard 200 in 937ms
+ ✓ Compiled /denetim in 1733ms (2900 modules)
+ GET /denetim 200 in 2349ms
+ GET /api/notifications?limit=15 200 in 31ms
+ GET /giris 200 in 121ms
+ POST /api/turnstile-verify 200 in 42ms
+ POST /api/auth/sign-in/email 200 in 205ms
+ GET /dashboard 200 in 336ms
+ GET /dashboard 200 in 662ms
+ GET /denetim 200 in 305ms
+ GET /api/notifications?limit=15 200 in 25ms
+ GET /giris 200 in 124ms
+ POST /api/turnstile-verify 200 in 35ms
+ POST /api/auth/sign-in/email 200 in 196ms
+ GET /dashboard 200 in 322ms
+ GET /dashboard 200 in 719ms
+ ○ Compiling /finans ...
+ ✓ Compiled /finans in 1575ms (2903 modules)
+ GET /finans 200 in 2257ms
+ GET /giris 200 in 187ms
+ POST /api/turnstile-verify 200 in 72ms
+ POST /api/auth/sign-in/email 200 in 259ms
+ GET /dashboard 200 in 666ms
+ GET /dashboard 200 in 793ms
+ GET /dashboard 200 in 325ms
+ GET /api/notifications?limit=15 200 in 75ms
+ GET /odemeler 200 in 356ms
+ GET /api/notifications?limit=15 200 in 37ms
+ GET /hakedisler 200 in 324ms
+ GET /api/notifications?limit=15 200 in 61ms
+ GET /cezalar 200 in 336ms
+ GET /api/notifications?limit=15 200 in 36ms
+ GET /saticilar 200 in 416ms
+ GET /api/notifications?limit=15 200 in 54ms
+ ○ Compiling /saticilar/banka-degisiklikleri ...
+ ✓ Compiled /saticilar/banka-degisiklikleri in 2.4s (2485 modules)
+ GET /saticilar/banka-degisiklikleri 200 in 3584ms
+ GET /api/notifications?limit=15 200 in 215ms
+ ○ Compiling /siparisler ...
+ ✓ Compiled /siparisler in 1983ms (2491 modules)
+ GET /siparisler 200 in 3104ms
+ GET /api/notifications?limit=15 200 in 61ms
+ ○ Compiling /urunler ...
+ ✓ Compiled /urunler in 1890ms (2509 modules)
+ GET /urunler 200 in 2623ms
+ GET /api/notifications?limit=15 200 in 71ms
+ ○ Compiling /iadeler ...
+ ✓ Compiled /iadeler in 1870ms (2502 modules)
+ GET /iadeler 200 in 2609ms
+ GET /api/notifications?limit=15 200 in 129ms
+ ○ Compiling /uyusmazliklar ...
+ ✓ Compiled /uyusmazliklar in 1247ms (2501 modules)
+ GET /uyusmazliklar 200 in 1861ms
+ GET /api/notifications?limit=15 200 in 178ms
+ ○ Compiling /finans ...
+ ✓ Compiled /finans in 1888ms (1975 modules)
+ GET /finans 200 in 2576ms
+ GET /api/notifications?limit=15 200 in 132ms
+ ○ Compiling /denetim ...
+ ✓ Compiled /denetim in 1630ms (1980 modules)
+ GET /denetim 200 in 2458ms
+ GET /api/notifications?limit=15 200 in 188ms
+ ○ Compiling /medya ...
+ ✓ Compiled /medya in 3.5s (2502 modules)
+ GET /medya 200 in 4610ms
+ GET /api/notifications?limit=15 200 in 321ms
+ ○ Compiling /api/admin/media ...
+ ✓ Compiled /api/admin/media in 2.1s (2504 modules)
+ GET /api/admin/media?page=1 200 in 2644ms
+ ○ Compiling /destek ...
+ ✓ Compiled /destek in 2.6s (2492 modules)
+ GET /destek 200 in 3535ms
+ GET /api/notifications?limit=15 200 in 79ms
+ ○ Compiling /ayarlar ...
+ ✓ Compiled /ayarlar in 2.5s (2503 modules)
+ GET /ayarlar 200 in 3321ms
+ GET /api/notifications?limit=15 200 in 141ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 2.1s (1588 modules)
+ GET /giris 200 in 2725ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 764ms (1606 modules)
+ POST /api/turnstile-verify 200 in 959ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 1529ms (1609 modules)
+ POST /api/auth/sign-in/email 200 in 2074ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 2.2s (1955 modules)
+ GET /dashboard 200 in 3249ms
+ GET /dashboard 200 in 3410ms
+ GET /dashboard 200 in 381ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /odemeler in 1501ms (1969 modules)
+ ✓ Compiled (2378 modules)
+ GET /api/notifications?limit=15 200 in 5307ms
+ GET /odemeler 200 in 5627ms
+ GET /api/notifications?limit=15 200 in 39ms
+ ○ Compiling /hakedisler ...
+ ✓ Compiled /hakedisler in 3.2s (2390 modules)
+ GET /hakedisler 200 in 4299ms
+ GET /api/notifications?limit=15 200 in 228ms
+ ○ Compiling /cezalar ...
+ ✓ Compiled /cezalar in 3.3s (2396 modules)
+ GET /cezalar 200 in 4011ms
+ GET /api/notifications?limit=15 200 in 83ms
+ ○ Compiling /saticilar ...
+ ✓ Compiled /saticilar in 2.6s (2398 modules)
+ GET /saticilar 200 in 3296ms
+ GET /api/notifications?limit=15 200 in 903ms
+ ○ Compiling /saticilar/banka-degisiklikleri ...
+ ✓ Compiled /saticilar/banka-degisiklikleri in 4.7s (2412 modules)
+ GET /saticilar/banka-degisiklikleri 200 in 6580ms
+ GET /api/notifications?limit=15 200 in 113ms
+ ○ Compiling /siparisler ...
+ ✓ Compiled /siparisler in 2.9s (2416 modules)
+ GET /siparisler 200 in 5400ms
+ GET /api/notifications?limit=15 200 in 84ms
+ ○ Compiling /urunler ...
+ ✓ Compiled /urunler in 5.2s (2432 modules)
+ GET /urunler 200 in 6482ms
+ GET /api/notifications?limit=15 200 in 88ms
+ ○ Compiling /iadeler ...
+ ✓ Compiled /iadeler in 1832ms (2436 modules)
+ GET /iadeler 200 in 2426ms
+ GET /api/notifications?limit=15 200 in 119ms
+ GET /uyusmazliklar 200 in 306ms
+ GET /api/notifications?limit=15 200 in 60ms
+ GET /finans 200 in 465ms
+ GET /api/notifications?limit=15 200 in 38ms
+ GET /denetim 200 in 295ms
+ GET /api/notifications?limit=15 200 in 56ms
+ GET /medya 200 in 301ms
+ GET /api/notifications?limit=15 200 in 82ms
+ ○ Compiling /api/admin/media ...
+ ✓ Compiled /destek in 3.1s (2426 modules)
+ ✓ Compiled (2431 modules)
+ GET /api/admin/media?page=1 200 in 6867ms
+ GET /destek 200 in 6373ms
+ GET /api/notifications?limit=15 200 in 2035ms
+ ○ Compiling /ayarlar ...
+ ✓ Compiled /ayarlar in 5.2s (2439 modules)
+ GET /ayarlar 200 in 8199ms
+ GET /api/notifications?limit=15 200 in 234ms
+ ✓ Compiled in 6.5s (1922 modules)
+ ✓ Compiled in 5.5s (1922 modules)
+ ✓ Compiled in 3.5s (1922 modules)
+ ✓ Compiled in 12.4s (2475 modules)
+ ✓ Compiled in 3.3s (2475 modules)
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 8.8s (1928 modules)
+ GET /giris 200 in 11027ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 3.4s (1946 modules)
+ POST /api/turnstile-verify 200 in 3945ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 3.9s (1949 modules)
+ POST /api/auth/sign-in/email 200 in 7974ms
+ GET /dashboard 200 in 5761ms
+ GET /dashboard 200 in 5881ms
+ GET /giris 200 in 186ms
+ POST /api/turnstile-verify 200 in 1035ms
+ POST /api/auth/sign-in/email 200 in 301ms
+ GET /dashboard 200 in 660ms
+ GET /dashboard 200 in 1177ms
+ GET /dashboard 200 in 1305ms
+ GET /giris 200 in 242ms
+ POST /api/turnstile-verify 200 in 47ms
+ POST /api/auth/sign-in/email 200 in 322ms
+ GET /dashboard 200 in 480ms
+ GET /dashboard 200 in 892ms
+ ○ Compiling /odemeler ...
+ ✓ Compiled /api/notifications in 16.1s (2348 modules)
+ ✓ Compiled in 0ms (2362 modules)
+ ✓ Compiled in 0ms (2362 modules)
+ ✓ Compiled in 0ms (2362 modules)
+ GET /api/notifications?limit=15 200 in 29123ms
+ GET /dashboard 200 in 14779ms
+ GET /odemeler 200 in 32017ms
+ GET /giris 200 in 8472ms
+ POST /api/turnstile-verify 200 in 242ms
+ POST /api/auth/sign-in/email 200 in 921ms
+ GET /dashboard 200 in 804ms
+ GET /dashboard 200 in 3504ms
+ GET /odemeler 200 in 1784ms
+ GET /api/notifications?limit=15 200 in 595ms
+ GET /giris 200 in 263ms
+ POST /api/turnstile-verify 200 in 566ms
+ POST /api/auth/sign-in/email 200 in 3369ms
+ GET /dashboard 200 in 1622ms
+ GET /dashboard 200 in 2461ms
+ GET /api/notifications?limit=15 200 in 730ms
+ ○ Compiling /hakedisler ...
+ ✓ Compiled /hakedisler in 20.7s (2377 modules)
+ GET /hakedisler 200 in 23984ms
+ GET /giris 200 in 211ms
+ POST /api/turnstile-verify 200 in 107ms
+ POST /api/auth/sign-in/email 200 in 430ms
+ GET /dashboard 200 in 510ms
+ GET /dashboard 200 in 835ms
+ GET /api/notifications?limit=15 200 in 99ms
+ GET /hakedisler 200 in 433ms
+ GET /api/notifications?limit=15 200 in 29ms
+ GET /giris 200 in 228ms
+ POST /api/turnstile-verify 200 in 68ms
+ POST /api/auth/sign-in/email 200 in 208ms
+ GET /dashboard 200 in 386ms
+ GET /dashboard 200 in 579ms
+ GET /api/notifications?limit=15 200 in 253ms
+ GET /hakedisler 200 in 555ms
+ GET /api/notifications?limit=15 200 in 26ms
+ GET /giris 200 in 130ms
+ POST /api/turnstile-verify 200 in 35ms
+ POST /api/auth/sign-in/email 200 in 233ms
+ GET /dashboard 200 in 352ms
+ GET /dashboard 200 in 528ms
+ ○ Compiling /cezalar ...
+ ✓ Compiled /cezalar in 4.9s (2388 modules)
+ ✓ Compiled in 1ms (2388 modules)
+ GET /api/notifications?limit=15 200 in 6897ms
+ ✓ Compiled in 0ms (2388 modules)
+ ✓ Compiled in 0ms (2388 modules)
+ GET /dashboard 200 in 5466ms
+ GET /cezalar 200 in 10752ms
+ GET /api/notifications?limit=15 200 in 61ms
+ GET /giris 200 in 249ms
+ POST /api/turnstile-verify 200 in 50ms
+ POST /api/auth/sign-in/email 200 in 283ms
+ GET /dashboard 200 in 346ms
+ GET /dashboard 200 in 606ms
+ GET /cezalar 200 in 406ms
+ GET /api/notifications?limit=15 200 in 43ms
+ GET /giris 200 in 120ms
+ POST /api/turnstile-verify 200 in 45ms
+ POST /api/auth/sign-in/email 200 in 268ms
+ GET /dashboard 200 in 341ms
+ GET /dashboard 200 in 499ms
+ ○ Compiling /saticilar ...
+ ✓ Compiled /saticilar in 3.2s (1983 modules)
+ ✓ Compiled in 0ms (1983 modules)
+ ✓ Compiled in 1ms (1983 modules)
+ ✓ Compiled in 0ms (1983 modules)
+ GET /api/notifications?limit=15 200 in 7813ms
+ GET /dashboard 200 in 4747ms
+ GET /saticilar 200 in 8975ms
+ GET /api/notifications?limit=15 200 in 74ms
+ GET /giris 200 in 311ms
+ POST /api/turnstile-verify 200 in 40ms
+ POST /api/auth/sign-in/email 200 in 225ms
+ GET /dashboard 200 in 378ms
+ GET /dashboard 200 in 532ms
+ GET /api/notifications?limit=15 200 in 43ms
+ GET /saticilar 200 in 329ms
+ GET /giris 200 in 129ms
+ POST /api/turnstile-verify 200 in 32ms
+ POST /api/auth/sign-in/email 200 in 249ms
+ GET /dashboard 200 in 362ms
+ GET /dashboard 200 in 520ms
+ GET /api/notifications?limit=15 200 in 129ms
+ GET /saticilar 200 in 385ms
+ GET /giris 200 in 157ms
+ POST /api/turnstile-verify 200 in 32ms
+ POST /api/auth/sign-in/email 200 in 236ms
+ GET /dashboard 200 in 571ms
+ GET /dashboard 200 in 739ms
+ GET /denetim 200 in 522ms
+ GET /api/notifications?limit=15 200 in 27ms
+ GET /giris 200 in 133ms
+ POST /api/turnstile-verify 200 in 454ms
+ POST /api/auth/sign-in/email 200 in 220ms
+ GET /dashboard 200 in 362ms
+ GET /dashboard 200 in 559ms
+ GET /denetim 200 in 353ms
+ GET /api/notifications?limit=15 200 in 71ms
+ GET /giris 200 in 203ms
+ POST /api/turnstile-verify 200 in 43ms
+ POST /api/auth/sign-in/email 200 in 234ms
+ GET /dashboard 200 in 404ms
+ GET /dashboard 200 in 577ms
+ GET /api/notifications?limit=15 200 in 49ms
+ ○ Compiling /finans ...
+ ✓ Compiled /finans in 2.4s (1986 modules)
+ GET /finans 200 in 3339ms
+ GET /api/notifications?limit=15 200 in 154ms
+ ○ Compiling /api/health ...
+ ✓ Compiled /api/health in 4.2s (1935 modules)
+ GET /api/health 200 in 4427ms
+ ✓ Compiled in 24.7s (2471 modules)
+ GET /giris 200 in 38623ms
+ GET /giris 200 in 1073ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 36s (1936 modules)
+ GET /giris 200 in 42916ms
+ GET /giris 200 in 743ms
+ POST /api/turnstile-verify 200 in 127ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 4.8s (1939 modules)
+ POST /api/auth/sign-in/email 200 in 6931ms
+ GET /dashboard 200 in 3509ms
+ GET /dashboard 200 in 5501ms
+ ○ Compiling /hakedisler ...
+ ✓ Compiled /api/notifications in 8.3s (1954 modules)
+ ✓ Compiled (1968 modules)
+ GET /api/notifications?limit=15 200 in 14073ms
+ GET /hakedisler 200 in 14794ms
+ GET /giris 200 in 469ms
+ POST /api/turnstile-verify 200 in 178ms
+ POST /api/auth/sign-in/email 200 in 320ms
+ GET /dashboard 200 in 854ms
+ GET /dashboard 200 in 1296ms
+ GET /api/notifications?limit=15 200 in 165ms
+ GET /hakedisler 200 in 556ms
+ GET /api/notifications?limit=15 200 in 37ms
+ GET /giris 200 in 227ms
+ POST /api/turnstile-verify 200 in 104ms
+ POST /api/auth/sign-in/email 200 in 260ms
+ GET /dashboard 200 in 546ms
+ GET /dashboard 200 in 874ms
+ GET /hakedisler 200 in 416ms
+ GET /api/notifications?limit=15 200 in 28ms
+ GET /giris 200 in 164ms
+ POST /api/turnstile-verify 200 in 43ms
+ POST /api/auth/sign-in/email 200 in 216ms
+ GET /dashboard 200 in 422ms
+ GET /dashboard 200 in 635ms
+ ○ Compiling /cezalar ...
+ ✓ Compiled /cezalar in 4.5s (1979 modules)
+ GET /api/notifications?limit=15 200 in 5631ms
+ GET /cezalar 200 in 6589ms
+ GET /api/notifications?limit=15 200 in 55ms
+ GET /giris 200 in 165ms
+ POST /api/turnstile-verify 200 in 39ms
+ POST /api/auth/sign-in/email 200 in 217ms
+ GET /dashboard 200 in 458ms
+ GET /dashboard 200 in 651ms
+ GET /api/notifications?limit=15 200 in 58ms
+ GET /cezalar 200 in 297ms
+ GET /api/notifications?limit=15 200 in 55ms
+ GET /giris 200 in 129ms
+ POST /api/turnstile-verify 200 in 45ms
+ POST /api/auth/sign-in/email 200 in 258ms
+ GET /dashboard 200 in 402ms
+ GET /dashboard 200 in 608ms
+ ○ Compiling /saticilar ...
+ ✓ Compiled /saticilar in 2.5s (1983 modules)
+ GET /api/notifications?limit=15 200 in 4151ms
+ GET /saticilar 200 in 4680ms
+ GET /giris 200 in 140ms
+ POST /api/turnstile-verify 200 in 47ms
+ POST /api/auth/sign-in/email 200 in 220ms
+ GET /dashboard 200 in 491ms
+ GET /dashboard 200 in 686ms
+ GET /api/notifications?limit=15 200 in 66ms
+ GET /saticilar 200 in 346ms
+ GET /giris 200 in 137ms
+ POST /api/turnstile-verify 200 in 29ms
+ POST /api/auth/sign-in/email 200 in 206ms
+ GET /dashboard 200 in 337ms
+ GET /dashboard 200 in 504ms
+ GET /api/notifications?limit=15 200 in 200ms
+ GET /saticilar 200 in 359ms
+ GET /giris 200 in 180ms
+ POST /api/turnstile-verify 200 in 91ms
+ POST /api/auth/sign-in/email 200 in 278ms
+ GET /dashboard 200 in 391ms
+ GET /dashboard 200 in 600ms
+ GET /api/notifications?limit=15 200 in 66ms
+ GET /denetim 200 in 310ms
+ GET /giris 200 in 126ms
+ POST /api/turnstile-verify 200 in 38ms
+ POST /api/auth/sign-in/email 200 in 224ms
+ GET /dashboard 200 in 379ms
+ GET /dashboard 200 in 584ms
+ GET /api/notifications?limit=15 200 in 155ms
+ GET /denetim 200 in 1181ms
+ GET /api/notifications?limit=15 200 in 40ms
+ GET /giris 200 in 129ms
+ POST /api/turnstile-verify 200 in 30ms
+ POST /api/auth/sign-in/email 200 in 223ms
+ GET /dashboard 200 in 361ms
+ GET /dashboard 200 in 541ms
+ ○ Compiling /finans ...
+ ✓ Compiled /finans in 1449ms (1986 modules)
+ GET /api/notifications?limit=15 200 in 3488ms
+ GET /finans 200 in 3927ms
+ GET /api/notifications?limit=15 200 in 39ms
+ ○ Compiling /api/health ...
+ ✓ Compiled /api/health in 4.5s (1988 modules)
+ GET /api/health 200 in 6530ms
+ GET /giris 200 in 332ms
+ POST /api/auth/sign-in/email 200 in 6442ms
+ GET /giris 200 in 153ms
+ POST /api/turnstile-verify 200 in 46ms
+ POST /api/auth/sign-in/email 200 in 242ms
+ GET /dashboard 200 in 660ms
+ GET /dashboard 200 in 856ms
+ GET /dashboard 200 in 475ms
+ GET /api/notifications?limit=15 200 in 58ms
+ GET /giris 200 in 127ms
+ POST /api/turnstile-verify 200 in 41ms
+ POST /api/auth/sign-in/email 200 in 207ms
+ GET /dashboard 200 in 361ms
+ GET /dashboard 200 in 597ms
+ GET /api/notifications?limit=15 200 in 54ms
+ GET /dashboard 200 in 447ms
+ GET /api/notifications?limit=15 200 in 50ms
+ GET /giris 200 in 117ms
+ POST /api/turnstile-verify 200 in 41ms
+ POST /api/auth/sign-in/email 200 in 243ms
+ GET /dashboard 200 in 364ms
+ GET /dashboard 200 in 584ms
+ ○ Compiling /odemeler ...
+ ✓ Compiled /odemeler in 3.4s (2377 modules)
+ GET /api/notifications?limit=15 200 in 5271ms
+ GET /odemeler 200 in 6738ms
+ GET /api/notifications?limit=15 200 in 42ms
+ GET /giris 200 in 132ms
+ POST /api/turnstile-verify 200 in 52ms
+ POST /api/auth/sign-in/email 200 in 291ms
+ GET /dashboard 200 in 356ms
+ GET /dashboard 200 in 530ms
+ GET /api/notifications?limit=15 200 in 67ms
+ GET /odemeler 200 in 355ms
+ GET /api/notifications?limit=15 200 in 63ms
+ GET /giris 200 in 135ms
+ POST /api/turnstile-verify 200 in 39ms
+ POST /api/auth/sign-in/email 200 in 218ms
+ GET /dashboard 200 in 400ms
+ GET /dashboard 200 in 576ms
+ ○ Compiling /hakedisler ...
+ ✓ Compiled /hakedisler in 1196ms (2384 modules)
+ GET /api/notifications?limit=15 200 in 2916ms
+ GET /hakedisler 200 in 3342ms
+ GET /api/notifications?limit=15 200 in 31ms
+ GET /giris 200 in 176ms
+ POST /api/turnstile-verify 200 in 61ms
+ POST /api/auth/sign-in/email 200 in 228ms
+ GET /dashboard 200 in 463ms
+ GET /dashboard 200 in 650ms
+ GET /api/notifications?limit=15 200 in 48ms
+ GET /hakedisler 200 in 328ms
+ GET /giris 200 in 128ms
+ POST /api/turnstile-verify 200 in 36ms
+ POST /api/auth/sign-in/email 200 in 213ms
+ GET /dashboard 200 in 363ms
+ GET /dashboard 200 in 540ms
+ GET /hakedisler 200 in 1060ms
+ GET /giris 200 in 122ms
+ POST /api/turnstile-verify 200 in 32ms
+ POST /api/auth/sign-in/email 200 in 298ms
+ GET /dashboard 200 in 380ms
+ GET /dashboard 200 in 576ms
+ ○ Compiling /cezalar ...
+ ✓ Compiled /cezalar in 1387ms (2385 modules)
+ GET /api/notifications?limit=15 200 in 3081ms
+ GET /cezalar 200 in 3499ms
+ GET /api/notifications?limit=15 200 in 58ms
+ GET /giris 200 in 138ms
+ POST /api/turnstile-verify 200 in 51ms
+ POST /api/auth/sign-in/email 200 in 243ms
+ GET /dashboard 200 in 582ms
+ GET /dashboard 200 in 789ms
+ GET /api/notifications?limit=15 200 in 53ms
+ GET /cezalar 200 in 279ms
+ GET /api/notifications?limit=15 200 in 54ms
+ GET /giris 200 in 172ms
+ POST /api/turnstile-verify 200 in 46ms
+ POST /api/auth/sign-in/email 200 in 200ms
+ GET /dashboard 200 in 367ms
+ GET /dashboard 200 in 567ms
+ ○ Compiling /saticilar ...
+ ✓ Compiled /saticilar in 1338ms (2387 modules)
+ GET /api/notifications?limit=15 200 in 3111ms
+ GET /saticilar 200 in 3639ms
+ GET /api/notifications?limit=15 200 in 47ms
+ GET /giris 200 in 192ms
+ POST /api/turnstile-verify 200 in 42ms
+ POST /api/auth/sign-in/email 200 in 229ms
+ GET /dashboard 200 in 460ms
+ GET /dashboard 200 in 648ms
+ GET /saticilar 200 in 389ms
+ GET /api/notifications?limit=15 200 in 86ms
+ GET /giris 200 in 135ms
+ POST /api/turnstile-verify 200 in 31ms
+ POST /api/auth/sign-in/email 200 in 238ms
+ GET /dashboard 200 in 374ms
+ GET /dashboard 200 in 557ms
+ GET /saticilar 200 in 376ms
+ GET /api/notifications?limit=15 200 in 47ms
+ GET /giris 200 in 211ms
+ POST /api/turnstile-verify 200 in 47ms
+ POST /api/auth/sign-in/email 200 in 229ms
+ GET /dashboard 200 in 437ms
+ GET /dashboard 200 in 689ms
+ ○ Compiling /denetim ...
+ ✓ Compiled /denetim in 4.1s (2392 modules)
+ GET /api/notifications?limit=15 200 in 5482ms
+ GET /denetim 200 in 6470ms
+ GET /api/notifications?limit=15 200 in 27ms
+ GET /giris 200 in 155ms
+ POST /api/turnstile-verify 200 in 42ms
+ POST /api/auth/sign-in/email 200 in 243ms
+ GET /dashboard 200 in 537ms
+ GET /dashboard 200 in 698ms
+ GET /denetim 200 in 333ms
+ GET /api/notifications?limit=15 200 in 31ms
+ GET /giris 200 in 148ms
+ POST /api/turnstile-verify 200 in 42ms
+ POST /api/auth/sign-in/email 200 in 225ms
+ GET /dashboard 200 in 405ms
+ GET /dashboard 200 in 579ms
+ ○ Compiling /finans ...
+ ✓ Compiled /finans in 1530ms (2395 modules)
+ GET /api/notifications?limit=15 200 in 3595ms
+ GET /finans 200 in 4070ms
+ GET /api/notifications?limit=15 200 in 37ms
+ ✓ Compiled in 5.8s (2925 modules)
+ GET /giris 200 in 254ms
+ POST /api/turnstile-verify 200 in 46ms
+ POST /api/auth/sign-in/email 200 in 357ms
+ GET /dashboard 200 in 589ms
+ GET /dashboard 200 in 788ms
+ GET /api/notifications?limit=15 200 in 176ms
+ GET /dashboard 200 in 460ms
+ GET /api/notifications?limit=15 200 in 43ms
+ GET /giris 200 in 121ms
+ POST /api/turnstile-verify 200 in 39ms
+ POST /api/auth/sign-in/email 200 in 232ms
+ GET /dashboard 200 in 391ms
+ GET /dashboard 200 in 635ms
+ GET /dashboard 200 in 463ms
+ GET /api/notifications?limit=15 200 in 29ms
+ GET /giris 200 in 176ms
+ POST /api/turnstile-verify 200 in 35ms
+ POST /api/auth/sign-in/email 200 in 262ms
+ GET /dashboard 200 in 365ms
+ GET /dashboard 200 in 570ms
+ GET /api/notifications?limit=15 200 in 59ms
+ GET /odemeler 200 in 417ms
+ GET /api/notifications?limit=15 200 in 38ms
+ GET /giris 200 in 127ms
+ POST /api/turnstile-verify 200 in 42ms
+ POST /api/auth/sign-in/email 200 in 232ms
+ GET /dashboard 200 in 378ms
+ GET /dashboard 200 in 570ms
+ GET /odemeler 200 in 1279ms
+ GET /api/notifications?limit=15 200 in 61ms
+ GET /giris 200 in 130ms
+ POST /api/turnstile-verify 200 in 35ms
+ POST /api/auth/sign-in/email 200 in 236ms
+ GET /dashboard 200 in 397ms
+ GET /dashboard 200 in 626ms
+ GET /api/notifications?limit=15 200 in 60ms
+ ○ Compiling /hakedisler ...
+ ✓ Compiled /hakedisler in 1222ms (2372 modules)
+ GET /hakedisler 200 in 1967ms
+ GET /giris 200 in 151ms
+ POST /api/turnstile-verify 200 in 40ms
+ POST /api/auth/sign-in/email 200 in 219ms
+ GET /dashboard 200 in 431ms
+ GET /dashboard 200 in 615ms
+ GET /hakedisler 200 in 417ms
+ GET /giris 200 in 144ms
+ POST /api/turnstile-verify 200 in 37ms
+ POST /api/auth/sign-in/email 200 in 235ms
+ GET /dashboard 200 in 404ms
+ GET /dashboard 200 in 643ms
+ GET /api/notifications?limit=15 200 in 72ms
+ GET /hakedisler 200 in 309ms
+ GET /giris 200 in 125ms
+ POST /api/turnstile-verify 200 in 39ms
+ POST /api/auth/sign-in/email 200 in 225ms
+ GET /dashboard 200 in 388ms
+ GET /dashboard 200 in 591ms
+ GET /api/notifications?limit=15 200 in 61ms
+ ○ Compiling /cezalar ...
+ ✓ Compiled /cezalar in 1282ms (2383 modules)
+ GET /cezalar 200 in 2127ms
+ GET /giris 200 in 159ms
+ POST /api/turnstile-verify 200 in 46ms
+ POST /api/auth/sign-in/email 200 in 234ms
+ GET /dashboard 200 in 415ms
+ GET /dashboard 200 in 598ms
+ GET /cezalar 200 in 371ms
+ GET /api/notifications?limit=15 200 in 44ms
+ GET /giris 200 in 123ms
+ POST /api/turnstile-verify 200 in 30ms
+ POST /api/auth/sign-in/email 200 in 226ms
+ GET /dashboard 200 in 466ms
+ GET /dashboard 200 in 654ms
+ ○ Compiling /saticilar ...
+ ✓ Compiled /saticilar in 1577ms (2387 modules)
+ GET /api/notifications?limit=15 200 in 3293ms
+ GET /saticilar 200 in 3816ms
+ GET /api/notifications?limit=15 200 in 54ms
+ GET /giris 200 in 170ms
+ POST /api/turnstile-verify 200 in 38ms
+ POST /api/auth/sign-in/email 200 in 2450ms
+ GET /dashboard 200 in 2543ms
+ GET /dashboard 200 in 2773ms
+ GET /api/notifications?limit=15 200 in 66ms
+ GET /saticilar 200 in 461ms
+ GET /api/notifications?limit=15 200 in 75ms
+ GET /giris 200 in 195ms
+ POST /api/turnstile-verify 200 in 44ms
+ POST /api/auth/sign-in/email 200 in 252ms
+ GET /dashboard 200 in 420ms
+ GET /dashboard 200 in 670ms
+ GET /api/notifications?limit=15 200 in 39ms
+ GET /saticilar 200 in 334ms
+ GET /api/notifications?limit=15 200 in 61ms
+ GET /giris 200 in 134ms
+ POST /api/turnstile-verify 200 in 32ms
+ POST /api/auth/sign-in/email 200 in 257ms
+ GET /dashboard 200 in 401ms
+ GET /dashboard 200 in 567ms
+ ○ Compiling /denetim ...
+ ✓ Compiled /denetim in 1627ms (2392 modules)
+ GET /api/notifications?limit=15 200 in 3636ms
+ GET /denetim 200 in 4028ms
+ GET /api/notifications?limit=15 200 in 25ms
+ GET /giris 200 in 142ms
+ POST /api/turnstile-verify 200 in 39ms
+ POST /api/auth/sign-in/email 200 in 240ms
+ GET /dashboard 200 in 463ms
+ GET /dashboard 200 in 658ms
+ GET /api/notifications?limit=15 200 in 197ms
+ GET /denetim 200 in 262ms
+ GET /api/notifications?limit=15 200 in 40ms
+ GET /giris 200 in 135ms
+ POST /api/turnstile-verify 200 in 444ms
+ POST /api/auth/sign-in/email 200 in 252ms
+ GET /dashboard 200 in 373ms
+ GET /dashboard 200 in 559ms
+ ○ Compiling /finans ...
+ ✓ Compiled /finans in 1676ms (2395 modules)
+ GET /api/notifications?limit=15 200 in 3766ms
+ GET /finans 200 in 4280ms
+ GET /api/notifications?limit=15 200 in 46ms
+[?25h

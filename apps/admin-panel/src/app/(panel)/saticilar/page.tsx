@@ -4,6 +4,9 @@ import { Badge, PageHeader } from '@hanuja/ui'
 import { getAdminSession } from '@/lib/admin-session'
 import { createSellerRepository } from '@hanuja/api/repositories/seller.repository'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { AdminListControls } from '@/components/admin-list-controls'
+import { UrlPagination } from '@/components/url-pagination'
+import { buildDateRange, getPagination, getPrimaryStatusValue, parseAdminListParams, type RawAdminSearchParams } from '@/lib/admin-list-params'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,53 +14,82 @@ export const metadata: Metadata = { title: 'Satıcılar' }
 
 const STATUS_MAP: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' | 'secondary' }> = {
   active: { label: 'Aktif', variant: 'success' },
-  pending: { label: 'Onay Bekliyor', variant: 'warning' },
-  suspended: { label: 'Askıya Alındı', variant: 'destructive' },
+  pending: { label: 'Onay bekliyor', variant: 'warning' },
+  suspended: { label: 'Askıya alındı', variant: 'destructive' },
   rejected: { label: 'Reddedildi', variant: 'secondary' },
 }
 
-export default async function SellersPage() {
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Aktif' },
+  { value: 'pending', label: 'Onay bekliyor' },
+  { value: 'suspended', label: 'Askıya alındı' },
+  { value: 'rejected', label: 'Reddedildi' },
+]
+
+export default async function SellersPage({
+  searchParams,
+}: {
+  searchParams?: Promise<RawAdminSearchParams>
+}) {
   await getAdminSession()
+
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const params = parseAdminListParams(resolvedSearchParams, { pageSize: 20 })
 
   const prisma = createPrismaForRoute()
   const repo = createSellerRepository(prisma)
-  const sellers = await repo.listForAdmin({ skip: 0, take: 100 })
-
-  const sellerIds = sellers.map((s) => s.id)
-
-  // Pending payout: sum of netAmount for hold_active + payout_blocked payouts
-  const payoutAgg = await prisma.payout.groupBy({
-    by: ['sellerId'],
-    where: {
-      sellerId: { in: sellerIds },
-      status: { in: ['hold_active', 'payout_blocked', 'payout_ready', 'payout_scheduled'] },
-    },
-    _sum: { netAmount: true },
+  const result = await repo.listForAdmin({
+    ...(params.status[0] ? { status: params.status[0] as 'active' | 'pending' | 'suspended' | 'rejected' } : {}),
+    ...(params.q ? { query: params.q } : {}),
+    ...buildDateRange(params),
+    ...getPagination(params),
   })
+
+  const sellers = result.rows
+  const sellerIds = sellers.map((seller) => seller.id)
+  const totalPages = Math.max(1, Math.ceil(result.total / params.pageSize))
+
+  const [payoutAgg, balanceAgg, productCounts] = await Promise.all([
+    prisma.payout.groupBy({
+      by: ['sellerId'],
+      where: {
+        sellerId: { in: sellerIds },
+        status: { in: ['hold_active', 'payout_blocked', 'payout_ready', 'payout_scheduled'] },
+      },
+      _sum: { netAmount: true },
+    }),
+    prisma.sellerLedgerEntry.groupBy({
+      by: ['sellerId'],
+      where: { sellerId: { in: sellerIds } },
+      _sum: { amount: true },
+    }),
+    prisma.product.groupBy({
+      by: ['sellerId'],
+      where: { sellerId: { in: sellerIds } },
+      _count: { id: true },
+    }),
+  ])
+
   const payoutMap = new Map(payoutAgg.map((p) => [p.sellerId, Number(p._sum.netAmount ?? 0)]))
-
-  // Balance: net sum of all ledger entries per seller
-  const balanceAgg = await prisma.sellerLedgerEntry.groupBy({
-    by: ['sellerId'],
-    where: { sellerId: { in: sellerIds } },
-    _sum: { amount: true },
-  })
   const balanceMap = new Map(balanceAgg.map((b) => [b.sellerId, Number(b._sum.amount ?? 0)]))
-
-  // Product counts
-  const productCounts = await prisma.product.groupBy({
-    by: ['sellerId'],
-    where: { sellerId: { in: sellerIds } },
-    _count: { id: true },
-  })
   const productCountMap = new Map(productCounts.map((p) => [p.sellerId, p._count.id]))
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Satıcılar" description={`${sellers.length} satıcı`} />
+    <div className="space-y-6" data-testid="admin-sellers-page">
+      <PageHeader title="Satıcılar" description={`${result.total} satıcı`} />
+
+      <AdminListControls
+        searchValue={params.q}
+        searchPlaceholder="Satıcı, şehir veya e-posta ara"
+        statusValue={getPrimaryStatusValue(params.status)}
+        statusOptions={STATUS_OPTIONS}
+        fromValue={params.from}
+        toValue={params.to}
+        pageSize={params.pageSize}
+      />
 
       <div
-        className="rounded-xl border overflow-x-auto"
+        className="overflow-x-auto rounded-xl border"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         {sellers.length === 0 ? (
@@ -65,16 +97,16 @@ export default async function SellersPage() {
             Satıcı yok.
           </p>
         ) : (
-          <table className="w-full text-sm whitespace-nowrap">
+          <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Satıcı', 'Şehir', 'Ürün', 'Bekleyen Hakediş', 'Bakiye', 'Durum', ''].map((h) => (
+                {['Satıcı', 'Şehir', 'Ürün', 'Bekleyen Hakediş', 'Bakiye', 'Durum', ''].map((heading) => (
                   <th
-                    key={h}
+                    key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
                     style={{ color: 'var(--color-muted-fg)' }}
                   >
-                    {h}
+                    {heading}
                   </th>
                 ))}
               </tr>
@@ -96,7 +128,7 @@ export default async function SellersPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div
-                          className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
                           style={{ backgroundColor: 'var(--color-accent)' }}
                         >
                           {seller.displayName.charAt(0).toUpperCase()}
@@ -143,6 +175,10 @@ export default async function SellersPage() {
             </tbody>
           </table>
         )}
+      </div>
+
+      <div className="flex justify-end">
+        <UrlPagination page={params.page} totalPages={totalPages} />
       </div>
     </div>
   )

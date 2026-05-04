@@ -331,6 +331,8 @@ Seller panel must support controlled product management.
 
 Seller should not be able to bypass mandatory product quality or moderation rules.
 
+Hipicon mağaza URL importu satıcı panelde `/urunler/ice-aktar` altında kalır ve yalnızca oturumdaki aktif satıcının kendi kataloğuna ürün ekleyebilir.
+
 ## Pricing and Inventory Rules
 
 Seller pricing and inventory actions affect catalog quality and fulfillment reliability.

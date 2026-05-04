@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client'
+import type { Prisma, PrismaClient } from '@prisma/client'
 
 export function createCategoryRepository(prisma: PrismaClient) {
   return {
@@ -34,6 +34,13 @@ export function createCategoryRepository(prisma: PrismaClient) {
       return prisma.category.findMany({
         where: { isActive: true },
         orderBy: [{ parentId: 'asc' }, { sortOrder: 'asc' }],
+      })
+    },
+
+    update(id: string, data: Prisma.CategoryUpdateInput) {
+      return prisma.category.update({
+        where: { id },
+        data,
       })
     },
   }

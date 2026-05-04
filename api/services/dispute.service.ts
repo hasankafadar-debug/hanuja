@@ -17,6 +17,7 @@ import { createOrderRepository } from '../repositories/order.repository'
 import { createReturnRequestRepository } from '../repositories/return-request.repository'
 import { createPayoutRepository } from '../repositories/payout.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
+import { assertNoContactSharing } from './contact-sharing-guard.service'
 
 interface DisputeServiceDeps {
   prisma: PrismaClient
@@ -154,6 +155,8 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
       if (dispute.status === 'resolved_for_customer' || dispute.status === 'resolved_for_seller' || dispute.status === 'closed') {
         throw new ConflictError('Kapalı uyuşmazlığa mesaj eklenemez')
       }
+
+      assertNoContactSharing(params.body)
 
       return disputes.addMessage({
         disputeId: params.disputeId,

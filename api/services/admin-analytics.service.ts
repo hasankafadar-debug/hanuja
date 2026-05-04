@@ -159,25 +159,45 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
     skip?: number
     take?: number
     negativeOnly?: boolean
-  }): Promise<SellerFinanceSummary[]> {
-    // Aggregate net balance from ledger entries per seller
-    const balanceAgg = await prisma.sellerLedgerEntry.groupBy({
+    query?: string
+  }): Promise<{ rows: SellerFinanceSummary[]; total: number }> {
+    const normalizedQuery = params.query?.trim()
+
+    const matchingSellers = normalizedQuery
+      ? await prisma.seller.findMany({
+          where: {
+            OR: [
+              { displayName: { contains: normalizedQuery, mode: 'insensitive' } },
+              { slug: { contains: normalizedQuery, mode: 'insensitive' } },
+            ],
+          },
+          select: { id: true, displayName: true },
+        })
+      : null
+
+    const matchedSellerIds = matchingSellers?.map((seller) => seller.id)
+
+    const allBalanceAgg = await prisma.sellerLedgerEntry.groupBy({
       by: ['sellerId'],
+      ...(matchedSellerIds ? { where: { sellerId: { in: matchedSellerIds } } } : {}),
       _sum: { amount: true },
       ...(params.negativeOnly
         ? { having: { amount: { _sum: { lt: 0 } } } }
         : {}),
-      skip: params.skip ?? 0,
-      take: params.take ?? 50,
       orderBy: { _sum: { amount: 'asc' } },
     })
 
-    if (balanceAgg.length === 0) return []
+    const total = allBalanceAgg.length
+    const pagedBalanceAgg = allBalanceAgg.slice(
+      params.skip ?? 0,
+      (params.skip ?? 0) + (params.take ?? 50),
+    )
 
-    const sellerIds = balanceAgg.map((b) => b.sellerId)
+    if (pagedBalanceAgg.length === 0) return { rows: [], total }
 
-    // Load seller display names
-    const sellers = await prisma.seller.findMany({
+    const sellerIds = pagedBalanceAgg.map((b) => b.sellerId)
+
+    const sellers = matchingSellers ?? await prisma.seller.findMany({
       where: { id: { in: sellerIds } },
       select: { id: true, displayName: true },
     })
@@ -207,9 +227,9 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       bySellerStatus.get(p.sellerId)!.set(p.status, Number(p._sum.netAmount ?? 0))
     }
 
-    return balanceAgg.map((b) => {
+    const rows = pagedBalanceAgg.map((b) => {
       const statusMap = bySellerStatus.get(b.sellerId) ?? new Map<string, number>()
-      const currentBalance = Number(b._sum.amount ?? 0)
+      const currentBalance = Number(b._sum?.amount ?? 0)
       return {
         sellerId: b.sellerId,
         storeName: sellerNameMap.get(b.sellerId) ?? b.sellerId,
@@ -222,6 +242,8 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
         isNegativeBalance: currentBalance < 0,
       }
     })
+
+    return { rows, total }
   }
 
   async function getOrderVolumeByDay(days: number = 30): Promise<

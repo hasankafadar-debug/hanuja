@@ -1,27 +1,13 @@
 /**
- * Notification service — creates and manages in-app notifications.
+ * Notification service â€” creates and manages in-app notifications.
  *
  * All notification dispatch is async via BullMQ (notification-dispatch job).
  * This service handles listing and marking-as-read.
  */
-import type { PrismaClient } from '@prisma/client'
+import type { NotificationType as PrismaNotificationType, PrismaClient } from '@prisma/client'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
 
-export type NotificationType =
-  | 'order_payment_confirmed'
-  | 'order_shipped'
-  | 'order_delivered'
-  | 'order_delivery_confirmed'
-  | 'order_canceled'
-  | 'order_return_approved'
-  | 'order_return_rejected'
-  | 'seller_order_received'
-  | 'seller_payout_ready'
-  | 'seller_payout_paid'
-  | 'seller_penalty_applied'
-  | 'seller_return_request'
-  | 'admin_bank_transfer_pending'
-  | 'admin_dispute_opened'
+export type NotificationType = PrismaNotificationType
 
 export interface NotificationPayload {
   userId: string
@@ -50,9 +36,6 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     })
   }
 
-  /**
-   * List unread (or all) notifications for a user.
-   */
   async function listForUser(
     userId: string,
     opts: { unreadOnly?: boolean; limit?: number; skip?: number } = {},
@@ -69,19 +52,12 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     })
   }
 
-  /**
-   * Count unread notifications for a user (used for bell badge).
-   */
   async function countUnread(userId: string): Promise<number> {
     return prisma.notification.count({
       where: { userId, isRead: false },
     })
   }
 
-  /**
-   * Mark a single notification as read.
-   * Returns null if the notification doesn't belong to the user.
-   */
   async function markRead(notificationId: string, userId: string) {
     const notification = await prisma.notification.findFirst({
       where: { id: notificationId, userId },
@@ -94,9 +70,6 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     })
   }
 
-  /**
-   * Mark all notifications as read for a user.
-   */
   async function markAllRead(userId: string): Promise<number> {
     const result = await prisma.notification.updateMany({
       where: { userId, isRead: false },
@@ -104,8 +77,6 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     })
     return result.count
   }
-
-  // ── Convenience senders for common marketplace events ──────────────────
 
   async function notifyOrderPaymentConfirmed(userId: string, orderId: string) {
     return send({
@@ -139,9 +110,9 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     })
   }
 
-  async function notifySellerOrderReceived(sellerId: string, orderId: string) {
+  async function notifySellerOrderReceived(sellerUserId: string, orderId: string) {
     return send({
-      userId: sellerId,
+      userId: sellerUserId,
       type: 'seller_order_received',
       title: 'Yeni Sipariş',
       body: 'Ödeme onaylı yeni bir sipariş aldınız.',
@@ -149,9 +120,9 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     })
   }
 
-  async function notifySellerPayoutReady(sellerId: string, amount: string) {
+  async function notifySellerPayoutReady(sellerUserId: string, amount: string) {
     return send({
-      userId: sellerId,
+      userId: sellerUserId,
       type: 'seller_payout_ready',
       title: 'Hakediş Hazır',
       body: `${amount} tutarındaki hakediş ödeme için hazır.`,
@@ -160,16 +131,41 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
   }
 
   async function notifySellerPenaltyApplied(
-    sellerId: string,
+    sellerUserId: string,
     orderId: string,
     amount: string,
   ) {
     return send({
-      userId: sellerId,
+      userId: sellerUserId,
       type: 'seller_penalty_applied',
       title: 'Ceza Uygulandı',
       body: `${amount} tutarında ceza hesabınıza yansıtıldı.`,
       data: { orderId, amount },
+    })
+  }
+
+  async function notifySellerSupportReply(userId: string, ticketId: string, subject: string) {
+    return send({
+      userId,
+      type: 'seller_support_reply',
+      title: 'Destek talebiniz yanıtlandı',
+      body: `"${subject}" başlıklı destek talebinize yanıt verildi.`,
+      data: { ticketId },
+    })
+  }
+
+  async function notifyAdminSupportNewTicket(
+    userId: string,
+    ticketId: string,
+    sellerName: string,
+    subject: string,
+  ) {
+    return send({
+      userId,
+      type: 'admin_support_new_ticket',
+      title: 'Yeni destek talebi',
+      body: `${sellerName} mağazası "${subject}" başlıklı yeni bir destek talebi açtı.`,
+      data: { ticketId },
     })
   }
 
@@ -185,6 +181,8 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     notifySellerOrderReceived,
     notifySellerPayoutReady,
     notifySellerPenaltyApplied,
+    notifySellerSupportReply,
+    notifyAdminSupportNewTicket,
   }
 }
 

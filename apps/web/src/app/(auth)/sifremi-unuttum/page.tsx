@@ -14,19 +14,23 @@ export default function SifremiUnuttumPage() {
     setError(null)
     setLoading(true)
 
-    const { error: authError } = await authClient.requestPasswordReset({
-      email,
-      redirectTo: '/sifre-sifirla',
-    })
+    try {
+      const { error: authError } = await authClient.requestPasswordReset({
+        email,
+        redirectTo: '/sifre-sifirla',
+      })
 
-    if (authError) {
-      setError('İstek gönderilemedi. Lütfen tekrar deneyin.')
+      if (authError) {
+        setError('İstek gönderilemedi. Lütfen tekrar deneyin.')
+        return
+      }
+
+      setSent(true)
+    } catch {
+      setError('İstek gönderilemedi. Bağlantıyı kontrol edip tekrar deneyin.')
+    } finally {
       setLoading(false)
-      return
     }
-
-    setSent(true)
-    setLoading(false)
   }
 
   if (sent) {
@@ -81,7 +85,7 @@ export default function SifremiUnuttumPage() {
           disabled={loading}
           className="w-full rounded-lg bg-neutral-900 text-white text-sm font-medium py-2.5 hover:bg-neutral-700 disabled:opacity-50 transition"
         >
-          {loading ? 'Gönderiliyor…' : 'Sıfırlama Bağlantısı Gönder'}
+          {loading ? 'Gönderiliyor...' : 'Sıfırlama Bağlantısı Gönder'}
         </button>
       </form>
 

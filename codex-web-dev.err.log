@@ -1,0 +1,493 @@
+[startup] Database connection check failed. {
+  message: '\n' +
+    'Invalid `prisma.$queryRaw()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "Can't reach database server at `localhost:5432`\n" +
+    '\n' +
+    'Please make sure your database server is running at `localhost:5432`.'
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/konsol-rattan-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+2026-04-28T09:41:40.270Z ERROR [Better Auth]: Invalid password
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/blog/ev-ofis-duzeni-01.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/blog/kucuk-salon-dekorasyon-01.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/vazo-seramik-3lu-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/konsol-rattan-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+2026-04-28T09:42:31.973Z ERROR [Better Auth]: Invalid password
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+    at new Promise (<anonymous>)
+ ⨯ unhandledRejection: RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+    at new Promise (<anonymous>)
+ ⨯ unhandledRejection:  RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+    at new Promise (<anonymous>)
+RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+ ⨯ uncaughtException: RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+ ⨯ uncaughtException:  RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+    at new Promise (<anonymous>)
+ ⨯ unhandledRejection: RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+    at new Promise (<anonymous>)
+ ⨯ unhandledRejection:  RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+    at new Promise (<anonymous>)
+RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+ ⨯ uncaughtException: RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+ ⨯ uncaughtException:  RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+ ⨯ uncaughtException: RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+ ⨯ uncaughtException:  RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+ ⨯ uncaughtException: RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+ ⨯ uncaughtException:  RangeError: Array buffer allocation failed
+    at new ArrayBuffer (<anonymous>)
+    at new Uint8Array (<anonymous>)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: RangeError: Array buffer allocation failed
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/blog/ev-ofis-duzeni-01.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/blog/kucuk-salon-dekorasyon-01.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: EPERM: operation not permitted, rename 'C:\Users\Hasan\Desktop\Claude marketplace\apps\web\.next\cache\webpack\server-development\16.pack.gz_' -> 'C:\Users\Hasan\Desktop\Claude marketplace\apps\web\.next\cache\webpack\server-development\16.pack.gz'

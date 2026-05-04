@@ -1,0 +1,234 @@
+import { describe, expect, it } from 'vitest'
+import {
+  buildBulkCategoryReferenceRows,
+  buildBulkTemplateAreas,
+  resolveBulkCategoryRealSlug,
+} from '@/lib/bulk-category-options'
+import {
+  BULK_PRODUCT_TEMPLATE_HEADERS,
+  MAX_BULK_IMPORT_ROWS,
+  buildBulkProductGroupKey,
+  getMissingBulkProductHeaders,
+  normalizeBulkProductRow,
+} from '@/lib/bulk-product-import'
+
+describe('bulk product import row validator', () => {
+  it('normalizes a valid row with barcode and image urls', () => {
+    const result = normalizeBulkProductRow(
+      {
+        name: 'Masif Mese Sehpa',
+        'Ana Kategori*': 'Ev',
+        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        price: '1890',
+        stockQuantity: '6',
+        barcode: '8691234567890',
+        SKU: 'SKU-01',
+        shortDescription: 'Kisa aciklama',
+        description: 'Uzun aciklama',
+        story: 'Urun hikayesi',
+        careInstructions: 'Bakim bilgisi',
+        compareAtPrice: '2190',
+        weight: '7.5',
+        image1: 'https://media.hanuja.com.tr/products/a.jpg',
+        image2: 'https://media.hanuja.com.tr/products/b.jpg',
+      },
+      2,
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.data?.rootCategorySlug).toBe('ev')
+    expect(result.data?.categorySlug).toBe('Mobilya / Sehpa Modelleri')
+    expect(result.data?.price).toBe(1890)
+    expect(result.data?.compareAtPrice).toBe(2190)
+    expect(result.data?.barcode).toBe('8691234567890')
+    expect(result.data?.imageUrls).toEqual([
+      'https://media.hanuja.com.tr/products/a.jpg',
+      'https://media.hanuja.com.tr/products/b.jpg',
+    ])
+  })
+
+  it('reports row validation errors for missing barcode and invalid values', () => {
+    const result = normalizeBulkProductRow(
+      {
+        name: 'ab',
+        'Ana Kategori*': '',
+        'Kategori*': '',
+        price: '-5',
+        stockQuantity: '-1',
+        barcode: '123',
+      },
+      4,
+    )
+
+    expect(result.data).toBeUndefined()
+    expect(result.errors.length).toBeGreaterThan(0)
+  })
+
+  it('accepts rows from the new template without Ana Kategori', () => {
+    const result = normalizeBulkProductRow(
+      {
+        'Urun Adi*': 'Ornek Urun',
+        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Fiyat*': '1200',
+        'Stok*': '4',
+        'Barkod (13 hane)*': '8691234567890',
+      },
+      2,
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.data?.rootCategorySlug).toBeUndefined()
+  })
+
+  it('continues to accept legacy rootCategorySlug values from old-format files', () => {
+    const result = normalizeBulkProductRow(
+      {
+        'Urun Adi*': 'Ornek Urun',
+        'Ana Kategori*': 'Ev',
+        'Kategori*': 'Mobilya',
+        'Fiyat*': '1200',
+        'Stok*': '4',
+        'Barkod (13 hane)*': '8691234567890',
+      },
+      2,
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.data?.rootCategorySlug).toBe('ev')
+  })
+
+  it('continues to accept legacy Kategori Slug headers', () => {
+    const result = normalizeBulkProductRow(
+      {
+        'Urun Adi*': 'Ornek Urun',
+        'Kategori Slug*': 'EV-MOBILYA',
+        'Fiyat*': '1200',
+        'Stok*': '4',
+        'Barkod (13 hane)*': '8691234567890',
+      },
+      2,
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.data?.rootCategorySlug).toBeUndefined()
+    expect(result.data?.categorySlug).toBe('ev-mobilya')
+  })
+
+  it('detects missing required template headers', () => {
+    const missing = getMissingBulkProductHeaders(['Urun Adi*', 'Kategori Slug*'])
+
+    expect(missing).toContain('Fiyat*')
+    expect(missing).toContain('Stok*')
+    expect(missing).toContain('Barkod (13 hane)*')
+  })
+
+  it('keeps upload limit capped at 500 rows', () => {
+    expect(MAX_BULK_IMPORT_ROWS).toBe(500)
+  })
+
+  it('removes Ana Kategori from the new template headers', () => {
+    expect(BULK_PRODUCT_TEMPLATE_HEADERS).not.toContain('Ana Kategori*')
+  })
+})
+
+describe('bulk category resolution', () => {
+  const referenceRows = buildBulkCategoryReferenceRows([
+    { id: 'root-ev', slug: 'ev', name: 'Ev', parentId: null, isActive: true },
+    { id: 'root-ofis', slug: 'ofis', name: 'Ofis', parentId: null, isActive: true },
+    { id: 'ev-mobilya', slug: 'ev-mobilya', name: 'Mobilya', parentId: 'root-ev', isActive: true },
+    { id: 'ofis-mobilya', slug: 'ofis-mobilya', name: 'Mobilya', parentId: 'root-ofis', isActive: true },
+  ])
+
+  it('resolves Ev and Ofis for the same visible category to different real slugs', () => {
+    expect(resolveBulkCategoryRealSlug(referenceRows, 'Ev', 'Mobilya')).toBe('ev-mobilya')
+    expect(resolveBulkCategoryRealSlug(referenceRows, 'Ofis', 'Mobilya')).toBe('ofis-mobilya')
+  })
+})
+
+describe('bulk template areas', () => {
+  it('builds Ev and Ofis category groups for the two-step selector', () => {
+    const areas = buildBulkTemplateAreas([
+      { id: 'root-ev', slug: 'ev', name: 'Ev', parentId: null, isActive: true },
+      { id: 'root-ofis', slug: 'ofis', name: 'Ofis', parentId: null, isActive: true },
+      { id: 'ev-mobilya', slug: 'ev-mobilya', name: 'Mobilya', parentId: 'root-ev', isActive: true },
+      { id: 'ev-sehpa', slug: 'ev-mobilya-sehpa', name: 'Sehpa', parentId: 'ev-mobilya', isActive: true },
+      { id: 'ofis-mobilya', slug: 'ofis-mobilya', name: 'Mobilya', parentId: 'root-ofis', isActive: true },
+    ])
+
+    expect(areas.map((area) => area.slug)).toEqual(['ev', 'ofis'])
+    expect(areas[0]?.categories.map((category) => category.slug)).toEqual([
+      'ev-mobilya',
+      'ev-mobilya-sehpa',
+    ])
+    expect(areas[1]?.categories.map((category) => category.slug)).toEqual(['ofis-mobilya'])
+  })
+})
+
+describe('bulk product group key', () => {
+  it('uses product group code before any other fallback', () => {
+    const row = normalizeBulkProductRow(
+      {
+        'Urun Grup Kodu': 'TAKIM-01',
+        'Urun Adi*': 'Ayni Isimli Urun',
+        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Fiyat*': '1200',
+        'Stok*': '4',
+        'Barkod (13 hane)*': '8691234567890',
+        Renk: 'Ceviz',
+      },
+      2,
+    )
+
+    expect(row.data).toBeDefined()
+    expect(buildBulkProductGroupKey(row.data!)).toBe('group:takim-01')
+  })
+
+  it('falls back to sku when product group code is missing', () => {
+    const row = normalizeBulkProductRow(
+      {
+        'Urun Adi*': 'Ayni Isimli Urun',
+        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Fiyat*': '1200',
+        'Stok*': '4',
+        'Barkod (13 hane)*': '8691234567890',
+        SKU: 'SKU-01',
+        Renk: 'Ceviz',
+      },
+      2,
+    )
+
+    expect(row.data).toBeDefined()
+    expect(buildBulkProductGroupKey(row.data!)).toBe('sku:sku-01')
+  })
+
+  it('builds a stable fingerprint when neither group code nor sku exists', () => {
+    const first = normalizeBulkProductRow(
+      {
+        'Urun Adi*': 'Ayni Isimli Urun',
+        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Fiyat*': '1200',
+        'Stok*': '4',
+        'Barkod (13 hane)*': '8691234567890',
+        Aciklama: 'Birinci urun',
+        Renk: 'Ceviz',
+      },
+      2,
+    )
+    const second = normalizeBulkProductRow(
+      {
+        'Urun Adi*': 'Ayni Isimli Urun',
+        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Fiyat*': '1250',
+        'Stok*': '7',
+        'Barkod (13 hane)*': '8691234567891',
+        Aciklama: 'Ikinci urun',
+        Renk: 'Siyah',
+      },
+      3,
+    )
+
+    expect(first.data).toBeDefined()
+    expect(second.data).toBeDefined()
+    expect(buildBulkProductGroupKey(first.data!)).not.toBe(buildBulkProductGroupKey(second.data!))
+  })
+})

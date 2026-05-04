@@ -1,0 +1,373 @@
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/masa-ceviz-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/konsol-rattan-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-detail.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-room.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/mumluk-pirinc-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-detail.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-room.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ Error: Event handlers cannot be passed to Client Component props.
+  <select name="sort" defaultValue="" onChange={function onChange} className=... children=...>
+                                               ^^^^^^^^^^^^^^^^^^^
+If you need interactivity, consider converting part of this to a Client Component.
+    at stringify (<anonymous>) {
+  digest: '1677942223'
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/blog/ev-ofis-duzeni-01.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/blog/kucuk-salon-dekorasyon-01.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/konsol-rattan-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/mumluk-pirinc-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⚠ Found a change in next.config.ts. Restarting the server to apply the changes...
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-detail.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-room.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-detail.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-room.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/konsol-rattan-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/vazo-seramik-3lu-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/konsol-rattan-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/konsol-rattan-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/konsol-rattan-01-side.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/konsol-rattan-01-main.jpg
+[OrderDetailPage] getOrderForCustomer failed: Error [PrismaClientValidationError]: 
+Invalid `prisma.order.findFirst()` invocation:
+
+{
+  where: {
+    id: "cmo69a3x6001fuljw4yvjzvnm",
+    customerId: "1MPBZhD5hU3zW71WLqgpVbnCSgWMFut1"
+  },
+  include: {
+    lines: {
+      include: {
+        product: {
+          include: {
+            images: {
+              take: 1
+            }
+          }
+        }
+      }
+    },
+    payments: true,
+    shipments: true,
+    address: true,
+    legalSnapshot: true,
+    sellerInvoices: {
+    ~~~~~~~~~~~~~~
+      include: {
+        seller: {
+          select: {
+            id: true,
+            displayName: true,
+            slug: true
+          }
+        }
+      },
+      orderBy: [
+        {
+          uploadedAt: "desc"
+        },
+        {
+          createdAt: "desc"
+        }
+      ]
+    },
+?   customer?: true,
+?   statusHistory?: true,
+?   payouts?: true,
+?   penalties?: true,
+?   returnRequests?: true,
+?   disputes?: true,
+?   couponUsage?: true
+  }
+}
+
+Unknown field `sellerInvoices` for include statement on model `Order`. Available options are marked with ?.
+    at async OrderDetailPage (src\app\(storefront)\siparis\[id]\page.tsx:37:13)
+  35 |   try {
+  36 |     const service = createOrderService({ prisma: createPrismaForRoute() })
+> 37 |     order = await service.getOrderForCustomer(id, session.user.id)
+     |             ^
+  38 |   } catch (err) {
+  39 |     console.error('[OrderDetailPage] getOrderForCustomer failed:', err)
+  40 |     throw err {
+  clientVersion: '6.19.3'
+}
+ ⨯ Error [PrismaClientValidationError]: 
+Invalid `prisma.order.findFirst()` invocation:
+
+{
+  where: {
+    id: "cmo69a3x6001fuljw4yvjzvnm",
+    customerId: "1MPBZhD5hU3zW71WLqgpVbnCSgWMFut1"
+  },
+  include: {
+    lines: {
+      include: {
+        product: {
+          include: {
+            images: {
+              take: 1
+            }
+          }
+        }
+      }
+    },
+    payments: true,
+    shipments: true,
+    address: true,
+    legalSnapshot: true,
+    sellerInvoices: {
+    ~~~~~~~~~~~~~~
+      include: {
+        seller: {
+          select: {
+            id: true,
+            displayName: true,
+            slug: true
+          }
+        }
+      },
+      orderBy: [
+        {
+          uploadedAt: "desc"
+        },
+        {
+          createdAt: "desc"
+        }
+      ]
+    },
+?   customer?: true,
+?   statusHistory?: true,
+?   payouts?: true,
+?   penalties?: true,
+?   returnRequests?: true,
+?   disputes?: true,
+?   couponUsage?: true
+  }
+}
+
+Unknown field `sellerInvoices` for include statement on model `Order`. Available options are marked with ?.
+    at async OrderDetailPage (src\app\(storefront)\siparis\[id]\page.tsx:37:13)
+  35 |   try {
+  36 |     const service = createOrderService({ prisma: createPrismaForRoute() })
+> 37 |     order = await service.getOrderForCustomer(id, session.user.id)
+     |             ^
+  38 |   } catch (err) {
+  39 |     console.error('[OrderDetailPage] getOrderForCustomer failed:', err)
+  40 |     throw err {
+  clientVersion: '6.19.3',
+  digest: '1135059428'
+}
+^C

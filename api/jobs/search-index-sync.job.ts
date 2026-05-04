@@ -8,58 +8,124 @@
  * See: architecture rules — search must not be source of truth.
  */
 import { Worker, Job } from 'bullmq'
+import { PRODUCT_SEARCH_INDEX, mapProductToSearchHit } from '../domain/search'
 import { redis } from '../lib/redis'
 import { QUEUE_NAMES } from '../lib/queue'
+import { getMeilisearchConfig } from '../lib/meilisearch'
 import { prisma } from '../lib/prisma'
 
 export interface SearchIndexSyncJobData {
   type: 'product' | 'category' | 'store'
-  entityId?: string  // Sync single entity — undefined means full re-index
+  entityId?: string
   operation: 'upsert' | 'delete'
 }
 
-async function processSearchIndexSync(job: Job<SearchIndexSyncJobData>) {
-  const { type, entityId, operation } = job.data
+const SEARCH_SYNC_BATCH_SIZE = 250
 
-  const meiliUrl = process.env.MEILISEARCH_URL ?? 'http://localhost:7700'
-  const meiliKey = process.env.MEILISEARCH_MASTER_KEY ?? ''
+type PublishedProductScope = {
+  productId?: string
+  categoryId?: string
+  sellerId?: string
+}
 
-  if (type === 'product') {
-    if (operation === 'delete' && entityId) {
-      await deleteFromIndex(meiliUrl, meiliKey, 'products', entityId)
-      return
-    }
+async function listPublishedProductDocuments(scope: PublishedProductScope) {
+  const documents: ReturnType<typeof mapProductToSearchHit>[] = []
+  let cursor: string | undefined
 
-    // Only index published products — security-critical
-    const where = entityId
-      ? { id: entityId, status: 'published' as const }
-      : { status: 'published' as const }
-
+  while (true) {
     const products = await prisma.product.findMany({
-      where,
-      include: { images: { take: 1 }, category: true, seller: { include: { profile: true } } },
-      take: 1000,
+      where: {
+        status: 'published',
+        ...(scope.productId ? { id: scope.productId } : {}),
+        ...(scope.categoryId ? { categoryId: scope.categoryId } : {}),
+        ...(scope.sellerId ? { sellerId: scope.sellerId } : {}),
+      },
+      include: {
+        images: {
+          take: 4,
+          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+        },
+        category: { select: { slug: true, name: true } },
+        seller: { select: { slug: true, displayName: true } },
+      },
+      orderBy: { id: 'asc' },
+      take: SEARCH_SYNC_BATCH_SIZE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     })
 
-    const documents = products.map((p) => ({
-      id: p.id,
-      slug: p.slug,
-      name: p.name,
-      description: p.description,
-      price: p.price.toNumber(),
-      categoryId: p.categoryId,
-      categorySlug: p.category?.slug,
-      categoryName: p.category?.name,
-      sellerId: p.sellerId,
-      storeSlug: p.seller?.slug,
-      storeName: p.seller?.displayName ?? p.seller?.slug,
-      imageUrl: p.images[0]?.url,
-      stock: p.stockQuantity,
-    }))
+    if (products.length === 0) break
 
-    if (documents.length > 0) {
-      await upsertDocuments(meiliUrl, meiliKey, 'products', documents)
-    }
+    documents.push(...products.map(mapProductToSearchHit))
+    cursor = products[products.length - 1]?.id
+
+    if (scope.productId) break
+  }
+
+  return documents
+}
+
+async function syncProductDocuments(
+  meiliUrl: string,
+  meiliKey: string,
+  params: { entityId?: string; operation: 'upsert' | 'delete' },
+) {
+  const { entityId, operation } = params
+
+  if (operation === 'delete' && entityId) {
+    await deleteFromIndex(meiliUrl, meiliKey, PRODUCT_SEARCH_INDEX, entityId)
+    return
+  }
+
+  if (!entityId) {
+    await clearIndex(meiliUrl, meiliKey, PRODUCT_SEARCH_INDEX)
+  }
+
+  const documents = await listPublishedProductDocuments({
+    ...(entityId ? { productId: entityId } : {}),
+  })
+
+  if (documents.length > 0) {
+    await upsertDocuments(meiliUrl, meiliKey, PRODUCT_SEARCH_INDEX, documents)
+    return
+  }
+
+  if (entityId) {
+    await deleteFromIndex(meiliUrl, meiliKey, PRODUCT_SEARCH_INDEX, entityId)
+  }
+}
+
+async function syncScopedProductDocuments(
+  meiliUrl: string,
+  meiliKey: string,
+  scope: PublishedProductScope,
+) {
+  const documents = await listPublishedProductDocuments(scope)
+  if (documents.length === 0) return
+  await upsertDocuments(meiliUrl, meiliKey, PRODUCT_SEARCH_INDEX, documents)
+}
+
+export async function processSearchIndexSync(job: Job<SearchIndexSyncJobData>) {
+  const { type, entityId, operation } = job.data
+
+  const { baseUrl: meiliUrl, apiKey: meiliKey } = getMeilisearchConfig()
+
+  if (type === 'product') {
+    await syncProductDocuments(meiliUrl, meiliKey, {
+      operation,
+      ...(entityId ? { entityId } : {}),
+    })
+  }
+
+  if (type === 'category') {
+    await syncScopedProductDocuments(meiliUrl, meiliKey, {
+      ...(entityId ? { categoryId: entityId } : {}),
+    })
+  }
+
+  if (type === 'store') {
+    await syncScopedProductDocuments(meiliUrl, meiliKey, {
+      ...(entityId ? { sellerId: entityId } : {}),
+    })
   }
 
   console.log(
@@ -103,6 +169,21 @@ async function deleteFromIndex(
   }
 }
 
+async function clearIndex(
+  baseUrl: string,
+  apiKey: string,
+  index: string,
+) {
+  const res = await fetch(`${baseUrl}/indexes/${index}/documents`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${apiKey}` },
+  })
+
+  if (!res.ok) {
+    throw new Error(`Meilisearch clear failed: ${res.status}`)
+  }
+}
+
 // ── Convenience enqueue helper (used by catalog service) ───────────────────
 
 /**
@@ -113,12 +194,30 @@ export async function enqueueProductSync(
   params:
     | { operation: 'upsert'; entityId: string }
     | { operation: 'delete'; entityId: string }
-    | { operation: 'upsert'; entityId?: undefined }, // full re-index
+    | { operation: 'upsert'; entityId?: undefined },
 ) {
   const { searchIndexSyncQueue } = await import('../lib/queue')
   await searchIndexSyncQueue.add(
     `product-${params.operation}-${params.entityId ?? 'all'}`,
     { type: 'product', operation: params.operation, entityId: params.entityId },
+    { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+  )
+}
+
+export async function enqueueCategorySync(params: { entityId: string }) {
+  const { searchIndexSyncQueue } = await import('../lib/queue')
+  await searchIndexSyncQueue.add(
+    `category-upsert-${params.entityId}`,
+    { type: 'category', operation: 'upsert', entityId: params.entityId },
+    { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+  )
+}
+
+export async function enqueueStoreSync(params: { entityId: string }) {
+  const { searchIndexSyncQueue } = await import('../lib/queue')
+  await searchIndexSyncQueue.add(
+    `store-upsert-${params.entityId}`,
+    { type: 'store', operation: 'upsert', entityId: params.entityId },
     { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
   )
 }

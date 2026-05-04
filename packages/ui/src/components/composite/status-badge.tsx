@@ -72,6 +72,15 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   inactive:                     { label: "Pasif",               variant: "secondary" },
   suspended:                    { label: "Askıya Alındı",       variant: "destructive" },
   pending_review:               { label: "İnceleme Bekliyor",   variant: "warning" },
+
+  // ── Product review moderation ─────────────────────────────────
+  pending_moderation:           { label: "Onay Bekliyor",       variant: "warning" },
+  approved:                     { label: "Onaylı",              variant: "success" },
+  rejected:                     { label: "Reddedilmiş",         variant: "destructive" },
+
+  waiting_for_admin:            { label: "Admin Yanıtı Bekleniyor", variant: "warning" },
+  waiting_for_seller:           { label: "Satıcı Yanıtı Bekleniyor", variant: "info" },
+  resolved:                     { label: "Çözüldü",             variant: "success" },
 }
 
 const FALLBACK: StatusConfig = { label: "Bilinmiyor", variant: "secondary" }
@@ -86,7 +95,7 @@ export interface StatusBadgeProps {
 function StatusBadge({ status, className, label }: StatusBadgeProps) {
   const config = STATUS_MAP[status] ?? FALLBACK
   return (
-    <Badge variant={config.variant} className={className}>
+    <Badge variant={config.variant} className={className} data-testid="status-badge">
       {label ?? config.label}
     </Badge>
   )

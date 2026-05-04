@@ -13,6 +13,7 @@
  *  - payout-batch           — prepares and executes scheduled payout batches
  *  - media-processing       — verifies R2 uploads post-confirmation
  *  - fulfillment-risk       — flags orders approaching 20-day fulfillment breach
+ *  - iban-activation        — activates approved seller bank changes after hold period
  */
 import 'dotenv/config'
 import { startAllWorkers, gracefulShutdown } from './jobs'

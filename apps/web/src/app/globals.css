@@ -16,25 +16,26 @@
  */
 :root {
   /* — Colors — */
-  --color-primary: #1a1a2e;
-  --color-primary-fg: #ffffff;
-  --color-secondary: #16213e;
-  --color-secondary-fg: #ffffff;
-  --color-accent: #e94560;
-  --color-accent-fg: #ffffff;
-  --color-surface: #ffffff;
-  --color-background: #fafafa;
-  --color-border: #e5e7eb;
-  --color-muted: #f3f4f6;
-  --color-muted-fg: #6b7280;
-  --color-destructive: #ef4444;
+  --color-primary: #1a1a18;
+  --color-primary-fg: #e8e2d4;
+  --color-secondary: #9c8e7a;
+  --color-secondary-fg: #1a1a18;
+  --color-accent: #c8b89a;
+  --color-accent-fg: #1a1a18;
+  --color-surface: #f0eee9;
+  --color-background: #e8e2d4;
+  --color-border: #d6cfbe;
+  --color-muted: #ede7d8;
+  --color-muted-fg: #9c8e7a;
+  --color-destructive: #dc2626;
   --color-destructive-fg: #ffffff;
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
 
   /* — Typography — */
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-display: 'Playfair Display', 'Georgia', serif;
+  --font-sans: 'Outfit', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-display: 'Cormorant Garamond', Georgia, serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
   /* — Border Radius — */
@@ -53,12 +54,12 @@
   body {
     background-color: var(--color-background);
     color: var(--color-primary);
-    font-family: var(--font-sans);
+    font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3 {
+  h1, h2, h3, h4 {
     font-family: var(--font-display);
   }
 }

@@ -1,13 +1,13 @@
 /**
- * Order Service — order lifecycle transitions, seller acceptance/rejection.
+ * Order Service - order lifecycle transitions, seller acceptance/rejection.
  * Business logic lives here, not in route handlers.
  */
-import type { PrismaClient } from '@prisma/client'
-import { NotFoundError, ForbiddenError, ConflictError } from '../lib/errors'
+import type { OrderStatus, PrismaClient } from '@prisma/client'
+import { NotFoundError, ConflictError } from '../lib/errors'
 import { createOrderRepository } from '../repositories/order.repository'
-import { createSellerRepository } from '../repositories/seller.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { assertTransition, isPostShipmentStatus } from '../domain/order-state-machine'
+import { createPenaltyService } from './penalty.service'
 
 interface OrderServiceDeps {
   prisma: PrismaClient
@@ -15,12 +15,12 @@ interface OrderServiceDeps {
 
 export function createOrderService({ prisma }: OrderServiceDeps) {
   const orders = createOrderRepository(prisma)
-  const sellers = createSellerRepository(prisma)
   const auditLog = createAdminAuditLogRepository(prisma)
+  const penalties = createPenaltyService({ prisma })
 
   return {
     /**
-     * Seller accepts an order — moves from seller_queue_ready to seller_accepted.
+     * Seller accepts an order - moves from seller_queue_ready to seller_accepted.
      * Validates ownership: seller can only accept their own orders.
      */
     async sellerAccept(params: { orderId: string; sellerId: string }) {
@@ -43,8 +43,8 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
 
     /**
      * Seller rejects a paid order.
-     * Penalty evaluation is handled by penalty.service — called from order lifecycle hook.
      * Rejection reason is mandatory and recorded.
+     * Penalty is applied after the cancellation transition completes.
      */
     async sellerReject(params: {
       orderId: string
@@ -56,7 +56,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
 
       assertTransition(order.status, 'seller_rejected')
 
-      return prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx) => {
         await orders.updateStatus(params.orderId, 'seller_rejected', tx as PrismaClient)
         await orders.appendStatusHistory(
           params.orderId,
@@ -65,25 +65,34 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
           `Satıcı reddi: ${params.reason}`,
           tx as PrismaClient,
         )
-        // Transition to cancellation
+
         await orders.updateStatus(
           params.orderId,
           'cancelled_due_to_seller_rejection',
           tx as PrismaClient,
         )
+
         return orders.appendStatusHistory(
           params.orderId,
           'cancelled_due_to_seller_rejection',
           params.sellerId,
-          `İptal edildi. Ceza değerlendiriliyor.`,
+          'İptal edildi. Ceza değerlendiriliyor.',
           tx as PrismaClient,
         )
       })
+
+      await penalties.applyForCancellation({
+        orderId: params.orderId,
+        sellerId: params.sellerId,
+        reason: 'seller_rejected_paid_order',
+      })
+
+      return result
     },
 
     /**
      * Customer cancels before shipment.
-     * After shipment, cancellation is not allowed — use return flow.
+     * After shipment, cancellation is not allowed - use return flow.
      */
     async customerCancel(params: { orderId: string; customerId: string }) {
       const order = await orders.findByIdForCustomer(params.orderId, params.customerId)
@@ -110,7 +119,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
     },
 
     /**
-     * Admin cancels an order with reason — auditable.
+     * Admin cancels an order with reason - auditable.
      */
     async adminCancel(params: {
       orderId: string
@@ -164,12 +173,37 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       })
     },
 
-    listForSellerQueue(sellerId: string, skip?: number, take?: number) {
+    listForSellerQueue(params: {
+      sellerId: string
+      status?: OrderStatus[]
+      query?: string
+      from?: Date
+      to?: Date
+      missingInvoice?: boolean
+      skip?: number
+      take?: number
+    }) {
       return orders.listForSellerQueue({
-        sellerId,
-        ...(skip !== undefined ? { skip } : {}),
-        ...(take !== undefined ? { take } : {}),
+        sellerId: params.sellerId,
+        ...(params.status !== undefined ? { status: params.status } : {}),
+        ...(params.query !== undefined ? { query: params.query } : {}),
+        ...(params.from !== undefined ? { from: params.from } : {}),
+        ...(params.to !== undefined ? { to: params.to } : {}),
+        ...(params.missingInvoice !== undefined ? { missingInvoice: params.missingInvoice } : {}),
+        ...(params.skip !== undefined ? { skip: params.skip } : {}),
+        ...(params.take !== undefined ? { take: params.take } : {}),
       })
+    },
+
+    countForSellerQueue(params: {
+      sellerId: string
+      status?: OrderStatus[]
+      query?: string
+      from?: Date
+      to?: Date
+      missingInvoice?: boolean
+    }) {
+      return orders.countForSellerQueue(params)
     },
 
     listForAdmin(params: Parameters<typeof orders.listForAdmin>[0]) {

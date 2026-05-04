@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hanuja — Logo & Tipografi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=Outfit:wght@200;300;400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { overflow: hidden; background: #f0eee9; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const DARK  = '#1a1a18';
+const CREAM = '#e8e2d4';
+const TAN   = '#c8b89a';
+const MID   = '#9c8e7a';
+
+/* ─────────────────────────────────────────────────────────────
+   ASİMETRİK SEMBOL
+   Bir mobilya / mekan düzenini çağrıştıran asimetrik bloklar.
+   4 dikdörtgen — boyutlar ve pozisyonlar kasıtlı dengesiz.
+───────────────────────────────────────────────────────────── */
+function HanujaSymbol({ scale = 1, fg, ac }) {
+  const s = scale;
+  return (
+    <svg width={44*s} height={44*s} viewBox="0 0 44 44" fill="none">
+      {/* büyük blok — sol üst */}
+      <rect x="2"  y="2"  width="22" height="14" fill={fg} opacity="0.92"/>
+      {/* küçük kare — sağ üst */}
+      <rect x="28" y="2"  width="14" height="14" fill="none" stroke={fg} strokeWidth="1.4"/>
+      {/* ince yatay şerit — sol alt, accent rengi */}
+      <rect x="2"  y="22" width="14" height="5"  fill={ac}/>
+      {/* orta boy blok — sağ alt */}
+      <rect x="20" y="20" width="22" height="22" fill="none" stroke={fg} strokeWidth="1.4"/>
+      {/* küçük nokta aksan — sol en alt */}
+      <rect x="2"  y="32" width="8"  height="10" fill={fg} opacity="0.35"/>
+    </svg>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ANA LOGO
+───────────────────────────────────────────────────────────── */
+function HanujaLogo({ scale = 1, dark = false }) {
+  const bg = dark ? DARK : CREAM;
+  const fg = dark ? CREAM : DARK;
+  const ac = TAN;
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center',
+      gap: 18*scale, background: bg,
+      padding: `${26*scale}px ${34*scale}px`,
+    }}>
+      <HanujaSymbol scale={scale} fg={fg} ac={ac}/>
+      <div style={{ display:'flex', flexDirection:'column', gap: 4*scale, alignItems:'center' }}>
+        <span style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontWeight: 200,
+          fontSize: 26*scale,
+          letterSpacing: 9*scale,
+          color: fg,
+          lineHeight: 1,
+          textTransform: 'uppercase',
+        }}>hanuja</span>
+        <span style={{
+          fontFamily: "'DM Sans', sans-serif",
+          fontWeight: 300,
+          fontSize: 7.5*scale,
+          letterSpacing: 4*scale,
+          color: ac,
+          textTransform: 'uppercase',
+        }}>curated living</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   TİPOGRAFİ ÖRNEKLERİ
+───────────────────────────────────────────────────────────── */
+function TypeRow({ label, children, note }) {
+  return (
+    <div style={{ display:'flex', alignItems:'baseline', gap:40, padding:'20px 0', borderBottom:`1px solid rgba(0,0,0,0.07)` }}>
+      <div style={{ width:180, flexShrink:0 }}>
+        <div style={{ fontFamily:"'DM Sans',sans-serif", fontWeight:400, fontSize:11, letterSpacing:2, textTransform:'uppercase', color:MID }}>
+          {label}
+        </div>
+        {note && <div style={{ fontFamily:"'DM Sans',sans-serif", fontWeight:300, fontSize:11, color:TAN, marginTop:4 }}>{note}</div>}
+      </div>
+      <div style={{ flex:1 }}>{children}</div>
+    </div>
+  );
+}
+
+function TypeSystem() {
+  return (
+    <div style={{ background:CREAM, padding:'44px 52px', width:900 }}>
+
+      {/* başlık */}
+      <div style={{ marginBottom:36 }}>
+        <div style={{ fontFamily:"'Outfit',sans-serif", fontWeight:200, fontSize:11, letterSpacing:4, textTransform:'uppercase', color:MID, marginBottom:8 }}>
+          tipografi sistemi
+        </div>
+        <div style={{ fontFamily:"'Outfit',sans-serif", fontWeight:200, fontSize:13, letterSpacing:2, color:DARK, opacity:0.5 }}>
+          Outfit · DM Sans · Cormorant Garamond — Türkçe karakter desteği mevcuttur
+        </div>
+      </div>
+
+      {/* HERO */}
+      <TypeRow label="Hero başlık" note="Outfit 200 · 72px · ls -1">
+        <span style={{ fontFamily:"'Outfit',sans-serif", fontWeight:200, fontSize:56, letterSpacing:-1, color:DARK, lineHeight:1.05, display:'block' }}>
+          Yaşam alanını<br/>yeniden keşfet.
+        </span>
+      </TypeRow>
+
+      {/* KATEGORİ BAŞLIĞI */}
+      <TypeRow label="Kategori başlığı" note="Outfit 300 · 13px · ls 4 · uppercase">
+        <div style={{ display:'flex', gap:32, flexWrap:'wrap' }}>
+          {['Oturma Odası','Çalışma Ofisi','Mutfak & Yemek','Aydınlatma','Aksesuarlar'].map(c => (
+            <span key={c} style={{ fontFamily:"'Outfit',sans-serif", fontWeight:300, fontSize:13, letterSpacing:4, textTransform:'uppercase', color:DARK }}>
+              {c}
+            </span>
+          ))}
+        </div>
+      </TypeRow>
+
+      {/* ÜRÜN BAŞLIĞI */}
+      <TypeRow label="Ürün başlığı" note="Cormorant Garamond 300 · 28px">
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          <span style={{ fontFamily:"'Cormorant Garamond',serif", fontWeight:300, fontSize:28, color:DARK, letterSpacing:0.5 }}>
+            Gea Berjer Koltuk, Doğal Keten
+          </span>
+          <span style={{ fontFamily:"'Cormorant Garamond',serif", fontStyle:'italic', fontWeight:300, fontSize:22, color:MID }}>
+            Özel üretim, sınırlı stok
+          </span>
+        </div>
+      </TypeRow>
+
+      {/* SATICI MARKA / MAĞAZA */}
+      <TypeRow label="Satıcı & mağaza adı" note="Outfit 300 · 14px · ls 3">
+        <div style={{ display:'flex', gap:36, flexWrap:'wrap', alignItems:'center' }}>
+          {['Forma Studio','Lökke','Ünlü & Co.','Odacı İstanbul','Şimşek Tasarım'].map(b => (
+            <span key={b} style={{ fontFamily:"'Outfit',sans-serif", fontWeight:300, fontSize:14, letterSpacing:3, textTransform:'uppercase', color:DARK, opacity:0.75 }}>
+              {b}
+            </span>
+          ))}
+        </div>
+      </TypeRow>
+
+      {/* GÖVDE METİN */}
+      <TypeRow label="Gövde metin" note="DM Sans 300 · 15px · lh 1.7">
+        <p style={{ fontFamily:"'DM Sans',sans-serif", fontWeight:300, fontSize:15, lineHeight:1.75, color:DARK, opacity:0.8, maxWidth:540 }}>
+          Hanuja, ev ve ofis mobilyası ile tasarım aksesuarları için özenle küratörlüğü yapılmış bir platformdur. Yalnızca özgün ve sürdürülebilir ürünlere yer veren mağazaları bünyesinde barındırır. Her ürün, estetik ve işlevsellik dengesiyle seçilmiştir.
+        </p>
+      </TypeRow>
+
+      {/* KÜÇÜK ETİKET */}
+      <TypeRow label="Etiket / meta" note="DM Sans 300 · 11px · ls 1.5">
+        <div style={{ display:'flex', gap:24, flexWrap:'wrap', alignItems:'center' }}>
+          {['Yeni Ürün','Sınırlı Stok','Ücretsiz Kargo','Satıcı Seçkisi','İndirimde'].map(t => (
+            <span key={t} style={{ fontFamily:"'DM Sans',sans-serif", fontWeight:300, fontSize:11, letterSpacing:1.5, textTransform:'uppercase', color:MID, borderBottom:`1px solid ${TAN}`, paddingBottom:2 }}>
+              {t}
+            </span>
+          ))}
+        </div>
+      </TypeRow>
+
+      {/* FİYAT */}
+      <TypeRow label="Fiyat" note="Outfit 200 · 32px + DM Sans 300">
+        <div style={{ display:'flex', alignItems:'baseline', gap:12 }}>
+          <span style={{ fontFamily:"'Outfit',sans-serif", fontWeight:200, fontSize:34, color:DARK, letterSpacing:-0.5 }}>₺4.850</span>
+          <span style={{ fontFamily:"'DM Sans',sans-serif", fontWeight:300, fontSize:13, color:MID, textDecoration:'line-through' }}>₺6.200</span>
+          <span style={{ fontFamily:"'DM Sans',sans-serif", fontWeight:400, fontSize:12, letterSpacing:1, textTransform:'uppercase', color:TAN }}>KDV Dahil</span>
+        </div>
+      </TypeRow>
+
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   WEB HEADER
+───────────────────────────────────────────────────────────── */
+function WebHeader({ Logo, scale=0.7 }) {
+  return (
+    <div style={{
+      width:900, height:70,
+      background: CREAM,
+      display:'flex', alignItems:'center', justifyContent:'space-between',
+      padding:'0 36px',
+      borderBottom:`1px solid rgba(0,0,0,0.08)`,
+    }}>
+      <Logo scale={scale} dark={false}/>
+      <div style={{ display:'flex', gap:28, alignItems:'center' }}>
+        {['Koleksiyon','Mağazalar','Hakkında'].map(t => (
+          <span key={t} style={{
+            fontFamily:"'Outfit',sans-serif", fontWeight:300, fontSize:12,
+            letterSpacing:3, textTransform:'uppercase', color:DARK, opacity:0.65,
+          }}>{t}</span>
+        ))}
+        <div style={{
+          border:`1px solid ${DARK}`, color:DARK,
+          fontFamily:"'DM Sans',sans-serif", fontWeight:300,
+          fontSize:11, letterSpacing:2, padding:'7px 16px', textTransform:'uppercase',
+        }}>Satıcı Ol</div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   APP
+───────────────────────────────────────────────────────────── */
+function App() {
+  return (
+    <DesignCanvas>
+
+      <DCSection title="Logo — Açık Zemin" subtitle="Outfit 200 · asimetrik geometri · curated living alt başlığı">
+        <DCArtboard label="Standart" width={400} height={130}>
+          <HanujaLogo scale={1} dark={false}/>
+        </DCArtboard>
+        <DCArtboard label="Büyük" width={520} height={160}>
+          <HanujaLogo scale={1.3} dark={false}/>
+        </DCArtboard>
+        <DCArtboard label="Küçük / kompakt" width={300} height={110}>
+          <HanujaLogo scale={0.78} dark={false}/>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection title="Logo — Koyu Zemin" subtitle="Aynı logo, ters renk">
+        <DCArtboard label="Standart" width={400} height={130} style={{background:DARK}}>
+          <HanujaLogo scale={1} dark={true}/>
+        </DCArtboard>
+        <DCArtboard label="Büyük" width={520} height={160} style={{background:DARK}}>
+          <HanujaLogo scale={1.3} dark={true}/>
+        </DCArtboard>
+        <DCArtboard label="Favicon / ikon" width={80} height={80} style={{background:DARK, display:'flex', alignItems:'center', justifyContent:'center'}}>
+          <HanujaSymbol scale={1.1} fg={CREAM} ac={TAN}/>
+        </DCArtboard>
+        <DCArtboard label="Favicon açık" width={80} height={80} style={{background:CREAM, display:'flex', alignItems:'center', justifyContent:'center'}}>
+          <HanujaSymbol scale={1.1} fg={DARK} ac={TAN}/>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection title="Web Header Önizlemesi" subtitle="Gerçek kullanım bağlamı">
+        <DCArtboard label="Açık header" width={900} height={70}>
+          <WebHeader Logo={HanujaLogo}/>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection title="Tipografi Sistemi" subtitle="Tüm site bileşenleri için yazı karakterleri — Türkçe karakter destekli">
+        <DCArtboard label="Tam sistem" width={900} height={620}>
+          <TypeSystem/>
+        </DCArtboard>
+      </DCSection>
+
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

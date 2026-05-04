@@ -7,30 +7,256 @@
  * AKIŞ:
  *   cart → validate → create Order (draft) → create OrderLines
  *   → create Payment → checkout_started → payment_pending
- *   → clear cart → return { order, payment }
+ *   → ödeme yöntemi eft ise cart clear → return { order, payment }
  *
  * Gerçek Iyzico çağrısı entegrasyon katmanında yapılır.
  * See: cart-checkout-flow skill, 07-marketplace-finance-rules.md
  */
-import type { PrismaClient } from '@prisma/client'
+import type { Prisma, PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
+import { calculateShippingFee as calculateShippingFeeTry } from '../domain/shipping'
 import { NotFoundError, ValidationError, ConflictError } from '../lib/errors'
 import { createCartRepository } from '../repositories/cart.repository'
-import { createOrderRepository } from '../repositories/order.repository'
+import { renderLegalDocuments } from '../lib/legal-documents'
+import { enqueueNotification } from '../jobs/notification-dispatch.job'
+import { getPlatformBankInfo } from '../lib/platform-info'
+import { formatOrderNumber, formatOrderDisplayNumber } from '../lib/order-number'
 
 // Sistem varsayılan komisyon oranı — proje büyüdükçe commission config tablosuna taşınır
 // Öncelik sırası (CLAUDE.md 15.1): ürün override > kategori > satıcı genel > sistem default
 const SYSTEM_DEFAULT_COMMISSION_RATE = new Decimal('0.1500') // %15
-const FREE_SHIPPING_THRESHOLD = new Decimal('1500') // ₺1500 ve üzeri ücretsiz kargo
-const FLAT_SHIPPING_FEE = new Decimal('99') // ₺99 kargo ücreti
 
 interface CheckoutServiceDeps {
   prisma: PrismaClient
 }
 
+type CheckoutPaymentMethod = 'card' | 'eft'
+
+type DraftSeller = Prisma.SellerGetPayload<{
+  include: { profile: true }
+}>
+
+type CheckoutDraft = {
+  cart: {
+    id: string
+    couponCode: string | null
+    items: Array<{
+      productId: string
+      variantId: string | null
+      quantity: number
+    }>
+  }
+  address: Prisma.AddressGetPayload<Record<string, never>>
+  customer: Prisma.UserGetPayload<Record<string, never>>
+  lines: Array<{
+    productId: string
+    sellerId: string
+    variantId: string | null
+    productName: string
+    variantName: string | null
+    quantity: number
+    unitPrice: Decimal
+    totalPrice: Decimal
+    commissionRate: Decimal
+    commissionAmount: Decimal
+    netPayoutAmount: Decimal
+  }>
+  grossAmount: Decimal
+  shippingAmount: Decimal
+  discountAmount: Decimal
+  totalAmount: Decimal
+  legalContext: Parameters<typeof renderLegalDocuments>[0]
+}
+
+function formatAddress(address: {
+  addressLine1: string
+  addressLine2: string | null
+  district: string
+  city: string
+  postalCode: string
+}) {
+  const postalCode = address.postalCode.trim()
+  return [
+    address.addressLine1.trim(),
+    address.addressLine2?.trim() || null,
+    [address.district.trim(), '/', address.city.trim(), postalCode].filter(Boolean).join(' '),
+  ]
+    .filter(Boolean)
+    .join(', ')
+}
+
+function decimalToNumber(value: Decimal) {
+  return Number(value.toFixed(2))
+}
+
+function fallbackText(value: string | null | undefined, placeholder: string) {
+  const normalized = value?.trim()
+  return normalized && normalized.length > 0 ? normalized : placeholder
+}
+
+function formatCurrency(value: Decimal) {
+  return `₺${value.toFixed(2).replace('.', ',')}`
+}
+
+function buildSellerSnapshot(seller: DraftSeller) {
+  return {
+    sellerId: seller.id,
+    storeName: fallbackText(seller.displayName, 'Satıcı Mağazası'),
+    companyName: fallbackText(seller.profile?.companyName, seller.displayName),
+    legalAddress: fallbackText(
+      seller.profile?.legalAddress,
+      'Satıcı açık adres bilgisi panelde güncellenecektir.',
+    ),
+    district: fallbackText(seller.profile?.district, '-'),
+    city: fallbackText(seller.profile?.city, '-'),
+    postalCode: fallbackText(seller.profile?.postalCode, '-'),
+    taxOffice: fallbackText(seller.profile?.taxOffice, '-'),
+    taxNumber: fallbackText(seller.profile?.taxNumber, '-'),
+    mersis: fallbackText(seller.profile?.mersis, '-'),
+    phone: fallbackText(seller.profile?.phone, '-'),
+  }
+}
+
 export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
   const carts = createCartRepository(prisma)
-  const orders = createOrderRepository(prisma)
+
+  async function buildCheckoutDraft(params: {
+    userId: string
+    addressId: string
+    paymentMethod: CheckoutPaymentMethod
+  }): Promise<CheckoutDraft> {
+    const cart = await carts.findByUserId(params.userId)
+    if (!cart || cart.items.length === 0) {
+      throw new ValidationError('Sepet boş veya bulunamadı')
+    }
+
+    const [address, customer] = await Promise.all([
+      prisma.address.findFirst({
+        where: { id: params.addressId, userId: params.userId },
+      }),
+      prisma.user.findUnique({ where: { id: params.userId } }),
+    ])
+
+    if (!address) throw new NotFoundError('Adres', params.addressId)
+    if (!customer) throw new NotFoundError('Kullanıcı', params.userId)
+
+    const productIds = cart.items.map((item) => item.productId)
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds }, status: 'published' },
+      include: {
+        seller: { include: { profile: true } },
+        variants: true,
+      },
+    })
+
+    const lines: CheckoutDraft['lines'] = []
+    const sellerMap = new Map<string, ReturnType<typeof buildSellerSnapshot>>()
+
+    for (const item of cart.items as Array<{
+      productId: string
+      variantId: string | null
+      quantity: number
+    }>) {
+      const product = products.find((entry) => entry.id === item.productId)
+      if (!product) {
+        throw new ConflictError(
+          'Sepetteki bir ürün artık satışta değil. Lütfen sepeti güncelleyin.',
+        )
+      }
+
+      const variant = item.variantId
+        ? product.variants.find((entry) => entry.id === item.variantId)
+        : null
+
+      if (product.variants.length > 0 && !variant) {
+        throw new ConflictError(
+          `"${product.name}" icin varyasyon secimi gecersiz. Lutfen sepeti guncelleyin.`,
+        )
+      }
+
+      const availableStock = variant?.stockQuantity ?? product.stockQuantity
+      if (availableStock < item.quantity) {
+        throw new ConflictError(
+          `"${product.name}" için yeterli stok yok (kalan: ${availableStock})`,
+        )
+      }
+
+      const unitPrice = variant?.price ?? product.price
+      const totalPrice = unitPrice.mul(item.quantity)
+      const commissionRate = SYSTEM_DEFAULT_COMMISSION_RATE
+      const commissionAmount = totalPrice.mul(commissionRate)
+      const netPayoutAmount = totalPrice.sub(commissionAmount)
+
+      if (!sellerMap.has(product.sellerId)) {
+        sellerMap.set(product.sellerId, buildSellerSnapshot(product.seller))
+      }
+
+      lines.push({
+        productId: product.id,
+        sellerId: product.sellerId,
+        variantId: item.variantId,
+        productName: product.name,
+        variantName: variant?.name ?? null,
+        quantity: item.quantity,
+        unitPrice,
+        totalPrice,
+        commissionRate,
+        commissionAmount,
+        netPayoutAmount,
+      })
+    }
+
+    const grossAmount = lines.reduce((sum, line) => sum.add(line.totalPrice), new Decimal(0))
+    const shippingAmount = new Decimal(calculateShippingFeeTry(grossAmount.toNumber()))
+    const discountAmount = new Decimal(0)
+    const totalAmount = grossAmount.add(shippingAmount).sub(discountAmount)
+    const deliveryAddress = formatAddress(address)
+
+    return {
+      cart: {
+        id: cart.id,
+        couponCode: cart.couponCode ?? null,
+        items: cart.items.map((item) => ({
+          productId: item.productId,
+          variantId: item.variantId ?? null,
+          quantity: item.quantity,
+        })),
+      },
+      address,
+      customer,
+      lines,
+      grossAmount,
+      shippingAmount,
+      discountAmount,
+      totalAmount,
+      legalContext: {
+        buyer: {
+          fullName: fallbackText(customer.name, address.fullName),
+          email: fallbackText(customer.email, '-'),
+          phone: fallbackText(address.phone, '-'),
+          deliveryAddress,
+          billingAddress: deliveryAddress,
+        },
+        sellers: Array.from(sellerMap.values()),
+        items: lines.map((line) => ({
+          productId: line.productId,
+          productName: line.productName,
+          variantName: line.variantName,
+          quantity: line.quantity,
+          unitPrice: decimalToNumber(line.unitPrice),
+          lineTotal: decimalToNumber(line.totalPrice),
+          sellerId: line.sellerId,
+          sellerStoreName:
+            sellerMap.get(line.sellerId)?.storeName ?? 'Satıcı Mağazası',
+        })),
+        orderDate: new Date(),
+        paymentMethod: params.paymentMethod,
+        subtotalAmount: decimalToNumber(grossAmount),
+        shippingAmount: decimalToNumber(shippingAmount),
+        totalAmount: decimalToNumber(totalAmount),
+      },
+    }
+  }
 
   return {
     /**
@@ -61,22 +287,29 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         const product = products.find((p) => p.id === item.productId)
 
         if (!product || product.status !== 'published') {
-          errors.push(`Ürün artık mevcut değil`)
+          errors.push('Ürün artık mevcut değil')
           continue
         }
 
-        if (product.stockQuantity < item.quantity) {
+        const variant = item.variantId
+          ? product.variants.find((entry) => entry.id === item.variantId)
+          : null
+
+        if (product.variants.length > 0 && !variant) {
+          errors.push(`"${product.name}" icin varyasyon secimi gecersiz`)
+          continue
+        }
+
+        const availableStock = variant?.stockQuantity ?? product.stockQuantity
+        if (availableStock < item.quantity) {
           errors.push(
-            `"${product.name}" için yeterli stok yok (mevcut: ${product.stockQuantity})`,
+            `"${product.name}" için yeterli stok yok (mevcut: ${availableStock})`,
           )
           continue
         }
 
-        // Fiyat değişikliği kontrolü
         const currentPrice =
-          item.variantId
-            ? product.variants.find((v) => v.id === item.variantId)?.price ?? product.price
-            : product.price
+          variant?.price ?? product.price
 
         if (!new Decimal(item.unitPrice).eq(currentPrice)) {
           warnings.push(
@@ -86,6 +319,15 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       }
 
       return { valid: errors.length === 0, errors, warnings }
+    },
+
+    async previewLegalDocuments(params: {
+      userId: string
+      addressId: string
+      paymentMethod: CheckoutPaymentMethod
+    }) {
+      const draft = await buildCheckoutDraft(params)
+      return renderLegalDocuments(draft.legalContext)
     },
 
     /**
@@ -100,123 +342,33 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
     async createOrder(params: {
       userId: string
       addressId: string
-      paymentMethod: 'card' | 'eft'
+      paymentMethod: CheckoutPaymentMethod
       couponCode?: string
       idempotencyKey?: string
       notes?: string
     }) {
-      // Sepeti yükle
-      const cart = await carts.findByUserId(params.userId)
-      if (!cart || cart.items.length === 0) {
-        throw new ValidationError('Sepet boş veya bulunamadı')
-      }
+      const draft = await buildCheckoutDraft(params)
 
-      // Adresi doğrula
-      const address = await prisma.address.findUnique({
-        where: { id: params.addressId, userId: params.userId },
-      })
-      if (!address) throw new NotFoundError('Adres', params.addressId)
-
-      // Ürün bilgilerini çek (fiyat sunucu tarafında hesaplanır)
-      const productIds = (cart.items as Array<{ productId: string }>).map((i) => i.productId)
-      const products = await prisma.product.findMany({
-        where: { id: { in: productIds }, status: 'published' },
-        include: {
-          seller: true,
-          variants: true,
-        },
-      })
-
-      // Stok ve ürün durumu son kontrolü
-      const lines: Array<{
-        productId: string
-        sellerId: string
-        variantId: string | null
-        productName: string
-        variantName: string | null
-        quantity: number
-        unitPrice: Decimal
-        totalPrice: Decimal
-        commissionRate: Decimal
-        commissionAmount: Decimal
-        netPayoutAmount: Decimal
-      }> = []
-
-      for (const item of cart.items as Array<{
-        productId: string
-        variantId: string | null
-        quantity: number
-      }>) {
-        const product = products.find((p) => p.id === item.productId)
-        if (!product) {
-          throw new ConflictError(
-            `Sepetteki bir ürün artık satışta değil. Lütfen sepeti güncelleyin.`,
-          )
-        }
-
-        if (product.stockQuantity < item.quantity) {
-          throw new ConflictError(
-            `"${product.name}" için yeterli stok yok (kalan: ${product.stockQuantity})`,
-          )
-        }
-
-        const variant = item.variantId
-          ? product.variants.find((v) => v.id === item.variantId)
-          : null
-
-        const unitPrice = variant?.price ?? product.price
-        const totalPrice = unitPrice.mul(item.quantity)
-
-        // Komisyon hesaplama — sistem varsayılanı kullanılıyor (CLAUDE.md 15.1)
-        const commissionRate = SYSTEM_DEFAULT_COMMISSION_RATE
-        const commissionAmount = totalPrice.mul(commissionRate)
-        const netPayoutAmount = totalPrice.sub(commissionAmount)
-
-        lines.push({
-          productId: product.id,
-          sellerId: product.sellerId,
-          variantId: item.variantId,
-          productName: product.name,
-          variantName: variant?.name ?? null,
-          quantity: item.quantity,
-          unitPrice,
-          totalPrice,
-          commissionRate,
-          commissionAmount,
-          netPayoutAmount,
-        })
-      }
-
-      // Toplamları hesapla
-      const grossAmount = lines.reduce((s, l) => s.add(l.totalPrice), new Decimal(0))
-      const shippingAmount = grossAmount.gte(FREE_SHIPPING_THRESHOLD)
-        ? new Decimal(0)
-        : FLAT_SHIPPING_FEE
-      const discountAmount = new Decimal(0) // Kupon mantığı ileriki fazda
-      const totalAmount = grossAmount.add(shippingAmount).sub(discountAmount)
-
-      return prisma.$transaction(async (tx) => {
-        // Sipariş oluştur
-        const order = await (tx as unknown as PrismaClient).order.create({
+      const result = await prisma.$transaction(async (tx) => {
+        const order = await tx.order.create({
           data: {
             customerId: params.userId,
             addressId: params.addressId,
             status: 'checkout_started',
-            grossAmount,
-            discountAmount,
-            shippingAmount,
-            totalAmount,
-            couponCode: params.couponCode ?? cart.couponCode,
+            grossAmount: draft.grossAmount,
+            discountAmount: draft.discountAmount,
+            shippingAmount: draft.shippingAmount,
+            totalAmount: draft.totalAmount,
+            couponCode: params.couponCode ?? draft.cart.couponCode,
             ...(params.notes !== undefined ? { notes: params.notes } : {}),
             lines: {
-              create: lines,
+              create: draft.lines,
             },
           },
           include: { lines: true },
         })
 
-        // Sipariş durum geçmişi
-        await (tx as unknown as PrismaClient).orderStatusHistory.create({
+        await tx.orderStatusHistory.create({
           data: {
             orderId: order.id,
             toStatus: 'checkout_started',
@@ -225,31 +377,45 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           },
         })
 
-        // Ödeme kaydı oluştur
-        const payment = await (tx as unknown as PrismaClient).payment.create({
+        const legalBundle = renderLegalDocuments({
+          ...draft.legalContext,
+          orderNumber: formatOrderNumber(order.publicNumber, order.id),
+          orderDate: order.createdAt,
+        })
+
+        await tx.orderLegalSnapshot.create({
+          data: {
+            orderId: order.id,
+            distanceSalesHtml: legalBundle.distanceSalesHtml,
+            preInformationHtml: legalBundle.preInformationHtml,
+            buyerSnapshot: legalBundle.buyerSnapshot as unknown as Prisma.InputJsonValue,
+            sellerSnapshot: legalBundle.sellerSnapshot as unknown as Prisma.InputJsonValue,
+            platformSnapshot: legalBundle.platformSnapshot as unknown as Prisma.InputJsonValue,
+          },
+        })
+
+        const payment = await tx.payment.create({
           data: {
             orderId: order.id,
             method: params.paymentMethod,
             status: 'pending',
-            amount: totalAmount,
+            amount: draft.totalAmount,
           },
         })
 
-        // payment_pending durumuna geç
-        await (tx as unknown as PrismaClient).order.update({
+        const nextStatus =
+          params.paymentMethod === 'eft' ? 'bank_transfer_waiting' : 'payment_pending'
+
+        await tx.order.update({
           where: { id: order.id },
-          data: {
-            status:
-              params.paymentMethod === 'eft' ? 'bank_transfer_waiting' : 'payment_pending',
-          },
+          data: { status: nextStatus },
         })
 
-        await (tx as unknown as PrismaClient).orderStatusHistory.create({
+        await tx.orderStatusHistory.create({
           data: {
             orderId: order.id,
             fromStatus: 'checkout_started',
-            toStatus:
-              params.paymentMethod === 'eft' ? 'bank_transfer_waiting' : 'payment_pending',
+            toStatus: nextStatus,
             actorId: params.userId,
             reason:
               params.paymentMethod === 'eft'
@@ -258,13 +424,69 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           },
         })
 
+        // Stok atomik olarak azalt — race condition'a karşı transaction içinde yapılıyor
+        for (const line of draft.lines) {
+          if (line.variantId) {
+            const updated = await tx.productVariant.updateMany({
+              where: { id: line.variantId, stockQuantity: { gte: line.quantity } },
+              data: { stockQuantity: { decrement: line.quantity } },
+            })
+            if (updated.count === 0) {
+              throw new ConflictError(
+                `"${line.productName}" varyasyonu için yeterli stok kalmadı. Lütfen sepeti güncelleyin.`,
+              )
+            }
+          } else {
+            const updated = await tx.product.updateMany({
+              where: { id: line.productId, stockQuantity: { gte: line.quantity } },
+              data: { stockQuantity: { decrement: line.quantity } },
+            })
+            if (updated.count === 0) {
+              throw new ConflictError(
+                `"${line.productName}" için yeterli stok kalmadı. Lütfen sepeti güncelleyin.`,
+              )
+            }
+          }
+        }
+
+        if (params.paymentMethod === 'eft') {
+          await tx.cartItem.deleteMany({
+            where: { cart: { userId: params.userId } },
+          })
+        }
+
         return { order, payment, lines: order.lines }
       })
+
+      void enqueueNotification({
+        userId: params.userId,
+        emailTo: draft.customer.email,
+        type: 'order_placed',
+        title: `Siparişiniz Alındı — ${formatOrderDisplayNumber(result.order.publicNumber, result.order.id)}`,
+        body: 'Siparişiniz başarıyla alındı.',
+        data: {
+          orderId: result.order.id,
+          orderNumber: formatOrderNumber(result.order.publicNumber, result.order.id),
+          paymentMethod: params.paymentMethod,
+          items: result.lines.map((line) => ({
+            name: line.productName,
+            quantity: line.quantity,
+            price: formatCurrency(line.unitPrice),
+          })),
+          totalAmount: formatCurrency(result.order.totalAmount),
+          customerName: draft.customer.name ?? draft.address.fullName,
+          ...(params.paymentMethod === 'eft'
+            ? { bankTransferInstructions: getPlatformBankInfo(result.order.id) }
+            : {}),
+        },
+      }).catch((err) => console.error('[checkout] Order confirmation notification failed:', err))
+
+      return result
     },
 
     /**
      * Sipariş oluşturulduktan sonra sepeti temizler.
-     * Ödeme başarılıysa çağrılır — başarısızsa sepet korunur.
+     * Geriye dönük uyumluluk için tutulur.
      */
     async clearCartAfterOrder(userId: string) {
       const cart = await carts.findByUserId(userId)
@@ -295,18 +517,17 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         addressLine2?: string
         district: string
         city: string
-        postalCode: string
+        postalCode?: string
         isDefault?: boolean
       },
     ) {
       if (data.isDefault) {
-        // Mevcut varsayılan adresi kaldır
         await prisma.address.updateMany({
           where: { userId, isDefault: true },
           data: { isDefault: false },
         })
       }
-      return prisma.address.create({ data: { ...data, userId } })
+      return prisma.address.create({ data: { ...data, postalCode: data.postalCode ?? '', userId } })
     },
   }
 }

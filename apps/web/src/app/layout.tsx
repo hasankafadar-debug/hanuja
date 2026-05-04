@@ -1,18 +1,29 @@
 import type { Metadata } from 'next'
-import { Inter, Playfair_Display } from 'next/font/google'
+import { Outfit, DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { Toaster } from '@hanuja/ui'
+import { DEFAULT_WEB_URL } from '@hanuja/api/lib/platform-info'
 import './globals.css'
 
-const inter = Inter({
-  subsets: ['latin'],
+const outfit = Outfit({
+  subsets: ['latin', 'latin-ext'],
   variable: '--font-sans',
   display: 'swap',
+  weight: ['200', '300', '400', '500'],
 })
 
-const playfair = Playfair_Display({
-  subsets: ['latin'],
+const dmSans = DM_Sans({
+  subsets: ['latin', 'latin-ext'],
+  variable: '--font-body',
+  display: 'swap',
+  weight: ['300', '400', '500'],
+})
+
+const cormorant = Cormorant_Garamond({
+  subsets: ['latin', 'latin-ext'],
   variable: '--font-display',
   display: 'swap',
+  weight: ['300', '400', '500'],
+  style: ['normal', 'italic'],
 })
 
 export const metadata: Metadata = {
@@ -21,7 +32,11 @@ export const metadata: Metadata = {
     default: 'Hanuja — Ev, Ofis & Yaşam Ürünleri',
   },
   description: "Türkiye'nin ev, ofis ve yaşam ürünleri marketplace'i.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://hanuja.com'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? DEFAULT_WEB_URL),
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+  },
   openGraph: {
     siteName: 'Hanuja',
     locale: 'tr_TR',
@@ -42,7 +57,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="tr" className={`${inter.variable} ${playfair.variable}`}>
+    <html lang="tr" className={`${outfit.variable} ${dmSans.variable} ${cormorant.variable}`}>
       <body>
         {children}
         <Toaster />

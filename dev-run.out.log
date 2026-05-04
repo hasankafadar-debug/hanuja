@@ -1,0 +1,677 @@
+
+
+> hanuja@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace
+> turbo run dev --parallel
+
+
+   • Packages in scope: @hanuja/api, @hanuja/config, @hanuja/db, @hanuja/security, @hanuja/seo, @hanuja/tests, @hanuja/types, @hanuja/ui, admin-panel, seller-panel, web
+   • Running dev in 11 packages
+   • Remote caching disabled
+
+admin-panel:dev: cache bypass, force executing 42f05c0e40e054fe
+web:dev: cache bypass, force executing 8d113ab990f9c4b3
+seller-panel:dev: cache bypass, force executing e941c89127164d65
+seller-panel:dev: 
+seller-panel:dev: > seller-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\seller-panel
+seller-panel:dev: > next dev --port 3001
+seller-panel:dev: 
+admin-panel:dev: 
+admin-panel:dev: > admin-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\admin-panel
+admin-panel:dev: > next dev --port 3002
+admin-panel:dev: 
+web:dev: 
+web:dev: > web@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\web
+web:dev: > next dev --port 3000
+web:dev: 
+web:dev:    ▲ Next.js 15.5.14
+web:dev:    - Local:        http://localhost:3000
+web:dev:    - Network:      http://172.21.0.1:3000
+web:dev:    - Environments: .env.local
+admin-panel:dev:    ▲ Next.js 15.5.14
+web:dev: 
+web:dev:  ✓ Starting...
+admin-panel:dev:    - Local:        http://localhost:3002
+admin-panel:dev:    - Network:      http://172.21.0.1:3002
+admin-panel:dev:    - Environments: .env.local
+admin-panel:dev: 
+admin-panel:dev:  ✓ Starting...
+seller-panel:dev:    ▲ Next.js 15.5.14
+seller-panel:dev:    - Local:        http://localhost:3001
+seller-panel:dev:    - Network:      http://172.21.0.1:3001
+seller-panel:dev:    - Environments: .env.local
+seller-panel:dev: 
+seller-panel:dev:  ✓ Starting...
+seller-panel:dev:  ○ Compiling /instrumentation ...
+web:dev:  ○ Compiling /instrumentation ...
+admin-panel:dev:  ○ Compiling /instrumentation ...
+admin-panel:dev:  ✓ Compiled /instrumentation in 523ms (31 modules)
+admin-panel:dev:  ✓ Ready in 5.4s
+seller-panel:dev:  ✓ Compiled /instrumentation in 772ms (31 modules)
+seller-panel:dev:  ✓ Ready in 5.6s
+web:dev:  ✓ Compiled /instrumentation in 1992ms (50 modules)
+web:dev: [startup] Database connection is ready.
+web:dev:  ✓ Ready in 5.9s
+admin-panel:dev:  ○ Compiling /api/auth/[...all] ...
+admin-panel:dev:  ✓ Compiled /api/auth/[...all] in 2.7s (1083 modules)
+admin-panel:dev:  POST /api/auth/sign-in/email 200 in 5576ms
+seller-panel:dev:  ○ Compiling /api/auth/[...all] ...
+seller-panel:dev:  ✓ Compiled /api/auth/[...all] in 5.1s (1141 modules)
+seller-panel:dev: 2026-04-21T12:15:22.902Z ERROR [Better Auth]: Invalid password
+seller-panel:dev:  POST /api/auth/sign-in/email 401 in 9723ms
+seller-panel:dev:  POST /api/auth/sign-in/email 200 in 255ms
+seller-panel:dev:  ○ Compiling / ...
+seller-panel:dev:  ✓ Compiled / in 1534ms (659 modules)
+seller-panel:dev:  GET / 200 in 2070ms
+seller-panel:dev:  ○ Compiling /dashboard ...
+seller-panel:dev:  ✓ Compiled /dashboard in 5.7s (2095 modules)
+seller-panel:dev:  GET /dashboard 200 in 1373ms
+seller-panel:dev:  ✓ Compiled in 1587ms (510 modules)
+seller-panel:dev:  GET /dashboard 200 in 7321ms
+seller-panel:dev:  ○ Compiling /giris ...
+seller-panel:dev:  ✓ Compiled /giris in 1287ms (2089 modules)
+seller-panel:dev:  GET /giris 200 in 1782ms
+seller-panel:dev:  ○ Compiling /api/auth/[...all] ...
+seller-panel:dev:  ✓ Compiled /api/auth/[...all] in 843ms (1601 modules)
+seller-panel:dev:  POST /api/auth/sign-in/email 200 in 1594ms
+seller-panel:dev:  GET /dashboard 200 in 587ms
+seller-panel:dev:  GET /dashboard 200 in 1166ms
+seller-panel:dev:  ○ Compiling /urunler/toplu-yukle ...
+seller-panel:dev:  ✓ Compiled /urunler/toplu-yukle in 2.1s (2123 modules)
+seller-panel:dev:  GET /urunler/toplu-yukle 200 in 3431ms
+seller-panel:dev:  ○ Compiling /api/seller/products/bulk/template ...
+seller-panel:dev:  ✓ Compiled /api/seller/products/bulk/template in 1577ms (2152 modules)
+seller-panel:dev:  GET /api/seller/products/bulk/template 200 in 2294ms
+seller-panel:dev:  ○ Compiling /medya ...
+seller-panel:dev:  ✓ Compiled /medya in 1932ms (2137 modules)
+seller-panel:dev:  GET /medya 200 in 3217ms
+seller-panel:dev:  ○ Compiling /api/media ...
+seller-panel:dev:  ✓ Compiled /api/media in 2.8s (2849 modules)
+seller-panel:dev:  GET /api/media?folder=products&limit=100 200 in 4404ms
+seller-panel:dev:  ○ Compiling /indirimler ...
+seller-panel:dev:  ✓ Compiled /indirimler in 1796ms (2855 modules)
+seller-panel:dev:  ⨯ Error [PrismaClientKnownRequestError]: 
+seller-panel:dev: Invalid `prisma.discountRule.findMany()` invocation:
+seller-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: The table `public.discount_rules` does not exist in the current database.
+seller-panel:dev:     at async Object.listRules (..\..\api\services\discount.service.ts:268:19)
+seller-panel:dev:     at async DiscountsPage (src\app\(panel)\indirimler\page.tsx:30:17)
+seller-panel:dev:   266 |     } = {},
+seller-panel:dev:   267 |   ) {
+seller-panel:dev: > 268 |     const rules = await prisma.discountRule.findMany({
+seller-panel:dev:       |                   ^
+seller-panel:dev:   269 |       where: {
+seller-panel:dev:   270 |         sellerId,
+seller-panel:dev:   271 |         ...(filters.status !== undefined ? { status: filters.status } : {}), {
+seller-panel:dev:   code: 'P2021',
+seller-panel:dev:   meta: [Object],
+seller-panel:dev:   clientVersion: '6.19.3',
+seller-panel:dev:   digest: '1540659323'
+seller-panel:dev: }
+seller-panel:dev:  GET /indirimler 200 in 3050ms
+seller-panel:dev:  GET /medya 200 in 329ms
+seller-panel:dev:  GET /api/media?folder=products&limit=100 200 in 240ms
+seller-panel:dev:  ○ Compiling /urunler/ice-aktar ...
+seller-panel:dev:  ✓ Compiled /urunler/ice-aktar in 2.6s (2870 modules)
+seller-panel:dev:  GET /urunler/ice-aktar 200 in 3910ms
+seller-panel:dev:  ○ Compiling /api/seller/products/import/preview ...
+seller-panel:dev:  ✓ Compiled /api/seller/products/import/preview in 1915ms (2854 modules)
+seller-panel:dev:  POST /api/seller/products/import/preview 200 in 4551ms
+seller-panel:dev:  ○ Compiling /api/seller/products/import/commit ...
+seller-panel:dev:  ✓ Compiled /api/seller/products/import/commit in 2.1s (2878 modules)
+seller-panel:dev:  POST /api/seller/products/import/commit 400 in 2887ms
+seller-panel:dev:  GET /urunler/ice-aktar 200 in 800ms
+seller-panel:dev:  ○ Compiling /iadeler ...
+seller-panel:dev:  ✓ Compiled /iadeler in 2.1s (2868 modules)
+seller-panel:dev:  GET /iadeler 200 in 3085ms
+seller-panel:dev:  GET /urunler/ice-aktar 200 in 451ms
+seller-panel:dev:  ○ Compiling /ayarlar ...
+seller-panel:dev:  ✓ Compiled /ayarlar in 3.6s (2507 modules)
+seller-panel:dev:  ⨯ Error [PrismaClientKnownRequestError]: 
+seller-panel:dev: Invalid `prisma.seller.findUnique()` invocation:
+seller-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: The column `seller_bank_details.status` does not exist in the current database.
+seller-panel:dev:     at async SellerSettingsPage (src\app\(panel)\ayarlar\page.tsx:19:54)
+seller-panel:dev:   17 |
+seller-panel:dev:   18 |   // Profil ve banka bilgilerini çek
+seller-panel:dev: > 19 |   const [sellerWithDetails, user, sellerDocuments] = await Promise.all([
+seller-panel:dev:      |                                                      ^
+seller-panel:dev:   20 |     prisma.seller.findUnique({
+seller-panel:dev:   21 |       where: { id: seller.id },
+seller-panel:dev:   22 |       include: { {
+seller-panel:dev:   code: 'P2022',
+seller-panel:dev:   meta: [Object],
+seller-panel:dev:   clientVersion: '6.19.3',
+seller-panel:dev:   digest: '1694369518'
+seller-panel:dev: }
+seller-panel:dev:  GET /ayarlar 200 in 4574ms
+seller-panel:dev:  ⨯ Error [PrismaClientKnownRequestError]: 
+seller-panel:dev: Invalid `prisma.seller.findUnique()` invocation:
+seller-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: The column `seller_bank_details.status` does not exist in the current database.
+seller-panel:dev:     at async SellerSettingsPage (src\app\(panel)\ayarlar\page.tsx:19:54)
+seller-panel:dev:   17 |
+seller-panel:dev:   18 |   // Profil ve banka bilgilerini çek
+seller-panel:dev: > 19 |   const [sellerWithDetails, user, sellerDocuments] = await Promise.all([
+seller-panel:dev:      |                                                      ^
+seller-panel:dev:   20 |     prisma.seller.findUnique({
+seller-panel:dev:   21 |       where: { id: seller.id },
+seller-panel:dev:   22 |       include: { {
+seller-panel:dev:   code: 'P2022',
+seller-panel:dev:   meta: [Object],
+seller-panel:dev:   clientVersion: '6.19.3',
+seller-panel:dev:   digest: '1694369518'
+seller-panel:dev: }
+seller-panel:dev:  GET /ayarlar 200 in 179ms
+seller-panel:dev:  ⨯ Error [PrismaClientKnownRequestError]: 
+seller-panel:dev: Invalid `prisma.seller.findUnique()` invocation:
+seller-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: The column `seller_bank_details.status` does not exist in the current database.
+seller-panel:dev:     at async SellerSettingsPage (src\app\(panel)\ayarlar\page.tsx:19:54)
+seller-panel:dev:   17 |
+seller-panel:dev:   18 |   // Profil ve banka bilgilerini çek
+seller-panel:dev: > 19 |   const [sellerWithDetails, user, sellerDocuments] = await Promise.all([
+seller-panel:dev:      |                                                      ^
+seller-panel:dev:   20 |     prisma.seller.findUnique({
+seller-panel:dev:   21 |       where: { id: seller.id },
+seller-panel:dev:   22 |       include: { {
+seller-panel:dev:   code: 'P2022',
+seller-panel:dev:   meta: [Object],
+seller-panel:dev:   clientVersion: '6.19.3',
+seller-panel:dev:   digest: '1694369518'
+seller-panel:dev: }
+seller-panel:dev:  GET /ayarlar 200 in 528ms
+seller-panel:dev:  GET /urunler/ice-aktar 200 in 525ms
+seller-panel:dev:  ○ Compiling /urunler ...
+seller-panel:dev:  ✓ Compiled /urunler in 2.9s (2493 modules)
+seller-panel:dev:  ⨯ Error [PrismaClientKnownRequestError]: 
+seller-panel:dev: Invalid `prisma.product.findMany()` invocation:
+seller-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: The column `products.barcode` does not exist in the current database.
+seller-panel:dev:     at async ProductsPage (src\app\(panel)\urunler\page.tsx:26:20)
+seller-panel:dev:   24 |
+seller-panel:dev:   25 |   const svc = createCatalogService({ prisma: createPrismaForRoute() })
+seller-panel:dev: > 26 |   const products = await svc.listBySeller(seller.id, undefined, 0, 50)
+seller-panel:dev:      |                    ^
+seller-panel:dev:   27 |
+seller-panel:dev:   28 |   type ProductRow = {
+seller-panel:dev:   29 |     id: string {
+seller-panel:dev:   code: 'P2022',
+seller-panel:dev:   meta: [Object],
+seller-panel:dev:   clientVersion: '6.19.3',
+seller-panel:dev:   digest: '1491894183'
+seller-panel:dev: }
+seller-panel:dev:  GET /urunler 200 in 4463ms
+seller-panel:dev:  GET /urunler/ice-aktar 200 in 355ms
+seller-panel:dev:  ⨯ Error [PrismaClientKnownRequestError]: 
+seller-panel:dev: Invalid `prisma.product.findMany()` invocation:
+seller-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: The column `products.barcode` does not exist in the current database.
+seller-panel:dev:     at async ProductsPage (src\app\(panel)\urunler\page.tsx:26:20)
+seller-panel:dev:   24 |
+seller-panel:dev:   25 |   const svc = createCatalogService({ prisma: createPrismaForRoute() })
+seller-panel:dev: > 26 |   const products = await svc.listBySeller(seller.id, undefined, 0, 50)
+seller-panel:dev:      |                    ^
+seller-panel:dev:   27 |
+seller-panel:dev:   28 |   type ProductRow = {
+seller-panel:dev:   29 |     id: string {
+seller-panel:dev:   code: 'P2022',
+seller-panel:dev:   meta: [Object],
+seller-panel:dev:   clientVersion: '6.19.3',
+seller-panel:dev:   digest: '1491894183'
+seller-panel:dev: }
+seller-panel:dev:  GET /urunler 200 in 256ms
+seller-panel:dev:  GET /urunler/ice-aktar 200 in 320ms
+seller-panel:dev:  GET /medya 200 in 368ms
+seller-panel:dev:  ○ Compiling /api/media ...
+seller-panel:dev:  ✓ Compiled /api/media in 1751ms (2366 modules)
+seller-panel:dev:  GET /api/media?folder=products&limit=100 200 in 2439ms
+admin-panel:dev:  ○ Compiling /giris ...
+admin-panel:dev:  ✓ Compiled /giris in 1517ms (815 modules)
+admin-panel:dev:  GET /giris 200 in 2132ms
+admin-panel:dev:  ○ Compiling /api/auth/[...all] ...
+admin-panel:dev:  ✓ Compiled /api/auth/[...all] in 703ms (1256 modules)
+admin-panel:dev:  POST /api/auth/sign-in/email 200 in 1531ms
+admin-panel:dev:  ○ Compiling /_not-found ...
+admin-panel:dev:  ✓ Compiled /_not-found in 4s (1588 modules)
+admin-panel:dev:  GET /panel 404 in 4568ms
+admin-panel:dev:  GET / 200 in 4641ms
+admin-panel:dev:  ○ Compiling /dashboard ...
+admin-panel:dev:  ✓ Compiled /dashboard in 4.2s (2044 modules)
+admin-panel:dev:  GET /dashboard 200 in 6975ms
+admin-panel:dev:  ○ Compiling /saticilar ...
+admin-panel:dev:  ✓ Compiled /saticilar in 1475ms (2046 modules)
+admin-panel:dev:  GET /saticilar 200 in 2708ms
+admin-panel:dev:  ○ Compiling /saticilar/[id] ...
+admin-panel:dev:  ✓ Compiled /saticilar/[id] in 2.1s (2102 modules)
+admin-panel:dev:  ⨯ Error [PrismaClientKnownRequestError]: 
+admin-panel:dev: Invalid `prisma.seller.findUnique()` invocation:
+admin-panel:dev: 
+admin-panel:dev: 
+admin-panel:dev: The column `seller_bank_details.status` does not exist in the current database.
+admin-panel:dev:     at async SellerDetailPage (src\app\(panel)\saticilar\[id]\page.tsx:36:18)
+admin-panel:dev:   34 |
+admin-panel:dev:   35 |   // Satıcı + profil + aktif banka bilgisi
+admin-panel:dev: > 36 |   const seller = await prisma.seller.findUnique({
+admin-panel:dev:      |                  ^
+admin-panel:dev:   37 |     where: { id },
+admin-panel:dev:   38 |     include: {
+admin-panel:dev:   39 |       profile: true, {
+admin-panel:dev:   code: 'P2022',
+admin-panel:dev:   meta: [Object],
+admin-panel:dev:   clientVersion: '6.19.3',
+admin-panel:dev:   digest: '1990575095'
+admin-panel:dev: }
+admin-panel:dev:  GET /saticilar/cmo75nmy20001ul4o8xw6n9g3 200 in 4587ms
+admin-panel:dev:  ⨯ Error [PrismaClientKnownRequestError]: 
+admin-panel:dev: Invalid `prisma.seller.findUnique()` invocation:
+admin-panel:dev: 
+admin-panel:dev: 
+admin-panel:dev: The column `seller_bank_details.status` does not exist in the current database.
+admin-panel:dev:     at async SellerDetailPage (src\app\(panel)\saticilar\[id]\page.tsx:36:18)
+admin-panel:dev:   34 |
+admin-panel:dev:   35 |   // Satıcı + profil + aktif banka bilgisi
+admin-panel:dev: > 36 |   const seller = await prisma.seller.findUnique({
+admin-panel:dev:      |                  ^
+admin-panel:dev:   37 |     where: { id },
+admin-panel:dev:   38 |     include: {
+admin-panel:dev:   39 |       profile: true, {
+admin-panel:dev:   code: 'P2022',
+admin-panel:dev:   meta: [Object],
+admin-panel:dev:   clientVersion: '6.19.3',
+admin-panel:dev:   digest: '1990575095'
+admin-panel:dev: }
+admin-panel:dev:  GET /saticilar/seller_woodform_01 200 in 108ms
+seller-panel:dev:  ✓ Compiled in 2.7s (1955 modules)
+seller-panel:dev:  ✓ Compiled in 2.6s (2498 modules)
+seller-panel:dev:  ✓ Compiled in 2.7s (2504 modules)
+admin-panel:dev:  ✓ Compiled in 4.2s (2109 modules)
+admin-panel:dev:  ✓ Compiled in 2.1s (2115 modules)
+admin-panel:dev:  ✓ Compiled in 3.8s (2115 modules)
+admin-panel:dev:  ✓ Compiled in 1910ms (2115 modules)
+seller-panel:dev:  ✓ Compiled in 11.4s (2504 modules)
+admin-panel:dev:  ✓ Compiled in 4.5s (2127 modules)
+seller-panel:dev:  ✓ Compiled in 5.9s (2516 modules)
+admin-panel:dev:  ✓ Compiled in 2.5s (2116 modules)
+seller-panel:dev:  ✓ Compiled in 3.5s (2505 modules)
+seller-panel:dev:  ✓ Compiled in 2.8s (2505 modules)
+seller-panel:dev:  ✓ Compiled in 4.7s (2505 modules)
+seller-panel:dev:  ✓ Compiled in 517ms (549 modules)
+seller-panel:dev:  ✓ Compiled in 1489ms (549 modules)
+seller-panel:dev:  ✓ Compiled in 523ms (549 modules)
+seller-panel:dev:  ✓ Compiled in 477ms (549 modules)
+seller-panel:dev:  ✓ Compiled in 503ms (549 modules)
+seller-panel:dev:  ✓ Compiled in 3.8s (2505 modules)
+seller-panel:dev:  ✓ Compiled in 1229ms (549 modules)
+admin-panel:dev:  ✓ Compiled in 4.1s (2116 modules)
+seller-panel:dev:  ✓ Compiled in 6.3s (2505 modules)
+web:dev:  ○ Compiling / ...
+web:dev:  ✓ Compiled / in 8.6s (1403 modules)
+web:dev:  GET / 200 in 11042ms
+web:dev:  ⚠ Cross origin request detected from 127.0.0.1 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+web:dev: Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+web:dev:  ○ Compiling /api/cart/count ...
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev:  ✓ Compiled /_error in 5.3s (2608 modules)
+web:dev:  GET /api/cart/count 200 in 6308ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 6714ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 5720ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 6710ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 5705ms
+web:dev:  GET / 200 in 2773ms
+web:dev:  GET / 200 in 163ms
+web:dev:  GET / 200 in 129ms
+web:dev:  ○ Compiling /blog ...
+web:dev:  ✓ Compiled /blog in 1498ms (1703 modules)
+web:dev:  GET /blog 200 in 1945ms
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/blog/ev-ofis-duzeni-01.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/blog/kucuk-salon-dekorasyon-01.jpg
+web:dev:  ○ Compiling /blog/[slug] ...
+web:dev:  ✓ Compiled /blog/[slug] in 1145ms (1728 modules)
+web:dev:  GET /blog/kucuk-salon-dekorasyon-fikirleri-2025 200 in 2988ms
+web:dev:  GET /blog 200 in 96ms
+web:dev:  ○ Compiling /kategori/[...slug] ...
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev:  ✓ Compiled /_error in 3s (1914 modules)
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fev-ofis-duzeni-01.jpg&w=1920&q=75 500 in 8704ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fev-ofis-duzeni-01.jpg&w=1920&q=75 500 in 1917ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fkucuk-salon-dekorasyon-01.jpg&w=640&q=75 500 in 8702ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fkucuk-salon-dekorasyon-01.jpg&w=640&q=75 500 in 1898ms
+web:dev:  GET /kategori/mutfak 200 in 5093ms
+web:dev:  GET /kategori/ofis 200 in 153ms
+web:dev:  GET /kategori/aydinlatma 200 in 119ms
+web:dev:  GET /kategori/dekor 200 in 129ms
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+web:dev:  GET /kategori/mobilya 200 in 111ms
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=640&q=75 500 in 3936ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=640&q=75 500 in 341ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=640&q=75 500 in 1979ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=640&q=75 500 in 328ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 1976ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 315ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 907ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 304ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=640&q=75 500 in 904ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=640&q=75 500 in 292ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=640&q=75 500 in 902ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=640&q=75 500 in 283ms
+web:dev:  ○ Compiling /kategori ...
+web:dev:  ✓ Compiled /kategori in 1129ms (1918 modules)
+web:dev:  GET /kategori 200 in 1527ms
+web:dev:  GET /kategori/ofis 200 in 198ms
+web:dev:  GET /kategori 200 in 86ms
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg&w=640&q=75 500 in 316ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg&w=640&q=75 500 in 287ms
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/konsol-rattan-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+web:dev:  GET /kategori/mobilya 200 in 131ms
+web:dev:  GET / 200 in 149ms
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 1206ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 252ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 1205ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=640&q=75 500 in 237ms
+web:dev:  GET /kategori/mobilya 200 in 185ms
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/konsol-rattan-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev: [TypeError: fetch failed] {
+web:dev:   [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+web:dev:     errno: -3008,
+web:dev:     code: 'ENOTFOUND',
+web:dev:     syscall: 'getaddrinfo',
+web:dev:     hostname: 'cdn.hanuja.com.tr'
+web:dev:   }
+web:dev: }
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=640&q=75 500 in 3086ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=640&q=75 500 in 343ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=640&q=75 500 in 3084ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=640&q=75 500 in 328ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg&w=640&q=75 500 in 3084ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg&w=640&q=75 500 in 316ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=640&q=75 500 in 1345ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=640&q=75 500 in 303ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=640&q=75 500 in 1334ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=640&q=75 500 in 290ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 1333ms
+web:dev:  GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=640&q=75 500 in 278ms
+seller-panel:dev:  ○ Compiling / ...
+seller-panel:dev:  ✓ Compiled / in 2s (1958 modules)
+seller-panel:dev:  GET / 200 in 2908ms
+seller-panel:dev:  ⚠ Cross origin request detected from 127.0.0.1 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+seller-panel:dev: Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+seller-panel:dev:  ○ Compiling /dashboard ...
+seller-panel:dev:  ✓ Compiled /dashboard in 1993ms (1969 modules)
+seller-panel:dev:  GET /dashboard 200 in 1229ms
+seller-panel:dev:  GET /dashboard 200 in 3396ms
+seller-panel:dev:  ○ Compiling /giris ...
+seller-panel:dev:  ✓ Compiled /giris in 1550ms (1975 modules)
+seller-panel:dev:  GET /giris 200 in 1928ms
+seller-panel:dev:  ○ Compiling /api/auth/[...all] ...
+seller-panel:dev:  ✓ Compiled /api/auth/[...all] in 1573ms (1972 modules)
+seller-panel:dev: 2026-04-21T20:50:16.113Z ERROR [Better Auth]: Invalid origin: http://127.0.0.1:3001
+seller-panel:dev:  POST /api/auth/sign-in/email 403 in 2227ms
+seller-panel:dev: 2026-04-21T20:50:29.933Z ERROR [Better Auth]: Invalid origin: http://127.0.0.1:3001
+seller-panel:dev:  POST /api/auth/sign-in/email 403 in 99ms
+seller-panel:dev: 2026-04-21T20:51:07.723Z ERROR [Better Auth]: Invalid origin: http://127.0.0.1:3001
+seller-panel:dev:  POST /api/auth/sign-in/email 403 in 80ms
+seller-panel:dev: 2026-04-21T20:51:09.677Z ERROR [Better Auth]: Invalid origin: http://127.0.0.1:3001
+seller-panel:dev:  POST /api/auth/sign-in/email 403 in 51ms
+web:dev:  GET / 200 in 778ms
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+web:dev:  ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/vazo-seramik-3lu-main.jpg
+web:dev:  ○ Compiling /api/cart/count ...
+seller-panel:dev:  GET / 200 in 365ms
+seller-panel:dev:  GET /dashboard 200 in 253ms
+seller-panel:dev:  GET /giris 200 in 168ms
+web:dev:  ✓ Compiled /api/cart/count in 3.7s (1989 modules)
+seller-panel:dev: 2026-04-21T20:51:36.897Z ERROR [Better Auth]: Invalid origin: http://127.0.0.1:3001
+seller-panel:dev:  POST /api/auth/sign-in/email 403 in 51ms
+seller-panel:dev: 2026-04-21T20:51:38.664Z ERROR [Better Auth]: Invalid origin: http://127.0.0.1:3001
+seller-panel:dev:  POST /api/auth/sign-in/email 403 in 38ms
+seller-panel:dev: 2026-04-21T20:51:51.074Z ERROR [Better Auth]: Invalid origin: http://127.0.0.1:3001
+seller-panel:dev:  POST /api/auth/sign-in/email 403 in 48ms
+seller-panel:dev: 2026-04-21T20:52:00.431Z ERROR [Better Auth]: Invalid origin: http://127.0.0.1:3001
+seller-panel:dev:  POST /api/auth/sign-in/email 403 in 52ms
+admin-panel:dev:  ✓ Compiled in 3.5s (2116 modules)
+web:dev:  ✓ Compiled in 3.6s (1792 modules)
+seller-panel:dev:  ✓ Compiled in 5s (2498 modules)
+seller-panel:dev:  GET /giris 200 in 299ms
+seller-panel:dev:  ○ Compiling /api/auth/[...all] ...
+seller-panel:dev:  ✓ Compiled /api/auth/[...all] in 713ms (1959 modules)
+seller-panel:dev:  GET /giris 200 in 738ms
+seller-panel:dev:  POST /api/auth/sign-in/email 200 in 1800ms
+seller-panel:dev:  GET /giris 200 in 249ms
+seller-panel:dev:  POST /api/auth/sign-in/email 200 in 690ms
+seller-panel:dev:  ○ Compiling /dashboard ...
+seller-panel:dev:  ✓ Compiled /dashboard in 1290ms (1972 modules)
+seller-panel:dev:  GET /dashboard 200 in 2032ms
+seller-panel:dev:  GET /dashboard 200 in 2806ms
+seller-panel:dev:  ○ Compiling /api/notifications ...
+seller-panel:dev:  ✓ Compiled /api/notifications in 2.7s (2516 modules)
+seller-panel:dev:  GET /api/notifications?limit=15 200 in 3281ms
+seller-panel:dev:  ○ Compiling /indirimler ...
+seller-panel:dev:  ✓ Compiled /indirimler in 2.1s (1984 modules)
+seller-panel:dev:  GET /indirimler 200 in 3146ms
+seller-panel:dev:  GET /api/notifications?limit=15 200 in 221ms
+seller-panel:dev:  GET /medya 200 in 367ms
+seller-panel:dev:  ○ Compiling /api/media ...
+seller-panel:dev:  ✓ Compiled /api/media in 2.6s (2357 modules)
+seller-panel:dev:  ✓ Compiled in 0ms (2357 modules)
+seller-panel:dev:  ✓ Compiled in 0ms (2357 modules)
+seller-panel:dev:  ✓ Compiled in 1ms (2357 modules)
+seller-panel:dev:  GET /api/notifications?limit=15 200 in 6284ms
+seller-panel:dev:  GET /api/media?folder=products&limit=24&skip=0 200 in 6291ms
+seller-panel:dev:  GET /medya 200 in 5021ms
+seller-panel:dev:  GET /medya 200 in 1108ms
+seller-panel:dev:  GET /api/notifications?limit=15 200 in 227ms
+seller-panel:dev:  GET /api/media?folder=products&limit=24&skip=0 200 in 268ms
+seller-panel:dev:  ○ Compiling /urunler/ice-aktar ...
+seller-panel:dev:  ✓ Compiled /urunler/ice-aktar in 3s (2342 modules)
+seller-panel:dev:  GET /urunler/ice-aktar 200 in 6166ms
+seller-panel:dev:  GET /api/notifications?limit=15 200 in 82ms
+seller-panel:dev:  ○ Compiling /urunler ...
+seller-panel:dev:  ✓ Compiled /urunler in 1019ms (1955 modules)
+seller-panel:dev:  GET /urunler 200 in 2271ms
+seller-panel:dev:  GET /api/notifications?limit=15 200 in 66ms
+seller-panel:dev:  GET /urunler 200 in 353ms
+seller-panel:dev:  GET /api/notifications?limit=15 200 in 61ms
+seller-panel:dev:  ○ Compiling /siparisler ...
+seller-panel:dev:  ✓ Compiled /siparisler in 3.7s (2482 modules)
+seller-panel:dev:  GET /siparisler 200 in 4782ms
+seller-panel:dev:  GET /api/notifications?limit=15 200 in 230ms
+seller-panel:dev:  ○ Compiling /kargolar ...
+seller-panel:dev:  ✓ Compiled /kargolar in 4.7s (2491 modules)
+seller-panel:dev:  GET /kargolar 200 in 5352ms
+seller-panel:dev:  GET /api/notifications?limit=15 200 in 194ms
+seller-panel:dev:  ○ Compiling /api/seller/shipments ...
+seller-panel:dev:  ✓ Compiled /api/seller/shipments in 2.7s (2498 modules)
+seller-panel:dev:  GET /api/seller/shipments 403 in 3007ms
+seller-panel:dev:  ○ Compiling /ayarlar ...
+seller-panel:dev:  ✓ Compiled /ayarlar in 2.3s (1982 modules)
+seller-panel:dev:  GET /ayarlar 200 in 3096ms
+seller-panel:dev:  GET /api/notifications?limit=15 200 in 127ms
+seller-panel:dev:  ○ Compiling /dashboard ...
+seller-panel:dev:  ✓ Compiled /dashboard in 1785ms (1967 modules)
+seller-panel:dev:  GET /dashboard 200 in 3057ms
+seller-panel:dev:  ○ Compiling /api/notifications ...
+seller-panel:dev:  ✓ Compiled /api/notifications in 1586ms (1979 modules)
+seller-panel:dev:  GET /api/notifications?limit=15 200 in 2259ms
+seller-panel:dev:  ○ Compiling /api/auth/[...all] ...
+seller-panel:dev:  ✓ Compiled /api/auth/[...all] in 2.3s (1977 modules)
+seller-panel:dev:  POST /api/auth/sign-out 200 in 2584ms
+seller-panel:dev:  ○ Compiling /giris ...
+seller-panel:dev:  ✓ Compiled /giris in 2.1s (1983 modules)
+seller-panel:dev:  GET /giris 200 in 2305ms
+seller-panel:dev:  GET /giris 200 in 61ms
+
+ Tasks:    0 successful, 3 total
+Cached:    0 cached, 3 total
+  Time:    9h37m55.891s 
+Failed:    admin-panel#dev, web#dev
+
+ ELIFECYCLE  Command failed with exit code 1073807364.

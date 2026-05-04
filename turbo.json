@@ -4,7 +4,29 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "SKIP_ENV_VALIDATION",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL",
+        "NEXT_PUBLIC_APP_URL",
+        "SELLER_PANEL_URL",
+        "ADMIN_PANEL_URL",
+        "IYZICO_API_KEY",
+        "IYZICO_SECRET_KEY",
+        "IYZICO_BASE_URL",
+        "IYZICO_WEBHOOK_SECRET",
+        "R2_ACCOUNT_ID",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_BUCKET_NAME",
+        "R2_PUBLIC_URL",
+        "MEILISEARCH_URL",
+        "MEILISEARCH_ADMIN_KEY",
+        "MEILISEARCH_SEARCH_KEY"
+      ]
     },
     "dev": {
       "cache": false,

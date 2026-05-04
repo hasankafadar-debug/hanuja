@@ -1,4 +1,4 @@
-import type { PrismaClient, SellerStatus } from '@prisma/client'
+import type { Prisma, PrismaClient, SellerStatus } from '@prisma/client'
 
 export function createSellerRepository(prisma: PrismaClient) {
   return {
@@ -32,20 +32,50 @@ export function createSellerRepository(prisma: PrismaClient) {
       return prisma.seller.update({ where: { id }, data: { status } })
     },
 
-    listForAdmin(params: {
+    async listForAdmin(params: {
       status?: SellerStatus
+      query?: string
+      from?: Date
+      to?: Date
       skip?: number
       take?: number
     }) {
-      return prisma.seller.findMany({
-        where: {
-          ...(params.status !== undefined ? { status: params.status } : {}),
-        },
-        include: { profile: true },
-        orderBy: { createdAt: 'desc' },
-        ...(params.skip !== undefined ? { skip: params.skip } : {}),
-        take: params.take ?? 20,
-      })
+      const normalizedQuery = params.query?.trim()
+      const where: Prisma.SellerWhereInput = {
+        ...(params.status !== undefined ? { status: params.status } : {}),
+        ...(params.from !== undefined || params.to !== undefined
+          ? {
+              createdAt: {
+                ...(params.from !== undefined ? { gte: params.from } : {}),
+                ...(params.to !== undefined ? { lte: params.to } : {}),
+              },
+            }
+          : {}),
+        ...(normalizedQuery
+          ? {
+              OR: [
+                { displayName: { contains: normalizedQuery, mode: 'insensitive' } },
+                { slug: { contains: normalizedQuery, mode: 'insensitive' } },
+                { user: { name: { contains: normalizedQuery, mode: 'insensitive' } } },
+                { user: { email: { contains: normalizedQuery, mode: 'insensitive' } } },
+                { profile: { city: { contains: normalizedQuery, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
+      }
+
+      const [rows, total] = await Promise.all([
+        prisma.seller.findMany({
+          where,
+          include: { profile: true, user: { select: { email: true, name: true } } },
+          orderBy: { createdAt: 'desc' },
+          ...(params.skip !== undefined ? { skip: params.skip } : {}),
+          take: params.take ?? 20,
+        }),
+        prisma.seller.count({ where }),
+      ])
+
+      return { rows, total }
     },
 
     countByStatus(status?: SellerStatus) {
@@ -53,6 +83,14 @@ export function createSellerRepository(prisma: PrismaClient) {
         where: {
           ...(status !== undefined ? { status } : {}),
         },
+      })
+    },
+
+    listActiveForStorefront() {
+      return prisma.seller.findMany({
+        where: { status: 'active' },
+        include: { profile: true },
+        orderBy: { displayName: 'asc' },
       })
     },
   }

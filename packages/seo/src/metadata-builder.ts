@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { absoluteCanonical, canonical } from './canonical-builder'
+import { absoluteCanonical } from './canonical-builder'
 
 const SITE_NAME = 'Hanuja'
 const SITE_DESCRIPTION = "Türkiye'nin ev, ofis ve yaşam ürünleri marketplace'i."
@@ -15,7 +15,7 @@ export interface ProductMetaInput {
 }
 
 export function buildProductMetadata(input: ProductMetaInput): Metadata {
-  const url = canonical.product(input.slug)
+  const url = absoluteCanonical.product(input.slug)
   const title = `${input.name} | ${SITE_NAME}`
   const description =
     input.description.length > 155
@@ -53,7 +53,7 @@ export interface CategoryMetaInput {
 }
 
 export function buildCategoryMetadata(input: CategoryMetaInput): Metadata {
-  const url = canonical.category(input.slugParts)
+  const url = absoluteCanonical.category(input.slugParts)
   const title = `${input.label} | ${SITE_NAME}`
   const description =
     input.description ??
@@ -85,7 +85,7 @@ export interface StoreMetaInput {
 }
 
 export function buildStoreMetadata(input: StoreMetaInput): Metadata {
-  const url = canonical.store(input.slug)
+  const url = absoluteCanonical.store(input.slug)
   const title = `${input.name} Mağazası | ${SITE_NAME}`
   const description =
     input.description ?? `${input.name} mağazasının tüm ürünleri Hanuja'da.`
@@ -119,7 +119,7 @@ export interface BlogPostMetaInput {
 }
 
 export function buildBlogPostMetadata(input: BlogPostMetaInput): Metadata {
-  const url = canonical.blog(input.slug)
+  const url = absoluteCanonical.blog(input.slug)
   const titleTag = `${input.title} | ${SITE_NAME} Blog`
   const description =
     input.excerpt ?? `${input.title} — Hanuja Blog'da ev dekorasyonu ve yaşam alanı fikirleri.`
@@ -149,7 +149,7 @@ export function buildHomeMetadata(): Metadata {
   return {
     title: `${SITE_NAME} — Ev, Ofis & Yaşam Ürünleri`,
     description: SITE_DESCRIPTION,
-    alternates: { canonical: '/' },
+    alternates: { canonical: absoluteCanonical.home() },
     openGraph: {
       title: `${SITE_NAME} — Ev, Ofis & Yaşam Ürünleri`,
       description: SITE_DESCRIPTION,

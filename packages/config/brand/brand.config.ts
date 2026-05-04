@@ -52,9 +52,11 @@ export interface BrandConfig {
   }
 
   typography: {
-    /** Primary body font — Google Fonts name or system font stack */
+    /** Primary sans font — used for menus, buttons, prices, labels (Outfit) */
     fontSans: string
-    /** Display/heading font — used for hero and major headings */
+    /** Body/paragraph font — used for body text, descriptions (DM Sans) */
+    fontBody?: string
+    /** Display/heading font — used for product titles, editorial (Cormorant Garamond) */
     fontDisplay: string
     /** Monospace font — used for code, tracking numbers */
     fontMono: string
@@ -91,6 +93,7 @@ export function brandToCssVars(brand: BrandConfig): Record<string, string> {
     '--color-success': brand.colors.success,
     '--color-warning': brand.colors.warning,
     '--font-sans': brand.typography.fontSans,
+    '--font-body': brand.typography.fontBody ?? brand.typography.fontSans,
     '--font-display': brand.typography.fontDisplay,
     '--font-mono': brand.typography.fontMono,
     '--radius-sm': brand.borderRadius.sm,

@@ -14,9 +14,11 @@
     "@hanuja/security": "workspace:*",
     "@prisma/client": "6.19.3",
     "bullmq": "^5.0.0",
+    "cheerio": "^1.0.0",
     "ioredis": "^5.0.0",
     "iyzipay": "^2.0.67",
     "nodemailer": "^6.9.0",
+    "sharp": "^0.33.5",
     "zod": "^3.23.0"
   },
   "devDependencies": {

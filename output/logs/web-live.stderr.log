@@ -1,0 +1,177 @@
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/konsol-rattan-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-detail.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sehpa-mese-01-room.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/sarkit-mese-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/bahce-tik-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/yastik-pamuk-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/mumluk-pirinc-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/raf-mese-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+[TypeError: fetch failed] {
+  [cause]: [Error: getaddrinfo ENOTFOUND cdn.hanuja.com.tr] {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'cdn.hanuja.com.tr'
+  }
+}
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-top.jpg
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-room.jpg

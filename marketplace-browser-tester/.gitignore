@@ -1,0 +1,21 @@
+# Environment files
+.env
+
+# Generated reports
+reports/*.md
+
+# Screenshots
+screenshots/*.png
+screenshots/*.jpg
+screenshots/*.jpeg
+screenshots/*.webp
+
+# Node
+node_modules/
+
+# Playwright browser binaries
+.playwright/
+
+# OS
+.DS_Store
+Thumbs.db

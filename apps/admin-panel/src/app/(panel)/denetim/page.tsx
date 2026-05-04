@@ -56,7 +56,7 @@ export default async function AuditLogPage() {
     d.toLocaleString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="admin-audit-page">
       <PageHeader
         title="Denetim Günlüğü"
         description="Tüm yüksek etkili admin işlemleri"
@@ -90,7 +90,12 @@ export default async function AuditLogPage() {
               </tr>
             )}
             {logs.map((log) => (
-              <tr key={log.id} className="border-t hover:bg-[var(--color-muted)]" style={{ borderColor: 'var(--color-border)' }}>
+              <tr
+                key={log.id}
+                data-testid="audit-row"
+                className="border-t hover:bg-[var(--color-muted)]"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
                 <td className="px-4 py-3 text-xs font-mono" style={{ color: 'var(--color-muted-fg)' }}>
                   {log.actorId.slice(0, 8)}…
                 </td>

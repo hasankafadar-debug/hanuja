@@ -8,34 +8,37 @@
  */
 import { describe, it, expect } from 'vitest'
 import { Decimal } from '../../__mocks__/prisma-runtime'
+import {
+  calculateShippingFee as calculateShippingFeeTry,
+  FLAT_SHIPPING_FEE_TRY,
+  FREE_SHIPPING_THRESHOLD_TRY,
+} from '../../../api/domain/shipping'
 
 // ── Constants from checkout.service.ts ─────────────────────────────────────────
 const SYSTEM_DEFAULT_COMMISSION_RATE = new Decimal('0.1500') // %15
-const FREE_SHIPPING_THRESHOLD = new Decimal('1500')
-const FLAT_SHIPPING_FEE = new Decimal('99')
 
 // ── Shipping fee calculation ──────────────────────────────────────────────────
 
-function calculateShippingFee(subtotal: Decimal): Decimal {
-  return subtotal.greaterThan(FREE_SHIPPING_THRESHOLD) || subtotal.equals(FREE_SHIPPING_THRESHOLD)
-    ? new Decimal(0)
-    : FLAT_SHIPPING_FEE
+function calculateShippingFee(subtotal: Decimal): number {
+  return calculateShippingFeeTry(subtotal.toNumber())
 }
 
 describe('Checkout — shipping fee calculation', () => {
   it('charges ₺99 shipping for orders below ₺1500', () => {
-    expect(calculateShippingFee(new Decimal(500)).toNumber()).toBe(99)
-    expect(calculateShippingFee(new Decimal(1499)).toNumber()).toBe(99)
-    expect(calculateShippingFee(new Decimal(0)).toNumber()).toBe(99)
+    expect(calculateShippingFee(new Decimal(500))).toBe(FLAT_SHIPPING_FEE_TRY)
+    expect(calculateShippingFee(new Decimal(FREE_SHIPPING_THRESHOLD_TRY - 1))).toBe(
+      FLAT_SHIPPING_FEE_TRY,
+    )
+    expect(calculateShippingFee(new Decimal(0))).toBe(FLAT_SHIPPING_FEE_TRY)
   })
 
   it('provides free shipping at ₺1500 threshold', () => {
-    expect(calculateShippingFee(new Decimal(1500)).toNumber()).toBe(0)
+    expect(calculateShippingFee(new Decimal(FREE_SHIPPING_THRESHOLD_TRY))).toBe(0)
   })
 
   it('provides free shipping above ₺1500', () => {
-    expect(calculateShippingFee(new Decimal(1501)).toNumber()).toBe(0)
-    expect(calculateShippingFee(new Decimal(5000)).toNumber()).toBe(0)
+    expect(calculateShippingFee(new Decimal(FREE_SHIPPING_THRESHOLD_TRY + 1))).toBe(0)
+    expect(calculateShippingFee(new Decimal(5000))).toBe(0)
   })
 })
 

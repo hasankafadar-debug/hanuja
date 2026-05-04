@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
-import { Button, Badge, PageHeader, EmptyState } from '@hanuja/ui'
+import { Button, Badge, PageHeader, EmptyState, normalizeMediaDisplayUrl } from '@hanuja/ui'
 import { Plus, Package } from 'lucide-react'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
@@ -82,6 +83,8 @@ export default async function ProductsPage() {
                 const stock = product.stockQuantity ?? 0
                 const statusInfo = STATUS_MAP[product.status] ?? { label: product.status, variant: 'secondary' as const }
                 const imageUrl = product.images?.[0]?.url
+                  ? normalizeMediaDisplayUrl(product.images[0].url)
+                  : null
 
                 return (
                   <tr
@@ -92,11 +95,11 @@ export default async function ProductsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div
-                          className="h-10 w-10 shrink-0 rounded-lg overflow-hidden flex items-center justify-center"
+                          className="h-10 w-10 shrink-0 rounded-lg overflow-hidden relative flex items-center justify-center"
                           style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-muted-fg)' }}
                         >
                           {imageUrl ? (
-                            <img src={imageUrl} alt={product.name} className="h-full w-full object-cover" />
+                            <Image src={imageUrl} alt={product.name} fill className="object-cover" />
                           ) : (
                             <Package className="h-4 w-4" />
                           )}

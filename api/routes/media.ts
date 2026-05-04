@@ -4,6 +4,8 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { ok, noContent, handleError } from '../lib/response'
+import { extractManagedMediaKey } from '../lib/media-url'
+import { readObject } from '../lib/r2'
 import { createMediaService } from '../services/media.service'
 import { createPrismaForRoute } from '../lib/prisma'
 import type { MediaFolder } from '../lib/r2'
@@ -12,11 +14,19 @@ function getMediaService() {
   return createMediaService({ prisma: createPrismaForRoute() })
 }
 
-const VALID_FOLDERS: MediaFolder[] = ['products', 'stores', 'avatars', 'disputes', 'returns', 'blog']
+const VALID_FOLDERS: MediaFolder[] = ['products', 'stores', 'avatars', 'disputes', 'returns', 'blog', 'documents']
 
 const requestUploadSchema = z.object({
-  folder: z.enum(['products', 'stores', 'avatars', 'disputes', 'returns', 'blog']),
-  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
+  folder: z.enum(['products', 'stores', 'avatars', 'disputes', 'returns', 'blog', 'documents']),
+  mimeType: z.enum([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ]),
   originalName: z.string().max(255).optional(),
 })
 
@@ -71,8 +81,32 @@ export async function listAssets(req: NextRequest, ownerId: string) {
     const limit = Number(url.searchParams.get('limit') ?? '20')
     const skip = Number(url.searchParams.get('skip') ?? '0')
     const svc = getMediaService()
-    const assets = await svc.listAssets(ownerId, folder ?? undefined, { limit, skip })
-    return ok(assets)
+    const result = await svc.listAssets(ownerId, folder ?? undefined, { limit, skip })
+    return ok(result)
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+// GET /api/media/fetch?src=https://... — same-origin proxy for managed public media URLs
+export async function fetchPublicMedia(req: NextRequest) {
+  try {
+    const url = new URL(req.url)
+    const sourceUrl = url.searchParams.get('src')?.trim() ?? ''
+    const key = extractManagedMediaKey(sourceUrl)
+
+    if (!key) {
+      return new Response('Geçersiz medya kaynağı.', { status: 400 })
+    }
+
+    const object = await readObject(key)
+    return new Response(Buffer.from(object.body), {
+      headers: {
+        'Content-Type': object.contentType,
+        'Content-Length': String(object.sizeBytes),
+        'Cache-Control': 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400',
+      },
+    })
   } catch (err) {
     return handleError(err)
   }

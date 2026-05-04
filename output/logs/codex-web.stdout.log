@@ -1,0 +1,1204 @@
+
+> web@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\web
+> next dev --port 3000
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3000
+   - Network:      http://172.21.0.1:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ○ Compiling /instrumentation ...
+ ✓ Compiled /instrumentation in 1407ms (50 modules)
+[startup] Database connection is ready.
+ ✓ Ready in 6s
+ ○ Compiling /api/health ...
+ ✓ Compiled /api/health in 2.6s (446 modules)
+ GET /api/health 200 in 3012ms
+ ○ Compiling / ...
+ ✓ Compiled / in 9.2s (1442 modules)
+ GET / 200 in 10790ms
+ GET / 200 in 355ms
+ ○ Compiling /kullanim-kosullari ...
+ ✓ Compiled /kullanim-kosullari in 1174ms (1445 modules)
+ GET /kullanim-kosullari 200 in 1948ms
+ ○ Compiling /api/cart/count ...
+ ✓ Compiled /api/cart/count in 5.6s (2219 modules)
+ GET /api/cart/count 200 in 6354ms
+ GET /gizlilik-politikasi 200 in 7017ms
+ ○ Compiling /kvkk ...
+ ✓ Compiled /kvkk in 1640ms (2222 modules)
+ GET /api/cart/count 200 in 2089ms
+ GET /kvkk 200 in 2679ms
+ ○ Compiling /mesafeli-satis ...
+ ✓ Compiled /mesafeli-satis in 2.8s (2229 modules)
+ GET /api/cart/count 200 in 3068ms
+ GET /mesafeli-satis 200 in 3566ms
+ ○ Compiling /on-bilgilendirme ...
+ ✓ Compiled /on-bilgilendirme in 1949ms (2231 modules)
+ GET /api/cart/count 200 in 2181ms
+ GET /on-bilgilendirme 200 in 2746ms
+ ○ Compiling /iade-iptal ...
+ ✓ Compiled /iade-iptal in 4.4s (2233 modules)
+ GET /api/cart/count 200 in 4651ms
+ GET /iade-iptal 200 in 6127ms
+ GET /api/cart/count 200 in 42ms
+ ○ Compiling /kayit ...
+ ✓ Compiled /kayit in 2.4s (2433 modules)
+ GET /kayit 200 in 2915ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 2.5s (2436 modules)
+ POST /api/auth/sign-up/email 200 in 4902ms
+[mail:dev] E-posta adresinizi dogrulayin -> [{"address":"yeni-uye-1777408168726@hanuja.test","name":""}]
+ POST /api/auth/send-verification-email 200 in 82ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 2.2s (2445 modules)
+ GET /giris 200 in 2851ms
+ POST /api/auth/sign-in/email 200 in 408ms
+ ○ Compiling /hesabim ...
+ ✓ Compiled /hesabim in 2s (2473 modules)
+ GET /hesabim 200 in 2941ms
+ GET /hesabim 200 in 3046ms
+ GET /api/cart/count 200 in 295ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 4.1s (2478 modules)
+ GET / 200 in 4665ms
+ ○ Compiling /kategori ...
+ ✓ Compiled /_error in 12.9s (2915 modules)
+ GET /api/cart/count 200 in 13749ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 14887ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 13888ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 14888ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 13871ms
+ GET / 200 in 12082ms
+ GET /kategori 200 in 15046ms
+ GET /api/cart/count 200 in 37ms
+ ○ Compiling /kategori/[...slug] ...
+ ✓ Compiled /kategori/[...slug] in 3.2s (2938 modules)
+ GET /kategori/ev 200 in 5413ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1331ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 304ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1324ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 290ms
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 3.2s (2993 modules)
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 5923ms
+ GET /api/cart/count 200 in 300ms
+ GET /giris 200 in 190ms
+ POST /api/auth/sign-in/email 200 in 268ms
+ GET /hesabim 200 in 308ms
+ GET /hesabim 200 in 494ms
+ GET /kategori 200 in 417ms
+ GET /api/cart/count 200 in 67ms
+ GET /kategori/ev 200 in 159ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1280ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 322ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1280ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 302ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 413ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 238ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 221ms
+ GET /api/cart/count 200 in 48ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /sepet in 3.6s (2998 modules)
+ POST /api/cart 201 in 4413ms
+ GET /sepet 200 in 3748ms
+ GET /api/cart/count 200 in 76ms
+ GET /api/cart 200 in 81ms
+ GET /giris 200 in 150ms
+ POST /api/auth/sign-in/email 200 in 239ms
+ GET /hesabim 200 in 345ms
+ GET /hesabim 200 in 477ms
+ GET /kategori 200 in 336ms
+ GET /api/cart/count 200 in 62ms
+ GET /kategori/ev 200 in 164ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 423ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 392ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 423ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 373ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 419ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 355ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 418ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 344ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 418ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 330ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 417ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 317ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 284ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 259ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 283ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 239ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 456ms
+ GET /api/cart/count 200 in 46ms
+ POST /api/cart 201 in 70ms
+ GET /api/cart/count 200 in 48ms
+ ○ Compiling /odeme ...
+ ✓ Compiled /odeme in 2.9s (3014 modules)
+ GET /odeme 200 in 5042ms
+ GET /api/cart/count 200 in 264ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 6.1s (3020 modules)
+ GET /api/cart 200 in 6461ms
+ GET /api/checkout/addresses 200 in 6466ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 1733ms (3022 modules)
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=card 200 in 2157ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=eft 200 in 77ms
+ GET /giris 200 in 1124ms
+ GET /giris 200 in 98ms
+ GET /giris 200 in 122ms
+ POST /api/auth/sign-in/email 200 in 373ms
+ GET /hesabim 200 in 372ms
+ GET /hesabim 200 in 473ms
+ GET /kategori 200 in 376ms
+ GET /api/cart/count 200 in 117ms
+ GET /kategori/ev 200 in 250ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 570ms
+ GET /api/cart/count 200 in 52ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 769ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 376ms
+ POST /api/cart 200 in 264ms
+ GET /odeme 200 in 689ms
+ GET /api/cart/count 200 in 94ms
+ GET /api/checkout/addresses 200 in 104ms
+ GET /api/cart 200 in 109ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=card 200 in 82ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=eft 200 in 73ms
+ GET /giris 200 in 154ms
+ POST /api/auth/sign-in/email 200 in 240ms
+ GET /hesabim 200 in 441ms
+ GET /hesabim 200 in 568ms
+ GET /kategori 200 in 383ms
+ GET /api/cart/count 200 in 55ms
+ GET /kategori/ev 200 in 136ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 469ms
+ GET /api/cart/count 200 in 69ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 743ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 232ms
+ POST /api/cart 200 in 230ms
+ GET /odeme 200 in 330ms
+ GET /api/cart/count 200 in 113ms
+ GET /api/checkout/addresses 200 in 117ms
+ GET /api/cart 200 in 122ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=card 200 in 105ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=eft 200 in 60ms
+ GET /giris 200 in 156ms
+ POST /api/auth/sign-in/email 200 in 230ms
+ GET /hesabim 200 in 286ms
+ GET /hesabim 200 in 385ms
+ GET /kategori 200 in 299ms
+ GET /api/cart/count 200 in 55ms
+ GET /kategori/ev 200 in 105ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 451ms
+ GET /api/cart/count 200 in 49ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 736ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 244ms
+ POST /api/cart 201 in 196ms
+ GET /odeme 200 in 292ms
+ GET /api/cart/count 200 in 84ms
+ GET /api/cart 200 in 96ms
+ GET /api/checkout/addresses 200 in 103ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=card 200 in 68ms
+ GET /giris 200 in 129ms
+ POST /api/auth/sign-in/email 200 in 208ms
+ GET /hesabim 200 in 291ms
+ GET /hesabim 200 in 406ms
+ GET /kategori 200 in 288ms
+ GET /api/cart/count 200 in 62ms
+ GET /kategori/ev 200 in 160ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 454ms
+ GET /api/cart/count 200 in 54ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 805ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 239ms
+ POST /api/cart 201 in 188ms
+ GET /odeme 200 in 282ms
+ GET /api/cart/count 200 in 86ms
+ GET /api/checkout/addresses 200 in 93ms
+ GET /api/cart 200 in 98ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=card 200 in 80ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=eft 200 in 70ms
+ GET /giris 200 in 128ms
+ POST /api/auth/sign-in/email 200 in 233ms
+ GET /hesabim 200 in 280ms
+ GET /hesabim 200 in 400ms
+ GET /api/cart/count 200 in 475ms
+ ○ Compiling /api/user/profile ...
+ GET /kategori 200 in 1989ms
+ ✓ Compiled /api/user/profile in 2.9s (2312 modules)
+ GET /api/cart/count 200 in 1006ms
+ GET /kategori/ev 200 in 603ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 655ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 630ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 274ms
+ GET /api/cart/count 200 in 87ms
+ POST /api/cart 201 in 215ms
+ GET /odeme 200 in 358ms
+ GET /api/cart/count 200 in 94ms
+ GET /api/checkout/addresses 200 in 101ms
+ GET /api/cart 200 in 109ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=card 200 in 84ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=eft 200 in 57ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 3s (3021 modules)
+ POST /api/checkout/order 201 in 3941ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 3.1s (3036 modules)
+ GET /siparis/cmoj3pwl7000tulnki4acmn66?yeni=1&odeme=eft 200 in 5314ms
+ GET /giris 200 in 362ms
+ POST /api/auth/sign-in/email 200 in 266ms
+ GET /hesabim 200 in 322ms
+ GET /hesabim 200 in 430ms
+ GET /hesabim 200 in 405ms
+ GET /api/cart/count 200 in 62ms
+ GET /api/user/profile 200 in 68ms
+ ○ Compiling /hesabim/adresler ...
+ ✓ Compiled /hesabim/adresler in 3.9s (2868 modules)
+ GET /hesabim/adresler 200 in 4831ms
+ GET /api/cart/count 200 in 382ms
+ ○ Compiling /api/user/addresses ...
+ ✓ Compiled /api/user/addresses in 1859ms (2870 modules)
+ GET /api/user/addresses 200 in 2462ms
+ ○ Compiling /siparis ...
+ ✓ Compiled /siparis in 1610ms (2885 modules)
+ GET /siparis 200 in 2423ms
+ GET /api/cart/count 200 in 44ms
+ ○ Compiling /faturalarim ...
+ ✓ Compiled /faturalarim in 3.4s (3288 modules)
+ GET /faturalarim 200 in 4601ms
+ GET /api/cart/count 200 in 54ms
+ GET /sepet 200 in 435ms
+ GET /api/cart/count 200 in 69ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 1927ms (2526 modules)
+ GET /api/cart 200 in 2340ms
+ ○ Compiling /blog ...
+ ✓ Compiled /blog in 2.3s (3232 modules)
+ GET /blog 200 in 2809ms
+ GET /api/cart/count 200 in 174ms
+ ○ Compiling /magaza/[slug] ...
+ ✓ Compiled /magaza/[slug] in 3.4s (3241 modules)
+ GET /magaza/atelier-noa 200 in 7305ms
+ GET /api/cart/count 200 in 357ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 2.6s (2077 modules)
+ GET /siparis/cmoj3pwl7000tulnki4acmn66?yeni=1&odeme=eft 200 in 4358ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 2.3s (2107 modules)
+ ✓ Compiled (2113 modules)
+ GET /api/cart/count 200 in 4717ms
+ GET /giris?redirect=/siparis/cmoj3pwl7000tulnki4acmn66 200 in 5152ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 1554ms (2094 modules)
+ POST /api/auth/sign-in/email 200 in 2030ms
+ GET /siparis/cmoj3pwl7000tulnki4acmn66 200 in 1003ms
+ GET /siparis/cmoj3pwl7000tulnki4acmn66 200 in 1120ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1706ms (2105 modules)
+ GET / 200 in 2308ms
+ GET /api/cart/count 200 in 264ms
+ GET /api/cart/count 200 in 47ms
+ ✓ Compiled in 5s (2069 modules)
+ ✓ Compiled in 5.5s (2069 modules)
+ ✓ Compiled in 3.2s (2069 modules)
+ ✓ Compiled in 3.8s (722 modules)
+ ○ Compiling /kullanim-kosullari ...
+ GET / 200 in 9135ms
+ ✓ Compiled /kullanim-kosullari in 8.1s (2072 modules)
+ GET /kullanim-kosullari 200 in 11790ms
+ ○ Compiling /api/cart/count ...
+ ✓ Compiled /api/cart/count in 1630ms (2074 modules)
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 8.2s (2952 modules)
+ ✓ Compiled in 1ms (2243 modules)
+ ✓ Compiled in 2ms (2243 modules)
+ GET /api/cart/count 200 in 23805ms
+ GET /gizlilik-politikasi 200 in 24728ms
+ GET / 200 in 31370ms
+ ○ Compiling /kvkk ...
+ ✓ Compiled /kvkk in 12.8s (2235 modules)
+ GET /api/cart/count 200 in 15494ms
+ GET /kvkk 200 in 20154ms
+ GET / 200 in 8895ms
+ ○ Compiling /mesafeli-satis ...
+ ✓ Compiled /mesafeli-satis in 4.1s (2231 modules)
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 10.7s (2989 modules)
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 23496ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 15769ms
+ GET /api/cart/count 200 in 22990ms
+ GET /mesafeli-satis 200 in 23063ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 17398ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 15954ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 17402ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 15927ms
+ GET /urun/masif-mese-orta-sehpa 200 in 17975ms
+ GET /api/cart/count 200 in 19812ms
+ ○ Compiling /api/health ...
+ ✓ Compiled /api/health in 3.6s (1287 modules)
+ GET /api/health 200 in 4830ms
+ GET /kullanim-kosullari 200 in 1445ms
+ GET /gizlilik-politikasi 200 in 546ms
+ ○ Compiling /api/cart/count ...
+ ✓ Compiled /api/cart/count in 2.8s (2058 modules)
+ GET /api/cart/count 200 in 534ms
+ GET /kvkk 200 in 694ms
+ ○ Compiling /mesafeli-satis ...
+ ✓ Compiled /mesafeli-satis in 1069ms (2062 modules)
+ GET /api/cart/count 200 in 2341ms
+ GET /mesafeli-satis 200 in 3393ms
+ ○ Compiling /on-bilgilendirme ...
+ ✓ Compiled /on-bilgilendirme in 1435ms (2064 modules)
+ GET /api/cart/count 200 in 2927ms
+ GET /on-bilgilendirme 200 in 3632ms
+ ○ Compiling /iade-iptal ...
+ ✓ Compiled /iade-iptal in 4.4s (2066 modules)
+ GET /api/cart/count 200 in 5708ms
+ GET /iade-iptal 200 in 6617ms
+ GET /api/cart/count 200 in 55ms
+ ○ Compiling /kayit ...
+ ✓ Compiled /kayit in 2s (2071 modules)
+ GET /kayit 200 in 2592ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 1339ms (2074 modules)
+ POST /api/auth/sign-up/email 200 in 2068ms
+[mail:dev] E-posta adresinizi dogrulayin -> [{"address":"yeni-uye-1777440577383@hanuja.test","name":""}]
+ POST /api/auth/send-verification-email 200 in 60ms
+ GET /giris 200 in 1373ms
+ POST /api/auth/sign-in/email 200 in 218ms
+ ○ Compiling /hesabim ...
+ ✓ Compiled /hesabim in 2.6s (2091 modules)
+ GET /hesabim 200 in 4657ms
+ GET /hesabim 200 in 4771ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 1580ms (2096 modules)
+ GET / 200 in 3853ms
+ ○ Compiling /kategori ...
+ ✓ Compiled /_error in 3.6s (2948 modules)
+ GET /api/cart/count 200 in 6982ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 9652ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 8454ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 9648ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 8444ms
+ GET /kategori 200 in 9752ms
+ GET /api/cart/count 200 in 38ms
+ ○ Compiling /kategori/[...slug] ...
+ ✓ Compiled /kategori/[...slug] in 3.8s (2262 modules)
+ GET /kategori/ev 200 in 6692ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1285ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 309ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1287ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 298ms
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 3.9s (2309 modules)
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 10107ms
+ GET /api/cart/count 200 in 190ms
+ GET /giris 200 in 232ms
+ POST /api/auth/sign-in/email 200 in 249ms
+ GET /hesabim 200 in 349ms
+ GET /hesabim 200 in 455ms
+ GET /api/user/profile 200 in 290ms
+ GET /api/cart/count 200 in 298ms
+ GET /kategori 200 in 993ms
+ GET /api/cart/count 200 in 45ms
+ GET /kategori/ev 200 in 142ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1279ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 302ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1278ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 283ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 374ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 236ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 221ms
+ GET /api/cart/count 200 in 40ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /sepet in 1374ms (2302 modules)
+ ✓ Compiled (2312 modules)
+ POST /api/cart 200 in 6143ms
+ GET /sepet 200 in 5239ms
+ GET /api/cart/count 200 in 81ms
+ GET /api/cart 200 in 85ms
+ GET /giris 200 in 254ms
+ POST /api/auth/sign-in/email 200 in 266ms
+ GET /hesabim 200 in 384ms
+ GET /hesabim 200 in 496ms
+ GET /kategori 200 in 362ms
+ GET /api/cart/count 200 in 174ms
+ GET /kategori/ev 200 in 189ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1292ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 321ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1294ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 311ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 744ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 238ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 222ms
+ GET /api/cart/count 200 in 79ms
+ POST /api/cart 201 in 57ms
+ GET /api/cart/count 200 in 64ms
+ ○ Compiling /odeme ...
+ ✓ Compiled /odeme in 3.1s (2309 modules)
+ GET /odeme 200 in 3799ms
+ GET /api/cart/count 200 in 248ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 2.8s (2315 modules)
+ ✓ Compiled in 0ms (2315 modules)
+ GET /api/cart 200 in 4594ms
+ ✓ Compiled in 1ms (2315 modules)
+ ✓ Compiled in 1ms (2315 modules)
+ GET /api/checkout/addresses 200 in 7763ms
+ ✓ Compiled /api/checkout/contracts-preview in 0ms (2315 modules)
+ GET /odeme 200 in 6731ms
+ ✓ Compiled (2317 modules)
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=card 200 in 3492ms
+ GET /odeme 200 in 470ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=eft 200 in 116ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 2.5s (2317 modules)
+ GET /odeme 200 in 208ms
+ POST /api/checkout/order 201 in 3704ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 1647ms (2327 modules)
+ GET /siparis/cmojmb0dl001lulnkjw0vp2tf?yeni=1&odeme=eft 200 in 2556ms
+ GET /giris 200 in 410ms
+ POST /api/auth/sign-in/email 200 in 240ms
+ GET /hesabim 200 in 354ms
+ GET /hesabim 200 in 469ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 1657ms (2332 modules)
+ GET /api/cart/count 200 in 4092ms
+ GET /api/user/profile 200 in 4102ms
+ ○ Compiling /hesabim/adresler ...
+ ✓ Compiled /hesabim/adresler in 3s (2338 modules)
+ GET /hesabim/adresler 200 in 3614ms
+ GET /api/cart/count 200 in 318ms
+ ○ Compiling /api/user/addresses ...
+ ✓ Compiled /api/user/addresses in 1932ms (2340 modules)
+ GET /api/user/addresses 200 in 2273ms
+ GET /giris 200 in 376ms
+ POST /api/auth/sign-in/email 200 in 260ms
+ GET /hesabim 200 in 462ms
+ GET /hesabim 200 in 556ms
+ ○ Compiling /siparis ...
+ ✓ Compiled /siparis in 2s (2343 modules)
+ ✓ Compiled in 1ms (2343 modules)
+ GET /api/user/profile 200 in 4370ms
+ GET /api/cart/count 200 in 4390ms
+ ✓ Compiled in 0ms (2343 modules)
+ ✓ Compiled in 1ms (2343 modules)
+ GET /hesabim 200 in 6864ms
+ GET /siparis 200 in 10483ms
+ GET /api/cart/count 200 in 194ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1926ms (2350 modules)
+ GET / 200 in 2614ms
+ GET / 200 in 430ms
+ GET /kategori/mobilya 200 in 600ms
+ GET /api/cart/count 200 in 1508ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 1914ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 477ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 1913ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 465ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg&w=384&q=75 500 in 1912ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg&w=384&q=75 500 in 442ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1910ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 428ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1909ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 417ms
+ GET / 200 in 311ms
+ GET /urun/masif-mese-orta-sehpa 200 in 440ms
+ GET / 200 in 338ms
+ GET /urun/masif-mese-orta-sehpa 200 in 422ms
+ GET / 200 in 427ms
+ GET /sepet 200 in 5633ms
+ GET /api/cart/count 200 in 66ms
+ GET /api/cart 401 in 83ms
+ GET /giris?callbackUrl=%2Fsepet 200 in 123ms
+ GET / 200 in 381ms
+ GET /giris 200 in 233ms
+ POST /api/auth/sign-in/email 200 in 244ms
+ GET /hesabim 200 in 305ms
+ GET /hesabim 200 in 639ms
+ GET /urun/masif-mese-orta-sehpa 200 in 376ms
+ GET / 200 in 358ms
+ ○ Compiling /blog ...
+ ✓ Compiled /blog in 6.5s (2165 modules)
+ GET /blog 200 in 7582ms
+ GET /api/cart/count 200 in 356ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 1442ms (3013 modules)
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fev-ofis-duzeni-01.jpg&w=1080&q=75 500 in 2846ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fev-ofis-duzeni-01.jpg&w=1080&q=75 500 in 1876ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fkucuk-salon-dekorasyon-01.jpg&w=640&q=75 500 in 2699ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fkucuk-salon-dekorasyon-01.jpg&w=640&q=75 500 in 1866ms
+ GET / 200 in 988ms
+ ○ Compiling /magaza/[slug] ...
+ ✓ Compiled /magaza/[slug] in 8.1s (3019 modules)
+ GET /magaza/atelier-noa 200 in 9306ms
+ GET /kategori/mobilya 200 in 610ms
+ GET /urun/masif-mese-orta-sehpa 200 in 390ms
+ GET /magaza/atelier-noa 200 in 506ms
+ GET /urun/masif-mese-orta-sehpa 200 in 356ms
+ GET /giris 200 in 178ms
+ POST /api/auth/sign-in/email 200 in 279ms
+ GET /hesabim 200 in 343ms
+ GET /hesabim 200 in 558ms
+ ○ Compiling /siparis ...
+ ✓ Compiled /siparis in 5.6s (2310 modules)
+ GET /siparis 200 in 6465ms
+ GET /api/cart/count 200 in 64ms
+ GET /giris 200 in 182ms
+ POST /api/auth/sign-in/email 200 in 280ms
+ GET /hesabim 200 in 324ms
+ GET /hesabim 200 in 577ms
+ GET /siparis 200 in 363ms
+ GET /api/cart/count 200 in 44ms
+ GET /urun/masif-mese-orta-sehpa 200 in 303ms
+ ✓ Compiled in 30.8s (2136 modules)
+ ✓ Compiled in 1837ms (1414 modules)
+ GET /urun/masif-mese-orta-sehpa 200 in 4633ms
+ ○ Compiling /kullanim-kosullari ...
+ ✓ Compiled /kullanim-kosullari in 6.2s (1417 modules)
+ GET /kullanim-kosullari 200 in 7116ms
+ ○ Compiling /gizlilik-politikasi ...
+ ✓ Compiled /gizlilik-politikasi in 4.9s (2142 modules)
+ ✓ Compiled (2144 modules)
+ GET /api/cart/count 200 in 9166ms
+ GET /gizlilik-politikasi 200 in 9981ms
+ ○ Compiling /kvkk ...
+ ✓ Compiled /kvkk in 1108ms (2147 modules)
+ GET /api/cart/count 200 in 2757ms
+ GET /kvkk 200 in 3462ms
+ ○ Compiling /mesafeli-satis ...
+ ✓ Compiled /mesafeli-satis in 1276ms (2153 modules)
+ GET /api/cart/count 200 in 3001ms
+ GET /mesafeli-satis 200 in 4187ms
+ ○ Compiling /on-bilgilendirme ...
+ ✓ Compiled /on-bilgilendirme in 2.1s (2155 modules)
+ GET /api/cart/count 200 in 3839ms
+ GET /on-bilgilendirme 200 in 4408ms
+ ○ Compiling /iade-iptal ...
+ ✓ Compiled /iade-iptal in 2.9s (2157 modules)
+ GET /api/cart/count 200 in 4817ms
+ GET /iade-iptal 200 in 5331ms
+ GET /api/cart/count 200 in 47ms
+ ○ Compiling /kayit ...
+ ✓ Compiled /kayit in 3s (2162 modules)
+ GET /kayit 200 in 3459ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 1639ms (2165 modules)
+ POST /api/auth/sign-up/email 200 in 2313ms
+[mail:dev] E-posta adresinizi dogrulayin -> [{"address":"yeni-uye-1777441222569@hanuja.test","name":""}]
+ POST /api/auth/send-verification-email 200 in 73ms
+ GET /giris 200 in 365ms
+ POST /api/auth/sign-in/email 200 in 223ms
+ GET /hesabim 200 in 525ms
+ GET /hesabim 200 in 631ms
+ ○ Compiling / ...
+ ✓ Compiled / in 2.9s (2082 modules)
+ ✓ Compiled (2096 modules)
+ GET / 200 in 6200ms
+ GET /api/cart/count 200 in 82ms
+ ○ Compiling /kategori ...
+ ✓ Compiled /_error in 5.1s (2948 modules)
+ GET /kategori 200 in 6276ms
+ GET /api/cart/count 200 in 221ms
+ ○ Compiling /kategori/[...slug] ...
+ ✓ Compiled /kategori/[...slug] in 6.1s (2262 modules)
+ GET /kategori/ev 200 in 6646ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1238ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 325ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1237ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 314ms
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 1643ms (2307 modules)
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 3064ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 344ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 316ms
+ GET /api/cart/count 200 in 249ms
+ GET /giris 200 in 192ms
+ POST /api/auth/sign-in/email 200 in 286ms
+ GET /hesabim 200 in 353ms
+ GET /hesabim 200 in 500ms
+ GET /api/cart/count 200 in 291ms
+ GET /api/user/profile 200 in 293ms
+ GET /kategori 200 in 714ms
+ GET /api/cart/count 200 in 51ms
+ GET /kategori/ev 200 in 149ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1232ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 250ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1232ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 236ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 408ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 233ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 217ms
+ GET /api/cart/count 200 in 44ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /sepet in 1542ms (2308 modules)
+ ✓ Compiled (2318 modules)
+ POST /api/cart 200 in 4066ms
+ GET /sepet 200 in 3555ms
+ GET /api/cart/count 200 in 79ms
+ GET /api/cart 200 in 81ms
+ GET /giris 200 in 216ms
+ POST /api/auth/sign-in/email 200 in 221ms
+ GET /hesabim 200 in 342ms
+ GET /hesabim 200 in 445ms
+ GET /kategori 200 in 314ms
+ GET /api/cart/count 200 in 84ms
+ GET /kategori/ev 200 in 184ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 2028ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 605ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1033ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 585ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 781ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 240ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 219ms
+ GET /api/cart/count 200 in 67ms
+ POST /api/cart 201 in 85ms
+ GET /api/cart/count 200 in 103ms
+ ○ Compiling /odeme ...
+ ✓ Compiled /odeme in 3.2s (2328 modules)
+ GET /odeme 200 in 3993ms
+ GET /api/cart/count 200 in 253ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 1809ms (2333 modules)
+ GET /api/cart 200 in 3861ms
+ GET /api/checkout/addresses 200 in 3997ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 2.2s (2335 modules)
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=card 200 in 3733ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=eft 200 in 60ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 3.3s (2333 modules)
+ POST /api/checkout/order 201 in 4209ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 1974ms (2348 modules)
+ GET /siparis/cmojmoclq0026ulnk8el3bwhd?yeni=1&odeme=eft 200 in 2713ms
+ GET /giris 200 in 415ms
+ POST /api/auth/sign-in/email 200 in 225ms
+ GET /hesabim 200 in 316ms
+ GET /hesabim 200 in 439ms
+ GET /api/cart/count 200 in 94ms
+ GET /api/user/profile 200 in 101ms
+ ○ Compiling /hesabim/adresler ...
+ ✓ Compiled /hesabim/adresler in 3.7s (2354 modules)
+ GET /hesabim/adresler 200 in 4430ms
+ GET /api/cart/count 200 in 247ms
+ ○ Compiling /api/user/addresses ...
+ ✓ Compiled /api/user/addresses in 1758ms (2351 modules)
+ GET /api/user/addresses 200 in 2331ms
+ GET /giris 200 in 316ms
+ POST /api/auth/sign-in/email 200 in 228ms
+ GET /hesabim 200 in 472ms
+ GET /hesabim 200 in 602ms
+ GET /api/cart/count 200 in 78ms
+ GET /api/user/profile 200 in 84ms
+ ○ Compiling /siparis ...
+ ✓ Compiled /siparis in 2.2s (2354 modules)
+ GET /siparis 200 in 3431ms
+ GET /api/cart/count 200 in 634ms
+ GET / 200 in 514ms
+ GET / 200 in 453ms
+ GET /kategori 200 in 359ms
+ GET /api/cart/count 200 in 47ms
+ GET /kategori/ev 200 in 206ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 1087ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 375ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 1090ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 354ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 1085ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 343ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 1088ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 332ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 1084ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 323ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 1087ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 303ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 262ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 242ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 262ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 229ms
+ GET / 200 in 395ms
+ GET /kategori 200 in 341ms
+ GET /api/cart/count 200 in 56ms
+ GET /kategori/ev 200 in 133ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 379ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 334ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 379ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 325ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 378ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 314ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 377ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 304ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 376ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 282ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 376ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 272ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 263ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 244ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 262ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 230ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 526ms
+ GET /api/cart/count 200 in 39ms
+ GET / 200 in 362ms
+ GET /kategori 200 in 344ms
+ GET /api/cart/count 200 in 49ms
+ GET /kategori/ev 200 in 113ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1187ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 251ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1187ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 241ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 408ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 247ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 225ms
+ GET /api/cart/count 200 in 33ms
+ POST /api/cart 401 in 76ms
+ GET /sepet 200 in 481ms
+ GET /api/cart/count 200 in 78ms
+ GET /api/cart 401 in 89ms
+ GET /giris?callbackUrl=%2Fsepet 200 in 48ms
+ GET / 200 in 403ms
+ GET /odeme 200 in 467ms
+ GET /api/cart/count 200 in 785ms
+ GET /api/cart 401 in 818ms
+ GET /api/checkout/addresses 401 in 815ms
+ GET /giris?redirect=%2Fodeme 200 in 77ms
+ GET / 200 in 469ms
+ GET /giris 200 in 278ms
+ POST /api/auth/sign-in/email 200 in 232ms
+ GET /hesabim 200 in 322ms
+ GET /hesabim 200 in 628ms
+ GET /kategori 200 in 384ms
+ GET /api/cart/count 200 in 45ms
+ GET /kategori/ev 200 in 125ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 1447ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 284ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 1446ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 273ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1291ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 252ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1290ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 241ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 425ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 239ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 214ms
+ GET /api/cart/count 200 in 52ms
+ POST /api/cart 201 in 216ms
+ GET /sepet 200 in 293ms
+ GET /api/cart/count 200 in 2650ms
+ GET /api/cart 200 in 2592ms
+ GET / 200 in 335ms
+ ○ Compiling /blog ...
+ ✓ Compiled /blog in 7.2s (2326 modules)
+ GET /api/cart/count 200 in 941ms
+ GET /blog 200 in 9903ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fev-ofis-duzeni-01.jpg&w=1080&q=75 500 in 254ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fev-ofis-duzeni-01.jpg&w=1080&q=75 500 in 235ms
+ GET /api/cart/count 200 in 49ms
+ GET / 200 in 402ms
+ ○ Compiling /magaza/[slug] ...
+ ✓ Compiled /magaza/[slug] in 13.7s (3041 modules)
+ GET /magaza/atelier-noa 200 in 14902ms
+ GET /kategori 200 in 311ms
+ GET /api/cart/count 200 in 35ms
+ GET /kategori/ev 200 in 157ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 6437ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 277ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 6434ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 259ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 6437ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 249ms
+ GET /kategori 200 in 285ms
+ GET /api/cart/count 200 in 36ms
+ GET /kategori/ev 200 in 122ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 382ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 348ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 381ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 336ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 380ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 317ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 379ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 301ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 370ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 282ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 318ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 261ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 271ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 252ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 269ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 238ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 518ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 244ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 228ms
+ GET /api/cart/count 200 in 41ms
+ GET /magaza/atelier-noa 200 in 376ms
+ GET /api/cart/count 200 in 52ms
+ GET /kategori 200 in 287ms
+ GET /api/cart/count 200 in 37ms
+ GET /kategori/ev 200 in 115ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 6806ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 286ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 6805ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 274ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 6805ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 255ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1241ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 245ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 409ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 243ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 227ms
+ GET /api/cart/count 200 in 40ms
+ GET /giris 200 in 173ms
+ POST /api/auth/sign-in/email 200 in 238ms
+ GET /hesabim 200 in 342ms
+ GET /hesabim 200 in 573ms
+ ○ Compiling /siparis ...
+ ✓ Compiled /siparis in 1611ms (2324 modules)
+ GET /siparis 200 in 4225ms
+ GET /api/cart/count 200 in 55ms
+ GET /giris 200 in 224ms
+ POST /api/auth/sign-in/email 200 in 231ms
+ GET /hesabim 200 in 353ms
+ GET /hesabim 200 in 680ms
+ GET /siparis 200 in 458ms
+ GET /api/cart/count 200 in 52ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 1696ms (2328 modules)
+ GET /siparis/cmojmoclq0026ulnk8el3bwhd 200 in 2319ms
+ ✓ Compiled in 12.8s (2802 modules)
+ ○ Compiling /kullanim-kosullari ...
+ ✓ Compiled /kullanim-kosullari in 6.7s (2083 modules)
+ GET /kullanim-kosullari 200 in 9274ms
+ ○ Compiling /gizlilik-politikasi ...
+ ✓ Compiled /gizlilik-politikasi in 1208ms (2113 modules)
+ ✓ Compiled (2115 modules)
+ GET /api/cart/count 200 in 3916ms
+ GET /gizlilik-politikasi 200 in 4789ms
+ ○ Compiling /kvkk ...
+ ✓ Compiled /kvkk in 1324ms (2118 modules)
+ GET /api/cart/count 200 in 3127ms
+ GET /kvkk 200 in 3747ms
+ ○ Compiling /mesafeli-satis ...
+ ✓ Compiled /mesafeli-satis in 4.7s (2124 modules)
+ GET /api/cart/count 200 in 6400ms
+ GET /mesafeli-satis 200 in 6923ms
+ ○ Compiling /on-bilgilendirme ...
+ ✓ Compiled /on-bilgilendirme in 1546ms (2126 modules)
+ GET /api/cart/count 200 in 3416ms
+ GET /on-bilgilendirme 200 in 3945ms
+ ○ Compiling /iade-iptal ...
+ ✓ Compiled /iade-iptal in 3.3s (2128 modules)
+ GET /api/cart/count 200 in 5193ms
+ GET /iade-iptal 200 in 5675ms
+ GET /api/cart/count 200 in 37ms
+ ○ Compiling /kayit ...
+ ✓ Compiled /kayit in 3.3s (2133 modules)
+ GET /kayit 200 in 3712ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 3.4s (2136 modules)
+ POST /api/auth/sign-up/email 200 in 3971ms
+[mail:dev] E-posta adresinizi dogrulayin -> [{"address":"yeni-uye-1777441711159@hanuja.test","name":""}]
+ POST /api/auth/send-verification-email 200 in 56ms
+ GET /giris 200 in 423ms
+ POST /api/auth/sign-in/email 200 in 210ms
+ ○ Compiling /hesabim ...
+ ✓ Compiled /hesabim in 3.6s (2141 modules)
+ GET /hesabim 200 in 4279ms
+ GET /hesabim 200 in 4381ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1738ms (2123 modules)
+ ✓ Compiled (2134 modules)
+ GET / 200 in 4499ms
+ ○ Compiling /kategori ...
+ ✓ Compiled /_error in 7.7s (2986 modules)
+ GET /api/cart/count 200 in 8321ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 8819ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 7604ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 8821ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 7300ms
+ GET /kategori 200 in 8928ms
+ GET /api/cart/count 200 in 48ms
+ ○ Compiling /kategori/[...slug] ...
+ ✓ Compiled /kategori/[...slug] in 7.4s (2300 modules)
+ GET /kategori/ev 200 in 7920ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1279ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 308ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1282ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 287ms
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 1440ms (2305 modules)
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 2386ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 285ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 266ms
+ GET /api/cart/count 200 in 175ms
+ GET /giris 200 in 182ms
+ POST /api/auth/sign-in/email 200 in 282ms
+ GET /hesabim 200 in 354ms
+ GET /hesabim 200 in 473ms
+ GET /kategori 200 in 319ms
+ GET /api/cart/count 200 in 72ms
+ GET /kategori/ev 200 in 175ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1194ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 243ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1193ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 233ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 398ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 248ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 222ms
+ GET /api/cart/count 200 in 52ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /sepet in 1351ms (2306 modules)
+ ✓ Compiled (2316 modules)
+ POST /api/cart 200 in 3585ms
+ GET /sepet 200 in 2737ms
+ GET /api/cart/count 200 in 1028ms
+ GET /api/cart 200 in 1023ms
+ GET /giris 200 in 179ms
+ POST /api/auth/sign-in/email 200 in 218ms
+ GET /hesabim 200 in 323ms
+ GET /hesabim 200 in 482ms
+ GET /kategori 200 in 361ms
+ GET /api/cart/count 200 in 62ms
+ GET /kategori/ev 200 in 153ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 3997ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 353ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 3996ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 343ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 3995ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 334ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 3995ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 316ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 3994ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 306ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 3987ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 297ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 264ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 245ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 262ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 226ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 474ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 237ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 222ms
+ GET /api/cart/count 200 in 55ms
+ POST /api/cart 201 in 59ms
+ GET /api/cart/count 200 in 52ms
+ ○ Compiling /odeme ...
+ ✓ Compiled /odeme in 7s (2323 modules)
+ GET /odeme 200 in 7915ms
+ GET /api/cart/count 200 in 252ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 1936ms (2328 modules)
+ GET /api/cart 200 in 3986ms
+ GET /api/checkout/addresses 200 in 4003ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 1554ms (2330 modules)
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=card 200 in 1982ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=eft 200 in 76ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 3.6s (2335 modules)
+ POST /api/checkout/order 201 in 4154ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 1979ms (2350 modules)
+ GET /siparis/cmojmyrbe002vulnkg1he4kf0?yeni=1&odeme=eft 200 in 2688ms
+ GET /giris 200 in 327ms
+ POST /api/auth/sign-in/email 200 in 245ms
+ GET /hesabim 200 in 375ms
+ GET /hesabim 200 in 487ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 1816ms (2355 modules)
+ GET /api/cart/count 200 in 4097ms
+ GET /api/user/profile 200 in 4139ms
+ ○ Compiling /hesabim/adresler ...
+ ✓ Compiled /hesabim/adresler in 4.3s (2361 modules)
+ GET /hesabim/adresler 200 in 4977ms
+ GET /api/cart/count 200 in 273ms
+ ○ Compiling /api/user/addresses ...
+ ✓ Compiled /api/user/addresses in 2.2s (2363 modules)
+ GET /api/user/addresses 200 in 2469ms
+ GET /giris 200 in 318ms
+ POST /api/auth/sign-in/email 200 in 271ms
+ GET /hesabim 200 in 447ms
+ GET /hesabim 200 in 538ms
+ ○ Compiling /siparis ...
+ ✓ Compiled /siparis in 2.4s (2366 modules)
+ GET /api/user/profile 200 in 4993ms
+ GET /api/cart/count 200 in 4998ms
+ GET /siparis 200 in 5550ms
+ GET /api/cart/count 200 in 51ms
+ GET / 200 in 411ms
+ GET / 200 in 391ms
+ GET /kategori 200 in 341ms
+ GET /api/cart/count 200 in 1154ms
+ GET /kategori/ev 200 in 241ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 455ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 422ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 458ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 408ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 457ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 394ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 455ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 360ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 455ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 351ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 453ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 341ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 280ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 263ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 280ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 250ms
+ GET / 200 in 325ms
+ GET /kategori 200 in 332ms
+ GET /api/cart/count 200 in 71ms
+ GET /kategori/ev 200 in 155ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1189ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 247ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1188ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 236ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 472ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 226ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 212ms
+ GET /api/cart/count 200 in 43ms
+ GET / 200 in 384ms
+ GET /giris 200 in 327ms
+ POST /api/auth/sign-in/email 200 in 238ms
+ GET /hesabim 200 in 337ms
+ GET /hesabim 200 in 603ms
+ GET /kategori 200 in 312ms
+ GET /api/cart/count 200 in 70ms
+ GET /kategori/ev 200 in 128ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1216ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 243ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1215ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 231ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 406ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 251ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 222ms
+ GET /api/cart/count 200 in 39ms
+ POST /api/cart 201 in 284ms
+ GET /sepet 200 in 375ms
+ GET /api/cart/count 200 in 75ms
+ GET /api/cart 200 in 76ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=96&q=75 500 in 246ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=96&q=75 500 in 233ms
+ GET / 200 in 405ms
+ GET /odeme 200 in 388ms
+ GET /api/cart/count 200 in 47ms
+ GET /api/cart 401 in 96ms
+ GET /api/checkout/addresses 401 in 110ms
+ GET /giris?redirect=%2Fodeme 200 in 82ms
+ GET / 200 in 478ms
+ GET /giris 200 in 187ms
+ POST /api/auth/sign-in/email 200 in 292ms
+ GET /hesabim 200 in 302ms
+ GET /hesabim 200 in 604ms
+ GET /kategori 200 in 378ms
+ GET /api/cart/count 200 in 77ms
+ GET /kategori/ev 200 in 121ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 2072ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 305ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 2073ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 283ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1279ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 273ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1278ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 263ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 383ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 241ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 214ms
+ GET /api/cart/count 200 in 62ms
+ POST /api/cart 200 in 242ms
+ GET /sepet 200 in 319ms
+ GET /api/cart/count 200 in 73ms
+ GET /api/cart 200 in 78ms
+ GET /odeme 200 in 56ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=96&q=75 500 in 226ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=96&q=75 500 in 210ms
+ GET /api/cart 200 in 87ms
+ GET /api/checkout/addresses 200 in 95ms
+ GET /api/checkout/addresses 200 in 94ms
+ GET /api/cart 200 in 103ms
+ GET /api/checkout/contracts-preview?addressId=cmofi97yj0004ulbsae2t5n7t&paymentMethod=card 200 in 90ms
+ GET / 200 in 380ms
+ ○ Compiling /blog ...
+ ✓ Compiled /blog in 2s (2352 modules)
+ GET /blog 200 in 2709ms
+ GET /api/cart/count 200 in 211ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fev-ofis-duzeni-01.jpg&w=1080&q=75 500 in 6100ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fev-ofis-duzeni-01.jpg&w=1080&q=75 500 in 276ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fkucuk-salon-dekorasyon-01.jpg&w=640&q=75 500 in 5630ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fblog%2Fkucuk-salon-dekorasyon-01.jpg&w=640&q=75 500 in 256ms
+ GET / 200 in 462ms
+ ○ Compiling /magaza/[slug] ...
+ ✓ Compiled /magaza/[slug] in 6.1s (3049 modules)
+ GET /magaza/atelier-noa 200 in 7103ms
+ GET /kategori 200 in 374ms
+ GET /api/cart/count 200 in 220ms
+ GET /kategori/ev 200 in 378ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 6543ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 277ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 6542ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 267ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 6541ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 248ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1284ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 237ms
+ GET /kategori 200 in 259ms
+ GET /api/cart/count 200 in 52ms
+ GET /kategori/ev 200 in 97ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 367ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 331ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 364ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 308ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 363ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 296ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 363ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg&w=384&q=75 500 in 285ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 361ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg&w=384&q=75 500 in 260ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 365ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg&w=384&q=75 500 in 255ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 283ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 262ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 282ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 240ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 500ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 239ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 214ms
+ GET /api/cart/count 200 in 39ms
+ GET /magaza/atelier-noa 200 in 339ms
+ GET /kategori 200 in 359ms
+ GET /api/cart/count 200 in 39ms
+ GET /kategori/ev 200 in 127ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 6839ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=384&q=75 500 in 298ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 6837ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg&w=384&q=75 500 in 288ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 6836ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg&w=384&q=75 500 in 271ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 1307ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fkonsol-rattan-01-main.jpg&w=384&q=75 500 in 260ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 1307ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsehpa-mese-01-main.jpg&w=384&q=75 500 in 251ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 392ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 229ms
+ GET /_next/image?url=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg&w=1920&q=75 500 in 213ms
+ GET /api/cart/count 200 in 40ms
+ GET /giris 200 in 176ms
+ POST /api/auth/sign-in/email 200 in 257ms
+ GET /hesabim 200 in 352ms
+ GET /hesabim 200 in 614ms
+ ○ Compiling /siparis ...
+ ✓ Compiled /siparis in 2.1s (2353 modules)
+ GET /siparis 200 in 3078ms
+ GET /api/cart/count 200 in 62ms
+ GET /giris 200 in 232ms
+ POST /api/auth/sign-in/email 200 in 1065ms
+ GET /hesabim 200 in 331ms
+ GET /hesabim 200 in 423ms
+ ○ Compiling /api/user/profile ...
+ GET /siparis 200 in 2064ms
+ ✓ Compiled /api/user/profile in 2.2s (2358 modules)
+ GET /api/cart/count 200 in 134ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 2.2s (2362 modules)
+ GET /siparis/cmojmyrbe002vulnkg1he4kf0 200 in 2850ms
+ POST /api/auth/sign-in/email 200 in 600ms
+[?25h

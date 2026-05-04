@@ -1,0 +1,21 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "http://localhost:3000",
+          "http://localhost:3001",
+          "http://localhost:3002",
+          "https://hanuja.com.tr",
+          "https://www.hanuja.com.tr",
+          "https://satici.hanuja.com.tr",
+          "https://admin.hanuja.com.tr"
+        ],
+        "methods": ["GET", "HEAD", "PUT"],
+        "headers": ["*"]
+      },
+      "exposeHeaders": ["ETag"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

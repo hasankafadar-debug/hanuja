@@ -8,6 +8,7 @@
  * the email to the console instead of throwing, so the app boots safely.
  */
 import nodemailer, { type Transporter } from 'nodemailer'
+import { PLATFORM_LEGAL_INFO } from './platform-info'
 
 export interface SendEmailOptions {
   to: string | string[]
@@ -43,7 +44,8 @@ function getTransport(): Transporter {
 }
 
 export async function sendEmail(options: SendEmailOptions): Promise<void> {
-  const from = process.env['SMTP_FROM'] ?? 'Hanuja <no-reply@hanuja.com>'
+  const from =
+    process.env['SMTP_FROM'] ?? `Hanuja <${PLATFORM_LEGAL_INFO.supportEmail}>`
   const transport = getTransport()
 
   const info = await transport.sendMail({
@@ -55,13 +57,11 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
   })
 
   // In dev (jsonTransport), log the message instead of sending
-  if ((info as { message?: string }).message) {
+  if (process.env.NODE_ENV !== 'production' && (info as { message?: string }).message) {
     const parsed = JSON.parse((info as { message: string }).message) as {
       subject?: string
       to?: unknown
     }
-    console.log(
-      `[mailer] DEV — email not sent. Subject: "${parsed.subject}", To: ${JSON.stringify(parsed.to)}`,
-    )
+    console.log('[mail:dev]', parsed.subject, '->', JSON.stringify(parsed.to))
   }
 }

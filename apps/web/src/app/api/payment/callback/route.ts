@@ -7,8 +7,7 @@
  *   1. Iyzico form-encoded POST → paymentId, conversationId, status
  *   2. complete3DS ile ödeme tamamlanır (Iyzico'ya ikinci istek)
  *   3. Başarılıysa: confirmCardPayment → sipariş satıcı kuyruğuna düşer
- *   4. Sepet temizlenir
- *   5. Tarayıcı sipariş sayfasına yönlendirilir
+ *   4. Tarayıcı sipariş sayfasına yönlendirilir
  *
  * GÜVENLİK:
  *   - paymentId Iyzico'dan alınır, client'tan güvenilmez
@@ -19,11 +18,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { complete3DS } from '@hanuja/api/lib/iyzico'
 import { createPaymentService } from '@hanuja/api/services/payment.service'
-import { createCheckoutService } from '@hanuja/api/services/checkout.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { Decimal } from '@prisma/client/runtime/client'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL ??
+  (process.env.NODE_ENV === 'production'
+    ? (() => { throw new Error('NEXT_PUBLIC_APP_URL is required in production') })()
+    : 'http://localhost:3000')
 
 function redirectToError(message: string): NextResponse {
   const url = new URL('/odeme', APP_URL)
@@ -74,21 +76,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!msg.includes('zaten işlendi')) {
       return redirectToError('Ödeme kaydedilemedi')
     }
-  }
-
-  // Müşteri ID'sini al ve sepeti temizle
-  try {
-    const order = await prisma.order.findUnique({
-      where: { id: conversationId },
-      select: { customerId: true },
-    })
-    if (order?.customerId) {
-      const checkoutSvc = createCheckoutService({ prisma })
-      await checkoutSvc.clearCartAfterOrder(order.customerId)
-    }
-  } catch {
-    // Sepet temizleme kritik değil — logla, devam et
-    console.error('[payment/callback] Sepet temizlenemedi, orderId:', conversationId)
   }
 
   // Başarı → sipariş sayfasına yönlendir

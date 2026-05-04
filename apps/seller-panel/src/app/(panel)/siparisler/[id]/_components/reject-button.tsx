@@ -61,16 +61,20 @@ export default function RejectButton({ orderId }: { orderId: string }) {
 
   return (
     <div
+      role="dialog"
+      aria-labelledby="reject-dialog-title"
       className="w-full rounded-xl border p-5 space-y-3"
       style={{ borderColor: 'var(--color-destructive)', backgroundColor: '#fff5f5' }}
     >
-      <p className="text-sm font-semibold" style={{ color: 'var(--color-destructive)' }}>
+      <p id="reject-dialog-title" className="text-sm font-semibold" style={{ color: 'var(--color-destructive)' }}>
         ⚠ Siparişi Reddet
       </p>
       <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-        Ödenmş siparişi reddetmek %20 ceza uygulanmasına neden olabilir. Bir red sebebi seçin:
+        Ödenmiş siparişi reddetmek %20 ceza uygulanmasına neden olabilir. Bir red sebebi seçin:
       </p>
+      <label htmlFor="rejection-reason" className="sr-only">Sebep</label>
       <select
+        id="rejection-reason"
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         className="w-full rounded-lg border px-3 py-2 text-sm"

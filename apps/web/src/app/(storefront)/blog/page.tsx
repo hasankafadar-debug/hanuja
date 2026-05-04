@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
-import { CalendarDays, Clock } from 'lucide-react'
+import { CalendarDays } from 'lucide-react'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createBlogService } from '@hanuja/api/services/blog.service'
+import { BlogPagination } from './_components/blog-pagination'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,23 +13,23 @@ export const metadata: Metadata = {
   description: 'Ev dekorasyonu, tasarım trendleri ve yaşam alanı fikirleri için Hanuja Blog.',
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  Dekorasyon: 'var(--color-accent)',
-  Malzeme: '#8b5cf6',
-  'Ev Ofisi': '#0ea5e9',
-  Trend: '#f59e0b',
-  'Yatak Odası': '#10b981',
-  Mutfak: '#ef4444',
-}
+const PAGE_SIZE = 12
 
 function formatDate(date: Date | null) {
   if (!date) return ''
   return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-export default async function BlogListPage() {
+export default async function BlogListPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ page?: string }>
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const currentPage = Math.max(1, Number(resolvedSearchParams?.page ?? '1'))
   const svc = createBlogService({ prisma: createPrismaForRoute() })
-  const { posts } = await svc.listPublished({ page: 1, limit: 12 })
+  const { posts, total } = await svc.listPublished({ page: currentPage, limit: PAGE_SIZE })
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   if (posts.length === 0) {
     return (
@@ -43,7 +45,8 @@ export default async function BlogListPage() {
     )
   }
 
-  const [featured, ...rest] = posts
+  const featured = currentPage === 1 ? posts[0] ?? null : null
+  const listPosts = currentPage === 1 ? posts.slice(1) : posts
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -66,12 +69,20 @@ export default async function BlogListPage() {
             className="relative mb-10 overflow-hidden rounded-2xl p-8 md:p-12 transition-transform group-hover:scale-[1.005]"
             style={{
               backgroundColor: featured.coverUrl ? undefined : 'var(--color-primary)',
-              backgroundImage: featured.coverUrl ? `url(${featured.coverUrl})` : undefined,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
               color: 'white',
+              minHeight: '280px',
             }}
           >
+            {featured.coverUrl && (
+              <Image
+                src={featured.coverUrl}
+                alt={featured.title}
+                fill
+                priority
+                sizes="(max-width: 768px) 100vw, 80vw"
+                className="object-cover rounded-2xl"
+              />
+            )}
             <div
               className="absolute inset-0 rounded-2xl"
               style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
@@ -103,17 +114,22 @@ export default async function BlogListPage() {
 
       {/* Post grid */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {rest.map((post) => (
+        {listPosts.map((post) => (
           <Link key={post.slug} href={`/blog/${post.slug}`} className="group">
             <article
               className="h-full rounded-xl border p-6 transition-shadow hover:shadow-md"
               style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
             >
               {post.coverUrl && (
-                <div
-                  className="mb-4 aspect-video w-full rounded-lg overflow-hidden"
-                  style={{ backgroundImage: `url(${post.coverUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
-                />
+                <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-lg">
+                  <Image
+                    src={post.coverUrl}
+                    alt={post.title}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover"
+                  />
+                </div>
               )}
               <h2
                 className="text-base font-semibold leading-snug group-hover:text-[var(--color-accent)] transition-colors"
@@ -138,6 +154,12 @@ export default async function BlogListPage() {
           </Link>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-10 flex justify-center">
+          <BlogPagination currentPage={currentPage} totalPages={totalPages} />
+        </div>
+      )}
     </div>
   )
 }

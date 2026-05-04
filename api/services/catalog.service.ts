@@ -1,23 +1,139 @@
 /**
- * Catalog Service — product and category operations.
+ * Catalog Service - product and category operations.
  * Seller can manage only their own products.
  */
+import { Prisma } from '@prisma/client'
 import type { PrismaClient, ProductStatus } from '@prisma/client'
-import { NotFoundError, ForbiddenError, ConflictError } from '../lib/errors'
+import { NotFoundError, ForbiddenError, ConflictError, ValidationError } from '../lib/errors'
 import { createProductRepository } from '../repositories/product.repository'
 import { createCategoryRepository } from '../repositories/category.repository'
 import { createSellerRepository } from '../repositories/seller.repository'
-import { normalizeSlug } from '../domain/slug'
-import { enqueueProductSync } from '../jobs/search-index-sync.job'
+import { createDiscountService } from './discount.service'
+import { createContentScannerService } from './content-scanner.service'
+import { buildSlugWithSuffix, isValidSlug, normalizeSlug } from '../domain/slug'
+import { enqueueCategorySync, enqueueProductSync } from '../jobs/search-index-sync.job'
 
 interface CatalogServiceDeps {
   prisma: PrismaClient
 }
 
+type DecimalLike = import('@prisma/client/runtime/client').Decimal
+
 export function createCatalogService({ prisma }: CatalogServiceDeps) {
   const products = createProductRepository(prisma)
   const categories = createCategoryRepository(prisma)
   const sellers = createSellerRepository(prisma)
+  const discounts = createDiscountService({ prisma })
+  const contentScanner = createContentScannerService()
+
+  async function applyEffectivePricingToProduct<
+    T extends {
+      id: string
+      sellerId: string
+      categoryId: string | null
+      price: DecimalLike
+      compareAtPrice: DecimalLike | null
+    },
+  >(product: T): Promise<T> {
+    const pricing = await discounts.resolveEffectivePrice(product, product.sellerId)
+
+    return {
+      ...product,
+      price: pricing.effectivePrice,
+      compareAtPrice: pricing.discountSource ? pricing.originalPrice : product.compareAtPrice,
+    }
+  }
+
+  async function applyEffectivePricingToProducts<
+    T extends {
+      id: string
+      sellerId: string
+      categoryId: string | null
+      price: DecimalLike
+      compareAtPrice: DecimalLike | null
+    },
+  >(items: T[]): Promise<T[]> {
+    const pricingMap = await discounts.resolveEffectivePrices(items)
+
+    return items.map((item) => {
+      const pricing = pricingMap.get(item.id)
+      if (!pricing) return item
+
+      return {
+        ...item,
+        price: pricing.effectivePrice,
+        compareAtPrice: pricing.discountSource ? pricing.originalPrice : item.compareAtPrice,
+      }
+    })
+  }
+
+  async function ensureUniqueIdentifiers(params: {
+    barcode?: string | null
+    excludeProductId?: string
+  }) {
+    const normalizedBarcode = params.barcode?.trim() || null
+
+    if (normalizedBarcode) {
+      const existingBarcode = await products.findByBarcodeExcluding(
+        normalizedBarcode,
+        params.excludeProductId,
+      )
+      if (existingBarcode) {
+        throw new ConflictError('Bu barkod başka bir ürüne kayıtlı')
+      }
+    }
+  }
+
+  async function resolveUniqueProductSlug(input: string) {
+    const baseSlug = normalizeSlug(input) || 'urun'
+
+    for (let suffix = 1; suffix < 10_000; suffix += 1) {
+      const candidate = buildSlugWithSuffix(baseSlug, suffix)
+      const existing = await products.findBySlug(candidate)
+      if (!existing) return candidate
+    }
+
+    throw new ConflictError('Urun icin benzersiz slug olusturulamadi.')
+  }
+
+  function getModerationDecision(input: {
+    name: string
+    description?: string | null
+    shortDescription?: string | null
+    story?: string | null
+    careInstructions?: string | null
+  }): {
+    status: ProductStatus
+    moderationFindings: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput
+  } {
+    const scan = contentScanner.scanProductContent(input)
+    if (scan.flagged) {
+      return {
+        status: 'pending_review',
+        moderationFindings: scan.findings as unknown as Prisma.InputJsonArray,
+      }
+    }
+
+    return {
+      status: process.env['AUTO_APPROVE_CLEAN_PRODUCTS'] === 'true' ? 'published' : 'pending_review',
+      moderationFindings: Prisma.JsonNull,
+    }
+  }
+
+  async function syncProductVisibility(productId: string, previousStatus: ProductStatus, nextStatus: ProductStatus) {
+    if (nextStatus === 'published') {
+      await enqueueProductSync({ operation: 'upsert', entityId: productId }).catch((err) =>
+        console.error('[catalog] Search sync enqueue failed (upsert):', err),
+      )
+      return
+    }
+
+    if (previousStatus === 'published') {
+      await enqueueProductSync({ operation: 'delete', entityId: productId }).catch((err) =>
+        console.error('[catalog] Search sync enqueue failed (delete):', err),
+      )
+    }
+  }
 
   return {
     async getProductBySlug(slug: string) {
@@ -25,7 +141,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       if (!product || product.status !== 'published') {
         throw new NotFoundError('Product', slug)
       }
-      return product
+      return applyEffectivePricingToProduct(product)
     },
 
     async getProductForSeller(id: string, sellerId: string) {
@@ -34,16 +150,30 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return product
     },
 
-    listPublished(params: {
+    async listPublished(params: {
       categoryId?: string
+      categoryIds?: string[]
       minPrice?: number
       maxPrice?: number
       inStockOnly?: boolean
+      sellerId?: string
       sortBy?: 'newest' | 'price-asc' | 'price-desc'
       skip?: number
       take?: number
     }) {
-      return products.listPublished(params)
+      const publishedProducts = await products.listPublished(params)
+      return applyEffectivePricingToProducts(publishedProducts)
+    },
+
+    countPublished(params: {
+      categoryId?: string
+      categoryIds?: string[]
+      minPrice?: number
+      maxPrice?: number
+      inStockOnly?: boolean
+      sellerId?: string
+    }) {
+      return products.countPublished(params)
     },
 
     listBySeller(sellerId: string, status?: ProductStatus, skip?: number, take?: number) {
@@ -55,13 +185,34 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       })
     },
 
+    async searchPublished(params: {
+      q: string
+      categorySlug?: string
+      sortBy?: 'newest' | 'price-asc' | 'price-desc' | 'name-asc'
+      skip?: number
+      take?: number
+    }) {
+      const result = await products.searchPublished(params)
+      return {
+        ...result,
+        items: await applyEffectivePricingToProducts(result.items),
+      }
+    },
+
     async createProduct(params: {
       sellerId: string
       categoryId: string
       name: string
       description: string
-      price: import('@prisma/client/runtime/client').Decimal
+      shortDescription?: string | null
+      story?: string | null
+      careInstructions?: string | null
+      price: DecimalLike
+      compareAtPrice?: DecimalLike | null
       stockQuantity: number
+      sku?: string | null
+      barcode?: string | null
+      weight?: DecimalLike | null
       slugOverride?: string
     }) {
       const seller = await sellers.findActiveById(params.sellerId)
@@ -70,11 +221,26 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       const category = await categories.findById(params.categoryId)
       if (!category) throw new NotFoundError('Category', params.categoryId)
 
-      const slug = params.slugOverride ?? normalizeSlug(params.name)
+      if (
+        params.compareAtPrice &&
+        params.compareAtPrice.toNumber() <= params.price.toNumber()
+      ) {
+        throw new ValidationError('Liste fiyatı satış fiyatından büyük olmalıdır.')
+      }
 
-      // Slug uniqueness check
-      const existing = await products.findBySlug(slug)
-      if (existing) throw new ConflictError(`Bu slug kullanımda: ${slug}`)
+      const slug = await resolveUniqueProductSlug(params.slugOverride ?? params.name)
+
+      await ensureUniqueIdentifiers({
+        barcode: params.barcode ?? null,
+      })
+
+      const moderation = getModerationDecision({
+        name: params.name,
+        description: params.description,
+        shortDescription: params.shortDescription ?? null,
+        story: params.story ?? null,
+        careInstructions: params.careInstructions ?? null,
+      })
 
       const product = await products.create({
         sellerId: params.sellerId,
@@ -82,53 +248,163 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         slug,
         name: params.name,
         description: params.description,
+        shortDescription: params.shortDescription ?? null,
+        story: params.story ?? null,
+        careInstructions: params.careInstructions ?? null,
         price: params.price,
+        compareAtPrice: params.compareAtPrice ?? null,
         stockQuantity: params.stockQuantity,
-        status: 'pending_review',
+        sku: params.sku ?? null,
+        barcode: params.barcode ?? null,
+        weight: params.weight ?? null,
+        status: moderation.status,
+        moderationFindings: moderation.moderationFindings,
+        publishedAt: moderation.status === 'published' ? new Date() : null,
       })
-      // pending_review products are NOT indexed — enqueue when published
+
+      await syncProductVisibility(product.id, 'draft', product.status)
+
       return product
     },
 
-    async publishProduct(id: string, adminActorId: string) {
+    async updateProductForSeller(params: {
+      productId: string
+      sellerId: string
+      name?: string
+      categoryId?: string | null
+      description?: string | null
+      shortDescription?: string | null
+      story?: string | null
+      careInstructions?: string | null
+      price?: DecimalLike
+      compareAtPrice?: DecimalLike | null
+      stockQuantity?: number
+      sku?: string | null
+      barcode?: string | null
+      weight?: DecimalLike | null
+    }) {
+      const seller = await sellers.findActiveById(params.sellerId)
+      if (!seller) throw new ForbiddenError('Satıcı hesabı aktif değil')
+
+      const product = await products.findByIdForSeller(params.productId, params.sellerId)
+      if (!product) throw new NotFoundError('Product', params.productId)
+
+      const nextCategoryId = params.categoryId === undefined ? product.categoryId : params.categoryId
+      if (nextCategoryId) {
+        const category = await categories.findById(nextCategoryId)
+        if (!category) throw new NotFoundError('Category', nextCategoryId)
+      }
+
+      const nextPrice = params.price ?? product.price
+      const nextCompareAtPrice =
+        params.compareAtPrice === undefined ? product.compareAtPrice : params.compareAtPrice
+
+      if (
+        nextCompareAtPrice &&
+        nextCompareAtPrice.toNumber() <= nextPrice.toNumber()
+      ) {
+        throw new ValidationError('Liste fiyatı satış fiyatından büyük olmalıdır.')
+      }
+
+      const nextBarcode = params.barcode === undefined ? product.barcode : params.barcode
+
+      await ensureUniqueIdentifiers({
+        barcode: nextBarcode ?? null,
+        excludeProductId: params.productId,
+      })
+
+      const moderation = getModerationDecision({
+        name: params.name ?? product.name,
+        description: params.description === undefined ? product.description : params.description,
+        shortDescription: params.shortDescription === undefined ? product.shortDescription : params.shortDescription,
+        story: params.story === undefined ? product.story : params.story,
+        careInstructions: params.careInstructions === undefined ? product.careInstructions : params.careInstructions,
+      })
+
+      const updated = await prisma.product.update({
+        where: { id: params.productId },
+        data: {
+          ...(params.name !== undefined ? { name: params.name } : {}),
+          ...(params.categoryId !== undefined ? { categoryId: params.categoryId } : {}),
+          ...(params.description !== undefined ? { description: params.description } : {}),
+          ...(params.shortDescription !== undefined ? { shortDescription: params.shortDescription } : {}),
+          ...(params.story !== undefined ? { story: params.story } : {}),
+          ...(params.careInstructions !== undefined ? { careInstructions: params.careInstructions } : {}),
+          ...(params.price !== undefined ? { price: params.price } : {}),
+          ...(params.compareAtPrice !== undefined ? { compareAtPrice: params.compareAtPrice } : {}),
+          ...(params.stockQuantity !== undefined ? { stockQuantity: params.stockQuantity } : {}),
+          ...(params.sku !== undefined ? { sku: params.sku } : {}),
+          ...(params.barcode !== undefined ? { barcode: params.barcode } : {}),
+          ...(params.weight !== undefined ? { weight: params.weight } : {}),
+          status: moderation.status,
+          moderationFindings: moderation.moderationFindings,
+          rejectionReason: null,
+          rejectedAt: null,
+          publishedAt: moderation.status === 'published' ? product.publishedAt ?? new Date() : null,
+        },
+      })
+
+      await syncProductVisibility(updated.id, product.status, updated.status)
+
+      return updated
+    },
+
+    async publishProduct(id: string, _adminActorId: string) {
       const product = await products.findById(id)
       if (!product) throw new NotFoundError('Product', id)
-      const updated = await products.adminUpdateStatus(id, 'published')
-      // Product is now public — sync to Meilisearch
-      await enqueueProductSync({ operation: 'upsert', entityId: id }).catch((err) =>
-        console.error('[catalog] Search sync enqueue failed (publish):', err),
-      )
+
+      const updated = await prisma.product.update({
+        where: { id },
+        data: {
+          status: 'published',
+          publishedAt: product.publishedAt ?? new Date(),
+          rejectedAt: null,
+          rejectionReason: null,
+        },
+      })
+
+      await syncProductVisibility(id, product.status, 'published')
+
       return updated
     },
 
     async unpublishProduct(id: string, sellerId: string) {
-      const updated = await products.updateStatus(id, sellerId, 'unlisted')
-      // Remove from public search index
-      await enqueueProductSync({ operation: 'delete', entityId: id }).catch((err) =>
-        console.error('[catalog] Search sync enqueue failed (unpublish):', err),
-      )
+      const existing = await products.findByIdForSeller(id, sellerId)
+      if (!existing) return null
+
+      const updated = await prisma.product.update({
+        where: { id },
+        data: {
+          status: 'unlisted',
+          publishedAt: null,
+        },
+      })
+
+      await syncProductVisibility(id, existing.status, 'unlisted')
+
       return updated
     },
 
-    /** Admin: list products filtered by status */
-    listProductsForAdmin(params: { status?: import('@prisma/client').ProductStatus; skip?: number; take?: number }) {
+    listProductsForAdmin(params: Parameters<typeof products.listForAdmin>[0]) {
       return products.listForAdmin(params)
     },
 
-    /** Admin: reject a product with a reason */
     async rejectProduct(id: string, reason?: string) {
       const product = await products.findById(id)
       if (!product) throw new NotFoundError('Product', id)
+
       const updated = await prisma.product.update({
         where: { id },
-        data: { status: 'rejected', rejectedAt: new Date(), ...(reason !== undefined ? { rejectionReason: reason } : {}) },
+        data: {
+          status: 'rejected',
+          rejectedAt: new Date(),
+          publishedAt: null,
+          ...(reason !== undefined ? { rejectionReason: reason } : {}),
+        },
       })
-      // If it was previously published, remove from search index
-      if (product.status === 'published') {
-        await enqueueProductSync({ operation: 'delete', entityId: id }).catch((err) =>
-          console.error('[catalog] Search sync enqueue failed (reject):', err),
-        )
-      }
+
+      await syncProductVisibility(id, product.status, 'rejected')
+
       return updated
     },
 
@@ -142,6 +418,177 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
 
     listSubcategories(parentId: string) {
       return categories.listByParent(parentId)
+    },
+
+    listAllCategories() {
+      return categories.findAll()
+    },
+
+    async updateCategoryForAdmin(params: {
+      categoryId: string
+      name?: string
+      slug?: string
+      description?: string | null
+      imageUrl?: string | null
+      sortOrder?: number
+      isActive?: boolean
+    }) {
+      const existing = await categories.findById(params.categoryId)
+      if (!existing) throw new NotFoundError('Category', params.categoryId)
+
+      const nextName = params.name?.trim() ?? existing.name
+      if (!nextName) {
+        throw new ValidationError('Kategori adı boş olamaz.')
+      }
+
+      const nextSlugInput = params.slug?.trim()
+      const nextSlug = nextSlugInput !== undefined ? normalizeSlug(nextSlugInput) : existing.slug
+      if (!isValidSlug(nextSlug)) {
+        throw new ValidationError('Kategori slug alanı geçersiz.')
+      }
+
+      if (nextSlug !== existing.slug) {
+        const slugTaken = await categories.findBySlug(nextSlug)
+        if (slugTaken && slugTaken.id !== existing.id) {
+          throw new ConflictError(`Bu slug kullanımda: ${nextSlug}`)
+        }
+      }
+
+      const updated = await categories.update(params.categoryId, {
+        ...(params.name !== undefined ? { name: nextName } : {}),
+        ...(params.slug !== undefined ? { slug: nextSlug } : {}),
+        ...(params.description !== undefined ? { description: params.description } : {}),
+        ...(params.imageUrl !== undefined ? { imageUrl: params.imageUrl } : {}),
+        ...(params.sortOrder !== undefined ? { sortOrder: params.sortOrder } : {}),
+        ...(params.isActive !== undefined ? { isActive: params.isActive } : {}),
+      })
+
+      await enqueueCategorySync({ entityId: params.categoryId }).catch((err) =>
+        console.error('[catalog] Search sync enqueue failed (category):', err),
+      )
+
+      return updated
+    },
+
+    async bulkUpdatePriceStock(params: {
+      sellerId: string
+      rows: Array<{ identifier: string; newPrice?: number; newStock?: number }>
+    }) {
+      const results: Array<{
+        identifier: string
+        status: 'matched' | 'not_found' | 'invalid' | 'noop' | 'updated'
+        productId?: string
+        productName?: string
+        oldPrice?: number
+        newPrice?: number
+        oldStock?: number
+        newStock?: number
+        message?: string
+      }> = []
+
+      for (const row of params.rows) {
+        const identifier = row.identifier.trim()
+        if (!identifier) {
+          results.push({ identifier, status: 'invalid', message: 'Kimlik alanı boş olamaz' })
+          continue
+        }
+
+        const product = await prisma.product.findFirst({
+          where: {
+            sellerId: params.sellerId,
+            barcode: identifier,
+          },
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            stockQuantity: true,
+          },
+        })
+
+        if (!product) {
+          results.push({ identifier, status: 'not_found', message: 'Ürün bulunamadı' })
+          continue
+        }
+
+        const oldPrice = product.price.toNumber()
+        const oldStock = product.stockQuantity
+        const nextPrice = row.newPrice ?? oldPrice
+        const nextStock = row.newStock ?? oldStock
+
+        if (nextPrice === oldPrice && nextStock === oldStock) {
+          results.push({
+            identifier,
+            status: 'noop',
+            productId: product.id,
+            productName: product.name,
+            oldPrice,
+            newPrice: nextPrice,
+            oldStock,
+            newStock: nextStock,
+            message: 'Aynı değerler olduğu için atlandı',
+          })
+          continue
+        }
+
+        await prisma.product.update({
+          where: { id: product.id },
+          data: {
+            ...(row.newPrice !== undefined ? { price: row.newPrice } : {}),
+            ...(row.newStock !== undefined ? { stockQuantity: row.newStock } : {}),
+          },
+        })
+
+        results.push({
+          identifier,
+          status: 'updated',
+          productId: product.id,
+          productName: product.name,
+          oldPrice,
+          newPrice: nextPrice,
+          oldStock,
+          newStock: nextStock,
+        })
+      }
+
+      return results
+    },
+
+    /**
+     * Returns every leaf category under the given parent slug.
+     * Leaf means active category without children.
+     */
+    async getLeafDescendants(
+      parentSlug: string,
+    ): Promise<Array<{ id: string; slug: string; name: string }>> {
+      const all = await categories.findAll()
+      const byId = new Map(all.map((category) => [category.id, category]))
+      const childrenOf = new Map<string | null, typeof all>()
+
+      for (const category of all) {
+        const key = category.parentId ?? null
+        const list = childrenOf.get(key) ?? []
+        list.push(category)
+        childrenOf.set(key, list)
+      }
+
+      const root = all.find((category) => category.slug === parentSlug)
+      if (!root) return []
+
+      const leaves: Array<{ id: string; slug: string; name: string }> = []
+
+      function dfs(nodeId: string) {
+        const children = childrenOf.get(nodeId) ?? []
+        if (children.length === 0) {
+          const node = byId.get(nodeId)
+          if (node) leaves.push({ id: node.id, slug: node.slug, name: node.name })
+          return
+        }
+        for (const child of children) dfs(child.id)
+      }
+
+      dfs(root.id)
+      return leaves
     },
   }
 }

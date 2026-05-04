@@ -50,11 +50,18 @@ export {
   maskIban,
   maskEmail,
   maskPhone,
+  maskCustomerName,
   maskCardNumber,
   maskTurkishId,
   maskPartial,
   maskSensitiveObject,
 } from './data-masker'
+export {
+  normalizeTurkishText,
+  tokenizeNormalizedText,
+  normalizedTokenSet,
+  hasMatchingNormalizedTokens,
+} from './turkish-normalize'
 
 // Webhook verification
 export {
@@ -86,7 +93,9 @@ export {
   verifyCsrfToken,
   isOriginAllowed,
   getCsrfCookieOptions,
+  getMirrorCsrfCookieOptions,
   CSRF_COOKIE_NAME,
+  CSRF_MIRROR_COOKIE_NAME,
   CSRF_HEADER_NAME,
   CSRF_TOKEN_BYTES,
 } from './csrf'

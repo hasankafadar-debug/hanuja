@@ -25,7 +25,7 @@ export interface AddressInput {
   addressLine2?: string
   district: string
   city: string
-  postalCode: string
+  postalCode?: string
   country?: string
   isDefault?: boolean
 }
@@ -92,7 +92,7 @@ export function createUserService(deps: { prisma: PrismaClient }) {
         ...(input.addressLine2 !== undefined ? { addressLine2: input.addressLine2 } : {}),
         district: input.district,
         city: input.city,
-        postalCode: input.postalCode,
+        postalCode: input.postalCode ?? '',
         country: input.country ?? 'TR',
         isDefault: input.isDefault ?? false,
       },
@@ -122,7 +122,7 @@ export function createUserService(deps: { prisma: PrismaClient }) {
         ...(input.addressLine2 !== undefined && { addressLine2: input.addressLine2 }),
         ...(input.district !== undefined && { district: input.district }),
         ...(input.city !== undefined && { city: input.city }),
-        ...(input.postalCode !== undefined && { postalCode: input.postalCode }),
+        ...(input.postalCode !== undefined && { postalCode: input.postalCode ?? '' }),
         ...(input.isDefault !== undefined && { isDefault: input.isDefault }),
       },
     })

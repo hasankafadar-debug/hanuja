@@ -1,0 +1,22 @@
+
+> admin-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\admin-panel
+> next dev --port 3002
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3002
+   - Network:      http://172.21.0.1:3002
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Compiled /instrumentation in 851ms (31 modules)
+ ✓ Ready in 3.6s
+ ○ Compiling /anasayfa ...
+ ✓ Compiled /anasayfa in 8s (2095 modules)
+ GET /anasayfa 200 in 9249ms
+ ✓ Compiled in 19.4s (541 modules)
+ ✓ Compiled in 897ms (541 modules)
+ ✓ Compiled in 427ms (541 modules)
+ ✓ Compiled in 982ms (565 modules)
+ ✓ Compiled in 1047ms (577 modules)
+ ✓ Compiled in 371ms (546 modules)
+ ✓ Compiled in 511ms (546 modules)

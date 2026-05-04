@@ -4,7 +4,7 @@
  */
 
 export function getBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? 'https://hanuja.com').replace(/\/$/, '')
+  return (process.env.NEXT_PUBLIC_APP_URL ?? 'https://hanuja.com.tr').replace(/\/$/, '')
 }
 
 /** Convert a relative path to an absolute URL using NEXT_PUBLIC_APP_URL. */

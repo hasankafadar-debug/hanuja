@@ -101,6 +101,8 @@ export { ConfirmDialog, type ConfirmDialogProps } from './components/composite/c
 export { PageHeader, type PageHeaderProps } from './components/composite/page-header'
 export { FilterBar, type FilterChip, type FilterBarProps } from './components/composite/filter-bar'
 export { ActionMenu, type ActionItem, type ActionMenuProps } from './components/composite/action-menu'
+export { LegalDocumentDialog } from './components/composite/legal-document-dialog'
+export { LegalDocumentHtml } from './components/composite/legal-document-html'
 export {
   NotificationBell,
   type NotificationBellProps,
@@ -112,3 +114,21 @@ export {
   type UploadedAsset,
   type UploadFolder,
 } from './components/composite/file-upload'
+export { TurnstileWidget, type TurnstileWidgetProps } from './components/turnstile-widget'
+
+// ── Brand ──────────────────────────────────────────────────────────────────
+export { HanujaLogo, type HanujaLogoProps } from './components/brand/hanuja-logo'
+
+// ── Nav ────────────────────────────────────────────────────────────────────
+export {
+  MegaMenu,
+  type MegaMenuProps,
+  type MegaMenuItem,
+  type MegaMenuColumn,
+  type MegaMenuSubItem,
+} from './components/nav/mega-menu'
+
+// ── Storefront ─────────────────────────────────────────────────────────────
+export { HeroSlider, type HeroSlide, type HeroSliderProps } from './components/hero-slider'
+export { PromoCard, type PromoCardProps } from './components/promo-card'
+export { mediaSrcSet, normalizeMediaDisplayUrl } from './lib/media-url'

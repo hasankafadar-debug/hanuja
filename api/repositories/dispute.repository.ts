@@ -1,4 +1,4 @@
-import type { DisputeStatus, UserRole, PrismaClient } from '@prisma/client'
+import type { DisputeStatus, Prisma, UserRole, PrismaClient } from '@prisma/client'
 import type { Decimal } from '@prisma/client/runtime/client'
 
 export function createDisputeRepository(prisma: PrismaClient) {
@@ -64,20 +64,60 @@ export function createDisputeRepository(prisma: PrismaClient) {
       })
     },
 
-    listForAdmin(params: {
-      status?: DisputeStatus
+    async listForAdmin(params: {
+      status?: DisputeStatus[]
+      sellerId?: string
+      query?: string
+      from?: Date
+      to?: Date
       skip?: number
       take?: number
     }) {
-      return prisma.dispute.findMany({
-        where: {
-          ...(params.status !== undefined ? { status: params.status } : {}),
-        },
-        include: { order: true },
-        orderBy: { createdAt: 'desc' },
-        ...(params.skip !== undefined ? { skip: params.skip } : {}),
-        take: params.take ?? 20,
-      })
+      const normalizedQuery = params.query?.trim()
+      const where: Prisma.DisputeWhereInput = {
+        ...(params.status !== undefined && params.status.length > 0 ? { status: { in: params.status } } : {}),
+        ...(params.sellerId !== undefined
+          ? { order: { lines: { some: { sellerId: params.sellerId } } } }
+          : {}),
+        ...(params.from !== undefined || params.to !== undefined
+          ? {
+              createdAt: {
+                ...(params.from !== undefined ? { gte: params.from } : {}),
+                ...(params.to !== undefined ? { lte: params.to } : {}),
+              },
+            }
+          : {}),
+        ...(normalizedQuery
+          ? {
+              OR: [
+                { id: { contains: normalizedQuery } },
+                { orderId: { contains: normalizedQuery } },
+                { reason: { contains: normalizedQuery, mode: 'insensitive' } },
+                { order: { customer: { name: { contains: normalizedQuery, mode: 'insensitive' } } } },
+              ],
+            }
+          : {}),
+      }
+
+      const [rows, total] = await Promise.all([
+        prisma.dispute.findMany({
+          where,
+          include: {
+            order: {
+              include: {
+                customer: { select: { name: true } },
+                lines: { select: { sellerId: true }, take: 1 },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          ...(params.skip !== undefined ? { skip: params.skip } : {}),
+          take: params.take ?? 20,
+        }),
+        prisma.dispute.count({ where }),
+      ])
+
+      return { rows, total }
     },
   }
 }

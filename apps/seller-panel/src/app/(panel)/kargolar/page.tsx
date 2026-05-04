@@ -116,7 +116,7 @@ export default function ShipmentsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="seller-shipments-page">
       <PageHeader
         title="Kargolar"
         description={`${shipments.length} kargo kaydı`}
@@ -236,10 +236,12 @@ export default function ShipmentsPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="mb-1 block text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                <label htmlFor="shipment-cargo-provider" className="mb-1 block text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                   Kargo Firması
                 </label>
                 <select
+                  id="shipment-cargo-provider"
+                  aria-label="Kargo firması"
                   value={trackingForm.cargoProvider}
                   onChange={(e) =>
                     setTrackingForm((prev) => ({ ...prev, cargoProvider: e.target.value }))
@@ -260,10 +262,11 @@ export default function ShipmentsPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                <label htmlFor="shipment-tracking-number" className="mb-1 block text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                   Takip Numarası *
                 </label>
                 <input
+                  id="shipment-tracking-number"
                   type="text"
                   placeholder="Örn: YK20261234567"
                   value={trackingForm.trackingNumber}

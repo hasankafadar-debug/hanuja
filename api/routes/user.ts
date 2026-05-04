@@ -23,7 +23,11 @@ const addressSchema = z.object({
   addressLine2: z.string().optional(),
   district: z.string().min(2, 'İlçe zorunludur'),
   city: z.string().min(2, 'Şehir zorunludur'),
-  postalCode: z.string().length(5, 'Posta kodu 5 hane olmalıdır'),
+  postalCode: z
+    .string()
+    .regex(/^\d{5}$/, 'Posta kodu 5 hane olmalıdır')
+    .optional()
+    .or(z.literal('')),
   country: z.string().length(2).optional(),
   isDefault: z.boolean().optional(),
 })
@@ -82,7 +86,7 @@ export async function addAddress(req: NextRequest, userId: string) {
       addressLine1: body.addressLine1,
       district: body.district,
       city: body.city,
-      postalCode: body.postalCode,
+      postalCode: body.postalCode ?? '',
       ...(body.label !== undefined ? { label: body.label } : {}),
       ...(body.addressLine2 !== undefined ? { addressLine2: body.addressLine2 } : {}),
       ...(body.country !== undefined ? { country: body.country } : {}),

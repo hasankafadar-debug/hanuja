@@ -14,7 +14,7 @@ import 'dotenv/config'
 const prisma = new PrismaClient()
 
 const MEILI_URL = process.env.MEILISEARCH_URL ?? 'http://localhost:7700'
-const MEILI_KEY = process.env.MEILISEARCH_MASTER_KEY ?? ''
+const MEILI_KEY = process.env.MEILISEARCH_ADMIN_KEY ?? ''
 
 function meiliHeaders() {
   return {
@@ -102,7 +102,7 @@ async function main() {
   const products = await prisma.product.findMany({
     where: { status: 'published' },
     include: {
-      images: { take: 1, orderBy: { order: 'asc' } },
+      images: { take: 1, orderBy: { sortOrder: 'asc' } },
       category: true,
       seller: { include: { profile: true } },
     },
@@ -127,7 +127,7 @@ async function main() {
     categoryName: p.category?.name ?? '',
     sellerId: p.sellerId,
     storeSlug: p.seller?.slug ?? '',
-    storeName: p.seller?.profile?.displayName ?? p.seller?.slug ?? '',
+    storeName: p.seller?.displayName ?? p.seller?.slug ?? '',
     imageUrl: p.images[0]?.url ?? null,
     stock: p.stockQuantity,
   }))

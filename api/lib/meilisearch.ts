@@ -6,13 +6,28 @@
  * Never trust Meilisearch for finance, order, or payout decisions.
  */
 
-const MEILI_URL = process.env.MEILISEARCH_URL ?? 'http://localhost:7700'
-const MEILI_KEY = process.env.MEILISEARCH_MASTER_KEY ?? ''
+import {
+  PRODUCT_SEARCH_INDEX,
+  PRODUCT_SEARCH_SETTINGS,
+} from '../domain/search'
 
-function headers() {
+export function getMeilisearchConfig() {
+  const baseUrl =
+    process.env.MEILISEARCH_URL ??
+    (process.env.NODE_ENV === 'production'
+      ? (() => {
+          throw new Error('MEILISEARCH_URL is required in production')
+        })()
+      : 'http://localhost:7700')
+  const apiKey = process.env.MEILISEARCH_ADMIN_KEY ?? ''
+
+  return { baseUrl, apiKey }
+}
+
+export function buildMeilisearchHeaders(apiKey = getMeilisearchConfig().apiKey) {
   return {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${MEILI_KEY}`,
+    Authorization: `Bearer ${apiKey}`,
   }
 }
 
@@ -39,6 +54,7 @@ export interface SearchResult<T = Record<string, unknown>> {
 export async function searchIndex<T = Record<string, unknown>>(
   params: SearchParams,
 ): Promise<SearchResult<T>> {
+  const { baseUrl, apiKey } = getMeilisearchConfig()
   const { indexName, q, filter, facets, sort, limit = 20, offset = 0, attributesToRetrieve } = params
 
   const body: Record<string, unknown> = {
@@ -51,9 +67,9 @@ export async function searchIndex<T = Record<string, unknown>>(
   if (sort) body.sort = sort
   if (attributesToRetrieve) body.attributesToRetrieve = attributesToRetrieve
 
-  const res = await fetch(`${MEILI_URL}/indexes/${indexName}/search`, {
+  const res = await fetch(`${baseUrl}/indexes/${indexName}/search`, {
     method: 'POST',
-    headers: headers(),
+    headers: buildMeilisearchHeaders(apiKey),
     body: JSON.stringify(body),
   })
 
@@ -77,9 +93,10 @@ export async function configureIndex(
   indexName: string,
   settings: Record<string, unknown>,
 ): Promise<void> {
-  const res = await fetch(`${MEILI_URL}/indexes/${indexName}/settings`, {
+  const { baseUrl, apiKey } = getMeilisearchConfig()
+  const res = await fetch(`${baseUrl}/indexes/${indexName}/settings`, {
     method: 'PATCH',
-    headers: headers(),
+    headers: buildMeilisearchHeaders(apiKey),
     body: JSON.stringify(settings),
   })
 
@@ -93,9 +110,10 @@ export async function configureIndex(
  * Ensure index exists. Creates it if missing (idempotent).
  */
 export async function ensureIndex(indexName: string, primaryKey = 'id'): Promise<void> {
-  const res = await fetch(`${MEILI_URL}/indexes`, {
+  const { baseUrl, apiKey } = getMeilisearchConfig()
+  const res = await fetch(`${baseUrl}/indexes`, {
     method: 'POST',
-    headers: headers(),
+    headers: buildMeilisearchHeaders(apiKey),
     body: JSON.stringify({ uid: indexName, primaryKey }),
   })
 
@@ -111,13 +129,6 @@ export async function ensureIndex(indexName: string, primaryKey = 'id'): Promise
  * Call once on startup or via admin reindex action.
  */
 export async function configureProductsIndex(): Promise<void> {
-  await ensureIndex('products')
-  await configureIndex('products', {
-    searchableAttributes: ['name', 'description', 'categoryName', 'storeName'],
-    filterableAttributes: ['categoryId', 'categorySlug', 'sellerId', 'storeSlug', 'stock'],
-    sortableAttributes: ['price', 'name'],
-    faceting: {
-      maxValuesPerFacet: 100,
-    },
-  })
+  await ensureIndex(PRODUCT_SEARCH_INDEX)
+  await configureIndex(PRODUCT_SEARCH_INDEX, PRODUCT_SEARCH_SETTINGS)
 }

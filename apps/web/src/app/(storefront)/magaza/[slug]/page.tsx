@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { ProductCard } from '@hanuja/ui'
 import { MapPin } from 'lucide-react'
 import { buildStoreMetadata, buildLocalBusinessStructuredData, JsonLd } from '@hanuja/seo'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createSellerRepository } from '@hanuja/api/repositories/seller.repository'
-import { createProductRepository } from '@hanuja/api/repositories/product.repository'
+import { createCatalogService } from '@hanuja/api/services/catalog.service'
+import StorefrontProductGrid, { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,14 +16,12 @@ interface Props {
 async function getStoreData(slug: string) {
   const prisma = createPrismaForRoute()
   const sellerRepo = createSellerRepository(prisma)
-  const productRepo = createProductRepository(prisma)
+  const catalogService = createCatalogService({ prisma })
 
   const seller = await sellerRepo.findBySlugWithProfile(slug)
   if (!seller) return null
 
-  const products = await productRepo.listPublished({ skip: 0, take: 24 }).then((all) =>
-    all.filter((p) => p.sellerId === seller.id),
-  )
+  const products = await catalogService.listPublished({ sellerId: seller.id, skip: 0, take: 24 })
 
   return { seller, products }
 }
@@ -43,14 +41,14 @@ export default async function StoreDetailPage({ params }: Props) {
 
   const { seller, products } = data
   const storeName = seller.displayName || slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  const bio = seller.profile?.bio ?? 'El yapımı, doğal malzemelerden üretilen ev dekorasyonu ürünleri.'
+  const bio = seller.profile?.bio ?? null
 
   const city = seller.profile?.city ?? undefined
 
   const storeJsonLd = buildLocalBusinessStructuredData({
     name: storeName,
     slug,
-    description: bio,
+    ...(bio ? { description: bio } : {}),
     ...(city !== undefined ? { city } : {}),
   })
 
@@ -106,9 +104,11 @@ export default async function StoreDetailPage({ params }: Props) {
               </div>
             </div>
           </div>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>
-            {bio}
-          </p>
+          {bio && (
+            <p className="mt-3 max-w-xl text-sm leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>
+              {bio}
+            </p>
+          )}
         </div>
 
         {/* Products grid */}
@@ -121,23 +121,20 @@ export default async function StoreDetailPage({ params }: Props) {
               Bu mağazada henüz ürün bulunmuyor.
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4">
-              {products.map((product) => {
-                const img = (product.images as Array<{ url: string }> | undefined)?.[0]
-                return (
-                  <ProductCard
-                    key={product.id}
-                    id={product.id}
-                    title={product.name}
-                    slug={product.slug}
-                    price={Number(product.price)}
-                    imageUrl={img?.url ?? null}
-                    sellerName={storeName}
-                    sellerSlug={slug}
-                  />
-                )
-              })}
-            </div>
+            <StorefrontProductGrid
+              gridClassName="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4"
+              products={products.map<StorefrontGridProduct>((product) => ({
+                id: product.id,
+                title: product.name,
+                slug: product.slug,
+                price: Number(product.price),
+                comparePrice: product.compareAtPrice ? Number(product.compareAtPrice) : null,
+                imageUrl: (product.images as Array<{ url: string }> | undefined)?.[0]?.url ?? null,
+                imageUrls: ((product.images as Array<{ url: string }> | undefined) ?? []).map((image) => image.url),
+                sellerName: storeName,
+                sellerSlug: slug,
+              }))}
+            />
           )}
         </div>
       </div>

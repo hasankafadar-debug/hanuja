@@ -18,6 +18,8 @@ export const hanujaPreset: Config = {
   theme: {
     extend: {
       colors: {
+        background: 'var(--color-background)',
+        foreground: 'var(--color-foreground)',
         primary: {
           DEFAULT: 'var(--color-primary)',
           fg: 'var(--color-primary-fg)',
@@ -29,6 +31,10 @@ export const hanujaPreset: Config = {
         accent: {
           DEFAULT: 'var(--color-accent)',
           fg: 'var(--color-accent-fg)',
+        },
+        popover: {
+          DEFAULT: 'var(--color-surface)',
+          foreground: 'var(--color-foreground)',
         },
         surface: 'var(--color-surface)',
         border: 'var(--color-border)',
@@ -45,6 +51,7 @@ export const hanujaPreset: Config = {
       },
       fontFamily: {
         sans: ['var(--font-sans)'],
+        body: ['var(--font-body)'],
         display: ['var(--font-display)'],
         mono: ['var(--font-mono)'],
       },

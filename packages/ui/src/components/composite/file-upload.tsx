@@ -1,10 +1,12 @@
 'use client'
 
 import * as React from 'react'
-import { Upload, X, ImageIcon, Loader2, AlertCircle } from 'lucide-react'
+import { AlertCircle, ImageIcon, Loader2, Upload, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { normalizeMediaDisplayUrl } from '../../lib/media-url'
+import { readImageFileMetadata } from './_lib/image-meta'
 
-export type UploadFolder = 'products' | 'stores' | 'avatars' | 'disputes' | 'returns' | 'blog'
+export type UploadFolder = 'products' | 'stores' | 'avatars' | 'disputes' | 'returns' | 'blog' | 'documents'
 
 export interface UploadedAsset {
   id: string
@@ -14,6 +16,7 @@ export interface UploadedAsset {
 }
 
 interface UploadState {
+  id: string
   file: File
   status: 'pending' | 'uploading' | 'confirming' | 'done' | 'error'
   progress: number
@@ -21,30 +24,43 @@ interface UploadState {
   asset?: UploadedAsset
 }
 
+export interface ImageConstraints {
+  exactWidth?: number
+  exactHeight?: number
+  minDpi?: number
+  maxDpi?: number
+  allowedTypes?: string[]
+}
+
 export interface FileUploadProps {
-  /** API path for requesting presigned URLs — defaults to '/api/media' */
   apiPath?: string
   folder: UploadFolder
-  /** Max number of files that can be uploaded at once */
-  maxFiles?: number
-  /** Already uploaded assets (controlled) */
+  maxFiles?: number | null
   value?: UploadedAsset[]
   onChange?: (assets: UploadedAsset[]) => void
   className?: string
-  /** Show preview thumbnails */
   showPreviews?: boolean
+  showMaxFilesHint?: boolean
   disabled?: boolean
+  imageConstraints?: ImageConstraints
+  inputLabel?: string
 }
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const DOCUMENT_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+const DOCUMENT_MAX_FILE_SIZE = 20 * 1024 * 1024
 
-/**
- * FileUpload — drag & drop or click-to-select image uploader.
- *
- * Flow: request presigned URL → upload to R2 → confirm → notify parent via onChange.
- * Uses the presigned-URL pattern — files go directly to R2, not through the Next.js server.
- */
+function formatDpi(dpi: number) {
+  return Number.isInteger(dpi) ? String(dpi) : dpi.toFixed(2)
+}
+
 export function FileUpload({
   apiPath = '/api/media',
   folder,
@@ -53,46 +69,87 @@ export function FileUpload({
   onChange,
   className,
   showPreviews = true,
+  showMaxFilesHint = true,
   disabled = false,
+  imageConstraints,
+  inputLabel = 'Dosya yükle',
 }: FileUploadProps) {
   const [uploads, setUploads] = React.useState<UploadState[]>([])
   const [isDragOver, setIsDragOver] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
-  const canAddMore = value.length + uploads.filter((u) => u.status === 'done').length < maxFiles
+  const acceptedTypes = imageConstraints?.allowedTypes?.length
+    ? imageConstraints.allowedTypes
+    : folder === 'documents'
+      ? DOCUMENT_TYPES
+    : ALLOWED_TYPES
 
-  function validateFile(file: File): string | null {
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return `Desteklenmeyen dosya türü: ${file.type}. Yalnızca JPEG, PNG, WebP, GIF yükleyin.`
+  const hasFileLimit = typeof maxFiles === 'number'
+  const canAddMore =
+    !hasFileLimit ||
+    value.length +
+      uploads.filter(
+        (upload) => upload.status !== 'done' && upload.status !== 'error',
+      ).length <
+      maxFiles
+
+  async function validateFile(file: File): Promise<string | null> {
+    if (!acceptedTypes.includes(file.type)) {
+      return imageConstraints?.allowedTypes ? 'Yalnızca PNG veya JPEG kabul edilir.' : `Desteklenmeyen dosya türü: ${file.type}.`
     }
-    if (file.size > MAX_FILE_SIZE) {
-      return `Dosya boyutu çok büyük. Maksimum 10 MB yükleyebilirsiniz.`
+
+    const maxFileSize = folder === 'documents' ? DOCUMENT_MAX_FILE_SIZE : MAX_FILE_SIZE
+    if (file.size > maxFileSize) {
+      return `Dosya boyutu çok büyük. Maksimum ${Math.round(maxFileSize / 1024 / 1024)} MB yükleyebilirsiniz.`
     }
+
+    if (!imageConstraints) return null
+
+    const metadata = await readImageFileMetadata(file)
+
+    if (
+      imageConstraints.exactWidth !== undefined &&
+      imageConstraints.exactHeight !== undefined &&
+      (metadata.width !== imageConstraints.exactWidth || metadata.height !== imageConstraints.exactHeight)
+    ) {
+      return `Görsel çözünürlüğü tam olarak ${imageConstraints.exactWidth}×${imageConstraints.exactHeight} piksel olmalıdır (yüklenen: ${metadata.width}×${metadata.height}).`
+    }
+
+    if (imageConstraints.minDpi !== undefined || imageConstraints.maxDpi !== undefined) {
+      if (metadata.dpi == null) {
+        return 'Görselin DPI bilgisi okunamadı; 72-100 DPI olarak kaydedilmiş PNG/JPEG yükleyin.'
+      }
+
+      if (
+        (imageConstraints.minDpi !== undefined && metadata.dpi < imageConstraints.minDpi) ||
+        (imageConstraints.maxDpi !== undefined && metadata.dpi > imageConstraints.maxDpi)
+      ) {
+        return `Görsel DPI değeri ${imageConstraints.minDpi} ile ${imageConstraints.maxDpi} arasında olmalıdır (yüklenen: ${formatDpi(metadata.dpi)}).`
+      }
+    }
+
     return null
   }
 
   async function uploadFile(file: File) {
-    const _stateId = `${file.name}-${Date.now()}`
+    const uploadId = crypto.randomUUID()
+    setUploads((prev) => [...prev, { id: uploadId, file, status: 'pending', progress: 0 }])
 
-    setUploads((prev) => [
-      ...prev,
-      { file, status: 'pending', progress: 0 },
-    ])
-
-    const validationError = validateFile(file)
+    const validationError = await validateFile(file)
     if (validationError) {
       setUploads((prev) =>
-        prev.map((u) =>
-          u.file === file ? { ...u, status: 'error', error: validationError } : u,
+        prev.map((upload) =>
+          upload.id === uploadId ? { ...upload, status: 'error', error: validationError } : upload,
         ),
       )
       return
     }
 
     try {
-      // 1. Request presigned URL
       setUploads((prev) =>
-        prev.map((u) => (u.file === file ? { ...u, status: 'uploading', progress: 10 } : u)),
+        prev.map((upload) =>
+          upload.id === uploadId ? { ...upload, status: 'uploading', progress: 10 } : upload,
+        ),
       )
 
       const urlRes = await fetch(apiPath, {
@@ -109,41 +166,51 @@ export function FileUpload({
       const { data } = await urlRes.json()
       const { asset, uploadUrl } = data
 
-      // 2. Upload directly to R2 using presigned URL
       setUploads((prev) =>
-        prev.map((u) => (u.file === file ? { ...u, progress: 40 } : u)),
+        prev.map((upload) => (upload.id === uploadId ? { ...upload, progress: 40 } : upload)),
       )
 
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      })
+      let uploadRes: Response
+      try {
+        uploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        })
+      } catch {
+        throw new Error('Dosya depolama alanına yüklenemedi. R2 yapılandırmasını kontrol edin.')
+      }
 
       if (!uploadRes.ok) throw new Error('Dosya yüklenemedi.')
 
       setUploads((prev) =>
-        prev.map((u) => (u.file === file ? { ...u, status: 'confirming', progress: 80 } : u)),
+        prev.map((upload) =>
+          upload.id === uploadId ? { ...upload, status: 'confirming', progress: 80 } : upload,
+        ),
       )
 
-      // 3. Confirm upload
       const confirmRes = await fetch(`${apiPath}/${asset.id}/confirm`, { method: 'POST' })
-      if (!confirmRes.ok) throw new Error('Yükleme doğrulanamadı.')
-      const { data: confirmedAsset } = await confirmRes.json()
+      const confirmPayload = await confirmRes.json().catch(() => ({}))
+      if (!confirmRes.ok) {
+        throw new Error(confirmPayload.error ?? 'Yükleme doğrulanamadı.')
+      }
+      const confirmedAsset = confirmPayload.data
 
       setUploads((prev) =>
-        prev.map((u) =>
-          u.file === file
-            ? { ...u, status: 'done', progress: 100, asset: confirmedAsset }
-            : u,
+        prev.map((upload) =>
+          upload.id === uploadId
+            ? { ...upload, status: 'done', progress: 100, asset: confirmedAsset }
+            : upload,
         ),
       )
 
       onChange?.([...value, confirmedAsset])
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Yükleme başarısız.'
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Yükleme başarısız.'
       setUploads((prev) =>
-        prev.map((u) => (u.file === file ? { ...u, status: 'error', error: message } : u)),
+        prev.map((upload) =>
+          upload.id === uploadId ? { ...upload, status: 'error', error: message } : upload,
+        ),
       )
     }
   }
@@ -151,79 +218,90 @@ export function FileUpload({
   function handleFiles(files: FileList | File[]) {
     if (disabled) return
     const fileArray = Array.from(files)
-    const remaining = maxFiles - value.length
-    fileArray.slice(0, remaining).forEach((f) => void uploadFile(f))
+    const queue = hasFileLimit ? fileArray.slice(0, Math.max(0, maxFiles - value.length)) : fileArray
+    queue.forEach((file) => void uploadFile(file))
   }
 
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
+  function handleDrop(event: React.DragEvent) {
+    event.preventDefault()
     setIsDragOver(false)
-    handleFiles(e.dataTransfer.files)
+    handleFiles(event.dataTransfer.files)
   }
 
   function removeExisting(assetId: string) {
-    onChange?.(value.filter((a) => a.id !== assetId))
+    onChange?.(value.filter((asset) => asset.id !== assetId))
   }
 
-  function dismissError(file: File) {
-    setUploads((prev) => prev.filter((u) => u.file !== file))
+  function dismissError(uploadId: string) {
+    setUploads((prev) => prev.filter((upload) => upload.id !== uploadId))
   }
 
-  const activeUploads = uploads.filter((u) => u.status !== 'done' && u.status !== 'error')
-  const errorUploads = uploads.filter((u) => u.status === 'error')
+  const activeUploads = uploads.filter((upload) => upload.status !== 'done' && upload.status !== 'error')
+  const errorUploads = uploads.filter((upload) => upload.status === 'error')
 
   return (
     <div className={cn('space-y-3', className)}>
-      {/* Drop zone */}
       {canAddMore && !disabled && (
         <div
           className={cn(
-            'border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
+            'cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors',
             isDragOver
               ? 'border-primary bg-primary/5'
               : 'border-border hover:border-primary/50 hover:bg-muted/30',
           )}
           onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
+          onDragOver={(event) => {
+            event.preventDefault()
+            setIsDragOver(true)
+          }}
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
+          onKeyDown={(event) => event.key === 'Enter' && inputRef.current?.click()}
           aria-label="Dosya yüklemek için tıklayın veya sürükleyin"
         >
-          <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <Upload className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
           <p className="text-sm font-medium">Dosyayı sürükle veya tıkla</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            JPEG, PNG, WebP, GIF — Maks. 10 MB
-            {maxFiles > 1 && ` — En fazla ${maxFiles} dosya`}
+          <p className="mt-1 text-xs text-muted-foreground">
+            {acceptedTypes
+              .map((type) =>
+                type
+                  .replace('image/', '')
+                  .replace('application/pdf', 'PDF')
+                  .replace('application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'DOCX')
+                  .replace('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'XLSX')
+                  .toUpperCase(),
+              )
+              .join(', ')} - Maks. {folder === 'documents' ? '20' : '10'} MB
+            {showMaxFilesHint && hasFileLimit && maxFiles > 1 && ` - En fazla ${maxFiles} dosya`}
           </p>
           <input
             ref={inputRef}
             type="file"
-            accept={ALLOWED_TYPES.join(',')}
-            multiple={maxFiles > 1}
+            accept={acceptedTypes.join(',')}
+            multiple={!hasFileLimit || maxFiles > 1}
             className="sr-only"
-            onChange={(e) => e.target.files && handleFiles(e.target.files)}
+            aria-label={inputLabel}
+            onChange={(event) => event.target.files && handleFiles(event.target.files)}
           />
         </div>
       )}
 
-      {/* Existing assets */}
       {showPreviews && value.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {value.map((asset) => (
-            <div key={asset.id} className="relative group w-20 h-20">
+            <div key={asset.id} className="group relative h-20 w-20">
               <img
-                src={asset.url}
+                src={normalizeMediaDisplayUrl(asset.url)}
                 alt={asset.originalName ?? 'Yüklenen görsel'}
-                className="w-full h-full object-cover rounded-md border border-border"
+                className="h-full w-full rounded-md border border-border object-cover"
               />
               {!disabled && (
                 <button
                   type="button"
                   onClick={() => removeExisting(asset.id)}
-                  className="absolute -top-1.5 -right-1.5 h-5 w-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
                   aria-label="Görseli kaldır"
                 >
                   <X className="h-3 w-3" />
@@ -234,47 +312,45 @@ export function FileUpload({
         </div>
       )}
 
-      {/* Active upload progress */}
       {activeUploads.length > 0 && (
         <div className="space-y-2">
-          {activeUploads.map((u) => (
-            <div key={u.file.name} className="flex items-center gap-3 text-sm">
-              {u.status === 'uploading' || u.status === 'confirming' ? (
-                <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+          {activeUploads.map((upload) => (
+            <div key={upload.id} className="flex items-center gap-3 text-sm">
+              {upload.status === 'uploading' || upload.status === 'confirming' ? (
+                <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-primary" />
               ) : (
-                <ImageIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <ImageIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
               )}
-              <div className="flex-1 min-w-0">
-                <p className="truncate text-xs">{u.file.name}</p>
-                <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs">{upload.file.name}</p>
+                <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted">
                   <div
-                    className="h-full bg-primary transition-all duration-300 rounded-full"
-                    style={{ width: `${u.progress}%` }}
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{ width: `${upload.progress}%` }}
                   />
                 </div>
               </div>
-              <span className="text-xs text-muted-foreground flex-shrink-0">{u.progress}%</span>
+              <span className="flex-shrink-0 text-xs text-muted-foreground">{upload.progress}%</span>
             </div>
           ))}
         </div>
       )}
 
-      {/* Errors */}
       {errorUploads.length > 0 && (
         <div className="space-y-1">
-          {errorUploads.map((u) => (
+          {errorUploads.map((upload) => (
             <div
-              key={u.file.name}
-              className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 rounded-md px-3 py-2"
+              key={upload.id}
+              className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive"
             >
-              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <span className="font-medium">{u.file.name}: </span>
-                <span>{u.error}</span>
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <span className="font-medium">{upload.file.name}: </span>
+                <span>{upload.error}</span>
               </div>
               <button
                 type="button"
-                onClick={() => dismissError(u.file)}
+                onClick={() => dismissError(upload.id)}
                 className="flex-shrink-0 hover:text-destructive/70"
               >
                 <X className="h-3 w-3" />

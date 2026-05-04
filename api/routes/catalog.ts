@@ -86,12 +86,23 @@ export async function createProduct(req: NextRequest, sellerId: string) {
 export async function listProductsForAdmin(req: NextRequest) {
   try {
     const url = new URL(req.url)
-    const status = url.searchParams.get('status') as import('@prisma/client').ProductStatus | null
+    const status = url.searchParams.getAll('status')
+      .flatMap((value) => value.split(','))
+      .map((value) => value.trim())
+      .filter(Boolean) as import('@prisma/client').ProductStatus[]
+    const query = url.searchParams.get('q')?.trim() ?? undefined
+    const sellerId = url.searchParams.get('seller')?.trim() ?? undefined
+    const from = url.searchParams.get('from')?.trim()
+    const to = url.searchParams.get('to')?.trim()
     const skip = Number(url.searchParams.get('skip') ?? '0')
     const take = Number(url.searchParams.get('take') ?? '30')
     const svc = getCatalogService()
     const products = await svc.listProductsForAdmin({
-      ...(status !== null ? { status } : {}),
+      ...(status.length > 0 ? { status } : {}),
+      ...(query ? { query } : {}),
+      ...(sellerId ? { sellerId } : {}),
+      ...(from ? { from: new Date(`${from}T00:00:00.000Z`) } : {}),
+      ...(to ? { to: new Date(`${to}T23:59:59.999Z`) } : {}),
       skip,
       take,
     })

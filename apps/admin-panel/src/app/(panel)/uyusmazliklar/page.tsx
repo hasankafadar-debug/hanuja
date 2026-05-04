@@ -1,41 +1,55 @@
 import type { Metadata } from 'next'
+import type { DisputeStatus } from '@prisma/client'
 import Link from 'next/link'
 import { Button, StatusBadge, PageHeader } from '@hanuja/ui'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { createDisputeService } from '@hanuja/api/services/dispute.service'
+import { AdminListControls } from '@/components/admin-list-controls'
+import { UrlPagination } from '@/components/url-pagination'
+import { buildDateRange, getPagination, getPrimaryStatusValue, parseAdminListParams, type RawAdminSearchParams } from '@/lib/admin-list-params'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = { title: 'Uyuşmazlıklar' }
 
-export default async function DisputesAdminPage() {
+const STATUS_OPTIONS = [
+  { value: 'open', label: 'Açık' },
+  { value: 'under_review', label: 'İncelemede' },
+  { value: 'resolved_for_customer', label: 'Müşteri lehine' },
+  { value: 'resolved_for_seller', label: 'Satıcı lehine' },
+]
+
+export default async function DisputesAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<RawAdminSearchParams>
+}) {
   await getAdminSession()
 
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const params = parseAdminListParams(resolvedSearchParams, { pageSize: 20 })
+
   const prisma = createPrismaForRoute()
-  const disputes = await prisma.dispute.findMany({
-    include: {
-      order: {
-        include: {
-          customer: { select: { name: true } },
-          lines: { select: { sellerId: true }, take: 1 },
-        },
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
+  const service = createDisputeService({ prisma })
+  const result = await service.listForAdmin({
+    ...(params.status.length > 0 ? { status: params.status as DisputeStatus[] } : {}),
+    ...(params.q ? { query: params.q } : {}),
+    ...(params.seller ? { sellerId: params.seller } : {}),
+    ...buildDateRange(params),
+    ...getPagination(params),
   })
 
-  // Resolve seller display names via sellerIds from order lines
-  const sellerIds = [...new Set(disputes.flatMap((d) => d.order?.lines.map((l) => l.sellerId) ?? []))]
-  const sellers = sellerIds.length
-    ? await prisma.seller.findMany({ where: { id: { in: sellerIds } }, select: { id: true, displayName: true } })
+  const totalPages = Math.max(1, Math.ceil(result.total / params.pageSize))
+  const sellerIds = [...new Set(result.rows.flatMap((dispute) => dispute.order?.lines.map((line) => line.sellerId) ?? []))]
+  const sellers = sellerIds.length > 0
+    ? await prisma.seller.findMany({
+        where: { id: { in: sellerIds } },
+        select: { id: true, displayName: true },
+      })
     : []
-  const sellerMap = new Map(sellers.map((s) => [s.id, s.displayName]))
-
-  const openCount = disputes.filter((d) => d.status === 'open' || d.status === 'under_review').length
-
-  const fmt = (d: Date) =>
-    d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })
+  const sellerMap = new Map(sellers.map((seller) => [seller.id, seller.displayName]))
+  const openCount = await prisma.dispute.count({ where: { status: { in: ['open', 'under_review'] } } })
 
   return (
     <div className="space-y-6">
@@ -47,57 +61,70 @@ export default async function DisputesAdminPage() {
       >
         <strong style={{ color: 'var(--color-primary)' }}>Önemli:</strong>{' '}
         <span style={{ color: 'var(--color-muted-fg)' }}>
-          Açık uyuşmazlıklar ilgili siparişin hakedişini bloke eder.
-          Müşteri lehine çözümde ödeme iadesi tetiklenir; satıcı lehine çözümde hakediş serbest kalır.
+          Açık uyuşmazlıklar ilgili siparişin hakedişini bloke eder. Müşteri lehine çözümde ödeme iadesi
+          tetiklenir; satıcı lehine çözümde hakediş serbest kalır.
         </span>
       </div>
 
+      <AdminListControls
+        searchValue={params.q}
+        searchPlaceholder="Uyuşmazlık, sipariş veya müşteri ara"
+        statusValue={getPrimaryStatusValue(params.status)}
+        statusOptions={STATUS_OPTIONS}
+        sellerValue={params.seller}
+        sellerPlaceholder="Satıcı ID"
+        fromValue={params.from}
+        toValue={params.to}
+        pageSize={params.pageSize}
+        showSellerFilter
+      />
+
       <div
-        className="rounded-xl border overflow-x-auto"
+        className="overflow-x-auto rounded-xl border"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
-        <table className="w-full text-sm whitespace-nowrap">
+        <table className="w-full whitespace-nowrap text-sm">
           <thead style={{ backgroundColor: 'var(--color-muted)' }}>
             <tr>
-              {['Uyuşmazlık', 'Sipariş', 'Satıcı', 'Müşteri', 'Sebep', 'Açılış', 'Durum', ''].map((h) => (
+              {['Uyuşmazlık', 'Sipariş', 'Satıcı', 'Müşteri', 'Sebep', 'Açılış', 'Durum', ''].map((heading) => (
                 <th
-                  key={h}
+                  key={heading}
                   className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
                   style={{ color: 'var(--color-muted-fg)' }}
                 >
-                  {h}
+                  {heading}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {disputes.length === 0 && (
+            {result.rows.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
                   Henüz uyuşmazlık yok.
                 </td>
               </tr>
             )}
-            {disputes.map((d) => {
-              const sellerId = d.order?.lines[0]?.sellerId
+            {result.rows.map((dispute) => {
+              const sellerId = dispute.order?.lines[0]?.sellerId
               const sellerName = sellerId ? (sellerMap.get(sellerId) ?? '—') : '—'
-              const customerName = d.order?.customer?.name ?? '—'
+              const customerName = dispute.order?.customer?.name ?? '—'
               return (
                 <tr
-                  key={d.id}
+                  key={dispute.id}
                   className="border-t hover:bg-[var(--color-muted)]"
                   style={{ borderColor: 'var(--color-border)' }}
                 >
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                    {d.id.slice(0, 8)}…
+                    {dispute.id.slice(0, 8)}…
                   </td>
                   <td className="px-4 py-3">
                     <Link
-                      href={`/siparisler/${d.orderId}`}
-                      className="hover:underline font-medium"
+                      href={`/siparisler/${dispute.orderId}`}
+                      className="font-medium hover:underline"
                       style={{ color: 'var(--color-accent)' }}
                     >
-                      {d.orderId.slice(0, 10)}…
+                      {dispute.orderId.slice(0, 10)}…
                     </Link>
                   </td>
                   <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
@@ -107,20 +134,24 @@ export default async function DisputesAdminPage() {
                     {customerName}
                   </td>
                   <td
-                    className="px-4 py-3 max-w-[180px] truncate"
+                    className="max-w-[180px] px-4 py-3 truncate"
                     style={{ color: 'var(--color-muted-fg)' }}
-                    title={d.reason}
+                    title={dispute.reason}
                   >
-                    {d.reason}
+                    {dispute.reason}
                   </td>
                   <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                    {fmt(d.createdAt)}
+                    {dispute.createdAt.toLocaleDateString('tr-TR', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={d.status} />
+                    <StatusBadge status={dispute.status} />
                   </td>
                   <td className="px-4 py-3">
-                    <Link href={`/uyusmazliklar/${d.id}`}>
+                    <Link href={`/uyusmazliklar/${dispute.id}`}>
                       <Button size="sm" variant="outline">İncele</Button>
                     </Link>
                   </td>
@@ -129,6 +160,10 @@ export default async function DisputesAdminPage() {
             })}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex justify-end">
+        <UrlPagination page={params.page} totalPages={totalPages} />
       </div>
     </div>
   )

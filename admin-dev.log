@@ -1,0 +1,171 @@
+
+> admin-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\admin-panel
+> next dev --port 3002
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3002
+   - Network:      http://172.21.0.1:3002
+   - Environments: .env.local
+
+ ✓ Starting...
+ ○ Compiling /instrumentation ...
+ ✓ Compiled /instrumentation in 1141ms (31 modules)
+ ✓ Ready in 3.7s
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 5.8s (829 modules)
+ GET /giris 200 in 6423ms
+ GET /giris 200 in 145ms
+ GET /giris 200 in 205ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 4.3s (1556 modules)
+ GET /giris 200 in 892ms
+2026-04-20T11:41:39.438Z ERROR [Better Auth]: PrismaClientInitializationError [Error [PrismaClientInitializationError]: 
+Invalid `prisma.user.findFirst()` invocation:
+
+
+Authentication failed against database server, the provided database credentials for `USER` are not valid.
+
+Please make sure to provide valid database credentials for the database server at the configured address.] {
+  clientVersion: '6.19.3',
+  errorCode: undefined,
+  retryable: undefined
+}
+# SERVER_ERROR:  [Error [PrismaClientInitializationError]: 
+Invalid `prisma.user.findFirst()` invocation:
+
+
+Authentication failed against database server, the provided database credentials for `USER` are not valid.
+
+Please make sure to provide valid database credentials for the database server at the configured address.] {
+  clientVersion: '6.19.3',
+  errorCode: undefined,
+  retryable: undefined
+}
+ POST /api/auth/sign-in/email 500 in 6592ms
+ GET /giris 200 in 271ms
+2026-04-20T12:18:18.686Z ERROR [Better Auth]: PrismaClientInitializationError [Error [PrismaClientInitializationError]: 
+Invalid `prisma.user.findFirst()` invocation:
+
+
+Authentication failed against database server, the provided database credentials for `USER` are not valid.
+
+Please make sure to provide valid database credentials for the database server at the configured address.] {
+  clientVersion: '6.19.3',
+  errorCode: undefined,
+  retryable: undefined
+}
+# SERVER_ERROR:  [Error [PrismaClientInitializationError]: 
+Invalid `prisma.user.findFirst()` invocation:
+
+
+Authentication failed against database server, the provided database credentials for `USER` are not valid.
+
+Please make sure to provide valid database credentials for the database server at the configured address.] {
+  clientVersion: '6.19.3',
+  errorCode: undefined,
+  retryable: undefined
+}
+ POST /api/auth/sign-in/email 500 in 337ms
+2026-04-20T12:18:33.163Z ERROR [Better Auth]: PrismaClientInitializationError [Error [PrismaClientInitializationError]: 
+Invalid `prisma.user.findFirst()` invocation:
+
+
+Authentication failed against database server, the provided database credentials for `USER` are not valid.
+
+Please make sure to provide valid database credentials for the database server at the configured address.] {
+  clientVersion: '6.19.3',
+  errorCode: undefined,
+  retryable: undefined
+}
+# SERVER_ERROR:  [Error [PrismaClientInitializationError]: 
+Invalid `prisma.user.findFirst()` invocation:
+
+
+Authentication failed against database server, the provided database credentials for `USER` are not valid.
+
+Please make sure to provide valid database credentials for the database server at the configured address.] {
+  clientVersion: '6.19.3',
+  errorCode: undefined,
+  retryable: undefined
+}
+ POST /api/auth/sign-in/email 500 in 258ms
+2026-04-20T12:18:52.583Z ERROR [Better Auth]: PrismaClientInitializationError [Error [PrismaClientInitializationError]: 
+Invalid `prisma.user.findFirst()` invocation:
+
+
+Authentication failed against database server, the provided database credentials for `USER` are not valid.
+
+Please make sure to provide valid database credentials for the database server at the configured address.] {
+  clientVersion: '6.19.3',
+  errorCode: undefined,
+  retryable: undefined
+}
+# SERVER_ERROR:  [Error [PrismaClientInitializationError]: 
+Invalid `prisma.user.findFirst()` invocation:
+
+
+Authentication failed against database server, the provided database credentials for `USER` are not valid.
+
+Please make sure to provide valid database credentials for the database server at the configured address.] {
+  clientVersion: '6.19.3',
+  errorCode: undefined,
+  retryable: undefined
+}
+ POST /api/auth/sign-in/email 500 in 295ms
+ ✓ Compiled in 925ms (321 modules)
+ ✓ Compiled in 810ms (321 modules)
+ GET /giris 200 in 288ms
+ GET /giris 200 in 67ms
+ ✓ Compiled in 1649ms (829 modules)
+ GET /giris 200 in 320ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 1714ms (676 modules)
+ GET /giris 404 in 1601ms
+ GET /giris 404 in 36ms
+ GET /giris 404 in 201ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 1927ms (828 modules)
+ GET /giris 200 in 1877ms
+ GET /giris 200 in 52ms
+   Reload env: .env.local
+ ✓ Compiled in 557ms (827 modules)
+ GET /giris 200 in 166ms
+ ✓ Compiled in 560ms (321 modules)
+ GET /giris 200 in 105ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 1777ms (1235 modules)
+[admin-auth] Database readiness check failed. {
+  url: 'http://localhost:3002/api/auth/sign-in/email',
+  message: '\n' +
+    'Invalid `prisma.$queryRaw()` invocation:\n' +
+    '\n' +
+    '\n' +
+    'Authentication failed against database server, the provided database credentials for `USER` are not valid.\n' +
+    '\n' +
+    'Please make sure to provide valid database credentials for the database server at the configured address.'
+}
+ POST /api/auth/sign-in/email 503 in 2446ms
+ GET /giris 200 in 795ms
+[admin-auth] Database readiness check failed. {
+  url: 'http://localhost:3002/api/auth/sign-in/email',
+  message: '\n' +
+    'Invalid `prisma.$queryRaw()` invocation:\n' +
+    '\n' +
+    '\n' +
+    'Authentication failed against database server, the provided database credentials for `USER` are not valid.\n' +
+    '\n' +
+    'Please make sure to provide valid database credentials for the database server at the configured address.'
+}
+ POST /api/auth/sign-in/email 503 in 174ms
+[admin-auth] Database readiness check failed. {
+  url: 'http://localhost:3002/api/auth/sign-in/email',
+  message: '\n' +
+    'Invalid `prisma.$queryRaw()` invocation:\n' +
+    '\n' +
+    '\n' +
+    'Authentication failed against database server, the provided database credentials for `USER` are not valid.\n' +
+    '\n' +
+    'Please make sure to provide valid database credentials for the database server at the configured address.'
+}
+ POST /api/auth/sign-in/email 503 in 86ms
+^C ELIFECYCLE  Command failed with exit code 3221225786.

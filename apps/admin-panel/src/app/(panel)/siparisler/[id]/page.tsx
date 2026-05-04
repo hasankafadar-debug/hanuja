@@ -1,15 +1,18 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Button, StatusBadge, PageHeader, Separator } from '@hanuja/ui'
-import { ArrowLeft, AlertTriangle } from 'lucide-react'
+import { Button, LegalDocumentDialog, PageHeader, Separator, StatusBadge } from '@hanuja/ui'
+import { AlertTriangle, ArrowLeft, Download, FileText } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { AdminOrderActions } from '@/components/admin-order-actions'
 
 export const dynamic = 'force-dynamic'
 
-interface Props { params: Promise<{ id: string }> }
+interface Props {
+  params: Promise<{ id: string }>
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
@@ -18,7 +21,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 const TWENTY_DAYS_MS = 20 * 24 * 60 * 60 * 1000
 
-/** Status'ları iptal/tamamlanmış olarak kabul eden liste */
 const TERMINAL_STATUSES = new Set([
   'cancelled_by_customer',
   'cancelled_by_admin',
@@ -29,14 +31,12 @@ const TERMINAL_STATUSES = new Set([
   'dispute_resolved',
 ])
 
-/** Teslim onayı için uygun durumlar */
 const DELIVERY_CONFIRMABLE = new Set([
   'delivered',
   'delivery_confirmation_pending',
   'shipped',
 ])
 
-/** Bloke edilebilir payout durumları */
 const BLOCKABLE_PAYOUT_STATUSES = new Set(['hold_active', 'payout_ready', 'payout_scheduled'])
 
 export default async function AdminOrderDetailPage({ params }: Props) {
@@ -59,6 +59,13 @@ export default async function AdminOrderDetailPage({ params }: Props) {
       payments: { orderBy: { createdAt: 'desc' } },
       shipments: { orderBy: { createdAt: 'desc' }, take: 1 },
       statusHistory: { orderBy: { createdAt: 'asc' } },
+      legalSnapshot: true,
+      sellerInvoices: {
+        include: {
+          seller: { select: { id: true, displayName: true, slug: true } },
+        },
+        orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
+      },
       payouts: { orderBy: { createdAt: 'desc' } },
       penalties: { orderBy: { createdAt: 'desc' } },
     },
@@ -68,26 +75,19 @@ export default async function AdminOrderDetailPage({ params }: Props) {
 
   const total =
     typeof order.totalAmount === 'object' && 'toNumber' in order.totalAmount
-      ? (order.totalAmount as { toNumber(): number }).toNumber()
+      ? order.totalAmount.toNumber()
       : Number(order.totalAmount)
 
   const isTerminal = TERMINAL_STATUSES.has(order.status)
   const canConfirmDelivery = DELIVERY_CONFIRMABLE.has(order.status)
-  const hasEftPendingPayment = order.payments.some(
-    (p) => p.method === 'eft' && p.status === 'pending',
-  )
-  const hasBlockablePayout = order.payouts.some((p) =>
-    BLOCKABLE_PAYOUT_STATUSES.has(p.status),
-  )
+  const hasEftPendingPayment = order.payments.some((payment) => payment.method === 'eft' && payment.status === 'pending')
+  const hasBlockablePayout = order.payouts.some((payout) => BLOCKABLE_PAYOUT_STATUSES.has(payout.status))
   const canCancel = !isTerminal
 
-  // 20 günlük risk hesabı
   const ageMs = Date.now() - new Date(order.createdAt).getTime()
   const isDelayRisk =
     ageMs > TWENTY_DAYS_MS &&
-    ['seller_accepted', 'preparing', 'awaiting_shipment', 'seller_queue_ready'].includes(
-      order.status,
-    )
+    ['seller_accepted', 'preparing', 'awaiting_shipment', 'seller_queue_ready'].includes(order.status)
 
   const shipmentDeadline = order.paymentConfirmedAt
     ? new Date(new Date(order.paymentConfirmedAt).getTime() + TWENTY_DAYS_MS).toLocaleDateString(
@@ -98,13 +98,23 @@ export default async function AdminOrderDetailPage({ params }: Props) {
 
   const payment = order.payments[0] ?? null
   const shipment = order.shipments[0] ?? null
-
-  // Satıcı adı — ilk line'dan
   const sellerName = order.lines[0]?.seller?.displayName ?? '—'
   const sellerId = order.lines[0]?.seller?.id ?? null
+  const sellerLineTotal = order.lines
+    .filter((line) => line.seller?.id === sellerId)
+    .reduce((sum, line) => {
+      const value =
+        typeof line.totalPrice === 'object' && 'toNumber' in line.totalPrice
+          ? line.totalPrice.toNumber()
+          : Number(line.totalPrice)
+      return sum + value
+    }, 0)
+  const canApplyManualPenalty = sellerId !== null && order.penalties.length === 0
+  const distanceSalesDownloadHref = `/api/admin/orders/${order.id}/contracts/distance-sales`
+  const preInformationDownloadHref = `/api/admin/orders/${order.id}/contracts/pre-information`
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="max-w-3xl space-y-6">
       <div>
         <Link
           href="/siparisler"
@@ -115,7 +125,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         </Link>
         <div className="flex items-center justify-between">
           <PageHeader
-            title={`Sipariş #${order.id.slice(-8).toUpperCase()}`}
+            title={`Sipariş ${formatOrderDisplayNumber(order.publicNumber, order.id)}`}
             description={new Date(order.createdAt).toLocaleDateString('tr-TR', {
               day: 'numeric',
               month: 'long',
@@ -126,38 +136,30 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Gecikme uyarısı */}
-      {isDelayRisk && shipmentDeadline && (
+      {isDelayRisk && shipmentDeadline ? (
         <div
           className="flex items-start gap-3 rounded-xl border p-4"
           style={{ borderColor: '#fca5a5', backgroundColor: '#fff5f5' }}
         >
-          <AlertTriangle
-            className="h-5 w-5 mt-0.5 shrink-0"
-            style={{ color: 'var(--color-destructive)' }}
-          />
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" style={{ color: 'var(--color-destructive)' }} />
           <div>
             <p className="text-sm font-semibold" style={{ color: '#7f1d1d' }}>
-              Kargo Sınırı Aşımı Riski: {shipmentDeadline}
+              Kargo sınırı aşımı riski: {shipmentDeadline}
             </p>
-            <p className="text-xs mt-0.5" style={{ color: '#7f1d1d' }}>
+            <p className="mt-0.5 text-xs" style={{ color: '#7f1d1d' }}>
               20 gün taahhüdü aşılırsa otomatik ceza değerlendirmesi başlar.
             </p>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="grid gap-5 sm:grid-cols-2">
-        {/* Ürünler & Finans */}
         <section
           className="rounded-xl border p-5"
-          style={{
-            borderColor: 'var(--color-border)',
-            backgroundColor: 'var(--color-surface)',
-          }}
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
           <h2 className="mb-4 font-semibold" style={{ color: 'var(--color-primary)' }}>
-            Ürünler & Finans
+            Ürünler ve Finans
           </h2>
           <div className="space-y-2">
             {order.lines.map((line) => (
@@ -168,7 +170,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                 <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
                   ₺
                   {(typeof line.totalPrice === 'object'
-                    ? (line.totalPrice as { toNumber(): number }).toNumber()
+                    ? line.totalPrice.toNumber()
                     : Number(line.totalPrice)
                   ).toLocaleString('tr-TR')}
                 </span>
@@ -180,24 +182,14 @@ export default async function AdminOrderDetailPage({ params }: Props) {
 
           <div className="space-y-1 text-sm">
             {[
+              { label: 'Toplam tutar', value: `₺${total.toLocaleString('tr-TR')}` },
               {
-                label: 'Toplam Tutar',
-                value: `₺${total.toLocaleString('tr-TR')}`,
+                label: 'Ödeme yöntemi',
+                value: payment ? (payment.method === 'eft' ? 'Havale / EFT' : 'Kredi kartı') : '—',
               },
+              { label: 'Ödeme durumu', value: payment?.status ?? '—' },
               {
-                label: 'Ödeme Yöntemi',
-                value: payment
-                  ? payment.method === 'eft'
-                    ? 'Havale / EFT'
-                    : 'Kredi Kartı'
-                  : '—',
-              },
-              {
-                label: 'Ödeme Durumu',
-                value: payment?.status ?? '—',
-              },
-              {
-                label: 'Ödeme Onayı',
+                label: 'Ödeme onayı',
                 value: order.paymentConfirmedAt
                   ? new Date(order.paymentConfirmedAt).toLocaleString('tr-TR', {
                       day: 'numeric',
@@ -222,12 +214,9 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                   sellerName
                 ),
               },
-              {
-                label: 'Müşteri',
-                value: order.customer.name ?? order.customer.email,
-              },
+              { label: 'Müşteri', value: order.customer.name ?? order.customer.email },
             ].map(({ label, value }) => (
-              <div key={label} className="flex justify-between">
+              <div key={label} className="flex justify-between gap-4">
                 <span style={{ color: 'var(--color-muted-fg)' }}>{label}</span>
                 <span style={{ color: 'var(--color-primary)' }}>{value}</span>
               </div>
@@ -235,13 +224,9 @@ export default async function AdminOrderDetailPage({ params }: Props) {
           </div>
         </section>
 
-        {/* Olay Geçmişi */}
         <section
           className="rounded-xl border p-5"
-          style={{
-            borderColor: 'var(--color-border)',
-            backgroundColor: 'var(--color-surface)',
-          }}
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
           <h2 className="mb-4 font-semibold" style={{ color: 'var(--color-primary)' }}>
             Olay Geçmişi
@@ -251,28 +236,28 @@ export default async function AdminOrderDetailPage({ params }: Props) {
               Kayıt yok.
             </p>
           ) : (
-            <ol className="space-y-3 max-h-72 overflow-y-auto pr-1">
-              {order.statusHistory.map((e, i) => (
-                <li key={e.id} className="flex gap-3 text-sm">
+            <ol className="max-h-72 space-y-3 overflow-y-auto pr-1">
+              {order.statusHistory.map((event, index) => (
+                <li key={event.id} className="flex gap-3 text-sm">
                   <span
                     className="mt-1 h-2 w-2 shrink-0 rounded-full"
                     style={{
                       backgroundColor:
-                        i === order.statusHistory.length - 1
+                        index === order.statusHistory.length - 1
                           ? 'var(--color-accent)'
                           : 'var(--color-muted-fg)',
                     }}
                   />
                   <div>
-                    <p style={{ color: 'var(--color-primary)' }}>{e.toStatus}</p>
+                    <p style={{ color: 'var(--color-primary)' }}>{event.toStatus}</p>
                     <p style={{ color: 'var(--color-muted-fg)' }}>
-                      {new Date(e.createdAt).toLocaleString('tr-TR', {
+                      {new Date(event.createdAt).toLocaleString('tr-TR', {
                         day: 'numeric',
                         month: 'short',
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
-                      {e.note ? ` · ${e.note}` : ''}
+                      {event.note ? ` · ${event.note}` : ''}
                     </p>
                   </div>
                 </li>
@@ -282,22 +267,18 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         </section>
       </div>
 
-      {/* Kargo */}
-      {shipment && (
+      {shipment ? (
         <section
           className="rounded-xl border p-5"
-          style={{
-            borderColor: 'var(--color-border)',
-            backgroundColor: 'var(--color-surface)',
-          }}
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
           <h2 className="mb-3 font-semibold" style={{ color: 'var(--color-primary)' }}>
             Kargo Bilgisi
           </h2>
           <div className="grid grid-cols-2 gap-2 text-sm">
             {[
-              { label: 'Kargo Firması', value: shipment.cargoProvider ?? '—' },
-              { label: 'Takip No', value: shipment.trackingNumber ?? '—' },
+              { label: 'Kargo firması', value: shipment.cargoProvider ?? '—' },
+              { label: 'Takip no', value: shipment.trackingNumber ?? '—' },
               { label: 'Durum', value: shipment.status },
             ].map(({ label, value }) => (
               <div key={label}>
@@ -311,16 +292,12 @@ export default async function AdminOrderDetailPage({ params }: Props) {
             ))}
           </div>
         </section>
-      )}
+      ) : null}
 
-      {/* Teslimat Adresi */}
-      {order.address && (
+      {order.address ? (
         <section
           className="rounded-xl border p-5"
-          style={{
-            borderColor: 'var(--color-border)',
-            backgroundColor: 'var(--color-surface)',
-          }}
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
           <h2 className="mb-2 font-semibold" style={{ color: 'var(--color-primary)' }}>
             Teslimat Adresi
@@ -335,16 +312,93 @@ export default async function AdminOrderDetailPage({ params }: Props) {
             {order.address.district} / {order.address.city}
           </p>
         </section>
-      )}
+      ) : null}
 
-      {/* Payout durumu */}
-      {order.payouts.length > 0 && (
+      {(order.legalSnapshot || order.sellerInvoices.length > 0) ? (
         <section
           className="rounded-xl border p-5"
-          style={{
-            borderColor: 'var(--color-border)',
-            backgroundColor: 'var(--color-surface)',
-          }}
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <div className="mb-4 flex items-center gap-2">
+            <FileText className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+              Belgeler
+            </h2>
+          </div>
+
+          {order.legalSnapshot ? (
+            <div className="mb-4 flex flex-wrap gap-2">
+              <LegalDocumentDialog
+                title="Mesafeli Satış Sözleşmesi"
+                html={order.legalSnapshot.distanceSalesHtml}
+                triggerLabel="Mesafeli Satış Sözleşmesi"
+                triggerVariant="outline"
+                downloadHref={distanceSalesDownloadHref}
+              />
+              <LegalDocumentDialog
+                title="Ön Bilgilendirme Formu"
+                html={order.legalSnapshot.preInformationHtml}
+                triggerLabel="Ön Bilgilendirme Formu"
+                triggerVariant="outline"
+                downloadHref={preInformationDownloadHref}
+              />
+            </div>
+          ) : null}
+
+          {order.sellerInvoices.length > 0 ? (
+            <div className="space-y-3">
+              {order.sellerInvoices.map((invoice) => {
+                const viewHref = `/api/admin/orders/${order.id}/invoices/${invoice.sellerId}`
+                const downloadHref = `${viewHref}?download=1`
+                const uploadedAt = new Date(invoice.uploadedAt).toLocaleDateString('tr-TR', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+
+                return (
+                  <div
+                    key={invoice.id}
+                    className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                        {invoice.seller.displayName}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                        {invoice.fileName} · {uploadedAt}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button asChild variant="outline" size="sm">
+                        <a href={viewHref}>Görüntüle</a>
+                      </Button>
+                      <Button asChild variant="outline" size="sm">
+                        <a href={downloadHref}>
+                          <Download className="h-4 w-4" />
+                          İndir
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+              Satıcı faturası henüz yüklenmedi.
+            </p>
+          )}
+        </section>
+      ) : null}
+
+      {order.payouts.length > 0 ? (
+        <section
+          className="rounded-xl border p-5"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
           <h2 className="mb-3 font-semibold" style={{ color: 'var(--color-primary)' }}>
             Hakediş Durumu
@@ -353,7 +407,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
             {order.payouts.map((payout) => {
               const net =
                 typeof payout.netAmount === 'object'
-                  ? (payout.netAmount as { toNumber(): number }).toNumber()
+                  ? payout.netAmount.toNumber()
                   : Number(payout.netAmount)
               return (
                 <div key={payout.id} className="flex justify-between">
@@ -371,15 +425,40 @@ export default async function AdminOrderDetailPage({ params }: Props) {
             })}
           </div>
         </section>
-      )}
+      ) : null}
 
-      {/* Admin İşlemleri */}
+      {order.penalties.length > 0 ? (
+        <section
+          className="rounded-xl border p-5"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <h2 className="mb-3 font-semibold" style={{ color: 'var(--color-primary)' }}>
+            Ceza Kayıtları
+          </h2>
+          <div className="space-y-2 text-sm">
+            {order.penalties.map((penalty) => {
+              const amount =
+                typeof penalty.penaltyAmount === 'object'
+                  ? penalty.penaltyAmount.toNumber()
+                  : Number(penalty.penaltyAmount)
+              return (
+                <div key={penalty.id} className="flex justify-between">
+                  <span style={{ color: 'var(--color-muted-fg)' }}>
+                    {penalty.reason} · {penalty.status}
+                  </span>
+                  <span className="font-medium" style={{ color: 'var(--color-destructive)' }}>
+                    ₺{amount.toLocaleString('tr-TR')}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
+
       <section
         className="rounded-xl border p-5"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-        }}
+        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         <h2 className="mb-4 font-semibold" style={{ color: 'var(--color-primary)' }}>
           Admin İşlemleri
@@ -390,6 +469,13 @@ export default async function AdminOrderDetailPage({ params }: Props) {
           hasEftPendingPayment={hasEftPendingPayment}
           hasBlockablePayout={hasBlockablePayout}
           canCancel={canCancel}
+          manualPenalty={canApplyManualPenalty && sellerId
+            ? {
+                sellerId,
+                sellerName,
+                defaultAmount: (sellerLineTotal * 0.2).toFixed(2),
+              }
+            : null}
         />
         <p className="mt-3 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
           Tüm admin işlemleri denetim günlüğüne kaydedilir.

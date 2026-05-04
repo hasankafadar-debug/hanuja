@@ -1,0 +1,255 @@
+{
+  "generatedAt": "2026-04-28T20:38:14.063Z",
+  "customerCheckout": {
+    "submitVisible": false,
+    "orderPlaced": false,
+    "finalUrl": "http://localhost:3000/odeme"
+  },
+  "seller": [
+    {
+      "route": "/dashboard",
+      "finalUrl": "http://localhost:3001/dashboard",
+      "status": 200,
+      "h1": "Kontrol Paneli",
+      "heading2": "Kalite Metrikleri",
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/siparisler",
+      "finalUrl": "http://localhost:3001/siparisler",
+      "status": 200,
+      "h1": "Siparişler",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/urunler",
+      "finalUrl": "http://localhost:3001/urunler",
+      "status": 200,
+      "h1": "Ürünlerim",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/urunler/yeni",
+      "finalUrl": "http://localhost:3001/urunler/yeni",
+      "status": 200,
+      "h1": "Yeni Ürün Ekle",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/odemeler",
+      "finalUrl": "http://localhost:3001/odemeler",
+      "status": 200,
+      "h1": null,
+      "heading2": "Bir sorun oluştu",
+      "errorPage": true,
+      "loginRedirect": false
+    },
+    {
+      "route": "/odemeler/muhasebe-ekstresi",
+      "finalUrl": "http://localhost:3001/odemeler/muhasebe-ekstresi",
+      "status": 200,
+      "h1": "Muhasebe Ekstresi",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/kargolar",
+      "finalUrl": "http://localhost:3001/kargolar",
+      "status": 200,
+      "h1": "Kargolar",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/iadeler",
+      "finalUrl": "http://localhost:3001/iadeler",
+      "status": 200,
+      "h1": "İadeler",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/indirimler",
+      "finalUrl": "http://localhost:3001/indirimler",
+      "status": 200,
+      "h1": "İndirimler",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/medya",
+      "finalUrl": "http://localhost:3001/medya",
+      "status": 200,
+      "h1": "Medya Havuzu",
+      "heading2": "Yeni Görsel Yükle",
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/destek",
+      "finalUrl": "http://localhost:3001/destek",
+      "status": 200,
+      "h1": "Destek",
+      "heading2": "Yeni Destek Talebi",
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/ayarlar",
+      "finalUrl": "http://localhost:3001/ayarlar",
+      "status": 200,
+      "h1": "Mağaza Ayarları",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    }
+  ],
+  "admin": [
+    {
+      "route": "/dashboard",
+      "finalUrl": "http://localhost:3002/dashboard",
+      "status": 200,
+      "h1": "Kontrol Paneli",
+      "heading2": "Acil Kuyruk",
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/odemeler",
+      "finalUrl": "http://localhost:3002/odemeler",
+      "status": 200,
+      "h1": "Ödemeler",
+      "heading2": "EFT / Havale Onay Kuyruğu",
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/hakedisler",
+      "finalUrl": "http://localhost:3002/hakedisler",
+      "status": 200,
+      "h1": "Hakedişler",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/cezalar",
+      "finalUrl": "http://localhost:3002/cezalar",
+      "status": 200,
+      "h1": "Cezalar",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/saticilar",
+      "finalUrl": "http://localhost:3002/saticilar",
+      "status": 200,
+      "h1": "Satıcılar",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/saticilar/banka-degisiklikleri",
+      "finalUrl": "http://localhost:3002/saticilar/banka-degisiklikleri",
+      "status": 200,
+      "h1": "Banka Değişiklikleri",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/siparisler",
+      "finalUrl": "http://localhost:3002/siparisler",
+      "status": 200,
+      "h1": "Siparisler",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/urunler",
+      "finalUrl": "http://localhost:3002/urunler",
+      "status": 200,
+      "h1": "Ürün Moderasyon",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/iadeler",
+      "finalUrl": "http://localhost:3002/iadeler",
+      "status": 200,
+      "h1": "İadeler",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/uyusmazliklar",
+      "finalUrl": "http://localhost:3002/uyusmazliklar",
+      "status": 200,
+      "h1": "Uyuşmazlıklar",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/finans",
+      "finalUrl": "http://localhost:3002/finans",
+      "status": 200,
+      "h1": "Finans Özeti",
+      "heading2": "Satıcı Bazlı Finansal Durum",
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/denetim",
+      "finalUrl": "http://localhost:3002/denetim",
+      "status": 200,
+      "h1": "Denetim Günlüğü",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/medya",
+      "finalUrl": "http://localhost:3002/medya",
+      "status": 200,
+      "h1": "Medya Kütüphanesi",
+      "heading2": null,
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/destek",
+      "finalUrl": "http://localhost:3002/destek",
+      "status": 200,
+      "h1": "Destek Talepleri",
+      "heading2": "Tüm Talepler",
+      "errorPage": false,
+      "loginRedirect": false
+    },
+    {
+      "route": "/ayarlar",
+      "finalUrl": "http://localhost:3002/ayarlar",
+      "status": 200,
+      "h1": "Sistem Ayarlari",
+      "heading2": "Platform Sabitleri",
+      "errorPage": false,
+      "loginRedirect": false
+    }
+  ]
+}

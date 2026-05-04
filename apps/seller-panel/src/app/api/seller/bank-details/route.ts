@@ -1,29 +1,26 @@
 import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { auth } from '@/lib/auth'
 import { PrismaClient } from '@prisma/client'
-import { createSellerService } from '@hanuja/api/services/seller.service'
+import { auth } from '@/lib/auth'
+import { createSellerBankService } from '@hanuja/api/services/seller-bank.service'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 const bankDetailSchema = z.object({
-  iban: z
-    .string()
-    .min(10, 'Geçerli bir IBAN giriniz')
-    .max(34)
-    .regex(/^TR/, 'IBAN TR ile başlamalıdır'),
-  accountHolder: z.string().min(2, 'Hesap sahibi adı zorunludur').max(100),
-  bankName: z.string().min(2, 'Banka adı zorunludur').max(80),
+  iban: z.string().trim().regex(/^TR\d{24}$/, 'Geçerli bir TR IBAN giriniz'),
+  accountHolder: z.string().trim().min(2, 'Hesap sahibi adı zorunludur').max(100),
+  bankName: z.string().trim().min(2, 'Banka adı zorunludur').max(80),
+  otpCode: z.string().trim().regex(/^\d{6}$/, '6 haneli doğrulama kodu giriniz'),
+  reason: z.string().trim().max(200).optional(),
 })
 
-/**
- * POST /api/seller/bank-details — banka bilgisi değişiklik talebi oluştur.
- * Yeni kayıt isActive=false olarak eklenir; admin onayı gerektirir.
- * Her değişiklik audit log'a yazılır.
- */
+function buildOtpIdentifier(sellerId: string, userId: string) {
+  return `seller-bank-detail:${sellerId}:${userId}`
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
@@ -38,18 +35,46 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const parsed = bankDetailSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'Geçersiz veri.' }, { status: 400 })
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Geçersiz veri.' }, { status: 400 })
   }
 
-  const svc = createSellerService({ prisma })
-  await svc.updateBankDetails(seller.id, {
-    ...parsed.data,
-    actorId: session.user.id,
-    actorRole: 'seller',
+  const verification = await prisma.verification.findFirst({
+    where: {
+      identifier: buildOtpIdentifier(seller.id, session.user.id),
+      value: parsed.data.otpCode,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
   })
 
-  return NextResponse.json({
-    success: true,
-    message: 'Banka bilgisi değişiklik talebiniz alındı. Admin incelemesi sonrası aktif edilecektir.',
-  })
+  if (!verification) {
+    return NextResponse.json({ error: 'Doğrulama kodu geçersiz veya süresi dolmuş.' }, { status: 400 })
+  }
+
+  try {
+    const service = createSellerBankService({ prisma })
+    const forwardedFor = req.headers.get('x-forwarded-for')
+    await service.requestChange({
+      sellerId: seller.id,
+      actorId: session.user.id,
+      iban: parsed.data.iban.replace(/\s+/g, ''),
+      accountHolder: parsed.data.accountHolder,
+      bankName: parsed.data.bankName,
+      ip: forwardedFor?.split(',')[0]?.trim() ?? null,
+      userAgent: req.headers.get('user-agent'),
+      reason: parsed.data.reason ?? null,
+    })
+
+    await prisma.verification.delete({ where: { id: verification.id } })
+
+    return NextResponse.json({
+      success: true,
+      message: 'Banka bilgisi değişiklik talebiniz alındı. Yeni IBAN 24 saat sonunda aktif olacaktır.',
+    })
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Banka bilgisi kaydedilemedi.' },
+      { status: 400 },
+    )
+  }
 }

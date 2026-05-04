@@ -2,8 +2,14 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { StatCard, StatusBadge, PageHeader } from '@hanuja/ui'
 import {
-  ShoppingBag, CreditCard, Wallet, AlertOctagon,
-  TrendingUp, Clock, AlertTriangle, Store,
+  ShoppingBag,
+  CreditCard,
+  Wallet,
+  AlertOctagon,
+  TrendingUp,
+  Clock,
+  AlertTriangle,
+  Store,
 } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createAdminAnalyticsService } from '@hanuja/api/services/admin-analytics.service'
@@ -21,7 +27,7 @@ export default async function AdminDashboardPage() {
   const analytics = createAdminAnalyticsService({ prisma })
   const orderSvc = createOrderService({ prisma })
 
-  const [stats, recentOrders] = await Promise.all([
+  const [stats, recentOrdersResult] = await Promise.all([
     analytics.getDashboardStats(),
     orderSvc.listForAdmin({ skip: 0, take: 5 }),
   ])
@@ -34,7 +40,7 @@ export default async function AdminDashboardPage() {
     lines: Array<{ seller: { profile: { storeName: string } | null } | null }>
   }
 
-  const rows = recentOrders as unknown as OrderRow[]
+  const rows = recentOrdersResult.rows as unknown as OrderRow[]
 
   const fmt = (n: number) =>
     n >= 1000 ? `₺${(n / 1000).toFixed(1)}K` : `₺${n.toLocaleString('tr-TR')}`
@@ -44,7 +50,7 @@ export default async function AdminDashboardPage() {
     urgentItems.push({
       type: 'EFT Onayı',
       description: `${stats.payments.pendingEftApprovals} havale onay bekliyor`,
-      href: '/odemeler',
+      href: '/odemeler?method=eft&status=pending',
       urgent: true,
     })
   }
@@ -60,7 +66,7 @@ export default async function AdminDashboardPage() {
     urgentItems.push({
       type: 'Açık Uyuşmazlık',
       description: `${stats.orders.openDisputes} uyuşmazlık inceleme bekliyor`,
-      href: '/uyusmazliklar',
+      href: '/uyusmazliklar?status=open',
       urgent: false,
     })
   }
@@ -74,43 +80,50 @@ export default async function AdminDashboardPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-testid="admin-dashboard-page">
       <PageHeader
         title="Kontrol Paneli"
         description={`Pazar yeri genel görünümü — ${new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
       />
 
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           title="Bugünkü Tahsilat"
           value={fmt(stats.payments.collectedToday)}
           icon={<TrendingUp className="h-5 w-5" />}
         />
-        <StatCard
-          title="EFT Onay Bekleyen"
-          value={String(stats.payments.pendingEftApprovals)}
-          icon={<CreditCard className="h-5 w-5" />}
-        />
+        <Link href="/odemeler?method=eft&status=pending" className="block">
+          <StatCard
+            title="EFT Onay Bekleyen"
+            value={String(stats.payments.pendingEftApprovals)}
+            icon={<CreditCard className="h-5 w-5" />}
+            className="transition-shadow hover:shadow-sm"
+          />
+        </Link>
         <StatCard
           title="Ödeme Hazır"
           value={fmt(stats.payouts.payoutReadyTotal)}
           icon={<Wallet className="h-5 w-5" />}
         />
-        <StatCard
-          title="Açık Uyuşmazlık"
-          value={String(stats.orders.openDisputes)}
-          icon={<AlertOctagon className="h-5 w-5" />}
-        />
+        <Link href="/uyusmazliklar?status=open" className="block">
+          <StatCard
+            title="Açık Uyuşmazlık"
+            value={String(stats.orders.openDisputes)}
+            icon={<AlertOctagon className="h-5 w-5" />}
+            className="transition-shadow hover:shadow-sm"
+          />
+        </Link>
       </div>
 
-      {/* Second row stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          title="Satıcı Kuyruğunda"
-          value={String(stats.orders.pendingSellerAction)}
-          icon={<ShoppingBag className="h-5 w-5" />}
-        />
+        <Link href="/siparisler?status=seller_queue_ready,seller_reviewing" className="block">
+          <StatCard
+            title="Satıcı Kuyruğunda"
+            value={String(stats.orders.pendingSellerAction)}
+            icon={<ShoppingBag className="h-5 w-5" />}
+            className="transition-shadow hover:shadow-sm"
+          />
+        </Link>
         <StatCard
           title="Geciken Sipariş"
           value={String(stats.orders.delayedOrders)}
@@ -121,15 +134,17 @@ export default async function AdminDashboardPage() {
           value={fmt(stats.payouts.blockedPayoutTotal)}
           icon={<Wallet className="h-5 w-5" />}
         />
-        <StatCard
-          title="Aktif Satıcı"
-          value={String(stats.sellers.totalActive)}
-          icon={<Store className="h-5 w-5" />}
-        />
+        <Link href="/saticilar?status=active" className="block">
+          <StatCard
+            title="Aktif Satıcı"
+            value={String(stats.sellers.totalActive)}
+            icon={<Store className="h-5 w-5" />}
+            className="transition-shadow hover:shadow-sm"
+          />
+        </Link>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Urgent queue */}
         <section>
           <h2 className="mb-3 font-semibold" style={{ color: 'var(--color-primary)' }}>Acil Kuyruk</h2>
           {urgentItems.length === 0 ? (
@@ -151,7 +166,7 @@ export default async function AdminDashboardPage() {
                     }}
                   >
                     <AlertTriangle
-                      className="h-4 w-4 mt-0.5 shrink-0"
+                      className="mt-0.5 h-4 w-4 shrink-0"
                       style={{ color: item.urgent ? 'var(--color-destructive)' : 'var(--color-warning)' }}
                     />
                     <div>
@@ -161,7 +176,7 @@ export default async function AdminDashboardPage() {
                       >
                         {item.type}
                       </p>
-                      <p className="text-sm mt-0.5" style={{ color: 'var(--color-primary)' }}>
+                      <p className="mt-0.5 text-sm" style={{ color: 'var(--color-primary)' }}>
                         {item.description}
                       </p>
                     </div>
@@ -172,7 +187,6 @@ export default async function AdminDashboardPage() {
           )}
         </section>
 
-        {/* Recent orders */}
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Son Siparişler</h2>
@@ -181,7 +195,7 @@ export default async function AdminDashboardPage() {
             </Link>
           </div>
           <div
-            className="rounded-xl border overflow-hidden"
+            className="overflow-hidden rounded-xl border"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
           >
             {rows.length === 0 ? (
@@ -208,8 +222,7 @@ export default async function AdminDashboardPage() {
                     const amount = typeof o.totalAmount === 'number'
                       ? o.totalAmount
                       : o.totalAmount.toNumber()
-                    const sellerName =
-                      o.lines[0]?.seller?.profile?.storeName ?? '—'
+                    const sellerName = o.lines[0]?.seller?.profile?.storeName ?? '—'
                     return (
                       <tr
                         key={o.id}

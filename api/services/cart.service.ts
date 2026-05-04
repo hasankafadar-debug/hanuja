@@ -38,13 +38,53 @@ export function createCartService({ prisma }: CartServiceDeps) {
         }
       }
 
+      const productIds = [...new Set(cart.items.map((item) => item.productId))]
+      const products = productIds.length > 0
+        ? await prisma.product.findMany({
+            where: { id: { in: productIds } },
+            include: {
+              seller: { select: { displayName: true, slug: true } },
+              images: {
+                orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+                take: 1,
+              },
+              variants: { select: { id: true, name: true } },
+            },
+          })
+        : []
+      const productMap = new Map(products.map((product) => [product.id, product]))
+
       const itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0)
       const subtotal = cart.items.reduce(
         (sum, item) => sum.add(new Decimal(item.unitPrice).mul(item.quantity)),
         new Decimal(0),
       )
 
-      return { ...cart, itemCount, subtotal }
+      return {
+        ...cart,
+        items: cart.items.map((item) => {
+          const product = productMap.get(item.productId)
+          const variant =
+            item.variantId && product
+              ? product.variants.find((candidate) => candidate.id === item.variantId) ?? null
+              : null
+
+          return {
+            ...item,
+            product: product
+              ? {
+                  name: product.name,
+                  slug: product.slug,
+                  seller: product.seller,
+                  images: product.images,
+                }
+              : null,
+            variant,
+          }
+        }),
+        itemCount,
+        subtotal,
+      }
     },
 
     /**
@@ -64,20 +104,28 @@ export function createCartService({ prisma }: CartServiceDeps) {
 
       const product = await prisma.product.findUnique({
         where: { id: params.productId, status: 'published' },
-        include: {
-          variants: params.variantId ? { where: { id: params.variantId } } : { take: 0 },
-        },
+        include: { variants: true },
       })
       if (!product) throw new NotFoundError('Ürün', params.productId)
-      if (product.stockQuantity < 1) {
+      if (product.variants.length > 0 && !params.variantId) {
+        throw new ValidationError('LÃ¼tfen bir varyasyon seÃ§in')
+      }
+
+      const selectedVariant = params.variantId
+        ? product.variants.find((variant) => variant.id === params.variantId)
+        : null
+
+      if (params.variantId && !selectedVariant) {
+        throw new ValidationError('SeÃ§ilen varyasyon bulunamadÄ±')
+      }
+
+      const availableStock = selectedVariant?.stockQuantity ?? product.stockQuantity
+      if (availableStock < 1) {
         throw new ValidationError('Ürün stokta bulunmuyor')
       }
 
       // Varyant varsa varyant fiyatı, yoksa ürün fiyatı kullan
-      const unitPrice =
-        params.variantId && product.variants?.[0]?.price
-          ? product.variants[0].price
-          : product.price
+      const unitPrice = selectedVariant?.price ?? product.price
 
       const cart = await carts.findOrCreate(params.userId)
 
@@ -91,7 +139,7 @@ export function createCartService({ prisma }: CartServiceDeps) {
 
       if (existingItem) {
         const newQty = existingItem.quantity + params.quantity
-        const maxAllowed = Math.min(product.stockQuantity, MAX_ITEM_QUANTITY)
+        const maxAllowed = Math.min(availableStock, MAX_ITEM_QUANTITY)
         if (newQty > maxAllowed) {
           throw new ValidationError(
             `Sepette en fazla ${maxAllowed} adet bu ürün bulunabilir`,

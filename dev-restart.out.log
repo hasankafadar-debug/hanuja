@@ -1,0 +1,135 @@
+
+> hanuja@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace
+> turbo run dev --parallel
+
+
+   • Packages in scope: @hanuja/api, @hanuja/config, @hanuja/db, @hanuja/security, @hanuja/seo, @hanuja/tests, @hanuja/types, @hanuja/ui, admin-panel, seller-panel, web
+   • Running dev in 11 packages
+   • Remote caching disabled
+
+web:dev: cache bypass, force executing 0668cb79ddc6e43f
+seller-panel:dev: cache bypass, force executing 2e9474f93226075e
+admin-panel:dev: cache bypass, force executing 419a933dd1b7fe3e
+web:dev: 
+web:dev: > web@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\web
+web:dev: > next dev --port 3000
+web:dev: 
+admin-panel:dev: 
+admin-panel:dev: > admin-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\admin-panel
+admin-panel:dev: > next dev --port 3002
+admin-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: > seller-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\seller-panel
+seller-panel:dev: > next dev --port 3001
+seller-panel:dev: 
+seller-panel:dev:    ▲ Next.js 15.5.14
+seller-panel:dev:    - Local:        http://localhost:3001
+seller-panel:dev:    - Network:      http://172.21.0.1:3001
+seller-panel:dev:    - Environments: .env.local
+admin-panel:dev:    ▲ Next.js 15.5.14
+seller-panel:dev: 
+seller-panel:dev:  ✓ Starting...
+admin-panel:dev:    - Local:        http://localhost:3002
+admin-panel:dev:    - Network:      http://172.21.0.1:3002
+admin-panel:dev:    - Environments: .env.local
+admin-panel:dev: 
+admin-panel:dev:  ✓ Starting...
+web:dev:    ▲ Next.js 15.5.14
+web:dev:    - Local:        http://localhost:3000
+web:dev:    - Network:      http://172.21.0.1:3000
+web:dev:    - Environments: .env.local
+web:dev: 
+web:dev:  ✓ Starting...
+admin-panel:dev:  ✓ Compiled /instrumentation in 464ms (31 modules)
+seller-panel:dev:  ○ Compiling /instrumentation ...
+web:dev:  ○ Compiling /instrumentation ...
+seller-panel:dev:  ✓ Compiled /instrumentation in 522ms (31 modules)
+admin-panel:dev:  ✓ Ready in 4.3s
+seller-panel:dev:  ✓ Ready in 4.3s
+web:dev:  ✓ Compiled /instrumentation in 1664ms (50 modules)
+web:dev: [startup] Database connection is ready.
+web:dev:  ✓ Ready in 5s
+web:dev:  ○ Compiling /api/health ...
+web:dev:  ✓ Compiled /api/health in 1802ms (446 modules)
+web:dev:  GET /api/health 200 in 2241ms
+web:dev:  GET /api/health 200 in 119ms
+admin-panel:dev:  ○ Compiling /api/auth/[...all] ...
+admin-panel:dev:  ✓ Compiled /api/auth/[...all] in 2.3s (1083 modules)
+admin-panel:dev:  POST /api/auth/sign-in/email 200 in 4958ms
+admin-panel:dev:  ○ Compiling /_not-found ...
+admin-panel:dev:  ✓ Compiled /_not-found in 2.2s (1408 modules)
+admin-panel:dev:  GET / 200 in 2524ms
+admin-panel:dev:  GET /panel 404 in 2797ms
+admin-panel:dev:  GET /panel 404 in 133ms
+seller-panel:dev:  ○ Compiling / ...
+seller-panel:dev:  ✓ Compiled / in 1461ms (659 modules)
+seller-panel:dev:  GET / 200 in 2040ms
+seller-panel:dev:  ○ Compiling /dashboard ...
+seller-panel:dev:  ✓ Compiled /dashboard in 5s (2078 modules)
+seller-panel:dev:  GET /dashboard 200 in 6625ms
+seller-panel:dev:  ○ Compiling /giris ...
+seller-panel:dev:  ✓ Compiled /giris in 1399ms (2086 modules)
+seller-panel:dev:  GET /giris 200 in 1850ms
+seller-panel:dev:  ○ Compiling /api/auth/[...all] ...
+seller-panel:dev:  ✓ Compiled /api/auth/[...all] in 973ms (2096 modules)
+seller-panel:dev: 2026-04-21T09:16:38.320Z ERROR [Better Auth]: Invalid password
+seller-panel:dev:  POST /api/auth/sign-in/email 401 in 2932ms
+seller-panel:dev:  POST /api/auth/sign-in/email 200 in 335ms
+seller-panel:dev:  GET /dashboard 200 in 547ms
+seller-panel:dev:  GET /dashboard 200 in 1058ms
+seller-panel:dev:  ○ Compiling /indirimler ...
+seller-panel:dev:  ✓ Compiled /indirimler in 1153ms (2100 modules)
+seller-panel:dev:  ⨯ Error [PrismaClientKnownRequestError]: 
+seller-panel:dev: Invalid `prisma.discountRule.findMany()` invocation:
+seller-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: The table `public.discount_rules` does not exist in the current database.
+seller-panel:dev:     at async Object.listRules (..\..\api\services\discount.service.ts:268:19)
+seller-panel:dev:     at async DiscountsPage (src\app\(panel)\indirimler\page.tsx:30:17)
+seller-panel:dev:   266 |     } = {},
+seller-panel:dev:   267 |   ) {
+seller-panel:dev: > 268 |     const rules = await prisma.discountRule.findMany({
+seller-panel:dev:       |                   ^
+seller-panel:dev:   269 |       where: {
+seller-panel:dev:   270 |         sellerId,
+seller-panel:dev:   271 |         ...(filters.status !== undefined ? { status: filters.status } : {}), {
+seller-panel:dev:   code: 'P2021',
+seller-panel:dev:   meta: [Object],
+seller-panel:dev:   clientVersion: '6.19.3',
+seller-panel:dev:   digest: '1540659323'
+seller-panel:dev: }
+seller-panel:dev:  GET /indirimler 200 in 1910ms
+seller-panel:dev:  ⨯ Error [PrismaClientKnownRequestError]: 
+seller-panel:dev: Invalid `prisma.discountRule.findMany()` invocation:
+seller-panel:dev: 
+seller-panel:dev: 
+seller-panel:dev: The table `public.discount_rules` does not exist in the current database.
+seller-panel:dev:     at async Object.listRules (..\..\api\services\discount.service.ts:268:19)
+seller-panel:dev:     at async DiscountsPage (src\app\(panel)\indirimler\page.tsx:30:17)
+seller-panel:dev:   266 |     } = {},
+seller-panel:dev:   267 |   ) {
+seller-panel:dev: > 268 |     const rules = await prisma.discountRule.findMany({
+seller-panel:dev:       |                   ^
+seller-panel:dev:   269 |       where: {
+seller-panel:dev:   270 |         sellerId,
+seller-panel:dev:   271 |         ...(filters.status !== undefined ? { status: filters.status } : {}), {
+seller-panel:dev:   code: 'P2021',
+seller-panel:dev:   meta: [Object],
+seller-panel:dev:   clientVersion: '6.19.3',
+seller-panel:dev:   digest: '1540659323'
+seller-panel:dev: }
+seller-panel:dev:  GET /indirimler 200 in 245ms
+seller-panel:dev:  GET /dashboard 200 in 335ms
+seller-panel:dev:  ○ Compiling /urunler/toplu-yukle ...
+seller-panel:dev:  ✓ Compiled /urunler/toplu-yukle in 2s (2134 modules)
+seller-panel:dev:  GET /urunler/toplu-yukle 200 in 3109ms
+seller-panel:dev:  ○ Compiling /odemeler ...
+seller-panel:dev:  ✓ Compiled /odemeler in 2.1s (2131 modules)
+seller-panel:dev:  GET /odemeler 200 in 3416ms
+seller-panel:dev:  ○ Compiling /kargolar ...
+seller-panel:dev:  ✓ Compiled /kargolar in 1243ms (2146 modules)
+seller-panel:dev:  GET /kargolar 200 in 2150ms
+seller-panel:dev:  ○ Compiling /api/seller/shipments ...
+seller-panel:dev:  ✓ Compiled /api/seller/shipments in 2.1s (2465 modules)
+seller-panel:dev:  GET /api/seller/shipments 403 in 2809ms
+seller-panel:dev:  GET /dashboard 200 in 649ms

@@ -25,7 +25,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         baseURL: 'http://localhost:3000',
       },
-      testMatch: '**/storefront/**/*.e2e.ts',
+      testMatch: ['**/storefront/**/*.e2e.ts', '**/customer-eft-flow.spec.ts'],
     },
     {
       name: 'seller-panel',

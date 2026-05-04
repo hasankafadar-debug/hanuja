@@ -1,16 +1,25 @@
 import type { Metadata } from 'next'
-import { SidebarNav, type NavSection } from '@hanuja/ui'
+import { NotificationBell, SidebarNav, type NavSection } from '@hanuja/ui'
 import {
+  Download,
+  Images,
   LayoutDashboard,
+  LifeBuoy,
   Package,
-  ShoppingBag,
-  Truck,
-  Wallet,
+  Percent,
+  ReceiptText,
+  RefreshCcw,
   RotateCcw,
   Settings,
+  ShoppingBag,
   Store,
+  Truck,
+  Upload,
+  Wallet,
 } from 'lucide-react'
 import { getSellerFromSession } from '@/lib/seller-session'
+import { UserMenu } from './_components/user-menu'
+import { MobileNav } from './_components/mobile-nav'
 
 export const metadata: Metadata = {
   title: {
@@ -29,6 +38,11 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Katalog',
     items: [
       { label: 'Ürünlerim', href: '/urunler', icon: <Package className="h-4 w-4" /> },
+      { label: 'İçe Aktar', href: '/urunler/ice-aktar', icon: <Download className="h-4 w-4" /> },
+      { label: 'Toplu Yükle', href: '/urunler/toplu-yukle', icon: <Upload className="h-4 w-4" /> },
+      { label: 'Toplu Güncelle', href: '/urunler/toplu-guncelle', icon: <RefreshCcw className="h-4 w-4" /> },
+      { label: 'Medya Havuzu', href: '/medya', icon: <Images className="h-4 w-4" /> },
+      { label: 'İndirimler', href: '/indirimler', icon: <Percent className="h-4 w-4" /> },
     ],
   },
   {
@@ -43,12 +57,14 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Finans',
     items: [
       { label: 'Ödemeler & Hakediş', href: '/odemeler', icon: <Wallet className="h-4 w-4" /> },
+      { label: 'Muhasebe Ekstresi', href: '/odemeler/muhasebe-ekstresi', icon: <ReceiptText className="h-4 w-4" /> },
     ],
   },
   {
     title: 'Mağaza',
     items: [
       { label: 'Ayarlar', href: '/ayarlar', icon: <Settings className="h-4 w-4" /> },
+      { label: 'Destek', href: '/destek', icon: <LifeBuoy className="h-4 w-4" /> },
     ],
   },
 ]
@@ -59,19 +75,12 @@ export default async function SellerPanelLayout({ children }: { children: React.
   const initial = displayName.charAt(0).toUpperCase()
 
   return (
-    <div
-      className="flex min-h-screen"
-      style={{ backgroundColor: 'var(--color-background)' }}
-    >
-      {/* Sidebar */}
+    <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
       <aside
         className="hidden w-56 shrink-0 border-r md:flex md:flex-col"
         style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
       >
-        <div
-          className="flex h-14 items-center gap-2 border-b px-4"
-          style={{ borderColor: 'var(--color-border)' }}
-        >
+        <div className="flex h-14 items-center gap-2 border-b px-4" style={{ borderColor: 'var(--color-border)' }}>
           <Store className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
           <span
             className="font-semibold"
@@ -91,14 +100,13 @@ export default async function SellerPanelLayout({ children }: { children: React.
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
         <header
           className="flex h-14 items-center justify-between border-b px-4 sm:px-6"
           style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         >
-          <div className="md:hidden">
+          <div className="flex items-center gap-3 md:hidden">
+            <MobileNav />
             <span
               className="font-semibold"
               style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
@@ -107,19 +115,12 @@ export default async function SellerPanelLayout({ children }: { children: React.
             </span>
           </div>
           <div className="ml-auto flex items-center gap-3">
-            <span className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>{displayName}</span>
-            <div
-              className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold text-white"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-            >
-              {initial}
-            </div>
+            <NotificationBell apiPath="/api/notifications" />
+            <UserMenu displayName={displayName} initial={initial} />
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>
   )

@@ -7,12 +7,13 @@
  */
 import type { PrismaClient, PenaltyReason } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
-import { NotFoundError, ForbiddenError } from '../lib/errors'
+import { NotFoundError } from '../lib/errors'
 import { createPenaltyRepository } from '../repositories/penalty.repository'
 import { createOrderRepository } from '../repositories/order.repository'
 import { createOrderLineRepository } from '../repositories/order-line.repository'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
+import { createNotificationService } from './notification.service'
 import {
   calculatePenalty,
   STANDARD_PENALTY_RATE,
@@ -28,6 +29,7 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
   const orderLines = createOrderLineRepository(prisma)
   const ledger = createSellerLedgerRepository(prisma)
   const auditLog = createAdminAuditLogRepository(prisma)
+  const notifications = createNotificationService({ prisma })
 
   return {
     /**
@@ -132,6 +134,84 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
 
         return waived
       })
+    },
+
+    async applyManually(params: {
+      orderId: string
+      sellerId: string
+      adminActorId: string
+      manualReason: string
+      penaltyAmount?: Decimal
+    }) {
+      const order = await orders.findById(params.orderId)
+      if (!order) throw new NotFoundError('Order', params.orderId)
+
+      const seller = await prisma.seller.findUnique({
+        where: { id: params.sellerId },
+        include: { user: { select: { id: true } } },
+      })
+      if (!seller) throw new NotFoundError('Seller', params.sellerId)
+
+      const existing = await penalties.findByOrderId(params.orderId)
+      if (existing) return existing
+
+      const lines = await orderLines.findByOrderIdForSeller(params.orderId, params.sellerId)
+      if (!lines.length) throw new NotFoundError('OrderLine', params.orderId)
+
+      const baseAmount = lines.reduce((sum, line) => sum.plus(line.totalPrice), new Decimal(0))
+      const penaltyAmount = params.penaltyAmount ?? calculatePenalty(baseAmount, STANDARD_PENALTY_RATE)
+      const rate = baseAmount.toNumber() > 0 ? penaltyAmount.div(baseAmount) : STANDARD_PENALTY_RATE
+
+      const penalty = await prisma.$transaction(async (tx) => {
+        const created = await penalties.create(
+          {
+            sellerId: params.sellerId,
+            orderId: params.orderId,
+            reason: 'other',
+            baseAmount,
+            rate,
+            penaltyAmount,
+          },
+          tx as PrismaClient,
+        )
+
+        await ledger.createEntry({
+          sellerId: params.sellerId,
+          type: 'penalty',
+          amount: penaltyAmount.negated(),
+          orderId: params.orderId,
+          penaltyId: created.id,
+          note: `Manuel ceza: ${params.manualReason}`,
+          createdBy: params.adminActorId,
+        })
+
+        await auditLog.createEntry({
+          actorId: params.adminActorId,
+          actionType: 'penalty_applied',
+          targetType: 'penalty',
+          targetId: created.id,
+          newData: {
+            orderId: params.orderId,
+            sellerId: params.sellerId,
+            penaltyAmount,
+            baseAmount,
+            rate,
+          },
+          reason: params.manualReason,
+        })
+
+        return created
+      })
+
+      await notifications.send({
+        userId: seller.user.id,
+        type: 'seller_penalty_applied',
+        title: 'Ceza uygulandı',
+        body: `${penaltyAmount.toFixed(2)} tutarında ceza hesabınıza yansıtıldı.`,
+        data: { orderId: params.orderId, penaltyId: penalty.id },
+      })
+
+      return penalty
     },
 
     listForSeller(sellerId: string, skip?: number, take?: number) {

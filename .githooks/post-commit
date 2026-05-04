@@ -1,0 +1,18 @@
+#!/bin/sh
+
+REMOTE_NAME="backup"
+
+if ! git remote get-url "$REMOTE_NAME" >/dev/null 2>&1; then
+  exit 0
+fi
+
+BRANCH_NAME=$(git symbolic-ref --quiet --short HEAD 2>/dev/null)
+
+if [ -z "$BRANCH_NAME" ]; then
+  exit 0
+fi
+
+if ! git push "$REMOTE_NAME" "$BRANCH_NAME" --follow-tags >/dev/null 2>&1; then
+  echo "[git backup] H surucusune otomatik yedek gonderilemedi."
+  echo "[git backup] Tekrar denemek icin: git push $REMOTE_NAME $BRANCH_NAME --follow-tags"
+fi

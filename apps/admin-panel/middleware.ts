@@ -15,6 +15,13 @@
 import { betterFetch } from '@better-fetch/fetch'
 import { NextResponse, type NextRequest } from 'next/server'
 
+function applySecurityHeaders(response: NextResponse): void {
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('Content-Security-Policy', "frame-ancestors 'none'")
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+}
+
 interface Session {
   user: {
     id: string
@@ -28,7 +35,9 @@ export async function middleware(request: NextRequest) {
 
   // Allow public paths
   if (pathname.startsWith('/giris') || pathname.startsWith('/api')) {
-    return NextResponse.next()
+    const res = NextResponse.next()
+    applySecurityHeaders(res)
+    return res
   }
 
   const { data: session } = await betterFetch<Session>(
@@ -40,17 +49,23 @@ export async function middleware(request: NextRequest) {
   )
 
   if (!session?.user) {
-    return NextResponse.redirect(new URL('/giris', request.url))
+    const res = NextResponse.redirect(new URL('/giris', request.url))
+    applySecurityHeaders(res)
+    return res
   }
 
   if (session.user.role !== 'admin') {
     // Non-admin tried to access the admin panel
     const loginUrl = new URL('/giris', request.url)
     loginUrl.searchParams.set('error', 'unauthorized')
-    return NextResponse.redirect(loginUrl)
+    const res = NextResponse.redirect(loginUrl)
+    applySecurityHeaders(res)
+    return res
   }
 
-  return NextResponse.next()
+  const response = NextResponse.next()
+  applySecurityHeaders(response)
+  return response
 }
 
 export const config = {

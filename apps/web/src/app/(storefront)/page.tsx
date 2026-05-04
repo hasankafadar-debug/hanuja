@@ -1,11 +1,23 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ProductCard } from '@hanuja/ui'
-import { ArrowRight, Sofa, Lamp, Flower2, BriefcaseBusiness, Bath } from 'lucide-react'
+import { HeroSlider, PromoCard } from '@hanuja/ui'
+import {
+  ArrowRight,
+  Sofa,
+  Lamp,
+  Flower2,
+  BriefcaseBusiness,
+  House,
+  UtensilsCrossed,
+  Package,
+  Layers,
+} from 'lucide-react'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
+import { createHomeCmsService } from '@hanuja/api/services/home-cms.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import StorefrontProductGrid, { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 300
 
 export const metadata: Metadata = {
   title: 'Hanuja — Ev, Ofis & Yaşam Ürünleri',
@@ -14,72 +26,87 @@ export const metadata: Metadata = {
 }
 
 const FEATURED_CATEGORIES = [
+  { label: 'Ev', description: 'Eviniz için her şey', href: '/kategori/ev', Icon: House },
+  { label: 'Ofis', description: 'Üretken çalışma alanları', href: '/kategori/ofis', Icon: BriefcaseBusiness },
   { label: 'Mobilya', description: 'Masif ahşaptan modern tasarımlara', href: '/kategori/mobilya', Icon: Sofa },
-  { label: 'Dekor', description: 'Mekanınıza ruh katan objeler', href: '/kategori/dekor', Icon: Flower2 },
+  { label: 'Mutfak & Sofra', description: 'Sofranıza zarafet katın', href: '/kategori/ev-mutfak', Icon: UtensilsCrossed },
   { label: 'Aydınlatma', description: 'Doğru ışık, doğru atmosfer', href: '/kategori/aydinlatma', Icon: Lamp },
-  { label: 'Ofis', description: 'Üretken çalışma alanları için', href: '/kategori/ofis', Icon: BriefcaseBusiness },
-  { label: 'Banyo', description: "Banyonuzu bir spa'ya dönüştürün", href: '/kategori/banyo', Icon: Bath },
+  { label: 'Dekorasyon', description: 'Mekanınıza ruh katan objeler', href: '/kategori/ev-dekorasyon', Icon: Flower2 },
+  { label: 'Aksesuar', description: 'Tamamlayıcı dokunuşlar', href: '/kategori/aksesuar', Icon: Package },
+  { label: 'Tekstil', description: 'Sıcaklık ve konfor', href: '/kategori/ev-tekstil', Icon: Layers },
 ]
 
-async function getFeaturedProducts() {
-  try {
-    const svc = createCatalogService({ prisma: createPrismaForRoute() })
-    return await svc.listPublished({ skip: 0, take: 8 })
-  } catch {
-    return []
-  }
+type ProductRow = {
+  id: string
+  name: string
+  slug: string
+  price: { toNumber(): number } | number
+  compareAtPrice?: { toNumber(): number } | number | null
+  images: Array<{ url: string }>
+  seller: { displayName: string; slug: string } | null
+}
+
+async function getPageData() {
+  const prisma = createPrismaForRoute()
+  const catalogSvc = createCatalogService({ prisma })
+  const cmsSvc = createHomeCmsService({ prisma })
+
+  const [featuredProducts, slides, topPromo, bottomPromo] = await Promise.all([
+    catalogSvc.listPublished({ skip: 0, take: 8 }).catch(() => []),
+    cmsSvc.getActiveSlides().catch(() => []),
+    cmsSvc.getActivePromo('TOP_RIGHT').catch(() => null),
+    cmsSvc.getActivePromo('BOTTOM_RIGHT').catch(() => null),
+  ])
+
+  return { featuredProducts, slides, topPromo, bottomPromo }
 }
 
 export default async function HomePage() {
-  const featuredProducts = await getFeaturedProducts()
-
-  type ProductRow = {
-    id: string
-    name: string
-    slug: string
-    price: { toNumber(): number } | number
-    images: Array<{ url: string }>
-    seller: { displayName: string; slug: string } | null
-  }
+  const { featuredProducts, slides, topPromo, bottomPromo } = await getPageData()
+  const hasPromo = topPromo !== null || bottomPromo !== null
 
   return (
     <div style={{ backgroundColor: 'var(--color-background)' }}>
-      {/* Hero */}
-      <section className="relative overflow-hidden" style={{ backgroundColor: 'var(--color-primary)' }}>
-        <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 sm:py-32 lg:px-8">
-          <div className="max-w-2xl">
-            <p className="text-sm font-medium uppercase tracking-widest" style={{ color: 'var(--color-accent)' }}>
-              Yeni Koleksiyon 2025
-            </p>
-            <h1
-              className="mt-4 text-5xl font-bold leading-tight sm:text-6xl"
-              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary-fg)' }}
-            >
-              Yaşam Alanınızı <br />
-              Yeniden Keşfedin
-            </h1>
-            <p className="mt-6 text-lg leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
-              Seçkin tasarımcılar ve zanaatkâr mağazalarından mobilya, dekor ve yaşam ürünleri. Evinize değer
-              katacak her şey tek platformda.
-            </p>
-            <div className="mt-10 flex flex-wrap gap-4">
-              <Link
-                href="/kategori/mobilya"
-                className="inline-flex items-center gap-2 rounded-full px-8 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
-                style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-accent-fg)' }}
-              >
-                Koleksiyonu Keşfet
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href="/blog"
-                className="inline-flex items-center gap-2 rounded-full border px-8 py-3 text-sm font-semibold transition-colors"
-                style={{ borderColor: 'rgba(255,255,255,0.3)', color: 'var(--color-primary-fg)' }}
-              >
-                İlham Al
-              </Link>
-            </div>
+      {/* Hero — slider 2/3 + promo column 1/3 */}
+      <section className="mx-auto max-w-7xl px-4 pt-6 pb-4 sm:px-6 lg:px-8">
+        <div
+          className={`grid gap-4 ${hasPromo ? 'lg:grid-cols-3' : 'grid-cols-1'}`}
+          style={{ height: '480px' }}
+        >
+          {/* Slider — takes 2/3 on desktop when promos present */}
+          <div className={hasPromo ? 'lg:col-span-2' : ''}>
+            <HeroSlider slides={slides} autoPlayMs={6000} />
           </div>
+
+          {/* Promo column — visible only on lg+ when at least one promo exists */}
+          {hasPromo && (
+            <div className="hidden lg:flex lg:flex-col lg:gap-4">
+              {topPromo ? (
+                <PromoCard
+                  imageUrl={topPromo.mediaAsset.url}
+                  imageVariants={topPromo.mediaAsset.variants}
+                  imageAlt={topPromo.title}
+                  title={topPromo.title}
+                  subtitle={topPromo.subtitle}
+                  ctaHref={topPromo.ctaHref}
+                />
+              ) : (
+                <div className="flex-1 rounded-xl" style={{ backgroundColor: 'var(--color-muted)' }} />
+              )}
+              {bottomPromo ? (
+                <PromoCard
+                  imageUrl={bottomPromo.mediaAsset.url}
+                  imageVariants={bottomPromo.mediaAsset.variants}
+                  imageAlt={bottomPromo.title}
+                  title={bottomPromo.title}
+                  subtitle={bottomPromo.subtitle}
+                  ctaHref={bottomPromo.ctaHref}
+                />
+              ) : (
+                <div className="flex-1 rounded-xl" style={{ backgroundColor: 'var(--color-muted)' }} />
+              )}
+            </div>
+          )}
         </div>
       </section>
 
@@ -104,7 +131,7 @@ export default async function HomePage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {FEATURED_CATEGORIES.map((cat) => (
             <Link
               key={cat.href}
@@ -146,7 +173,7 @@ export default async function HomePage() {
               </p>
             </div>
             <Link
-              href="/kategori/mobilya"
+              href="/kategori"
               className="hidden text-sm font-medium sm:inline-flex items-center gap-1 transition-colors hover:opacity-80"
               style={{ color: 'var(--color-accent)' }}
             >
@@ -160,23 +187,23 @@ export default async function HomePage() {
               Henüz ürün eklenmemiş.
             </p>
           ) : (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {(featuredProducts as unknown as ProductRow[]).map((product) => {
-                const price = typeof product.price === 'object' ? product.price.toNumber() : Number(product.price)
-                const imageUrl = product.images?.[0]?.url
-                return (
-                  <ProductCard
-                    key={product.id}
-                    id={product.id}
-                    title={product.name}
-                    slug={product.slug}
-                    price={price}
-                    {...(imageUrl ? { imageUrl } : {})}
-                    {...(product.seller ? { sellerName: product.seller.displayName, sellerSlug: product.seller.slug } : {})}
-                  />
-                )
-              })}
-            </div>
+            <StorefrontProductGrid
+              products={(featuredProducts as unknown as ProductRow[]).map<StorefrontGridProduct>((product) => ({
+                id: product.id,
+                title: product.name,
+                slug: product.slug,
+                price: typeof product.price === 'object' ? product.price.toNumber() : Number(product.price),
+                comparePrice:
+                  product.compareAtPrice && typeof product.compareAtPrice === 'object'
+                    ? product.compareAtPrice.toNumber()
+                    : (product.compareAtPrice ?? null),
+                imageUrl: product.images?.[0]?.url ?? null,
+                imageUrls: product.images?.map((image) => image.url) ?? [],
+                ...(product.seller
+                  ? { sellerName: product.seller.displayName, sellerSlug: product.seller.slug }
+                  : {}),
+              }))}
+            />
           )}
         </div>
       </section>

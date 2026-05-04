@@ -66,7 +66,7 @@ export default async function AdminPaymentsPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-testid="admin-payments-page">
       <PageHeader title="Ödemeler" description="EFT onayları ve kart ödemeleri" />
 
       {/* EFT approval queue */}

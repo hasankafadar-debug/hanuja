@@ -1,4 +1,13 @@
-import type { OrderStatus, PrismaClient } from '@prisma/client'
+import type { OrderStatus, Prisma, PrismaClient } from '@prisma/client'
+
+const sellerVisibleAddressSelect = {
+  fullName: true,
+  addressLine1: true,
+  addressLine2: true,
+  district: true,
+  city: true,
+  postalCode: true,
+} satisfies Prisma.AddressSelect
 
 export function createOrderRepository(prisma: PrismaClient) {
   return {
@@ -16,12 +25,26 @@ export function createOrderRepository(prisma: PrismaClient) {
 
     /** Customer can only view their own orders */
     findByIdForCustomer(id: string, customerId: string) {
-      return prisma.order.findUnique({
+      return prisma.order.findFirst({
         where: { id, customerId },
         include: {
           lines: { include: { product: { include: { images: { take: 1 } } } } },
           payments: true,
           shipments: true,
+          address: true,
+          legalSnapshot: true,
+          sellerInvoices: {
+            include: {
+              seller: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  slug: true,
+                },
+              },
+            },
+            orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
+          },
         },
       })
     },
@@ -46,6 +69,45 @@ export function createOrderRepository(prisma: PrismaClient) {
         include: {
           lines: { where: { sellerId }, include: { product: true } },
           shipments: true,
+          address: { select: sellerVisibleAddressSelect },
+          customer: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          statusHistory: { orderBy: { createdAt: 'asc' } },
+          legalSnapshot: true,
+          payouts: {
+            where: { sellerId },
+            orderBy: { createdAt: 'desc' },
+          },
+          penalties: {
+            where: { sellerId },
+            orderBy: { createdAt: 'desc' },
+          },
+          sellerInvoices: {
+            where: { sellerId },
+            include: {
+              seller: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  slug: true,
+                },
+              },
+            },
+            orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
+          },
+          emailAliases: {
+            where: { sellerId, purpose: 'invoice', status: 'active' },
+            select: {
+              id: true,
+              aliasEmail: true,
+              purpose: true,
+              status: true,
+            },
+          },
         },
       })
     },
@@ -61,7 +123,22 @@ export function createOrderRepository(prisma: PrismaClient) {
           customerId: params.customerId,
           ...(params.status !== undefined ? { status: params.status } : {}),
         },
-        include: { lines: { include: { product: { include: { images: { take: 1 } } } } } },
+        include: {
+          lines: { include: { product: { include: { images: { take: 1 } } } } },
+          legalSnapshot: true,
+          sellerInvoices: {
+            include: {
+              seller: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  slug: true,
+                },
+              },
+            },
+            orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
+          },
+        },
         orderBy: { createdAt: 'desc' },
         ...(params.skip !== undefined ? { skip: params.skip } : {}),
         take: params.take ?? 10,
@@ -72,6 +149,10 @@ export function createOrderRepository(prisma: PrismaClient) {
     listForSellerQueue(params: {
       sellerId: string
       status?: OrderStatus[]
+      query?: string
+      from?: Date
+      to?: Date
+      missingInvoice?: boolean
       skip?: number
       take?: number
     }) {
@@ -86,15 +167,54 @@ export function createOrderRepository(prisma: PrismaClient) {
         'delivery_confirmation_pending',
         'delivery_confirmed',
       ]
+
+      const normalizedQuery = params.query?.trim()
+      const createdAtFilter =
+        params.from !== undefined || params.to !== undefined
+          ? {
+              createdAt: {
+                ...(params.from !== undefined ? { gte: params.from } : {}),
+                ...(params.to !== undefined ? { lte: params.to } : {}),
+              },
+            }
+          : {}
+
       return prisma.order.findMany({
         where: {
           lines: { some: { sellerId: params.sellerId } },
+          ...(params.missingInvoice ? { sellerInvoices: { none: { sellerId: params.sellerId } } } : {}),
           status: { in: sellerVisibleStatuses },
+          ...createdAtFilter,
+          ...(normalizedQuery
+            ? {
+                OR: [
+                  { id: { contains: normalizedQuery } },
+                  { customer: { name: { contains: normalizedQuery, mode: 'insensitive' } } },
+                  { address: { fullName: { contains: normalizedQuery, mode: 'insensitive' } } },
+                ],
+              }
+            : {}),
         },
         include: {
           lines: {
             where: { sellerId: params.sellerId },
             include: { product: { include: { images: { take: 1 } } } },
+          },
+          customer: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          address: { select: sellerVisibleAddressSelect },
+          emailAliases: {
+            where: { sellerId: params.sellerId, purpose: 'invoice', status: 'active' },
+            select: {
+              id: true,
+              aliasEmail: true,
+              purpose: true,
+              status: true,
+            },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -103,26 +223,143 @@ export function createOrderRepository(prisma: PrismaClient) {
       })
     },
 
-    listForAdmin(params: {
-      status?: OrderStatus
+    countForSellerQueue(params: {
+      sellerId: string
+      status?: OrderStatus[]
+      query?: string
+      from?: Date
+      to?: Date
+      missingInvoice?: boolean
+    }) {
+      const normalizedQuery = params.query?.trim()
+      const createdAtFilter =
+        params.from !== undefined || params.to !== undefined
+          ? {
+              createdAt: {
+                ...(params.from !== undefined ? { gte: params.from } : {}),
+                ...(params.to !== undefined ? { lte: params.to } : {}),
+              },
+            }
+          : {}
+
+      return prisma.order.count({
+        where: {
+          lines: { some: { sellerId: params.sellerId } },
+          ...(params.missingInvoice ? { sellerInvoices: { none: { sellerId: params.sellerId } } } : {}),
+          ...(params.status !== undefined ? { status: { in: params.status } } : {}),
+          ...createdAtFilter,
+          ...(normalizedQuery
+            ? {
+                OR: [
+                  { id: { contains: normalizedQuery } },
+                  { customer: { name: { contains: normalizedQuery, mode: 'insensitive' } } },
+                  { address: { fullName: { contains: normalizedQuery, mode: 'insensitive' } } },
+                ],
+              }
+            : {}),
+        },
+      })
+    },
+
+    async listForAdmin(params: {
+      status?: OrderStatus[]
       sellerId?: string
       customerId?: string
+      query?: string
+      invoice?: 'missing' | 'present'
+      from?: Date
+      to?: Date
       skip?: number
       take?: number
     }) {
-      return prisma.order.findMany({
-        where: {
-          ...(params.status !== undefined ? { status: params.status } : {}),
-          ...(params.customerId !== undefined ? { customerId: params.customerId } : {}),
-          ...(params.sellerId !== undefined
-            ? { lines: { some: { sellerId: params.sellerId } } }
-            : {}),
-        },
-        include: { lines: true, payments: true },
-        orderBy: { createdAt: 'desc' },
-        ...(params.skip !== undefined ? { skip: params.skip } : {}),
-        take: params.take ?? 20,
-      })
+      const normalizedQuery = params.query?.trim()
+      const where: Prisma.OrderWhereInput = {
+        ...(params.status !== undefined && params.status.length > 0 ? { status: { in: params.status } } : {}),
+        ...(params.customerId !== undefined ? { customerId: params.customerId } : {}),
+        ...(params.sellerId !== undefined
+          ? {
+              lines: {
+                some: {
+                  sellerId: params.sellerId,
+                },
+              },
+            }
+          : {}),
+        ...(params.invoice === 'missing'
+          ? {
+              sellerInvoices: {
+                none: params.sellerId !== undefined ? { sellerId: params.sellerId } : {},
+              },
+            }
+          : {}),
+        ...(params.invoice === 'present'
+          ? {
+              sellerInvoices: {
+                some: params.sellerId !== undefined ? { sellerId: params.sellerId } : {},
+              },
+            }
+          : {}),
+        ...(params.from !== undefined || params.to !== undefined
+          ? {
+              createdAt: {
+                ...(params.from !== undefined ? { gte: params.from } : {}),
+                ...(params.to !== undefined ? { lte: params.to } : {}),
+              },
+            }
+          : {}),
+        ...(normalizedQuery
+          ? {
+              OR: [
+                { id: { contains: normalizedQuery } },
+                { customer: { name: { contains: normalizedQuery, mode: 'insensitive' } } },
+                { customer: { email: { contains: normalizedQuery, mode: 'insensitive' } } },
+                { address: { fullName: { contains: normalizedQuery, mode: 'insensitive' } } },
+                { lines: { some: { product: { name: { contains: normalizedQuery, mode: 'insensitive' } } } } },
+              ],
+            }
+          : {}),
+      }
+
+      const [rows, total] = await Promise.all([
+        prisma.order.findMany({
+          where,
+          include: {
+            lines: {
+              include: {
+                product: true,
+                seller: { include: { profile: true } },
+              },
+            },
+            payments: true,
+            sellerInvoices: {
+              include: {
+                seller: {
+                  select: {
+                    id: true,
+                    displayName: true,
+                    slug: true,
+                  },
+                },
+              },
+              orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
+            },
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            address: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          ...(params.skip !== undefined ? { skip: params.skip } : {}),
+          take: params.take ?? 20,
+        }),
+        prisma.order.count({ where }),
+      ])
+
+      return { rows, total }
     },
 
     updateStatus(id: string, status: OrderStatus, tx?: PrismaClient) {

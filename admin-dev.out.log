@@ -1,0 +1,49 @@
+
+> admin-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\admin-panel
+> next dev --port 3002
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3002
+   - Network:      http://172.21.0.1:3002
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Compiled /instrumentation in 812ms (31 modules)
+ ✓ Ready in 3.5s
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 1954ms (815 modules)
+ GET /giris 200 in 2875ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 2.6s (1542 modules)
+ POST /api/auth/sign-in/email 200 in 5059ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 817ms (1543 modules)
+ GET /panel 404 in 1169ms
+ GET /panel 404 in 1175ms
+ GET /panel 404 in 66ms
+ ✓ Compiled in 3.5s (1557 modules)
+ GET /panel 404 in 318ms
+ GET /panel 404 in 199ms
+ GET /giris 200 in 145ms
+ POST /api/auth/sign-in/email 200 in 509ms
+ ○ Compiling / ...
+ ✓ Compiled / in 2.3s (1553 modules)
+ GET / 200 in 2572ms
+ GET /panel 404 in 2622ms
+ GET /panel 404 in 292ms
+ GET / 200 in 118ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 5.4s (1983 modules)
+ GET /dashboard 200 in 7404ms
+ ✓ Compiled in 5s (1988 modules)
+ GET /dashboard 200 in 2654ms
+ ✓ Compiled in 912ms (493 modules)
+ GET /dashboard 200 in 206ms
+ ✓ Compiled in 2.7s (2011 modules)
+ GET /dashboard 200 in 1060ms
+ ✓ Compiled in 3.7s (2027 modules)
+ GET /dashboard 200 in 1803ms
+ ✓ Compiled in 4.3s (2027 modules)
+ GET /dashboard 200 in 1898ms
+ ✓ Compiled in 3.4s (2027 modules)
+ GET /dashboard 200 in 1684ms

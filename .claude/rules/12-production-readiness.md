@@ -1,57 +1,72 @@
-# Production Readiness — Mevcut Durum ve Plan
+# Production Readiness — Güncel Durum
 
-## Durum Özeti (2025-04 itibarıyla)
+## Durum Özeti
 
-Backend katmanı %80 hazır. Frontend sayfaları backend'i çağırmıyor — hardcoded mock data gösteriyor.
+Uygulamanın ana storefront, seller panel ve admin panel akışları gerçek backend katmanına bağlıdır.
+Bu dosyanın amacı artık “hangi sayfa mock” tablosu tutmak değil, production'a çıkış öncesi kalan gerçek boşlukları özetlemektir.
 
-### Çalışan katmanlar
-- Prisma schema: 24 enum, 30+ model
-- Auth: Better Auth + email/password + session + role middleware
-- API routes: 16 dosya, 90+ handler, Zod validation
-- Service katmanı: cart, checkout, payment, order, payout, penalty, return, dispute, blog, coupon, seller, user, search, media
-- Repository katmanı: 18 repository, gerçek Prisma query'leri
-- Security: rate limiting, CSRF, webhook verification, fraud scoring, audit logging
-- Test: 477 test (unit + integration + security)
+Seller document / KYC akışı için migration, service, route ve test kapsamı repoda mevcuttur.
+Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 
-### Çalışmayan kritik alan: Frontend → Backend bağlantısı
+## Kalan Gerçek Açıklar
 
-| Sayfa | Backend çağırıyor mu? |
-|-------|----------------------|
-| Ana sayfa | ❌ Hardcoded ürünler |
-| Ürün detay (`/urun/[slug]`) | ❌ Slug'dan fake data |
-| Kategori (`/kategori/[...slug]`) | ❌ 8 hardcoded ürün |
-| Sepet (`/sepet`) | ✅ Çalışıyor |
-| Ödeme (`/odeme`) | ✅ Çalışıyor (Iyzico hariç) |
-| Siparişlerim | ❌ Mock data |
-| Arama (`/arama`) | ❌ Placeholder |
-| Giriş/Kayıt | ✅ Çalışıyor |
-| Seller panel (6/7) | ❌ Mock data (sadece kargolar çalışıyor) |
-| Admin panel (4/4) | ❌ Mock data |
+### 1. Production ortam değişkenleri
+- Coolify / production ortamında ödeme, R2, Meilisearch, SMTP, EFT banka bilgileri ve panel URL değişkenleri eksiksiz girilmeli.
+- Deploy öncesi `pnpm check-env --env=prod` çalıştırılmalı.
+- `DATABASE_URL` ve `REDIS_URL` platform tarafından sağlanıyorsa final değerler doğrulanmalı.
+- `PLATFORM_BANK_NAME`, `PLATFORM_BANK_HOLDER` ve `PLATFORM_BANK_IBAN` boş bırakılırsa EFT sipariş e-postasında fallback mesajı gösterilir.
 
-## Yapılacaklar — Öncelik sırası
+### 2. Domain ve panel URL kararı
+- Storefront, seller panel ve admin panel için kullanılacak final domainler netleştirilmeli.
+- `NEXT_PUBLIC_APP_URL`, `SELLER_PANEL_URL`, `ADMIN_PANEL_URL` ve auth callback URL'leri bu karara göre hizalanmalı.
 
-### 1. D1 + D2: Migration + Seed data
-- Initial Prisma migration oluştur
-- Test ürünleri, kategoriler, satıcılar seed et
-- Docker compose ile DB çalıştır
+### 3. Shipping sabitlerinin tek kaynakta tutulması
+- Ücretsiz kargo eşiği ve sabit kargo ücreti tek domain modülünden tüketilmeli.
+- UI önizlemesi ile backend finans hesabı arasında literal drift oluşmasına izin verilmez.
 
-### 2. Faz A: Storefront → backend bağlantısı
-- A1: Ürün detay → `catalog.ts/getProductBySlug()` + "Sepete Ekle" handler
-- A2: Kategori → `catalog.ts/listProducts()` + filtreleme/pagination
-- A3: Ana sayfa → Backend'den öne çıkan ürünler
-- A4: Arama → Meilisearch API
-- A5: Siparişlerim → `orders.ts/listCustomerOrders()`
+### 4. Build / deploy gate doğrulaması
+- CI `pnpm build` adımı production-benzeri placeholder env ile yeşil olmalı.
+- Build sırasında import edilen servis yardımcıları top-level env throw ile derlemeyi kırmamalı.
+- DB bağımlı sayfalar build-time prerender zorunluluğu taşımamalı.
 
-### 3. Faz B: Seller panel → backend bağlantısı
-- Siparişler, ödemeler, ürün yönetimi
+### 5. iyzipay teknik borcu
+- `iyzipay` CommonJS paketidir; build warning geri dönerse ayrıca not düşülmeli.
+- Öncelikli yaklaşım warning'i config ile kapatmaktır; warning kalırsa kabul edilen teknik borç olarak açıkça belgelenmelidir.
 
-### 4. Faz C: Admin panel → backend bağlantısı
-- Ödemeler, hakedişler, cezalar, finans dashboard
+### 6. Ürün moderasyon feature flag (`AUTO_APPROVE_CLEAN_PRODUCTS`)
+- Varsayılan **kapalı** (`false`). Tüm satıcı ürünleri `pending_review` ile gelir; içerik tarama bulgu üretmediğinde bile admin onayı gerekir.
+- Flag açıldığında bulgu çıkmayan ürünler doğrudan `published` olur. Açma kararı operasyon ekibinindir; rollout kriteri belirlenmeden açılmamalı.
+- Sadece submit yolunda çalışır; mevcut katalog için backfill ayrıdır ve otomatik değildir.
+- `.env.example` ve `tools/scripts/check-env.ts` flag'i bilir; production değeri Coolify env ekranından yönetilir.
 
-### 5. D3: Ödeme entegrasyonu
+### 7. Satıcı panel URL ile ürün içe aktarma
+- Hipicon mağaza URL importu satıcı panelde `/urunler/ice-aktar` rotasındadır.
+- Önizleme `POST /api/seller/products/import/preview`, kalıcı kayıt `POST /api/seller/products/import/commit` ile yapılır.
+- Commit yalnızca oturumdaki aktif satıcının hesabına ürün yazar; admin adına veya başka satıcı adına import yolu yoktur.
+- Excel/XLSX `Toplu Yükle` akışı ayrı kalır ve URL importundan bağımsızdır.
+- Unit test `tests/unit/import-category-match.test.ts` seller-panel helper kopyasına yönlendirilmiştir.
+- Hipicon adapter `shortDescription`, `stockQuantity` ve `categoryPath` alanlarını çeker; `shortDescription` bilinmiyorsa `description`'ın ilk cümlesi kullanılır, stok bilinmiyorsa `0` yazılır.
+- Önizleme `proposedBarcode` (seller-prefix'li, 13 haneli) döndürür; satıcı barkodu manuel düzenleyebilir.
+- Barkod gerçek zamanlı `POST /api/seller/products/barcode/check` ile doğrulanır; çakışırsa "Bu barkod zaten kullanımda" uyarısı gösterilir, commit engellenir.
+- Varyantsız ürünlerde barkod commit'te zorunludur; variant'lı ürünlerde ana ürün barkodu yazılmaz, variant barkodları seller-prefix'li otomatik üretilir.
+- Hipicon kategori yolu bizim kategori ağacıyla en az 2 seviye eşleşmiyorsa ürün önizlemeden filtrelenir, `rejected` listesinde gösterilir.
+- Tam eşleşme yoksa ama 2+ seviye eşleşip 1 yaprak eksikse, commit anında o yaprak `Category.createdViaImportBy = sellerId` ile otomatik açılır.
+- Tek yapraktan derin auto-create yapılmaz (`too_divergent` → reddedilir).
+
+### 8. Müşteri PII satıcı görünürlüğü
+- Satıcıya dönen sipariş payload'ları (detay, queue listesi, CSV export) müşteri e-postasını içermez; ad `maskCustomerName` ile "Ahmet Y." formatında gösterilir.
+- Kalıcı email aliasing altyapısı (Faz 4) ayrı epic; geldiğinde aynı select noktasına alias alanı eklenir.
+
+## Operasyonel Not
+
+Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
+- gerçek backend entegrasyonu
+- gerçek domain kuralı
+- build-safe import davranışı
+- env bağımlılıklarının açık tanımı
 
 ## Kural
 
-Bu dosya production readiness durumunu yansıtır.
-Frontend sayfaları backend'e bağlandıkça yukarıdaki tabloyu güncelle.
+Bu dosya production readiness durumunu güncel ve kısa tutar.
+Eski “mock / çalışmıyor” listeleri burada biriktirilmez.
 Yeni sayfa eklerken mutlaka gerçek backend entegrasyonu yap — hardcoded mock data YASAK.

@@ -7,6 +7,7 @@ import { Badge } from '../badge'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -99,7 +100,7 @@ export function NotificationBell({ apiPath = '/api/notifications', className }: 
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col p-0">
+      <DialogContent aria-describedby={undefined} className="sm:max-w-md max-h-[80vh] flex flex-col p-0">
         <DialogHeader className="px-4 pt-4 pb-2">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-base">
@@ -119,6 +120,9 @@ export function NotificationBell({ apiPath = '/api/notifications', className }: 
               </button>
             )}
           </div>
+          <DialogDescription className="sr-only">
+            Satıcı paneli bildirimleri
+          </DialogDescription>
         </DialogHeader>
 
         <Separator />

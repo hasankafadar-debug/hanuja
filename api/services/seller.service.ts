@@ -20,6 +20,7 @@ import {
   ForbiddenError,
 } from '../lib/errors'
 import { maskIban } from '@hanuja/security'
+import { enqueueStoreSync } from '../jobs/search-index-sync.job'
 
 export interface SellerOnboardingInput {
   userId: string
@@ -36,6 +37,14 @@ export interface SellerProfileUpdateInput {
   bio?: string
   logoUrl?: string
   phone?: string
+  companyName?: string
+  legalAddress?: string
+  district?: string
+  city?: string
+  postalCode?: string
+  taxOffice?: string
+  taxNumber?: string
+  mersis?: string
 }
 
 export interface BankDetailUpdateInput {
@@ -178,11 +187,14 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
     }
 
     // displayName (mağaza adı) Seller tablosunda
+    let storeNameChanged = false
+
     if (input.storeName !== undefined) {
       await prisma.seller.update({
         where: { id: sellerId },
         data: { displayName: input.storeName },
       })
+      storeNameChanged = input.storeName !== seller.displayName
     }
 
     // bio, logoUrl, phone SellerProfile tablosunda
@@ -190,6 +202,14 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
     if (input.bio !== undefined) profileData.bio = input.bio
     if (input.logoUrl !== undefined) profileData.logoUrl = input.logoUrl
     if (input.phone !== undefined) profileData.phone = input.phone
+    if (input.companyName !== undefined) profileData.companyName = input.companyName
+    if (input.legalAddress !== undefined) profileData.legalAddress = input.legalAddress
+    if (input.district !== undefined) profileData.district = input.district
+    if (input.city !== undefined) profileData.city = input.city
+    if (input.postalCode !== undefined) profileData.postalCode = input.postalCode
+    if (input.taxOffice !== undefined) profileData.taxOffice = input.taxOffice
+    if (input.taxNumber !== undefined) profileData.taxNumber = input.taxNumber
+    if (input.mersis !== undefined) profileData.mersis = input.mersis
 
     if (Object.keys(profileData).length > 0) {
       await prisma.sellerProfile.upsert({
@@ -197,6 +217,12 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
         create: { sellerId, ...profileData },
         update: profileData,
       })
+    }
+
+    if (storeNameChanged) {
+      await enqueueStoreSync({ entityId: sellerId }).catch((err) =>
+        console.error('[seller] Search sync enqueue failed (store):', err),
+      )
     }
   }
 

@@ -34,12 +34,53 @@ enum SellerStatus {
   rejected // Başvurusu reddedildi
 }
 
+enum SellerDocumentType {
+  identity          // TC Kimlik / Pasaport
+  tax_certificate   // Vergi Levhası
+  trade_registry    // Ticaret Sicil Gazetesi / Esnaf Sicil Belgesi
+  signature_circular // İmza Sirküleri (tüzel kişiler)
+  bank_statement    // Banka Hesap Cüzdanı / IBAN Belgesi
+  other             // Diğer
+}
+
+enum SellerDocumentStatus {
+  pending  // Yüklendi, admin incelemesi bekliyor
+  approved // Admin onayladı
+  rejected // Admin reddetti
+}
+
+enum BankDetailStatus {
+  ACTIVE
+  PENDING_ACTIVATION
+  BLOCKED
+  SUPERSEDED
+  CANCELLED
+}
+
 enum ProductStatus {
   draft // Taslak — henüz gönderilmedi
   pending_review // İnceleme bekliyor
   published // Yayında, alışverişe açık
   unlisted // Yayından kaldırıldı (satıcı/admin)
   rejected // Moderasyon tarafından reddedildi
+}
+
+enum DiscountRuleScope {
+  ALL_PRODUCTS
+  CATEGORY
+  PRODUCT
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED_AMOUNT
+}
+
+enum DiscountStatus {
+  ACTIVE
+  SCHEDULED
+  EXPIRED
+  PAUSED
 }
 
 // Sipariş lifecycle — 08-order-lifecycle-rules.md
@@ -163,6 +204,7 @@ enum LedgerEntryType {
   penalty // Ceza kesintisi
   refund // İade etkisi
   coupon_share // Kupon payı
+  eft_discount // Admin havale onayında uygulanan indirim
   manual_adjustment // Admin manuel düzeltme
   payout // Ödeme (negatif — hesaptan çıkış)
   chargeback // Chargeback
@@ -192,6 +234,25 @@ enum AdminActionType {
   manual_ledger_adjustment
   fulfillment_window_extended
   seller_bank_detail_changed
+  seller_bank_detail_approved
+  seller_bank_detail_blocked
+  seller_document_approved
+  seller_document_rejected
+  seller_documents_requested
+  seller_password_reset_by_admin
+  home_slide_created
+  home_slide_updated
+  home_slide_deleted
+  home_slide_reordered
+  home_promo_updated
+  product_review_approved
+  product_review_rejected
+  seller_products_imported
+}
+
+enum HomePromoSlot {
+  TOP_RIGHT
+  BOTTOM_RIGHT
 }
 
 enum NotificationType {
@@ -222,6 +283,22 @@ enum NotificationType {
   account_verified
   seller_approved
   seller_suspended
+  seller_bank_detail_pending
+  seller_bank_detail_approved
+  seller_bank_detail_activated
+  seller_bank_detail_blocked
+  seller_support_reply
+  admin_support_new_ticket
+  invoice_uploaded
+  product_review_pending_moderation
+  product_review_approved
+  product_review_rejected
+}
+
+enum SupportTicketStatus {
+  waiting_for_admin
+  waiting_for_seller
+  resolved
 }
 
 enum MediaAssetType {
@@ -231,12 +308,34 @@ enum MediaAssetType {
   dispute_evidence
   return_evidence
   invoice_document
+  support_attachment
+}
+
+enum MediaAssetKind {
+  image
+  document
+  video
+}
+
+// Ana sayfa CMS — slider/promo içerik durumları
+enum HomeCmsStatus {
+  active
+  paused
+  scheduled
+  expired
 }
 
 enum BlogPostStatus {
   draft
   published
   archived
+}
+
+// Ürün değerlendirme moderasyon durumu — 06-content-guidelines moderation rules
+enum ProductReviewStatus {
+  pending_moderation // Yüklendi, admin onayı bekliyor
+  approved           // Onaylandı, ürün sayfasında görünür
+  rejected           // Reddedildi, görünmez
 }
 
 // =============================================================================
@@ -250,6 +349,10 @@ model User {
   emailVerified Boolean  @default(false)
   image         String?
   role          UserRole @default(customer)
+  mustChangePassword Boolean @default(false)
+  banned        Boolean  @default(false)
+  banReason     String?
+  banExpires    DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -264,6 +367,9 @@ model User {
   orders        Order[]
   notifications Notification[]
   couponUsages  CouponUsage[]
+  supportMessages SupportMessage[]
+  productReviews ProductReview[]
+  favorites     FavoriteProduct[]
 
   @@map("users")
 }
@@ -276,6 +382,7 @@ model Session {
   updatedAt DateTime @updatedAt
   ipAddress String?
   userAgent String?
+  impersonatedBy String?
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -327,19 +434,29 @@ model Seller {
   userId      String       @unique
   slug        String       @unique // /magaza/<slug> SEO route'u
   displayName String
+  sellerNumber Int         @unique @default(autoincrement())
   status      SellerStatus @default(pending)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  documentsRequestedAt DateTime?
+  requiredDocumentTypes Json?
 
   user          User                @relation(fields: [userId], references: [id])
   profile       SellerProfile?
   bankDetails   SellerBankDetail[]
+  bankDetailHistory SellerBankDetailHistory[]
+  documents     SellerDocument[]
   ledgerEntries SellerLedgerEntry[]
   products      Product[]
+  discountRules DiscountRule[]
   orderLines    OrderLine[]
+  orderInvoices OrderSellerInvoice[]
+  orderEmailAliases OrderEmailAlias[]
   shipments     Shipment[]
   payouts       Payout[]
   penalties     Penalty[]
+  supportTickets SupportTicket[]
+  homeSlides     HomeSlide[]
 
   @@index([status])
   @@index([slug])
@@ -353,9 +470,15 @@ model SellerProfile {
   story      String?
   logoUrl    String?
   bannerUrl  String?
+  companyName String?
   city       String?
+  district   String?
+  postalCode String?
+  legalAddress String?
   phone      String?
+  taxOffice  String?
   taxNumber  String? // Vergi numarası (masked in non-admin views)
+  mersis     String?
   isVerified Boolean   @default(false)
   verifiedAt DateTime?
   createdAt  DateTime  @default(now())
@@ -373,18 +496,79 @@ model SellerBankDetail {
   iban          String // Şifreli/masked saklanmalı — açık metne sadece payout akışında erişilir
   accountHolder String
   bankName      String
+  status        BankDetailStatus @default(PENDING_ACTIVATION)
   isActive      Boolean   @default(false) // Geciktirmeli aktivasyon — admin/sistem onayı gerekebilir
   isVerified    Boolean   @default(false)
   verifiedAt    DateTime?
+  verifiedBy    String?
   activatedAt   DateTime?
+  activatesAt   DateTime?
+  stepUpVerifiedAt DateTime?
+  previousIbanMasked String?
+  changeReason  String?
+  blockedReason String?
+  blockedAt     DateTime?
+  blockedBy     String?
+  cancelledAt   DateTime?
+  flags         Json?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   seller  Seller   @relation(fields: [sellerId], references: [id])
   payouts Payout[]
+  history SellerBankDetailHistory[]
 
   @@index([sellerId, isActive])
+  @@index([sellerId, status, activatesAt])
   @@map("seller_bank_details")
+}
+
+model SellerBankDetailHistory {
+  id                 String   @id @default(cuid())
+  sellerId           String
+  bankDetailId       String?
+  action             String
+  ibanMasked         String
+  previousIbanMasked String?
+  actorId            String
+  actorRole          String
+  ip                 String?
+  userAgent          String?
+  reason             String?
+  createdAt          DateTime @default(now())
+
+  seller     Seller            @relation(fields: [sellerId], references: [id])
+  bankDetail SellerBankDetail? @relation(fields: [bankDetailId], references: [id], onDelete: SetNull)
+
+  @@index([sellerId, createdAt])
+  @@index([bankDetailId])
+  @@map("seller_bank_detail_history")
+}
+
+// Satıcı KYC belgeleri — kimlik, vergi, sicil, imza belgesi vb.
+// Her belge ayrı bir kayıt; aynı tipten birden fazla yükleme mümkün (son=geçerli).
+model SellerDocument {
+  id         String               @id @default(cuid())
+  sellerId   String
+  type       SellerDocumentType
+  status     SellerDocumentStatus @default(pending)
+  fileUrl    String               // R2 CDN public URL
+  fileKey    String               // R2 storage key — delete için gerekli
+  fileName   String               // Orijinal dosya adı (yalnızca bilgi amaçlı)
+  mimeType   String               // image/jpeg | image/png | application/pdf
+  sizeBytes  Int
+  adminNote  String?              // Admin red/onay notu
+  reviewedBy String?              // Admin kullanıcı ID
+  reviewedAt DateTime?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  seller Seller @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId])
+  @@index([sellerId, type])
+  @@index([status])
+  @@map("seller_documents")
 }
 
 // Satıcı finansal ledger'ı — her finansal hareket buraya kayıt edilir
@@ -413,20 +597,23 @@ model SellerLedgerEntry {
 // =============================================================================
 
 model Category {
-  id          String   @id @default(cuid())
-  slug        String   @unique // /kategori/<slug>
-  name        String
-  description String?
-  imageUrl    String?
-  parentId    String?
-  sortOrder   Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                 String    @id @default(cuid())
+  slug               String    @unique // /kategori/<slug>
+  name               String
+  description        String?
+  imageUrl           String?
+  parentId           String?
+  sortOrder          Int       @default(0)
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdViaImportBy String?   // Seller.id — import commit ile açıldıysa; null = admin/seed
+  createdViaImportAt DateTime? // Import commit zamanı
 
-  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
-  children Category[] @relation("CategoryTree")
-  products Product[]
+  parent        Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children      Category[] @relation("CategoryTree")
+  products      Product[]
+  discountRules DiscountRule[]
 
   @@index([parentId])
   @@index([slug])
@@ -441,33 +628,96 @@ model Product {
   name             String
   description      String?
   shortDescription String?
+  story            String? // Ürün Hikayesi
+  careInstructions String? // Bakım Tavsiyesi
   status           ProductStatus @default(draft)
   price            Decimal       @db.Decimal(12, 2)
   compareAtPrice   Decimal?      @db.Decimal(12, 2)
   stockQuantity    Int           @default(0)
   sku              String?
+  barcode          String?       @unique @db.VarChar(13)
   weight           Decimal?      @db.Decimal(8, 3) // kg
   // Boyutlar (cm)
   dimensionLength  Decimal?      @db.Decimal(8, 2)
   dimensionWidth   Decimal?      @db.Decimal(8, 2)
   dimensionHeight  Decimal?      @db.Decimal(8, 2)
 
+  // Aggregate review fields — recomputed on review approve/reject
+  avgRating       Decimal?  @db.Decimal(3, 2) // 0.00 — 5.00
+  reviewCount     Int       @default(0)
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   publishedAt     DateTime?
   rejectedAt      DateTime?
   rejectionReason String?
+  moderationFindings Json?
 
-  seller     Seller           @relation(fields: [sellerId], references: [id])
-  category   Category?        @relation(fields: [categoryId], references: [id])
-  images     ProductImage[]
-  variants   ProductVariant[]
-  orderLines OrderLine[]
+  seller               Seller                @relation(fields: [sellerId], references: [id])
+  category             Category?             @relation(fields: [categoryId], references: [id])
+  discountRuleProducts DiscountRuleProduct[]
+  images               ProductImage[]
+  variants             ProductVariant[]
+  orderLines           OrderLine[]
+  reviews              ProductReview[]
+  favoritedBy          FavoriteProduct[]
 
   @@index([sellerId, status])
+  @@index([barcode])
   @@index([categoryId, status])
   @@index([slug])
+  @@index([sellerId, sku])
   @@map("products")
+}
+
+model FavoriteProduct {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId, createdAt])
+  @@index([productId])
+  @@map("favorite_products")
+}
+
+model DiscountRule {
+  id         String            @id @default(cuid())
+  sellerId   String
+  name       String
+  scope      DiscountRuleScope
+  type       DiscountType
+  value      Decimal           @db.Decimal(10, 2)
+  categoryId String?
+  status     DiscountStatus    @default(ACTIVE)
+  startsAt   DateTime?
+  endsAt     DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  seller   Seller                @relation(fields: [sellerId], references: [id])
+  category Category?             @relation(fields: [categoryId], references: [id])
+  products DiscountRuleProduct[]
+
+  @@index([sellerId, status])
+  @@index([categoryId])
+  @@map("discount_rules")
+}
+
+model DiscountRuleProduct {
+  discountRuleId String
+  productId      String
+
+  discountRule DiscountRule @relation(fields: [discountRuleId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([discountRuleId, productId])
+  @@index([productId])
+  @@map("discount_rule_products")
 }
 
 model ProductImage {
@@ -490,6 +740,7 @@ model ProductVariant {
   productId     String
   name          String // Örn: "Renk: Krem / Beden: L"
   sku           String?
+  barcode       String   @unique @db.VarChar(13)
   price         Decimal? @db.Decimal(12, 2) // null ise ürün fiyatı geçerli
   stockQuantity Int      @default(0)
   options       Json // { "Renk": "Krem", "Beden": "L" }
@@ -500,6 +751,7 @@ model ProductVariant {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
+  @@index([barcode])
   @@map("product_variants")
 }
 
@@ -571,6 +823,7 @@ model Address {
 
 model Order {
   id         String      @id @default(cuid())
+  publicNumber Int       @unique @default(autoincrement())
   customerId String
   addressId  String?
   status     OrderStatus @default(draft)
@@ -603,15 +856,109 @@ model Order {
   payments       Payment[]
   shipments      Shipment[]
   statusHistory  OrderStatusHistory[]
+  legalSnapshot  OrderLegalSnapshot?
+  sellerInvoices OrderSellerInvoice[]
+  emailAliases   OrderEmailAlias[]
+  inboundEmails   InboundEmail[]
   payouts        Payout[]
   penalties      Penalty[]
   returnRequests ReturnRequest[]
   disputes       Dispute[]
   couponUsage    CouponUsage?
+  supportTickets SupportTicket[]
+  productReviews ProductReview[]
 
   @@index([customerId, status])
   @@index([status, createdAt])
+  @@index([publicNumber])
   @@map("orders")
+}
+
+model OrderLegalSnapshot {
+  id                String   @id @default(cuid())
+  orderId           String   @unique
+  distanceSalesHtml String   @db.Text
+  preInformationHtml String  @db.Text
+  buyerSnapshot     Json
+  sellerSnapshot    Json
+  platformSnapshot  Json
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_legal_snapshots")
+}
+
+model OrderSellerInvoice {
+  id         String   @id @default(cuid())
+  orderId    String
+  sellerId   String
+  inboundEmailId String? @unique
+  fileUrl    String
+  fileKey    String
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  source     String   @default("manual")
+  uploadedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller       Seller        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  inboundEmail InboundEmail? @relation(fields: [inboundEmailId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, sellerId])
+  @@index([orderId])
+  @@index([sellerId])
+  @@index([source])
+  @@map("order_seller_invoices")
+}
+
+model OrderEmailAlias {
+  id         String   @id @default(cuid())
+  orderId    String
+  sellerId   String
+  aliasEmail String   @unique
+  localPart  String   @unique
+  purpose    String   @default("invoice")
+  status     String   @default("active")
+  lastInboundAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, sellerId, purpose])
+  @@index([sellerId, status])
+  @@index([orderId])
+  @@map("order_email_aliases")
+}
+
+model InboundEmail {
+  id          String   @id @default(cuid())
+  messageId   String   @unique
+  orderId     String?
+  sellerId    String?
+  aliasEmail  String
+  fromEmail   String?
+  subject     String?
+  status      String
+  selectedAttachment Json?
+  errorReason String?
+  receivedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  invoice OrderSellerInvoice?
+
+  @@index([aliasEmail])
+  @@index([orderId])
+  @@index([status])
+  @@map("inbound_emails")
 }
 
 model OrderLine {
@@ -682,6 +1029,8 @@ model Payment {
   eftRejectedBy       String?
   eftRejectedAt       DateTime?
   eftRejectionReason  String?
+  eftDiscountAmount   Decimal?      @db.Decimal(12, 2) // Admin tarafından uygulanan indirim tutarı
+  eftDiscountReason   String? // İndirim gerekçesi
   // Timing
   confirmedAt         DateTime?
   failedAt            DateTime?
@@ -979,32 +1328,169 @@ model Page {
 }
 
 // =============================================================================
+// HOME CMS — Ana sayfa hero slider ve promo kartlar
+// Admin paneli /admin/anasayfa üzerinden yönetilir.
+// Storefront 5 dakika cache kullanır (revalidate: 300).
+// =============================================================================
+
+// Ana sayfa hero slider slaytları — N slayt destekler
+model HomeSlide {
+  id String @id @default(cuid())
+
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  // Medya — görsel veya video (MediaAsset.kind = image | video)
+  mediaAssetId String
+  mediaAsset   MediaAsset @relation("HomeSlideMedia", fields: [mediaAssetId], references: [id])
+
+  // Video ise poster (autoplay öncesi ve düşük bant genişliğinde fallback — zorunlu)
+  posterAssetId String?
+  posterAsset   MediaAsset? @relation("HomeSlidePoster", fields: [posterAssetId], references: [id])
+
+  // İçerik
+  eyebrow  String? @db.VarChar(60)  // "YENİ KOLEKSİYON" / "%30 İNDİRİM"
+  title    String  @db.VarChar(120)
+  body     String? @db.VarChar(300)
+  ctaLabel String  @db.VarChar(40)
+  ctaHref  String  @db.VarChar(500)
+
+  // Zamanlama penceresi — null = hep aktif
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  // İsteğe bağlı satıcı ataması (kampanya analytics için)
+  sellerId String?
+  seller   Seller? @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String   // Admin User.id
+
+  @@index([isActive, sortOrder])
+  @@index([startsAt, endsAt])
+  @@index([sellerId])
+  @@map("home_slides")
+}
+
+// Ana sayfa sağ sütun promo kartları — sabit 2 slot
+model HomePromo {
+  id   String        @id @default(cuid())
+  slot HomePromoSlot @unique // Her slot için tek aktif kayıt
+
+  isActive Boolean @default(true)
+
+  // Sadece görsel — videoya izin yok
+  mediaAssetId String
+  mediaAsset   MediaAsset @relation("HomePromoMedia", fields: [mediaAssetId], references: [id])
+
+  title    String  @db.VarChar(80)
+  subtitle String? @db.VarChar(160)
+  ctaHref  String  @db.VarChar(500)
+
+  // Zamanlama penceresi — null = hep aktif
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String   // Admin User.id
+
+  @@index([slot, isActive])
+  @@map("home_promos")
+}
+
+// =============================================================================
 // MEDIA ASSET — Medya dosyaları (Cloudflare R2)
 // =============================================================================
 
 model MediaAsset {
-  id              String         @id @default(cuid())
+  id              String          @id @default(cuid())
   type            MediaAssetType
+  kind            MediaAssetKind  @default(image)
   url             String // R2 CDN public URL
-  key             String?        // R2 storage key — required for delete/verify
-  folder          String?        // products | stores | avatars | disputes | returns | blog
-  status          String         @default("ready") // pending | ready | failed
+  key             String?         // R2 storage key — required for delete/verify
+  folder          String?         // products | stores | avatars | disputes | returns | blog | slider | promo
+  status          String          @default("ready") // pending | ready | failed
   originalName    String?
   mimeType        String?
   sizeBytes       Int?
-  uploadedBy      String         // user/seller ID who owns this asset
-  verifiedAt      DateTime?      // Set by media-processing job after R2 verification
+  width           Int?            // original image width px
+  height          Int?            // original image height px
+  durationSec     Int?            // video duration — validated ≤ 15 sec for slider
+  variants        Json?           // { "1200w": url, "800w": url, "400w": url }
+  uploadedBy      String          // user/seller ID who owns this asset
+  verifiedAt      DateTime?       // Set by media-processing job after R2 verification
   // Polymorphic relations — nullable, set when asset is attached to a record
   returnRequestId String?
   disputeId       String?
-  createdAt       DateTime       @default(now())
+  createdAt       DateTime        @default(now())
 
-  returnRequest ReturnRequest? @relation(fields: [returnRequestId], references: [id])
-  dispute       Dispute?       @relation(fields: [disputeId], references: [id])
+  returnRequest    ReturnRequest? @relation(fields: [returnRequestId], references: [id])
+  dispute          Dispute?       @relation(fields: [disputeId], references: [id])
+  supportAttachments SupportMessageAttachment[]
+  // Home CMS ilişkileri — bir asset birden fazla slotta kullanılabilir
+  homeSlideMedia   HomeSlide[]    @relation("HomeSlideMedia")
+  homeSlidePoster  HomeSlide[]    @relation("HomeSlidePoster")
+  homePromoMedia   HomePromo[]    @relation("HomePromoMedia")
 
   @@index([uploadedBy])
   @@index([uploadedBy, folder, status])
   @@map("media_assets")
+}
+
+model SupportTicket {
+  id                  String              @id @default(cuid())
+  sellerId            String
+  orderId             String?
+  subject             String
+  status              SupportTicketStatus @default(waiting_for_admin)
+  resolvedAt          DateTime?
+  lastSellerMessageAt DateTime?
+  lastAdminMessageAt  DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  seller   Seller           @relation(fields: [sellerId], references: [id])
+  order    Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  messages SupportMessage[]
+
+  @@index([sellerId, status, updatedAt])
+  @@index([orderId])
+  @@index([status, updatedAt])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id         String   @id @default(cuid())
+  ticketId    String
+  authorId    String
+  authorRole  UserRole
+  body        String
+  createdAt   DateTime @default(now())
+
+  ticket      SupportTicket              @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author      User                       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  attachments SupportMessageAttachment[]
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
+  @@map("support_messages")
+}
+
+model SupportMessageAttachment {
+  id           String   @id @default(cuid())
+  messageId    String
+  mediaAssetId String
+  createdAt    DateTime @default(now())
+
+  message    SupportMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  mediaAsset MediaAsset     @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
+
+  @@unique([messageId, mediaAssetId])
+  @@index([messageId])
+  @@index([mediaAssetId])
+  @@map("support_message_attachments")
 }
 
 // =============================================================================
@@ -1051,6 +1537,41 @@ model Notification {
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+// =============================================================================
+// PRODUCT REVIEW — Ürün değerlendirme + moderasyon
+// =============================================================================
+// Kural: Yalnızca ürünü satın alıp delivery_confirmed durumuna ulaşan müşteri
+// değerlendirme yazabilir. Her sipariş için ürün başına tek değerlendirme.
+// İçerik moderasyonundan geçmeyen yorum public sayfada görünmez.
+
+model ProductReview {
+  id          String              @id @default(cuid())
+  productId   String
+  customerId  String
+  orderId     String
+  rating      Int                 // 1-5 (DB constraint migration'da)
+  title       String?             @db.VarChar(140)
+  body        String              @db.Text
+  status      ProductReviewStatus @default(pending_moderation)
+  moderatedBy String?             // Admin user ID
+  moderatedAt DateTime?
+  moderationNote String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  product  Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customer User    @relation(fields: [customerId], references: [id])
+  order    Order   @relation(fields: [orderId], references: [id])
+
+  // Listing for product page (only approved, sorted by createdAt desc)
+  @@index([productId, status, createdAt])
+  // Admin moderation queue (status filter)
+  @@index([status, createdAt])
+  // One review per (order, product) pair
+  @@unique([orderId, productId])
+  @@map("product_reviews")
 }
 
 // =============================================================================

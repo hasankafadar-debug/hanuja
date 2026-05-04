@@ -1,0 +1,38 @@
+{
+  "baseUrl": "http://localhost:3000",
+  "roles": {
+    "customer": {
+      "email": "test-customer@example.com",
+      "password": "TestPass123!"
+    },
+    "seller": {
+      "email": "test-seller@example.com",
+      "password": "TestPass123!"
+    },
+    "admin": {
+      "email": "test-admin@example.com",
+      "password": "TestPass123!"
+    }
+  },
+  "settings": {
+    "screenshotOnEveryPhase": true,
+    "screenshotOnError": true,
+    "waitBetweenActionsMs": 500,
+    "loginTimeoutMs": 5000,
+    "pageLoadTimeoutMs": 10000,
+    "stopOnCritical": false
+  },
+  "testData": {
+    "searchKeyword": "test product",
+    "testProductName": "QA Test Product - Delete Me",
+    "testProductPrice": 9.99,
+    "testCategoryName": "QA Test Category - Delete Me",
+    "shippingAddress": {
+      "fullName": "Test User",
+      "street": "123 Test Street",
+      "city": "Test City",
+      "postalCode": "12345",
+      "country": "Turkey"
+    }
+  }
+}

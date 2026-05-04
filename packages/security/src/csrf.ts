@@ -14,6 +14,7 @@
 import { randomBytes, timingSafeEqual } from 'crypto'
 
 export const CSRF_COOKIE_NAME = 'hanuja-csrf'
+export const CSRF_MIRROR_COOKIE_NAME = 'hanuja-csrf-mirror'
 export const CSRF_HEADER_NAME = 'x-csrf-token'
 export const CSRF_TOKEN_BYTES = 32
 
@@ -78,5 +79,16 @@ export function getCsrfCookieOptions(isProduction: boolean): CsrfCookieOptions {
     sameSite: 'lax',
     path: '/',
     maxAge: 60 * 60 * 24, // 24 hours
+  }
+}
+
+// JS-readable mirror — same value, NOT httpOnly, so the browser can read it for fetch headers.
+export function getMirrorCsrfCookieOptions(isProduction: boolean): CsrfCookieOptions {
+  return {
+    httpOnly: false,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24,
   }
 }

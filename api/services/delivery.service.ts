@@ -63,6 +63,10 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
         }
 
         await orders.updateStatus(params.orderId, 'shipped', tx as unknown as PrismaClient)
+        await (tx as PrismaClient).order.update({
+          where: { id: params.orderId },
+          data: { shippedAt: new Date() },
+        })
         await orders.appendStatusHistory(
           params.orderId,
           'shipped',
@@ -76,15 +80,25 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
         // Notify customer that order is shipped (fire-and-forget)
         void prisma.order.findUnique({
           where: { id: params.orderId },
-          select: { customerId: true },
+          select: {
+            customerId: true,
+            customer: { select: { email: true, name: true } },
+          },
         }).then((o) => {
           if (!o) return
           return enqueueNotification({
             userId: o.customerId,
             type: 'order_shipped',
+            emailTo: o.customer.email ?? undefined,
             title: 'Siparişiniz Kargoya Verildi',
             body: `Takip numaranız: ${params.trackingNumber}`,
-            data: { orderId: params.orderId, trackingNumber: params.trackingNumber },
+            data: {
+              orderId: params.orderId,
+              orderNumber: params.orderId.slice(-8).toUpperCase(),
+              trackingNumber: params.trackingNumber,
+              cargoCompany: params.cargoProvider ?? 'Kargo',
+              customerName: o.customer.name ?? 'Değerli Müşterimiz',
+            },
           })
         }).catch((err) => console.error('[delivery] Shipped notification failed:', err))
         return shipment
@@ -108,6 +122,10 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
         }
 
         await orders.updateStatus(params.orderId, 'delivered', tx as unknown as PrismaClient)
+        await (tx as PrismaClient).order.update({
+          where: { id: params.orderId },
+          data: { deliveredAt: new Date() },
+        })
         await orders.appendStatusHistory(
           params.orderId,
           'delivered',
@@ -215,6 +233,12 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
         // Called after transaction for clarity — payout service will do its own tx
         return { orderId, confirmedAt: confirmation.confirmedAt, source: confirmation.source }
       }).then(async (result) => {
+        const payoutService = createPayoutService({ prisma })
+        await payoutService.activateHold({
+          orderId,
+          deliveryConfirmedAt: result.confirmedAt,
+        })
+
         // Notify customer about delivery confirmation (fire-and-forget)
         void prisma.order.findUnique({
           where: { id: orderId },

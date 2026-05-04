@@ -26,6 +26,7 @@ import {
   payoutMaturityQueue,
   deliverySilentConfirmQueue,
   fulfillmentRiskQueue,
+  ibanActivationQueue,
 } from '../lib/queue'
 
 export async function scheduleRepeatableJobs(): Promise<void> {
@@ -72,8 +73,22 @@ export async function scheduleRepeatableJobs(): Promise<void> {
     },
   )
 
+  await ibanActivationQueue.add(
+    'iban-activation-hourly',
+    {},
+    {
+      repeat: {
+        pattern: '0 * * * *',
+        tz: 'UTC',
+      },
+      removeOnComplete: { count: 10 },
+      removeOnFail: { count: 20 },
+    },
+  )
+
   console.log('[scheduler] Repeatable jobs registered:')
   console.log('  - payout-maturity-daily         → 02:00 UTC daily')
   console.log('  - delivery-silent-confirm        → every 30 min')
   console.log('  - fulfillment-risk-daily         → 08:00 UTC daily')
+  console.log('  - iban-activation-hourly         → every hour')
 }

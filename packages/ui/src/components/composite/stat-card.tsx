@@ -23,7 +23,7 @@ function StatCard({ title, value, changePercent, changeLabel, icon, className }:
   const isNeutral = changePercent == null || changePercent === 0
 
   return (
-    <Card className={cn("", className)}>
+    <Card className={cn("", className)} data-testid="stat-card">
       <CardContent className="p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1 min-w-0">

@@ -1,10 +1,17 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Button, EmptyState, Separator, Spinner } from '@hanuja/ui'
+import { Button, EmptyState, Separator, Spinner, normalizeMediaDisplayUrl } from '@hanuja/ui'
 import { Trash2, ShoppingCart, Plus, Minus, AlertTriangle } from 'lucide-react'
+import {
+  calculateShippingFee,
+  FREE_SHIPPING_THRESHOLD_TRY,
+} from '@hanuja/api/domain/shipping'
+import { csrfFetch } from '@/lib/csrf-fetch'
+import CouponForm from './_components/coupon-form'
 
 interface CartItem {
   id: string
@@ -17,7 +24,7 @@ interface CartItem {
     slug: string
     seller: { displayName: string; slug: string }
     images: Array<{ url: string; altText: string | null }>
-  }
+  } | null
   variant: { name: string } | null
 }
 
@@ -28,9 +35,6 @@ interface Cart {
   itemCount: number
   subtotal: string
 }
-
-const FREE_SHIPPING_THRESHOLD = 1500
-const FLAT_SHIPPING = 99
 
 function formatPrice(value: string | number) {
   return Number(value).toLocaleString('tr-TR', {
@@ -50,7 +54,7 @@ export default function CartPage() {
     try {
       const res = await fetch('/api/cart')
       if (res.status === 401) {
-        router.push('/giris?redirect=/sepet')
+        router.push('/giris?callbackUrl=/sepet')
         return
       }
       if (!res.ok) throw new Error('Sepet yüklenemedi')
@@ -73,7 +77,7 @@ export default function CartPage() {
 
     setUpdating(itemId)
     try {
-      const res = await fetch(`/api/cart/items/${itemId}`, {
+      const res = await csrfFetch(`/api/cart/items/${itemId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quantity: newQty }),
@@ -84,6 +88,7 @@ export default function CartPage() {
         return
       }
       await fetchCart()
+      window.dispatchEvent(new CustomEvent('hanuja:cart-changed'))
     } catch {
       setError('Güncelleme sırasında hata oluştu')
     } finally {
@@ -94,8 +99,9 @@ export default function CartPage() {
   async function removeItem(itemId: string) {
     setUpdating(itemId)
     try {
-      await fetch(`/api/cart/items/${itemId}`, { method: 'DELETE' })
+      await csrfFetch(`/api/cart/items/${itemId}`, { method: 'DELETE' })
       await fetchCart()
+      window.dispatchEvent(new CustomEvent('hanuja:cart-changed'))
     } catch {
       setError('Ürün kaldırılırken hata oluştu')
     } finally {
@@ -125,7 +131,7 @@ export default function CartPage() {
   }
 
   const subtotal = Number(cart.subtotal)
-  const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : FLAT_SHIPPING
+  const shipping = calculateShippingFee(subtotal)
   const total = subtotal + shipping
 
   return (
@@ -152,13 +158,15 @@ export default function CartPage() {
         {/* Sepet kalemleri */}
         <div className="lg:col-span-2 space-y-4">
           {cart.items.map((item) => {
-            const image = item.product.images[0]
+            const product = item.product
+            const image = product?.images[0]
             const lineTotal = Number(item.unitPrice) * item.quantity
             const isUpdating = updating === item.id
 
             return (
               <div
                 key={item.id}
+                data-testid="cart-item"
                 className="flex gap-4 rounded-xl border p-4"
                 style={{
                   borderColor: 'var(--color-border)',
@@ -168,15 +176,16 @@ export default function CartPage() {
                 }}
               >
                 <div
-                  className="h-20 w-20 shrink-0 overflow-hidden rounded-lg"
+                  className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg"
                   style={{ backgroundColor: 'var(--color-muted)' }}
                 >
                   {image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={image.url}
-                      alt={image.altText ?? item.product.name}
-                      className="h-full w-full object-cover"
+                    <Image
+                      src={normalizeMediaDisplayUrl(image.url)}
+                      alt={image.altText ?? product?.name ?? 'Sepet ürünü'}
+                      fill
+                      sizes="80px"
+                      className="object-cover"
                     />
                   ) : (
                     <div
@@ -189,25 +198,38 @@ export default function CartPage() {
                 </div>
 
                 <div className="flex flex-1 flex-col gap-1">
-                  <Link
-                    href={`/urun/${item.product.slug}`}
-                    className="font-medium hover:underline"
-                    style={{ color: 'var(--color-primary)' }}
-                  >
-                    {item.product.name}
-                    {item.variant && (
-                      <span className="ml-2 text-xs font-normal" style={{ color: 'var(--color-muted-fg)' }}>
-                        ({item.variant.name})
-                      </span>
-                    )}
-                  </Link>
-                  <Link
-                    href={`/magaza/${item.product.seller.slug}`}
-                    className="text-xs hover:underline"
-                    style={{ color: 'var(--color-muted-fg)' }}
-                  >
-                    {item.product.seller.displayName}
-                  </Link>
+                  {product ? (
+                    <>
+                      <Link
+                        href={`/urun/${product.slug}`}
+                        className="font-medium hover:underline"
+                        style={{ color: 'var(--color-primary)' }}
+                      >
+                        {product.name}
+                        {item.variant && (
+                          <span className="ml-2 text-xs font-normal" style={{ color: 'var(--color-muted-fg)' }}>
+                            ({item.variant.name})
+                          </span>
+                        )}
+                      </Link>
+                      <Link
+                        href={`/magaza/${product.seller.slug}`}
+                        className="text-xs hover:underline"
+                        style={{ color: 'var(--color-muted-fg)' }}
+                      >
+                        {product.seller.displayName}
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                        Ürün artık mevcut değil
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
+                        Bu ürün yayından kaldırılmış veya erişilemiyor. Satırı sepetten kaldırabilirsiniz.
+                      </p>
+                    </>
+                  )}
 
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -278,7 +300,7 @@ export default function CartPage() {
             </div>
             {shipping > 0 && (
               <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                ₺{FREE_SHIPPING_THRESHOLD.toLocaleString('tr-TR')} üzeri ücretsiz kargo
+                ₺{FREE_SHIPPING_THRESHOLD_TRY.toLocaleString('tr-TR')} üzeri ücretsiz kargo
               </p>
             )}
             {cart.couponCode && (
@@ -287,6 +309,13 @@ export default function CartPage() {
                 <span>Uygulandı</span>
               </div>
             )}
+            <CouponForm
+              couponCode={cart.couponCode}
+              onUpdated={async () => {
+                await fetchCart()
+                window.dispatchEvent(new CustomEvent('hanuja:cart-changed'))
+              }}
+            />
             <Separator />
             <div
               className="flex justify-between font-semibold text-base"
@@ -297,7 +326,7 @@ export default function CartPage() {
             </div>
           </div>
           <Link href="/odeme">
-            <Button className="mt-6 w-full" size="lg">
+            <Button data-testid="cart-checkout" className="mt-6 w-full" size="lg">
               Ödemeye Geç
             </Button>
           </Link>

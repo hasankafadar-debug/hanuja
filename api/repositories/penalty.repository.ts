@@ -1,4 +1,4 @@
-import type { PenaltyReason, PenaltyStatus, PrismaClient } from '@prisma/client'
+import type { PenaltyReason, PenaltyStatus, Prisma, PrismaClient } from '@prisma/client'
 import type { Decimal } from '@prisma/client/runtime/client'
 
 export function createPenaltyRepository(prisma: PrismaClient) {
@@ -68,22 +68,50 @@ export function createPenaltyRepository(prisma: PrismaClient) {
       })
     },
 
-    listForAdmin(params: {
+    async listForAdmin(params: {
       sellerId?: string
       status?: PenaltyStatus
+      query?: string
+      from?: Date
+      to?: Date
       skip?: number
       take?: number
     }) {
-      return prisma.penalty.findMany({
-        where: {
-          ...(params.sellerId !== undefined ? { sellerId: params.sellerId } : {}),
-          ...(params.status !== undefined ? { status: params.status } : {}),
-        },
-        include: { seller: { include: { profile: true } }, order: true },
-        orderBy: { createdAt: 'desc' },
-        ...(params.skip !== undefined ? { skip: params.skip } : {}),
-        take: params.take ?? 20,
-      })
+      const normalizedQuery = params.query?.trim()
+      const where: Prisma.PenaltyWhereInput = {
+        ...(params.sellerId !== undefined ? { sellerId: params.sellerId } : {}),
+        ...(params.status !== undefined ? { status: params.status } : {}),
+        ...(params.from !== undefined || params.to !== undefined
+          ? {
+              createdAt: {
+                ...(params.from !== undefined ? { gte: params.from } : {}),
+                ...(params.to !== undefined ? { lte: params.to } : {}),
+              },
+            }
+          : {}),
+        ...(normalizedQuery
+          ? {
+              OR: [
+                { orderId: { contains: normalizedQuery } },
+                { seller: { displayName: { contains: normalizedQuery, mode: 'insensitive' } } },
+                { seller: { slug: { contains: normalizedQuery, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
+      }
+
+      const [rows, total] = await Promise.all([
+        prisma.penalty.findMany({
+          where,
+          include: { seller: { include: { profile: true } }, order: true },
+          orderBy: { createdAt: 'desc' },
+          ...(params.skip !== undefined ? { skip: params.skip } : {}),
+          take: params.take ?? 20,
+        }),
+        prisma.penalty.count({ where }),
+      ])
+
+      return { rows, total }
     },
   }
 }
