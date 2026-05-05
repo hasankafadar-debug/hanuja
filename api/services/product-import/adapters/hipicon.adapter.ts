@@ -227,17 +227,18 @@ function normalizeProduct(
     detail?.variants && detail.variants.length > 0
       ? detail.variants
           .filter((v) => v.name)
-          .map((v) => ({
-            name: v.name as string,
-            ...(v.barcode ? { barcode: v.barcode } : {}),
-            ...(v.price !== undefined && v.price !== null ? { price: Number(v.price) } : {}),
-            ...(v.originalPrice !== undefined && v.originalPrice !== null
-              ? { compareAtPrice: Number(v.originalPrice) }
-              : {}),
-            ...(safeStock(v.stockQuantity, v.availableStock, v.quantity) !== undefined
-              ? { stockQuantity: safeStock(v.stockQuantity, v.availableStock, v.quantity) }
-              : {}),
-          }))
+          .map((v) => {
+            const variantStock = safeStock(v.stockQuantity, v.availableStock, v.quantity)
+            return {
+              name: v.name as string,
+              ...(v.barcode ? { barcode: v.barcode } : {}),
+              ...(v.price !== undefined && v.price !== null ? { price: Number(v.price) } : {}),
+              ...(v.originalPrice !== undefined && v.originalPrice !== null
+                ? { compareAtPrice: Number(v.originalPrice) }
+                : {}),
+              ...(variantStock !== undefined ? { stockQuantity: variantStock } : {}),
+            }
+          })
       : undefined
 
   return {

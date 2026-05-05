@@ -10,6 +10,7 @@ import {
   Clock,
   AlertTriangle,
   Store,
+  KeyRound,
 } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createAdminAnalyticsService } from '@hanuja/api/services/admin-analytics.service'
@@ -78,6 +79,14 @@ export default async function AdminDashboardPage() {
       urgent: false,
     })
   }
+  if (stats.sellers.pendingImportPermissions > 0) {
+    urgentItems.push({
+      type: 'Hipicon Import İzni',
+      description: `${stats.sellers.pendingImportPermissions} satıcı import izni bekliyor`,
+      href: '/saticilar?import=pending',
+      urgent: false,
+    })
+  }
 
   return (
     <div className="space-y-8" data-testid="admin-dashboard-page">
@@ -139,6 +148,14 @@ export default async function AdminDashboardPage() {
             title="Aktif Satıcı"
             value={String(stats.sellers.totalActive)}
             icon={<Store className="h-5 w-5" />}
+            className="transition-shadow hover:shadow-sm"
+          />
+        </Link>
+        <Link href="/saticilar?import=pending" className="block">
+          <StatCard
+            title="Hipicon İzin Bekleyen"
+            value={String(stats.sellers.pendingImportPermissions)}
+            icon={<KeyRound className="h-5 w-5" />}
             className="transition-shadow hover:shadow-sm"
           />
         </Link>

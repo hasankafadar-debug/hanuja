@@ -7,6 +7,10 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { buildCategoryOptions } from '../_lib/category-options'
 import { ImportForm } from './_components/import-form'
+import {
+  ImportPermissionPending,
+  ImportPermissionRequest,
+} from './_components/import-permission-request'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,7 +48,13 @@ export default async function SellerImportPage() {
         />
       </div>
 
-      <ImportForm categories={categories} sellerNumber={seller.sellerNumber} />
+      {seller.importEnabled ? (
+        <ImportForm categories={categories} sellerNumber={seller.sellerNumber} />
+      ) : seller.importRequestedAt ? (
+        <ImportPermissionPending requestedAt={seller.importRequestedAt} />
+      ) : (
+        <ImportPermissionRequest />
+      )}
     </div>
   )
 }

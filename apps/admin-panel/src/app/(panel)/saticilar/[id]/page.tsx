@@ -26,6 +26,7 @@ import { maskIban } from "@hanuja/security";
 import { SellerStatusButtons } from "@/components/seller-status-buttons";
 import { DocumentReviewActions } from "@/components/document-review-actions";
 import { SellerAdminActions } from "@/components/seller-admin-actions";
+import { SellerImportPermission } from "@/components/seller-import-permission";
 
 export const dynamic = "force-dynamic";
 
@@ -334,6 +335,16 @@ export default async function SellerDetailPage({ params }: Props) {
               finans admin tarafından görülebilir.
             </p>
           </div>
+
+          <SellerImportPermission
+            sellerId={seller.id}
+            importEnabled={seller.importEnabled}
+            importRequestedAt={
+              seller.importRequestedAt
+                ? seller.importRequestedAt.toISOString()
+                : null
+            }
+          />
         </TabsContent>
 
         {/* KYC Belgeler */}

@@ -34,6 +34,7 @@ export function createSellerRepository(prisma: PrismaClient) {
 
     async listForAdmin(params: {
       status?: SellerStatus
+      importPermission?: 'pending' | 'active' | 'none'
       query?: string
       from?: Date
       to?: Date
@@ -43,6 +44,13 @@ export function createSellerRepository(prisma: PrismaClient) {
       const normalizedQuery = params.query?.trim()
       const where: Prisma.SellerWhereInput = {
         ...(params.status !== undefined ? { status: params.status } : {}),
+        ...(params.importPermission === 'pending'
+          ? { importEnabled: false, importRequestedAt: { not: null } }
+          : params.importPermission === 'active'
+            ? { importEnabled: true }
+            : params.importPermission === 'none'
+              ? { importEnabled: false, importRequestedAt: null }
+              : {}),
         ...(params.from !== undefined || params.to !== undefined
           ? {
               createdAt: {

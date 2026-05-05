@@ -32,6 +32,7 @@ export interface AdminDashboardStats {
   sellers: {
     totalActive: number
     pendingApproval: number
+    pendingImportPermissions: number
   }
 }
 
@@ -69,6 +70,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       pendingPenaltyResult,
       activeSellers,
       pendingSellers,
+      pendingImportPermissions,
     ] = await Promise.all([
       prisma.order.count({
         where: { createdAt: { gte: startOfToday } },
@@ -116,6 +118,9 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       }),
       prisma.seller.count({ where: { status: 'active' } }),
       prisma.seller.count({ where: { status: 'pending' } }),
+      prisma.seller.count({
+        where: { importEnabled: false, importRequestedAt: { not: null } },
+      }),
     ])
 
     // Delayed orders: seller_accepted or preparing, created > 20 days ago
@@ -151,6 +156,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       sellers: {
         totalActive: activeSellers,
         pendingApproval: pendingSellers,
+        pendingImportPermissions,
       },
     }
   }

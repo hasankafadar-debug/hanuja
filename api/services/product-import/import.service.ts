@@ -58,7 +58,7 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
           externalId: item.externalId,
           name: item.name,
           reason: decision.reason,
-          categoryName: item.suggestedCategoryName,
+          ...(item.suggestedCategoryName ? { categoryName: item.suggestedCategoryName } : {}),
         })
         continue
       }
@@ -189,7 +189,13 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
           where: { slug: { startsWith: baseSlug } },
           select: { slug: true },
         })
-        const slug = buildSlugWithSuffix(baseSlug, existingSlugs.map((c) => c.slug))
+        const existingSlugSet = new Set(existingSlugs.map((c) => c.slug))
+        let suffix = 1
+        let slug = buildSlugWithSuffix(baseSlug, suffix)
+        while (existingSlugSet.has(slug)) {
+          suffix += 1
+          slug = buildSlugWithSuffix(baseSlug, suffix)
+        }
 
         const created = await prisma.category.create({
           data: {

@@ -1,0 +1,124 @@
+
+> web@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\web
+> next dev --port 3000
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3000
+   - Network:      http://172.21.0.1:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ○ Compiling /instrumentation ...
+ ✓ Compiled /instrumentation in 693ms (50 modules)
+[startup] Database connection is ready.
+ ✓ Ready in 4s
+ ○ Compiling / ...
+ ✓ Compiled / in 7s (1490 modules)
+ GET / 200 in 8837ms
+ GET / 200 in 470ms
+ ○ Compiling /api/media/fetch ...
+ ✓ Compiled /api/media/fetch in 3s (1921 modules)
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg 500 in 4818ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg 500 in 5034ms
+ GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2F30894ae0-f8a5-476a-8bdc-a33fcaa4fae9.jpeg 200 in 5043ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg 500 in 5120ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg 500 in 5206ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg 500 in 5283ms
+ ○ Compiling /api/user/favorites/ids ...
+ ✓ Compiled /api/user/favorites/ids in 3.6s (2694 modules)
+ GET /api/cart/count 200 in 4741ms
+ GET /api/user/favorites/ids 401 in 4745ms
+ GET / 200 in 5007ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg 500 in 5160ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg 500 in 5251ms
+ GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2Ffb876df3-5cdd-4261-b984-ee15ecab84e8.jpeg 200 in 297ms
+ GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2F7147e29c-7959-4931-8b4c-6e683c451592.jpeg 200 in 272ms
+ ○ Compiling /urun/[slug] ...
+ ✓ Compiled /urun/[slug] in 1814ms (2765 modules)
+ GET /urun/arcobaleno-2-li-yan-sehpa 200 in 4627ms
+ GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2F30894ae0-f8a5-476a-8bdc-a33fcaa4fae9.jpeg 200 in 373ms
+ GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2Ffb876df3-5cdd-4261-b984-ee15ecab84e8.jpeg 200 in 363ms
+ GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2F7147e29c-7959-4931-8b4c-6e683c451592.jpeg 200 in 372ms
+ GET /api/cart/count 200 in 321ms
+ ○ Compiling /api/user/favorites/[productId] ...
+ ✓ Compiled /api/user/favorites/[productId] in 1239ms (2767 modules)
+ GET /api/user/favorites/cmon87umu0001ulnko69co917 401 in 2977ms
+ GET / 200 in 325ms
+ GET /api/user/favorites/ids 401 in 74ms
+ GET /api/user/favorites/ids 401 in 135ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg 500 in 562ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg 500 in 626ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg 500 in 693ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg 500 in 762ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fyastik-pamuk-01-main.jpg 500 in 739ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmumluk-pirinc-01-main.jpg 500 in 771ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fvazo-seramik-3lu-main.jpg 500 in 325ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-on.jpg 500 in 285ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg 500 in 277ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 727ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg 500 in 330ms
+ GET /api/cart/count 200 in 64ms
+ GET /api/user/favorites/prod_bahce_01 401 in 74ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 1079ms (2770 modules)
+ POST /api/cart 401 in 1406ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 2.1s (2934 modules)
+ GET /giris?callbackUrl=%2Furun%2Ftik-bahce-oturma-grubu-2li 200 in 2355ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 1073ms (2937 modules)
+ POST /api/auth/sign-in/email 200 in 3721ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 901ms
+ GET /urun/tik-bahce-oturma-grubu-2li 200 in 1204ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg 500 in 412ms
+ GET /api/cart/count 200 in 124ms
+ GET /api/user/favorites/prod_bahce_01 200 in 113ms
+ ○ Compiling /sepet ...
+ ✓ Compiled /sepet in 2.4s (2954 modules)
+ GET /sepet 200 in 2853ms
+ GET /api/cart 200 in 464ms
+ GET /api/cart 200 in 117ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg 500 in 377ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg 500 in 447ms
+ ○ Compiling /api/cart/items/[itemId] ...
+ ✓ Compiled /api/cart/items/[itemId] in 1250ms (2956 modules)
+ DELETE /api/cart/items/cmofjegal001tulxs25cdezvj 204 in 3189ms
+ GET /api/cart 200 in 53ms
+ GET /api/cart/count 200 in 40ms
+ ○ Compiling /odeme ...
+ ✓ Compiled /odeme in 2.4s (2979 modules)
+ GET /odeme 200 in 2643ms
+ GET /api/cart 200 in 270ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 3.4s (2986 modules)
+ GET /api/cart 200 in 3794ms
+ GET /api/checkout/addresses 200 in 3811ms
+ GET /api/checkout/addresses 200 in 3810ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 1505ms (2988 modules)
+ GET /api/checkout/contracts-preview?addressId=cmofjfezg001vulxsix208heb&paymentMethod=card 200 in 1888ms
+ GET /api/checkout/contracts-preview?addressId=cmofjfezg001vulxsix208heb&paymentMethod=eft 200 in 214ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 2.3s (2565 modules)
+ POST /api/checkout/order 403 in 3144ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 1317ms (2019 modules)
+ GET /api/cart 200 in 1674ms
+ GET /api/cart 200 in 65ms
+ ○ Compiling /api/media/fetch ...
+ ✓ Compiled /api/media/fetch in 810ms (2424 modules)
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg 500 in 1283ms
+ GET /odeme 200 in 237ms
+ GET /api/cart 200 in 244ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 1294ms (2431 modules)
+ GET /api/cart 200 in 2638ms
+ GET /api/checkout/addresses 200 in 2751ms
+ GET /api/checkout/addresses 200 in 2766ms
+ ○ Compiling /hesabim ...
+ ✓ Compiled /hesabim in 2.6s (1836 modules)
+ GET /hesabim 200 in 3203ms
+ ○ Compiling /api/user/profile ...
+ ✓ Compiled /api/user/profile in 1919ms (2583 modules)
+ GET /api/user/profile 200 in 2545ms
+ GET /api/user/profile 200 in 53ms

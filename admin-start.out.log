@@ -1,0 +1,25 @@
+
+> admin-panel@0.1.0 dev C:\Users\Hasan\Desktop\Claude marketplace\apps\admin-panel
+> next dev --port 3002
+
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3002
+   - Network:      http://172.21.0.1:3002
+   - Environments: .env.local
+
+ ✓ Starting...
+ ○ Compiling /instrumentation ...
+ ✓ Compiled /instrumentation in 627ms (31 modules)
+ ✓ Ready in 4.2s
+ ○ Compiling / ...
+ ✓ Compiled / in 4.5s (680 modules)
+ GET / 200 in 5123ms
+ ○ Compiling /saticilar ...
+ ✓ Compiled /saticilar in 5.6s (2075 modules)
+ ✓ Compiled in 1390ms (530 modules)
+ GET /saticilar?import=pending 200 in 7286ms
+ GET /saticilar?import=pending 200 in 285ms
+ ○ Compiling /saticilar/[id] ...
+ ✓ Compiled /saticilar/[id] in 3s (2141 modules)
+ GET /saticilar/seller_woodform_01 200 in 6006ms
+ GET /saticilar/seller_woodform_01 200 in 223ms

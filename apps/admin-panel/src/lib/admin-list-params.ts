@@ -4,6 +4,7 @@ export interface AdminListParams {
   q: string
   status: string[]
   invoice: string
+  importPermission: string
   from: string
   to: string
   seller: string
@@ -18,6 +19,7 @@ export function parseAdminListParams(
   const q = readSingle(searchParams, 'q') ?? defaults.q ?? ''
   const status = readMulti(searchParams, 'status')
   const invoice = readSingle(searchParams, 'invoice') ?? defaults.invoice ?? ''
+  const importPermission = readSingle(searchParams, 'import') ?? defaults.importPermission ?? ''
   const from = readSingle(searchParams, 'from') ?? defaults.from ?? ''
   const to = readSingle(searchParams, 'to') ?? defaults.to ?? ''
   const seller = readSingle(searchParams, 'seller') ?? defaults.seller ?? ''
@@ -28,6 +30,7 @@ export function parseAdminListParams(
     q,
     status: status.length > 0 ? status : defaults.status ?? [],
     invoice,
+    importPermission,
     from,
     to,
     seller,

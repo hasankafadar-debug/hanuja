@@ -8,57 +8,105 @@
    - Environments: .env.local
 
  ✓ Starting...
- ✓ Compiled /instrumentation in 773ms (31 modules)
- ✓ Ready in 3.6s
+ ○ Compiling /instrumentation ...
+ ✓ Compiled /instrumentation in 544ms (31 modules)
+ ✓ Ready in 4.1s
  ○ Compiling / ...
- ✓ Compiled / in 3.8s (680 modules)
- GET / 200 in 4444ms
- GET / 200 in 251ms
+ ✓ Compiled / in 4.2s (680 modules)
+ GET / 200 in 4891ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 1038ms (404 modules)
+ POST /api/turnstile-verify 200 in 1208ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 1946ms (1169 modules)
+ POST /api/auth/sign-in/email 200 in 4290ms
  ○ Compiling /dashboard ...
- ✓ Compiled /dashboard in 6.5s (2445 modules)
- GET /dashboard 200 in 1573ms
- GET /dashboard 200 in 9370ms
+ ✓ Compiled /dashboard in 5.2s (2450 modules)
+ GET /dashboard 200 in 6775ms
+ GET /dashboard 200 in 7678ms
  ○ Compiling /api/notifications ...
- ✓ Compiled /api/notifications in 1580ms (2460 modules)
- GET /api/notifications?limit=15 200 in 2232ms
- ○ Compiling /urunler/ice-aktar ...
- ✓ Compiled /urunler/ice-aktar in 2.1s (2489 modules)
- GET /urunler/ice-aktar 200 in 3489ms
- GET /api/notifications?limit=15 200 in 105ms
- ○ Compiling /api/seller/products/import/preview ...
- ✓ Compiled /api/seller/products/import/preview in 2.7s (2882 modules)
- POST /api/seller/products/import/preview 200 in 9709ms
- ○ Compiling /api/seller/products/barcode/check ...
- ✓ Compiled /api/seller/products/barcode/check in 977ms (2884 modules)
- POST /api/seller/products/barcode/check 200 in 1383ms
- ✓ Compiled in 2.3s (2474 modules)
- GET /urunler/ice-aktar 200 in 1130ms
- GET /urunler/ice-aktar 200 in 759ms
+ ✓ Compiled /api/notifications in 1758ms (2464 modules)
+ GET /api/notifications?limit=15 200 in 2280ms
+ GET /dashboard 200 in 462ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 1519ms (2437 modules)
+ GET /giris 200 in 2084ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 576ms (1928 modules)
+ POST /api/turnstile-verify 200 in 771ms
+ ✓ Compiled /api/auth/[...all] in 410ms (1931 modules)
+ POST /api/auth/sign-in/email 200 in 1000ms
+ GET /dashboard 200 in 893ms
+ GET /dashboard 200 in 1496ms
  ○ Compiling /api/notifications ...
- ✓ Compiled /api/notifications in 590ms (1958 modules)
- GET /api/notifications?limit=15 200 in 1082ms
- ○ Compiling /api/seller/products/import/preview ...
- ✓ Compiled /api/seller/products/import/preview in 985ms (2351 modules)
- POST /api/seller/products/import/preview 200 in 7487ms
- ○ Compiling /api/seller/products/barcode/check ...
- ✓ Compiled /api/seller/products/barcode/check in 607ms (2353 modules)
- POST /api/seller/products/barcode/check 200 in 842ms
- ○ Compiling /api/seller/products/import/commit ...
- ✓ Compiled /api/seller/products/import/commit in 1965ms (2900 modules)
- POST /api/seller/products/import/commit 400 in 2920ms
- ✓ Compiled in 938ms (545 modules)
- GET /urunler/ice-aktar 200 in 1162ms
- GET /urunler/ice-aktar 200 in 121ms
+ ✓ Compiled /api/notifications in 526ms (1945 modules)
+ GET /api/notifications?limit=15 200 in 823ms
+ ○ Compiling /siparisler ...
+ ✓ Compiled /siparisler in 2.1s (2488 modules)
+ GET /siparisler 200 in 3547ms
+ GET /api/notifications?limit=15 200 in 69ms
+ ○ Compiling /siparisler/[id] ...
+ ✓ Compiled /siparisler/[id] in 2.9s (2931 modules)
+ GET /siparisler/cmosk3ik30001ul4cgg3ounv5 200 in 6625ms
+ ○ Compiling /ayarlar ...
+ ✓ Compiled /ayarlar in 2.3s (2942 modules)
+ GET /ayarlar 200 in 3418ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 830ms (2394 modules)
+ GET /giris 200 in 1288ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 769ms (2400 modules)
+ POST /api/turnstile-verify 200 in 960ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 1165ms (2403 modules)
+ POST /api/auth/sign-in/email 200 in 1770ms
+ GET /dashboard 200 in 846ms
+ GET /dashboard 200 in 1414ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 1538ms (2407 modules)
+ GET /api/notifications?limit=15 200 in 1883ms
  ○ Compiling /urunler ...
- ✓ Compiled /urunler in 1780ms (2904 modules)
- GET /urunler 200 in 3224ms
+ ✓ Compiled /urunler in 2.6s (2975 modules)
+ GET /urunler 200 in 3740ms
+ ○ Compiling /api/media/fetch ...
+ ✓ Compiled /api/media/fetch in 3.4s (2981 modules)
+ GET /api/notifications?limit=15 200 in 3822ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg 500 in 4244ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg 500 in 4392ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg 500 in 4474ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg 500 in 4587ms
+ GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2F30894ae0-f8a5-476a-8bdc-a33fcaa4fae9.jpeg 200 in 4550ms
+ GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2F47000a2e-1ce7-4e11-95fb-620d4409aa21.jpeg 200 in 4572ms
+ GET /dashboard 200 in 549ms
+ GET /giris 200 in 270ms
+ POST /api/turnstile-verify 200 in 50ms
+ POST /api/auth/sign-in/email 200 in 287ms
+ GET /dashboard 200 in 275ms
+ GET /dashboard 200 in 706ms
+ GET /api/notifications?limit=15 200 in 59ms
+ ○ Compiling /urunler/ice-aktar ...
+ ✓ Compiled /urunler/ice-aktar in 3.7s (2991 modules)
+ ✓ Compiled in 1856ms (574 modules)
+ GET /urunler/ice-aktar 200 in 5773ms
+ GET /api/notifications?limit=15 200 in 75ms
+ ○ Compiling /api/seller/products/import/preview ...
+ ✓ Compiled /api/seller/products/import/preview in 1903ms (2979 modules)
+ POST /api/seller/products/import/preview 200 in 8221ms
+ ○ Compiling /api/seller/products/barcode/check ...
+ ✓ Compiled /api/seller/products/barcode/check in 1300ms (2981 modules)
+ POST /api/seller/products/barcode/check 200 in 1555ms
+ ○ Compiling /api/seller/products/import/commit ...
+ ✓ Compiled /api/seller/products/import/commit in 1754ms (2971 modules)
+ POST /api/seller/products/import/commit 200 in 10024ms
+ GET /urunler 200 in 794ms
  ○ Compiling /api/notifications ...
- ✓ Compiled /api/notifications in 3.1s (2922 modules)
- GET /api/notifications?limit=15 200 in 3169ms
- GET /urunler 200 in 765ms
- GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg 500 in 4441ms
- GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg 500 in 4642ms
- GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg 500 in 4726ms
- GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg 500 in 4802ms
- GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2F30894ae0-f8a5-476a-8bdc-a33fcaa4fae9.jpeg 200 in 4793ms
-[?25h
+ ✓ Compiled /api/notifications in 1583ms (2412 modules)
+ ✓ Compiled (2415 modules)
+ GET /api/notifications?limit=15 200 in 2851ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg 500 in 3227ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fraf-mese-01-main.jpg 500 in 3356ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fbahce-tik-01-main.jpg 500 in 3442ms
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fsarkit-mese-01-main.jpg 500 in 3522ms
+ GET /api/media/fetch?src=https%3A%2F%2Fpub-05520b87648e41d29f4d7539fef47aef.r2.dev%2Fproducts%2Fuser_seller_02%2Ff3c635c3-6375-4bc9-a956-6510c5802692.jpeg 200 in 3678ms
+ GET /urunler/ice-aktar 200 in 496ms
+ GET /api/notifications?limit=15 200 in 50ms

@@ -12,6 +12,7 @@ import {
   Input,
 } from '@hanuja/ui'
 import type { ScrapedProduct } from '@hanuja/api/services/product-import/adapters/import-adapter'
+import type { CommitSelection } from '@hanuja/api/services/product-import/import.service'
 import {
   findSuggestedCategoryId,
   type ImportCategoryOption,
@@ -68,6 +69,79 @@ interface ItemSelectionState {
 interface ImportFormProps {
   categories: ImportCategoryOption[]
   sellerNumber: number
+}
+
+// Sayfa ömrü boyunca önizleme state'ini koru — sayfa değişince/yenileyince kaybolmasın
+const SESSION_KEY = 'hanuja_import_hipicon_v1'
+
+interface PersistedSession {
+  url: string
+  preview: PreviewPayload
+  selections?: Record<string, ItemSelectionState>
+}
+
+function readPersistedSession(): PersistedSession | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PersistedSession
+    if (
+      typeof parsed?.url !== 'string' ||
+      !parsed?.preview ||
+      !Array.isArray(parsed.preview.items) ||
+      (parsed.selections !== undefined &&
+        (!parsed.selections || typeof parsed.selections !== 'object' || Array.isArray(parsed.selections)))
+    ) {
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writePersistedSession(value: PersistedSession) {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(value))
+  } catch {
+    // sessionStorage dolmuş olabilir; sessizce geç
+  }
+}
+
+function clearPersistedSession() {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.removeItem(SESSION_KEY)
+  } catch {
+    // ignore
+  }
+}
+
+function isBarcodeStatus(value: unknown): value is BarcodeStatus {
+  return (
+    value === 'idle' ||
+    value === 'checking' ||
+    value === 'ok' ||
+    value === 'invalid' ||
+    value === 'in_use'
+  )
+}
+
+function normalizePersistedSelection(value: unknown): ItemSelectionState | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as Record<string, unknown>
+  if (typeof candidate.selected !== 'boolean') return null
+
+  return {
+    selected: candidate.selected,
+    categoryId: typeof candidate.categoryId === 'string' ? candidate.categoryId : '',
+    barcode: typeof candidate.barcode === 'string' ? candidate.barcode : '',
+    barcodeStatus: isBarcodeStatus(candidate.barcodeStatus) ? candidate.barcodeStatus : 'idle',
+    barcodeNormalized:
+      typeof candidate.barcodeNormalized === 'string' ? candidate.barcodeNormalized : null,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -147,13 +221,13 @@ function useBarcodeCheck(delay = 400) {
 
 function ProductDetail({ item }: { item: EnrichedScrapedProduct }) {
   const [open, setOpen] = useState(false)
-  const fields: Array<{ label: string; value?: string }> = [
+  const fields = [
     { label: 'Kısa açıklama', value: item.shortDescription },
     { label: 'Açıklama', value: item.description?.slice(0, 300) },
     { label: 'Hikaye', value: item.story?.slice(0, 300) },
     { label: 'Bakım talimatları', value: item.careInstructions?.slice(0, 300) },
     { label: 'SKU', value: item.sku },
-  ].filter((f) => f.value)
+  ].filter((f): f is { label: string; value: string } => typeof f.value === 'string' && f.value.length > 0)
 
   if (fields.length === 0) return null
 
@@ -263,6 +337,18 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
   const [isPreviewPending, startPreviewTransition] = useTransition()
   const [isCommitPending, startCommitTransition] = useTransition()
 
+  // sessionStorage'dan önizleme + url'i geri yükle (sayfa değişimi / refresh sonrası)
+  const hasRestoredRef = useRef(false)
+  useEffect(() => {
+    if (hasRestoredRef.current) return
+    hasRestoredRef.current = true
+    const persisted = readPersistedSession()
+    if (!persisted) return
+    setUrl(persisted.url)
+    applyPreview(persisted.preview, persisted.url, persisted.selections)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const checkBarcode = useBarcodeCheck(400)
 
   const categoryNameById = useMemo(
@@ -300,16 +386,26 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     }).length
   }, [preview, selections])
 
-  function applyPreview(nextPreview: PreviewPayload) {
+  useEffect(() => {
+    if (!preview) return
+    writePersistedSession({ url, preview, selections })
+  }, [preview, selections, url])
+
+  function applyPreview(
+    nextPreview: PreviewPayload,
+    sourceUrl: string,
+    restoredSelections?: Record<string, ItemSelectionState>,
+  ) {
     const nextSelections = Object.fromEntries(
       nextPreview.items.map((item) => {
         const resolvedId =
           item.resolvedCategoryId ??
           findSuggestedCategoryId(item.suggestedCategoryName, categories)
+        const restored = normalizePersistedSelection(restoredSelections?.[item.externalId])
 
         return [
           item.externalId,
-          {
+          restored ?? {
             selected: true,
             categoryId: resolvedId,
             barcode: item.proposedBarcode ?? '',
@@ -379,49 +475,63 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     [checkBarcode],
   )
 
-  // Trigger barcode checks for proposedBarcodes after preview loads
+  // Trigger barcode checks for current draft barcodes after preview loads.
   useEffect(() => {
     if (!preview) return
     for (const item of preview.items) {
-      const proposed = item.proposedBarcode
-      if (!proposed) continue
       const hasVariants = (item.variants?.length ?? 0) > 0
       if (hasVariants) continue
-      handleBarcodeChange(item.externalId, proposed)
+      const current = selections[item.externalId]
+      if (!current?.barcode) continue
+      checkBarcode(current.barcode, (status, normalized) => {
+        setSelections((prev) => {
+          const existing = prev[item.externalId]
+          if (!existing) return prev
+          return {
+            ...prev,
+            [item.externalId]: {
+              ...existing,
+              barcodeStatus: status,
+              barcodeNormalized: normalized,
+            },
+          }
+        })
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview?.adapter])
 
-  function buildCommitSelections() {
+  function buildCommitSelections(): CommitSelection[] {
     if (!preview) return []
 
-    return preview.items.flatMap((item) => {
+    const commitSelections: CommitSelection[] = []
+
+    for (const item of preview.items) {
       const s = selections[item.externalId]
-      if (!s?.selected) return []
+      if (!s?.selected) continue
 
       const proposal = item.resolvedCategoryProposal
 
       if (proposal) {
-        return [
-          {
-            externalId: item.externalId,
-            autoCreateUnder: {
-              parentId: proposal.parentId,
-              leafName: proposal.leafName,
-            },
-            barcode: s.barcode.trim() || null,
+        commitSelections.push({
+          externalId: item.externalId,
+          autoCreateUnder: {
+            parentId: proposal.parentId,
+            leafName: proposal.leafName,
           },
-        ]
+          barcode: s.barcode.trim() || null,
+        })
+        continue
       }
 
-      return [
-        {
-          externalId: item.externalId,
-          categoryId: s.categoryId.trim(),
-          barcode: s.barcode.trim() || null,
-        },
-      ]
-    })
+      commitSelections.push({
+        externalId: item.externalId,
+        categoryId: s.categoryId.trim(),
+        barcode: s.barcode.trim() || null,
+      })
+    }
+
+    return commitSelections
   }
 
   function handlePreview() {
@@ -448,19 +558,25 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
         }
 
         if (!response.ok) {
-          setPreview(null)
-          setSelections({})
           setPreviewError(payload.error ?? 'Hipicon önizlemesi alınmadı.')
           return
         }
 
-        applyPreview(payload)
+        applyPreview(payload, trimmedUrl)
       } catch {
-        setPreview(null)
-        setSelections({})
         setPreviewError('Bağlantı hatası.')
       }
     })
+  }
+
+  function handleClearPreview() {
+    setPreview(null)
+    setSelections({})
+    setPreviewError(null)
+    setCommitError(null)
+    setResult(null)
+    setShowAllRejected(false)
+    clearPersistedSession()
   }
 
   function handleCommit() {
@@ -503,6 +619,8 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
         }
 
         setResult(payload)
+        // Tek kullanımlık izin tüketildi — sayfa yenilense bile gate ekranı dönecek
+        clearPersistedSession()
       } catch {
         setCommitError('Bağlantı hatası.')
       }
@@ -519,6 +637,16 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardContent className="p-4">
+          <p className="text-sm font-medium">Tek kullanımlık Hipicon import izni aktif.</p>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+            Başarılı içe aktarma sonrası izin otomatik kapanır. Önizleme taslağınız bu
+            tarayıcı oturumunda sayfa değiştirseniz bile korunur.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* URL input */}
       <Card>
         <CardHeader>
@@ -648,6 +776,14 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                 >
                   <RefreshCw className="h-4 w-4" />
                   Önizlemeyi yenile
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleClearPreview}
+                  disabled={isBusy}
+                >
+                  Önizlemeyi temizle
                 </Button>
               </div>
 

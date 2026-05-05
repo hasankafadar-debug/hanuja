@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const prisma = createPrismaForRoute()
   const seller = await prisma.seller.findUnique({
     where: { userId: session.user.id },
-    select: { id: true, status: true, sellerNumber: true },
+    select: { id: true, status: true, sellerNumber: true, importEnabled: true },
   })
 
   if (!seller) {
@@ -23,6 +23,13 @@ export async function POST(req: NextRequest) {
   if (seller.status !== 'active') {
     return NextResponse.json(
       { error: 'Ürün içe aktarmak için satıcı hesabınız aktif olmalı.' },
+      { status: 403 },
+    )
+  }
+
+  if (!seller.importEnabled) {
+    return NextResponse.json(
+      { error: 'Import izniniz bulunmuyor.' },
       { status: 403 },
     )
   }
