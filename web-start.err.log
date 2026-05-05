@@ -360,3 +360,21 @@ Read more: https://nextjs.org/docs/messages/next-image-unconfigured-localpattern
   Code: 'NoSuchKey'
 }
  ⨯ The requested resource isn't a valid image for /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg received null
+[API Error] NoSuchKey: The specified key does not exist.
+    at async readObject (..\..\api\lib\r2.ts:244:20)
+    at async fetchPublicMedia (..\..\api\routes\media.ts:102:20)
+  242 |   const { bucketName } = getR2Config()
+  243 |   const r2 = createR2Client()
+> 244 |   const response = await r2.send(
+      |                    ^
+  245 |     new GetObjectCommand({
+  246 |       Bucket: bucketName,
+  247 |       Key: key, {
+  '$fault': 'client',
+  '$retryable': undefined,
+  '$metadata': [Object],
+  Code: 'NoSuchKey'
+}
+ ⨯ The requested resource isn't a valid image for /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg received null
+[turnstile] TURNSTILE_SECRET_KEY missing; using development bypass token.
+ ⨯ upstream image response timed out for https://cdn.hanuja.com.tr/products/masa-ceviz-01-main.jpg

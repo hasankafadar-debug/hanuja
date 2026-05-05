@@ -122,3 +122,35 @@
  ✓ Compiled /api/user/profile in 1919ms (2583 modules)
  GET /api/user/profile 200 in 2545ms
  GET /api/user/profile 200 in 53ms
+ GET /sepet 200 in 291ms
+ ○ Compiling /api/cart ...
+ ✓ Compiled /api/cart in 1294ms (2018 modules)
+ GET /api/cart 200 in 1802ms
+ GET /api/cart 200 in 77ms
+ ○ Compiling /api/media/fetch ...
+ ✓ Compiled /api/media/fetch in 845ms (2423 modules)
+ GET /api/media/fetch?src=https%3A%2F%2Fcdn.hanuja.com.tr%2Fproducts%2Fmasa-ceviz-01-main.jpg 500 in 1323ms
+ GET /odeme 200 in 378ms
+ GET /api/cart 200 in 268ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 2.2s (2430 modules)
+ GET /api/cart 200 in 3538ms
+ GET /api/checkout/addresses 200 in 3556ms
+ GET /api/checkout/addresses 200 in 3605ms
+ GET /odeme 200 in 700ms
+ ○ Compiling /api/checkout/addresses ...
+ ✓ Compiled /api/checkout/addresses in 2.6s (2017 modules)
+ ✓ Compiled (2027 modules)
+ GET /api/checkout/addresses 200 in 4509ms
+ GET /api/cart 200 in 4520ms
+ GET /api/cart/count 200 in 4526ms
+ ○ Compiling /api/checkout/contracts-preview ...
+ ✓ Compiled /api/checkout/contracts-preview in 1450ms (2029 modules)
+ GET /api/checkout/contracts-preview?addressId=cmofjfezg001vulxsix208heb&paymentMethod=card 200 in 1843ms
+ GET /api/checkout/contracts-preview?addressId=cmofjfezg001vulxsix208heb&paymentMethod=eft 200 in 115ms
+ ○ Compiling /api/checkout/order ...
+ ✓ Compiled /api/checkout/order in 1953ms (2034 modules)
+ POST /api/checkout/order 201 in 2596ms
+ ○ Compiling /siparis/[id] ...
+ ✓ Compiled /siparis/[id] in 3.2s (2602 modules)
+ GET /siparis/cmosk3ik30001ul4cgg3ounv5?yeni=1&odeme=eft 200 in 6617ms

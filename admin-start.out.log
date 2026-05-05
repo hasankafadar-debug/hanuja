@@ -23,3 +23,77 @@
  ✓ Compiled /saticilar/[id] in 3s (2141 modules)
  GET /saticilar/seller_woodform_01 200 in 6006ms
  GET /saticilar/seller_woodform_01 200 in 223ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 3.2s (2431 modules)
+ GET /dashboard 200 in 4523ms
+ ○ Compiling /giris ...
+ ✓ Compiled /giris in 1150ms (2425 modules)
+ GET /giris 200 in 1695ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 1207ms (1244 modules)
+ POST /api/turnstile-verify 200 in 1432ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 585ms (1968 modules)
+ POST /api/auth/sign-in/email 200 in 2520ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 525ms (1919 modules)
+ GET /dashboard 200 in 2227ms
+ GET /dashboard 200 in 2428ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 1266ms (2460 modules)
+ GET /api/notifications?limit=15 200 in 1666ms
+ ○ Compiling /odemeler ...
+ ✓ Compiled /odemeler in 3s (2871 modules)
+ GET /odemeler?method=eft&status=pending 200 in 4773ms
+ GET /odemeler?method=eft&status=pending 200 in 474ms
+ ○ Compiling /api/admin/payments/eft/[orderId]/approve ...
+ ✓ Compiled /api/admin/payments/eft/[orderId]/approve in 1597ms (2874 modules)
+ POST /api/admin/payments/eft/cmosk3ik30001ul4cgg3ounv5/approve 200 in 4016ms
+ GET /odemeler?method=eft&status=pending 200 in 222ms
+ ○ Compiling /ayarlar ...
+ ✓ Compiled /ayarlar in 2.4s (2861 modules)
+ GET /ayarlar 200 in 3768ms
+ GET /giris 200 in 276ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 782ms (2334 modules)
+ POST /api/turnstile-verify 200 in 980ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 679ms (2337 modules)
+ POST /api/auth/sign-in/email 200 in 1225ms
+ GET /dashboard 200 in 976ms
+ GET /dashboard 200 in 1675ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 797ms (2351 modules)
+ GET /api/notifications?limit=15 200 in 1102ms
+ GET /ayarlar 200 in 534ms
+ GET /api/notifications?limit=15 200 in 51ms
+ GET /dashboard 200 in 535ms
+ GET /api/notifications?limit=15 200 in 55ms
+ ○ Compiling /saticilar ...
+ ✓ Compiled /saticilar in 2s (2355 modules)
+ GET /saticilar 200 in 3137ms
+ GET /api/notifications?limit=15 200 in 290ms
+ GET /dashboard 200 in 394ms
+ GET /giris 200 in 139ms
+ ○ Compiling /api/turnstile-verify ...
+ ✓ Compiled /api/turnstile-verify in 1229ms (2344 modules)
+ POST /api/turnstile-verify 200 in 1345ms
+ ○ Compiling /api/auth/[...all] ...
+ ✓ Compiled /api/auth/[...all] in 798ms (2347 modules)
+ POST /api/auth/sign-in/email 200 in 1495ms
+ GET /dashboard 200 in 967ms
+ GET /dashboard 200 in 1151ms
+ ○ Compiling /api/notifications ...
+ ✓ Compiled /api/notifications in 900ms (2361 modules)
+ GET /api/notifications?limit=15 200 in 1251ms
+ GET /saticilar?import=pending 200 in 231ms
+ ○ Compiling /saticilar/[id] ...
+ ✓ Compiled /saticilar/[id] in 2.4s (2395 modules)
+ GET /saticilar/seller_woodform_01 200 in 2906ms
+ ○ Compiling /api/admin/sellers/[id]/import-permission ...
+ ✓ Compiled /api/admin/sellers/[id]/import-permission in 2.8s (2942 modules)
+ ✓ Compiled in 1064ms (545 modules)
+ GET /saticilar/seller_woodform_01 200 in 1474ms
+ GET /saticilar/seller_woodform_01 200 in 181ms
+ POST /api/admin/sellers/seller_woodform_01/import-permission 200 in 5165ms
+ GET /saticilar/seller_woodform_01 200 in 156ms
