@@ -14,13 +14,14 @@
  */
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
-import { calculateShippingFee as calculateShippingFeeTry } from '../domain/shipping'
+import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
 import { NotFoundError, ValidationError, ConflictError } from '../lib/errors'
 import { createCartRepository } from '../repositories/cart.repository'
 import { renderLegalDocuments } from '../lib/legal-documents'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
 import { getPlatformBankInfo } from '../lib/platform-info'
 import { formatOrderNumber, formatOrderDisplayNumber } from '../lib/order-number'
+import { createPlatformSettingsService } from './platform-settings.service'
 
 // Sistem varsayılan komisyon oranı — proje büyüdükçe commission config tablosuna taşınır
 // Öncelik sırası (CLAUDE.md 15.1): ürün override > kategori > satıcı genel > sistem default
@@ -57,6 +58,8 @@ type CheckoutDraft = {
     quantity: number
     unitPrice: Decimal
     totalPrice: Decimal
+    taxRate: Decimal
+    taxAmount: Decimal
     commissionRate: Decimal
     commissionAmount: Decimal
     netPayoutAmount: Decimal
@@ -64,6 +67,7 @@ type CheckoutDraft = {
   grossAmount: Decimal
   shippingAmount: Decimal
   discountAmount: Decimal
+  taxAmount: Decimal
   totalAmount: Decimal
   legalContext: Parameters<typeof renderLegalDocuments>[0]
 }
@@ -119,6 +123,7 @@ function buildSellerSnapshot(seller: DraftSeller) {
 
 export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
   const carts = createCartRepository(prisma)
+  const platformSettings = createPlatformSettingsService({ prisma })
 
   async function buildCheckoutDraft(params: {
     userId: string
@@ -130,24 +135,29 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       throw new ValidationError('Sepet boş veya bulunamadı')
     }
 
-    const [address, customer] = await Promise.all([
+    const [address, customer, settings] = await Promise.all([
       prisma.address.findFirst({
         where: { id: params.addressId, userId: params.userId },
       }),
       prisma.user.findUnique({ where: { id: params.userId } }),
+      platformSettings.get(),
     ])
 
     if (!address) throw new NotFoundError('Adres', params.addressId)
     if (!customer) throw new NotFoundError('Kullanıcı', params.userId)
 
     const productIds = cart.items.map((item) => item.productId)
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds }, status: 'published' },
-      include: {
-        seller: { include: { profile: true } },
-        variants: true,
-      },
-    })
+    const [products, categories] = await Promise.all([
+      prisma.product.findMany({
+        where: { id: { in: productIds }, status: 'published' },
+        include: {
+          seller: { include: { profile: true } },
+          variants: true,
+        },
+      }),
+      prisma.category.findMany({ select: { id: true, parentId: true, taxRate: true } }),
+    ])
+    const categoryMap = new Map(categories.map((category) => [category.id, category]))
 
     const lines: CheckoutDraft['lines'] = []
     const sellerMap = new Map<string, ReturnType<typeof buildSellerSnapshot>>()
@@ -183,6 +193,8 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
 
       const unitPrice = variant?.price ?? product.price
       const totalPrice = unitPrice.mul(item.quantity)
+      const taxRate = resolveCategoryTaxRate(product.categoryId, categoryMap, settings.defaultTaxRate)
+      const taxAmount = calculateIncludedTax(totalPrice, taxRate)
       const commissionRate = SYSTEM_DEFAULT_COMMISSION_RATE
       const commissionAmount = totalPrice.mul(commissionRate)
       const netPayoutAmount = totalPrice.sub(commissionAmount)
@@ -200,6 +212,8 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         quantity: item.quantity,
         unitPrice,
         totalPrice,
+        taxRate,
+        taxAmount,
         commissionRate,
         commissionAmount,
         netPayoutAmount,
@@ -207,8 +221,11 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
     }
 
     const grossAmount = lines.reduce((sum, line) => sum.add(line.totalPrice), new Decimal(0))
-    const shippingAmount = new Decimal(calculateShippingFeeTry(grossAmount.toNumber()))
+    const shippingAmount = grossAmount.gte(settings.freeShippingThresholdTry)
+      ? new Decimal(0)
+      : settings.flatShippingFeeTry
     const discountAmount = new Decimal(0)
+    const taxAmount = lines.reduce((sum, line) => sum.add(line.taxAmount), new Decimal(0))
     const totalAmount = grossAmount.add(shippingAmount).sub(discountAmount)
     const deliveryAddress = formatAddress(address)
 
@@ -228,6 +245,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       grossAmount,
       shippingAmount,
       discountAmount,
+      taxAmount,
       totalAmount,
       legalContext: {
         buyer: {
@@ -245,6 +263,8 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           quantity: line.quantity,
           unitPrice: decimalToNumber(line.unitPrice),
           lineTotal: decimalToNumber(line.totalPrice),
+          taxRate: decimalToNumber(line.taxRate),
+          taxAmount: decimalToNumber(line.taxAmount),
           sellerId: line.sellerId,
           sellerStoreName:
             sellerMap.get(line.sellerId)?.storeName ?? 'Satıcı Mağazası',
@@ -253,6 +273,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         paymentMethod: params.paymentMethod,
         subtotalAmount: decimalToNumber(grossAmount),
         shippingAmount: decimalToNumber(shippingAmount),
+        taxAmount: decimalToNumber(taxAmount),
         totalAmount: decimalToNumber(totalAmount),
       },
     }
@@ -358,6 +379,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
             grossAmount: draft.grossAmount,
             discountAmount: draft.discountAmount,
             shippingAmount: draft.shippingAmount,
+            taxAmount: draft.taxAmount,
             totalAmount: draft.totalAmount,
             couponCode: params.couponCode ?? draft.cart.couponCode,
             ...(params.notes !== undefined ? { notes: params.notes } : {}),

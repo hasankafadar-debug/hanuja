@@ -9,8 +9,10 @@
  */
 import type { PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
+import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
 import { NotFoundError, ValidationError } from '../lib/errors'
 import { createCartRepository } from '../repositories/cart.repository'
+import { createPlatformSettingsService } from './platform-settings.service'
 
 interface CartServiceDeps {
   prisma: PrismaClient
@@ -20,6 +22,7 @@ const MAX_ITEM_QUANTITY = 99
 
 export function createCartService({ prisma }: CartServiceDeps) {
   const carts = createCartRepository(prisma)
+  const platformSettings = createPlatformSettingsService({ prisma })
 
   return {
     /**
@@ -29,18 +32,24 @@ export function createCartService({ prisma }: CartServiceDeps) {
     async getCart(userId: string) {
       const cart = await carts.findByUserId(userId)
       if (!cart) {
+        const settings = await platformSettings.get()
         return {
           id: null as string | null,
           items: [] as never[],
           couponCode: null as string | null,
           itemCount: 0,
           subtotal: new Decimal(0),
+          taxAmount: new Decimal(0),
+          freeShippingThresholdTry: settings.freeShippingThresholdTry,
+          flatShippingFeeTry: settings.flatShippingFeeTry,
         }
       }
 
       const productIds = [...new Set(cart.items.map((item) => item.productId))]
-      const products = productIds.length > 0
-        ? await prisma.product.findMany({
+      const [settings, products, categories] = await Promise.all([
+        platformSettings.get(),
+        productIds.length > 0
+          ? prisma.product.findMany({
             where: { id: { in: productIds } },
             include: {
               seller: { select: { displayName: true, slug: true } },
@@ -51,14 +60,22 @@ export function createCartService({ prisma }: CartServiceDeps) {
               variants: { select: { id: true, name: true } },
             },
           })
-        : []
+          : Promise.resolve([]),
+        prisma.category.findMany({ select: { id: true, parentId: true, taxRate: true } }),
+      ])
       const productMap = new Map(products.map((product) => [product.id, product]))
+      const categoryMap = new Map(categories.map((category) => [category.id, category]))
 
       const itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0)
       const subtotal = cart.items.reduce(
         (sum, item) => sum.add(new Decimal(item.unitPrice).mul(item.quantity)),
         new Decimal(0),
       )
+      const taxAmount = cart.items.reduce((sum, item) => {
+        const product = productMap.get(item.productId)
+        const rate = resolveCategoryTaxRate(product?.categoryId, categoryMap, settings.defaultTaxRate)
+        return sum.add(calculateIncludedTax(new Decimal(item.unitPrice).mul(item.quantity), rate))
+      }, new Decimal(0))
 
       return {
         ...cart,
@@ -84,6 +101,9 @@ export function createCartService({ prisma }: CartServiceDeps) {
         }),
         itemCount,
         subtotal,
+        taxAmount,
+        freeShippingThresholdTry: settings.freeShippingThresholdTry,
+        flatShippingFeeTry: settings.flatShippingFeeTry,
       }
     },
 

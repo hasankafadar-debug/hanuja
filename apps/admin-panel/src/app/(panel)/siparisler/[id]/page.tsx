@@ -6,6 +6,8 @@ import { AlertTriangle, ArrowLeft, Download, FileText } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { createFulfillmentRiskService } from '@hanuja/api/services/fulfillment-risk.service'
+import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 import { AdminOrderActions } from '@/components/admin-order-actions'
 
 export const dynamic = 'force-dynamic'
@@ -18,8 +20,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   return { title: `Sipariş ${id.slice(-8).toUpperCase()}` }
 }
-
-const TWENTY_DAYS_MS = 20 * 24 * 60 * 60 * 1000
 
 const TERMINAL_STATUSES = new Set([
   'cancelled_by_customer',
@@ -44,6 +44,10 @@ export default async function AdminOrderDetailPage({ params }: Props) {
 
   const { id } = await params
   const prisma = createPrismaForRoute()
+  const [platformSettings] = await Promise.all([
+    createPlatformSettingsService({ prisma }).get(),
+    createFulfillmentRiskService({ prisma }).refreshActiveRisks(),
+  ])
 
   const order = await prisma.order.findUnique({
     where: { id },
@@ -68,6 +72,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
       },
       payouts: { orderBy: { createdAt: 'desc' } },
       penalties: { orderBy: { createdAt: 'desc' } },
+      fulfillmentRisk: true,
     },
   })
 
@@ -84,17 +89,17 @@ export default async function AdminOrderDetailPage({ params }: Props) {
   const hasBlockablePayout = order.payouts.some((payout) => BLOCKABLE_PAYOUT_STATUSES.has(payout.status))
   const canCancel = !isTerminal
 
-  const ageMs = Date.now() - new Date(order.createdAt).getTime()
-  const isDelayRisk =
-    ageMs > TWENTY_DAYS_MS &&
-    ['seller_accepted', 'preparing', 'awaiting_shipment', 'seller_queue_ready'].includes(order.status)
-
-  const shipmentDeadline = order.paymentConfirmedAt
-    ? new Date(new Date(order.paymentConfirmedAt).getTime() + TWENTY_DAYS_MS).toLocaleDateString(
-        'tr-TR',
-        { day: 'numeric', month: 'long', year: 'numeric' },
-      )
+  const isDelayRisk = order.fulfillmentRisk?.status === 'warning' || order.fulfillmentRisk?.status === 'breached'
+  const shipmentDeadline = order.fulfillmentRisk?.deadlineAt
+    ? new Date(order.fulfillmentRisk.deadlineAt).toLocaleDateString('tr-TR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
     : null
+  const riskTitle = order.fulfillmentRisk?.status === 'breached'
+    ? 'Kargo sınırı aşıldı'
+    : 'Kargo sınırı yaklaşıyor'
 
   const payment = order.payments[0] ?? null
   const shipment = order.shipments[0] ?? null
@@ -144,10 +149,10 @@ export default async function AdminOrderDetailPage({ params }: Props) {
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" style={{ color: 'var(--color-destructive)' }} />
           <div>
             <p className="text-sm font-semibold" style={{ color: '#7f1d1d' }}>
-              Kargo sınırı aşımı riski: {shipmentDeadline}
+              {riskTitle}: {shipmentDeadline}
             </p>
             <p className="mt-0.5 text-xs" style={{ color: '#7f1d1d' }}>
-              20 gün taahhüdü aşılırsa otomatik ceza değerlendirmesi başlar.
+              Sevk süresi aşılırsa admin gecikme cezasını bu siparişten manuel değerlendirebilir.
             </p>
           </div>
         </div>
@@ -473,7 +478,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
             ? {
                 sellerId,
                 sellerName,
-                defaultAmount: (sellerLineTotal * 0.2).toFixed(2),
+                defaultAmount: (sellerLineTotal * platformSettings.standardPenaltyRate.toNumber()).toFixed(2),
               }
             : null}
         />

@@ -3,7 +3,9 @@ import { PageHeader } from '@hanuja/ui'
 import { Info, Lock } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 import { CategorySettingsList } from './_components/category-settings-list'
+import { PlatformSettingsForm } from './_components/platform-settings-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +15,7 @@ export default async function AdminSettingsPage() {
   await getAdminSession()
 
   const prisma = createPrismaForRoute()
+  const platformSettings = await createPlatformSettingsService({ prisma }).get()
 
   const categories = await prisma.category.findMany({
     where: { parentId: null },
@@ -24,6 +27,7 @@ export default async function AdminSettingsPage() {
       imageUrl: true,
       sortOrder: true,
       isActive: true,
+      taxRate: true,
     },
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     take: 20,
@@ -31,30 +35,6 @@ export default async function AdminSettingsPage() {
 
   const sellerCount = await prisma.seller.count({ where: { status: 'active' } })
   const productPendingCount = await prisma.product.count({ where: { status: 'pending_review' } })
-
-  const row = (label: string, value: string, note?: string) => (
-    <div
-      className="flex items-start justify-between gap-4 py-3 border-b last:border-0"
-      style={{ borderColor: 'var(--color-border)' }}
-    >
-      <div>
-        <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-          {label}
-        </p>
-        {note ? (
-          <p className="text-xs mt-0.5" style={{ color: 'var(--color-muted-fg)' }}>
-            {note}
-          </p>
-        ) : null}
-      </div>
-      <span
-        className="text-sm font-semibold shrink-0"
-        style={{ color: 'var(--color-accent)' }}
-      >
-        {value}
-      </span>
-    </div>
-  )
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -71,24 +51,19 @@ export default async function AdminSettingsPage() {
           </h2>
         </div>
         <p className="text-xs mb-4" style={{ color: 'var(--color-muted-fg)' }}>
-          Bu degerler is kurallari ve yasal mevzuat kapsaminda sabittir. Degistirmek icin
-          politika ve mevzuat incelemesi gerekir.
+          Bu değerler yeni hesaplamalarda kullanılır; geçmiş sipariş snapshotları değişmez.
         </p>
-        {row(
-          'Ceza Orani',
-          '%20',
-          'Odenen siparisi reddeden veya 20 gunluk teslimat taahhudunu ihlal eden saticiya uygulanir.',
-        )}
-        {row(
-          'Hakedis Bekleme Suresi',
-          '30 gun',
-          'Teslim onayindan itibaren baslar. Iade/uyusmazlik varsa bloke kalir.',
-        )}
-        {row(
-          'Kargo Taahhut Suresi',
-          '20 gun',
-          'Saticinin kargoya verme yukumlulugudur. Asilirse ceza degerlendirmesi baslar.',
-        )}
+        <PlatformSettingsForm
+          initialValues={{
+            standardPenaltyRate: platformSettings.standardPenaltyRate.toString(),
+            fulfillmentDays: String(platformSettings.fulfillmentDays),
+            fulfillmentWarningDays: String(platformSettings.fulfillmentWarningDays),
+            payoutHoldDays: String(platformSettings.payoutHoldDays),
+            freeShippingThresholdTry: platformSettings.freeShippingThresholdTry.toString(),
+            flatShippingFeeTry: platformSettings.flatShippingFeeTry.toString(),
+            defaultTaxRate: platformSettings.defaultTaxRate.toString(),
+          }}
+        />
       </section>
 
       <section

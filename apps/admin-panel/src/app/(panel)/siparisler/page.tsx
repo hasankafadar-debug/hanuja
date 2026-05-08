@@ -5,6 +5,7 @@ import { Button, PageHeader, StatusBadge } from '@hanuja/ui'
 import { Download } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createOrderService } from '@hanuja/api/services/order.service'
+import { createFulfillmentRiskService } from '@hanuja/api/services/fulfillment-risk.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { AdminListControls } from '@/components/admin-list-controls'
@@ -20,8 +21,6 @@ import {
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = { title: 'Siparisler' }
-
-const TWENTY_DAYS_MS = 20 * 24 * 60 * 60 * 1000
 
 const STATUS_OPTIONS = [
   { value: 'draft', label: 'Taslak' },
@@ -98,6 +97,7 @@ export default async function AdminOrdersPage({
   const params = parseAdminListParams(resolvedSearchParams, { pageSize: 20 })
 
   const prisma = createPrismaForRoute()
+  await createFulfillmentRiskService({ prisma }).refreshActiveRisks()
   const svc = createOrderService({ prisma })
   const invoiceFilter = normalizeInvoiceFilter(params.invoice)
   const result = await svc.listForAdmin({
@@ -121,10 +121,10 @@ export default async function AdminOrdersPage({
     }>
     payments: Array<{ method: string; status: string }>
     sellerInvoices: Array<{ id: string }>
+    fulfillmentRisk: { status: string; deadlineAt: Date } | null
   }
 
   const rows = result.rows as unknown as OrderRow[]
-  const now = Date.now()
   const totalPages = Math.max(1, Math.ceil(result.total / params.pageSize))
   const exportHref = buildExportHref(params)
 
@@ -188,10 +188,15 @@ export default async function AdminOrdersPage({
                     ? order.totalAmount
                     : order.totalAmount.toNumber()
                 const sellerName = order.lines[0]?.seller?.displayName ?? order.lines[0]?.seller?.profile?.companyName ?? '-'
-                const ageMs = now - new Date(order.createdAt).getTime()
-                const isDelayRisk =
-                  ageMs > TWENTY_DAYS_MS &&
-                  ['seller_accepted', 'preparing', 'awaiting_shipment', 'seller_queue_ready'].includes(order.status)
+                const isDelayRisk = order.fulfillmentRisk?.status === 'warning' || order.fulfillmentRisk?.status === 'breached'
+                const riskDeadline = order.fulfillmentRisk?.deadlineAt
+                  ? new Date(order.fulfillmentRisk.deadlineAt)
+                  : null
+                const riskLabel = riskDeadline
+                  ? order.fulfillmentRisk?.status === 'breached'
+                    ? `Süre geçti: ${riskDeadline.toLocaleDateString('tr-TR')}`
+                    : `Son sevk: ${riskDeadline.toLocaleDateString('tr-TR')}`
+                  : 'Risk'
 
                 return (
                   <tr
@@ -212,7 +217,7 @@ export default async function AdminOrdersPage({
                       </Link>
                       {isDelayRisk && (
                         <span className="ml-2 text-xs" style={{ color: '#f59e0b' }}>
-                          Risk
+                          {riskLabel}
                         </span>
                       )}
                     </td>

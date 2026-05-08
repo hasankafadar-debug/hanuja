@@ -343,6 +343,7 @@ export function createOrderRepository(prisma: PrismaClient) {
               },
               orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
             },
+            fulfillmentRisk: true,
             customer: {
               select: {
                 id: true,

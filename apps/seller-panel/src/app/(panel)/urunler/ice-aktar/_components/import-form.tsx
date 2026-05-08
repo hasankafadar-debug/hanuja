@@ -78,6 +78,8 @@ interface PersistedSession {
   url: string
   preview: PreviewPayload
   selections?: Record<string, ItemSelectionState>
+  importedByExternalId?: Record<string, { id: string; name: string; barcode: string | null }>
+  result?: ImportResult | null
 }
 
 function readPersistedSession(): PersistedSession | null {
@@ -91,7 +93,11 @@ function readPersistedSession(): PersistedSession | null {
       !parsed?.preview ||
       !Array.isArray(parsed.preview.items) ||
       (parsed.selections !== undefined &&
-        (!parsed.selections || typeof parsed.selections !== 'object' || Array.isArray(parsed.selections)))
+        (!parsed.selections || typeof parsed.selections !== 'object' || Array.isArray(parsed.selections))) ||
+      (parsed.importedByExternalId !== undefined &&
+        (!parsed.importedByExternalId ||
+          typeof parsed.importedByExternalId !== 'object' ||
+          Array.isArray(parsed.importedByExternalId)))
     ) {
       return null
     }
@@ -333,6 +339,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [commitError, setCommitError] = useState<string | null>(null)
   const [result, setResult] = useState<ImportResult | null>(null)
+  const [importedByExternalId, setImportedByExternalId] = useState<Record<string, { id: string; name: string; barcode: string | null }>>({})
   const [showAllRejected, setShowAllRejected] = useState(false)
   const [isPreviewPending, startPreviewTransition] = useTransition()
   const [isCommitPending, startCommitTransition] = useTransition()
@@ -346,6 +353,8 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     if (!persisted) return
     setUrl(persisted.url)
     applyPreview(persisted.preview, persisted.url, persisted.selections)
+    setImportedByExternalId(persisted.importedByExternalId ?? {})
+    setResult(persisted.result ?? null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -357,23 +366,29 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
   )
 
   const selectedCount = useMemo(
-    () => Object.values(selections).filter((s) => s.selected).length,
-    [selections],
+    () =>
+      Object.entries(selections).filter(
+        ([externalId, s]) => s.selected && !importedByExternalId[externalId],
+      ).length,
+    [importedByExternalId, selections],
   )
+  const importedCount = Object.keys(importedByExternalId).length
 
   const missingCategoryCount = useMemo(() => {
     if (!preview) return 0
     return preview.items.filter((item) => {
+      if (importedByExternalId[item.externalId]) return false
       const s = selections[item.externalId]
       if (!s?.selected) return false
       if (item.resolvedCategoryProposal) return false
       return !s.categoryId.trim()
     }).length
-  }, [preview, selections])
+  }, [importedByExternalId, preview, selections])
 
   const missingBarcodeCount = useMemo(() => {
     if (!preview) return 0
     return preview.items.filter((item) => {
+      if (importedByExternalId[item.externalId]) return false
       const hasVariants = (item.variants?.length ?? 0) > 0
       if (hasVariants) return false
       const s = selections[item.externalId]
@@ -384,12 +399,12 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
         s.barcodeStatus === 'invalid'
       )
     }).length
-  }, [preview, selections])
+  }, [importedByExternalId, preview, selections])
 
   useEffect(() => {
     if (!preview) return
-    writePersistedSession({ url, preview, selections })
-  }, [preview, selections, url])
+    writePersistedSession({ url, preview, selections, importedByExternalId, result })
+  }, [importedByExternalId, preview, result, selections, url])
 
   function applyPreview(
     nextPreview: PreviewPayload,
@@ -421,6 +436,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     setPreviewError(null)
     setCommitError(null)
     setResult(null)
+    setImportedByExternalId({})
     setShowAllRejected(false)
   }
 
@@ -443,7 +459,10 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
   function setAllSelected(selected: boolean) {
     setSelections((current) =>
       Object.fromEntries(
-        Object.entries(current).map(([id, s]) => [id, { ...s, selected }]),
+        Object.entries(current).map(([id, s]) => [
+          id,
+          { ...s, selected: importedByExternalId[id] ? false : selected },
+        ]),
       ),
     )
   }
@@ -507,6 +526,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     const commitSelections: CommitSelection[] = []
 
     for (const item of preview.items) {
+      if (importedByExternalId[item.externalId]) continue
       const s = selections[item.externalId]
       if (!s?.selected) continue
 
@@ -545,6 +565,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
       setPreviewError(null)
       setCommitError(null)
       setResult(null)
+      setImportedByExternalId({})
 
       try {
         const response = await fetch('/api/seller/products/import/preview', {
@@ -619,8 +640,27 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
         }
 
         setResult(payload)
-        // Tek kullanımlık izin tüketildi — sayfa yenilense bile gate ekranı dönecek
-        clearPersistedSession()
+        const importedEntries = Object.fromEntries(
+          commitSelections.map((selection, index) => [
+            selection.externalId,
+            payload.items[index] ?? {
+              id: selection.externalId,
+              name: selection.externalId,
+              barcode: null,
+            },
+          ]),
+        )
+        setImportedByExternalId((current) => ({ ...current, ...importedEntries }))
+        setSelections((current) => {
+          const next = { ...current }
+          for (const selection of commitSelections) {
+            const existing = next[selection.externalId]
+            if (existing) {
+              next[selection.externalId] = { ...existing, selected: false }
+            }
+          }
+          return next
+        })
       } catch {
         setCommitError('Bağlantı hatası.')
       }
@@ -639,10 +679,10 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     <div className="space-y-6">
       <Card>
         <CardContent className="p-4">
-          <p className="text-sm font-medium">Tek kullanımlık Hipicon import izni aktif.</p>
+          <p className="text-sm font-medium">Hipicon import izni aktif.</p>
           <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Başarılı içe aktarma sonrası izin otomatik kapanır. Önizleme taslağınız bu
-            tarayıcı oturumunda sayfa değiştirseniz bile korunur.
+            Önizleme taslağınız bu tarayıcı oturumunda sayfa değiştirseniz bile korunur.
+            Eklenen ürünler satır bazında işaretlenir; kalan ürünleri daha sonra içe aktarabilirsiniz.
           </p>
         </CardContent>
       </Card>
@@ -733,10 +773,11 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
               ) : null}
 
               {/* Stats */}
-              <div className="grid gap-3 md:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-5">
                 {[
                   { label: 'Kaynak', value: preview.adapter },
                   { label: 'Listelenen ürün', value: preview.items.length },
+                  { label: 'Eklenen ürün', value: importedCount },
                   { label: 'Seçilen ürün', value: selectedCount },
                   { label: 'Kategori bekleyen', value: missingCategoryCount },
                 ].map((stat) => (
@@ -856,6 +897,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                       }
                       const hasVariants = (item.variants?.length ?? 0) > 0
                       const proposal = item.resolvedCategoryProposal
+                      const importedProduct = importedByExternalId[item.externalId]
 
                       const categoryDisplay = proposal
                         ? null // handled separately
@@ -864,20 +906,21 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                           : ''
 
                       return (
-                        <tr key={item.externalId}>
+                        <tr key={item.externalId} style={{ opacity: importedProduct ? 0.72 : 1 }}>
                           {/* Checkbox */}
                           <td
                             className="border-b px-3 py-3 align-top"
                             style={{ borderColor: 'var(--color-border)' }}
                           >
                             <Checkbox
-                              checked={s.selected}
+                              checked={importedProduct ? false : s.selected}
                               onCheckedChange={(checked) =>
                                 updateItemSelection(item.externalId, (cur) => ({
                                   ...cur,
                                   selected: checked === true,
                                 }))
                               }
+                              disabled={Boolean(importedProduct)}
                               aria-label={`${item.name} seçimi`}
                             />
                           </td>
@@ -907,6 +950,11 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                               )}
                               <div className="min-w-0 space-y-0.5">
                                 <p className="font-medium leading-tight">{item.name}</p>
+                                {importedProduct ? (
+                                  <p className="text-xs font-medium" style={{ color: 'var(--color-success)' }}>
+                                    Başarıyla eklendi
+                                  </p>
+                                ) : null}
                                 <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                                   {item.imageUrls.length} görsel
                                 </p>
@@ -924,7 +972,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                               externalId={item.externalId}
                               hasVariants={hasVariants}
                               state={s}
-                              isBusy={isBusy}
+                              isBusy={isBusy || Boolean(importedProduct)}
                               onBarcodeChange={handleBarcodeChange}
                             />
                           </td>
@@ -995,7 +1043,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                                       categoryId: e.target.value,
                                     }))
                                   }
-                                  disabled={!s.selected || isBusy}
+                                  disabled={Boolean(importedProduct) || !s.selected || isBusy}
                                   className="w-full rounded-md border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                                   style={{
                                     borderColor: 'var(--color-border)',

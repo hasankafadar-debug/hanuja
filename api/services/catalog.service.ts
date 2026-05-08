@@ -432,6 +432,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       imageUrl?: string | null
       sortOrder?: number
       isActive?: boolean
+      taxRate?: number | null
     }) {
       const existing = await categories.findById(params.categoryId)
       if (!existing) throw new NotFoundError('Category', params.categoryId)
@@ -461,6 +462,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         ...(params.imageUrl !== undefined ? { imageUrl: params.imageUrl } : {}),
         ...(params.sortOrder !== undefined ? { sortOrder: params.sortOrder } : {}),
         ...(params.isActive !== undefined ? { isActive: params.isActive } : {}),
+        ...(params.taxRate !== undefined ? { taxRate: params.taxRate } : {}),
       })
 
       await enqueueCategorySync({ entityId: params.categoryId }).catch((err) =>

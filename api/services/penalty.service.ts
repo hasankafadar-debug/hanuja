@@ -16,8 +16,8 @@ import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.r
 import { createNotificationService } from './notification.service'
 import {
   calculatePenalty,
-  STANDARD_PENALTY_RATE,
 } from '../domain/penalty-calculator'
+import { createPlatformSettingsService } from './platform-settings.service'
 
 interface PenaltyServiceDeps {
   prisma: PrismaClient
@@ -30,6 +30,7 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
   const ledger = createSellerLedgerRepository(prisma)
   const auditLog = createAdminAuditLogRepository(prisma)
   const notifications = createNotificationService({ prisma })
+  const platformSettings = createPlatformSettingsService({ prisma })
 
   return {
     /**
@@ -59,7 +60,9 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
         new Decimal(0),
       )
 
-      const penaltyAmount = calculatePenalty(productAmount, STANDARD_PENALTY_RATE)
+      const settings = await platformSettings.get()
+      const penaltyRate = settings.standardPenaltyRate
+      const penaltyAmount = calculatePenalty(productAmount, penaltyRate)
 
       return prisma.$transaction(async (tx) => {
         const penalty = await penalties.create(
@@ -68,7 +71,7 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
             orderId: params.orderId,
             reason: params.reason,
             baseAmount: productAmount,
-            rate: STANDARD_PENALTY_RATE,
+            rate: penaltyRate,
             penaltyAmount,
           },
           tx as PrismaClient,
@@ -159,8 +162,9 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
       if (!lines.length) throw new NotFoundError('OrderLine', params.orderId)
 
       const baseAmount = lines.reduce((sum, line) => sum.plus(line.totalPrice), new Decimal(0))
-      const penaltyAmount = params.penaltyAmount ?? calculatePenalty(baseAmount, STANDARD_PENALTY_RATE)
-      const rate = baseAmount.toNumber() > 0 ? penaltyAmount.div(baseAmount) : STANDARD_PENALTY_RATE
+      const settings = await platformSettings.get()
+      const penaltyAmount = params.penaltyAmount ?? calculatePenalty(baseAmount, settings.standardPenaltyRate)
+      const rate = baseAmount.toNumber() > 0 ? penaltyAmount.div(baseAmount) : settings.standardPenaltyRate
 
       const penalty = await prisma.$transaction(async (tx) => {
         const created = await penalties.create(

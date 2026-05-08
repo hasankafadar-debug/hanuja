@@ -14,6 +14,7 @@ const updateCategorySchema = z.object({
   imageUrl: z.string().trim().max(500).optional().nullable(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
   isActive: z.boolean().optional(),
+  taxRate: z.number().min(0).max(1).optional().nullable(),
 })
 
 export async function PATCH(
@@ -36,6 +37,7 @@ export async function PATCH(
       ...(body.imageUrl !== undefined ? { imageUrl: body.imageUrl || null } : {}),
       ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
       ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+      ...(body.taxRate !== undefined ? { taxRate: body.taxRate } : {}),
     })
 
     return ok({ category })

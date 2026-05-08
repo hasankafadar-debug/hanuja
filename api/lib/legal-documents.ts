@@ -29,6 +29,8 @@ export interface LegalOrderItemSnapshot {
   quantity: number
   unitPrice: number
   lineTotal: number
+  taxRate: number
+  taxAmount: number
   sellerId: string
   sellerStoreName: string
 }
@@ -42,6 +44,7 @@ export interface LegalContractContext {
   paymentMethod: 'card' | 'eft'
   subtotalAmount: number
   shippingAmount: number
+  taxAmount: number
   totalAmount: number
 }
 
@@ -107,6 +110,7 @@ function renderItemsTable(items: LegalOrderItemSnapshot[]) {
           <td>${escapeHtml(item.sellerStoreName)}</td>
           <td>${item.quantity}</td>
           <td>${formatCurrency(item.unitPrice)}</td>
+          <td>${formatCurrency(item.taxAmount)} <small>(%${Math.round(item.taxRate * 100)})</small></td>
           <td>${formatCurrency(item.lineTotal)}</td>
         </tr>
       `,
@@ -121,6 +125,7 @@ function renderItemsTable(items: LegalOrderItemSnapshot[]) {
           <th>Satıcı</th>
           <th>Adet</th>
           <th>Birim Fiyat</th>
+          <th>KDV</th>
           <th>Ara Toplam</th>
         </tr>
       </thead>
@@ -157,6 +162,7 @@ function renderOrderSummary(context: LegalContractContext) {
     <p><strong>Sipariş Tarihi:</strong> ${formatDate(context.orderDate)}</p>
     <p><strong>Ödeme Yöntemi:</strong> ${escapeHtml(paymentMethodLabel(context.paymentMethod))}</p>
     <p><strong>Ürün Toplamı:</strong> ${formatCurrency(context.subtotalAmount)}</p>
+    <p><strong>Ürünlere Dahil KDV:</strong> ${formatCurrency(context.taxAmount)}</p>
     <p><strong>Kargo:</strong> ${formatCurrency(context.shippingAmount)}</p>
     <p><strong>Toplam Sipariş Bedeli:</strong> ${formatCurrency(context.totalAmount)}</p>
     <p><strong>Teslimat Süresi:</strong> En geç 30 gün içinde teslim edilir.</p>
@@ -290,6 +296,8 @@ export function buildPublicLegalDocumentContext(): LegalContractContext {
         quantity: 1,
         unitPrice: 0,
         lineTotal: 0,
+        taxRate: 0.2,
+        taxAmount: 0,
         sellerId: 'sample-seller',
         sellerStoreName: '[Mağaza Adı]',
       },
@@ -299,6 +307,7 @@ export function buildPublicLegalDocumentContext(): LegalContractContext {
     paymentMethod: 'card',
     subtotalAmount: 0,
     shippingAmount: 0,
+    taxAmount: 0,
     totalAmount: 0,
   }
 }

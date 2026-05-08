@@ -205,12 +205,6 @@ export async function POST(req: NextRequest) {
       selections,
     })
 
-    // Tek kullanımlık izni tüket — commit başarılı olduğunda satıcının yeniden istemesi gerekir
-    await prisma.seller.update({
-      where: { id: seller.id },
-      data: { importEnabled: false, importRequestedAt: null },
-    })
-
     return NextResponse.json({
       importedCount: createdProducts.length,
       selectedCount: selections.length,

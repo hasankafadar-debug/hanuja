@@ -25,6 +25,7 @@ interface CategoryRow {
   imageUrl: string | null
   sortOrder: number
   isActive: boolean
+  taxRate: { toString(): string } | string | number | null
 }
 
 interface Props {
@@ -39,6 +40,7 @@ interface CategoryDraft {
   imageUrl: string
   sortOrder: string
   isActive: boolean
+  taxRate: string
 }
 
 function toDraft(category: CategoryRow): CategoryDraft {
@@ -50,6 +52,7 @@ function toDraft(category: CategoryRow): CategoryDraft {
     imageUrl: category.imageUrl ?? '',
     sortOrder: String(category.sortOrder),
     isActive: category.isActive,
+    taxRate: category.taxRate === null ? '' : String(Number(category.taxRate) * 100),
   }
 }
 
@@ -90,6 +93,7 @@ export function CategorySettingsList({ categories }: Props) {
           imageUrl: draft.imageUrl || null,
           sortOrder: Number(draft.sortOrder || '0'),
           isActive: draft.isActive,
+          taxRate: draft.taxRate.trim() ? Number(draft.taxRate) / 100 : null,
         }),
       })
 
@@ -137,6 +141,7 @@ export function CategorySettingsList({ categories }: Props) {
               >
                 <span className="font-mono">/kategori/{category.slug}</span>
                 <span>Sıra: {category.sortOrder}</span>
+                <span>KDV: {category.taxRate === null ? 'Varsayılan' : `%${Number(category.taxRate) * 100}`}</span>
               </div>
             </div>
 
@@ -199,6 +204,22 @@ export function CategorySettingsList({ categories }: Props) {
                   onChange={(event) =>
                     setDraft((current) => (current ? { ...current, sortOrder: event.target.value } : current))
                   }
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="category-tax-rate">KDV Oranı (%)</Label>
+                <Input
+                  id="category-tax-rate"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  value={draft.taxRate}
+                  onChange={(event) =>
+                    setDraft((current) => (current ? { ...current, taxRate: event.target.value } : current))
+                  }
+                  placeholder="Boşsa platform varsayılanı"
                 />
               </div>
 

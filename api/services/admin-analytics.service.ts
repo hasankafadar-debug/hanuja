@@ -7,6 +7,7 @@
  * These stats are read-only aggregations — no state mutations occur here.
  */
 import type { PrismaClient } from '@prisma/client'
+import { createFulfillmentRiskService } from './fulfillment-risk.service'
 
 export interface AdminDashboardStats {
   orders: {
@@ -123,14 +124,8 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       }),
     ])
 
-    // Delayed orders: seller_accepted or preparing, created > 20 days ago
-    const twentyDaysAgo = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000)
-    const delayedOrders = await prisma.order.count({
-      where: {
-        status: { in: ['seller_accepted', 'preparing', 'awaiting_shipment'] },
-        createdAt: { lte: twentyDaysAgo },
-      },
-    })
+    const activeFulfillmentRisks = await createFulfillmentRiskService({ prisma }).listActiveForAdmin()
+    const delayedOrders = activeFulfillmentRisks.length
 
     return {
       orders: {

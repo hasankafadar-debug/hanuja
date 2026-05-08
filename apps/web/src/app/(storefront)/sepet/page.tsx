@@ -6,10 +6,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button, EmptyState, Separator, Spinner, normalizeMediaDisplayUrl } from '@hanuja/ui'
 import { Trash2, ShoppingCart, Plus, Minus, AlertTriangle } from 'lucide-react'
-import {
-  calculateShippingFee,
-  FREE_SHIPPING_THRESHOLD_TRY,
-} from '@hanuja/api/domain/shipping'
 import { csrfFetch } from '@/lib/csrf-fetch'
 import CouponForm from './_components/coupon-form'
 
@@ -34,6 +30,9 @@ interface Cart {
   couponCode: string | null
   itemCount: number
   subtotal: string
+  taxAmount?: string
+  freeShippingThresholdTry?: string
+  flatShippingFeeTry?: string
 }
 
 function formatPrice(value: string | number) {
@@ -131,7 +130,10 @@ export default function CartPage() {
   }
 
   const subtotal = Number(cart.subtotal)
-  const shipping = calculateShippingFee(subtotal)
+  const taxAmount = Number(cart.taxAmount ?? 0)
+  const freeShippingThreshold = Number(cart.freeShippingThresholdTry ?? 1500)
+  const flatShippingFee = Number(cart.flatShippingFeeTry ?? 99)
+  const shipping = subtotal >= freeShippingThreshold ? 0 : flatShippingFee
   const total = subtotal + shipping
 
   return (
@@ -289,18 +291,22 @@ export default function CartPage() {
               <span>₺{formatPrice(subtotal)}</span>
             </div>
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
+              <span>Ürünlere dahil KDV</span>
+              <span>₺{formatPrice(taxAmount)}</span>
+            </div>
+            <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Kargo</span>
               <span>
                 {shipping === 0 ? (
                   <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span>
                 ) : (
-                  `₺${shipping}`
+                  `₺${formatPrice(shipping)}`
                 )}
               </span>
             </div>
             {shipping > 0 && (
               <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                ₺{FREE_SHIPPING_THRESHOLD_TRY.toLocaleString('tr-TR')} üzeri ücretsiz kargo
+                ₺{freeShippingThreshold.toLocaleString('tr-TR')} üzeri ücretsiz kargo
               </p>
             )}
             {cart.couponCode && (

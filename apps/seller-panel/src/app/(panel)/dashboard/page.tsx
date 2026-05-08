@@ -15,6 +15,7 @@ import { createOrderService } from '@hanuja/api/services/order.service'
 import { createPayoutRepository } from '@hanuja/api/repositories/payout.repository'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +42,7 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
   const prisma = createPrismaForRoute()
   const orderService = createOrderService({ prisma })
   const payoutRepo = createPayoutRepository(prisma)
+  const platformSettings = await createPlatformSettingsService({ prisma }).get()
 
   const now = new Date()
   const defaultTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
@@ -293,9 +295,9 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
     : []
   const topProductMap = new Map(topProducts.map((product) => [product.id, product]))
 
-  // Gecikme uyarısı: henüz kargoya verilmemiş, 20 günlük taahhüt süresi 5 gün içinde dolacak veya zaten dolmuş
-  const FULFILLMENT_DAYS = 20
-  const WARNING_WINDOW_MS = 5 * 24 * 60 * 60 * 1000
+  // Gecikme uyarısı: henüz kargoya verilmemiş, sevk taahhüt süresi uyarı penceresine girmiş veya dolmuş
+  const FULFILLMENT_DAYS = platformSettings.fulfillmentDays
+  const WARNING_WINDOW_MS = platformSettings.fulfillmentWarningDays * 24 * 60 * 60 * 1000
   const delayedOrders = sellerOrders.filter((order) => {
     if (!order.paymentConfirmedAt) return false
     if (['shipped', 'delivered', 'delivery_confirmation_pending', 'delivery_confirmed'].includes(order.status)) return false
@@ -326,7 +328,7 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
               {delayedOrders.length} sipariş kargo taahhüdünde kritik
             </p>
             <p className="text-xs" style={{ color: '#92400e' }}>
-              20 günlük fulfillment süresi doldu veya 5 gün içinde dolacak — bu siparişleri hemen kargoya verin.
+              Sevk süresi doldu veya uyarı penceresine girdi — bu siparişleri hemen kargoya verin.
             </p>
           </div>
         </div>

@@ -16,6 +16,8 @@ import { getAdminSession } from '@/lib/admin-session'
 import { createAdminAnalyticsService } from '@hanuja/api/services/admin-analytics.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createOrderService } from '@hanuja/api/services/order.service'
+import { createFulfillmentRiskService } from '@hanuja/api/services/fulfillment-risk.service'
+import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,10 +29,12 @@ export default async function AdminDashboardPage() {
   const prisma = createPrismaForRoute()
   const analytics = createAdminAnalyticsService({ prisma })
   const orderSvc = createOrderService({ prisma })
+  const fulfillmentRiskSvc = createFulfillmentRiskService({ prisma })
 
-  const [stats, recentOrdersResult] = await Promise.all([
+  const [stats, recentOrdersResult, fulfillmentRisks] = await Promise.all([
     analytics.getDashboardStats(),
     orderSvc.listForAdmin({ skip: 0, take: 5 }),
+    fulfillmentRiskSvc.listActiveForAdmin({ take: 5 }),
   ])
 
   type OrderRow = {
@@ -61,6 +65,18 @@ export default async function AdminDashboardPage() {
       description: `${stats.orders.delayedOrders} sipariş 20 gün sınırında`,
       href: '/siparisler',
       urgent: true,
+    })
+  }
+  for (const risk of fulfillmentRisks) {
+    const deadline = new Date(risk.deadlineAt).toLocaleDateString('tr-TR', {
+      day: 'numeric',
+      month: 'short',
+    })
+    urgentItems.push({
+      type: risk.status === 'breached' ? 'Sevk Süresi Geçti' : 'Sevk Uyarısı',
+      description: `${risk.seller.displayName} - ${formatOrderDisplayNumber(risk.order.publicNumber, risk.order.id)} - son tarih ${deadline}`,
+      href: `/siparisler/${risk.orderId}`,
+      urgent: risk.status === 'breached',
     })
   }
   if (stats.orders.openDisputes > 0) {

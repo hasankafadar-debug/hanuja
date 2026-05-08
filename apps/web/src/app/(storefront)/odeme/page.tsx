@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Banknote, CheckCircle2, CreditCard, Lock, MapPin, Plus } from 'lucide-react'
-import { calculateShippingFee } from '@hanuja/api/domain/shipping'
 import { Button, Separator, Spinner, TurnstileWidget } from '@hanuja/ui'
 import LegalDocumentDialog from '@/components/legal-document-dialog'
 import { csrfFetch } from '@/lib/csrf-fetch'
@@ -24,6 +23,9 @@ interface Address {
 interface CartSummary {
   itemCount: number
   subtotal: string
+  taxAmount: string
+  freeShippingThresholdTry: string
+  flatShippingFeeTry: string
 }
 
 interface LegalPreview {
@@ -107,7 +109,13 @@ export default function CheckoutPage() {
         return
       }
 
-      setCartSummary({ itemCount: cart.itemCount, subtotal: cart.subtotal })
+      setCartSummary({
+        itemCount: cart.itemCount,
+        subtotal: cart.subtotal,
+        taxAmount: cart.taxAmount ?? '0',
+        freeShippingThresholdTry: cart.freeShippingThresholdTry ?? '1500',
+        flatShippingFeeTry: cart.flatShippingFeeTry ?? '99',
+      })
       setAddresses(addrs ?? [])
 
       const defaultAddress = (addrs ?? []).find((address: Address) => address.isDefault)
@@ -351,7 +359,10 @@ export default function CheckoutPage() {
   }
 
   const subtotal = Number(cartSummary?.subtotal ?? 0)
-  const shipping = calculateShippingFee(subtotal)
+  const taxAmount = Number(cartSummary?.taxAmount ?? 0)
+  const freeShippingThreshold = Number(cartSummary?.freeShippingThresholdTry ?? 1500)
+  const flatShippingFee = Number(cartSummary?.flatShippingFeeTry ?? 99)
+  const shipping = subtotal >= freeShippingThreshold ? 0 : flatShippingFee
   const total = subtotal + shipping
   const hasAddress = Boolean(selectedAddressId)
   const documentsReady = hasAddress && Boolean(legalPreview) && !legalLoading && !legalError
@@ -801,8 +812,12 @@ export default function CheckoutPage() {
               <span>₺{formatPrice(subtotal)}</span>
             </div>
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
+              <span>Ürünlere dahil KDV</span>
+              <span>₺{formatPrice(taxAmount)}</span>
+            </div>
+            <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Kargo</span>
-              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ucretsiz</span> : `₺${shipping}`}</span>
+              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ucretsiz</span> : `₺${formatPrice(shipping)}`}</span>
             </div>
             <Separator />
             <div className="flex justify-between text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
