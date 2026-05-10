@@ -57,6 +57,29 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 - Satıcıya dönen sipariş payload'ları (detay, queue listesi, CSV export) müşteri e-postasını içermez; ad `maskCustomerName` ile "Ahmet Y." formatında gösterilir.
 - Kalıcı email aliasing altyapısı (Faz 4) ayrı epic; geldiğinde aynı select noktasına alias alanı eklenir.
 
+### 9. Geç sevkiyat günlük ceza birikimi (yeni — 2026-05-09)
+- `fulfillment-risk` BullMQ worker artık günlük %1 ceza birikimini idempotent şekilde işler ve 20. günde `cancelled_due_to_20day_breach` auto-cancel + refund tetikler.
+- Eski `fulfillment_20day_breach` reason'ı yeni kayıt üretmez; mevcut kayıtlar audit için korunur.
+- Production cutover sırasında worker çalışıyor olmalı; aksi halde ceza birikimi durur.
+
+### 10. Admin payout transfer modal & seller invoice akışları
+- `Öde` modal'ı `Payout.markPaid` çağrısında `transferDate`, `transferReference`, `transferBankName`, `transferNote`, `paidByAdminId`, `ibanSnapshot`, `accountHolderSnapshot` snapshot'ı yazar.
+- `SellerInvoice` (commission/penalty) yalnızca admin tarafından oluşturulabilir; `invoiceNumber` global unique. Production'a açılmadan önce ilk admin kullanıcılarının `createdByAdminId` foreign-key kısıtını doğru taşıdığı kontrol edilmeli.
+- TODO: `SellerInvoice` create flow şu an ledger entry yazmıyor; commission/ceza fatura kaydının `seller_ledger_entry` `commission_invoice_issued` / `penalty_invoice_issued` türünde tek bir entry üretmesi finance reporting için arzu edilir. Bu eksik şu an blocking değil ama reconciliation raporlarında "fatura kesildi mi?" sorgusu sadece `seller_invoices` tablosunu okumalıdır.
+
+### 11. Sepet/Checkout finans breakdown (yeni — 2026-05-09)
+- Sepette `netSubtotal` + oran-bazlı `taxBreakdown`; checkout'ta ek `eftDiscount` satırı (yalnızca `paymentMethod = eft` ve `eftDiscountRate > 0`).
+- EFT indirimi platform-absorbe: `Order.eftDiscountAmount` müşteri toplamından düşer fakat satıcı `Payout.grossAmount`/`netAmount`'unu etkilemez. Bu yaklaşımı değiştirmek isteyen herhangi bir politika kararı önce finance docs'ta güncellenmeli.
+- Order persistence: `netSubtotal`, `taxBreakdownJson`, `eftDiscountAmount`, `eftDiscountRateSnapshot` snapshot olarak yazılır; admin sipariş detayı bu snapshot'lardan render eder.
+
+### 12. Para yuvarlama (`roundMoney`)
+- `packages/security/src/money.ts` 3. ondalık kuralını uygular (≤5 truncate, ≥6 yukarı yuvarla). 27 fixture ile test edilir (`tests/unit/round-money.test.ts`).
+- Şu an cart/checkout pipeline'ında persist-time uygulanır. `payout.service.ts`, `penalty.service.ts`, `seller-invoice.service.ts` Decimal aritmetiği yapıp `toDecimalPlaces(2)` ile yuvarlıyor — bu `roundMoney` kuralından **biraz farklı** (3. ondalık 5'te banker's vs truncate kararı). Finance açısından sapma 0,005 TRY mertebesindedir; ileride bu kuralı tüm servislere `roundMoney` ile birleştirmek için ayrı bir migration planı yapılmalıdır.
+
+### 13. Variant stoğu içe aktarma
+- URL importu varyantsız ürünler için per-product `stockQuantity` input'u sağlar.
+- Variant'lı ürünlerde stoğun hangi variant'a yazılacağı henüz seçilemez — ana ürün düzeyinde yazılır. Variant-bazlı stok girişi ayrı bir epic.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

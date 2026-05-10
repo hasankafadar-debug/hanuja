@@ -134,7 +134,7 @@ Her payout hareketi `SellerLedgerEntry` tablosuna yazılır (immutable, append-o
 | Komisyon kesintisi | `commission` |
 | Kargo kesintisi | `cargo_charge` |
 | Reklam/hizmet ücreti | `ad_fee` |
-| Ceza kesintisi | `penalty` |
+| Ceza kesintisi | `penalty` (seller rejection %20 veya late shipment daily accrual) |
 | İade etkisi | `refund` |
 | Kupon payı | `coupon_share` |
 | Admin düzeltme | `manual_adjustment` |

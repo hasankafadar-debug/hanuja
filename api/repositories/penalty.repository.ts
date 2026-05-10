@@ -11,6 +11,10 @@ export function createPenaltyRepository(prisma: PrismaClient) {
       return prisma.penalty.findFirst({ where: { orderId } })
     },
 
+    findByOrderIdAndReason(orderId: string, reason: PenaltyReason) {
+      return prisma.penalty.findFirst({ where: { orderId, reason } })
+    },
+
     create(
       data: {
         sellerId: string
@@ -19,6 +23,10 @@ export function createPenaltyRepository(prisma: PrismaClient) {
         baseAmount: Decimal
         rate: Decimal
         penaltyAmount: Decimal
+        accrualSourceDate?: Date
+        accrualDayCount?: number
+        dailyAccrualRate?: Decimal
+        lastAccrualAt?: Date
       },
       tx?: PrismaClient,
     ) {
@@ -50,6 +58,23 @@ export function createPenaltyRepository(prisma: PrismaClient) {
       })
     },
 
+    updateAccrual(
+      id: string,
+      data: {
+        rate: Decimal
+        penaltyAmount: Decimal
+        accrualDayCount: number
+        lastAccrualAt: Date
+      },
+      tx?: PrismaClient,
+    ) {
+      const client = tx ?? prisma
+      return client.penalty.update({
+        where: { id },
+        data,
+      })
+    },
+
     listBySeller(params: {
       sellerId: string
       status?: PenaltyStatus
@@ -72,6 +97,7 @@ export function createPenaltyRepository(prisma: PrismaClient) {
       sellerId?: string
       status?: PenaltyStatus
       query?: string
+      financeInvoice?: 'missing' | 'present'
       from?: Date
       to?: Date
       skip?: number
@@ -81,6 +107,20 @@ export function createPenaltyRepository(prisma: PrismaClient) {
       const where: Prisma.PenaltyWhereInput = {
         ...(params.sellerId !== undefined ? { sellerId: params.sellerId } : {}),
         ...(params.status !== undefined ? { status: params.status } : {}),
+        ...(params.financeInvoice === 'missing'
+          ? {
+              financeInvoices: {
+                none: { type: 'penalty' },
+              },
+            }
+          : {}),
+        ...(params.financeInvoice === 'present'
+          ? {
+              financeInvoices: {
+                some: { type: 'penalty' },
+              },
+            }
+          : {}),
         ...(params.from !== undefined || params.to !== undefined
           ? {
               createdAt: {
@@ -103,7 +143,14 @@ export function createPenaltyRepository(prisma: PrismaClient) {
       const [rows, total] = await Promise.all([
         prisma.penalty.findMany({
           where,
-          include: { seller: { include: { profile: true } }, order: true },
+          include: {
+            seller: { include: { profile: true } },
+            order: true,
+            financeInvoices: {
+              where: { type: 'penalty' },
+              orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
+            },
+          },
           orderBy: { createdAt: 'desc' },
           ...(params.skip !== undefined ? { skip: params.skip } : {}),
           take: params.take ?? 20,

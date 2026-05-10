@@ -278,7 +278,7 @@ export function MediaLibrary() {
           Yeni Gorsel Yukle
         </h2>
         <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          Yuklediginiz gorsellerin URL&apos;sini toplu XLSX sablonunda kullanabilirsiniz.
+          Tavsiye edilen boyut 1200×1200. Farkli oranda yüklerseniz sistem otomatik olarak 1:1'e tamamlar ve boş alanlar beyaz olur.
         </p>
         <div className="mt-4">
           <FileUpload
@@ -289,10 +289,10 @@ export function MediaLibrary() {
             showPreviews={false}
             showMaxFilesHint={false}
             imageConstraints={{
-              exactWidth: 1200,
-              exactHeight: 1200,
-              minDpi: 72,
-              maxDpi: 100,
+              minWidth: 800,
+              minHeight: 800,
+              maxWidth: 6000,
+              maxHeight: 6000,
               allowedTypes: ['image/jpeg', 'image/png'],
             }}
             inputLabel="Medya gorseli yukle"

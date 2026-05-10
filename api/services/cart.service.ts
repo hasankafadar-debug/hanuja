@@ -13,6 +13,7 @@ import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
 import { NotFoundError, ValidationError } from '../lib/errors'
 import { createCartRepository } from '../repositories/cart.repository'
 import { createPlatformSettingsService } from './platform-settings.service'
+import { roundMoney } from '@hanuja/security'
 
 interface CartServiceDeps {
   prisma: PrismaClient
@@ -71,11 +72,25 @@ export function createCartService({ prisma }: CartServiceDeps) {
         (sum, item) => sum.add(new Decimal(item.unitPrice).mul(item.quantity)),
         new Decimal(0),
       )
+      const taxBreakdownMap = new Map<number, Decimal>()
       const taxAmount = cart.items.reduce((sum, item) => {
         const product = productMap.get(item.productId)
         const rate = resolveCategoryTaxRate(product?.categoryId, categoryMap, settings.defaultTaxRate)
-        return sum.add(calculateIncludedTax(new Decimal(item.unitPrice).mul(item.quantity), rate))
+        const lineTax = calculateIncludedTax(new Decimal(item.unitPrice).mul(item.quantity), rate)
+        const ratePercent = Number(rate.mul(100).toFixed(2))
+        taxBreakdownMap.set(ratePercent, (taxBreakdownMap.get(ratePercent) ?? new Decimal(0)).add(lineTax))
+        return sum.add(lineTax)
       }, new Decimal(0))
+      const netSubtotal = subtotal.sub(taxAmount)
+      const shipping = subtotal.gte(settings.freeShippingThresholdTry)
+        ? new Decimal(0)
+        : settings.flatShippingFeeTry
+      const taxBreakdown = [...taxBreakdownMap.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([ratePercent, amount]) => ({
+          ratePercent,
+          taxAmount: roundMoney(amount).toFixed(2),
+        }))
 
       return {
         ...cart,
@@ -101,7 +116,15 @@ export function createCartService({ prisma }: CartServiceDeps) {
         }),
         itemCount,
         subtotal,
+        grossSubtotal: roundMoney(subtotal),
+        netSubtotal: roundMoney(netSubtotal),
         taxAmount,
+        taxBreakdown,
+        couponDiscount: new Decimal(0),
+        eftDiscount: new Decimal(0),
+        shipping,
+        total: roundMoney(subtotal.add(shipping)),
+        eftDiscountRatePercent: Number(settings.eftDiscountRate.mul(100).toFixed(2)),
         freeShippingThresholdTry: settings.freeShippingThresholdTry,
         flatShippingFeeTry: settings.flatShippingFeeTry,
       }

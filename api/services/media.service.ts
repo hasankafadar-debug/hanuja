@@ -122,19 +122,15 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
           throw new Error('Yalnızca PNG veya JPEG kabul edilir.')
         }
 
-        if (metadata.width !== 1200 || metadata.height !== 1200) {
+        if (metadata.width < 800 || metadata.height < 800) {
           throw new Error(
-            `Görsel çözünürlüğü tam olarak 1200×1200 piksel olmalıdır (yüklenen: ${metadata.width}×${metadata.height}).`,
+            `Görsel en az 800×800 piksel olmalıdır (yüklenen: ${metadata.width}×${metadata.height}).`,
           )
         }
 
-        if (metadata.dpi == null) {
-          throw new Error('Görselin DPI bilgisi okunamadı; 72-100 DPI olarak kaydedilmiş PNG/JPEG yükleyin.')
-        }
-
-        if (metadata.dpi < 72 || metadata.dpi > 100) {
+        if (metadata.width > 6000 || metadata.height > 6000) {
           throw new Error(
-            `Görsel DPI değeri 72 ile 100 arasında olmalıdır (yüklenen: ${metadata.dpi.toFixed(2)}).`,
+            `Görsel en fazla 6000×6000 piksel olabilir (yüklenen: ${metadata.width}×${metadata.height}).`,
           )
         }
       } catch (error) {

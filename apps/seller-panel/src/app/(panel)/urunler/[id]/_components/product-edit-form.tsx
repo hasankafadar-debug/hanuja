@@ -386,10 +386,10 @@ export default function ProductEditForm({
           inputLabel="Urun gorseli yukle"
           showPreviews
           imageConstraints={{
-            exactWidth: 1200,
-            exactHeight: 1200,
-            minDpi: 72,
-            maxDpi: 100,
+            minWidth: 800,
+            minHeight: 800,
+            maxWidth: 6000,
+            maxHeight: 6000,
             allowedTypes: ['image/jpeg', 'image/png'],
           }}
         />

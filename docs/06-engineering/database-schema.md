@@ -73,10 +73,16 @@ Dispute states: `dispute_open` | `dispute_resolved`
 `payout_paid` — payment has been transferred to seller
 
 ### PenaltyReason
-`seller_rejected_paid_order` | `fulfillment_20day_breach` | `other`
+`seller_rejected_paid_order` | `late_shipment_daily_accrual` | `fulfillment_20day_breach` (legacy, no new rows) | `other`
 
 ### PenaltyStatus
 `applied` | `waived` | `offset`
+
+### SellerInvoiceType
+`commission` | `penalty`
+
+### OrderCancellationReason
+`customer_requested` | `admin_cancelled` | `payment_failed` | `seller_rejected` | `auto_canceled_20day_breach` | `other`
 
 ### ReturnRequestStatus
 `requested` | `under_review` | `approved` | `rejected` | `in_transit` | `received` | `refund_completed`
@@ -100,7 +106,7 @@ Dispute states: `dispute_open` | `dispute_resolved`
 `dispute_release` — hold released after dispute resolution
 
 ### AdminActionType
-`payment_approved` | `payment_rejected` | `bank_transfer_approved` | `bank_transfer_rejected` | `order_cancelled` | `delivery_confirmed_manual` | `penalty_applied` | `penalty_waived` | `payout_released` | `payout_blocked` | `payout_hold_released` | `seller_suspended` | `seller_activated` | `seller_rejected` | `return_approved` | `return_rejected` | `dispute_opened` | `dispute_resolved` | `manual_ledger_adjustment` | `fulfillment_window_extended` | `seller_bank_detail_changed`
+`payment_approved` | `payment_rejected` | `bank_transfer_approved` | `bank_transfer_rejected` | `order_cancelled` | `delivery_confirmed_manual` | `penalty_applied` | `penalty_waived` | `payout_released` | `payout_blocked` | `payout_hold_released` | `seller_suspended` | `seller_activated` | `seller_rejected` | `return_approved` | `return_rejected` | `dispute_opened` | `dispute_resolved` | `manual_ledger_adjustment` | `fulfillment_window_extended` | `seller_bank_detail_changed` | `category_tax_rate_changed`
 
 ### MediaAssetType
 `product_image` | `store_image` | `blog_image` | `dispute_evidence` | `return_evidence` | `invoice_document`
@@ -140,7 +146,10 @@ Index: `(sellerId, isActive)` — payout job lookup.
 Indexes: `(sellerId, createdAt)` for chronological ledger views, `(referenceType, referenceId)` for tracing a specific record's ledger effect.
 
 ### Category
-Self-referencing tree via `parentId`. `slug` drives `/kategori/<slug>` routes. `sortOrder` controls display order within a parent. Soft-delete via `isActive`.
+Self-referencing tree via `parentId`. `slug` drives `/kategori/<slug>` routes. `sortOrder` controls display order within a parent. Soft-delete via `isActive`. `taxRate` is optional (Decimal 0..1); when null the resolver walks up the tree, then falls back to `PlatformSettings.defaultTaxRate`. Edits emit an `AdminAuditLog` entry with `actionType = category_tax_rate_changed`.
+
+### PlatformSettings
+Single-row settings table holding platform-wide finance constants: `standardPenaltyRate`, `defaultTaxRate`, `freeShippingThresholdTry`, `flatShippingFeeTry`, `fulfillmentDays`, `eftDiscountRate` (Decimal 0..1; 0 disables the EFT discount line in storefront/checkout UI). Service caches reads but writes go through admin audit.
 
 ### Product
 `slug` drives `/urun/<slug>` routes. Only `published` products are returned in storefront queries. `price` and `compareAtPrice` use `Decimal` to avoid float rounding errors. Physical attributes (`weight`, `dimensionLength`, `dimensionWidth`, `dimensionHeight`) are stored for shipping calculations.
@@ -151,7 +160,18 @@ Indexes: `(sellerId, status)` for seller panel product list, `(categoryId, statu
 Snapshot of product name, variant, and price at time of purchase. `commissionRate` and `commissionAmount` are locked at order creation time so later rate changes do not retroactively affect settled orders. `netPayoutAmount` = `totalPrice` minus `commissionAmount`; further deductions (cargo, ad fee, penalty) are applied at the `Payout` level.
 
 ### Order
-`deliveryConfirmedAt` is the single most finance-critical timestamp — payout countdown starts from this value. `grossAmount`, `discountAmount`, `shippingAmount`, and `totalAmount` are stored as separate columns; no single opaque total. Status transitions are recorded in `OrderStatusHistory`.
+`deliveryConfirmedAt` is the single most finance-critical timestamp — payout countdown starts from this value. `grossAmount`, `discountAmount`, `shippingAmount`, and `totalAmount` are stored as separate columns; no single opaque total.
+
+Tax/EFT breakdown snapshot columns (storefront finance UI source):
+- `netSubtotal` — VAT-exclusive subtotal at order time.
+- `taxBreakdownJson` — array of `{ ratePercent, taxAmount }` per VAT rate at order time.
+- `eftDiscountAmount` — applied EFT discount in TRY when `paymentMethod = eft`.
+- `eftDiscountRateSnapshot` — platform EFT discount rate snapshot for audit.
+- `cancellationReason` — `OrderCancellationReason` populated whenever the order ends in a cancelled state. `auto_canceled_20day_breach` is reserved for the 20th-day late-shipment auto-cancel path.
+
+EFT discount is platform-absorbed. It reduces the customer-paid amount but **does not** reduce seller `grossAmount`/`netAmount` in `Payout`. Seller payout grossAmount is computed from `OrderLine.totalPrice` totals, which are independent of `Order.eftDiscountAmount`.
+
+Status transitions are recorded in `OrderStatusHistory`.
 
 Indexes: `(customerId, status)` for customer order list, `(status, createdAt)` for admin queue queries.
 
@@ -171,13 +191,34 @@ One Payout record per order (optionally linked to a specific `OrderLine` via `or
 
 `blockedReason` must be populated whenever `status = payout_blocked` so admin and seller can see why payout is not progressing.
 
-Indexes: `(sellerId, status)` for payout dashboard queries, `(holdUntil, status)` for the payout maturity BullMQ job.
+Transfer snapshot columns (set when admin records the bank transfer through the `Öde` modal):
+- `transferDate` — date of the actual EFT/havale.
+- `transferReference` — admin-entered transfer reference / bank receipt code.
+- `transferBankName` — bank used for the transfer.
+- `transferNote` — free-text description shown in the seller statement.
+- `paidByAdminId` — FK to the admin user who released the payout.
+- `ibanSnapshot`, `accountHolderSnapshot` — frozen at payout time so later IBAN edits do not rewrite history.
+
+Indexes: `(sellerId, status)` for payout dashboard queries, `(holdUntil, status)` for the payout maturity BullMQ job, `(paidByAdminId)` for admin attribution.
 
 ### PayoutBatch
 Groups multiple Payout records into a single admin-approved payment run. `reference` is a human-readable batch code. `processedBy` logs the admin actor ID. Partial batch failures must be traceable per individual Payout record.
 
 ### Penalty
-`rate` defaults to `0.2000` (20%) per business rules. `baseAmount` is the product price at time of penalty. `penaltyAmount = baseAmount * rate`. Waived penalties keep the original record intact; `waivedBy`, `waivedAt`, and `waiverReason` are appended to the existing row. History is never deleted.
+`rate` defaults to `0.2000` (20%) per business rules for `seller_rejected_paid_order`. `baseAmount` is the product price at time of penalty. `penaltyAmount = baseAmount * rate`. Waived penalties keep the original record intact; `waivedBy`, `waivedAt`, and `waiverReason` are appended to the existing row. History is never deleted.
+
+For late-shipment accruals (`reason = late_shipment_daily_accrual`):
+- `accrualSourceDate` — the deadline that started accrual.
+- `accrualDayCount` — number of overdue days currently accrued.
+- `dailyAccrualRate` — snapshot of the daily rate (default `0.0100`).
+- `lastAccrualAt` — last calendar day the worker incremented the row (idempotency guard).
+
+The accrual row is updated daily; ledger entries are only emitted for the incremental days, never re-emitted for previously accrued days. On day 20 the worker triggers `Order.cancellationReason = auto_canceled_20day_breach` and refund flow.
+
+### SellerInvoice
+Admin-issued invoice records (Hanuja → Seller). `type` is `commission` or `penalty`. `invoiceNumber` is globally unique. `sourceOrderId` is set for commission invoices; `sourcePenaltyId` is set for penalty invoices and only `applied` (non-waived) penalties may be invoiced. `payoutId` is optional for cross-linking when an invoice settles a payout deduction. `createdByAdminId` is required.
+
+Indexes: `(sellerId, type)` for invoice tabs, `(sourceOrderId)`, `(sourcePenaltyId)`, `(payoutId)`, `(createdByAdminId)`.
 
 ### ReturnRequest
 `isWithinWindow` flags whether the request falls inside the 14-day statutory withdrawal period; this determines fast-path vs. admin-review handling. `refundAmount` may be partial. Evidence files are attached as `MediaAsset[]`.

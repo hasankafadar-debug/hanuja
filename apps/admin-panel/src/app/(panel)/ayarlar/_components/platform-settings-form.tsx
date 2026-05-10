@@ -12,6 +12,7 @@ interface PlatformSettingsValues {
   freeShippingThresholdTry: string
   flatShippingFeeTry: string
   defaultTaxRate: string
+  eftDiscountRate: string
 }
 
 interface Props {
@@ -32,6 +33,7 @@ export function PlatformSettingsForm({ initialValues }: Props) {
     ...initialValues,
     standardPenaltyRate: decimalToPercent(initialValues.standardPenaltyRate),
     defaultTaxRate: decimalToPercent(initialValues.defaultTaxRate),
+    eftDiscountRate: decimalToPercent(initialValues.eftDiscountRate),
   })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -58,6 +60,7 @@ export function PlatformSettingsForm({ initialValues }: Props) {
           freeShippingThresholdTry: Number(values.freeShippingThresholdTry),
           flatShippingFeeTry: Number(values.flatShippingFeeTry),
           defaultTaxRate: percentToDecimal(values.defaultTaxRate),
+          eftDiscountRate: percentToDecimal(values.eftDiscountRate),
         }),
       })
 
@@ -70,7 +73,7 @@ export function PlatformSettingsForm({ initialValues }: Props) {
       setMessage('Ayarlar kaydedildi.')
       router.refresh()
     } catch {
-      setError('Bağlantı hatası oluştu.')
+      setError('Baglanti hatasi olustu.')
     } finally {
       setLoading(false)
     }
@@ -83,13 +86,14 @@ export function PlatformSettingsForm({ initialValues }: Props) {
     step?: string
     min?: string
   }> = [
-    { key: 'standardPenaltyRate', label: 'Varsayılan ceza oranı', suffix: '%', step: '0.01', min: '0' },
-    { key: 'fulfillmentDays', label: 'Sevk süresi', suffix: 'gün', min: '1' },
-    { key: 'fulfillmentWarningDays', label: 'Admin uyarı penceresi', suffix: 'gün kala', min: '1' },
-    { key: 'payoutHoldDays', label: 'Hakediş bekleme süresi', suffix: 'gün', min: '1' },
-    { key: 'freeShippingThresholdTry', label: 'Ücretsiz kargo eşiği', suffix: 'TL', step: '0.01', min: '0' },
-    { key: 'flatShippingFeeTry', label: 'Sabit kargo ücreti', suffix: 'TL', step: '0.01', min: '0' },
-    { key: 'defaultTaxRate', label: 'Varsayılan KDV oranı', suffix: '%', step: '0.01', min: '0' },
+    { key: 'standardPenaltyRate', label: 'Varsayilan ceza orani', suffix: '%', step: '0.01', min: '0' },
+    { key: 'fulfillmentDays', label: 'Sevk suresi', suffix: 'gun', min: '1' },
+    { key: 'fulfillmentWarningDays', label: 'Admin uyari penceresi', suffix: 'gun kala', min: '1' },
+    { key: 'payoutHoldDays', label: 'Hakedis bekleme suresi', suffix: 'gun', min: '1' },
+    { key: 'freeShippingThresholdTry', label: 'Ucretsiz kargo esigi', suffix: 'TL', step: '0.01', min: '0' },
+    { key: 'flatShippingFeeTry', label: 'Sabit kargo ucreti', suffix: 'TL', step: '0.01', min: '0' },
+    { key: 'defaultTaxRate', label: 'Varsayilan KDV orani', suffix: '%', step: '0.01', min: '0' },
+    { key: 'eftDiscountRate', label: 'EFT / Havale indirim orani', suffix: '%', step: '0.01', min: '0' },
   ]
 
   return (
@@ -119,7 +123,7 @@ export function PlatformSettingsForm({ initialValues }: Props) {
       {error ? <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>{error}</p> : null}
 
       <Button onClick={save} disabled={loading}>
-        {loading ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
+        {loading ? 'Kaydediliyor...' : 'Ayarlari Kaydet'}
       </Button>
     </div>
   )

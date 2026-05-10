@@ -16,6 +16,18 @@ interface Props {
   params: Promise<{ id: string }>
 }
 
+function moneyToNumber(value: { toNumber(): number } | number | null | undefined) {
+  if (!value) return 0
+  return typeof value === 'object' ? value.toNumber() : Number(value)
+}
+
+function formatMoney(value: number) {
+  return `TRY ${value.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   return {
@@ -95,20 +107,23 @@ export default async function OrderDetailPage({ params }: Props) {
   const legalSnapshot = (order.legalSnapshot ?? null) as LegalSnapshot
   const sellerInvoices = (order.sellerInvoices ?? []) as unknown as SellerInvoice[]
 
-  const subtotal = lines.reduce((sum, line) => {
-    const price = typeof line.unitPrice === 'object' ? line.unitPrice.toNumber() : Number(line.unitPrice)
-    return sum + price * line.quantity
-  }, 0)
-
-  const eftDiscount = payments.reduce((sum, payment) => {
-    if (!payment.eftDiscountAmount) return sum
-    const value =
-      typeof payment.eftDiscountAmount === 'object'
-        ? payment.eftDiscountAmount.toNumber()
-        : Number(payment.eftDiscountAmount)
-    return sum + value
-  }, 0)
-  const eftDiscountReason = payments.find((payment) => payment.eftDiscountReason)?.eftDiscountReason ?? null
+  const netSubtotal = moneyToNumber(order.netSubtotal)
+  const shippingAmount = moneyToNumber(order.shippingAmount)
+  const eftDiscount = moneyToNumber(order.eftDiscountAmount)
+  const totalAmount = moneyToNumber(order.totalAmount)
+  const taxBreakdown = Array.isArray(order.taxBreakdownJson)
+    ? order.taxBreakdownJson
+        .map((entry) => {
+          if (!entry || typeof entry !== 'object') return null
+          const candidate = entry as { ratePercent?: number; taxAmount?: string | number }
+          if (typeof candidate.ratePercent !== 'number') return null
+          return {
+            ratePercent: candidate.ratePercent,
+            taxAmount: Number(candidate.taxAmount ?? 0),
+          }
+        })
+        .filter((entry): entry is { ratePercent: number; taxAmount: number } => entry !== null)
+    : []
 
   const latestShipment = shipments[0]
   const addressLines = address
@@ -204,20 +219,31 @@ export default async function OrderDetailPage({ params }: Props) {
           })}
         </div>
         <Separator className="my-4" />
-        {eftDiscount > 0 ? (
-          <div className="mb-1 flex justify-between text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            <span>
-              EFT indirimi
-              {eftDiscountReason ? <span className="ml-1 text-xs">({eftDiscountReason})</span> : null}
-            </span>
-            <span style={{ color: 'var(--color-success, #16a34a)' }}>
-              −₺{eftDiscount.toLocaleString('tr-TR')}
-            </span>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
+            <span>Ara toplam (KDV haric)</span>
+            <span>{formatMoney(netSubtotal)}</span>
           </div>
-        ) : null}
-        <div className="flex justify-between text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
-          <span>Toplam</span>
-          <span>₺{(subtotal - eftDiscount).toLocaleString('tr-TR')}</span>
+          {eftDiscount > 0 ? (
+            <div className="flex justify-between" style={{ color: 'var(--color-success, #16a34a)' }}>
+              <span>EFT indirimi</span>
+              <span>-{formatMoney(eftDiscount)}</span>
+            </div>
+          ) : null}
+          {taxBreakdown.map((entry) => (
+            <div key={entry.ratePercent} className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
+              <span>KDV %{entry.ratePercent}</span>
+              <span>{formatMoney(entry.taxAmount)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
+            <span>Kargo</span>
+            <span>{shippingAmount === 0 ? 'Ucretsiz' : formatMoney(shippingAmount)}</span>
+          </div>
+          <div className="flex justify-between text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+            <span>Toplam</span>
+            <span>{formatMoney(totalAmount)}</span>
+          </div>
         </div>
       </section>
 

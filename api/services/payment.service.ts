@@ -360,6 +360,7 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
       reason: string
       adminActorId: string
       sellerId: string
+      skipOrderStatusUpdate?: boolean
     }) {
       const payment = await payments.findByOrderId(params.orderId)
       if (!payment) throw new NotFoundError('Payment', params.orderId)
@@ -391,14 +392,21 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           createdBy: params.adminActorId,
         })
 
-        await orders.updateStatus(params.orderId, 'refund_completed' as never, tx as PrismaClient)
-        await orders.appendStatusHistory(
-          params.orderId,
-          'refund_completed' as never,
-          params.adminActorId,
-          `İade tamamlandı: ${params.refundAmount.toFixed(2)} TRY`,
-          tx as PrismaClient,
-        )
+        if (params.skipOrderStatusUpdate) {
+          await (tx as PrismaClient).order.update({
+            where: { id: params.orderId },
+            data: { refundCompletedAt: new Date() },
+          })
+        } else {
+          await orders.updateStatus(params.orderId, 'refund_completed' as never, tx as PrismaClient)
+          await orders.appendStatusHistory(
+            params.orderId,
+            'refund_completed' as never,
+            params.adminActorId,
+            `İade tamamlandı: ${params.refundAmount.toFixed(2)} TRY`,
+            tx as PrismaClient,
+          )
+        }
 
         await auditLog.createEntry({
           actorId: params.adminActorId,

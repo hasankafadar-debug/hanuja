@@ -9,6 +9,7 @@ import { createFulfillmentRiskService } from '@hanuja/api/services/fulfillment-r
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { AdminListControls } from '@/components/admin-list-controls'
+import { IssueSellerInvoiceButton } from '@/components/issue-seller-invoice-button'
 import { UrlPagination } from '@/components/url-pagination'
 import {
   buildDateRange,
@@ -86,6 +87,12 @@ function normalizeInvoiceFilter(value: string): 'missing' | 'present' | undefine
   return value === 'missing' || value === 'present' ? value : undefined
 }
 
+function readBillingFilter(searchParams: RawAdminSearchParams | undefined): 'missing' | 'present' | undefined {
+  const raw = searchParams?.billing
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return value === 'missing' || value === 'present' ? value : undefined
+}
+
 export default async function AdminOrdersPage({
   searchParams,
 }: {
@@ -100,11 +107,13 @@ export default async function AdminOrdersPage({
   await createFulfillmentRiskService({ prisma }).refreshActiveRisks()
   const svc = createOrderService({ prisma })
   const invoiceFilter = normalizeInvoiceFilter(params.invoice)
+  const billingFilter = readBillingFilter(resolvedSearchParams)
   const result = await svc.listForAdmin({
     ...(params.status.length > 0 ? { status: params.status as OrderStatus[] } : {}),
     ...(params.q ? { query: params.q } : {}),
     ...(params.seller ? { sellerId: params.seller } : {}),
     ...(invoiceFilter ? { invoice: invoiceFilter } : {}),
+    ...(billingFilter ? { financeInvoice: billingFilter } : {}),
     ...buildDateRange(params),
     ...getPagination(params),
   })
@@ -116,11 +125,13 @@ export default async function AdminOrdersPage({
     status: string
     totalAmount: { toNumber(): number } | number
     lines: Array<{
-      seller: { displayName?: string | null; profile?: { companyName?: string | null } | null } | null
+      seller: { id: string; displayName?: string | null; profile?: { companyName?: string | null } | null } | null
       product: { name: string } | null
+      commissionAmount: { toNumber(): number } | number
     }>
     payments: Array<{ method: string; status: string }>
     sellerInvoices: Array<{ id: string }>
+    financeInvoices: Array<{ id: string; invoiceNumber: string; amount: { toNumber(): number } | number }>
     fulfillmentRisk: { status: string; deadlineAt: Date } | null
   }
 
@@ -157,6 +168,38 @@ export default async function AdminOrdersPage({
         pageSize={params.pageSize}
         showSellerFilter
       />
+
+      <div className="flex flex-wrap gap-2">
+        {[
+          { key: 'missing', label: 'Faturalandirilmamis' },
+          { key: 'present', label: 'Faturalandirilmis' },
+        ].map((tab) => {
+          const next = new URLSearchParams()
+          next.set('billing', tab.key)
+          if (params.q) next.set('q', params.q)
+          if (params.status.length > 0) next.set('status', params.status.join(','))
+          if (params.seller) next.set('seller', params.seller)
+          if (params.from) next.set('from', params.from)
+          if (params.to) next.set('to', params.to)
+          if (params.pageSize !== 20) next.set('pageSize', String(params.pageSize))
+
+          const active = billingFilter === tab.key
+          return (
+            <Link
+              key={tab.key}
+              href={`/siparisler?${next.toString()}`}
+              className="rounded-full border px-4 py-2 text-sm font-medium transition-colors"
+              style={{
+                borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
+                backgroundColor: active ? 'var(--color-muted)' : 'transparent',
+                color: active ? 'var(--color-primary)' : 'var(--color-muted-fg)',
+              }}
+            >
+              {tab.label}
+            </Link>
+          )
+        })}
+      </div>
 
       <div
         className="overflow-x-auto rounded-xl border"
@@ -231,7 +274,23 @@ export default async function AdminOrdersPage({
                       <StatusBadge status={order.status as never} />
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                      {order.sellerInvoices.length > 0 ? `${order.sellerInvoices.length} fatura` : 'Yok'}
+                      {order.financeInvoices.length > 0 ? (
+                        <span style={{ color: 'var(--color-success)' }}>
+                          {order.financeInvoices[0]?.invoiceNumber ?? 'Faturalandirildi'}
+                        </span>
+                      ) : order.status === 'delivery_confirmed' && order.lines[0]?.seller?.id ? (
+                        <IssueSellerInvoiceButton
+                          sellerId={order.lines[0].seller.id}
+                          type="commission"
+                          sourceOrderId={order.id}
+                          orderNumber={formatOrderDisplayNumber(order.publicNumber, order.id)}
+                          defaultDescription={`Order ${formatOrderDisplayNumber(order.publicNumber, order.id)} commission`}
+                          defaultAmount={String(order.lines.reduce((sum, line) => sum + (typeof line.commissionAmount === 'number' ? line.commissionAmount : line.commissionAmount?.toNumber?.() ?? 0), 0))}
+                          buttonLabel="Faturalandir"
+                        />
+                      ) : (
+                        'Yok'
+                      )}
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
                       {new Date(order.createdAt).toLocaleDateString('tr-TR', {

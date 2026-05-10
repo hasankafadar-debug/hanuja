@@ -11,6 +11,7 @@ export const DEFAULT_PLATFORM_SETTINGS = {
   freeShippingThresholdTry: new Decimal(1500),
   flatShippingFeeTry: new Decimal(99),
   defaultTaxRate: new Decimal('0.2000'),
+  eftDiscountRate: new Decimal('0'),
 }
 
 export type PlatformSettingsSnapshot = typeof DEFAULT_PLATFORM_SETTINGS
@@ -31,6 +32,7 @@ export function createPlatformSettingsService({ prisma }: { prisma: PrismaClient
       freeShippingThresholdTry: row.freeShippingThresholdTry,
       flatShippingFeeTry: row.flatShippingFeeTry,
       defaultTaxRate: row.defaultTaxRate,
+      eftDiscountRate: row.eftDiscountRate,
       updatedBy: row.updatedBy,
       updatedAt: row.updatedAt,
     }
@@ -44,6 +46,7 @@ export function createPlatformSettingsService({ prisma }: { prisma: PrismaClient
     freeShippingThresholdTry: Decimal
     flatShippingFeeTry: Decimal
     defaultTaxRate: Decimal
+    eftDiscountRate: Decimal
     updatedBy: string
   }) {
     return prisma.platformSettings.upsert({

@@ -27,6 +27,7 @@ export async function PATCH(req: NextRequest) {
 
   const body = schema.parse(await req.json())
   const svc = createPlatformSettingsService({ prisma: createPrismaForRoute() })
+  const current = await svc.get()
   const result = await svc.update({
     standardPenaltyRate: new Decimal(body.standardPenaltyRate),
     fulfillmentDays: body.fulfillmentDays,
@@ -35,6 +36,7 @@ export async function PATCH(req: NextRequest) {
     freeShippingThresholdTry: new Decimal(body.freeShippingThresholdTry),
     flatShippingFeeTry: new Decimal(body.flatShippingFeeTry),
     defaultTaxRate: new Decimal(body.defaultTaxRate),
+    eftDiscountRate: current.eftDiscountRate,
     updatedBy: session.user.id,
   })
 

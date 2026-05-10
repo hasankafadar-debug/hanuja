@@ -61,6 +61,38 @@ export function createPayoutRepository(prisma: PrismaClient) {
       })
     },
 
+    markPaidWithTransfer(
+      id: string,
+      data: {
+        batchId?: string
+        transferReference?: string | null
+        transferDate: Date
+        transferBankName?: string | null
+        transferNote?: string | null
+        paidByAdminId: string
+        ibanSnapshot?: string | null
+        accountHolderSnapshot?: string | null
+        bankDetailId?: string | null
+      },
+    ) {
+      return prisma.payout.update({
+        where: { id },
+        data: {
+          status: 'payout_paid',
+          paidAt: new Date(),
+          transferDate: data.transferDate,
+          paidByAdminId: data.paidByAdminId,
+          ...(data.batchId !== undefined ? { batchId: data.batchId } : {}),
+          ...(data.transferReference !== undefined ? { transferReference: data.transferReference } : {}),
+          ...(data.transferBankName !== undefined ? { transferBankName: data.transferBankName } : {}),
+          ...(data.transferNote !== undefined ? { transferNote: data.transferNote } : {}),
+          ...(data.ibanSnapshot !== undefined ? { ibanSnapshot: data.ibanSnapshot } : {}),
+          ...(data.accountHolderSnapshot !== undefined ? { accountHolderSnapshot: data.accountHolderSnapshot } : {}),
+          ...(data.bankDetailId !== undefined ? { bankDetailId: data.bankDetailId } : {}),
+        },
+      })
+    },
+
     /** Find payouts where hold period has expired and no blocking issues */
     findReadyForRelease(now = new Date()) {
       return prisma.payout.findMany({
@@ -96,6 +128,8 @@ export function createPayoutRepository(prisma: PrismaClient) {
     listForAdmin(params: {
       sellerId?: string
       status?: PayoutStatus
+      holdUntilFrom?: Date
+      holdUntilTo?: Date
       skip?: number
       take?: number
     }) {
@@ -103,8 +137,38 @@ export function createPayoutRepository(prisma: PrismaClient) {
         where: {
           ...(params.sellerId !== undefined ? { sellerId: params.sellerId } : {}),
           ...(params.status !== undefined ? { status: params.status } : {}),
+          ...(params.holdUntilFrom !== undefined || params.holdUntilTo !== undefined
+            ? {
+                holdUntil: {
+                  ...(params.holdUntilFrom !== undefined ? { gte: params.holdUntilFrom } : {}),
+                  ...(params.holdUntilTo !== undefined ? { lte: params.holdUntilTo } : {}),
+                },
+              }
+            : {}),
         },
-        include: { seller: { include: { profile: true } }, bankDetail: true },
+        include: {
+          seller: {
+            include: {
+              profile: true,
+              bankDetails: {
+                where: { isActive: true },
+                orderBy: { updatedAt: 'desc' },
+                take: 1,
+              },
+            },
+          },
+          bankDetail: true,
+          order: {
+            select: {
+              id: true,
+              publicNumber: true,
+              createdAt: true,
+              shippedAt: true,
+              deliveryConfirmedAt: true,
+              totalAmount: true,
+            },
+          },
+        },
         orderBy: { createdAt: 'desc' },
         ...(params.skip !== undefined ? { skip: params.skip } : {}),
         take: params.take ?? 20,

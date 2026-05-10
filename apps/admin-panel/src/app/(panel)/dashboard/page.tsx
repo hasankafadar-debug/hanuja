@@ -125,11 +125,14 @@ export default async function AdminDashboardPage() {
             className="transition-shadow hover:shadow-sm"
           />
         </Link>
-        <StatCard
-          title="Ödeme Hazır"
-          value={fmt(stats.payouts.payoutReadyTotal)}
-          icon={<Wallet className="h-5 w-5" />}
-        />
+        <Link href="/hakedisler?status=payout_ready" className="block">
+          <StatCard
+            title="Hakediş — Vadesi Dolan"
+            value={fmt(stats.payouts.payoutReadyTotal)}
+            icon={<Wallet className="h-5 w-5" />}
+            className="transition-shadow hover:shadow-sm"
+          />
+        </Link>
         <Link href="/uyusmazliklar?status=open" className="block">
           <StatCard
             title="Açık Uyuşmazlık"

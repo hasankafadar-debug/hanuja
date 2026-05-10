@@ -16,6 +16,18 @@ interface Props {
   params: Promise<{ id: string }>
 }
 
+function moneyToNumber(value: { toNumber(): number } | number | null | undefined) {
+  if (!value) return 0
+  return typeof value === 'object' && 'toNumber' in value ? value.toNumber() : Number(value)
+}
+
+function formatMoney(value: number) {
+  return `TRY ${value.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   return { title: `Sipariş ${id.slice(-8).toUpperCase()}` }
@@ -78,10 +90,23 @@ export default async function AdminOrderDetailPage({ params }: Props) {
 
   if (!order) notFound()
 
-  const total =
-    typeof order.totalAmount === 'object' && 'toNumber' in order.totalAmount
-      ? order.totalAmount.toNumber()
-      : Number(order.totalAmount)
+  const total = moneyToNumber(order.totalAmount)
+  const netSubtotal = moneyToNumber(order.netSubtotal)
+  const shippingAmount = moneyToNumber(order.shippingAmount)
+  const eftDiscountAmount = moneyToNumber(order.eftDiscountAmount)
+  const taxBreakdown = Array.isArray(order.taxBreakdownJson)
+    ? order.taxBreakdownJson
+        .map((entry) => {
+          if (!entry || typeof entry !== 'object') return null
+          const candidate = entry as { ratePercent?: number; taxAmount?: string | number }
+          if (typeof candidate.ratePercent !== 'number') return null
+          return {
+            ratePercent: candidate.ratePercent,
+            taxAmount: Number(candidate.taxAmount ?? 0),
+          }
+        })
+        .filter((entry): entry is { ratePercent: number; taxAmount: number } => entry !== null)
+    : []
 
   const isTerminal = TERMINAL_STATUSES.has(order.status)
   const canConfirmDelivery = DELIVERY_CONFIRMABLE.has(order.status)
@@ -187,7 +212,19 @@ export default async function AdminOrderDetailPage({ params }: Props) {
 
           <div className="space-y-1 text-sm">
             {[
-              { label: 'Toplam tutar', value: `₺${total.toLocaleString('tr-TR')}` },
+              { label: 'Ara toplam (KDV haric)', value: formatMoney(netSubtotal) },
+              ...(eftDiscountAmount > 0
+                ? [{ label: 'EFT indirimi', value: `-${formatMoney(eftDiscountAmount)}` }]
+                : []),
+              ...taxBreakdown.map((entry) => ({
+                label: `KDV %${entry.ratePercent}`,
+                value: formatMoney(entry.taxAmount),
+              })),
+              {
+                label: 'Kargo',
+                value: shippingAmount === 0 ? 'Ucretsiz' : formatMoney(shippingAmount),
+              },
+              { label: 'Toplam tutar', value: formatMoney(total) },
               {
                 label: 'Ödeme yöntemi',
                 value: payment ? (payment.method === 'eft' ? 'Havale / EFT' : 'Kredi kartı') : '—',

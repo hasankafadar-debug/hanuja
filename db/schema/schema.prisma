@@ -9,7 +9,7 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../../../node_modules/.prisma/client"
+  output   = "../../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -35,16 +35,16 @@ enum SellerStatus {
 }
 
 enum SellerDocumentType {
-  identity          // TC Kimlik / Pasaport
-  tax_certificate   // Vergi Levhası
-  trade_registry    // Ticaret Sicil Gazetesi / Esnaf Sicil Belgesi
+  identity // TC Kimlik / Pasaport
+  tax_certificate // Vergi Levhası
+  trade_registry // Ticaret Sicil Gazetesi / Esnaf Sicil Belgesi
   signature_circular // İmza Sirküleri (tüzel kişiler)
-  bank_statement    // Banka Hesap Cüzdanı / IBAN Belgesi
-  other             // Diğer
+  bank_statement // Banka Hesap Cüzdanı / IBAN Belgesi
+  other // Diğer
 }
 
 enum SellerDocumentStatus {
-  pending  // Yüklendi, admin incelemesi bekliyor
+  pending // Yüklendi, admin incelemesi bekliyor
   approved // Admin onayladı
   rejected // Admin reddetti
 }
@@ -172,9 +172,24 @@ enum PenaltyStatus {
 }
 
 enum PenaltyReason {
-  seller_rejected_paid_order // Satıcı onaylı siparişi reddetti
-  fulfillment_20day_breach // 20 günlük teslimat yükümlülüğü ihlali
-  other // Admin kararı ile diğer ceza
+  seller_rejected_paid_order // Sat?c? onayl? sipari?i reddetti
+  fulfillment_20day_breach // 20 g?nl?k teslimat y?k?ml?l??? ihlali
+  late_shipment_daily_accrual // Sevk gecikmesinde g?nl?k %1 ceza birikimi
+  other // Admin karar? ile di?er ceza
+}
+
+enum OrderCancellationReason {
+  customer_requested
+  admin_cancelled
+  payment_failed
+  seller_rejected
+  auto_canceled_20day_breach
+  other
+}
+
+enum SellerInvoiceType {
+  commission
+  penalty
 }
 
 enum FulfillmentRiskStatus {
@@ -255,6 +270,7 @@ enum AdminActionType {
   product_review_rejected
   seller_products_imported
   seller_import_permission_granted
+  category_tax_rate_changed
 }
 
 enum HomePromoSlot {
@@ -341,8 +357,8 @@ enum BlogPostStatus {
 // Ürün değerlendirme moderasyon durumu — 06-content-guidelines moderation rules
 enum ProductReviewStatus {
   pending_moderation // Yüklendi, admin onayı bekliyor
-  approved           // Onaylandı, ürün sayfasında görünür
-  rejected           // Reddedildi, görünmez
+  approved // Onaylandı, ürün sayfasında görünür
+  rejected // Reddedildi, görünmez
 }
 
 // =============================================================================
@@ -350,45 +366,47 @@ enum ProductReviewStatus {
 // =============================================================================
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  name          String?
-  emailVerified Boolean  @default(false)
-  image         String?
-  role          UserRole @default(customer)
-  mustChangePassword Boolean @default(false)
-  banned        Boolean  @default(false)
-  banReason     String?
-  banExpires    DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String?
+  emailVerified      Boolean   @default(false)
+  image              String?
+  role               UserRole  @default(customer)
+  mustChangePassword Boolean   @default(false)
+  banned             Boolean   @default(false)
+  banReason          String?
+  banExpires         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Better Auth ilişkileri
   sessions Session[]
   accounts Account[]
 
   // Domain ilişkileri
-  seller        Seller?
-  addresses     Address[]
-  cart          Cart?
-  orders        Order[]
-  notifications Notification[]
-  couponUsages  CouponUsage[]
-  supportMessages SupportMessage[]
-  productReviews ProductReview[]
-  favorites     FavoriteProduct[]
+  seller                Seller?
+  addresses             Address[]
+  cart                  Cart?
+  orders                Order[]
+  notifications         Notification[]
+  couponUsages          CouponUsage[]
+  supportMessages       SupportMessage[]
+  productReviews        ProductReview[]
+  favorites             FavoriteProduct[]
+  paidPayouts           Payout[]          @relation("PayoutPaidByAdmin")
+  createdSellerInvoices SellerInvoice[]   @relation("SellerInvoiceCreatedByAdmin")
 
   @@map("users")
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  expiresAt DateTime
-  token     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
+  id             String   @id @default(cuid())
+  expiresAt      DateTime
+  token          String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
   impersonatedBy String?
 
   userId String
@@ -437,36 +455,37 @@ model Verification {
 // =============================================================================
 
 model Seller {
-  id          String       @id @default(cuid())
-  userId      String       @unique
-  slug        String       @unique // /magaza/<slug> SEO route'u
-  displayName String
-  sellerNumber Int         @unique @default(autoincrement())
-  status      SellerStatus @default(pending)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  documentsRequestedAt DateTime?
+  id                    String       @id @default(cuid())
+  userId                String       @unique
+  slug                  String       @unique // /magaza/<slug> SEO route'u
+  displayName           String
+  sellerNumber          Int          @unique @default(autoincrement())
+  status                SellerStatus @default(pending)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  documentsRequestedAt  DateTime?
   requiredDocumentTypes Json?
-  importEnabled        Boolean   @default(false)
-  importRequestedAt    DateTime?
+  importEnabled         Boolean      @default(false)
+  importRequestedAt     DateTime?
 
-  user          User                @relation(fields: [userId], references: [id])
-  profile       SellerProfile?
-  bankDetails   SellerBankDetail[]
+  user              User                      @relation(fields: [userId], references: [id])
+  profile           SellerProfile?
+  bankDetails       SellerBankDetail[]
   bankDetailHistory SellerBankDetailHistory[]
-  documents     SellerDocument[]
-  ledgerEntries SellerLedgerEntry[]
-  products      Product[]
-  discountRules DiscountRule[]
-  orderLines    OrderLine[]
-  orderInvoices OrderSellerInvoice[]
+  documents         SellerDocument[]
+  ledgerEntries     SellerLedgerEntry[]
+  products          Product[]
+  discountRules     DiscountRule[]
+  orderLines        OrderLine[]
+  orderInvoices     OrderSellerInvoice[]
   orderEmailAliases OrderEmailAlias[]
-  shipments     Shipment[]
-  payouts       Payout[]
-  penalties     Penalty[]
-  fulfillmentRisks FulfillmentRisk[]
-  supportTickets SupportTicket[]
-  homeSlides     HomeSlide[]
+  shipments         Shipment[]
+  payouts           Payout[]
+  penalties         Penalty[]
+  sellerInvoices    SellerInvoice[]
+  fulfillmentRisks  FulfillmentRisk[]
+  supportTickets    SupportTicket[]
+  homeSlides        HomeSlide[]
 
   @@index([status])
   @@index([slug])
@@ -474,25 +493,25 @@ model Seller {
 }
 
 model SellerProfile {
-  id         String    @id @default(cuid())
-  sellerId   String    @unique
-  bio        String?
-  story      String?
-  logoUrl    String?
-  bannerUrl  String?
-  companyName String?
-  city       String?
-  district   String?
-  postalCode String?
+  id           String    @id @default(cuid())
+  sellerId     String    @unique
+  bio          String?
+  story        String?
+  logoUrl      String?
+  bannerUrl    String?
+  companyName  String?
+  city         String?
+  district     String?
+  postalCode   String?
   legalAddress String?
-  phone      String?
-  taxOffice  String?
-  taxNumber  String? // Vergi numarası (masked in non-admin views)
-  mersis     String?
-  isVerified Boolean   @default(false)
-  verifiedAt DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  phone        String?
+  taxOffice    String?
+  taxNumber    String? // Vergi numarası (masked in non-admin views)
+  mersis       String?
+  isVerified   Boolean   @default(false)
+  verifiedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   seller Seller @relation(fields: [sellerId], references: [id])
 
@@ -501,30 +520,30 @@ model SellerProfile {
 
 // Satıcı banka/IBAN bilgisi — kritik güvenlik alanı, her değişiklik loglanır
 model SellerBankDetail {
-  id            String    @id @default(cuid())
-  sellerId      String
-  iban          String // Şifreli/masked saklanmalı — açık metne sadece payout akışında erişilir
-  accountHolder String
-  bankName      String
-  status        BankDetailStatus @default(PENDING_ACTIVATION)
-  isActive      Boolean   @default(false) // Geciktirmeli aktivasyon — admin/sistem onayı gerekebilir
-  isVerified    Boolean   @default(false)
-  verifiedAt    DateTime?
-  verifiedBy    String?
-  activatedAt   DateTime?
-  activatesAt   DateTime?
-  stepUpVerifiedAt DateTime?
+  id                 String           @id @default(cuid())
+  sellerId           String
+  iban               String // Şifreli/masked saklanmalı — açık metne sadece payout akışında erişilir
+  accountHolder      String
+  bankName           String
+  status             BankDetailStatus @default(PENDING_ACTIVATION)
+  isActive           Boolean          @default(false) // Geciktirmeli aktivasyon — admin/sistem onayı gerekebilir
+  isVerified         Boolean          @default(false)
+  verifiedAt         DateTime?
+  verifiedBy         String?
+  activatedAt        DateTime?
+  activatesAt        DateTime?
+  stepUpVerifiedAt   DateTime?
   previousIbanMasked String?
-  changeReason  String?
-  blockedReason String?
-  blockedAt     DateTime?
-  blockedBy     String?
-  cancelledAt   DateTime?
-  flags         Json?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  changeReason       String?
+  blockedReason      String?
+  blockedAt          DateTime?
+  blockedBy          String?
+  cancelledAt        DateTime?
+  flags              Json?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
-  seller  Seller   @relation(fields: [sellerId], references: [id])
+  seller  Seller                    @relation(fields: [sellerId], references: [id])
   payouts Payout[]
   history SellerBankDetailHistory[]
 
@@ -562,13 +581,13 @@ model SellerDocument {
   sellerId   String
   type       SellerDocumentType
   status     SellerDocumentStatus @default(pending)
-  fileUrl    String               // R2 CDN public URL
-  fileKey    String               // R2 storage key — delete için gerekli
-  fileName   String               // Orijinal dosya adı (yalnızca bilgi amaçlı)
-  mimeType   String               // image/jpeg | image/png | application/pdf
+  fileUrl    String // R2 CDN public URL
+  fileKey    String // R2 storage key — delete için gerekli
+  fileName   String // Orijinal dosya adı (yalnızca bilgi amaçlı)
+  mimeType   String // image/jpeg | image/png | application/pdf
   sizeBytes  Int
-  adminNote  String?              // Admin red/onay notu
-  reviewedBy String?              // Admin kullanıcı ID
+  adminNote  String? // Admin red/onay notu
+  reviewedBy String? // Admin kullanıcı ID
   reviewedAt DateTime?
   createdAt  DateTime             @default(now())
   updatedAt  DateTime             @updatedAt
@@ -618,11 +637,11 @@ model Category {
   taxRate            Decimal?  @db.Decimal(5, 4) // KDV oranı; boşsa üst kategori / platform varsayılanı kullanılır
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
-  createdViaImportBy String?   // Seller.id — import commit ile açıldıysa; null = admin/seed
+  createdViaImportBy String? // Seller.id — import commit ile açıldıysa; null = admin/seed
   createdViaImportAt DateTime? // Import commit zamanı
 
-  parent        Category?  @relation("CategoryTree", fields: [parentId], references: [id])
-  children      Category[] @relation("CategoryTree")
+  parent        Category?      @relation("CategoryTree", fields: [parentId], references: [id])
+  children      Category[]     @relation("CategoryTree")
   products      Product[]
   discountRules DiscountRule[]
 
@@ -654,14 +673,14 @@ model Product {
   dimensionHeight  Decimal?      @db.Decimal(8, 2)
 
   // Aggregate review fields — recomputed on review approve/reject
-  avgRating       Decimal?  @db.Decimal(3, 2) // 0.00 — 5.00
-  reviewCount     Int       @default(0)
+  avgRating   Decimal? @db.Decimal(3, 2) // 0.00 — 5.00
+  reviewCount Int      @default(0)
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  publishedAt     DateTime?
-  rejectedAt      DateTime?
-  rejectionReason String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  publishedAt        DateTime?
+  rejectedAt         DateTime?
+  rejectionReason    String?
   moderationFindings Json?
 
   seller               Seller                @relation(fields: [sellerId], references: [id])
@@ -833,19 +852,24 @@ model Address {
 // =============================================================================
 
 model Order {
-  id         String      @id @default(cuid())
-  publicNumber Int       @unique @default(autoincrement())
-  customerId String
-  addressId  String?
-  status     OrderStatus @default(draft)
-  currency   String      @default("TRY")
+  id                 String                   @id @default(cuid())
+  publicNumber       Int                      @unique @default(autoincrement())
+  customerId         String
+  addressId          String?
+  status             OrderStatus              @default(draft)
+  currency           String                   @default("TRY")
+  cancellationReason OrderCancellationReason?
 
   // Finansal alanlar — ayrı ayrı tutulur (vague toplam yok)
-  grossAmount    Decimal @db.Decimal(12, 2) // Sepet toplamı
-  discountAmount Decimal @default(0) @db.Decimal(12, 2)
-  shippingAmount Decimal @default(0) @db.Decimal(12, 2)
-  taxAmount      Decimal @default(0) @db.Decimal(12, 2) // Ürün fiyatlarına dahil KDV tutarı
-  totalAmount    Decimal @db.Decimal(12, 2) // Müşterinin ödediği tutar
+  grossAmount             Decimal  @db.Decimal(12, 2) // Sepet toplam?
+  netSubtotal             Decimal  @default(0) @db.Decimal(12, 2)
+  discountAmount          Decimal  @default(0) @db.Decimal(12, 2)
+  shippingAmount          Decimal  @default(0) @db.Decimal(12, 2)
+  taxAmount               Decimal  @default(0) @db.Decimal(12, 2) // ?r?n fiyatlar?na dahil KDV tutar?
+  taxBreakdownJson        Json?
+  eftDiscountAmount       Decimal  @default(0) @db.Decimal(12, 2)
+  eftDiscountRateSnapshot Decimal? @db.Decimal(5, 4)
+  totalAmount             Decimal  @db.Decimal(12, 2) // M??terinin ?dedi?i tutar
 
   couponCode String?
   notes      String?
@@ -862,24 +886,25 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  customer       User                 @relation(fields: [customerId], references: [id])
-  address        Address?             @relation(fields: [addressId], references: [id])
-  lines          OrderLine[]
-  payments       Payment[]
-  shipments      Shipment[]
-  statusHistory  OrderStatusHistory[]
-  legalSnapshot  OrderLegalSnapshot?
-  sellerInvoices OrderSellerInvoice[]
-  emailAliases   OrderEmailAlias[]
+  customer        User                 @relation(fields: [customerId], references: [id])
+  address         Address?             @relation(fields: [addressId], references: [id])
+  lines           OrderLine[]
+  payments        Payment[]
+  shipments       Shipment[]
+  statusHistory   OrderStatusHistory[]
+  legalSnapshot   OrderLegalSnapshot?
+  sellerInvoices  OrderSellerInvoice[]
+  emailAliases    OrderEmailAlias[]
   inboundEmails   InboundEmail[]
-  payouts        Payout[]
-  penalties      Penalty[]
+  payouts         Payout[]
+  penalties       Penalty[]
+  financeInvoices SellerInvoice[]      @relation("SellerInvoiceOrder")
   fulfillmentRisk FulfillmentRisk?
-  returnRequests ReturnRequest[]
-  disputes       Dispute[]
-  couponUsage    CouponUsage?
-  supportTickets SupportTicket[]
-  productReviews ProductReview[]
+  returnRequests  ReturnRequest[]
+  disputes        Dispute[]
+  couponUsage     CouponUsage?
+  supportTickets  SupportTicket[]
+  productReviews  ProductReview[]
 
   @@index([customerId, status])
   @@index([status, createdAt])
@@ -888,15 +913,15 @@ model Order {
 }
 
 model OrderLegalSnapshot {
-  id                String   @id @default(cuid())
-  orderId           String   @unique
-  distanceSalesHtml String   @db.Text
-  preInformationHtml String  @db.Text
-  buyerSnapshot     Json
-  sellerSnapshot    Json
-  platformSnapshot  Json
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  orderId            String   @unique
+  distanceSalesHtml  String   @db.Text
+  preInformationHtml String   @db.Text
+  buyerSnapshot      Json
+  sellerSnapshot     Json
+  platformSnapshot   Json
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -904,19 +929,19 @@ model OrderLegalSnapshot {
 }
 
 model OrderSellerInvoice {
-  id         String   @id @default(cuid())
-  orderId    String
-  sellerId   String
-  inboundEmailId String? @unique
-  fileUrl    String
-  fileKey    String
-  fileName   String
-  mimeType   String
-  sizeBytes  Int
-  source     String   @default("manual")
-  uploadedAt DateTime @default(now())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String   @id @default(cuid())
+  orderId        String
+  sellerId       String
+  inboundEmailId String?  @unique
+  fileUrl        String
+  fileKey        String
+  fileName       String
+  mimeType       String
+  sizeBytes      Int
+  source         String   @default("manual")
+  uploadedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   seller       Seller        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
@@ -930,16 +955,16 @@ model OrderSellerInvoice {
 }
 
 model OrderEmailAlias {
-  id         String   @id @default(cuid())
-  orderId    String
-  sellerId   String
-  aliasEmail String   @unique
-  localPart  String   @unique
-  purpose    String   @default("invoice")
-  status     String   @default("active")
+  id            String    @id @default(cuid())
+  orderId       String
+  sellerId      String
+  aliasEmail    String    @unique
+  localPart     String    @unique
+  purpose       String    @default("invoice")
+  status        String    @default("active")
   lastInboundAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
@@ -951,21 +976,21 @@ model OrderEmailAlias {
 }
 
 model InboundEmail {
-  id          String   @id @default(cuid())
-  messageId   String   @unique
-  orderId     String?
-  sellerId    String?
-  aliasEmail  String
-  fromEmail   String?
-  subject     String?
-  status      String
+  id                 String   @id @default(cuid())
+  messageId          String   @unique
+  orderId            String?
+  sellerId           String?
+  aliasEmail         String
+  fromEmail          String?
+  subject            String?
+  status             String
   selectedAttachment Json?
-  errorReason String?
-  receivedAt  DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  errorReason        String?
+  receivedAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  order   Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
   invoice OrderSellerInvoice?
 
   @@index([aliasEmail])
@@ -1171,20 +1196,30 @@ model Payout {
   holdUntil     DateTime? // holdStartedAt + 30 gün
   blockedReason String? // Neden bloke — görünür olmalı
 
-  batchId   String? // PayoutBatch ilişkisi
-  paidAt    DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  batchId               String? // PayoutBatch ilişkisi
+  paidAt                DateTime?
+  transferReference     String?
+  transferDate          DateTime?
+  transferBankName      String?
+  transferNote          String?
+  paidByAdminId         String?
+  ibanSnapshot          String?
+  accountHolderSnapshot String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  seller     Seller            @relation(fields: [sellerId], references: [id])
-  order      Order             @relation(fields: [orderId], references: [id])
-  orderLine  OrderLine?        @relation(fields: [orderLineId], references: [id])
-  bankDetail SellerBankDetail? @relation(fields: [bankDetailId], references: [id])
-  batch      PayoutBatch?      @relation(fields: [batchId], references: [id])
+  seller          Seller            @relation(fields: [sellerId], references: [id])
+  order           Order             @relation(fields: [orderId], references: [id])
+  orderLine       OrderLine?        @relation(fields: [orderLineId], references: [id])
+  bankDetail      SellerBankDetail? @relation(fields: [bankDetailId], references: [id])
+  batch           PayoutBatch?      @relation(fields: [batchId], references: [id])
+  paidByAdmin     User?             @relation("PayoutPaidByAdmin", fields: [paidByAdminId], references: [id])
+  financeInvoices SellerInvoice[]   @relation("SellerInvoicePayout")
 
   @@index([sellerId, status])
   @@index([orderId])
   @@index([holdUntil, status])
+  @@index([paidByAdminId])
   @@map("payouts")
 }
 
@@ -1211,30 +1246,65 @@ model PayoutBatch {
 
 // Standart ceza oranı: %20 (CLAUDE.md 2.4)
 model Penalty {
-  id             String        @id @default(cuid())
-  sellerId       String
-  orderId        String
-  reason         PenaltyReason
-  status         PenaltyStatus @default(applied)
-  baseAmount     Decimal       @db.Decimal(12, 2) // Ürün fiyatı
-  rate           Decimal       @default(0.2000) @db.Decimal(5, 4) // %20
-  penaltyAmount  Decimal       @db.Decimal(12, 2) // baseAmount * rate
+  id                String        @id @default(cuid())
+  sellerId          String
+  orderId           String
+  reason            PenaltyReason
+  status            PenaltyStatus @default(applied)
+  baseAmount        Decimal       @db.Decimal(12, 2) // Ürün fiyatı
+  rate              Decimal       @default(0.2000) @db.Decimal(5, 4) // %20
+  penaltyAmount     Decimal       @db.Decimal(12, 2) // baseAmount * rate
   // Muafiyet
-  waivedBy       String? // Admin actor ID
-  waivedAt       DateTime?
-  waiverReason   String?
+  waivedBy          String? // Admin actor ID
+  waivedAt          DateTime?
+  waiverReason      String?
   // Mahsup
-  offsetPayoutId String? // Hangi payout'tan mahsup edildi
+  offsetPayoutId    String? // Hangi payout'tan mahsup edildi
+  accrualSourceDate DateTime?
+  accrualDayCount   Int?
+  dailyAccrualRate  Decimal?      @default(0.0100) @db.Decimal(5, 4)
+  lastAccrualAt     DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  seller Seller @relation(fields: [sellerId], references: [id])
-  order  Order  @relation(fields: [orderId], references: [id])
+  seller          Seller          @relation(fields: [sellerId], references: [id])
+  order           Order           @relation(fields: [orderId], references: [id])
+  financeInvoices SellerInvoice[] @relation("SellerInvoicePenalty")
 
   @@index([sellerId, status])
   @@index([orderId])
   @@map("penalties")
+}
+
+model SellerInvoice {
+  id               String            @id @default(cuid())
+  sellerId         String
+  type             SellerInvoiceType
+  invoiceNumber    String            @unique
+  invoiceDate      DateTime
+  invoiceCategory  String?
+  description      String?
+  amount           Decimal           @db.Decimal(12, 2)
+  sourceOrderId    String?
+  sourcePenaltyId  String?
+  payoutId         String?
+  createdByAdminId String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  seller         Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sourceOrder    Order?   @relation("SellerInvoiceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
+  sourcePenalty  Penalty? @relation("SellerInvoicePenalty", fields: [sourcePenaltyId], references: [id], onDelete: SetNull)
+  payout         Payout?  @relation("SellerInvoicePayout", fields: [payoutId], references: [id], onDelete: SetNull)
+  createdByAdmin User     @relation("SellerInvoiceCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+
+  @@index([sellerId, type])
+  @@index([sourceOrderId])
+  @@index([sourcePenaltyId])
+  @@index([payoutId])
+  @@index([createdByAdminId])
+  @@map("seller_invoices")
 }
 
 // =============================================================================
@@ -1385,7 +1455,7 @@ model HomeSlide {
   posterAsset   MediaAsset? @relation("HomeSlidePoster", fields: [posterAssetId], references: [id])
 
   // İçerik
-  eyebrow  String? @db.VarChar(60)  // "YENİ KOLEKSİYON" / "%30 İNDİRİM"
+  eyebrow  String? @db.VarChar(60) // "YENİ KOLEKSİYON" / "%30 İNDİRİM"
   title    String  @db.VarChar(120)
   body     String? @db.VarChar(300)
   ctaLabel String  @db.VarChar(40)
@@ -1401,7 +1471,7 @@ model HomeSlide {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  createdBy String   // Admin User.id
+  createdBy String // Admin User.id
 
   @@index([isActive, sortOrder])
   @@index([startsAt, endsAt])
@@ -1430,7 +1500,7 @@ model HomePromo {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  createdBy String   // Admin User.id
+  createdBy String // Admin User.id
 
   @@index([slot, isActive])
   @@map("home_promos")
@@ -1441,34 +1511,34 @@ model HomePromo {
 // =============================================================================
 
 model MediaAsset {
-  id              String          @id @default(cuid())
+  id              String         @id @default(cuid())
   type            MediaAssetType
-  kind            MediaAssetKind  @default(image)
+  kind            MediaAssetKind @default(image)
   url             String // R2 CDN public URL
-  key             String?         // R2 storage key — required for delete/verify
-  folder          String?         // products | stores | avatars | disputes | returns | blog | slider | promo
-  status          String          @default("ready") // pending | ready | failed
+  key             String? // R2 storage key — required for delete/verify
+  folder          String? // products | stores | avatars | disputes | returns | blog | slider | promo
+  status          String         @default("ready") // pending | ready | failed
   originalName    String?
   mimeType        String?
   sizeBytes       Int?
-  width           Int?            // original image width px
-  height          Int?            // original image height px
-  durationSec     Int?            // video duration — validated ≤ 15 sec for slider
-  variants        Json?           // { "1200w": url, "800w": url, "400w": url }
-  uploadedBy      String          // user/seller ID who owns this asset
-  verifiedAt      DateTime?       // Set by media-processing job after R2 verification
+  width           Int? // original image width px
+  height          Int? // original image height px
+  durationSec     Int? // video duration — validated ≤ 15 sec for slider
+  variants        Json? // { "1200w": url, "800w": url, "400w": url }
+  uploadedBy      String // user/seller ID who owns this asset
+  verifiedAt      DateTime? // Set by media-processing job after R2 verification
   // Polymorphic relations — nullable, set when asset is attached to a record
   returnRequestId String?
   disputeId       String?
-  createdAt       DateTime        @default(now())
+  createdAt       DateTime       @default(now())
 
-  returnRequest    ReturnRequest? @relation(fields: [returnRequestId], references: [id])
-  dispute          Dispute?       @relation(fields: [disputeId], references: [id])
+  returnRequest      ReturnRequest?             @relation(fields: [returnRequestId], references: [id])
+  dispute            Dispute?                   @relation(fields: [disputeId], references: [id])
   supportAttachments SupportMessageAttachment[]
   // Home CMS ilişkileri — bir asset birden fazla slotta kullanılabilir
-  homeSlideMedia   HomeSlide[]    @relation("HomeSlideMedia")
-  homeSlidePoster  HomeSlide[]    @relation("HomeSlidePoster")
-  homePromoMedia   HomePromo[]    @relation("HomePromoMedia")
+  homeSlideMedia     HomeSlide[]                @relation("HomeSlideMedia")
+  homeSlidePoster    HomeSlide[]                @relation("HomeSlidePoster")
+  homePromoMedia     HomePromo[]                @relation("HomePromoMedia")
 
   @@index([uploadedBy])
   @@index([uploadedBy, folder, status])
@@ -1499,11 +1569,11 @@ model SupportTicket {
 
 model SupportMessage {
   id         String   @id @default(cuid())
-  ticketId    String
-  authorId    String
-  authorRole  UserRole
-  body        String
-  createdAt   DateTime @default(now())
+  ticketId   String
+  authorId   String
+  authorRole UserRole
+  body       String
+  createdAt  DateTime @default(now())
 
   ticket      SupportTicket              @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   author      User                       @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -1538,6 +1608,7 @@ model PlatformSettings {
   freeShippingThresholdTry Decimal  @default(1500) @db.Decimal(12, 2)
   flatShippingFeeTry       Decimal  @default(99) @db.Decimal(12, 2)
   defaultTaxRate           Decimal  @default(0.2000) @db.Decimal(5, 4)
+  eftDiscountRate          Decimal  @default(0) @db.Decimal(5, 4)
   updatedBy                String?
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
@@ -1599,30 +1670,30 @@ model Notification {
 // İçerik moderasyonundan geçmeyen yorum public sayfada görünmez.
 
 model ProductReview {
-  id          String              @id @default(cuid())
-  productId   String
-  customerId  String
-  orderId     String
-  rating      Int                 // 1-5 (DB constraint migration'da)
-  title       String?             @db.VarChar(140)
-  body        String              @db.Text
-  status      ProductReviewStatus @default(pending_moderation)
-  moderatedBy String?             // Admin user ID
-  moderatedAt DateTime?
+  id             String              @id @default(cuid())
+  productId      String
+  customerId     String
+  orderId        String
+  rating         Int // 1-5 (DB constraint migration'da)
+  title          String?             @db.VarChar(140)
+  body           String              @db.Text
+  status         ProductReviewStatus @default(pending_moderation)
+  moderatedBy    String? // Admin user ID
+  moderatedAt    DateTime?
   moderationNote String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
   product  Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   customer User    @relation(fields: [customerId], references: [id])
   order    Order   @relation(fields: [orderId], references: [id])
 
+  // One review per (order, product) pair
+  @@unique([orderId, productId])
   // Listing for product page (only approved, sorted by createdAt desc)
   @@index([productId, status, createdAt])
   // Admin moderation queue (status filter)
   @@index([status, createdAt])
-  // One review per (order, product) pair
-  @@unique([orderId, productId])
   @@map("product_reviews")
 }
 
@@ -1636,19 +1707,19 @@ enum CouponDiscountType {
 }
 
 model Coupon {
-  id               String             @id @default(cuid())
-  code             String             @unique
-  discountType     CouponDiscountType
-  discountValue    Decimal            @db.Decimal(12, 2) // Oran (0-100) veya sabit tutar
-  minCartTotal     Decimal?           @db.Decimal(12, 2) // Minimum sepet tutarı
-  maxUsageTotal    Int?               // Toplam kullanım limiti (null = sınırsız)
-  maxUsagePerUser  Int                @default(1) // Kullanıcı başına limit
-  usageCount       Int                @default(0) // Mevcut kullanım sayısı
-  isActive         Boolean            @default(true)
-  startsAt         DateTime?
-  expiresAt        DateTime?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  id              String             @id @default(cuid())
+  code            String             @unique
+  discountType    CouponDiscountType
+  discountValue   Decimal            @db.Decimal(12, 2) // Oran (0-100) veya sabit tutar
+  minCartTotal    Decimal?           @db.Decimal(12, 2) // Minimum sepet tutarı
+  maxUsageTotal   Int? // Toplam kullanım limiti (null = sınırsız)
+  maxUsagePerUser Int                @default(1) // Kullanıcı başına limit
+  usageCount      Int                @default(0) // Mevcut kullanım sayısı
+  isActive        Boolean            @default(true)
+  startsAt        DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   usages CouponUsage[]
 
@@ -1658,11 +1729,11 @@ model Coupon {
 }
 
 model CouponUsage {
-  id        String   @id @default(cuid())
-  couponId  String
-  userId    String
-  orderId   String   @unique // Bir sipariş bir kupon kullanabilir
-  usedAt    DateTime @default(now())
+  id       String   @id @default(cuid())
+  couponId String
+  userId   String
+  orderId  String   @unique // Bir sipariş bir kupon kullanabilir
+  usedAt   DateTime @default(now())
 
   coupon Coupon @relation(fields: [couponId], references: [id])
   user   User   @relation(fields: [userId], references: [id])

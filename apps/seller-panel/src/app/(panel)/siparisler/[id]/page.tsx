@@ -180,6 +180,12 @@ export default async function SellerOrderDetailPage({ params }: Props) {
             cargoProvider={latestShipment?.cargoProvider ?? null}
           />
 
+          {canReject ? (
+            <div className="flex justify-end">
+              <RejectButton orderId={id} />
+            </div>
+          ) : null}
+
           <OrderTimeline items={statusHistory} />
 
           <section
@@ -236,11 +242,6 @@ export default async function SellerOrderDetailPage({ params }: Props) {
 
           <InvoiceAliasCard aliasEmail={invoiceAlias?.aliasEmail ?? null} />
 
-          {canReject ? (
-            <div className="flex justify-end">
-              <RejectButton orderId={id} />
-            </div>
-          ) : null}
         </div>
 
         <div className="space-y-6">

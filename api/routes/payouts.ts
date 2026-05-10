@@ -44,12 +44,16 @@ export async function listAdminPayouts(req: NextRequest) {
     const url = new URL(req.url)
     const sellerId = url.searchParams.get('sellerId') ?? undefined
     const status = url.searchParams.get('status') ?? undefined
+    const holdUntilFrom = url.searchParams.get('from') ?? undefined
+    const holdUntilTo = url.searchParams.get('to') ?? undefined
     const skip = Number(url.searchParams.get('skip') ?? '0')
     const take = Number(url.searchParams.get('take') ?? '20')
     const svc = getPayoutService()
     const payouts = await svc.listForAdmin({
       ...(sellerId !== undefined ? { sellerId } : {}),
       status: status as never,
+      ...(holdUntilFrom ? { holdUntilFrom: new Date(`${holdUntilFrom}T00:00:00.000Z`) } : {}),
+      ...(holdUntilTo ? { holdUntilTo: new Date(`${holdUntilTo}T23:59:59.999Z`) } : {}),
       skip,
       take,
     })
@@ -67,13 +71,31 @@ export async function releasePayout(
 ) {
   try {
     const body = await req.json()
-    const { reason } = z.object({ reason: z.string().optional() }).parse(body)
     const svc = getPayoutService()
-    const result = await svc.release({
-      payoutId,
-      adminActorId,
-      ...(reason !== undefined ? { reason } : {}),
-    })
+    const parsed = z.object({
+      reason: z.string().optional(),
+      transferDate: z.string().datetime().optional(),
+      transferReference: z.string().trim().optional(),
+      transferBankName: z.string().trim().optional(),
+      transferNote: z.string().trim().optional(),
+      batchId: z.string().trim().optional(),
+    }).parse(body)
+
+    const result = parsed.transferDate
+      ? await svc.markPaid({
+          payoutId,
+          adminActorId,
+          transferDate: new Date(parsed.transferDate),
+          ...(parsed.batchId !== undefined ? { batchId: parsed.batchId } : {}),
+          ...(parsed.transferReference !== undefined ? { transferReference: parsed.transferReference } : {}),
+          ...(parsed.transferBankName !== undefined ? { transferBankName: parsed.transferBankName } : {}),
+          ...(parsed.transferNote !== undefined ? { transferNote: parsed.transferNote } : {}),
+        })
+      : await svc.release({
+          payoutId,
+          adminActorId,
+          ...(parsed.reason !== undefined ? { reason: parsed.reason } : {}),
+        })
     return ok(result)
   } catch (err) {
     return handleError(err)
@@ -105,12 +127,22 @@ export async function markPayoutPaid(
 ) {
   try {
     const body = await req.json()
-    const { batchId } = z.object({ batchId: z.string().optional() }).parse(body)
+    const { batchId, transferDate, transferReference, transferBankName, transferNote } = z.object({
+      batchId: z.string().optional(),
+      transferDate: z.string().datetime(),
+      transferReference: z.string().trim().optional(),
+      transferBankName: z.string().trim().optional(),
+      transferNote: z.string().trim().optional(),
+    }).parse(body)
     const svc = getPayoutService()
     const result = await svc.markPaid({
       payoutId,
       adminActorId,
+      transferDate: new Date(transferDate),
       ...(batchId !== undefined ? { batchId } : {}),
+      ...(transferReference !== undefined ? { transferReference } : {}),
+      ...(transferBankName !== undefined ? { transferBankName } : {}),
+      ...(transferNote !== undefined ? { transferNote } : {}),
     })
     return ok(result)
   } catch (err) {

@@ -14,16 +14,27 @@ export async function GET(req: NextRequest) {
     if (session.user.role !== 'admin') throw new ForbiddenError()
 
     const url = new URL(req.url)
-    const actionType = url.searchParams.get('actionType') as AdminActionType | null
+    const actionType = url.searchParams.get('actionType')
+    const actionTypes = actionType
+      ? actionType.split(',').map((value) => value.trim()).filter(Boolean) as AdminActionType[]
+      : []
+    const from = url.searchParams.get('from')
+    const to = url.searchParams.get('to')
+    const actorEmail = url.searchParams.get('actorEmail') ?? undefined
     const take = Number(url.searchParams.get('take') ?? '50')
     const skip = Number(url.searchParams.get('skip') ?? '0')
 
     const prisma = createPrismaForRoute()
     const repo = createAdminAuditLogRepository(prisma)
 
-    const logs = actionType
-      ? await repo.listByAction(actionType, { skip, take })
-      : await repo.listByActor(session.user.id, { skip, take })
+    const logs = await repo.listRecent({
+      skip,
+      take,
+      ...(actionTypes.length > 0 ? { actionTypes } : {}),
+      ...(from ? { from: new Date(`${from}T00:00:00.000Z`) } : {}),
+      ...(to ? { to: new Date(`${to}T23:59:59.999Z`) } : {}),
+      ...(actorEmail ? { actorEmail } : {}),
+    })
 
     return ok(logs)
   } catch (err) {

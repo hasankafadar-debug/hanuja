@@ -27,6 +27,7 @@ import { SellerStatusButtons } from "@/components/seller-status-buttons";
 import { DocumentReviewActions } from "@/components/document-review-actions";
 import { SellerAdminActions } from "@/components/seller-admin-actions";
 import { SellerImportPermission } from "@/components/seller-import-permission";
+import { SellerAccountStatement } from "./seller-account-statement";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +127,25 @@ export default async function SellerDetailPage({ params }: Props) {
     orderBy: { createdAt: "desc" },
     take: 20,
   });
+
+  const [statementLedger, statementPayouts, statementInvoices] = await Promise.all([
+    prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: id },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.payout.findMany({
+      where: { sellerId: id },
+      include: { order: { select: { id: true, publicNumber: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.sellerInvoice.findMany({
+      where: { sellerId: id },
+      orderBy: { invoiceDate: "desc" },
+      take: 100,
+    }),
+  ]);
 
   const penaltyTotal = penalties
     .filter((p) => p.status !== "waived")
@@ -234,6 +254,7 @@ export default async function SellerDetailPage({ params }: Props) {
             )}
           </TabsTrigger>
           <TabsTrigger value="finance">Finans</TabsTrigger>
+          <TabsTrigger value="statement">Hesap Ekstresi</TabsTrigger>
           <TabsTrigger value="penalties">Cezalar</TabsTrigger>
         </TabsList>
 
@@ -344,6 +365,39 @@ export default async function SellerDetailPage({ params }: Props) {
                 ? seller.importRequestedAt.toISOString()
                 : null
             }
+          />
+        </TabsContent>
+
+        <TabsContent value="statement" className="mt-5">
+          <SellerAccountStatement
+            items={[
+              ...statementLedger.map((entry) => ({
+                id: `ledger-${entry.id}`,
+                date: entry.createdAt,
+                type: entry.type,
+                description: entry.description ?? entry.referenceType,
+                amount: Number(entry.amount),
+                reference: entry.referenceId,
+              })),
+              ...statementPayouts.map((payout) => ({
+                id: `payout-${payout.id}`,
+                date: payout.transferDate ?? payout.paidAt ?? payout.createdAt,
+                type: 'payout',
+                description: payout.transferNote ?? payout.transferBankName ?? payout.status,
+                amount: -Number(payout.netAmount),
+                reference: payout.order?.publicNumber
+                  ? `ORD-${payout.order.publicNumber}`
+                  : payout.orderId,
+              })),
+              ...statementInvoices.map((invoice) => ({
+                id: `invoice-${invoice.id}`,
+                date: invoice.invoiceDate,
+                type: invoice.type === 'commission' ? 'commission_invoice' : 'penalty_invoice',
+                description: invoice.description ?? invoice.invoiceNumber,
+                amount: Number(invoice.amount),
+                reference: invoice.invoiceNumber,
+              })),
+            ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
           />
         </TabsContent>
 

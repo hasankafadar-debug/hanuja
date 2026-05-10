@@ -91,8 +91,19 @@ Her `payout_paid` payout için:
 Her `Penalty` (status: `applied`) için:
 
 - Karşılık gelen `SellerLedgerEntry` (type: `penalty`) bulunmalı
-- `penaltyAmount = baseAmount * rate` doğrulanmalı
+- `seller_rejected_paid_order` cezalarında `penaltyAmount = baseAmount * rate` doğrulanmalı
+- `late_shipment_daily_accrual` cezalarında `penaltyAmount = baseAmount * dailyAccrualRate * accrualDayCount` doğrulanmalı; `lastAccrualAt` ile aynı gün için tekrar entry üretilmemiş olmalı
+- 20. gecikme gününde `Order.status = cancelled_due_to_20day_breach` ve `Order.cancellationReason = auto_canceled_20day_breach` olmalı; refund akışı tetiklenmiş olmalı
 - Muaf tutulan cezalarda (`status: waived`) ledger kaydı ters işlem içermeli ve `waivedBy`, `waiverReason` dolu olmalı
+
+### 4.5b Komisyon/Ceza Faturası — Kayıt Tutarlılığı
+
+Her `SellerInvoice` için:
+
+- `invoiceNumber` global olarak benzersiz olmalı
+- `type = commission` ise `sourceOrderId` dolu olmalı; sipariş `delivery_confirmed` durumunda olmalı
+- `type = penalty` ise `sourcePenaltyId` dolu olmalı; ceza `status = applied` (waived **değil**) olmalı
+- `amount > 0` olmalı; `createdByAdminId` Admin rolüne sahip kullanıcıya işaret etmeli
 
 ### 4.5 İade — Payout/Ledger Etkisi
 
@@ -217,9 +228,17 @@ Iyzico ve EFT ödemeleri farklı eşleştirme mekanizması gerektirir.
 ### Havale/EFT
 - Admin `eftConfirmedBy`, `eftConfirmedAt` alanlarını doldurur
 - `eftSenderName` gönderici adı doğrulaması için kaydedilir
-- EFT indirim uygulanmışsa `eftDiscountAmount` ve `eftDiscountReason` dolu olmalı
-- Karşılık gelen `SellerLedgerEntry` (type: `eft_discount`) eklenmelidir
+- EFT indirim uygulanmışsa `Order.eftDiscountAmount` ve `Order.eftDiscountRateSnapshot` dolu olmalı
+- EFT indirim **platform tarafından absorbe edilir**: müşteri toplamı azalır, fakat satıcı `Payout.grossAmount`/`netAmount` değerleri etkilenmez. Bu yüzden indirim için satıcı ledger entry'si **yazılmaz**; ledger sadece müşteri tarafındaki tahsilatla mutabıktır
 - `AdminAuditLog` (actionType: `bank_transfer_approved`) yazılır
+
+### Payout Transfer Snapshot
+`Payout.markPaid` modal'ı çalıştığında şu alanlar doldurulmalıdır:
+- `transferDate`, `transferReference`, `transferBankName`, `transferNote`
+- `paidByAdminId` (admin actor)
+- `ibanSnapshot`, `accountHolderSnapshot` (banka detayı o anki active kayıttan)
+- `SellerLedgerEntry` (type: `payout`, negatif) tek seferlik yazılır; tekrar tetikleme idempotent olmalıdır
+- `AdminAuditLog` actionType: `payout_released`, transfer alanları snapshot olarak loglanır
 
 ---
 

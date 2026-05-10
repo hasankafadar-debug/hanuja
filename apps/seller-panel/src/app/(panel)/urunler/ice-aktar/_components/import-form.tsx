@@ -64,6 +64,7 @@ interface ItemSelectionState {
   barcode: string
   barcodeStatus: BarcodeStatus
   barcodeNormalized: string | null
+  stockQuantity: number
 }
 
 interface ImportFormProps {
@@ -147,6 +148,10 @@ function normalizePersistedSelection(value: unknown): ItemSelectionState | null 
     barcodeStatus: isBarcodeStatus(candidate.barcodeStatus) ? candidate.barcodeStatus : 'idle',
     barcodeNormalized:
       typeof candidate.barcodeNormalized === 'string' ? candidate.barcodeNormalized : null,
+    stockQuantity:
+      typeof candidate.stockQuantity === 'number' && Number.isInteger(candidate.stockQuantity) && candidate.stockQuantity >= 0
+        ? candidate.stockQuantity
+        : 0,
   }
 }
 
@@ -341,6 +346,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
   const [result, setResult] = useState<ImportResult | null>(null)
   const [importedByExternalId, setImportedByExternalId] = useState<Record<string, { id: string; name: string; barcode: string | null }>>({})
   const [showAllRejected, setShowAllRejected] = useState(false)
+  const [bulkStockValue, setBulkStockValue] = useState('0')
   const [isPreviewPending, startPreviewTransition] = useTransition()
   const [isCommitPending, startCommitTransition] = useTransition()
 
@@ -426,6 +432,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
             barcode: item.proposedBarcode ?? '',
             barcodeStatus: 'idle' as BarcodeStatus,
             barcodeNormalized: null,
+            stockQuantity: Math.max(0, Math.trunc(item.stockQuantity ?? 0)),
           },
         ]
       }),
@@ -451,6 +458,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
         barcode: '',
         barcodeStatus: 'idle' as BarcodeStatus,
         barcodeNormalized: null,
+        stockQuantity: 0,
       }
       return { ...current, [externalId]: updater(existing) }
     })
@@ -462,6 +470,18 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
         Object.entries(current).map(([id, s]) => [
           id,
           { ...s, selected: importedByExternalId[id] ? false : selected },
+        ]),
+      ),
+    )
+  }
+
+  function setStockForAll(value: number) {
+    const normalized = Math.max(0, Math.trunc(value))
+    setSelections((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([id, selection]) => [
+          id,
+          { ...selection, stockQuantity: importedByExternalId[id] ? selection.stockQuantity : normalized },
         ]),
       ),
     )
@@ -540,6 +560,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
             leafName: proposal.leafName,
           },
           barcode: s.barcode.trim() || null,
+          stockQuantity: s.stockQuantity,
         })
         continue
       }
@@ -548,6 +569,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
         externalId: item.externalId,
         categoryId: s.categoryId.trim(),
         barcode: s.barcode.trim() || null,
+        stockQuantity: s.stockQuantity,
       })
     }
 
@@ -805,6 +827,26 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                 <Button type="button" variant="outline" onClick={() => setAllSelected(false)}>
                   Hepsini kaldır
                 </Button>
+                <Button type="button" variant="outline" onClick={() => setStockForAll(0)}>
+                  Tumunu 0 yap
+                </Button>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={bulkStockValue}
+                    onChange={(event) => setBulkStockValue(event.target.value)}
+                    className="w-28"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setStockForAll(Number.parseInt(bulkStockValue || '0', 10))}
+                  >
+                    Tumune uygula
+                  </Button>
+                </div>
                 <Button type="button" onClick={handleCommit} disabled={commitDisabled}>
                   {isCommitPending ? 'İçe aktarılıyor...' : 'Seçileni içe aktar'}
                 </Button>
@@ -894,6 +936,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                         barcode: '',
                         barcodeStatus: 'idle' as BarcodeStatus,
                         barcodeNormalized: null,
+                        stockQuantity: 0,
                       }
                       const hasVariants = (item.variants?.length ?? 0) > 0
                       const proposal = item.resolvedCategoryProposal
@@ -982,7 +1025,23 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                             className="border-b px-3 py-3 align-top text-center"
                             style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
                           >
-                            {item.stockQuantity !== undefined ? item.stockQuantity : '—'}
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={String(s.stockQuantity)}
+                              onChange={(event) =>
+                                updateItemSelection(item.externalId, (current) => ({
+                                  ...current,
+                                  stockQuantity: Math.max(
+                                    0,
+                                    Number.parseInt(event.target.value || '0', 10) || 0,
+                                  ),
+                                }))
+                              }
+                              disabled={!s.selected || isBusy || Boolean(importedProduct)}
+                              className="mx-auto w-24 text-center"
+                            />
                           </td>
 
                           {/* Hipicon category */}

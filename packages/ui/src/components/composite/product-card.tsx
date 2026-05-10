@@ -33,8 +33,15 @@ export interface ProductCardProps {
   priority?: boolean
 }
 
-function formatPrice(amount: number): string {
-  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(amount)
+function formatPrice(amount: number, options?: { forceDecimals?: boolean }): string {
+  const showDecimals = options?.forceDecimals ?? !Number.isInteger(amount)
+
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    minimumFractionDigits: showDecimals ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(amount)
 }
 
 function ProductCard({
@@ -197,11 +204,11 @@ function ProductCard({
         <div className="mt-auto flex items-end justify-between gap-2">
           <div className="flex flex-col">
             <span className="text-base font-semibold text-primary">
-              {formatPrice(price)}
+              {formatPrice(price, { forceDecimals: hasDiscount })}
             </span>
             {hasDiscount && (
               <span className="text-xs text-muted-fg line-through">
-                {formatPrice(comparePrice!)}
+                {formatPrice(comparePrice!, { forceDecimals: true })}
               </span>
             )}
           </div>

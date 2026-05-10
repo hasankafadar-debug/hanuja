@@ -22,6 +22,7 @@ import { enqueueNotification } from '../jobs/notification-dispatch.job'
 import { getPlatformBankInfo } from '../lib/platform-info'
 import { formatOrderNumber, formatOrderDisplayNumber } from '../lib/order-number'
 import { createPlatformSettingsService } from './platform-settings.service'
+import { roundMoney } from '@hanuja/security'
 
 // Sistem varsayılan komisyon oranı — proje büyüdükçe commission config tablosuna taşınır
 // Öncelik sırası (CLAUDE.md 15.1): ürün override > kategori > satıcı genel > sistem default
@@ -65,9 +66,13 @@ type CheckoutDraft = {
     netPayoutAmount: Decimal
   }>
   grossAmount: Decimal
+  netSubtotal: Decimal
   shippingAmount: Decimal
   discountAmount: Decimal
+  eftDiscountAmount: Decimal
+  eftDiscountRate: Decimal
   taxAmount: Decimal
+  taxBreakdown: Array<{ ratePercent: number; taxAmount: string }>
   totalAmount: Decimal
   legalContext: Parameters<typeof renderLegalDocuments>[0]
 }
@@ -220,14 +225,30 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       })
     }
 
-    const grossAmount = lines.reduce((sum, line) => sum.add(line.totalPrice), new Decimal(0))
-    const shippingAmount = grossAmount.gte(settings.freeShippingThresholdTry)
-      ? new Decimal(0)
-      : settings.flatShippingFeeTry
-    const discountAmount = new Decimal(0)
-    const taxAmount = lines.reduce((sum, line) => sum.add(line.taxAmount), new Decimal(0))
-    const totalAmount = grossAmount.add(shippingAmount).sub(discountAmount)
-    const deliveryAddress = formatAddress(address)
+      const grossAmount = lines.reduce((sum, line) => sum.add(line.totalPrice), new Decimal(0))
+      const shippingAmount = grossAmount.gte(settings.freeShippingThresholdTry)
+        ? new Decimal(0)
+        : settings.flatShippingFeeTry
+      const discountAmount = new Decimal(0)
+      const taxAmount = lines.reduce((sum, line) => sum.add(line.taxAmount), new Decimal(0))
+      const netSubtotal = grossAmount.sub(taxAmount)
+      const eftDiscountRate = params.paymentMethod === 'eft' ? settings.eftDiscountRate : new Decimal(0)
+      const eftDiscountAmount = eftDiscountRate.gt(0)
+        ? roundMoney(grossAmount.mul(eftDiscountRate))
+        : new Decimal(0)
+      const taxBreakdownMap = new Map<number, Decimal>()
+      for (const line of lines) {
+        const ratePercent = Number(line.taxRate.mul(100).toFixed(2))
+        taxBreakdownMap.set(ratePercent, (taxBreakdownMap.get(ratePercent) ?? new Decimal(0)).add(line.taxAmount))
+      }
+      const taxBreakdown = [...taxBreakdownMap.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([ratePercent, amount]) => ({
+          ratePercent,
+          taxAmount: roundMoney(amount).toFixed(2),
+        }))
+      const totalAmount = grossAmount.add(shippingAmount).sub(discountAmount).sub(eftDiscountAmount)
+      const deliveryAddress = formatAddress(address)
 
     return {
       cart: {
@@ -243,9 +264,13 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       customer,
       lines,
       grossAmount,
+      netSubtotal,
       shippingAmount,
       discountAmount,
+      eftDiscountAmount,
+      eftDiscountRate,
       taxAmount,
+      taxBreakdown,
       totalAmount,
       legalContext: {
         buyer: {
@@ -377,9 +402,15 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
             addressId: params.addressId,
             status: 'checkout_started',
             grossAmount: draft.grossAmount,
+            netSubtotal: draft.netSubtotal,
             discountAmount: draft.discountAmount,
             shippingAmount: draft.shippingAmount,
             taxAmount: draft.taxAmount,
+            taxBreakdownJson: draft.taxBreakdown as unknown as Prisma.InputJsonValue,
+            eftDiscountAmount: draft.eftDiscountAmount,
+            ...(draft.eftDiscountRate.gt(0)
+              ? { eftDiscountRateSnapshot: draft.eftDiscountRate }
+              : {}),
             totalAmount: draft.totalAmount,
             couponCode: params.couponCode ?? draft.cart.couponCode,
             ...(params.notes !== undefined ? { notes: params.notes } : {}),

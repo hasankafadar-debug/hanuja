@@ -267,6 +267,7 @@ export function createOrderRepository(prisma: PrismaClient) {
       customerId?: string
       query?: string
       invoice?: 'missing' | 'present'
+      financeInvoice?: 'missing' | 'present'
       from?: Date
       to?: Date
       skip?: number
@@ -296,6 +297,20 @@ export function createOrderRepository(prisma: PrismaClient) {
           ? {
               sellerInvoices: {
                 some: params.sellerId !== undefined ? { sellerId: params.sellerId } : {},
+              },
+            }
+          : {}),
+        ...(params.financeInvoice === 'missing'
+          ? {
+              financeInvoices: {
+                none: { type: 'commission' },
+              },
+            }
+          : {}),
+        ...(params.financeInvoice === 'present'
+          ? {
+              financeInvoices: {
+                some: { type: 'commission' },
               },
             }
           : {}),
@@ -342,6 +357,10 @@ export function createOrderRepository(prisma: PrismaClient) {
                 },
               },
               orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
+            },
+            financeInvoices: {
+              where: { type: 'commission' },
+              orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
             },
             fulfillmentRisk: true,
             customer: {

@@ -13,7 +13,7 @@ const standaloneOutput = process.platform === 'win32' ? {} : { output: 'standalo
 const config: NextConfig = {
   ...standaloneOutput,
   compress: true,
-  serverExternalPackages: ['iyzipay'],
+  serverExternalPackages: ['iyzipay', '@prisma/client', 'prisma'],
   transpilePackages: ['@hanuja/ui', '@hanuja/seo', '@hanuja/security', '@hanuja/types', '@hanuja/api'],
   images: {
     formats: ['image/avif', 'image/webp'],

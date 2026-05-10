@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@hanuja/ui'
 
 const REJECTION_REASONS = [
-  'Stok hatası',
-  'Fiyat hatası',
-  'Üretim imkânsızlığı',
+  'Stok hatasi',
+  'Fiyat hatasi',
+  'Uretim imkansizligi',
   'Kalite sorunu',
   'Teknik sorun',
-  'Mücbir sebep',
+  'Mucbir sebep',
 ]
 
 export default function RejectButton({ orderId }: { orderId: string }) {
@@ -33,14 +33,14 @@ export default function RejectButton({ orderId }: { orderId: string }) {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setError(data.error ?? 'Bir hata oluştu.')
+        setError(data.error ?? 'Bir hata olustu.')
         setLoading(false)
       } else {
         router.push('/siparisler')
         router.refresh()
       }
     } catch {
-      setError('Bağlantı hatası.')
+      setError('Baglanti hatasi.')
       setLoading(false)
     }
   }
@@ -54,7 +54,7 @@ export default function RejectButton({ orderId }: { orderId: string }) {
         style={{ color: 'var(--color-muted-fg)' }}
         onClick={() => setOpen(true)}
       >
-        Siparişi Reddet (ceza uygulanabilir)
+        Siparisi Iptal Et
       </Button>
     )
   }
@@ -67,10 +67,10 @@ export default function RejectButton({ orderId }: { orderId: string }) {
       style={{ borderColor: 'var(--color-destructive)', backgroundColor: '#fff5f5' }}
     >
       <p id="reject-dialog-title" className="text-sm font-semibold" style={{ color: 'var(--color-destructive)' }}>
-        ⚠ Siparişi Reddet
+        Siparisi Iptal Et
       </p>
       <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-        Ödenmiş siparişi reddetmek %20 ceza uygulanmasına neden olabilir. Bir red sebebi seçin:
+        Siparis iptal edilirse urun tutarinin %20'si oraninda ceza uygulanir. Devam etmek istiyor musunuz?
       </p>
       <label htmlFor="rejection-reason" className="sr-only">Sebep</label>
       <select
@@ -84,14 +84,14 @@ export default function RejectButton({ orderId }: { orderId: string }) {
           color: 'var(--color-primary)',
         }}
       >
-        <option value="">— Sebep seçin —</option>
-        {REJECTION_REASONS.map((r) => (
-          <option key={r} value={r}>{r}</option>
+        <option value="">— Sebep secin —</option>
+        {REJECTION_REASONS.map((entry) => (
+          <option key={entry} value={entry}>{entry}</option>
         ))}
       </select>
-      {error && (
+      {error ? (
         <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>{error}</p>
-      )}
+      ) : null}
       <div className="flex gap-2">
         <Button
           variant="destructive"
@@ -99,14 +99,17 @@ export default function RejectButton({ orderId }: { orderId: string }) {
           disabled={!reason || loading}
           onClick={handleReject}
         >
-          {loading ? 'İşleniyor…' : 'Reddet'}
+          {loading ? 'Isleniyor...' : 'Siparisi Iptal Et'}
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => { setOpen(false); setError(null) }}
+          onClick={() => {
+            setOpen(false)
+            setError(null)
+          }}
         >
-          Vazgeç
+          Vazgec
         </Button>
       </div>
     </div>

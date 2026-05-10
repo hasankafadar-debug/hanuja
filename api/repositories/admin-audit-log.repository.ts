@@ -56,12 +56,67 @@ export function createAdminAuditLogRepository(prisma: PrismaClient) {
     },
 
     /** List all recent audit log entries across all actors and actions. */
-    listRecent(params?: { skip?: number; take?: number }) {
-      return prisma.adminAuditLog.findMany({
+    async listRecent(params?: {
+      skip?: number
+      take?: number
+      from?: Date
+      to?: Date
+      actionTypes?: AdminActionType[]
+      actorEmail?: string
+    }) {
+      let actorIds: string[] | undefined
+
+      if (params?.actorEmail?.trim()) {
+        const actors = await prisma.user.findMany({
+          where: {
+            email: {
+              contains: params.actorEmail.trim(),
+              mode: 'insensitive',
+            },
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        })
+        actorIds = actors.map((actor) => actor.id)
+        if (actorIds.length === 0) return []
+      }
+
+      const logs = await prisma.adminAuditLog.findMany({
+        where: {
+          ...(params?.actionTypes && params.actionTypes.length > 0
+            ? { actionType: { in: params.actionTypes } }
+            : {}),
+          ...(actorIds !== undefined ? { actorId: { in: actorIds } } : {}),
+          ...(params?.from !== undefined || params?.to !== undefined
+            ? {
+                createdAt: {
+                  ...(params.from !== undefined ? { gte: params.from } : {}),
+                  ...(params.to !== undefined ? { lte: params.to } : {}),
+                },
+              }
+            : {}),
+        },
         orderBy: { createdAt: 'desc' },
         ...(params?.skip !== undefined ? { skip: params.skip } : {}),
         take: params?.take ?? 50,
       })
+
+      const uniqueActorIds = [...new Set(logs.map((log) => log.actorId))]
+      const actors = uniqueActorIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: uniqueActorIds } },
+            select: { id: true, email: true, name: true },
+          })
+        : []
+      const actorMap = new Map(actors.map((actor) => [actor.id, actor]))
+
+      return logs.map((log) => ({
+        ...log,
+        actor: actorMap.get(log.actorId) ?? null,
+      }))
     },
   }
 }

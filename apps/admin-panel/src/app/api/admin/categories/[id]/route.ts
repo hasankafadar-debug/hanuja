@@ -1,10 +1,12 @@
 import { headers } from 'next/headers'
+import type { AdminActionType } from '@prisma/client'
 import { type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { ForbiddenError, UnauthorizedError } from '@hanuja/api/lib/errors'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { handleError, ok } from '@hanuja/api/lib/response'
+import { createAdminAuditLogRepository } from '@hanuja/api/repositories/admin-audit-log.repository'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 
 const updateCategorySchema = z.object({
@@ -28,7 +30,12 @@ export async function PATCH(
 
     const { id } = await params
     const body = updateCategorySchema.parse(await req.json())
-    const service = createCatalogService({ prisma: createPrismaForRoute() })
+    const prisma = createPrismaForRoute()
+    const existing = await prisma.category.findUnique({
+      where: { id },
+      select: { taxRate: true, name: true },
+    })
+    const service = createCatalogService({ prisma })
     const category = await service.updateCategoryForAdmin({
       categoryId: id,
       ...(body.name !== undefined ? { name: body.name } : {}),
@@ -39,6 +46,23 @@ export async function PATCH(
       ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
       ...(body.taxRate !== undefined ? { taxRate: body.taxRate } : {}),
     })
+
+    if (body.taxRate !== undefined) {
+      await createAdminAuditLogRepository(prisma).createEntry({
+        actorId: session.user.id,
+        actionType: 'category_tax_rate_changed' as AdminActionType,
+        targetType: 'category',
+        targetId: id,
+        previousData: {
+          taxRate: existing?.taxRate?.toString() ?? null,
+          name: existing?.name ?? null,
+        },
+        newData: {
+          taxRate: category.taxRate?.toString() ?? null,
+          name: category.name,
+        },
+      })
+    }
 
     return ok({ category })
   } catch (error) {

@@ -26,6 +26,7 @@ interface RawSelection {
   categoryId?: string | null
   autoCreateUnder?: { parentId: string; leafName: string } | null
   barcode?: string | null
+  stockQuantity?: number | null
 }
 
 function isRawSelection(value: unknown): value is RawSelection {
@@ -41,7 +42,12 @@ function isRawSelection(value: unknown): value is RawSelection {
     typeof (c.autoCreateUnder as Record<string, unknown>).parentId === 'string' &&
     typeof (c.autoCreateUnder as Record<string, unknown>).leafName === 'string'
 
-  return hasCategoryId || hasAutoCreate
+  const hasValidStock =
+    typeof c.stockQuantity === 'number' &&
+    Number.isInteger(c.stockQuantity) &&
+    c.stockQuantity >= 0
+
+  return (hasCategoryId || hasAutoCreate) && hasValidStock
 }
 
 const SAFE_LEAF_NAME_RE = /^[^./\\<>:"|?*\x00-\x1f]{1,80}$/
@@ -174,6 +180,7 @@ export async function POST(req: NextRequest) {
       return {
         externalId: raw.externalId.trim(),
         categoryId: raw.categoryId.trim(),
+        stockQuantity: raw.stockQuantity ?? 0,
         barcode:
           typeof raw.barcode === 'string' ? raw.barcode.trim() || null : (raw.barcode ?? null),
       }
@@ -184,6 +191,7 @@ export async function POST(req: NextRequest) {
         parentId: raw.autoCreateUnder!.parentId.trim(),
         leafName: raw.autoCreateUnder!.leafName.trim(),
       },
+      stockQuantity: raw.stockQuantity ?? 0,
       barcode:
         typeof raw.barcode === 'string' ? raw.barcode.trim() || null : (raw.barcode ?? null),
     }

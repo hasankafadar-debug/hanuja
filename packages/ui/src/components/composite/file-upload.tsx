@@ -27,6 +27,10 @@ interface UploadState {
 export interface ImageConstraints {
   exactWidth?: number
   exactHeight?: number
+  minWidth?: number
+  minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
   minDpi?: number
   maxDpi?: number
   allowedTypes?: string[]
@@ -113,6 +117,22 @@ export function FileUpload({
       (metadata.width !== imageConstraints.exactWidth || metadata.height !== imageConstraints.exactHeight)
     ) {
       return `Görsel çözünürlüğü tam olarak ${imageConstraints.exactWidth}×${imageConstraints.exactHeight} piksel olmalıdır (yüklenen: ${metadata.width}×${metadata.height}).`
+    }
+
+    if (imageConstraints.minWidth !== undefined && metadata.width < imageConstraints.minWidth) {
+      return `Görsel genişliği en az ${imageConstraints.minWidth}px olmalıdır (yüklenen: ${metadata.width}px).`
+    }
+
+    if (imageConstraints.minHeight !== undefined && metadata.height < imageConstraints.minHeight) {
+      return `Görsel yüksekliği en az ${imageConstraints.minHeight}px olmalıdır (yüklenen: ${metadata.height}px).`
+    }
+
+    if (imageConstraints.maxWidth !== undefined && metadata.width > imageConstraints.maxWidth) {
+      return `Görsel genişliği en fazla ${imageConstraints.maxWidth}px olabilir (yüklenen: ${metadata.width}px).`
+    }
+
+    if (imageConstraints.maxHeight !== undefined && metadata.height > imageConstraints.maxHeight) {
+      return `Görsel yüksekliği en fazla ${imageConstraints.maxHeight}px olabilir (yüklenen: ${metadata.height}px).`
     }
 
     if (imageConstraints.minDpi !== undefined || imageConstraints.maxDpi !== undefined) {

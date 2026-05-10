@@ -299,6 +299,65 @@ staging at a live carrier account that generates real shipment events or charges
 
 ---
 
+## 6. Cloudflare Turnstile — Human Verification
+
+### Purpose
+
+Cloudflare Turnstile protects public-facing and operator-facing form submissions from automated
+abuse. In Hanuja it is used on:
+
+- Admin login
+- Seller login
+- Seller onboarding
+- Customer login
+- Customer signup
+- Storefront checkout
+
+### Environment variables
+
+| Variable | Purpose |
+|------------------------------|----------------------------------------------------------|
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Browser-visible site key rendered in the widget     |
+| `TURNSTILE_SECRET_KEY`           | Server-side secret used for `siteverify`            |
+
+### Connection method
+
+The shared widget loader lives in `packages/ui/src/components/turnstile-widget.tsx`. Server-side
+verification is centralized in `api/lib/turnstile.ts`, which calls Cloudflare's `siteverify`
+endpoint and optionally validates the expected action value.
+
+### Hostname policy
+
+The widget's Cloudflare hostname allowlist must include every app surface that renders it:
+
+- `localhost`
+- `127.0.0.1`
+- `hanuja.com.tr`
+- `satici.hanuja.com.tr`
+- `admin.hanuja.com.tr`
+
+Add staging domains separately before enabling Turnstile there.
+
+### Test keys vs real keys
+
+Cloudflare's official Turnstile test keys show a visible "testing only" warning inside the widget.
+Use a real widget/secret pair in normal app environments if you do not want that banner to appear.
+
+### Failure handling
+
+- If `TURNSTILE_SECRET_KEY` is missing in production, verification fails closed.
+- If the widget site key is missing in development, the client falls back to the development bypass flow.
+- Verification errors should show a user-friendly retry message and must not silently skip server verification.
+
+### Sandbox vs production
+
+Hanuja does not maintain a separate browser-visible test-key setup for normal app use. Local,
+staging, and production should all use real widget credentials scoped by Cloudflare hostname
+allowlists. Automated tests may still mock the widget for regression coverage, but that does not
+count as production-equivalent Turnstile validation.
+
+---
+
 ## Cross-references
 
 - `api/lib/meilisearch.ts` — Meilisearch fetch client and index configuration
@@ -309,5 +368,6 @@ staging at a live carrier account that generates real shipment events or charges
 - `docs/05-security/secrets-env-policy.md` — Secret handling rules
 - `docs/05-security/payment-security.md` — Iyzico security constraints
 - `docs/06-engineering/caching-search-plan.md` — Search projection and cache strategy
+- `docs/06-engineering/turnstile.md` — Turnstile setup and manual QA
 - `docs/06-engineering/queue-jobs-plan.md` — Full queue job inventory
 - `docs/07-operations/order-lifecycle.md` — Delivery confirmation logic and payout trigger

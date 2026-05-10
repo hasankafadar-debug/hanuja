@@ -186,8 +186,10 @@ Tüm iptaller ayrı nedenlerle kaydedilir. Aynı `cancelled` değeri altında bi
 | Müşteri önceden iptal | Kargo öncesi müşteri isteği | Hayır |
 | Satıcı reddi | Satıcı reddetme aksiyonu | Evet (%20) |
 | Admin iptali | Admin müdahalesi | Duruma göre |
-| 20 gün ihlali | Zamanlayıcı/admin | Evet (%20) |
+| 20 gün ihlali (otomatik) | Zamanlayıcı (`fulfillment-risk` worker, `accrualDayCount >= 20`) | Evet — günlük %1 birikimli toplam (20. günde max %20) |
 | Fraud/risk | Risk motoru veya admin | Duruma göre |
+
+20 gün ihlali iptali `Order.cancellationReason = auto_canceled_20day_breach` ve `Order.status = cancelled_due_to_20day_breach` olarak kaydedilir; aynı transaction içinde refund flow tetiklenir.
 
 ---
 

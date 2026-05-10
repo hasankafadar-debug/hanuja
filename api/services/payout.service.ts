@@ -252,6 +252,10 @@ export function createPayoutService({
       payoutId: string
       adminActorId: string
       batchId?: string
+      transferReference?: string
+      transferDate: Date
+      transferBankName?: string
+      transferNote?: string
     }) {
       const payout = await payouts.findById(params.payoutId)
       if (!payout) throw new NotFoundError('Payout', params.payoutId)
@@ -260,7 +264,30 @@ export function createPayoutService({
         throw new ConflictError(`Ödeme hazır değil: ${payout.status}`)
       }
 
-      const updated = await payouts.markPaid(params.payoutId, params.batchId)
+      const activeBankDetail = await prisma.sellerBankDetail.findFirst({
+        where: {
+          sellerId: payout.sellerId,
+          isActive: true,
+          status: 'ACTIVE',
+        },
+        orderBy: { updatedAt: 'desc' },
+      })
+
+      const updated = await payouts.markPaidWithTransfer(params.payoutId, {
+        transferDate: params.transferDate,
+        paidByAdminId: params.adminActorId,
+        ...(params.batchId !== undefined ? { batchId: params.batchId } : {}),
+        ...(params.transferReference !== undefined ? { transferReference: params.transferReference || null } : {}),
+        ...(params.transferBankName !== undefined ? { transferBankName: params.transferBankName || null } : {}),
+        ...(params.transferNote !== undefined ? { transferNote: params.transferNote || null } : {}),
+        ...(activeBankDetail
+          ? {
+              ibanSnapshot: activeBankDetail.iban,
+              accountHolderSnapshot: activeBankDetail.accountHolder,
+              bankDetailId: activeBankDetail.id,
+            }
+          : {}),
+      })
 
       const payoutLedgerEntry = await ledger.findByReference({
         sellerId: payout.sellerId,
@@ -275,7 +302,7 @@ export function createPayoutService({
           amount: payout.netAmount.negated(),
           referenceType: 'payout',
           referenceId: payout.id,
-          description: 'EFT',
+          description: params.transferBankName?.trim() || 'EFT',
           createdBy: params.adminActorId,
         })
       }
@@ -287,6 +314,16 @@ export function createPayoutService({
         targetId: params.payoutId,
         newData: {
           paidAt: new Date(),
+          transferDate: params.transferDate.toISOString(),
+          ...(params.transferReference !== undefined ? { transferReference: params.transferReference } : {}),
+          ...(params.transferBankName !== undefined ? { transferBankName: params.transferBankName } : {}),
+          ...(params.transferNote !== undefined ? { transferNote: params.transferNote } : {}),
+          ...(activeBankDetail
+            ? {
+                ibanSnapshot: activeBankDetail.iban,
+                accountHolderSnapshot: activeBankDetail.accountHolder,
+              }
+            : {}),
           ...(params.batchId !== undefined ? { batchId: params.batchId } : {}),
         },
       })

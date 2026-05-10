@@ -9,6 +9,7 @@ import { Decimal } from '@prisma/client/runtime/client'
 
 // Platform constants — CLAUDE.md 15.3
 export const STANDARD_PENALTY_RATE = new Decimal('0.2000') // 20%
+export const DAILY_LATE_SHIPMENT_PENALTY_RATE = new Decimal('0.0100') // 1%
 export const FULFILLMENT_DAYS = 20 // 20-day shipment commitment
 export const PAYOUT_HOLD_DAYS = 30 // 30-day hold after delivery_confirmed
 export const RETURN_WINDOW_DAYS = 14 // 14-day right-of-withdrawal
@@ -24,6 +25,36 @@ export function calculatePenalty(
   rate: Decimal = STANDARD_PENALTY_RATE,
 ): Decimal {
   return productAmount.mul(rate).toDecimalPlaces(2)
+}
+
+export function calculateDailyLateShipmentPenalty(
+  orderAmount: Decimal,
+  breachDayCount: number,
+  dailyRate: Decimal = DAILY_LATE_SHIPMENT_PENALTY_RATE,
+): Decimal {
+  if (breachDayCount <= 0) return new Decimal(0)
+  return orderAmount.mul(dailyRate).mul(breachDayCount).toDecimalPlaces(2)
+}
+
+export function getLateShipmentPenaltyRate(
+  breachDayCount: number,
+  dailyRate: Decimal = DAILY_LATE_SHIPMENT_PENALTY_RATE,
+): Decimal {
+  if (breachDayCount <= 0) return new Decimal(0)
+  return dailyRate.mul(breachDayCount).toDecimalPlaces(4)
+}
+
+export function getLateShipmentBreachDayCount(deadlineAt: Date, asOf = new Date()): number {
+  const deadline = new Date(deadlineAt)
+  deadline.setHours(0, 0, 0, 0)
+
+  const effectiveDate = new Date(asOf)
+  effectiveDate.setHours(0, 0, 0, 0)
+
+  const diffMs = effectiveDate.getTime() - deadline.getTime()
+  if (diffMs <= 0) return 0
+
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24))
 }
 
 /** Returns true if the 20-day fulfillment deadline has passed */

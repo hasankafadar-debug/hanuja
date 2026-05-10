@@ -235,9 +235,9 @@ If that commitment is breached:
 
 ### Standard breach result
 
-If 20-day commitment is violated and cancellation occurs:
+If the shipment commitment date is exceeded:
 
-- order moves to cancellation flow
+- seller accrual penalty increases by 1% per overdue day
 - 20% seller penalty is evaluated
 - customer-facing finance flow is triggered
 - payout eligibility is blocked for that order
@@ -290,7 +290,7 @@ At minimum, track these causes separately:
 - customer pre-shipment cancellation
 - seller rejection cancellation
 - admin cancellation
-- 20-day breach cancellation
+- 20th overdue day auto-cancellation
 - fraud/risk cancellation
 
 Do not merge all cancellations into one opaque state.

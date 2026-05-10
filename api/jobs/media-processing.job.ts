@@ -64,9 +64,12 @@ async function generateVariants(
   const results: Partial<Record<string, MediaVariantRecord>> = {}
 
   for (const v of VARIANTS) {
-    const resizeWidth = Math.min(v.width, originalWidth || v.width)
     const outputBuffer = await sharp(Buffer.from(originalBytes))
-      .resize({ width: resizeWidth, withoutEnlargement: true })
+      .resize(v.width, v.width, {
+        fit: 'contain',
+        withoutEnlargement: true,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      })
       .webp({ quality: v.quality })
       .toBuffer()
 
@@ -81,8 +84,8 @@ async function generateVariants(
     results[v.suffix] = {
       key,
       url: publicUrl,
-      width: outMeta.width ?? resizeWidth,
-      height: outMeta.height ?? 0,
+      width: outMeta.width ?? v.width,
+      height: outMeta.height ?? v.width,
     }
   }
 

@@ -100,8 +100,14 @@ Key variables that differ between environments:
 | `REDIS_URL` | `redis://localhost:6379` | Production Redis URL |
 | `BETTER_AUTH_URL` | `http://localhost:3000` | `https://hanuja.com` |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | `https://hanuja.com` |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Real widget site key with `localhost` and `127.0.0.1` allowed | Real widget site key |
+| `TURNSTILE_SECRET_KEY` | Matching real secret key | Matching real secret key |
 | `IYZICO_BASE_URL` | `https://sandbox-api.iyzipay.com` | `https://api.iyzipay.com` |
 | `NODE_ENV` | `development` | `production` |
+
+Turnstile note:
+- Do not use Cloudflare's official test keys in normal app environments if you want to avoid the red test banner in the widget.
+- The widget hostname allowlist must include `localhost`, `127.0.0.1`, and every public app domain that renders the widget.
 
 ---
 

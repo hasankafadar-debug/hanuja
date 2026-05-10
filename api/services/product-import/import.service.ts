@@ -23,8 +23,8 @@ export interface RejectedImportItem {
 }
 
 export type CommitSelection =
-  | { externalId: string; categoryId: string; barcode?: string | null }
-  | { externalId: string; autoCreateUnder: { parentId: string; leafName: string }; barcode?: string | null }
+  | { externalId: string; categoryId: string; barcode?: string | null; stockQuantity: number }
+  | { externalId: string; autoCreateUnder: { parentId: string; leafName: string }; barcode?: string | null; stockQuantity: number }
 
 export function createProductImportService({ prisma }: { prisma: PrismaClient }) {
   function resolveAdapter(url: string) {
@@ -223,6 +223,7 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
     const imports: Array<{
       item: ScrapedProduct
       categoryId: string
+      stockQuantity: number
       productBarcode: string | null
       variantBarcodes: string[]
     }> = []
@@ -236,6 +237,7 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
       imports.push({
         item,
         categoryId,
+        stockQuantity: selection.stockQuantity,
         productBarcode:
           variants.length > 0
             ? null
@@ -271,7 +273,7 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
           careInstructions: item.careInstructions ?? null,
           price: new Decimal(item.price),
           compareAtPrice: item.compareAtPrice ? new Decimal(item.compareAtPrice) : null,
-          stockQuantity: item.stockQuantity ?? 0,
+          stockQuantity: importItem.stockQuantity,
           barcode: importItem.productBarcode,
           sku: item.sku ?? null,
         })
@@ -289,7 +291,7 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
                   seed: `${params.sellerId}:${item.externalId}:variant:${index}:${variant.name}`,
                 }),
               price: new Decimal(variant.price ?? item.price),
-              stockQuantity: variant.stockQuantity ?? item.stockQuantity ?? 0,
+              stockQuantity: variant.stockQuantity ?? importItem.stockQuantity,
             })),
           })
         }

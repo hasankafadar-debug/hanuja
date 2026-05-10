@@ -29,11 +29,11 @@ const ALLOWED_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
   payment_cancelled: [], // Terminal
 
   // Seller fulfillment
-  seller_queue_ready: ['seller_reviewing', 'seller_accepted', 'seller_rejected'],
-  seller_reviewing: ['seller_accepted', 'seller_rejected'],
-  seller_accepted: ['preparing'],
+  seller_queue_ready: ['seller_reviewing', 'seller_accepted', 'seller_rejected', 'cancelled_due_to_20day_breach'],
+  seller_reviewing: ['seller_accepted', 'seller_rejected', 'cancelled_due_to_20day_breach'],
+  seller_accepted: ['preparing', 'cancelled_due_to_20day_breach'],
   seller_rejected: ['cancelled_due_to_seller_rejection'],
-  preparing: ['awaiting_shipment'],
+  preparing: ['awaiting_shipment', 'cancelled_due_to_20day_breach'],
   awaiting_shipment: ['shipped', 'cancelled_due_to_20day_breach'],
 
   // Delivery — delivered ≠ delivery_confirmed

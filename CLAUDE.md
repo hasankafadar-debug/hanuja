@@ -85,7 +85,7 @@ Seller net payout is calculated from:
 - Standard penalty rate is **20% of product price**.
 - This may apply when:
   - seller rejects a paid order
-  - the 20-day shipment / service obligation is violated and the order is canceled by the customer or admin
+  - the late-shipment daily accrual rule reaches day 20 and the order is auto-cancelled with refund initiation
 - Penalties are normally written to seller current account debt and offset from future payouts.
 - Negative seller balance is allowed.
 
@@ -472,7 +472,7 @@ These are platform constants. Do not contradict them in code or documentation.
 3. Hanuja issues commission and other service invoices to the seller.
 4. Seller net payout is made 30 days after `delivery_confirmed`.
 5. If the seller rejects a paid order, a penalty of 20% of the product amount is applied.
-6. If the 20-day fulfillment commitment is violated and cancellation occurs, a penalty of 20% of the product amount is applied.
+6. If shipment is delayed past the commitment date, a penalty of 1% of the product amount accrues per overdue day; on the 20th overdue day the order is auto-cancelled and customer refund is initiated.
 7. An additional 10-day extension may be granted only with customer awareness and an explicit admin decision.
 8. After dispatch, cancellation is not the correct path — return/refund flow applies.
 9. A return request within 14 days is treated as a standard fast-path withdrawal.

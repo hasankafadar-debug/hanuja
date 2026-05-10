@@ -27,7 +27,7 @@ The penalty system creates a financial consequence for two specific seller-side 
 directly harm customers and Hanuja's operational integrity:
 
 1. Rejecting a paid order that the seller was obligated to fulfill
-2. Breaching the 20-day fulfillment commitment, leading to cancellation
+2. Breaching the shipment commitment date and accruing daily late-shipment penalties
 
 Penalties are not punitive in isolation. They are a structured financial offset mechanism
 recorded in the seller's ledger and recovered from future payouts.
@@ -95,7 +95,7 @@ If this commitment is breached and the order is cancelled by the customer or by 
 a result of the breach:
 
 1. Order status transitions to `cancelled_due_to_20day_breach`
-2. A `Penalty` record is created with `reason = fulfillment_20day_breach`
+2. A `Penalty` record is created or updated with `reason = late_shipment_daily_accrual`
 3. A `SellerLedgerEntry` of type `penalty` is written
 4. Customer refund/cancellation finance flow is triggered
 5. Seller payout eligibility is blocked for the affected order
@@ -113,7 +113,7 @@ A 10-day extension of the fulfillment window may be granted, but only if:
 - the extension is recorded as an `AdminAuditLog` entry with `actionType = fulfillment_window_extended`
 
 Silent extension of the window is not permitted. If an extension is not formally granted
-and the 20-day period lapses, the breach consequence applies.
+and the shipment commitment date lapses, daily accrual starts and day 20 triggers auto-cancel.
 
 ---
 
@@ -138,7 +138,7 @@ The `Penalty` model stores:
 |---|---|
 | `sellerId` | Which seller this applies to |
 | `orderId` | Which order triggered the penalty |
-| `reason` | `seller_rejected_paid_order` or `fulfillment_20day_breach` |
+| `reason` | `seller_rejected_paid_order`, `late_shipment_daily_accrual`, or legacy `fulfillment_20day_breach` |
 | `status` | `applied`, `waived`, or `offset` |
 | `baseAmount` | Product sale amount |
 | `rate` | `0.2000` (20%) |

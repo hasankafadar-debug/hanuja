@@ -99,7 +99,7 @@ export function CategorySettingsList({ categories }: Props) {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
-        setError(payload.error ?? 'Kategori güncellenemedi.')
+        setError(payload.error ?? 'Kategori guncellenemedi.')
         return
       }
 
@@ -107,7 +107,7 @@ export function CategorySettingsList({ categories }: Props) {
       setDraft(null)
       router.refresh()
     } catch {
-      setError('Bağlantı sırasında bir hata oluştu.')
+      setError('Baglanti sirasinda bir hata olustu.')
     } finally {
       setLoading(false)
     }
@@ -117,7 +117,7 @@ export function CategorySettingsList({ categories }: Props) {
     <>
       {categories.length === 0 && (
         <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-          Henüz kategori tanımlanmamış.
+          Henuz kategori tanimlanmamis.
         </p>
       )}
 
@@ -125,7 +125,7 @@ export function CategorySettingsList({ categories }: Props) {
         {categories.map((category) => (
           <div
             key={category.id}
-            className="flex items-center justify-between gap-4 py-3 border-b last:border-0 text-sm"
+            className="flex items-center justify-between gap-4 border-b py-3 text-sm last:border-0"
             style={{ borderColor: 'var(--color-border)' }}
           >
             <div className="min-w-0">
@@ -140,13 +140,13 @@ export function CategorySettingsList({ categories }: Props) {
                 style={{ color: 'var(--color-muted-fg)' }}
               >
                 <span className="font-mono">/kategori/{category.slug}</span>
-                <span>Sıra: {category.sortOrder}</span>
-                <span>KDV: {category.taxRate === null ? 'Varsayılan' : `%${Number(category.taxRate) * 100}`}</span>
+                <span>Sira: {category.sortOrder}</span>
+                <span>KDV: {category.taxRate === null ? 'Varsayilan' : `%${Number(category.taxRate) * 100}`}</span>
               </div>
             </div>
 
             <Button size="sm" variant="outline" onClick={() => openEditor(category.id)}>
-              Düzenle
+              Duzenle
             </Button>
           </div>
         ))}
@@ -164,16 +164,16 @@ export function CategorySettingsList({ categories }: Props) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Kategori Düzenle</DialogTitle>
+            <DialogTitle>Kategori Duzenle</DialogTitle>
             <DialogDescription>
-              Kategori adı, slug ve yayın durumu güncellendiğinde ilgili ürünler arama indeksine yeniden yazılır.
+              Kategori adi, slug ve yayin durumu guncellendiginde ilgili urunler arama indeksine yeniden yazilir.
             </DialogDescription>
           </DialogHeader>
 
           {draft && (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="category-name">Kategori Adı</Label>
+                <Label htmlFor="category-name">Kategori Adi</Label>
                 <Input
                   id="category-name"
                   value={draft.name}
@@ -195,7 +195,7 @@ export function CategorySettingsList({ categories }: Props) {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="category-sort-order">Sıra</Label>
+                <Label htmlFor="category-sort-order">Sira</Label>
                 <Input
                   id="category-sort-order"
                   type="number"
@@ -208,7 +208,7 @@ export function CategorySettingsList({ categories }: Props) {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="category-tax-rate">KDV Oranı (%)</Label>
+                <Label htmlFor="category-tax-rate">KDV Orani (%)</Label>
                 <Input
                   id="category-tax-rate"
                   type="number"
@@ -219,12 +219,15 @@ export function CategorySettingsList({ categories }: Props) {
                   onChange={(event) =>
                     setDraft((current) => (current ? { ...current, taxRate: event.target.value } : current))
                   }
-                  placeholder="Boşsa platform varsayılanı"
+                  placeholder="Bossa platform varsayilani"
                 />
+                <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                  Bos birakirsaniz ust kategoriden veya platform varsayilanindan hesaplanir.
+                </p>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="category-image-url">Görsel URL</Label>
+                <Label htmlFor="category-image-url">Gorsel URL</Label>
                 <Input
                   id="category-image-url"
                   value={draft.imageUrl}
@@ -235,7 +238,7 @@ export function CategorySettingsList({ categories }: Props) {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="category-description">Açıklama</Label>
+                <Label htmlFor="category-description">Aciklama</Label>
                 <Textarea
                   id="category-description"
                   rows={4}
@@ -274,7 +277,7 @@ export function CategorySettingsList({ categories }: Props) {
               }}
               disabled={loading}
             >
-              Vazgeç
+              Vazgec
             </Button>
             <Button onClick={saveCategory} disabled={loading || !draft}>
               {loading ? 'Kaydediliyor...' : 'Kaydet'}

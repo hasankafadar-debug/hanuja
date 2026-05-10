@@ -58,11 +58,12 @@ export default async function AdminSettingsPage() {
             standardPenaltyRate: platformSettings.standardPenaltyRate.toString(),
             fulfillmentDays: String(platformSettings.fulfillmentDays),
             fulfillmentWarningDays: String(platformSettings.fulfillmentWarningDays),
-            payoutHoldDays: String(platformSettings.payoutHoldDays),
-            freeShippingThresholdTry: platformSettings.freeShippingThresholdTry.toString(),
-            flatShippingFeeTry: platformSettings.flatShippingFeeTry.toString(),
-            defaultTaxRate: platformSettings.defaultTaxRate.toString(),
-          }}
+          payoutHoldDays: String(platformSettings.payoutHoldDays),
+          freeShippingThresholdTry: platformSettings.freeShippingThresholdTry.toString(),
+          flatShippingFeeTry: platformSettings.flatShippingFeeTry.toString(),
+          defaultTaxRate: platformSettings.defaultTaxRate.toString(),
+          eftDiscountRate: platformSettings.eftDiscountRate.toString(),
+        }}
         />
       </section>
 

@@ -1,11 +1,10 @@
 /**
- * Penalty Service — applies, offsets, and waives seller penalties.
+ * Penalty Service â€” applies, accrues, offsets, and waives seller penalties.
  *
- * Standard penalty: 20% of product amount (CLAUDE.md 2.4 / 07-marketplace-finance-rules.md)
- * Applied on: seller rejection, 20-day breach cancellation.
- * Waiver: admin-only, auditable, original record preserved.
+ * Rejection penalty: fixed 20% of product amount.
+ * Late-shipment penalty: 1% per overdue day, auto-cancel on day 20.
  */
-import type { PrismaClient, PenaltyReason } from '@prisma/client'
+import type { OrderStatus, PrismaClient, PenaltyReason } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { NotFoundError } from '../lib/errors'
 import { createPenaltyRepository } from '../repositories/penalty.repository'
@@ -15,12 +14,42 @@ import { createSellerLedgerRepository } from '../repositories/seller-ledger.repo
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { createNotificationService } from './notification.service'
 import {
+  calculateDailyLateShipmentPenalty,
   calculatePenalty,
+  DAILY_LATE_SHIPMENT_PENALTY_RATE,
+  getLateShipmentBreachDayCount,
+  getLateShipmentPenaltyRate,
 } from '../domain/penalty-calculator'
 import { createPlatformSettingsService } from './platform-settings.service'
 
 interface PenaltyServiceDeps {
   prisma: PrismaClient
+}
+
+const ACTIVE_LATE_SHIPMENT_STATUSES: OrderStatus[] = [
+  'seller_queue_ready',
+  'seller_reviewing',
+  'seller_accepted',
+  'preparing',
+  'awaiting_shipment',
+]
+
+function startOfDay(date: Date) {
+  const value = new Date(date)
+  value.setHours(0, 0, 0, 0)
+  return value
+}
+
+function getFulfillmentDeadline(order: {
+  paymentConfirmedAt?: Date | null
+  sellerQueueReadyAt?: Date | null
+  createdAt: Date
+}, fulfillmentDays: number) {
+  const source = order.paymentConfirmedAt ?? order.sellerQueueReadyAt ?? order.createdAt
+  const deadline = new Date(source)
+  deadline.setDate(deadline.getDate() + fulfillmentDays)
+  deadline.setHours(0, 0, 0, 0)
+  return deadline
 }
 
 export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
@@ -34,11 +63,7 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
 
   return {
     /**
-     * Evaluate and apply penalty after seller rejection or 20-day breach.
-     * Called after order moves to cancelled_due_to_seller_rejection or
-     * cancelled_due_to_20day_breach.
-     *
-     * Records penalty in seller ledger as a debit entry.
+     * Rejection penalty remains the fixed 20% policy.
      */
     async applyForCancellation(params: {
       orderId: string
@@ -48,17 +73,13 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
       const order = await orders.findById(params.orderId)
       if (!order) throw new NotFoundError('Order', params.orderId)
 
-      // Check if penalty already applied (idempotency)
-      const existing = await penalties.findByOrderId(params.orderId)
+      const existing = await penalties.findByOrderIdAndReason(params.orderId, params.reason)
       if (existing) return existing
 
       const lines = await orderLines.findByOrderIdForSeller(params.orderId, params.sellerId)
       if (!lines.length) throw new NotFoundError('OrderLine', params.orderId)
 
-      const productAmount = lines.reduce(
-        (sum, l) => sum.plus(l.totalPrice),
-        new Decimal(0),
-      )
+      const productAmount = lines.reduce((sum, line) => sum.plus(line.totalPrice), new Decimal(0))
 
       const settings = await platformSettings.get()
       const penaltyRate = settings.standardPenaltyRate
@@ -77,14 +98,13 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
           tx as PrismaClient,
         )
 
-        // Record as debit in seller ledger — negative amount
         await ledger.createEntry({
           sellerId: params.sellerId,
           type: 'penalty',
           amount: penaltyAmount.negated(),
           orderId: params.orderId,
           penaltyId: penalty.id,
-          note: `Ceza: ${params.reason} — ${penaltyAmount.toFixed(2)} TRY`,
+          note: `Ceza: ${params.reason} â€” ${penaltyAmount.toFixed(2)} TRY`,
         })
 
         return penalty
@@ -92,9 +112,97 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
     },
 
     /**
-     * Waive a penalty — admin only, reason required.
-     * Original penalty record is PRESERVED with status='waived'.
-     * Reversal ledger entry is created to cancel the debit effect.
+     * Daily late shipment accrual. Idempotent for the same calendar day.
+     * If the worker misses days, it catches up in one run.
+     */
+    async accrueDailyLateShipment(params: {
+      orderId: string
+      asOf?: Date
+    }) {
+      const asOf = startOfDay(params.asOf ?? new Date())
+      const order = await prisma.order.findUnique({
+        where: { id: params.orderId },
+        include: {
+          lines: { select: { sellerId: true, totalPrice: true } },
+        },
+      })
+      if (!order) throw new NotFoundError('Order', params.orderId)
+
+      if (!ACTIVE_LATE_SHIPMENT_STATUSES.includes(order.status)) return null
+
+      const sellerId = order.lines[0]?.sellerId
+      if (!sellerId) throw new NotFoundError('OrderLine', params.orderId)
+
+      const settings = await platformSettings.get()
+      const deadlineAt = getFulfillmentDeadline(order, settings.fulfillmentDays)
+      const breachDayCount = getLateShipmentBreachDayCount(deadlineAt, asOf)
+      if (breachDayCount <= 0) return null
+
+      const existing = await penalties.findByOrderIdAndReason(params.orderId, 'late_shipment_daily_accrual')
+      if (existing?.lastAccrualAt && startOfDay(existing.lastAccrualAt).getTime() === asOf.getTime()) {
+        return existing
+      }
+
+      const baseAmount = order.lines.reduce((sum, line) => sum.plus(line.totalPrice), new Decimal(0))
+      const accruedRate = getLateShipmentPenaltyRate(breachDayCount)
+      const totalPenaltyAmount = calculateDailyLateShipmentPenalty(baseAmount, breachDayCount)
+      const currentAccrualDayCount = existing?.accrualDayCount ?? 0
+      const incrementalDays = Math.max(0, breachDayCount - currentAccrualDayCount)
+      const incrementalAmount = calculateDailyLateShipmentPenalty(baseAmount, incrementalDays)
+
+      return prisma.$transaction(async (tx) => {
+        let penalty = existing
+
+        if (!penalty) {
+          penalty = await penalties.create(
+            {
+              sellerId,
+              orderId: params.orderId,
+              reason: 'late_shipment_daily_accrual',
+              baseAmount,
+              rate: accruedRate,
+              penaltyAmount: totalPenaltyAmount,
+              accrualSourceDate: deadlineAt,
+              accrualDayCount: breachDayCount,
+              dailyAccrualRate: DAILY_LATE_SHIPMENT_PENALTY_RATE,
+              lastAccrualAt: asOf,
+            },
+            tx as PrismaClient,
+          )
+        } else {
+          penalty = await penalties.updateAccrual(
+            penalty.id,
+            {
+              rate: accruedRate,
+              penaltyAmount: totalPenaltyAmount,
+              accrualDayCount: breachDayCount,
+              lastAccrualAt: asOf,
+            },
+            tx as PrismaClient,
+          )
+        }
+
+        if (incrementalAmount.gt(0)) {
+          await ledger.createEntry({
+            sellerId,
+            type: 'penalty',
+            amount: incrementalAmount.negated(),
+            orderId: params.orderId,
+            penaltyId: penalty.id,
+            note:
+              incrementalDays === 1
+                ? `GeÃ§ sevkiyat gÃ¼nlÃ¼k ceza birikimi: 1 gÃ¼n (%1)`
+                : `GeÃ§ sevkiyat gÃ¼nlÃ¼k ceza birikimi: +${incrementalDays} gÃ¼n`,
+          })
+        }
+
+        return penalty
+      })
+    },
+
+    /**
+     * Waive a penalty â€” admin only, reason required.
+     * Original penalty record is preserved with status='waived'.
      */
     async waive(params: {
       penaltyId: string
@@ -104,21 +212,18 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
       const penalty = await penalties.findById(params.penaltyId)
       if (!penalty) throw new NotFoundError('Penalty', params.penaltyId)
 
-      if (penalty.status === 'waived') {
-        return penalty // Idempotent
-      }
+      if (penalty.status === 'waived') return penalty
 
-      return prisma.$transaction(async (tx) => {
+      return prisma.$transaction(async () => {
         const waived = await penalties.waive(params.penaltyId, {
           waivedBy: params.adminActorId,
           waiverReason: params.waiverReason,
         })
 
-        // Reversal ledger entry — credits back the deducted amount
         await ledger.createEntry({
           sellerId: penalty.sellerId,
           type: 'manual_adjustment',
-          amount: penalty.penaltyAmount, // Positive — reverses the original debit
+          amount: penalty.penaltyAmount,
           orderId: penalty.orderId,
           penaltyId: penalty.id,
           note: `Ceza muafiyeti: ${params.waiverReason}`,
@@ -155,7 +260,7 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
       })
       if (!seller) throw new NotFoundError('Seller', params.sellerId)
 
-      const existing = await penalties.findByOrderId(params.orderId)
+      const existing = await penalties.findByOrderIdAndReason(params.orderId, 'other')
       if (existing) return existing
 
       const lines = await orderLines.findByOrderIdForSeller(params.orderId, params.sellerId)
@@ -210,8 +315,8 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
       await notifications.send({
         userId: seller.user.id,
         type: 'seller_penalty_applied',
-        title: 'Ceza uygulandı',
-        body: `${penaltyAmount.toFixed(2)} tutarında ceza hesabınıza yansıtıldı.`,
+        title: 'Ceza uygulandÄ±',
+        body: `${penaltyAmount.toFixed(2)} tutarÄ±nda ceza hesabÄ±nÄ±za yansÄ±tÄ±ldÄ±.`,
         data: { orderId: params.orderId, penaltyId: penalty.id },
       })
 
