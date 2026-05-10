@@ -14,27 +14,39 @@
  * - Ayarlar ekranı
  */
 import { test, expect, type Page } from '@playwright/test'
+import { trackHydrationErrors } from '../helpers/hydration'
+import { mockTurnstile } from '../helpers/turnstile'
 
 const SELLER_EMAIL = 'satici@atelyenoa.com'
 const SELLER_PASSWORD = 'Seller1234!'
 
 async function loginAsSeller(page: Page) {
+  await mockTurnstile(page)
+  const hydration = trackHydrationErrors(page)
   await page.goto('/giris')
   await page.waitForLoadState('networkidle')
+  await expect(page.getByLabel(/E-posta/i)).toBeVisible()
+  await hydration.expectNone()
   await page.getByLabel(/E-posta/i).fill(SELLER_EMAIL)
   await page.getByLabel(/Şifre|Sifre/i).fill(SELLER_PASSWORD)
+  await expect(page.getByRole('button', { name: /Giriş Yap|Giris Yap/i })).toBeEnabled({
+    timeout: 5_000,
+  })
   await page.getByRole('button', { name: /Giriş Yap|Giris Yap/i }).click()
-  await page.waitForURL(/dashboard/, { timeout: 15_000 })
+  await expect(page).toHaveURL(/dashboard/, { timeout: 15_000 })
 }
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 
 test.describe('auth — giriş / çıkış', () => {
   test('satıcı giris sayfası yükleniyor', async ({ page }) => {
+    await mockTurnstile(page)
+    const hydration = trackHydrationErrors(page)
     await page.goto('/giris')
     await expect(page.getByLabel(/E-posta/i)).toBeVisible()
     await expect(page.getByLabel(/Şifre|Sifre/i)).toBeVisible()
     await expect(page.getByRole('button', { name: /Giriş Yap|Giris Yap/i })).toBeVisible()
+    await hydration.expectNone()
   })
 
   test('yanlış şifreyle giriş reddediliyor', async ({ page }) => {

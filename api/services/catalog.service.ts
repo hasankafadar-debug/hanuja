@@ -472,6 +472,71 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return updated
     },
 
+    async updateCategoryTaxGroupForAdmin(params: {
+      categoryIds: string[]
+      taxRate: number | null
+      actorId: string
+    }) {
+      const categoryIds = [...new Set(params.categoryIds.map((id) => id.trim()).filter(Boolean))]
+      if (categoryIds.length === 0) {
+        throw new ValidationError('En az bir kategori seçilmelidir.')
+      }
+
+      const existing = await prisma.category.findMany({
+        where: { id: { in: categoryIds } },
+        select: { id: true, name: true, taxRate: true },
+      })
+
+      if (existing.length !== categoryIds.length) {
+        const existingIds = new Set(existing.map((category) => category.id))
+        const missingId = categoryIds.find((id) => !existingIds.has(id))
+        throw new NotFoundError('Category', missingId ?? categoryIds[0])
+      }
+
+      const existingMap = new Map(existing.map((category) => [category.id, category]))
+
+      const updated = await prisma.$transaction(async (tx) => {
+        const updatedCategories = []
+
+        for (const categoryId of categoryIds) {
+          const previous = existingMap.get(categoryId)
+          const next = await tx.category.update({
+            where: { id: categoryId },
+            data: { taxRate: params.taxRate },
+          })
+          updatedCategories.push(next)
+
+          await tx.adminAuditLog.create({
+            data: {
+              actorId: params.actorId,
+              actionType: 'category_tax_rate_changed',
+              targetType: 'category',
+              targetId: categoryId,
+              previousData: {
+                taxRate: previous?.taxRate?.toString() ?? null,
+                name: previous?.name ?? null,
+              } as never,
+              newData: {
+                taxRate: next.taxRate?.toString() ?? null,
+                name: next.name,
+                groupSize: categoryIds.length,
+              } as never,
+            },
+          })
+        }
+
+        return updatedCategories
+      })
+
+      for (const categoryId of categoryIds) {
+        await enqueueCategorySync({ entityId: categoryId }).catch((err) =>
+          console.error('[catalog] Search sync enqueue failed (category-group):', err),
+        )
+      }
+
+      return updated
+    },
+
     async bulkUpdatePriceStock(params: {
       sellerId: string
       rows: Array<{ identifier: string; newPrice?: number; newStock?: number }>

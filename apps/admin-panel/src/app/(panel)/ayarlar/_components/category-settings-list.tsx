@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import {
   Badge,
   Button,
-  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -14,100 +13,95 @@ import {
   DialogTitle,
   Input,
   Label,
-  Textarea,
 } from '@hanuja/ui'
 
-interface CategoryRow {
-  id: string
+interface CategoryTaxGroupRow {
+  key: string
   name: string
-  slug: string
-  description: string | null
-  imageUrl: string | null
-  sortOrder: number
-  isActive: boolean
-  taxRate: { toString(): string } | string | number | null
+  categoryIds: string[]
+  memberPaths: string[]
+  memberCount: number
+  taxRate: string | null
+  hasMixedRates: boolean
 }
 
 interface Props {
-  categories: CategoryRow[]
+  categories: CategoryTaxGroupRow[]
 }
 
-interface CategoryDraft {
-  id: string
+interface CategoryGroupDraft {
+  key: string
   name: string
-  slug: string
-  description: string
-  imageUrl: string
-  sortOrder: string
-  isActive: boolean
+  categoryIds: string[]
+  memberPaths: string[]
   taxRate: string
+  hasMixedRates: boolean
 }
 
-function toDraft(category: CategoryRow): CategoryDraft {
+function toDraft(group: CategoryTaxGroupRow): CategoryGroupDraft {
   return {
-    id: category.id,
-    name: category.name,
-    slug: category.slug,
-    description: category.description ?? '',
-    imageUrl: category.imageUrl ?? '',
-    sortOrder: String(category.sortOrder),
-    isActive: category.isActive,
-    taxRate: category.taxRate === null ? '' : String(Number(category.taxRate) * 100),
+    key: group.key,
+    name: group.name,
+    categoryIds: group.categoryIds,
+    memberPaths: group.memberPaths,
+    taxRate: group.taxRate === null ? '' : String(Number(group.taxRate) * 100),
+    hasMixedRates: group.hasMixedRates,
   }
+}
+
+function formatRateLabel(group: CategoryTaxGroupRow) {
+  if (group.hasMixedRates) return 'Karma'
+  if (group.taxRate === null) return 'Varsayılan'
+  return `%${Number(group.taxRate) * 100}`
 }
 
 export function CategorySettingsList({ categories }: Props) {
   const router = useRouter()
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<CategoryDraft | null>(null)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [draft, setDraft] = useState<CategoryGroupDraft | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const categoryMap = useMemo(
-    () => new Map(categories.map((category) => [category.id, category])),
+    () => new Map(categories.map((category) => [category.key, category])),
     [categories],
   )
 
-  function openEditor(categoryId: string) {
-    const category = categoryMap.get(categoryId)
+  function openEditor(groupKey: string) {
+    const category = categoryMap.get(groupKey)
     if (!category) return
-    setEditingId(categoryId)
+    setEditingKey(groupKey)
     setDraft(toDraft(category))
     setError(null)
   }
 
-  async function saveCategory() {
-    if (!editingId || !draft) return
+  async function saveCategoryGroup() {
+    if (!editingKey || !draft) return
 
     setLoading(true)
     setError(null)
 
     try {
-      const response = await fetch(`/api/admin/categories/${editingId}`, {
+      const response = await fetch('/api/admin/categories/tax-groups', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: draft.name,
-          slug: draft.slug,
-          description: draft.description || null,
-          imageUrl: draft.imageUrl || null,
-          sortOrder: Number(draft.sortOrder || '0'),
-          isActive: draft.isActive,
+          categoryIds: draft.categoryIds,
           taxRate: draft.taxRate.trim() ? Number(draft.taxRate) / 100 : null,
         }),
       })
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
-        setError(payload.error ?? 'Kategori guncellenemedi.')
+        setError(payload.message ?? payload.error ?? 'Kategori KDV oranı güncellenemedi.')
         return
       }
 
-      setEditingId(null)
+      setEditingKey(null)
       setDraft(null)
       router.refresh()
     } catch {
-      setError('Baglanti sirasinda bir hata olustu.')
+      setError('Bağlantı sırasında bir hata oluştu.')
     } finally {
       setLoading(false)
     }
@@ -117,46 +111,43 @@ export function CategorySettingsList({ categories }: Props) {
     <>
       {categories.length === 0 && (
         <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-          Henuz kategori tanimlanmamis.
+          Henüz KDV grubu tanımlanmamış.
         </p>
       )}
 
       <div className="space-y-1">
         {categories.map((category) => (
           <div
-            key={category.id}
+            key={category.key}
             className="flex items-center justify-between gap-4 border-b py-3 text-sm last:border-0"
             style={{ borderColor: 'var(--color-border)' }}
           >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span style={{ color: 'var(--color-primary)' }}>{category.name}</span>
-                <Badge variant={category.isActive ? 'secondary' : 'outline'}>
-                  {category.isActive ? 'Aktif' : 'Pasif'}
-                </Badge>
+                <Badge variant="secondary">{category.memberCount} kategori</Badge>
               </div>
               <div
                 className="mt-1 flex flex-wrap items-center gap-3 text-xs"
                 style={{ color: 'var(--color-muted-fg)' }}
               >
-                <span className="font-mono">/kategori/{category.slug}</span>
-                <span>Sira: {category.sortOrder}</span>
-                <span>KDV: {category.taxRate === null ? 'Varsayilan' : `%${Number(category.taxRate) * 100}`}</span>
+                <span>KDV: {formatRateLabel(category)}</span>
+                <span>{category.memberPaths.join(' • ')}</span>
               </div>
             </div>
 
-            <Button size="sm" variant="outline" onClick={() => openEditor(category.id)}>
-              Duzenle
+            <Button size="sm" variant="outline" onClick={() => openEditor(category.key)}>
+              Düzenle
             </Button>
           </div>
         ))}
       </div>
 
       <Dialog
-        open={editingId !== null}
+        open={editingKey !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setEditingId(null)
+            setEditingKey(null)
             setDraft(null)
             setError(null)
           }
@@ -164,51 +155,26 @@ export function CategorySettingsList({ categories }: Props) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Kategori Duzenle</DialogTitle>
+            <DialogTitle>KDV Grubunu Düzenle</DialogTitle>
             <DialogDescription>
-              Kategori adi, slug ve yayin durumu guncellendiginde ilgili urunler arama indeksine yeniden yazilir.
+              Kaydettiğiniz oran bu gruptaki tüm ana kategorilere birlikte uygulanır.
             </DialogDescription>
           </DialogHeader>
 
           {draft && (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="category-name">Kategori Adi</Label>
-                <Input
-                  id="category-name"
-                  value={draft.name}
-                  onChange={(event) =>
-                    setDraft((current) => (current ? { ...current, name: event.target.value } : current))
-                  }
-                />
+                <Label>Grup</Label>
+                <div className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--color-border)' }}>
+                  <p style={{ color: 'var(--color-primary)' }}>{draft.name}</p>
+                  <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                    {draft.memberPaths.join(' • ')}
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="category-slug">Slug</Label>
-                <Input
-                  id="category-slug"
-                  value={draft.slug}
-                  onChange={(event) =>
-                    setDraft((current) => (current ? { ...current, slug: event.target.value } : current))
-                  }
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="category-sort-order">Sira</Label>
-                <Input
-                  id="category-sort-order"
-                  type="number"
-                  min={0}
-                  value={draft.sortOrder}
-                  onChange={(event) =>
-                    setDraft((current) => (current ? { ...current, sortOrder: event.target.value } : current))
-                  }
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="category-tax-rate">KDV Orani (%)</Label>
+                <Label htmlFor="category-tax-rate">KDV Oranı (%)</Label>
                 <Input
                   id="category-tax-rate"
                   type="number"
@@ -219,45 +185,14 @@ export function CategorySettingsList({ categories }: Props) {
                   onChange={(event) =>
                     setDraft((current) => (current ? { ...current, taxRate: event.target.value } : current))
                   }
-                  placeholder="Bossa platform varsayilani"
+                  placeholder="Boşsa üst kategori veya platform varsayılanı"
                 />
                 <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                  Bos birakirsaniz ust kategoriden veya platform varsayilanindan hesaplanir.
+                  {draft.hasMixedRates
+                    ? 'Bu grup şu anda Karma görünüyor. Yeni oran kaydedildiğinde tüm üyeler aynı değere çekilir.'
+                    : 'Boş bırakırsanız üst kategori veya platform varsayılanı kullanılır.'}
                 </p>
               </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="category-image-url">Gorsel URL</Label>
-                <Input
-                  id="category-image-url"
-                  value={draft.imageUrl}
-                  onChange={(event) =>
-                    setDraft((current) => (current ? { ...current, imageUrl: event.target.value } : current))
-                  }
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="category-description">Aciklama</Label>
-                <Textarea
-                  id="category-description"
-                  rows={4}
-                  value={draft.description}
-                  onChange={(event) =>
-                    setDraft((current) => (current ? { ...current, description: event.target.value } : current))
-                  }
-                />
-              </div>
-
-              <label className="flex items-center gap-3 text-sm" style={{ color: 'var(--color-primary)' }}>
-                <Checkbox
-                  checked={draft.isActive}
-                  onCheckedChange={(checked) =>
-                    setDraft((current) => (current ? { ...current, isActive: checked === true } : current))
-                  }
-                />
-                Kategori aktif
-              </label>
 
               {error && (
                 <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>
@@ -271,15 +206,15 @@ export function CategorySettingsList({ categories }: Props) {
             <Button
               variant="outline"
               onClick={() => {
-                setEditingId(null)
+                setEditingKey(null)
                 setDraft(null)
                 setError(null)
               }}
               disabled={loading}
             >
-              Vazgec
+              Vazgeç
             </Button>
-            <Button onClick={saveCategory} disabled={loading || !draft}>
+            <Button onClick={saveCategoryGroup} disabled={loading || !draft}>
               {loading ? 'Kaydediliyor...' : 'Kaydet'}
             </Button>
           </DialogFooter>

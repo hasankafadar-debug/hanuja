@@ -22,7 +22,7 @@ import { enqueueNotification } from '../jobs/notification-dispatch.job'
 import { getPlatformBankInfo } from '../lib/platform-info'
 import { formatOrderNumber, formatOrderDisplayNumber } from '../lib/order-number'
 import { createPlatformSettingsService } from './platform-settings.service'
-import { roundMoney } from '@hanuja/security'
+import { roundMoney } from '@hanuja/security/money'
 
 // Sistem varsayılan komisyon oranı — proje büyüdükçe commission config tablosuna taşınır
 // Öncelik sırası (CLAUDE.md 15.1): ürün override > kategori > satıcı genel > sistem default

@@ -100,7 +100,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
           params.orderId,
           'seller_accepted',
           params.sellerId,
-          'SatÄ±cÄ± tarafÄ±ndan onaylandÄ±',
+          'Satıcı tarafından onaylandı',
           tx as PrismaClient,
         )
       })
@@ -127,7 +127,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
           params.orderId,
           'seller_rejected',
           params.sellerId,
-          `SatÄ±cÄ± reddi: ${params.reason}`,
+          `Satıcı reddi: ${params.reason}`,
           tx as PrismaClient,
         )
 
@@ -144,7 +144,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
           params.orderId,
           'cancelled_due_to_seller_rejection',
           params.sellerId,
-          'Ä°ptal edildi. Ceza deÄŸerlendiriliyor.',
+          'İptal edildi. Ceza değerlendiriliyor.',
           tx as PrismaClient,
         )
       })
@@ -168,7 +168,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
 
       if (isPostShipmentStatus(order.status)) {
         throw new ConflictError(
-          'Kargo sonrasÄ± iptal yapÄ±lamaz. Ä°ade talebi oluÅŸturun.',
+          'Kargo sonrası iptal yapılamaz. İade talebi oluşturun.',
         )
       }
 
@@ -176,7 +176,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
         orderId: params.orderId,
         actorId: params.customerId,
         toStatus: 'cancelled_by_customer',
-        note: 'MÃ¼ÅŸteri tarafÄ±ndan iptal edildi',
+        note: 'Müşteri tarafından iptal edildi',
         cancellationReason: 'customer_requested',
       })
     },
@@ -226,12 +226,12 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
         orderId: params.orderId,
         actorId: 'system',
         toStatus: 'cancelled_due_to_20day_breach',
-        note: '20. gecikme gÃ¼nÃ¼ doldu. SipariÅŸ otomatik iptal edildi ve iade baÅŸlatÄ±ldÄ±.',
+        note: '20. gecikme günü doldu. Sipariş otomatik iptal edildi ve iade başlatıldı.',
         cancellationReason: 'auto_canceled_20day_breach',
         refund: {
           amount: order.totalAmount,
           sellerId,
-          reason: '20 gÃ¼nlÃ¼k sevkiyat ihlali nedeniyle otomatik iptal',
+          reason: '20 günlük sevkiyat ihlali nedeniyle otomatik iptal',
           adminActorId: 'system',
         },
         auditReason: `Fulfillment breach auto-cancel at ${(params.asOf ?? new Date()).toISOString()}`,

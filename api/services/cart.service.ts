@@ -13,7 +13,7 @@ import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
 import { NotFoundError, ValidationError } from '../lib/errors'
 import { createCartRepository } from '../repositories/cart.repository'
 import { createPlatformSettingsService } from './platform-settings.service'
-import { roundMoney } from '@hanuja/security'
+import { roundMoney } from '@hanuja/security/money'
 
 interface CartServiceDeps {
   prisma: PrismaClient
@@ -151,7 +151,7 @@ export function createCartService({ prisma }: CartServiceDeps) {
       })
       if (!product) throw new NotFoundError('Ürün', params.productId)
       if (product.variants.length > 0 && !params.variantId) {
-        throw new ValidationError('LÃ¼tfen bir varyasyon seÃ§in')
+        throw new ValidationError('Lütfen bir varyasyon seçin')
       }
 
       const selectedVariant = params.variantId
@@ -159,7 +159,7 @@ export function createCartService({ prisma }: CartServiceDeps) {
         : null
 
       if (params.variantId && !selectedVariant) {
-        throw new ValidationError('SeÃ§ilen varyasyon bulunamadÄ±')
+        throw new ValidationError('Seçilen varyasyon bulunamadı')
       }
 
       const availableStock = selectedVariant?.stockQuantity ?? product.stockQuantity

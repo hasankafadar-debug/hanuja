@@ -5,6 +5,11 @@ import {
   getSellerStatementDescription,
   getSellerStatementTopic,
 } from '../domain/seller-statement'
+import {
+  buildSellerStatementExportRows,
+  SELLER_STATEMENT_EXPORT_HEADERS,
+  type SellerStatementExportRow,
+} from '../domain/seller-statement-export'
 
 interface SellerFinanceServiceDeps {
   prisma: PrismaClient
@@ -12,21 +17,6 @@ interface SellerFinanceServiceDeps {
 
 function formatShortOrderReference(orderId: string) {
   return `#${orderId.slice(-8).toUpperCase()}`
-}
-
-function formatStatementDate(date: Date) {
-  return new Intl.DateTimeFormat('tr-TR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(date)
-}
-
-function formatStatementAmount(value: number) {
-  return new Intl.NumberFormat('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
 }
 
 function escapeCsvCell(value: string) {
@@ -137,36 +127,33 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
     },
 
     buildStatementCsv(params: {
+      from: Date
       openingBalance: number
       rows: SellerStatementRow[]
     }) {
+      const exportRows = buildSellerStatementExportRows({
+        from: params.from,
+        openingBalance: params.openingBalance,
+        rows: params.rows,
+      })
       const lines = [
-        ['Tarih', 'Referans', 'Konu', 'Aciklama', 'Alacak', 'Borc', 'Bakiye']
+        [...SELLER_STATEMENT_EXPORT_HEADERS]
           .map(escapeCsvCell)
           .join(';'),
-        [
-          escapeCsvCell(formatStatementDate(new Date())),
-          escapeCsvCell('-'),
-          escapeCsvCell('Devir'),
-          escapeCsvCell('Donem basi bakiyesi'),
-          escapeCsvCell(params.openingBalance >= 0 ? formatStatementAmount(params.openingBalance) : ''),
-          escapeCsvCell(params.openingBalance < 0 ? formatStatementAmount(Math.abs(params.openingBalance)) : ''),
-          escapeCsvCell(formatStatementAmount(params.openingBalance)),
-        ].join(';'),
-        ...params.rows.map((row) =>
-          [
-            escapeCsvCell(formatStatementDate(row.date)),
-            escapeCsvCell(row.reference),
-            escapeCsvCell(row.topic),
-            escapeCsvCell(row.description),
-            escapeCsvCell(row.credit > 0 ? formatStatementAmount(row.credit) : ''),
-            escapeCsvCell(row.debit > 0 ? formatStatementAmount(row.debit) : ''),
-            escapeCsvCell(formatStatementAmount(row.balance)),
-          ].join(';'),
+        ...exportRows.map((row) =>
+          SELLER_STATEMENT_EXPORT_HEADERS.map((header) => escapeCsvCell(row[header])).join(';'),
         ),
       ]
 
       return `\uFEFF${lines.join('\r\n')}`
+    },
+
+    buildStatementExportRows(params: {
+      from: Date
+      openingBalance: number
+      rows: SellerStatementRow[]
+    }): SellerStatementExportRow[] {
+      return buildSellerStatementExportRows(params)
     },
   }
 }

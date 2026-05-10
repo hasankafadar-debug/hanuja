@@ -14,61 +14,61 @@ export interface SellerStatementRow {
 export function getSellerStatementTopic(type: LedgerEntryType): string {
   switch (type) {
     case 'sale':
-      return 'Satis'
+      return 'Satış'
     case 'commission':
       return 'Komisyon'
     case 'cargo_charge':
       return 'Kargo Kesintisi'
     case 'ad_fee':
-      return 'Platform Kullanim'
+      return 'Platform Kullanımı'
     case 'penalty':
       return 'Ceza'
     case 'refund':
-      return 'Iade'
+      return 'İade'
     case 'coupon_share':
-      return 'Kupon Payi'
+      return 'Kupon Payı'
     case 'eft_discount':
-      return 'Havale Indirimi'
+      return 'Havale İndirimi'
     case 'manual_adjustment':
-      return 'Manuel Duzeltme'
+      return 'Manuel Düzeltme'
     case 'payout':
-      return 'Odeme'
+      return 'Ödeme'
     case 'chargeback':
       return 'Chargeback'
     case 'dispute_hold':
-      return 'Uyusmazlik Blokesi'
+      return 'Uyuşmazlık Blokesi'
     case 'dispute_release':
-      return 'Uyusmazlik Cozumu'
+      return 'Uyuşmazlık Çözümü'
   }
 }
 
 export function getSellerStatementDescription(type: LedgerEntryType): string {
   switch (type) {
     case 'sale':
-      return 'Brut satis'
+      return 'Brüt satış'
     case 'commission':
       return 'Platform komisyonu'
     case 'cargo_charge':
       return 'Kargo kesintisi'
     case 'ad_fee':
-      return 'Platform kullanim bedeli'
+      return 'Platform kullanım bedeli'
     case 'penalty':
-      return 'Ceza yansitmasi'
+      return 'Ceza yansıtması'
     case 'refund':
-      return 'Iade kesintisi'
+      return 'İade kesintisi'
     case 'coupon_share':
-      return 'Kupon maliyet paylasimi'
+      return 'Kupon maliyet paylaşımı'
     case 'eft_discount':
       return 'Havale indirimi'
     case 'manual_adjustment':
-      return 'Manuel duzeltme'
+      return 'Manuel düzeltme'
     case 'payout':
       return 'EFT'
     case 'chargeback':
       return 'Chargeback borcu'
     case 'dispute_hold':
-      return 'Uyusmazlik nedeniyle gecici bloke'
+      return 'Uyuşmazlık nedeniyle geçici bloke'
     case 'dispute_release':
-      return 'Uyusmazlik blokesi kaldirildi'
+      return 'Uyuşmazlık blokesi kaldırıldı'
   }
 }

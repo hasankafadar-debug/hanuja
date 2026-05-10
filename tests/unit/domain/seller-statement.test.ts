@@ -6,17 +6,17 @@ import {
 
 describe('seller statement labels', () => {
   it('maps sale entries to seller safe labels', () => {
-    expect(getSellerStatementTopic('sale')).toBe('Satis')
-    expect(getSellerStatementDescription('sale')).toBe('Brut satis')
+    expect(getSellerStatementTopic('sale')).toBe('Satış')
+    expect(getSellerStatementDescription('sale')).toBe('Brüt satış')
   })
 
-  it('maps payout entries to odeme/eft', () => {
-    expect(getSellerStatementTopic('payout')).toBe('Odeme')
+  it('maps payout entries to ödeme/eft', () => {
+    expect(getSellerStatementTopic('payout')).toBe('Ödeme')
     expect(getSellerStatementDescription('payout')).toBe('EFT')
   })
 
   it('maps manual adjustment without exposing internal notes', () => {
-    expect(getSellerStatementTopic('manual_adjustment')).toBe('Manuel Duzeltme')
-    expect(getSellerStatementDescription('manual_adjustment')).toBe('Manuel duzeltme')
+    expect(getSellerStatementTopic('manual_adjustment')).toBe('Manuel Düzeltme')
+    expect(getSellerStatementDescription('manual_adjustment')).toBe('Manuel düzeltme')
   })
 })

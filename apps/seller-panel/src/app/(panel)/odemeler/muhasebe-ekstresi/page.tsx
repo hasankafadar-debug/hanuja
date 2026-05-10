@@ -25,6 +25,13 @@ function formatDateInput(date: Date) {
   return `${year}-${month}-${day}`
 }
 
+function formatCurrency(value: number) {
+  return `₺${value.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
 export default async function SellerStatementPage({ searchParams }: Props) {
   const resolvedSearchParams = (await searchParams) ?? {}
   const { seller } = await getSellerFromSession()
@@ -47,7 +54,7 @@ export default async function SellerStatementPage({ searchParams }: Props) {
     to,
   })
 
-  const exportHref = `/api/seller/finance/statement?from=${fromInput}&to=${toInput}&format=csv`
+  const exportHref = `/api/seller/finance/statement?from=${fromInput}&to=${toInput}&format=xlsx`
 
   return (
     <div className="space-y-6">
@@ -58,7 +65,7 @@ export default async function SellerStatementPage({ searchParams }: Props) {
           <Link href={exportHref}>
             <Button variant="outline" size="sm">
               <Download className="h-4 w-4" />
-              İndir
+              Excel indir
             </Button>
           </Link>
         }
@@ -114,7 +121,7 @@ export default async function SellerStatementPage({ searchParams }: Props) {
               {item.label}
             </p>
             <p className="mt-2 text-2xl font-semibold" style={{ color: 'var(--color-primary)' }}>
-              {item.currency ? `₺${Number(item.value).toLocaleString('tr-TR')}` : item.value}
+              {item.currency ? formatCurrency(Number(item.value)) : item.value}
             </p>
           </div>
         ))}
@@ -153,13 +160,13 @@ export default async function SellerStatementPage({ searchParams }: Props) {
                 Dönem başı bakiyesi
               </td>
               <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                {statement.openingBalance > 0 ? `₺${statement.openingBalance.toLocaleString('tr-TR')}` : '-'}
+                {statement.openingBalance > 0 ? formatCurrency(statement.openingBalance) : '-'}
               </td>
               <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                {statement.openingBalance < 0 ? `₺${Math.abs(statement.openingBalance).toLocaleString('tr-TR')}` : '-'}
+                {statement.openingBalance < 0 ? formatCurrency(Math.abs(statement.openingBalance)) : '-'}
               </td>
               <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                ₺{statement.openingBalance.toLocaleString('tr-TR')}
+                {formatCurrency(statement.openingBalance)}
               </td>
             </tr>
             {statement.rows.map((row) => (
@@ -177,13 +184,13 @@ export default async function SellerStatementPage({ searchParams }: Props) {
                   {row.description}
                 </td>
                 <td className="px-4 py-3" style={{ color: 'var(--color-success)' }}>
-                  {row.credit > 0 ? `₺${row.credit.toLocaleString('tr-TR')}` : '-'}
+                  {row.credit > 0 ? formatCurrency(row.credit) : '-'}
                 </td>
                 <td className="px-4 py-3" style={{ color: 'var(--color-destructive)' }}>
-                  {row.debit > 0 ? `₺${row.debit.toLocaleString('tr-TR')}` : '-'}
+                  {row.debit > 0 ? formatCurrency(row.debit) : '-'}
                 </td>
                 <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
-                  ₺{row.balance.toLocaleString('tr-TR')}
+                  {formatCurrency(row.balance)}
                 </td>
               </tr>
             ))}

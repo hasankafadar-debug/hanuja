@@ -221,7 +221,7 @@ export default async function OrderDetailPage({ params }: Props) {
         <Separator className="my-4" />
         <div className="space-y-2 text-sm">
           <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-            <span>Ara toplam (KDV haric)</span>
+            <span>Ara toplam (KDV hariç)</span>
             <span>{formatMoney(netSubtotal)}</span>
           </div>
           {eftDiscount > 0 ? (
@@ -238,7 +238,7 @@ export default async function OrderDetailPage({ params }: Props) {
           ))}
           <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
             <span>Kargo</span>
-            <span>{shippingAmount === 0 ? 'Ucretsiz' : formatMoney(shippingAmount)}</span>
+            <span>{shippingAmount === 0 ? 'Ücretsiz' : formatMoney(shippingAmount)}</span>
           </div>
           <div className="flex justify-between text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
             <span>Toplam</span>

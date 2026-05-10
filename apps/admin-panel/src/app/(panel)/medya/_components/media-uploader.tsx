@@ -108,7 +108,7 @@ export function MediaUploader({ onSuccess, folder: defaultFolder }: Props) {
       const uploadPayload = uploadData.data ?? uploadData
       const uploadUrl = uploadPayload.uploadUrl
       const assetId = uploadPayload.assetId ?? uploadPayload.asset?.id
-      if (!uploadUrl || !assetId) throw new Error('YÃ¼kleme URL bilgisi eksik.')
+      if (!uploadUrl || !assetId) throw new Error('Yükleme URL bilgisi eksik.')
 
       setProgress(30)
 
@@ -136,7 +136,7 @@ export function MediaUploader({ onSuccess, folder: defaultFolder }: Props) {
         asset?: MediaAssetItem
       }
       const asset = confirmData.data?.asset ?? confirmData.asset
-      if (!asset) throw new Error('Medya kaydÄ± okunamadÄ±.')
+      if (!asset) throw new Error('Medya kaydı okunamadı.')
 
       setProgress(100)
       onSuccess(asset)

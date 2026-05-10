@@ -1,11 +1,13 @@
+import { headers } from 'next/headers'
 import { type NextRequest } from 'next/server'
 import * as XLSX from 'xlsx'
+import { auth } from '@/lib/auth'
+import { ForbiddenError, UnauthorizedError } from '@hanuja/api/lib/errors'
 import { createBinaryFileResponse } from '@hanuja/api/lib/file-response'
-import { handleError } from '@hanuja/api/lib/response'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { handleError } from '@hanuja/api/lib/response'
 import { SELLER_STATEMENT_EXPORT_HEADERS } from '@hanuja/api/domain/seller-statement-export'
 import { createSellerFinanceService } from '@hanuja/api/services/seller-finance.service'
-import { getActiveSellerIdOrThrow } from '@/lib/route-seller'
 
 function parseDateRange(req: NextRequest) {
   const from = req.nextUrl.searchParams.get('from')
@@ -22,9 +24,16 @@ function parseDateRange(req: NextRequest) {
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
-    const sellerId = await getActiveSellerIdOrThrow()
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) throw new UnauthorizedError()
+    if (session.user.role !== 'admin') throw new ForbiddenError()
+
+    const { id: sellerId } = await params
     const { from, to } = parseDateRange(req)
     const format = req.nextUrl.searchParams.get('format')
     const service = createSellerFinanceService({ prisma: createPrismaForRoute() })
@@ -39,7 +48,7 @@ export async function GET(req: NextRequest) {
       return createBinaryFileResponse({
         body: new TextEncoder().encode(csv),
         contentType: 'text/csv; charset=utf-8',
-        fileName: 'muhasebe-ekstresi.csv',
+        fileName: 'hesap-ekstresi.csv',
       })
     }
 
@@ -68,7 +77,7 @@ export async function GET(req: NextRequest) {
       return createBinaryFileResponse({
         body: new Uint8Array(buffer),
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        fileName: 'muhasebe-ekstresi.xlsx',
+        fileName: 'hesap-ekstresi.xlsx',
         sizeBytes: buffer.byteLength,
       })
     }

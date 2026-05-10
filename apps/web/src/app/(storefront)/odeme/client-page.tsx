@@ -256,23 +256,23 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
 
     const stripped = cardForm.cardNumber.replace(/\s/g, '')
     if (!/^\d{15,19}$/.test(stripped)) {
-      nextErrors.cardNumber = 'Gecersiz kart numarasi.'
+      nextErrors.cardNumber = 'Geçersiz kart numarası.'
     }
 
     if (!/^(0[1-9]|1[0-2])$/.test(cardForm.expireMonth)) {
-      nextErrors.expireMonth = 'Gecersiz ay.'
+      nextErrors.expireMonth = 'Geçersiz ay.'
     }
 
     if (!/^\d{4}$/.test(cardForm.expireYear)) {
-      nextErrors.expireYear = 'Gecersiz yil.'
+      nextErrors.expireYear = 'Geçersiz yıl.'
     }
 
     if (!/^\d{3,4}$/.test(cardForm.cvc)) {
-      nextErrors.cvc = 'Gecersiz CVC.'
+      nextErrors.cvc = 'Geçersiz CVC.'
     }
 
     if (!/^\d{11}$/.test(cardForm.identityNumber)) {
-      nextErrors.identityNumber = 'TC kimlik numarasi 11 haneli rakam olmali.'
+      nextErrors.identityNumber = 'TC kimlik numarası 11 haneli rakam olmalı.'
     }
 
     setCardErrors(nextErrors)
@@ -356,7 +356,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
 
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(body.message ?? 'Siparis olusturulamadi.')
+        setError(body.message ?? 'Sipariş oluşturulamadı.')
         setSubmitting(false)
         return
       }
@@ -364,7 +364,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
       const orderId = body.data.order.id
       router.push(`/siparis/${orderId}?yeni=1&odeme=eft`)
     } catch {
-      setError('Siparis olusturulurken hata olustu.')
+      setError('Sipariş oluşturulurken hata oluştu.')
       setSubmitting(false)
     }
   }
@@ -528,7 +528,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
                     Kaydet
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setShowAddressForm(false)}>
-                    Iptal
+                    İptal
                   </Button>
                 </div>
               </div>
@@ -591,7 +591,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
                   <div className="mb-1 flex items-center gap-1.5">
                     <Lock className="h-3.5 w-3.5" style={{ color: 'var(--color-muted-fg)' }} />
                     <span className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                      Kart bilgileriniz sifreli iletilir, sunucularimizda saklanmaz.
+                      Kart bilgileriniz şifreli iletilir, sunucularımızda saklanmaz.
                     </span>
                   </div>
 
@@ -691,7 +691,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
 
                     <div>
                       <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                        Yil *
+                        Yıl *
                       </label>
                       <input
                         type="text"
@@ -787,7 +787,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
                       </p>
                     ) : null}
                     <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                      Iyzico odeme guvenligi icin zorunludur. Sunucularimizda saklanmaz.
+                      Iyzico ödeme güvenliği için zorunludur. Sunucularımızda saklanmaz.
                     </p>
                   </div>
                 </div>
@@ -814,7 +814,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
                     Havale / EFT
                   </p>
                   <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                    Siparis sonrasinda banka bilgileri gosterilir
+                    Sipariş sonrasında banka bilgileri gösterilir
                   </p>
                 </div>
               </label>
@@ -832,7 +832,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
 
           <div className="space-y-3 text-sm">
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-              <span>Ara toplam (KDV haric)</span>
+              <span>Ara toplam (KDV hariç)</span>
               <span>TRY {formatPrice(netSubtotal)}</span>
             </div>
             {paymentMethod === 'eft' && eftDiscount > 0 && (cartSummary?.eftDiscountRatePercent ?? 0) > 0 ? (
@@ -855,11 +855,11 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
             ) : null}
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Kargo</span>
-              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ucretsiz</span> : `TRY ${formatPrice(shipping)}`}</span>
+              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span> : `TRY ${formatPrice(shipping)}`}</span>
             </div>
             {shipping > 0 ? (
               <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                TRY {freeShippingThreshold.toLocaleString('tr-TR')} ve uzeri siparislerde kargo ucretsizdir.
+                TRY {freeShippingThreshold.toLocaleString('tr-TR')} ve üzeri siparişlerde kargo ücretsizdir.
               </p>
             ) : null}
             <Separator />
@@ -898,7 +898,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
               <div className="text-xs leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>
                 <LegalDocumentDialog
                   title="Mesafeli Satış Sözleşmesi"
-                  description="Bu metin siparis anindaki musteri, teslimat adresi ve odeme yontemi bilgilerinize gore olusturulur."
+                  description="Bu metin sipariş anındaki müşteri, teslimat adresi ve ödeme yöntemi bilgilerinize göre oluşturulur."
                   html={legalPreview?.distanceSalesHtml ?? ''}
                   triggerLabel="Mesafeli Satış Sözleşmesi"
                   disabled={!documentsReady}
@@ -919,7 +919,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
               <div className="text-xs leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>
                 <LegalDocumentDialog
                   title="Ön Bilgilendirme Formu"
-                  description="Bu metin siparis oncesi bilgilendirme yukumlulugu kapsaminda sectiginiz adres ve odeme yontemiyle hazirlanir."
+                  description="Bu metin sipariş öncesi bilgilendirme yükümlülüğü kapsamında seçtiğiniz adres ve ödeme yöntemiyle hazırlanır."
                   html={legalPreview?.preInformationHtml ?? ''}
                   triggerLabel="Ön Bilgilendirme Formu"
                   disabled={!documentsReady}
@@ -941,7 +941,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
               siteKey={turnstileSiteKey}
             />
             <p className="mt-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Siparisi onaylamak icin bu adim zorunludur.
+              Siparişi onaylamak için bu adım zorunludur.
             </p>
           </div>
 

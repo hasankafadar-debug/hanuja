@@ -2,17 +2,40 @@
  * E2E — Admin panel finance and oversight flows
  */
 import { test, expect } from '@playwright/test'
+import { trackHydrationErrors } from '../helpers/hydration'
+import { mockTurnstile } from '../helpers/turnstile'
 
 async function loginAsAdmin(
   page: Parameters<typeof test>[1] extends (args: { page: infer P }) => unknown ? P : never,
 ) {
+  await mockTurnstile(page)
+  const hydration = trackHydrationErrors(page)
   await page.goto('/giris')
+  await expect(page.getByLabel(/E-posta/i)).toBeVisible()
+  await hydration.expectNone()
   await page.getByLabel(/E-posta/i).fill('test-admin@hanuja.test')
   await page.getByLabel(/Şifre|Sifre/i).fill('AdminPassword123!')
+  await expect(page.getByRole('button', { name: /Giriş Yap|Giris Yap/i })).toBeEnabled({
+    timeout: 5_000,
+  })
   await page.getByRole('button', { name: /Giriş Yap|Giris Yap/i }).click()
   await expect(page).toHaveURL(/dashboard/, { timeout: 15_000 })
   await expect(page.getByTestId('admin-dashboard-page')).toBeVisible({ timeout: 15_000 })
 }
+
+test.describe('auth', () => {
+  test('admin giriş sayfası hydration hatası olmadan yükleniyor', async ({ page }) => {
+    await mockTurnstile(page)
+    const hydration = trackHydrationErrors(page)
+
+    await page.goto('/giris')
+
+    await expect(page.getByLabel(/E-posta/i)).toBeVisible()
+    await expect(page.getByLabel(/Şifre|Sifre/i)).toBeVisible()
+    await expect(page.getByRole('button', { name: /Giriş Yap|Giris Yap/i })).toBeVisible()
+    await hydration.expectNone()
+  })
+})
 
 test.describe('admin dashboard: marketplace health overview', () => {
   test.beforeEach(async ({ page }) => {

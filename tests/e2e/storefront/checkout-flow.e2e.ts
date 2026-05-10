@@ -5,6 +5,8 @@ import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import * as path from 'path'
 import { test, expect, type Page } from '@playwright/test'
+import { trackHydrationErrors } from '../helpers/hydration'
+import { mockTurnstile } from '../helpers/turnstile'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -13,9 +15,16 @@ const TEST_EMAIL = 'playwright-eft@hanuja.test'
 const TEST_PASSWORD = 'PlaywrightEFT1234!'
 
 async function loginCustomer(page: Page) {
+  await mockTurnstile(page)
+  const hydration = trackHydrationErrors(page)
   await page.goto('/giris')
+  await expect(page.getByLabel(/E-posta/i)).toBeVisible()
+  await hydration.expectNone()
   await page.getByLabel(/E-posta/i).fill(TEST_EMAIL)
   await page.getByLabel(/Sifre|Şifre/i).fill(TEST_PASSWORD)
+  await expect(page.getByRole('button', { name: /Giris Yap|Giriş Yap/i })).toBeEnabled({
+    timeout: 5_000,
+  })
   await page.getByRole('button', { name: /Giris Yap|Giriş Yap/i }).click()
   await expect(page).toHaveURL(/hesabim|\/$/, { timeout: 15_000 })
 }
@@ -47,7 +56,7 @@ test.beforeAll(() => {
 
 test.describe('checkout journey', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
   })
 
   test('homepage loads with product categories', async ({ page }) => {
@@ -99,6 +108,19 @@ test.describe('checkout journey', () => {
   test('store page loads for a seller', async ({ page }) => {
     await page.goto('/magaza/atelier-noa')
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  })
+})
+
+test.describe('auth hydration', () => {
+  test('login page renders without hydration errors', async ({ page }) => {
+    await mockTurnstile(page)
+    const hydration = trackHydrationErrors(page)
+
+    await page.goto('/giris')
+
+    await expect(page.getByLabel(/E-posta/i)).toBeVisible()
+    await expect(page.getByLabel(/Sifre|Şifre/i)).toBeVisible()
+    await hydration.expectNone()
   })
 })
 

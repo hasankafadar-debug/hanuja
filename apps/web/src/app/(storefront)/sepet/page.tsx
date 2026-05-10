@@ -62,11 +62,11 @@ export default function CartPage() {
         router.push('/giris?callbackUrl=/sepet')
         return
       }
-      if (!res.ok) throw new Error('Sepet yuklenemedi')
+      if (!res.ok) throw new Error('Sepet yüklenemedi')
       const { data } = await res.json()
       setCart(data)
     } catch {
-      setError('Sepet yuklenirken hata olustu')
+      setError('Sepet yüklenirken hata oluştu')
     } finally {
       setLoading(false)
     }
@@ -95,7 +95,7 @@ export default function CartPage() {
       await fetchCart()
       window.dispatchEvent(new CustomEvent('hanuja:cart-changed'))
     } catch {
-      setError('Guncelleme sirasinda hata olustu')
+      setError('Güncelleme sırasında hata oluştu')
     } finally {
       setUpdating(null)
     }
@@ -108,7 +108,7 @@ export default function CartPage() {
       await fetchCart()
       window.dispatchEvent(new CustomEvent('hanuja:cart-changed'))
     } catch {
-      setError('Urun kaldirilirken hata olustu')
+      setError('Ürün kaldırılırken hata oluştu')
     } finally {
       setUpdating(null)
     }
@@ -127,9 +127,9 @@ export default function CartPage() {
       <div className="mx-auto max-w-2xl px-4 py-20 sm:px-6 lg:px-8">
         <EmptyState
           icon={<ShoppingCart className="h-12 w-12" />}
-          title="Sepetiniz bos"
-          description="Begendiginiz urunleri sepete ekleyerek alisverise baslayin."
-          action={<Link href="/"><Button>Alisverise Basla</Button></Link>}
+          title="Sepetiniz boş"
+          description="Beğendiğiniz ürünleri sepete ekleyerek alışverişe başlayın."
+          action={<Link href="/"><Button>Alışverişe Başla</Button></Link>}
         />
       </div>
     )
@@ -146,7 +146,7 @@ export default function CartPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <h1 className="mb-8 text-2xl font-bold" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}>
-        Sepetim ({cart.itemCount} urun)
+        Sepetim ({cart.itemCount} ürün)
       </h1>
 
       {error && (
@@ -181,14 +181,14 @@ export default function CartPage() {
                   {image ? (
                     <Image
                       src={normalizeMediaDisplayUrl(image.url)}
-                      alt={image.altText ?? product?.name ?? 'Sepet urunu'}
+                      alt={image.altText ?? product?.name ?? 'Sepet ürünü'}
                       fill
                       sizes="80px"
                       className="object-cover"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                      Gorsel yok
+                      Görsel yok
                     </div>
                   )}
                 </div>
@@ -206,9 +206,9 @@ export default function CartPage() {
                     </>
                   ) : (
                     <>
-                      <p className="font-medium" style={{ color: 'var(--color-primary)' }}>Urun artik mevcut degil</p>
+                      <p className="font-medium" style={{ color: 'var(--color-primary)' }}>Ürün artık mevcut değil</p>
                       <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
-                        Bu urun yayindan kaldirilmis veya erisilemiyor. Satiri sepetten kaldirabilirsiniz.
+                        Bu ürün yayından kaldırılmış veya erişilemiyor. Satırı sepetten kaldırabilirsiniz.
                       </p>
                     </>
                   )}
@@ -230,7 +230,7 @@ export default function CartPage() {
                         disabled={isUpdating}
                         className="flex h-7 w-7 items-center justify-center rounded-full border transition-colors hover:bg-[var(--color-muted)]"
                         style={{ borderColor: 'var(--color-border)' }}
-                        aria-label="Artir"
+                        aria-label="Artır"
                       >
                         <Plus className="h-3 w-3" />
                       </button>
@@ -245,7 +245,7 @@ export default function CartPage() {
                         disabled={isUpdating}
                         className="flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-[var(--color-muted)]"
                         style={{ color: 'var(--color-muted-fg)' }}
-                        aria-label="Kaldir"
+                        aria-label="Kaldır"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -259,11 +259,11 @@ export default function CartPage() {
 
         <div className="h-fit rounded-xl border p-6" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
           <h2 className="mb-4 font-semibold" style={{ color: 'var(--color-primary)' }}>
-            Siparis Ozeti
+            Sipariş Özeti
           </h2>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-              <span>Ara toplam (KDV haric)</span>
+              <span>Ara toplam (KDV hariç)</span>
               <span>TRY {formatPrice(netSubtotal)}</span>
             </div>
             {(cart.taxBreakdown ?? []).map((entry) => (
@@ -280,11 +280,11 @@ export default function CartPage() {
             ) : null}
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Kargo</span>
-              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ucretsiz</span> : `TRY ${formatPrice(shipping)}`}</span>
+              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span> : `TRY ${formatPrice(shipping)}`}</span>
             </div>
             {shipping > 0 ? (
               <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                TRY {freeShippingThreshold.toLocaleString('tr-TR')} uzeri ucretsiz kargo
+                TRY {freeShippingThreshold.toLocaleString('tr-TR')} üzeri ücretsiz kargo
               </p>
             ) : null}
             {cart.couponCode ? <p className="text-xs" style={{ color: 'var(--color-success)' }}>Kupon: {cart.couponCode}</p> : null}
@@ -303,12 +303,12 @@ export default function CartPage() {
           </div>
           <Link href="/odeme">
             <Button data-testid="cart-checkout" className="mt-6 w-full" size="lg">
-              Odemeye Gec
+              Ödemeye Geç
             </Button>
           </Link>
           <Link href="/">
             <Button variant="ghost" className="mt-2 w-full" size="sm">
-              Alisverise Devam Et
+              Alışverişe Devam Et
             </Button>
           </Link>
         </div>

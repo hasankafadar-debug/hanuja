@@ -1,65 +1,88 @@
-import type { Metadata } from "next";
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import {
   Badge,
   PageHeader,
   Separator,
   StatusBadge,
   Tabs,
+  TabsContent,
   TabsList,
   TabsTrigger,
-  TabsContent,
-} from "@hanuja/ui";
+} from '@hanuja/ui'
 import {
   ArrowLeft,
-  ShieldAlert,
-  FileText,
-  ExternalLink,
   CheckCircle2,
-  XCircle,
   Clock,
-} from "lucide-react";
-import { getAdminSession } from "@/lib/admin-session";
-import { createPrismaForRoute } from "@hanuja/api/lib/prisma";
-import { maskIban } from "@hanuja/security";
-import { SellerStatusButtons } from "@/components/seller-status-buttons";
-import { DocumentReviewActions } from "@/components/document-review-actions";
-import { SellerAdminActions } from "@/components/seller-admin-actions";
-import { SellerImportPermission } from "@/components/seller-import-permission";
-import { SellerAccountStatement } from "./seller-account-statement";
+  ExternalLink,
+  FileText,
+  ShieldAlert,
+  XCircle,
+} from 'lucide-react'
+import { getAdminSession } from '@/lib/admin-session'
+import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { maskIban } from '@hanuja/security'
+import { createSellerFinanceService } from '@hanuja/api/services/seller-finance.service'
+import { SellerAdminActions } from '@/components/seller-admin-actions'
+import { DocumentReviewActions } from '@/components/document-review-actions'
+import { SellerImportPermission } from '@/components/seller-import-permission'
+import { SellerStatusButtons } from '@/components/seller-status-buttons'
+import { SellerAccountStatement } from './seller-account-statement'
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic'
 
 interface Props {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+function getSingleValue(value?: string | string[]) {
+  return Array.isArray(value) ? value[0] : value
+}
+
+function formatDateInput(date: Date) {
+  const year = date.getUTCFullYear()
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getUTCDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params;
-  return { title: `Satıcı — ${id.slice(-8).toUpperCase()}` };
+  const { id } = await params
+  return { title: `Satıcı — ${id.slice(-8).toUpperCase()}` }
 }
 
 const STATUS_MAP: Record<
   string,
   {
-    label: string;
-    variant: "success" | "warning" | "destructive" | "secondary";
+    label: string
+    variant: 'success' | 'warning' | 'destructive' | 'secondary'
   }
 > = {
-  active: { label: "Aktif", variant: "success" },
-  pending: { label: "Onay Bekliyor", variant: "warning" },
-  suspended: { label: "Askıya Alındı", variant: "destructive" },
-  rejected: { label: "Reddedildi", variant: "secondary" },
-};
+  active: { label: 'Aktif', variant: 'success' },
+  pending: { label: 'Onay Bekliyor', variant: 'warning' },
+  suspended: { label: 'Askıya Alındı', variant: 'destructive' },
+  rejected: { label: 'Reddedildi', variant: 'secondary' },
+}
 
-export default async function SellerDetailPage({ params }: Props) {
-  await getAdminSession();
+export default async function SellerDetailPage({ params, searchParams }: Props) {
+  await getAdminSession()
 
-  const { id } = await params;
-  const prisma = createPrismaForRoute();
+  const { id } = await params
+  const resolvedSearchParams = (await searchParams) ?? {}
+  const prisma = createPrismaForRoute()
 
-  // Satıcı + profil + aktif banka bilgisi
+  const now = new Date()
+  const defaultTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
+  const defaultFrom = new Date(defaultTo)
+  defaultFrom.setUTCDate(defaultFrom.getUTCDate() - 29)
+  defaultFrom.setUTCHours(0, 0, 0, 0)
+  const fromInput = getSingleValue(resolvedSearchParams.from) ?? formatDateInput(defaultFrom)
+  const toInput = getSingleValue(resolvedSearchParams.to) ?? formatDateInput(defaultTo)
+  const from = new Date(`${fromInput}T00:00:00.000Z`)
+  const to = new Date(`${toInput}T23:59:59.999Z`)
+
   const seller = await prisma.seller.findUnique({
     where: { id },
     include: {
@@ -67,169 +90,130 @@ export default async function SellerDetailPage({ params }: Props) {
       bankDetails: { where: { isActive: true }, take: 1 },
       user: { select: { email: true } },
     },
-  });
+  })
 
-  if (!seller) notFound();
+  if (!seller) notFound()
 
-  // Sipariş sayısı ve hacmi
-  const orderAgg = await prisma.orderLine.aggregate({
-    where: { sellerId: id },
-    _count: { id: true },
-    _sum: { totalPrice: true },
-  });
+  const service = createSellerFinanceService({ prisma })
 
-  // Ürün sayısı
-  const productCount = await prisma.product.count({ where: { sellerId: id } });
-
-  // Payout özeti — duruma göre toplamlar
-  const payoutGroups = await prisma.payout.groupBy({
-    by: ["status"],
-    where: { sellerId: id },
-    _sum: { netAmount: true },
-  });
+  const [orderAgg, productCount, payoutGroups, ledgerAgg, commissionAgg, kycDocuments, penalties, statement] =
+    await Promise.all([
+      prisma.orderLine.aggregate({
+        where: { sellerId: id },
+        _count: { id: true },
+        _sum: { totalPrice: true },
+      }),
+      prisma.product.count({ where: { sellerId: id } }),
+      prisma.payout.groupBy({
+        by: ['status'],
+        where: { sellerId: id },
+        _sum: { netAmount: true },
+      }),
+      prisma.sellerLedgerEntry.aggregate({
+        where: { sellerId: id },
+        _sum: { amount: true },
+      }),
+      prisma.orderLine.aggregate({
+        where: { sellerId: id },
+        _sum: { commissionAmount: true },
+      }),
+      prisma.sellerDocument.findMany({
+        where: { sellerId: id },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.penalty.findMany({
+        where: { sellerId: id },
+        include: { order: { select: { id: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+      service.getStatement({
+        sellerId: seller.id,
+        from,
+        to,
+      }),
+    ])
 
   const payoutMap = new Map(
-    payoutGroups.map((g) => [g.status, Number(g._sum.netAmount ?? 0)]),
-  );
+    payoutGroups.map((group) => [group.status, Number(group._sum.netAmount ?? 0)]),
+  )
 
-  const pendingPayout =
-    (payoutMap.get("hold_active") ?? 0) +
-    (payoutMap.get("payout_blocked") ?? 0);
-  const readyPayout =
-    (payoutMap.get("payout_ready") ?? 0) +
-    (payoutMap.get("payout_scheduled") ?? 0);
-  const paidPayout = payoutMap.get("payout_paid") ?? 0;
-
-  // Ledger bakiyesi
-  const ledgerAgg = await prisma.sellerLedgerEntry.aggregate({
-    where: { sellerId: id },
-    _sum: { amount: true },
-  });
-  const ledgerBalance = Number(ledgerAgg._sum.amount ?? 0);
-
-  // Komisyon kesintisi toplamı
-  const commissionAgg = await prisma.orderLine.aggregate({
-    where: { sellerId: id },
-    _sum: { commissionAmount: true },
-  });
-  const commissionTotal = Number(commissionAgg._sum.commissionAmount ?? 0);
-
-  // KYC belgeler
-  const kycDocuments = await prisma.sellerDocument.findMany({
-    where: { sellerId: id },
-    orderBy: { createdAt: "desc" },
-  });
-
-  // Ceza listesi
-  const penalties = await prisma.penalty.findMany({
-    where: { sellerId: id },
-    include: { order: { select: { id: true } } },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
-
-  const [statementLedger, statementPayouts, statementInvoices] = await Promise.all([
-    prisma.sellerLedgerEntry.findMany({
-      where: { sellerId: id },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    }),
-    prisma.payout.findMany({
-      where: { sellerId: id },
-      include: { order: { select: { id: true, publicNumber: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    }),
-    prisma.sellerInvoice.findMany({
-      where: { sellerId: id },
-      orderBy: { invoiceDate: "desc" },
-      take: 100,
-    }),
-  ]);
+  const pendingPayout = (payoutMap.get('hold_active') ?? 0) + (payoutMap.get('payout_blocked') ?? 0)
+  const readyPayout = (payoutMap.get('payout_ready') ?? 0) + (payoutMap.get('payout_scheduled') ?? 0)
+  const paidPayout = payoutMap.get('payout_paid') ?? 0
+  const ledgerBalance = Number(ledgerAgg._sum.amount ?? 0)
+  const commissionTotal = Number(commissionAgg._sum.commissionAmount ?? 0)
 
   const penaltyTotal = penalties
-    .filter((p) => p.status !== "waived")
+    .filter((penalty) => penalty.status !== 'waived')
     .reduce(
-      (sum, p) =>
+      (sum, penalty) =>
         sum +
-        (typeof p.penaltyAmount === "object"
-          ? (p.penaltyAmount as { toNumber(): number }).toNumber()
-          : Number(p.penaltyAmount)),
+        (typeof penalty.penaltyAmount === 'object'
+          ? (penalty.penaltyAmount as { toNumber(): number }).toNumber()
+          : Number(penalty.penaltyAmount)),
       0,
-    );
+    )
 
-  const activeBankDetail = seller.bankDetails[0] ?? null;
+  const activeBankDetail = seller.bankDetails[0] ?? null
   const statusInfo = STATUS_MAP[seller.status] ?? {
     label: seller.status,
-    variant: "secondary" as const,
-  };
-  const totalOrders = orderAgg._count.id;
-  const isNegativeBalance = ledgerBalance < 0;
+    variant: 'secondary' as const,
+  }
+  const totalOrders = orderAgg._count.id
+  const isNegativeBalance = ledgerBalance < 0
+  const exportHref = `/api/admin/sellers/${seller.id}/statement?from=${fromInput}&to=${toInput}&format=xlsx`
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="max-w-4xl space-y-6">
       <div>
         <Link
           href="/saticilar"
           className="mb-3 inline-flex items-center gap-1.5 text-sm"
-          style={{ color: "var(--color-muted-fg)" }}
+          style={{ color: 'var(--color-muted-fg)' }}
         >
           <ArrowLeft className="h-4 w-4" /> Satıcılara Dön
         </Link>
         <div className="flex items-start justify-between gap-4">
           <PageHeader
             title={seller.displayName}
-            description={`ID: ${id.slice(-8).toUpperCase()} · Katılım: ${new Date(seller.createdAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}`}
+            description={`ID: ${id.slice(-8).toUpperCase()} · Katılım: ${new Date(seller.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
           />
           <div className="flex flex-col items-end gap-2">
-            <SellerStatusButtons
-              sellerId={seller.id}
-              currentStatus={seller.status}
-            />
+            <SellerStatusButtons sellerId={seller.id} currentStatus={seller.status} />
             <SellerAdminActions sellerId={seller.id} />
           </div>
         </div>
       </div>
 
-      {/* Özet kartlar */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { label: "Toplam Sipariş", value: totalOrders },
+          { label: 'Toplam Sipariş', value: totalOrders },
           {
-            label: "Bekleyen Hakediş",
-            value:
-              pendingPayout > 0
-                ? `₺${pendingPayout.toLocaleString("tr-TR")}`
-                : "—",
+            label: 'Bekleyen Hakediş',
+            value: pendingPayout > 0 ? `₺${pendingPayout.toLocaleString('tr-TR')}` : '—',
           },
           {
-            label: "Toplam Ödenen",
-            value:
-              paidPayout > 0 ? `₺${paidPayout.toLocaleString("tr-TR")}` : "—",
+            label: 'Toplam Ödenen',
+            value: paidPayout > 0 ? `₺${paidPayout.toLocaleString('tr-TR')}` : '—',
           },
           {
-            label: "Toplam Ceza",
-            value:
-              penaltyTotal > 0
-                ? `₺${penaltyTotal.toLocaleString("tr-TR")}`
-                : "—",
+            label: 'Toplam Ceza',
+            value: penaltyTotal > 0 ? `₺${penaltyTotal.toLocaleString('tr-TR')}` : '—',
           },
         ].map((stat) => (
           <div
             key={stat.label}
             className="rounded-xl border p-4"
             style={{
-              borderColor: "var(--color-border)",
-              backgroundColor: "var(--color-surface)",
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
             }}
           >
-            <p className="text-xs" style={{ color: "var(--color-muted-fg)" }}>
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
               {stat.label}
             </p>
-            <p
-              className="mt-1 text-xl font-bold"
-              style={{ color: "var(--color-primary)" }}
-            >
+            <p className="mt-1 text-xl font-bold" style={{ color: 'var(--color-primary)' }}>
               {stat.value}
             </p>
           </div>
@@ -241,15 +225,15 @@ export default async function SellerDetailPage({ params }: Props) {
           <TabsTrigger value="profile">Profil</TabsTrigger>
           <TabsTrigger value="kyc">
             Belgeler
-            {kycDocuments.filter((d) => d.status === "pending").length > 0 && (
+            {kycDocuments.filter((document) => document.status === 'pending').length > 0 && (
               <span
                 className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold"
                 style={{
-                  backgroundColor: "var(--color-warning)",
-                  color: "#fff",
+                  backgroundColor: 'var(--color-warning)',
+                  color: '#fff',
                 }}
               >
-                {kycDocuments.filter((d) => d.status === "pending").length}
+                {kycDocuments.filter((document) => document.status === 'pending').length}
               </span>
             )}
           </TabsTrigger>
@@ -258,33 +242,25 @@ export default async function SellerDetailPage({ params }: Props) {
           <TabsTrigger value="penalties">Cezalar</TabsTrigger>
         </TabsList>
 
-        {/* Profil */}
         <TabsContent value="profile" className="mt-5 space-y-4">
           <div
             className="rounded-xl border p-5"
             style={{
-              borderColor: "var(--color-border)",
-              backgroundColor: "var(--color-surface)",
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
             }}
           >
-            <dl
-              className="divide-y text-sm"
-              style={{ borderColor: "var(--color-border)" }}
-            >
+            <dl className="divide-y text-sm" style={{ borderColor: 'var(--color-border)' }}>
               {[
-                { label: "E-posta", value: seller.user.email },
-                { label: "Şehir", value: seller.profile?.city ?? "—" },
-                { label: "Ürün Sayısı", value: productCount },
+                { label: 'E-posta', value: seller.user.email },
+                { label: 'Şehir', value: seller.profile?.city ?? '—' },
+                { label: 'Ürün Sayısı', value: productCount },
                 {
-                  label: "Durum",
-                  value: (
-                    <Badge variant={statusInfo.variant}>
-                      {statusInfo.label}
-                    </Badge>
-                  ),
+                  label: 'Durum',
+                  value: <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>,
                 },
                 {
-                  label: "Profil Doğrulama",
+                  label: 'Profil Doğrulama',
                   value: seller.profile?.isVerified ? (
                     <Badge variant="success">Doğrulanmış</Badge>
                   ) : (
@@ -292,37 +268,28 @@ export default async function SellerDetailPage({ params }: Props) {
                   ),
                 },
               ].map(({ label, value }) => (
-                <div
-                  key={label}
-                  className="flex items-center justify-between py-3"
-                >
-                  <dt style={{ color: "var(--color-muted-fg)" }}>{label}</dt>
-                  <dd style={{ color: "var(--color-primary)" }}>{value}</dd>
+                <div key={label} className="flex items-center justify-between py-3">
+                  <dt style={{ color: 'var(--color-muted-fg)' }}>{label}</dt>
+                  <dd style={{ color: 'var(--color-primary)' }}>{value}</dd>
                 </div>
               ))}
             </dl>
           </div>
 
-          {/* Banka bilgisi */}
           <div
             className="rounded-xl border p-5"
             style={{
-              borderColor: "var(--color-border)",
-              backgroundColor: "var(--color-surface)",
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
             }}
           >
-            <div className="flex items-center justify-between mb-3">
-              <h3
-                className="font-semibold"
-                style={{ color: "var(--color-primary)" }}
-              >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
                 Banka Bilgileri
               </h3>
               {activeBankDetail ? (
-                <Badge
-                  variant={activeBankDetail.isVerified ? "success" : "warning"}
-                >
-                  {activeBankDetail.isVerified ? "Doğrulanmış" : "Doğrulanmadı"}
+                <Badge variant={activeBankDetail.isVerified ? 'success' : 'warning'}>
+                  {activeBankDetail.isVerified ? 'Doğrulanmış' : 'Doğrulanmadı'}
                 </Badge>
               ) : (
                 <Badge variant="secondary">Banka Bilgisi Yok</Badge>
@@ -330,282 +297,202 @@ export default async function SellerDetailPage({ params }: Props) {
             </div>
             {activeBankDetail ? (
               <>
-                <p
-                  className="text-sm font-mono"
-                  style={{ color: "var(--color-muted-fg)" }}
-                >
+                <p className="text-sm font-mono" style={{ color: 'var(--color-muted-fg)' }}>
                   {maskIban(activeBankDetail.iban)}
                 </p>
-                <p
-                  className="text-sm mt-1"
-                  style={{ color: "var(--color-muted-fg)" }}
-                >
+                <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
                   {activeBankDetail.accountHolder} · {activeBankDetail.bankName}
                 </p>
               </>
             ) : (
-              <p className="text-sm" style={{ color: "var(--color-muted-fg)" }}>
+              <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
                 Aktif banka bilgisi tanımlanmamış.
               </p>
             )}
             <p
-              className="mt-2 text-xs flex items-center gap-1"
-              style={{ color: "var(--color-muted-fg)" }}
+              className="mt-2 flex items-center gap-1 text-xs"
+              style={{ color: 'var(--color-muted-fg)' }}
             >
-              <ShieldAlert className="h-3.5 w-3.5" /> Tam IBAN yalnızca yetkili
-              finans admin tarafından görülebilir.
+              <ShieldAlert className="h-3.5 w-3.5" /> Tam IBAN yalnızca yetkili finans admin tarafından görülebilir.
             </p>
           </div>
 
           <SellerImportPermission
             sellerId={seller.id}
             importEnabled={seller.importEnabled}
-            importRequestedAt={
-              seller.importRequestedAt
-                ? seller.importRequestedAt.toISOString()
-                : null
-            }
+            importRequestedAt={seller.importRequestedAt ? seller.importRequestedAt.toISOString() : null}
           />
         </TabsContent>
 
         <TabsContent value="statement" className="mt-5">
           <SellerAccountStatement
-            items={[
-              ...statementLedger.map((entry) => ({
-                id: `ledger-${entry.id}`,
-                date: entry.createdAt,
-                type: entry.type,
-                description: entry.description ?? entry.referenceType,
-                amount: Number(entry.amount),
-                reference: entry.referenceId,
-              })),
-              ...statementPayouts.map((payout) => ({
-                id: `payout-${payout.id}`,
-                date: payout.transferDate ?? payout.paidAt ?? payout.createdAt,
-                type: 'payout',
-                description: payout.transferNote ?? payout.transferBankName ?? payout.status,
-                amount: -Number(payout.netAmount),
-                reference: payout.order?.publicNumber
-                  ? `ORD-${payout.order.publicNumber}`
-                  : payout.orderId,
-              })),
-              ...statementInvoices.map((invoice) => ({
-                id: `invoice-${invoice.id}`,
-                date: invoice.invoiceDate,
-                type: invoice.type === 'commission' ? 'commission_invoice' : 'penalty_invoice',
-                description: invoice.description ?? invoice.invoiceNumber,
-                amount: Number(invoice.amount),
-                reference: invoice.invoiceNumber,
-              })),
-            ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
+            from={from}
+            fromInput={fromInput}
+            toInput={toInput}
+            exportHref={exportHref}
+            statement={statement}
           />
         </TabsContent>
 
-        {/* KYC Belgeler */}
         <TabsContent value="kyc" className="mt-5">
           {kycDocuments.length === 0 ? (
             <div
               className="rounded-xl border px-5 py-10 text-center"
               style={{
-                borderColor: "var(--color-border)",
-                backgroundColor: "var(--color-surface)",
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
               }}
             >
-              <FileText
-                className="mx-auto h-8 w-8 mb-2"
-                style={{ color: "var(--color-muted-fg)" }}
-              />
-              <p className="text-sm" style={{ color: "var(--color-muted-fg)" }}>
+              <FileText className="mx-auto mb-2 h-8 w-8" style={{ color: 'var(--color-muted-fg)' }} />
+              <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
                 Bu satıcı henüz belge yüklemedi.
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {kycDocuments.map((doc) => {
+              {kycDocuments.map((document) => {
                 const statusIcon =
-                  doc.status === "approved" ? (
-                    <CheckCircle2
-                      className="h-4 w-4"
-                      style={{ color: "var(--color-success)" }}
-                    />
-                  ) : doc.status === "rejected" ? (
-                    <XCircle
-                      className="h-4 w-4"
-                      style={{ color: "var(--color-destructive)" }}
-                    />
+                  document.status === 'approved' ? (
+                    <CheckCircle2 className="h-4 w-4" style={{ color: 'var(--color-success)' }} />
+                  ) : document.status === 'rejected' ? (
+                    <XCircle className="h-4 w-4" style={{ color: 'var(--color-destructive)' }} />
                   ) : (
-                    <Clock
-                      className="h-4 w-4"
-                      style={{ color: "var(--color-warning)" }}
-                    />
-                  );
+                    <Clock className="h-4 w-4" style={{ color: 'var(--color-warning)' }} />
+                  )
 
                 const statusLabel =
-                  doc.status === "approved"
-                    ? "Onaylandı"
-                    : doc.status === "rejected"
-                      ? "Reddedildi"
-                      : "İnceleniyor";
+                  document.status === 'approved'
+                    ? 'Onaylandı'
+                    : document.status === 'rejected'
+                      ? 'Reddedildi'
+                      : 'İnceleniyor'
 
-                const TYPE_LABELS: Record<string, string> = {
-                  identity: "Kimlik Belgesi",
-                  tax_certificate: "Vergi Levhası",
-                  trade_registry: "Ticaret Sicil Gazetesi",
-                  signature_circular: "İmza Sirküleri",
-                  bank_statement: "Banka Hesap Cüzdanı",
-                  other: "Diğer Belge",
-                };
+                const typeLabels: Record<string, string> = {
+                  identity: 'Kimlik Belgesi',
+                  tax_certificate: 'Vergi Levhası',
+                  trade_registry: 'Ticaret Sicil Gazetesi',
+                  signature_circular: 'İmza Sirküleri',
+                  bank_statement: 'Banka Hesap Cüzdanı',
+                  other: 'Diğer Belge',
+                }
 
                 return (
                   <div
-                    key={doc.id}
-                    className="rounded-xl border p-4 space-y-3"
+                    key={document.id}
+                    className="space-y-3 rounded-xl border p-4"
                     style={{
                       borderColor:
-                        doc.status === "pending"
-                          ? "var(--color-warning)"
-                          : "var(--color-border)",
-                      backgroundColor: "var(--color-surface)",
+                        document.status === 'pending'
+                          ? 'var(--color-warning)'
+                          : 'var(--color-border)',
+                      backgroundColor: 'var(--color-surface)',
                     }}
                   >
                     <div className="flex items-start gap-3">
                       <FileText
-                        className="h-5 w-5 mt-0.5 flex-shrink-0"
-                        style={{ color: "var(--color-muted-fg)" }}
+                        className="mt-0.5 h-5 w-5 shrink-0"
+                        style={{ color: 'var(--color-muted-fg)' }}
                       />
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <p
-                            className="text-sm font-medium"
-                            style={{ color: "var(--color-primary)" }}
-                          >
-                            {TYPE_LABELS[doc.type] ?? doc.type}
+                          <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                            {typeLabels[document.type] ?? document.type}
                           </p>
                           <span className="inline-flex items-center gap-1 text-xs">
                             {statusIcon} {statusLabel}
                           </span>
                         </div>
-                        <p
-                          className="text-xs mt-0.5"
-                          style={{ color: "var(--color-muted-fg)" }}
-                        >
-                          {doc.fileName} ·{" "}
-                          {new Date(doc.createdAt).toLocaleDateString("tr-TR", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
+                        <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                          {document.fileName} ·{' '}
+                          {new Date(document.createdAt).toLocaleDateString('tr-TR', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
                           })}
                         </p>
-                        {doc.adminNote && (
-                          <p
-                            className="text-xs mt-1 italic"
-                            style={{ color: "var(--color-muted-fg)" }}
-                          >
-                            Not: {doc.adminNote}
+                        {document.adminNote && (
+                          <p className="mt-1 text-xs italic" style={{ color: 'var(--color-muted-fg)' }}>
+                            Not: {document.adminNote}
                           </p>
                         )}
                       </div>
                       <a
-                        href={doc.fileUrl}
+                        href={document.fileUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex-shrink-0 rounded p-1.5 hover:bg-black/5"
                         title="Belgeyi görüntüle"
                       >
-                        <ExternalLink
-                          className="h-4 w-4"
-                          style={{ color: "var(--color-muted-fg)" }}
-                        />
+                        <ExternalLink className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
                       </a>
                     </div>
-                    {doc.status === "pending" && (
+                    {document.status === 'pending' && (
                       <div className="pt-1">
-                        <DocumentReviewActions documentId={doc.id} />
+                        <DocumentReviewActions documentId={document.id} />
                       </div>
                     )}
                   </div>
-                );
+                )
               })}
             </div>
           )}
         </TabsContent>
 
-        {/* Finans */}
         <TabsContent value="finance" className="mt-5">
           <div
             className="rounded-xl border p-5"
             style={{
-              borderColor: "var(--color-border)",
-              backgroundColor: "var(--color-surface)",
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
             }}
           >
-            <h3
-              className="mb-4 font-semibold"
-              style={{ color: "var(--color-primary)" }}
-            >
+            <h3 className="mb-4 font-semibold" style={{ color: 'var(--color-primary)' }}>
               Cari Hesap Özeti
             </h3>
             <Separator className="mb-4" />
-            <dl
-              className="divide-y text-sm"
-              style={{ borderColor: "var(--color-border)" }}
-            >
+            <dl className="divide-y text-sm" style={{ borderColor: 'var(--color-border)' }}>
               {[
                 {
-                  label: "Toplam Komisyon Kesintisi",
-                  value: `-₺${commissionTotal.toLocaleString("tr-TR")}`,
+                  label: 'Toplam Komisyon Kesintisi',
+                  value: `-₺${commissionTotal.toLocaleString('tr-TR')}`,
                   danger: commissionTotal > 0,
                 },
                 {
-                  label: "Toplam Ceza Kesintisi",
-                  value:
-                    penaltyTotal > 0
-                      ? `-₺${penaltyTotal.toLocaleString("tr-TR")}`
-                      : "—",
+                  label: 'Toplam Ceza Kesintisi',
+                  value: penaltyTotal > 0 ? `-₺${penaltyTotal.toLocaleString('tr-TR')}` : '—',
                   danger: penaltyTotal > 0,
                 },
                 {
-                  label: "Beklemede (Hold + Bloke)",
-                  value:
-                    pendingPayout > 0
-                      ? `₺${pendingPayout.toLocaleString("tr-TR")}`
-                      : "—",
+                  label: 'Beklemede (Hold + Bloke)',
+                  value: pendingPayout > 0 ? `₺${pendingPayout.toLocaleString('tr-TR')}` : '—',
                   danger: false,
                 },
                 {
-                  label: "Ödenmeye Hazır",
-                  value:
-                    readyPayout > 0
-                      ? `₺${readyPayout.toLocaleString("tr-TR")}`
-                      : "—",
+                  label: 'Ödenmeye Hazır',
+                  value: readyPayout > 0 ? `₺${readyPayout.toLocaleString('tr-TR')}` : '—',
                   danger: false,
                 },
                 {
-                  label: "Ödenen Hakediş",
-                  value:
-                    paidPayout > 0
-                      ? `₺${paidPayout.toLocaleString("tr-TR")}`
-                      : "—",
+                  label: 'Ödenen Hakediş',
+                  value: paidPayout > 0 ? `₺${paidPayout.toLocaleString('tr-TR')}` : '—',
                   danger: false,
                 },
                 {
-                  label: "Ledger Bakiyesi",
+                  label: 'Ledger Bakiyesi',
                   value: isNegativeBalance
-                    ? `-₺${Math.abs(ledgerBalance).toLocaleString("tr-TR")}`
+                    ? `-₺${Math.abs(ledgerBalance).toLocaleString('tr-TR')}`
                     : ledgerBalance > 0
-                      ? `₺${ledgerBalance.toLocaleString("tr-TR")}`
-                      : "₺0",
+                      ? `₺${ledgerBalance.toLocaleString('tr-TR')}`
+                      : '₺0',
                   danger: isNegativeBalance,
                 },
               ].map(({ label, value, danger }) => (
                 <div key={label} className="flex justify-between py-3">
-                  <dt style={{ color: "var(--color-muted-fg)" }}>{label}</dt>
+                  <dt style={{ color: 'var(--color-muted-fg)' }}>{label}</dt>
                   <dd
                     className="font-medium"
                     style={{
-                      color: danger
-                        ? "var(--color-destructive)"
-                        : "var(--color-primary)",
+                      color: danger ? 'var(--color-destructive)' : 'var(--color-primary)',
                     }}
                   >
                     {value}
@@ -616,87 +503,75 @@ export default async function SellerDetailPage({ params }: Props) {
           </div>
         </TabsContent>
 
-        {/* Cezalar */}
         <TabsContent value="penalties" className="mt-5">
           <div
-            className="rounded-xl border overflow-hidden"
+            className="overflow-hidden rounded-xl border"
             style={{
-              borderColor: "var(--color-border)",
-              backgroundColor: "var(--color-surface)",
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
             }}
           >
             {penalties.length === 0 ? (
-              <p
-                className="p-6 text-center text-sm"
-                style={{ color: "var(--color-muted-fg)" }}
-              >
+              <p className="p-6 text-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
                 Ceza kaydı yok.
               </p>
             ) : (
               <table className="w-full text-sm">
-                <thead style={{ backgroundColor: "var(--color-muted)" }}>
+                <thead style={{ backgroundColor: 'var(--color-muted)' }}>
                   <tr>
-                    {["Sipariş", "Tutar", "Sebep", "Tarih", "Durum"].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className="px-4 py-3 text-left text-xs font-semibold"
-                          style={{ color: "var(--color-muted-fg)" }}
-                        >
-                          {h}
-                        </th>
-                      ),
-                    )}
+                    {['Sipariş', 'Tutar', 'Sebep', 'Tarih', 'Durum'].map((header) => (
+                      <th
+                        key={header}
+                        className="px-4 py-3 text-left text-xs font-semibold"
+                        style={{ color: 'var(--color-muted-fg)' }}
+                      >
+                        {header}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {penalties.map((p) => {
+                  {penalties.map((penalty) => {
                     const amount =
-                      typeof p.penaltyAmount === "object"
-                        ? (p.penaltyAmount as { toNumber(): number }).toNumber()
-                        : Number(p.penaltyAmount);
+                      typeof penalty.penaltyAmount === 'object'
+                        ? (penalty.penaltyAmount as { toNumber(): number }).toNumber()
+                        : Number(penalty.penaltyAmount)
                     return (
                       <tr
-                        key={p.id}
+                        key={penalty.id}
                         className="border-t"
-                        style={{ borderColor: "var(--color-border)" }}
+                        style={{ borderColor: 'var(--color-border)' }}
                       >
                         <td className="px-4 py-3">
                           <Link
-                            href={`/siparisler/${p.orderId}`}
-                            className="hover:underline font-medium"
-                            style={{ color: "var(--color-accent)" }}
+                            href={`/siparisler/${penalty.orderId}`}
+                            className="font-medium hover:underline"
+                            style={{ color: 'var(--color-accent)' }}
                           >
-                            #{p.orderId.slice(-8).toUpperCase()}
+                            #{penalty.orderId.slice(-8).toUpperCase()}
                           </Link>
                         </td>
                         <td
                           className="px-4 py-3 font-medium"
-                          style={{ color: "var(--color-destructive)" }}
+                          style={{ color: 'var(--color-destructive)' }}
                         >
-                          ₺{amount.toLocaleString("tr-TR")}
+                          ₺{amount.toLocaleString('tr-TR')}
                         </td>
-                        <td
-                          className="px-4 py-3"
-                          style={{ color: "var(--color-muted-fg)" }}
-                        >
-                          {p.reason}
+                        <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
+                          {penalty.reason}
                         </td>
-                        <td
-                          className="px-4 py-3"
-                          style={{ color: "var(--color-muted-fg)" }}
-                        >
-                          {new Date(p.createdAt).toLocaleDateString("tr-TR", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
+                        <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
+                          {new Date(penalty.createdAt).toLocaleDateString('tr-TR', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
                           })}
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge status={p.status as never} />
+                          <StatusBadge status={penalty.status as never} />
                         </td>
                       </tr>
-                    );
+                    )
                   })}
                 </tbody>
               </table>
@@ -705,5 +580,5 @@ export default async function SellerDetailPage({ params }: Props) {
         </TabsContent>
       </Tabs>
     </div>
-  );
+  )
 }

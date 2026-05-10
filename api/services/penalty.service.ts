@@ -191,8 +191,8 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
             penaltyId: penalty.id,
             note:
               incrementalDays === 1
-                ? `GeÃ§ sevkiyat gÃ¼nlÃ¼k ceza birikimi: 1 gÃ¼n (%1)`
-                : `GeÃ§ sevkiyat gÃ¼nlÃ¼k ceza birikimi: +${incrementalDays} gÃ¼n`,
+                ? `Geç sevkiyat günlük ceza birikimi: 1 gün (%1)`
+                : `Geç sevkiyat günlük ceza birikimi: +${incrementalDays} gün`,
           })
         }
 
@@ -315,8 +315,8 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
       await notifications.send({
         userId: seller.user.id,
         type: 'seller_penalty_applied',
-        title: 'Ceza uygulandÄ±',
-        body: `${penaltyAmount.toFixed(2)} tutarÄ±nda ceza hesabÄ±nÄ±za yansÄ±tÄ±ldÄ±.`,
+        title: 'Ceza uygulandı',
+        body: `${penaltyAmount.toFixed(2)} tutarında ceza hesabınıza yansıtıldı.`,
         data: { orderId: params.orderId, penaltyId: penalty.id },
       })
 

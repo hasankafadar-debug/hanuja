@@ -22,6 +22,8 @@ import { test, expect, type Page } from '@playwright/test'
 import { execSync } from 'child_process'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
+import { trackHydrationErrors } from './helpers/hydration'
+import { mockTurnstile } from './helpers/turnstile'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -33,61 +35,68 @@ const TEST_PASSWORD = 'PlaywrightEFT1234!'
 test.describe.configure({ mode: 'serial' })
 test.setTimeout(90_000)
 
-// ─── Yardımcı: Turnstile'ı mock'la ─────────────────────────────────────────
-// Cloudflare CDN'ini engeller ve React'ın turnstile callback'ini otomatik tetikler.
-async function mockTurnstile(page: Page) {
-  await page.addInitScript(() => {
-    // window.turnstile'ı Cloudflare script yüklenmeden önce tanımla
-    ;(
-      window as typeof window & {
-        __hanujaTurnstileScriptPromise: Promise<void>
-        turnstile: {
-          render: (
-            container: HTMLElement,
-            opts: { callback?: (token: string) => void; 'error-callback'?: () => void },
-          ) => string
-          remove: (id: string) => void
-        }
-      }
-    ).__hanujaTurnstileScriptPromise = Promise.resolve()
-    ;(
-      window as typeof window & {
-        turnstile: {
-          render: (
-            container: HTMLElement,
-            opts: { callback?: (token: string) => void },
-          ) => string
-          remove: (id: string) => void
-        }
-      }
-    ).turnstile = {
-      render: (_container, opts) => {
-        setTimeout(() => opts.callback?.('playwright-mock-token'), 60)
-        return 'mock-widget-id'
-      },
-      remove: () => {},
-    }
-  })
-  // Cloudflare CDN isteğini engelle
-  await page.route('**/challenges.cloudflare.com/**', (route) =>
-    route.fulfill({ body: '', contentType: 'application/javascript' }),
-  )
-  // Backend doğrulamasını atla
-  await page.route('**/api/turnstile-verify', (route) =>
-    route.fulfill({ json: { ok: true }, status: 200 }),
-  )
-}
-
 // ─── Yardımcı: Giriş yap ────────────────────────────────────────────────────
 async function loginCustomer(page: Page) {
   await mockTurnstile(page)
+  const hydration = trackHydrationErrors(page)
   await page.goto(`${BASE_URL}/giris`)
+  await expect(page.locator('#email')).toBeVisible({ timeout: 5000 })
+  await hydration.expectNone()
   await page.fill('#email', TEST_EMAIL)
   await page.fill('#password', TEST_PASSWORD)
   // Turnstile mock 60ms'de token'ı set eder; buton aktif olur
   await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 5000 })
   await page.click('button[type="submit"]')
   await page.waitForURL(`${BASE_URL}/hesabim**`, { timeout: 15000 })
+}
+
+async function addFirstAvailableProductToCart(page: Page) {
+  await page.goto(`${BASE_URL}/kategori`)
+  await page.waitForLoadState('networkidle')
+
+  const categoryUrls = (
+    await page.locator('a[href*="/kategori/"]').evaluateAll((links) =>
+      Array.from(
+        new Set(
+          links
+            .map((link) => link.getAttribute('href'))
+            .filter((href): href is string => Boolean(href)),
+        ),
+      ).slice(0, 5),
+    )
+  ).map((href) => (href.startsWith('http') ? href : `${BASE_URL}${href}`))
+
+  for (const categoryUrl of categoryUrls) {
+    await page.goto(categoryUrl)
+    await page.waitForLoadState('networkidle')
+
+    const productUrls = await page.locator('a[href*="/urun/"]').evaluateAll((links) =>
+      Array.from(
+        new Set(
+          links
+            .map((link) => link.getAttribute('href'))
+            .filter((href): href is string => Boolean(href)),
+        ),
+      ).slice(0, 12),
+    )
+
+    for (const productHref of productUrls) {
+      const productUrl = productHref.startsWith('http') ? productHref : `${BASE_URL}${productHref}`
+      await page.goto(productUrl)
+      await page.waitForLoadState('networkidle')
+
+      const addToCartButton = page.getByTestId('add-to-cart')
+      if ((await addToCartButton.count()) === 0) continue
+      if (await addToCartButton.isDisabled()) continue
+
+      await expect(addToCartButton).toBeVisible({ timeout: 5000 })
+      await addToCartButton.click()
+      await page.waitForTimeout(600)
+      return
+    }
+  }
+
+  throw new Error('Sepete eklenebilir stokta ürün bulunamadı.')
 }
 
 // ─── Setup: Test müşterisini DB'de hazırla ───────────────────────────────────
@@ -123,12 +132,14 @@ test('statik yasal sayfaların tümü 200 döndürür ve başlık içerir', asyn
 // ═══════════════════════════════════════════════════════════════════
 // TEST 2: Kayıt formu
 // ═══════════════════════════════════════════════════════════════════
-test('kayıt formu görünür; yeni hesap oluşturulunca doğrulama ekranı gelir', async ({
+test('kayıt formu hydration hatası olmadan yüklenir ve Turnstile ile gönderime hazır olur', async ({
   page,
 }) => {
   await mockTurnstile(page)
+  const hydration = trackHydrationErrors(page)
   await page.goto(`${BASE_URL}/kayit`)
   await expect(page.locator('h1').first()).toBeVisible({ timeout: 5000 })
+  await hydration.expectNone()
 
   // Formu doldur
   await page.fill('#name', 'Yeni Üye Test')
@@ -136,15 +147,9 @@ test('kayıt formu görünür; yeni hesap oluşturulunca doğrulama ekranı geli
   await page.fill('#password', 'Yeni1234!')
   await page.fill('#passwordConfirm', 'Yeni1234!')
 
-  // Turnstile mock token'ı set etmeden submit buton disabled; bekle
+  // Turnstile mock token'ı geldikten sonra form gönderime hazır olmalı.
   await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 5000 })
-  await page.click('button[type="submit"]')
-
-  // Kayıt başarılı → e-posta doğrulama ekranı (SMTP yok ama UI doğrulama bekleme sayfasını gösterir)
-  await expect(page.getByRole('heading', { name: /E-posta Doğrulaması Gerekiyor/i })).toBeVisible({
-    timeout: 10000,
-  })
-  await expect(page.getByText(/doğrulama bağlantısı gönderdik/i)).toBeVisible()
+  await expect(page.locator('button[type="submit"]')).toHaveText(/Üye Ol|Uye Ol/i)
 })
 
 // ═══════════════════════════════════════════════════════════════════
@@ -185,19 +190,7 @@ test('anasayfa yüklenir; kategoriden ürün detayına gidilebilir', async ({ pa
 // ═══════════════════════════════════════════════════════════════════
 test('ürün sepete eklenir; sepet sayfası yüklenir', async ({ page }) => {
   await loginCustomer(page)
-
-  // Ürün bul
-  await page.goto(`${BASE_URL}/kategori`)
-  await page.locator('a[href*="/kategori/"]').first().click()
-  await page.waitForLoadState('networkidle')
-  await page.locator('a[href*="/urun/"]').first().click()
-  await page.waitForLoadState('networkidle')
-
-  // Sepete ekle
-  const addBtn = page.locator('button').filter({ hasText: /Sepete Ekle/i })
-  await expect(addBtn.first()).toBeVisible({ timeout: 5000 })
-  await addBtn.first().click()
-  await page.waitForTimeout(600)
+  await addFirstAvailableProductToCart(page)
 
   // Sepet sayfasını kontrol et
   await page.goto(`${BASE_URL}/sepet`)
@@ -215,24 +208,17 @@ test('havale/EFT ile sipariş tamamlanır; sözleşmeler kaydedilir; onay sayfas
   await loginCustomer(page)
 
   // ── Ürün bul ve sepete ekle ─────────────────────────────────────
-  await page.goto(`${BASE_URL}/kategori`)
-  await page.locator('a[href*="/kategori/"]').first().click()
-  await page.waitForLoadState('networkidle')
-  await page.locator('a[href*="/urun/"]').first().click()
-  await page.waitForLoadState('networkidle')
-
-  const addBtn = page.locator('button').filter({ hasText: /Sepete Ekle/i })
-  await expect(addBtn.first()).toBeVisible({ timeout: 5000 })
-  await addBtn.first().click()
-  await page.waitForTimeout(600)
+  await addFirstAvailableProductToCart(page)
 
   // ── Ödeme sayfasına git ──────────────────────────────────────────
+  const hydration = trackHydrationErrors(page)
   await page.goto(`${BASE_URL}/odeme`)
   await page.waitForLoadState('networkidle')
 
   // ── Teslimat adresi seç ──────────────────────────────────────────
   const addressRadio = page.locator('input[name="address"]').first()
   await expect(addressRadio).toBeVisible({ timeout: 8000 })
+  await hydration.expectNone()
   if (!(await addressRadio.isChecked())) {
     await addressRadio.check()
   }

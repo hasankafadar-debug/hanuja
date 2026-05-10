@@ -218,15 +218,15 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
     await notifications.send({
       userId: detail.seller.user.id,
       type: 'seller_bank_detail_approved',
-      title: 'IBAN deÄŸiÅŸikliÄŸi onaylandÄ±',
-      body: 'IBAN deÄŸiÅŸikliÄŸi talebiniz onaylandÄ±. Aktivasyon zamanÄ± geldiÄŸinde yeni hesap kullanÄ±lacak.',
+      title: 'IBAN değişikliği onaylandı',
+      body: 'IBAN değişikliği talebiniz onaylandı. Aktivasyon zamanı geldiğinde yeni hesap kullanılacak.',
       data: { bankDetailId: detail.id },
     })
 
     const email = buildBankDetailEmail({
-      subject: 'IBAN deÄŸiÅŸikliÄŸiniz onaylandÄ±',
+      subject: 'IBAN değişikliğiniz onaylandı',
       sellerName: detail.seller.user.name ?? detail.seller.displayName,
-      body: `Yeni IBAN bilginiz ${maskIban(detail.iban)} iÃ§in gÃ¼venlik onayÄ± tamamlandÄ±. Aktivasyon zamanÄ± geldiÄŸinde bu hesap kullanÄ±lacak.`,
+      body: `Yeni IBAN bilginiz ${maskIban(detail.iban)} için güvenlik onayı tamamlandı. Aktivasyon zamanı geldiğinde bu hesap kullanılacak.`,
     })
     await sendEmail({ to: detail.seller.user.email, subject: email.subject, html: email.html, text: email.text })
   }
