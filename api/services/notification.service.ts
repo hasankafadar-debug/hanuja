@@ -1,5 +1,5 @@
 /**
- * Notification service â€” creates and manages in-app notifications.
+ * Notification service - creates and manages in-app notifications.
  *
  * All notification dispatch is async via BullMQ (notification-dispatch job).
  * This service handles listing and marking-as-read.
@@ -169,6 +169,76 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     })
   }
 
+  async function notifyAdminsCustomerSupportNew(
+    ticketId: string,
+    orderPublicNumber: number,
+    subject: string,
+  ) {
+    const admins = await prisma.user.findMany({
+      where: { role: 'admin' },
+      select: { id: true },
+    })
+    await Promise.allSettled(
+      admins.map((admin) =>
+        send({
+          userId: admin.id,
+          type: 'admin_customer_support_new',
+          title: 'Yeni müşteri destek talebi',
+          body: `Sipariş #${orderPublicNumber}: ${subject}`,
+          data: { ticketId },
+        }),
+      ),
+    )
+  }
+
+  async function notifyAdminsCustomerSupportReply(
+    ticketId: string,
+    orderPublicNumber: number,
+  ) {
+    const admins = await prisma.user.findMany({
+      where: { role: 'admin' },
+      select: { id: true },
+    })
+    await Promise.allSettled(
+      admins.map((admin) =>
+        send({
+          userId: admin.id,
+          type: 'admin_customer_support_reply',
+          title: 'Müşteri destek talebi yanıtlandı',
+          body: `Sipariş #${orderPublicNumber} için yeni müşteri mesajı.`,
+          data: { ticketId },
+        }),
+      ),
+    )
+  }
+
+  async function notifyCustomerSupportReply(
+    customerId: string,
+    ticketId: string,
+    subject: string,
+  ) {
+    return send({
+      userId: customerId,
+      type: 'customer_support_reply',
+      title: 'Destek talebinize yanıt verildi',
+      body: subject,
+      data: { ticketId },
+    })
+  }
+
+  async function notifyCustomerSupportResolved(
+    customerId: string,
+    ticketId: string,
+  ) {
+    return send({
+      userId: customerId,
+      type: 'customer_support_resolved_notify',
+      title: 'Destek talebiniz çözümlendi',
+      body: 'Destek talebiniz kapatıldı.',
+      data: { ticketId },
+    })
+  }
+
   return {
     send,
     listForUser,
@@ -183,6 +253,10 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     notifySellerPenaltyApplied,
     notifySellerSupportReply,
     notifyAdminSupportNewTicket,
+    notifyAdminsCustomerSupportNew,
+    notifyAdminsCustomerSupportReply,
+    notifyCustomerSupportReply,
+    notifyCustomerSupportResolved,
   }
 }
 

@@ -19,19 +19,17 @@ import { createDisputeRepository } from '../repositories/dispute.repository'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import {
-  calculateNetPayout,
   calculateHoldUntil,
   isHoldExpired,
+  sumPayoutSnapshot,
 } from '../domain/payout-calculator'
 
 interface PayoutServiceDeps {
   prisma: PrismaClient
-  systemDefaultCommissionRate?: Decimal
 }
 
 export function createPayoutService({
   prisma,
-  systemDefaultCommissionRate = new Decimal('0.10'),
 }: PayoutServiceDeps) {
   const payouts = createPayoutRepository(prisma)
   const orders = createOrderRepository(prisma)
@@ -59,28 +57,20 @@ export function createPayoutService({
       const holdUntil = calculateHoldUntil(params.deliveryConfirmedAt)
       const sellerIds = [...new Set(lines.map((line) => line.sellerId))]
       const created = []
+      const zero = new Decimal(0)
 
       for (const sellerId of sellerIds) {
         const sellerLines = lines.filter((line) => line.sellerId === sellerId)
-        const grossAmount = sellerLines.reduce((sum, line) => sum.plus(line.totalPrice), new Decimal(0))
-        const commissionAmount = grossAmount.mul(systemDefaultCommissionRate).toDecimalPlaces(2)
-        const couponShareAmount = new Decimal(0)
-        const cargoChargeAmount = new Decimal(0)
-        const adFeeAmount = new Decimal(0)
-        const penaltyAmount = new Decimal(0)
-        const refundAmount = new Decimal(0)
-        const adjustmentAmount = new Decimal(0)
-
-        const netAmount = calculateNetPayout({
-          grossAmount,
-          commissionAmount,
-          couponShareAmount,
-          cargoChargeAmount,
-          adFeeAmount,
-          penaltyAmount,
-          refundAmount,
-          adjustmentAmount,
-        })
+        const snapshotTotals = sumPayoutSnapshot(sellerLines)
+        const grossAmount = snapshotTotals.grossAmount
+        const commissionAmount = snapshotTotals.commissionAmount
+        const couponShareAmount = zero
+        const cargoChargeAmount = zero
+        const adFeeAmount = zero
+        const penaltyAmount = zero
+        const refundAmount = zero
+        const adjustmentAmount = zero
+        const netAmount = snapshotTotals.netAmount
 
         created.push(
           await payouts.create({

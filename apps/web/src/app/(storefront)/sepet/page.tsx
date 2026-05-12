@@ -31,9 +31,6 @@ interface Cart {
   itemCount: number
   subtotal: string
   grossSubtotal?: string
-  netSubtotal?: string
-  taxAmount?: string
-  taxBreakdown?: Array<{ ratePercent: number; taxAmount: string }>
   couponDiscount?: string
   shipping?: string
   total?: string
@@ -89,7 +86,7 @@ export default function CartPage() {
       })
       if (!res.ok) {
         const body = await res.json()
-        setError(body.message ?? 'Guncelleme basarisiz')
+        setError(body.message ?? 'Güncelleme başarısız')
         return
       }
       await fetchCart()
@@ -136,7 +133,6 @@ export default function CartPage() {
   }
 
   const grossSubtotal = Number(cart.grossSubtotal ?? cart.subtotal)
-  const netSubtotal = Number(cart.netSubtotal ?? grossSubtotal)
   const couponDiscount = Number(cart.couponDiscount ?? 0)
   const freeShippingThreshold = Number(cart.freeShippingThresholdTry ?? 1500)
   const flatShippingFee = Number(cart.flatShippingFeeTry ?? 99)
@@ -263,15 +259,9 @@ export default function CartPage() {
           </h2>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-              <span>Ara toplam (KDV hariç)</span>
-              <span>TRY {formatPrice(netSubtotal)}</span>
+              <span>Ürünler</span>
+              <span>TRY {formatPrice(grossSubtotal)}</span>
             </div>
-            {(cart.taxBreakdown ?? []).map((entry) => (
-              <div key={entry.ratePercent} className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-                <span>KDV %{entry.ratePercent}</span>
-                <span>TRY {formatPrice(entry.taxAmount)}</span>
-              </div>
-            ))}
             {couponDiscount > 0 ? (
               <div className="flex justify-between" style={{ color: 'var(--color-success)' }}>
                 <span>Kupon indirimi</span>
@@ -316,3 +306,4 @@ export default function CartPage() {
     </div>
   )
 }
+

@@ -8,12 +8,13 @@ import { createPlatformSettingsService } from '@hanuja/api/services/platform-set
 
 const schema = z.object({
   standardPenaltyRate: z.number().min(0).max(1),
+  defaultSellerCommissionRate: z.number().min(0).max(1),
   fulfillmentDays: z.number().int().min(1).max(90),
   fulfillmentWarningDays: z.number().int().min(1).max(30),
   payoutHoldDays: z.number().int().min(1).max(120),
   freeShippingThresholdTry: z.number().min(0).max(1000000),
   flatShippingFeeTry: z.number().min(0).max(100000),
-  defaultTaxRate: z.number().min(0).max(1),
+  eftDiscountRate: z.number().min(0).max(1),
 })
 
 export async function PATCH(req: NextRequest) {
@@ -30,13 +31,14 @@ export async function PATCH(req: NextRequest) {
   const current = await svc.get()
   const result = await svc.update({
     standardPenaltyRate: new Decimal(body.standardPenaltyRate),
+    defaultSellerCommissionRate: new Decimal(body.defaultSellerCommissionRate),
     fulfillmentDays: body.fulfillmentDays,
     fulfillmentWarningDays: body.fulfillmentWarningDays,
     payoutHoldDays: body.payoutHoldDays,
     freeShippingThresholdTry: new Decimal(body.freeShippingThresholdTry),
     flatShippingFeeTry: new Decimal(body.flatShippingFeeTry),
-    defaultTaxRate: new Decimal(body.defaultTaxRate),
-    eftDiscountRate: current.eftDiscountRate,
+    defaultTaxRate: current.defaultTaxRate,
+    eftDiscountRate: new Decimal(body.eftDiscountRate),
     updatedBy: session.user.id,
   })
 

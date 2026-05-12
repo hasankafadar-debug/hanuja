@@ -21,6 +21,12 @@ export interface PayoutComponents {
   adjustmentAmount: Decimal // Admin manual adjustment (positive = credit, negative = debit)
 }
 
+export interface PayoutSnapshotLine {
+  totalPrice: Decimal
+  commissionAmount: Decimal
+  netPayoutAmount: Decimal
+}
+
 /**
  * Calculate net payout from all deduction components.
  * Result may be negative — that creates a seller debt.
@@ -69,4 +75,19 @@ export function resolveCommissionRate(
 
 export function calculateCommission(grossAmount: Decimal, rate: Decimal): Decimal {
   return grossAmount.mul(rate).toDecimalPlaces(2)
+}
+
+export function sumPayoutSnapshot(lines: PayoutSnapshotLine[]) {
+  return lines.reduce(
+    (totals, line) => ({
+      grossAmount: totals.grossAmount.plus(line.totalPrice),
+      commissionAmount: totals.commissionAmount.plus(line.commissionAmount),
+      netAmount: totals.netAmount.plus(line.netPayoutAmount),
+    }),
+    {
+      grossAmount: new Decimal(0),
+      commissionAmount: new Decimal(0),
+      netAmount: new Decimal(0),
+    },
+  )
 }

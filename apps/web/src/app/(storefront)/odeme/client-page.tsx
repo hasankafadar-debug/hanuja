@@ -23,10 +23,7 @@ interface Address {
 interface CartSummary {
   itemCount: number
   subtotal: string
-  taxAmount: string
   grossSubtotal?: string
-  netSubtotal?: string
-  taxBreakdown?: Array<{ ratePercent: number; taxAmount: string }>
   couponDiscount?: string
   eftDiscount?: string
   shipping?: string
@@ -123,10 +120,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
       setCartSummary({
         itemCount: cart.itemCount,
         subtotal: cart.subtotal,
-        taxAmount: cart.taxAmount ?? '0',
         grossSubtotal: cart.grossSubtotal ?? cart.subtotal,
-        netSubtotal: cart.netSubtotal ?? cart.subtotal,
-        taxBreakdown: Array.isArray(cart.taxBreakdown) ? cart.taxBreakdown : [],
         couponDiscount: cart.couponDiscount ?? '0',
         eftDiscount: cart.eftDiscount ?? '0',
         shipping: cart.shipping ?? '0',
@@ -378,10 +372,8 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
   }
 
   const grossSubtotal = Number(cartSummary?.grossSubtotal ?? cartSummary?.subtotal ?? 0)
-  const netSubtotal = Number(cartSummary?.netSubtotal ?? grossSubtotal)
   const couponDiscount = Number(cartSummary?.couponDiscount ?? 0)
   const eftDiscount = paymentMethod === 'eft' ? Number(cartSummary?.eftDiscount ?? 0) : 0
-  const taxBreakdown = cartSummary?.taxBreakdown ?? []
   const freeShippingThreshold = Number(cartSummary?.freeShippingThresholdTry ?? 1500)
   const flatShippingFee = Number(cartSummary?.flatShippingFeeTry ?? 99)
   const shipping = Number(cartSummary?.shipping ?? (grossSubtotal >= freeShippingThreshold ? 0 : flatShippingFee))
@@ -578,7 +570,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
                     Kredi / Banka Kartı
                   </p>
                   <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                    Güvenli ödeme - Iyzico altyapısı
+                    Güvenli ödeme - iyzico altyapısı
                   </p>
                 </div>
               </label>
@@ -625,7 +617,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
 
                   <div>
                     <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                      Kart Numarasi *
+                      Kart Numarası *
                     </label>
                     <input
                       type="text"
@@ -758,7 +750,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
 
                   <div>
                     <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                      TC Kimlik Numarasi *
+                      TC Kimlik Numarası *
                     </label>
                     <input
                       type="text"
@@ -787,7 +779,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
                       </p>
                     ) : null}
                     <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                      Iyzico ödeme güvenliği için zorunludur. Sunucularımızda saklanmaz.
+                      iyzico ödeme güvenliği için zorunludur. Sunucularımızda saklanmaz.
                     </p>
                   </div>
                 </div>
@@ -832,8 +824,8 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
 
           <div className="space-y-3 text-sm">
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-              <span>Ara toplam (KDV hariç)</span>
-              <span>TRY {formatPrice(netSubtotal)}</span>
+              <span>Ürünler</span>
+              <span>TRY {formatPrice(grossSubtotal)}</span>
             </div>
             {paymentMethod === 'eft' && eftDiscount > 0 && (cartSummary?.eftDiscountRatePercent ?? 0) > 0 ? (
               <div className="flex justify-between" style={{ color: 'var(--color-success)' }}>
@@ -841,12 +833,6 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
                 <span>-TRY {formatPrice(eftDiscount)}</span>
               </div>
             ) : null}
-            {taxBreakdown.map((entry) => (
-              <div key={entry.ratePercent} className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-                <span>KDV %{entry.ratePercent}</span>
-                <span>TRY {formatPrice(entry.taxAmount)}</span>
-              </div>
-            ))}
             {couponDiscount > 0 ? (
               <div className="flex justify-between" style={{ color: 'var(--color-success)' }}>
                 <span>Kupon indirimi</span>
@@ -878,7 +864,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
               ) : legalLoading ? (
                 <div className="flex items-center gap-2" style={{ color: 'var(--color-muted-fg)' }}>
                   <Spinner className="h-4 w-4" />
-                  Secili adrese gore sozlesmeler hazirlaniyor...
+                  Seçili adrese göre sözleşmeler hazırlanıyor...
                 </div>
               ) : legalError ? (
                 <p style={{ color: 'var(--color-danger)' }}>{legalError}</p>
@@ -960,7 +946,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
             {submitting ? (
               <span className="flex items-center gap-2">
                 <Spinner className="h-4 w-4" />
-                Isleniyor...
+                İşleniyor...
               </span>
             ) : paymentMethod === 'card' ? (
               'Ödemeye Geç'
@@ -983,3 +969,4 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
     </div>
   )
 }
+

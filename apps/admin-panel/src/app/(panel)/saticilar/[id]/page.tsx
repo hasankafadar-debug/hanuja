@@ -24,7 +24,9 @@ import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { maskIban } from '@hanuja/security'
 import { createSellerFinanceService } from '@hanuja/api/services/seller-finance.service'
+import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 import { SellerAdminActions } from '@/components/seller-admin-actions'
+import { SellerCommissionSettings } from '@/components/seller-commission-settings'
 import { DocumentReviewActions } from '@/components/document-review-actions'
 import { SellerImportPermission } from '@/components/seller-import-permission'
 import { SellerStatusButtons } from '@/components/seller-status-buttons'
@@ -96,8 +98,9 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
 
   const service = createSellerFinanceService({ prisma })
 
-  const [orderAgg, productCount, payoutGroups, ledgerAgg, commissionAgg, kycDocuments, penalties, statement] =
+  const [platformSettings, orderAgg, productCount, payoutGroups, ledgerAgg, commissionAgg, kycDocuments, penalties, statement] =
     await Promise.all([
+      createPlatformSettingsService({ prisma }).get(),
       prisma.orderLine.aggregate({
         where: { sellerId: id },
         _count: { id: true },
@@ -163,6 +166,8 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
   const totalOrders = orderAgg._count.id
   const isNegativeBalance = ledgerBalance < 0
   const exportHref = `/api/admin/sellers/${seller.id}/statement?from=${fromInput}&to=${toInput}&format=xlsx`
+  const effectiveCommissionRate =
+    seller.commissionRateOverride ?? platformSettings.defaultSellerCommissionRate
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -260,6 +265,10 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                   value: <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>,
                 },
                 {
+                  label: 'Etkin Komisyon',
+                  value: `%${(effectiveCommissionRate.toNumber() * 100).toFixed(2)}`,
+                },
+                {
                   label: 'Profil Doğrulama',
                   value: seller.profile?.isVerified ? (
                     <Badge variant="success">Doğrulanmış</Badge>
@@ -321,6 +330,11 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
             sellerId={seller.id}
             importEnabled={seller.importEnabled}
             importRequestedAt={seller.importRequestedAt ? seller.importRequestedAt.toISOString() : null}
+          />
+          <SellerCommissionSettings
+            sellerId={seller.id}
+            defaultRate={platformSettings.defaultSellerCommissionRate.toString()}
+            overrideRate={seller.commissionRateOverride?.toString() ?? null}
           />
         </TabsContent>
 

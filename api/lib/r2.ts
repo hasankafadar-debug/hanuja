@@ -64,6 +64,7 @@ export type MediaFolder =
   | 'slider'
   | 'promo'
   | 'general'
+  | 'customer-support'
 
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
@@ -112,7 +113,7 @@ export async function generatePresignedUploadUrl(opts: {
   const { folder, mimeType, ownerId } = opts
 
   let allowedTypes: Set<string>
-  if (folder === 'documents') {
+  if (folder === 'documents' || folder === 'customer-support') {
     allowedTypes = DOCUMENT_ALLOWED_MIME_TYPES
   } else if (folder === 'slider') {
     allowedTypes = new Set([...ALLOWED_MIME_TYPES, ...SLIDER_VIDEO_MIME_TYPES])
@@ -124,7 +125,7 @@ export async function generatePresignedUploadUrl(opts: {
     throw new Error(`Desteklenmeyen dosya türü: ${mimeType}`)
   }
 
-  const maxSize = folder === 'documents' ? DOCUMENT_MAX_SIZE_BYTES : MAX_FILE_SIZE_BYTES
+  const maxSize = (folder === 'documents' || folder === 'customer-support') ? DOCUMENT_MAX_SIZE_BYTES : MAX_FILE_SIZE_BYTES
   void maxSize // enforced at route level
   const { bucketName, cdnUrl } = getR2Config()
   const r2 = createR2Client()

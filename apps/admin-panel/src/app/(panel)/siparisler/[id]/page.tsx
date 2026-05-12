@@ -91,22 +91,9 @@ export default async function AdminOrderDetailPage({ params }: Props) {
   if (!order) notFound()
 
   const total = moneyToNumber(order.totalAmount)
-  const netSubtotal = moneyToNumber(order.netSubtotal)
+  const grossAmount = moneyToNumber(order.grossAmount)
   const shippingAmount = moneyToNumber(order.shippingAmount)
   const eftDiscountAmount = moneyToNumber(order.eftDiscountAmount)
-  const taxBreakdown = Array.isArray(order.taxBreakdownJson)
-    ? order.taxBreakdownJson
-        .map((entry) => {
-          if (!entry || typeof entry !== 'object') return null
-          const candidate = entry as { ratePercent?: number; taxAmount?: string | number }
-          if (typeof candidate.ratePercent !== 'number') return null
-          return {
-            ratePercent: candidate.ratePercent,
-            taxAmount: Number(candidate.taxAmount ?? 0),
-          }
-        })
-        .filter((entry): entry is { ratePercent: number; taxAmount: number } => entry !== null)
-    : []
 
   const isTerminal = TERMINAL_STATUSES.has(order.status)
   const canConfirmDelivery = DELIVERY_CONFIRMABLE.has(order.status)
@@ -212,14 +199,10 @@ export default async function AdminOrderDetailPage({ params }: Props) {
 
           <div className="space-y-1 text-sm">
             {[
-              { label: 'Ara toplam (KDV haric)', value: formatMoney(netSubtotal) },
+              { label: 'Urunler', value: formatMoney(grossAmount) },
               ...(eftDiscountAmount > 0
                 ? [{ label: 'EFT indirimi', value: `-${formatMoney(eftDiscountAmount)}` }]
                 : []),
-              ...taxBreakdown.map((entry) => ({
-                label: `KDV %${entry.ratePercent}`,
-                value: formatMoney(entry.taxAmount),
-              })),
               {
                 label: 'Kargo',
                 value: shippingAmount === 0 ? 'Ucretsiz' : formatMoney(shippingAmount),

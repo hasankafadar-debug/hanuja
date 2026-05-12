@@ -199,7 +199,7 @@ function SiteFooter() {
               className="text-sm font-semibold uppercase tracking-wider"
               style={{ color: 'rgba(255,255,255,0.5)' }}
             >
-              Satıcılar
+              Basvuru
             </p>
             <ul className="mt-4 space-y-2 text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
               <li>
@@ -207,13 +207,8 @@ function SiteFooter() {
                   href={`${SELLER_PANEL_URL}/basvuru`}
                   className="hover:text-white transition-colors"
                 >
-                  Mağaza Aç
+                  Magaza Basvurusu
                 </a>
-              </li>
-              <li>
-                <Link href="/kullanim-kosullari" className="hover:text-white transition-colors">
-                  Satıcı Kuralları
-                </Link>
               </li>
             </ul>
           </div>
@@ -294,3 +289,4 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
     </>
   )
 }
+

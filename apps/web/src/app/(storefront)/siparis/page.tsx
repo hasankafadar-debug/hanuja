@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { Button, EmptyState, LegalDocumentDialog, StatusBadge } from '@hanuja/ui'
-import { Download, FileText, Package } from 'lucide-react'
+import { Download, FileText, Package, LifeBuoy } from 'lucide-react'
 import { auth } from '@/lib/auth'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
@@ -133,6 +133,12 @@ export default async function OrdersPage() {
               >
                 <Button asChild variant="outline" size="sm">
                   <Link href={`/siparis/${order.id}`}>Detay</Link>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/siparis/${order.id}/destek/yeni`} className="flex items-center gap-1.5">
+                    <LifeBuoy className="h-3.5 w-3.5" />
+                    Destek Al
+                  </Link>
                 </Button>
 
                 {order.legalSnapshot ? (

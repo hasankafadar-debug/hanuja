@@ -9,6 +9,7 @@ import { auth } from '@/lib/auth'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { SupportSection } from './destek/_components/support-section'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,23 +108,10 @@ export default async function OrderDetailPage({ params }: Props) {
   const legalSnapshot = (order.legalSnapshot ?? null) as LegalSnapshot
   const sellerInvoices = (order.sellerInvoices ?? []) as unknown as SellerInvoice[]
 
-  const netSubtotal = moneyToNumber(order.netSubtotal)
+  const grossAmount = moneyToNumber(order.grossAmount)
   const shippingAmount = moneyToNumber(order.shippingAmount)
   const eftDiscount = moneyToNumber(order.eftDiscountAmount)
   const totalAmount = moneyToNumber(order.totalAmount)
-  const taxBreakdown = Array.isArray(order.taxBreakdownJson)
-    ? order.taxBreakdownJson
-        .map((entry) => {
-          if (!entry || typeof entry !== 'object') return null
-          const candidate = entry as { ratePercent?: number; taxAmount?: string | number }
-          if (typeof candidate.ratePercent !== 'number') return null
-          return {
-            ratePercent: candidate.ratePercent,
-            taxAmount: Number(candidate.taxAmount ?? 0),
-          }
-        })
-        .filter((entry): entry is { ratePercent: number; taxAmount: number } => entry !== null)
-    : []
 
   const latestShipment = shipments[0]
   const addressLines = address
@@ -221,8 +209,8 @@ export default async function OrderDetailPage({ params }: Props) {
         <Separator className="my-4" />
         <div className="space-y-2 text-sm">
           <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-            <span>Ara toplam (KDV hariç)</span>
-            <span>{formatMoney(netSubtotal)}</span>
+            <span>Ürünler</span>
+            <span>{formatMoney(grossAmount)}</span>
           </div>
           {eftDiscount > 0 ? (
             <div className="flex justify-between" style={{ color: 'var(--color-success, #16a34a)' }}>
@@ -230,12 +218,6 @@ export default async function OrderDetailPage({ params }: Props) {
               <span>-{formatMoney(eftDiscount)}</span>
             </div>
           ) : null}
-          {taxBreakdown.map((entry) => (
-            <div key={entry.ratePercent} className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-              <span>KDV %{entry.ratePercent}</span>
-              <span>{formatMoney(entry.taxAmount)}</span>
-            </div>
-          ))}
           <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
             <span>Kargo</span>
             <span>{shippingAmount === 0 ? 'Ücretsiz' : formatMoney(shippingAmount)}</span>
@@ -368,6 +350,10 @@ export default async function OrderDetailPage({ params }: Props) {
           </div>
         </section>
       ) : null}
+
+      {/* Destek Bölümü */}
+      <SupportSection orderId={order.id} />
     </div>
   )
 }
+

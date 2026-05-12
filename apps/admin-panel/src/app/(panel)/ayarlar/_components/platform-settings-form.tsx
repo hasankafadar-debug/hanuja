@@ -6,12 +6,12 @@ import { Button, Input, Label } from '@hanuja/ui'
 
 interface PlatformSettingsValues {
   standardPenaltyRate: string
+  defaultSellerCommissionRate: string
   fulfillmentDays: string
   fulfillmentWarningDays: string
   payoutHoldDays: string
   freeShippingThresholdTry: string
   flatShippingFeeTry: string
-  defaultTaxRate: string
   eftDiscountRate: string
 }
 
@@ -32,7 +32,7 @@ export function PlatformSettingsForm({ initialValues }: Props) {
   const [values, setValues] = useState({
     ...initialValues,
     standardPenaltyRate: decimalToPercent(initialValues.standardPenaltyRate),
-    defaultTaxRate: decimalToPercent(initialValues.defaultTaxRate),
+    defaultSellerCommissionRate: decimalToPercent(initialValues.defaultSellerCommissionRate),
     eftDiscountRate: decimalToPercent(initialValues.eftDiscountRate),
   })
   const [loading, setLoading] = useState(false)
@@ -54,12 +54,12 @@ export function PlatformSettingsForm({ initialValues }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           standardPenaltyRate: percentToDecimal(values.standardPenaltyRate),
+          defaultSellerCommissionRate: percentToDecimal(values.defaultSellerCommissionRate),
           fulfillmentDays: Number(values.fulfillmentDays),
           fulfillmentWarningDays: Number(values.fulfillmentWarningDays),
           payoutHoldDays: Number(values.payoutHoldDays),
           freeShippingThresholdTry: Number(values.freeShippingThresholdTry),
           flatShippingFeeTry: Number(values.flatShippingFeeTry),
-          defaultTaxRate: percentToDecimal(values.defaultTaxRate),
           eftDiscountRate: percentToDecimal(values.eftDiscountRate),
         }),
       })
@@ -87,12 +87,12 @@ export function PlatformSettingsForm({ initialValues }: Props) {
     min?: string
   }> = [
     { key: 'standardPenaltyRate', label: 'Varsayilan ceza orani', suffix: '%', step: '0.01', min: '0' },
+    { key: 'defaultSellerCommissionRate', label: 'Genel satici komisyonu', suffix: '%', step: '0.01', min: '0' },
     { key: 'fulfillmentDays', label: 'Sevk suresi', suffix: 'gun', min: '1' },
     { key: 'fulfillmentWarningDays', label: 'Admin uyari penceresi', suffix: 'gun kala', min: '1' },
     { key: 'payoutHoldDays', label: 'Hakedis bekleme suresi', suffix: 'gun', min: '1' },
     { key: 'freeShippingThresholdTry', label: 'Ucretsiz kargo esigi', suffix: 'TL', step: '0.01', min: '0' },
     { key: 'flatShippingFeeTry', label: 'Sabit kargo ucreti', suffix: 'TL', step: '0.01', min: '0' },
-    { key: 'defaultTaxRate', label: 'Varsayilan KDV orani', suffix: '%', step: '0.01', min: '0' },
     { key: 'eftDiscountRate', label: 'EFT / Havale indirim orani', suffix: '%', step: '0.01', min: '0' },
   ]
 

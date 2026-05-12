@@ -1,5 +1,5 @@
 /**
- * Penalty Service â€” applies, accrues, offsets, and waives seller penalties.
+ * Penalty Service - applies, accrues, offsets, and waives seller penalties.
  *
  * Rejection penalty: fixed 20% of product amount.
  * Late-shipment penalty: 1% per overdue day, auto-cancel on day 20.
@@ -104,7 +104,7 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
           amount: penaltyAmount.negated(),
           orderId: params.orderId,
           penaltyId: penalty.id,
-          note: `Ceza: ${params.reason} â€” ${penaltyAmount.toFixed(2)} TRY`,
+          note: `Ceza: ${params.reason} - ${penaltyAmount.toFixed(2)} TRY`,
         })
 
         return penalty
@@ -201,7 +201,7 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
     },
 
     /**
-     * Waive a penalty â€” admin only, reason required.
+     * Waive a penalty - admin only, reason required.
      * Original penalty record is preserved with status='waived'.
      */
     async waive(params: {

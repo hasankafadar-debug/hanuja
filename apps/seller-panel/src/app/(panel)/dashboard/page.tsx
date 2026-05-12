@@ -43,6 +43,8 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
   const orderService = createOrderService({ prisma })
   const payoutRepo = createPayoutRepository(prisma)
   const platformSettings = await createPlatformSettingsService({ prisma }).get()
+  const effectiveCommissionRate =
+    seller.commissionRateOverride ?? platformSettings.defaultSellerCommissionRate
 
   const now = new Date()
   const defaultTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
@@ -315,6 +317,18 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
         <StatCard title="Bekleyen Hakediş" value={`₺${holdAmount.toLocaleString('tr-TR')}`} icon={<Clock className="h-5 w-5" />} />
         <StatCard title="Ödeme Hazır" value={`₺${readyAmount.toLocaleString('tr-TR')}`} icon={<CheckCircle className="h-5 w-5" />} />
         <StatCard title="Açık İade" value={openReturns} icon={<AlertTriangle className="h-5 w-5" />} />
+      </div>
+
+      <div
+        className="rounded-xl border p-4 text-sm"
+        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <span style={{ color: 'var(--color-muted-fg)' }}>Magazaniza uygulanan komisyon orani</span>
+          <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+            %{(effectiveCommissionRate.toNumber() * 100).toFixed(2)}
+          </span>
+        </div>
       </div>
 
       {delayedOrders.length > 0 ? (

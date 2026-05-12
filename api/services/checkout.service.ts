@@ -1,19 +1,20 @@
 /**
- * Checkout Service — sepetten siparişe dönüşüm.
+ * Checkout Service - sepetten siparişe dönüşüm.
  *
  * GÜVENLİK KURALI: Hiçbir zaman client'tan gelen toplam/fiyat bilgisine güvenme.
  * Tüm tutarlar sunucu tarafında ürün veritabanından yeniden hesaplanır.
  *
  * AKIŞ:
- *   cart → validate → create Order (draft) → create OrderLines
- *   → create Payment → checkout_started → payment_pending
- *   → ödeme yöntemi eft ise cart clear → return { order, payment }
+ *   cart -> validate -> create Order (draft) -> create OrderLines
+ *   -> create Payment -> checkout_started -> payment_pending
+ *   -> ödeme yöntemi eft ise cart clear -> return { order, payment }
  *
  * Gerçek Iyzico çağrısı entegrasyon katmanında yapılır.
  * See: cart-checkout-flow skill, 07-marketplace-finance-rules.md
  */
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
+import { calculateCommission, resolveCommissionRate } from '../domain/payout-calculator'
 import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
 import { NotFoundError, ValidationError, ConflictError } from '../lib/errors'
 import { createCartRepository } from '../repositories/cart.repository'
@@ -24,10 +25,8 @@ import { formatOrderNumber, formatOrderDisplayNumber } from '../lib/order-number
 import { createPlatformSettingsService } from './platform-settings.service'
 import { roundMoney } from '@hanuja/security/money'
 
-// Sistem varsayılan komisyon oranı — proje büyüdükçe commission config tablosuna taşınır
+// Sistem varsayılan komisyon oranı - proje büyüdükçe commission config tablosuna taşınır
 // Öncelik sırası (CLAUDE.md 15.1): ürün override > kategori > satıcı genel > sistem default
-const SYSTEM_DEFAULT_COMMISSION_RATE = new Decimal('0.1500') // %15
-
 interface CheckoutServiceDeps {
   prisma: PrismaClient
 }
@@ -185,7 +184,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
 
       if (product.variants.length > 0 && !variant) {
         throw new ConflictError(
-          `"${product.name}" icin varyasyon secimi gecersiz. Lutfen sepeti guncelleyin.`,
+          `"${product.name}" için varyasyon seçimi geçersiz. Lütfen sepeti güncelleyin.`,
         )
       }
 
@@ -200,9 +199,14 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       const totalPrice = unitPrice.mul(item.quantity)
       const taxRate = resolveCategoryTaxRate(product.categoryId, categoryMap, settings.defaultTaxRate)
       const taxAmount = calculateIncludedTax(totalPrice, taxRate)
-      const commissionRate = SYSTEM_DEFAULT_COMMISSION_RATE
-      const commissionAmount = totalPrice.mul(commissionRate)
-      const netPayoutAmount = totalPrice.sub(commissionAmount)
+      const commissionRate = resolveCommissionRate(
+        null,
+        null,
+        product.seller.commissionRateOverride,
+        settings.defaultSellerCommissionRate,
+      )
+      const commissionAmount = calculateCommission(totalPrice, commissionRate)
+      const netPayoutAmount = roundMoney(totalPrice.sub(commissionAmount))
 
       if (!sellerMap.has(product.sellerId)) {
         sellerMap.set(product.sellerId, buildSellerSnapshot(product.seller))
@@ -288,8 +292,6 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           quantity: line.quantity,
           unitPrice: decimalToNumber(line.unitPrice),
           lineTotal: decimalToNumber(line.totalPrice),
-          taxRate: decimalToNumber(line.taxRate),
-          taxAmount: decimalToNumber(line.taxAmount),
           sellerId: line.sellerId,
           sellerStoreName:
             sellerMap.get(line.sellerId)?.storeName ?? 'Satıcı Mağazası',
@@ -306,7 +308,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
 
   return {
     /**
-     * Sepet içeriğini doğrular — checkout'a geçmeden önce çağrılır.
+     * Sepet içeriğini doğrular - checkout'a geçmeden önce çağrılır.
      * Stok, fiyat değişiklikleri ve ürün durumu kontrol edilir.
      */
     async validateCart(userId: string) {
@@ -342,7 +344,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           : null
 
         if (product.variants.length > 0 && !variant) {
-          errors.push(`"${product.name}" icin varyasyon secimi gecersiz`)
+          errors.push(`"${product.name}" için varyasyon seçimi geçersiz`)
           continue
         }
 
@@ -359,7 +361,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
 
         if (!new Decimal(item.unitPrice).eq(currentPrice)) {
           warnings.push(
-            `"${product.name}" fiyatı değişti: ₺${item.unitPrice} → ₺${currentPrice}`,
+            `"${product.name}" fiyatı değişti: ₺${item.unitPrice} -> ₺${currentPrice}`,
           )
         }
       }
@@ -379,7 +381,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
     /**
      * Sepetten sipariş oluşturur.
      *
-     * Tutarlar sunucu tarafında yeniden hesaplanır — client'tan gelen değerler kullanılmaz.
+     * Tutarlar sunucu tarafında yeniden hesaplanır - client'tan gelen değerler kullanılmaz.
      * Kargo ücreti: ₺1500 üzeri ücretsiz, altı ₺99.
      * Komisyon: sistem varsayılan %15 (CLAUDE.md 15.1).
      *
@@ -477,7 +479,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           },
         })
 
-        // Stok atomik olarak azalt — race condition'a karşı transaction içinde yapılıyor
+        // Stok atomik olarak azalt - race condition'a karşı transaction içinde yapılıyor
         for (const line of draft.lines) {
           if (line.variantId) {
             const updated = await tx.productVariant.updateMany({
@@ -515,7 +517,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         userId: params.userId,
         emailTo: draft.customer.email,
         type: 'order_placed',
-        title: `Siparişiniz Alındı — ${formatOrderDisplayNumber(result.order.publicNumber, result.order.id)}`,
+        title: `Siparişiniz Alındı - ${formatOrderDisplayNumber(result.order.publicNumber, result.order.id)}`,
         body: 'Siparişiniz başarıyla alındı.',
         data: {
           orderId: result.order.id,
