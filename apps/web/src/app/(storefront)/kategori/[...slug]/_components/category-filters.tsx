@@ -1,120 +1,276 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { useState } from 'react'
 
-const PRICE_RANGES = [
-  { label: '0 – 500 ₺', value: '0-500' },
-  { label: '500 – 1.500 ₺', value: '500-1500' },
-  { label: '1.500 – 3.000 ₺', value: '1500-3000' },
-  { label: '3.000 ₺ ve üzeri', value: '3000+' },
-]
-
-interface CategoryFiltersProps {
-  activePriceRange?: string
-  inStockOnly?: boolean
+export interface FilterSeller {
+  id: string
+  slug: string
+  displayName: string | null
+  productCount: number
 }
 
-export function CategoryFilters({ activePriceRange, inStockOnly }: CategoryFiltersProps) {
+export interface FilterSubcategory {
+  id: string
+  slug: string
+  name: string
+}
+
+interface CategoryFiltersProps {
+  minPrice?: number
+  maxPrice?: number
+  inStockOnly?: boolean
+  onSaleOnly?: boolean
+  activeSeller?: string
+  activeSubcategory?: string
+  sellers: FilterSeller[]
+  subcategories: FilterSubcategory[]
+}
+
+function AccordionSection({
+  title,
+  children,
+  defaultOpen = true,
+}: {
+  title: string
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <div className="mb-5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mb-2 flex w-full items-center justify-between"
+      >
+        <p
+          className="text-xs font-semibold uppercase tracking-wider"
+          style={{ color: 'var(--color-muted-fg)' }}
+        >
+          {title}
+        </p>
+        <ChevronDown
+          className="h-3 w-3 transition-transform"
+          style={{
+            color: 'var(--color-muted-fg)',
+            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+          }}
+        />
+      </button>
+      {open && children}
+    </div>
+  )
+}
+
+export function CategoryFilters({
+  minPrice,
+  maxPrice,
+  inStockOnly,
+  onSaleOnly,
+  activeSeller,
+  activeSubcategory,
+  sellers,
+  subcategories,
+}: CategoryFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const minRef = useRef<HTMLInputElement>(null)
+  const maxRef = useRef<HTMLInputElement>(null)
 
-  const updateParam = useCallback(
-    (key: string, value: string | null) => {
+  const updateParams = useCallback(
+    (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(searchParams.toString())
-      if (value === null || value === '') {
-        params.delete(key)
-      } else {
-        params.set(key, value)
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === '') {
+          params.delete(key)
+        } else {
+          params.set(key, value)
+        }
       }
-      // Reset to page 1 when filter changes
       params.delete('sayfa')
       router.push(`${pathname}?${params.toString()}`, { scroll: false })
     },
     [router, pathname, searchParams],
   )
 
-  function handlePriceChange(value: string, checked: boolean) {
-    if (checked) {
-      updateParam('fiyat', value)
-    } else if (activePriceRange === value) {
-      updateParam('fiyat', null)
-    }
+  function handlePriceApply() {
+    const min = minRef.current?.value.trim() ?? ''
+    const max = maxRef.current?.value.trim() ?? ''
+    updateParams({
+      fiyatMin: min || null,
+      fiyatMax: max || null,
+      fiyat: null,
+    })
   }
 
   function handleStockChange(checked: boolean) {
-    updateParam('stokta', checked ? '1' : null)
+    updateParams({ stokta: checked ? '1' : null })
   }
 
-  return (
-    <aside className="shrink-0 lg:w-56">
-      <div
-        className="rounded-xl border p-5"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-        }}
-      >
-        <div className="mb-4 flex items-center gap-2">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            style={{ color: 'var(--color-muted-fg)' }}
-          >
-            <line x1="4" y1="6" x2="20" y2="6" />
-            <line x1="8" y1="12" x2="16" y2="12" />
-            <line x1="11" y1="18" x2="13" y2="18" />
-          </svg>
-          <h2
-            className="text-sm font-semibold"
-            style={{ color: 'var(--color-primary)' }}
-          >
-            Filtrele
-          </h2>
-        </div>
+  function handleSaleChange(checked: boolean) {
+    updateParams({ indirimli: checked ? '1' : null })
+  }
 
-        {/* Fiyat filtresi */}
-        <div className="mb-6">
-          <p
-            className="mb-3 text-xs font-semibold uppercase tracking-wider"
-            style={{ color: 'var(--color-muted-fg)' }}
-          >
-            Fiyat Aralığı
-          </p>
-          <ul className="space-y-2">
-            {PRICE_RANGES.map((f) => (
-              <li key={f.value}>
-                <label
-                  className="flex cursor-pointer items-center gap-2 text-sm"
-                  style={{ color: 'var(--color-primary)' }}
+  function handleSellerChange(slug: string) {
+    updateParams({ tasarimci: activeSeller === slug ? null : slug })
+  }
+
+  function handleSubcategoryChange(slug: string) {
+    updateParams({ alt: activeSubcategory === slug ? null : slug })
+  }
+
+  const hasActiveFilters =
+    minPrice !== undefined ||
+    maxPrice !== undefined ||
+    inStockOnly ||
+    onSaleOnly ||
+    activeSeller !== undefined ||
+    activeSubcategory !== undefined
+
+  return (
+    <div
+      className="rounded-xl border p-4"
+      style={{
+        backgroundColor: 'var(--color-surface)',
+        borderColor: 'var(--color-border)',
+      }}
+    >
+      {/* Alt Kategori */}
+      {subcategories.length > 0 && (
+        <AccordionSection title="Alt Kategori">
+          <ul className="space-y-1">
+            {subcategories.map((sub) => (
+              <li key={sub.id}>
+                <button
+                  type="button"
+                  onClick={() => handleSubcategoryChange(sub.slug)}
+                  className="w-full rounded px-2 py-1 text-left text-sm transition-colors"
+                  style={{
+                    backgroundColor:
+                      activeSubcategory === sub.slug
+                        ? 'var(--color-accent)'
+                        : 'transparent',
+                    color:
+                      activeSubcategory === sub.slug
+                        ? '#fff'
+                        : 'var(--color-primary)',
+                    fontWeight: activeSubcategory === sub.slug ? 600 : 400,
+                  }}
                 >
-                  <input
-                    type="checkbox"
-                    value={f.value}
-                    checked={activePriceRange === f.value}
-                    onChange={(e) => handlePriceChange(f.value, e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  {f.label}
-                </label>
+                  {sub.name}
+                </button>
               </li>
             ))}
           </ul>
-        </div>
+        </AccordionSection>
+      )}
 
-        {/* Stok filtresi */}
-        <div>
-          <p
-            className="mb-3 text-xs font-semibold uppercase tracking-wider"
-            style={{ color: 'var(--color-muted-fg)' }}
+      {/* Fiyat */}
+      <AccordionSection title="Fiyat Aralığı">
+        <div className="flex items-center gap-2">
+          <input
+            ref={minRef}
+            type="number"
+            min={0}
+            defaultValue={minPrice ?? ''}
+            placeholder="Min ₺"
+            className="w-full rounded-md border px-2 py-1.5 text-sm"
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-background)',
+              color: 'var(--color-primary)',
+            }}
+          />
+          <span className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            –
+          </span>
+          <input
+            ref={maxRef}
+            type="number"
+            min={0}
+            defaultValue={maxPrice ?? ''}
+            placeholder="Max ₺"
+            className="w-full rounded-md border px-2 py-1.5 text-sm"
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-background)',
+              color: 'var(--color-primary)',
+            }}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={handlePriceApply}
+          className="mt-2 w-full rounded-md py-1.5 text-xs font-medium"
+          style={{
+            backgroundColor: 'var(--color-accent)',
+            color: '#fff',
+          }}
+        >
+          Uygula
+        </button>
+      </AccordionSection>
+
+      {/* Tasarımcı */}
+      {sellers.length > 0 && (
+        <AccordionSection title="Tasarımcı">
+          <ul className="max-h-48 space-y-1 overflow-y-auto">
+            {sellers.map((seller) => (
+              <li key={seller.id}>
+                <button
+                  type="button"
+                  onClick={() => handleSellerChange(seller.slug)}
+                  className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm transition-colors"
+                  style={{
+                    backgroundColor:
+                      activeSeller === seller.slug
+                        ? 'var(--color-accent)'
+                        : 'transparent',
+                    color:
+                      activeSeller === seller.slug
+                        ? '#fff'
+                        : 'var(--color-primary)',
+                  }}
+                >
+                  <span>{seller.displayName ?? seller.slug}</span>
+                  <span
+                    className="ml-1 text-xs"
+                    style={{
+                      color:
+                        activeSeller === seller.slug
+                          ? 'rgba(255,255,255,0.7)'
+                          : 'var(--color-muted-fg)',
+                    }}
+                  >
+                    {seller.productCount}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </AccordionSection>
+      )}
+
+      {/* Ürün Durumu */}
+      <AccordionSection title="Ürün Durumu" defaultOpen={false}>
+        <div className="space-y-2">
+          <label
+            className="flex cursor-pointer items-center gap-2 text-sm"
+            style={{ color: 'var(--color-primary)' }}
           >
-            Stok Durumu
-          </p>
+            <input
+              type="checkbox"
+              checked={onSaleOnly === true}
+              onChange={(e) => handleSaleChange(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            İndirimli ürünler
+          </label>
           <label
             className="flex cursor-pointer items-center gap-2 text-sm"
             style={{ color: 'var(--color-primary)' }}
@@ -128,25 +284,30 @@ export function CategoryFilters({ activePriceRange, inStockOnly }: CategoryFilte
             Sadece stokta olanlar
           </label>
         </div>
+      </AccordionSection>
 
-        {/* Filtreleri temizle */}
-        {(activePriceRange ?? inStockOnly) && (
-          <button
-            type="button"
-            onClick={() => {
-              const params = new URLSearchParams(searchParams.toString())
-              params.delete('fiyat')
-              params.delete('stokta')
-              params.delete('sayfa')
-              router.push(`${pathname}?${params.toString()}`, { scroll: false })
-            }}
-            className="mt-4 text-xs underline"
-            style={{ color: 'var(--color-muted-fg)' }}
-          >
-            Filtreleri temizle
-          </button>
-        )}
-      </div>
-    </aside>
+      {/* Sıfırla */}
+      {hasActiveFilters && (
+        <button
+          type="button"
+          onClick={() => {
+            const params = new URLSearchParams(searchParams.toString())
+            params.delete('fiyat')
+            params.delete('fiyatMin')
+            params.delete('fiyatMax')
+            params.delete('stokta')
+            params.delete('indirimli')
+            params.delete('tasarimci')
+            params.delete('alt')
+            params.delete('sayfa')
+            router.push(`${pathname}?${params.toString()}`, { scroll: false })
+          }}
+          className="mt-1 text-xs underline"
+          style={{ color: 'var(--color-muted-fg)' }}
+        >
+          Filtreleri sıfırla
+        </button>
+      )}
+    </div>
   )
 }

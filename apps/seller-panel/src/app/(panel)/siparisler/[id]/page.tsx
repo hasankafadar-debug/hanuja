@@ -13,7 +13,6 @@ import InvoiceAliasCard from './_components/invoice-alias-card'
 import InvoiceUploadCard from './_components/invoice-upload-card'
 import OrderTimeline from './_components/order-timeline'
 import OrderWorkflowCard from './_components/order-workflow-card'
-import RejectButton from './_components/reject-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -119,7 +118,6 @@ export default async function SellerOrderDetailPage({ params }: Props) {
     year: 'numeric',
   })
 
-  const canReject = ['seller_queue_ready', 'seller_reviewing'].includes(order.status)
   const distanceSalesDownloadHref = `/api/seller/orders/${id}/contracts/distance-sales`
   const preInformationDownloadHref = `/api/seller/orders/${id}/contracts/pre-information`
 
@@ -179,12 +177,6 @@ export default async function SellerOrderDetailPage({ params }: Props) {
             trackingNumber={latestShipment?.trackingNumber ?? null}
             cargoProvider={latestShipment?.cargoProvider ?? null}
           />
-
-          {canReject ? (
-            <div className="flex justify-end">
-              <RejectButton orderId={id} />
-            </div>
-          ) : null}
 
           <OrderTimeline items={statusHistory} />
 

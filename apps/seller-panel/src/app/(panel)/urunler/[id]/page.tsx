@@ -22,10 +22,15 @@ export default async function EditProductPage({ params }: Props) {
   const { id } = await params
   const { seller } = await getSellerFromSession()
 
-  const svc = createCatalogService({ prisma: createPrismaForRoute() })
-  const [product, allCategories] = await Promise.all([
+  const prisma = createPrismaForRoute()
+  const svc = createCatalogService({ prisma })
+  const [product, allCategories, attributeValues] = await Promise.all([
     svc.getProductForSeller(id, seller.id).catch(() => null),
     svc.listAllCategories(),
+    prisma.productAttributeValue.findMany({
+      where: { productId: id },
+      include: { option: { select: { id: true, type: true } } },
+    }),
   ])
 
   if (!product) notFound()
@@ -57,6 +62,9 @@ export default async function EditProductPage({ params }: Props) {
   }
 
   const p = product as unknown as ProductData
+  const initialColorOptionId = attributeValues.find((av) => av.option.type === 'color')?.optionId ?? ''
+  const initialMaterialOptionId = attributeValues.find((av) => av.option.type === 'material')?.optionId ?? ''
+
   const price = typeof p.price === 'object' ? p.price.toNumber() : Number(p.price)
   const compareAtPrice =
     p.compareAtPrice && typeof p.compareAtPrice === 'object'
@@ -116,6 +124,8 @@ export default async function EditProductPage({ params }: Props) {
         initialVariants={initialVariants}
         existingImages={existingImages}
         categories={categories}
+        initialColorOptionId={initialColorOptionId}
+        initialMaterialOptionId={initialMaterialOptionId}
       />
     </div>
   )

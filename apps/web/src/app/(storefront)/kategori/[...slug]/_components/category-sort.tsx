@@ -10,10 +10,10 @@ const SORT_OPTIONS = [
 
 interface CategorySortProps {
   currentSort?: string
-  productCount: number
+  totalProducts: number
 }
 
-export function CategorySort({ currentSort, productCount }: CategorySortProps) {
+export function CategorySort({ currentSort, totalProducts }: CategorySortProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -31,27 +31,20 @@ export function CategorySort({ currentSort, productCount }: CategorySortProps) {
 
   return (
     <div
-      className="mb-6 flex items-center justify-between rounded-lg border px-4 py-3"
+      className="flex items-center justify-between rounded-lg border px-4 py-2"
       style={{
         backgroundColor: 'var(--color-surface)',
         borderColor: 'var(--color-border)',
       }}
     >
       <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-        <span
-          className="font-medium"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          {productCount}
+        <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
+          {totalProducts}
         </span>{' '}
-        ürün bulundu
+        ürün
       </p>
       <div className="flex items-center gap-2">
-        <label
-          htmlFor="sort"
-          className="text-sm"
-          style={{ color: 'var(--color-muted-fg)' }}
-        >
+        <label htmlFor="sort" className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
           Sırala:
         </label>
         <select

@@ -8,6 +8,7 @@ import {
   getAvailableSellerWorkflowActions,
   getSellerWorkflowStep,
 } from '@/lib/seller-order-workflow'
+import RejectButton from './reject-button'
 
 interface OrderWorkflowCardProps {
   orderId: string
@@ -55,6 +56,7 @@ export default function OrderWorkflowCard({
 
   const currentStep = useMemo(() => getSellerWorkflowStep(status), [status])
   const actions = useMemo(() => getAvailableSellerWorkflowActions(status), [status])
+  const canReject = ['seller_queue_ready', 'seller_reviewing'].includes(status)
 
   const resolvedCargoProvider =
     selectedCargoProvider === 'diger' ? customCargoName.trim() : selectedCargoProvider
@@ -156,20 +158,25 @@ export default function OrderWorkflowCard({
       </div>
 
       {actions.includes('accept') ? (
-        <div className="space-y-3">
-          <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Sipariş ödeme onaylı olarak satıcı kuyruğuna düştü.
-          </p>
-          <Button loading={loadingAction === 'accept'} onClick={() => postAction('accept')}>
-            Siparişi Onayla
-          </Button>
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+            <div className="space-y-3">
+              <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                Sipariş ödeme onaylı olarak satıcı kuyruğuna düştü.
+              </p>
+              <Button loading={loadingAction === 'accept'} onClick={() => postAction('accept')}>
+                Siparişi Onayla
+              </Button>
+            </div>
+            {canReject ? <RejectButton orderId={orderId} /> : null}
+          </div>
         </div>
       ) : null}
 
       {actions.includes('preparing') ? (
         <div className="space-y-3">
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Onaylanan siparisi hazirlik asamasina gecirin.
+            Onaylanan siparişi hazırlık aşamasına geçirin.
           </p>
           <Button loading={loadingAction === 'preparing'} onClick={() => postAction('preparing')}>
             Hazırlamaya Başla
@@ -182,7 +189,11 @@ export default function OrderWorkflowCard({
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
             Kargo firması seçip siparişi kargoya hazır durumuna getirin.
           </p>
-          <label htmlFor="workflow-cargo-provider-ready" className="block text-sm" style={{ color: 'var(--color-primary)' }}>
+          <label
+            htmlFor="workflow-cargo-provider-ready"
+            className="block text-sm"
+            style={{ color: 'var(--color-primary)' }}
+          >
             Kargo Firması
           </label>
           <select
@@ -234,7 +245,11 @@ export default function OrderWorkflowCard({
           </p>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <label htmlFor="workflow-cargo-provider-tracking" className="mb-2 block text-sm" style={{ color: 'var(--color-primary)' }}>
+              <label
+                htmlFor="workflow-cargo-provider-tracking"
+                className="mb-2 block text-sm"
+                style={{ color: 'var(--color-primary)' }}
+              >
                 Kargo Firması
               </label>
               <select
@@ -271,7 +286,11 @@ export default function OrderWorkflowCard({
               ) : null}
             </div>
             <div>
-              <label htmlFor="workflow-tracking-number" className="mb-2 block text-sm" style={{ color: 'var(--color-primary)' }}>
+              <label
+                htmlFor="workflow-tracking-number"
+                className="mb-2 block text-sm"
+                style={{ color: 'var(--color-primary)' }}
+              >
                 Takip Numarası
               </label>
               <input
@@ -311,7 +330,7 @@ export default function OrderWorkflowCard({
           </p>
           <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>
             {resolvedCargoProvider
-              ? `Kargo firmasi: ${CARGO_PROVIDER_LABELS[resolvedCargoProvider] ?? resolvedCargoProvider}`
+              ? `Kargo firması: ${CARGO_PROVIDER_LABELS[resolvedCargoProvider] ?? resolvedCargoProvider}`
               : null}
           </p>
         </div>

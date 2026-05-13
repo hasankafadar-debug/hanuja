@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   Store,
   KeyRound,
+  LifeBuoy,
 } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createAdminAnalyticsService } from '@hanuja/api/services/admin-analytics.service'
@@ -175,6 +176,14 @@ export default async function AdminDashboardPage() {
             title="Hipicon İzin Bekleyen"
             value={String(stats.sellers.pendingImportPermissions)}
             icon={<KeyRound className="h-5 w-5" />}
+            className="transition-shadow hover:shadow-sm"
+          />
+        </Link>
+        <Link href="/musteri-destek?status=waiting_for_admin" className="block">
+          <StatCard
+            title="Müşteri Destek"
+            value={`${stats.customerSupport.newTickets} yeni, ${stats.customerSupport.customerReplied} yanıt`}
+            icon={<LifeBuoy className="h-5 w-5" />}
             className="transition-shadow hover:shadow-sm"
           />
         </Link>

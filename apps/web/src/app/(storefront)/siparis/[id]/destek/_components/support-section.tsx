@@ -19,6 +19,11 @@ interface SupportSectionProps {
   orderId: string
 }
 
+interface ApiEnvelope<T> {
+  data: T
+  success: boolean
+}
+
 function StatusBadge({ status }: { status: TicketStatus }) {
   if (status === 'waiting_for_admin') {
     return (
@@ -53,7 +58,9 @@ export function SupportSection({ orderId }: SupportSectionProps) {
         if (!res.ok) throw new Error('Destek talepleri yüklenemedi.')
         return res.json()
       })
-      .then((data: { tickets: Ticket[] }) => setTickets(data.tickets))
+      .then((payload: ApiEnvelope<{ tickets?: Ticket[] }>) => {
+        setTickets(payload.data?.tickets ?? [])
+      })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Bir hata oluştu.'))
       .finally(() => setLoading(false))
   }, [orderId])

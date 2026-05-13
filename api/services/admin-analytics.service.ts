@@ -35,6 +35,10 @@ export interface AdminDashboardStats {
     pendingApproval: number
     pendingImportPermissions: number
   }
+  customerSupport: {
+    newTickets: number
+    customerReplied: number
+  }
 }
 
 export interface SellerFinanceSummary {
@@ -72,6 +76,10 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       activeSellers,
       pendingSellers,
       pendingImportPermissions,
+
+      // Customer support ticket counts
+      customerSupportNewTickets,
+      customerSupportRepliedTickets,
     ] = await Promise.all([
       prisma.order.count({
         where: { createdAt: { gte: startOfToday } },
@@ -122,6 +130,14 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       prisma.seller.count({
         where: { importEnabled: false, importRequestedAt: { not: null } },
       }),
+
+      // Customer support ticket breakdown
+      prisma.customerSupportTicket.count({
+        where: { status: 'waiting_for_admin', lastAdminMessageAt: null },
+      }),
+      prisma.customerSupportTicket.count({
+        where: { status: 'waiting_for_admin', lastAdminMessageAt: { not: null } },
+      }),
     ])
 
     const activeFulfillmentRisks = await createFulfillmentRiskService({ prisma }).listActiveForAdmin()
@@ -152,6 +168,10 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
         totalActive: activeSellers,
         pendingApproval: pendingSellers,
         pendingImportPermissions,
+      },
+      customerSupport: {
+        newTickets: customerSupportNewTickets,
+        customerReplied: customerSupportRepliedTickets,
       },
     }
   }

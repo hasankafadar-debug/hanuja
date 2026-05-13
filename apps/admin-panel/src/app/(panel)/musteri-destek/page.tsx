@@ -188,7 +188,7 @@ export default async function CustomerSupportListPage({
               return (
                 <tr
                   key={ticket.id}
-                  className="border-t hover:bg-[var(--color-muted)] cursor-pointer"
+                  className="border-t hover:bg-[var(--color-muted)]"
                   style={{ borderColor: 'var(--color-border)' }}
                 >
                   <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
@@ -199,7 +199,6 @@ export default async function CustomerSupportListPage({
                       href={`/siparisler/${ticket.orderId}`}
                       className="font-mono text-xs hover:underline"
                       style={{ color: 'var(--color-accent)' }}
-                      onClick={(e) => e.stopPropagation()}
                     >
                       {orderNum}
                     </Link>

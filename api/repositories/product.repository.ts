@@ -18,6 +18,7 @@ function buildPublishedWhere(params: {
   minPrice?: number
   maxPrice?: number
   inStockOnly?: boolean
+  onSaleOnly?: boolean
   sellerId?: string
 }): Prisma.ProductWhereInput {
   const categoryFilter =
@@ -40,6 +41,7 @@ function buildPublishedWhere(params: {
         }
       : {}),
     ...(params.inStockOnly === true ? { stockQuantity: { gt: 0 } } : {}),
+    ...(params.onSaleOnly === true ? { compareAtPrice: { not: null } } : {}),
   }
 }
 
@@ -91,6 +93,7 @@ export function createProductRepository(prisma: PrismaClient) {
       minPrice?: number
       maxPrice?: number
       inStockOnly?: boolean
+      onSaleOnly?: boolean
       sellerId?: string
       sortBy?: 'newest' | 'price-asc' | 'price-desc'
       skip?: number
@@ -105,12 +108,68 @@ export function createProductRepository(prisma: PrismaClient) {
       })
     },
 
+    async listPublishedWithCursor(params: {
+      sellerId?: string
+      categoryId?: string
+      categoryIds?: string[]
+      minPrice?: number
+      maxPrice?: number
+      inStockOnly?: boolean
+      cursor?: string
+      take?: number
+    }) {
+      const take = params.take ?? 20
+      const rows = await prisma.product.findMany({
+        where: buildPublishedWhere(params),
+        include: { images: publishedImageInclude, seller: true },
+        orderBy: { createdAt: 'desc' },
+        take: take + 1,
+        ...(params.cursor
+          ? { cursor: { id: params.cursor }, skip: 1 }
+          : {}),
+      })
+      const hasMore = rows.length > take
+      const items = hasMore ? rows.slice(0, take) : rows
+      const nextCursor = hasMore ? items[items.length - 1]?.id ?? null : null
+      return { items, hasMore, nextCursor }
+    },
+
+    async getSellersByCategory(categoryIds: string[]) {
+      const rows = await prisma.product.groupBy({
+        by: ['sellerId'],
+        where: {
+          status: 'published',
+          categoryId: { in: categoryIds },
+        },
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+      })
+
+      if (rows.length === 0) return []
+
+      const sellerIds = rows.map((r) => r.sellerId)
+      const sellers = await prisma.seller.findMany({
+        where: { id: { in: sellerIds }, status: 'active' },
+        select: { id: true, displayName: true, slug: true },
+      })
+
+      const sellerMap = new Map(sellers.map((s) => [s.id, s]))
+      return rows
+        .map((r) => {
+          const seller = sellerMap.get(r.sellerId)
+          if (!seller) return null
+          return { ...seller, productCount: r._count.id }
+        })
+        .filter((s): s is NonNullable<typeof s> => s !== null)
+    },
+
     countPublished(params: {
       categoryId?: string
       categoryIds?: string[]
       minPrice?: number
       maxPrice?: number
       inStockOnly?: boolean
+      onSaleOnly?: boolean
       sellerId?: string
     }) {
       return prisma.product.count({

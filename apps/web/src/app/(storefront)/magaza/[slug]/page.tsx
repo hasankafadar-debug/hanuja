@@ -5,7 +5,8 @@ import { buildStoreMetadata, buildLocalBusinessStructuredData, JsonLd } from '@h
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createSellerRepository } from '@hanuja/api/repositories/seller.repository'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
-import StorefrontProductGrid, { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
+import { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
+import StoreProductsInfiniteGrid from '@/components/storefront/store-products-infinite-grid'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,9 +22,9 @@ async function getStoreData(slug: string) {
   const seller = await sellerRepo.findBySlugWithProfile(slug)
   if (!seller) return null
 
-  const products = await catalogService.listPublished({ sellerId: seller.id, skip: 0, take: 24 })
+  const result = await catalogService.listPublishedWithCursor({ sellerId: seller.id, take: 20 })
 
-  return { seller, products }
+  return { seller, products: result.items, nextCursor: result.nextCursor }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -39,7 +40,7 @@ export default async function StoreDetailPage({ params }: Props) {
 
   if (!data) notFound()
 
-  const { seller, products } = data
+  const { seller, products, nextCursor } = data
   const storeName = seller.displayName || slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   const bio = seller.profile?.bio ?? null
 
@@ -100,7 +101,7 @@ export default async function StoreDetailPage({ params }: Props) {
                     <span>·</span>
                   </>
                 )}
-                <span>{products.length} ürün</span>
+                <span>{products.length}{nextCursor ? '+' : ''} ürün</span>
               </div>
             </div>
           </div>
@@ -121,9 +122,8 @@ export default async function StoreDetailPage({ params }: Props) {
               Bu mağazada henüz ürün bulunmuyor.
             </p>
           ) : (
-            <StorefrontProductGrid
-              gridClassName="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4"
-              products={products.map<StorefrontGridProduct>((product) => ({
+            <StoreProductsInfiniteGrid
+              initialProducts={products.map<StorefrontGridProduct>((product) => ({
                 id: product.id,
                 title: product.name,
                 slug: product.slug,
@@ -134,6 +134,8 @@ export default async function StoreDetailPage({ params }: Props) {
                 sellerName: storeName,
                 sellerSlug: slug,
               }))}
+              initialCursor={nextCursor}
+              sellerSlug={slug}
             />
           )}
         </div>

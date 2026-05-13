@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Button,
@@ -20,6 +20,13 @@ import { Plus, Star, Trash2 } from 'lucide-react'
 interface Category {
   id: string
   name: string
+}
+
+interface AttributeOption {
+  id: string
+  slug: string
+  label: string
+  hexColor: string | null
 }
 
 interface VariantFormRow {
@@ -55,6 +62,8 @@ interface Props {
   initialVariants?: VariantFormRow[]
   existingImages?: ExistingImage[]
   categories: Category[]
+  initialColorOptionId?: string
+  initialMaterialOptionId?: string
 }
 
 function createVariantRow(): VariantFormRow {
@@ -87,6 +96,8 @@ export default function ProductEditForm({
   initialVariants = [],
   existingImages = [],
   categories,
+  initialColorOptionId = '',
+  initialMaterialOptionId = '',
 }: Props) {
   const router = useRouter()
   const [name, setName] = useState(initialName)
@@ -95,6 +106,10 @@ export default function ProductEditForm({
   const [story, setStory] = useState(initialStory)
   const [careInstructions, setCareInstructions] = useState(initialCareInstructions)
   const [categoryId, setCategoryId] = useState(initialCategoryId)
+  const [colorOptionId, setColorOptionId] = useState(initialColorOptionId)
+  const [materialOptionId, setMaterialOptionId] = useState(initialMaterialOptionId)
+  const [colorOptions, setColorOptions] = useState<AttributeOption[]>([])
+  const [materialOptions, setMaterialOptions] = useState<AttributeOption[]>([])
   const [price, setPrice] = useState(initialPrice)
   const [compareAtPrice, setCompareAtPrice] = useState(
     initialCompareAtPrice !== null && initialCompareAtPrice !== undefined ? String(initialCompareAtPrice) : '',
@@ -109,6 +124,16 @@ export default function ProductEditForm({
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/attribute-options?type=color').then((r) => r.json()),
+      fetch('/api/attribute-options?type=material').then((r) => r.json()),
+    ]).then(([colorData, materialData]) => {
+      setColorOptions((colorData as { options: AttributeOption[] }).options ?? [])
+      setMaterialOptions((materialData as { options: AttributeOption[] }).options ?? [])
+    }).catch(() => {})
+  }, [])
+
   const hasVariants = variants.length > 0
   const variantsValid = variants.every(
     (variant) =>
@@ -117,7 +142,11 @@ export default function ProductEditForm({
       Number.isInteger(Number(variant.stockQuantity)) &&
       Number(variant.stockQuantity) >= 0,
   )
-  const canSubmit = Boolean(categoryId) && (!hasVariants ? barcode.trim().length === 13 : variantsValid)
+  const canSubmit =
+    Boolean(categoryId) &&
+    Boolean(colorOptionId) &&
+    Boolean(materialOptionId) &&
+    (!hasVariants ? barcode.trim().length === 13 : variantsValid)
 
   function updateVariant(localId: string, patch: Partial<VariantFormRow>) {
     setVariants((current) =>
@@ -142,6 +171,8 @@ export default function ProductEditForm({
           story,
           careInstructions,
           categoryId,
+          colorOptionId: colorOptionId || undefined,
+          materialOptionId: materialOptionId || undefined,
           price,
           compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
           stockQuantity: stock,
@@ -260,6 +291,45 @@ export default function ProductEditForm({
         <div className="space-y-1.5">
           <Label htmlFor="price">Fiyat (TL) *</Label>
           <Input id="price" type="number" min={0} step={0.01} value={price} onChange={(e) => setPrice(Number(e.target.value))} required disabled={loading} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-color">Renk *</Label>
+          <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading}>
+            <SelectTrigger id="edit-color" aria-label="Renk">
+              <SelectValue placeholder="Renk secin" />
+            </SelectTrigger>
+            <SelectContent>
+              {colorOptions.map((opt) => (
+                <SelectItem key={opt.id} value={opt.id}>
+                  {opt.hexColor && (
+                    <span
+                      className="mr-2 inline-block h-3 w-3 rounded-full border"
+                      style={{ backgroundColor: opt.hexColor, borderColor: 'var(--color-border)' }}
+                    />
+                  )}
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-material">Materyal *</Label>
+          <Select onValueChange={setMaterialOptionId} value={materialOptionId} disabled={loading}>
+            <SelectTrigger id="edit-material" aria-label="Materyal">
+              <SelectValue placeholder="Materyal secin" />
+            </SelectTrigger>
+            <SelectContent>
+              {materialOptions.map((opt) => (
+                <SelectItem key={opt.id} value={opt.id}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

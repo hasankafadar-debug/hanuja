@@ -126,7 +126,7 @@ function ProductCard({
       <div className="relative">
         <a
           href={cardHref}
-          className="relative block aspect-[4/3] overflow-hidden bg-muted"
+          className="relative block aspect-square overflow-hidden bg-muted"
           onMouseMove={handleImageMouseMove}
           onMouseLeave={handleImageMouseLeave}
         >
@@ -136,7 +136,7 @@ function ProductCard({
               alt={title}
               fill
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-              className="object-cover transition-transform duration-300 group-hover:scale-105"
+              className="object-contain"
               priority={priority}
             />
           ) : (
@@ -152,6 +152,24 @@ function ProductCard({
           {hasDiscount && (
             <div className="absolute right-2 top-2">
               <Badge variant="destructive">-%{discountPct}</Badge>
+            </div>
+          )}
+          {gallery.length > 1 && (
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center gap-1.5"
+              aria-hidden="true"
+            >
+              {gallery.map((_, index) => (
+                <span
+                  key={index}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all duration-200",
+                    index === activeImageIndex
+                      ? "w-4 bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.15)]"
+                      : "w-1.5 bg-white/60 shadow-[0_0_0_1px_rgba(0,0,0,0.15)]"
+                  )}
+                />
+              ))}
             </div>
           )}
         </a>

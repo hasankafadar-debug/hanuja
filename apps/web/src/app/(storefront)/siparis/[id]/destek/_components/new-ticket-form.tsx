@@ -39,6 +39,11 @@ interface NewTicketFormProps {
   orderId: string
 }
 
+interface ApiEnvelope<T> {
+  data: T
+  success: boolean
+}
+
 export function NewTicketForm({ orderId }: NewTicketFormProps) {
   const router = useRouter()
   const fileInputId = useId()
@@ -147,8 +152,11 @@ export function NewTicketForm({ orderId }: NewTicketFormProps) {
         throw new Error((data as { message?: string }).message ?? 'Destek talebi oluşturulamadı.')
       }
 
-      const created = await res.json()
-      const ticketId: string = created.id
+      const created = (await res.json()) as ApiEnvelope<{ id?: string }>
+      const ticketId = created.data?.id
+      if (!ticketId) {
+        throw new Error('Destek talebi oluşturuldu ama detay sayfası açılamadı.')
+      }
       router.push(`/siparis/${orderId}/destek/${ticketId}`)
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : 'Bir hata oluştu.')

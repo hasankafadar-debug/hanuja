@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@hanuja/ui'
 
 const REJECTION_REASONS = [
-  'Stok hatasi',
-  'Fiyat hatasi',
-  'Uretim imkansizligi',
+  'Stok hatası',
+  'Fiyat hatası',
+  'Üretim imkansızlığı',
   'Kalite sorunu',
   'Teknik sorun',
-  'Mucbir sebep',
+  'Mücbir sebep',
 ]
 
 export default function RejectButton({ orderId }: { orderId: string }) {
@@ -45,73 +45,72 @@ export default function RejectButton({ orderId }: { orderId: string }) {
     }
   }
 
-  if (!open) {
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        className="text-xs"
-        style={{ color: 'var(--color-muted-fg)' }}
-        onClick={() => setOpen(true)}
-      >
-        Siparisi Iptal Et
-      </Button>
-    )
-  }
-
   return (
-    <div
-      role="dialog"
-      aria-labelledby="reject-dialog-title"
-      className="w-full rounded-xl border p-5 space-y-3"
-      style={{ borderColor: 'var(--color-destructive)', backgroundColor: '#fff5f5' }}
-    >
-      <p id="reject-dialog-title" className="text-sm font-semibold" style={{ color: 'var(--color-destructive)' }}>
-        Siparisi Iptal Et
-      </p>
-      <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-        Siparis iptal edilirse urun tutarinin %20'si oraninda ceza uygulanir. Devam etmek istiyor musunuz?
-      </p>
-      <label htmlFor="rejection-reason" className="sr-only">Sebep</label>
-      <select
-        id="rejection-reason"
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        className="w-full rounded-lg border px-3 py-2 text-sm"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface)',
-          color: 'var(--color-primary)',
-        }}
-      >
-        <option value="">— Sebep secin —</option>
-        {REJECTION_REASONS.map((entry) => (
-          <option key={entry} value={entry}>{entry}</option>
-        ))}
-      </select>
-      {error ? (
-        <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>{error}</p>
-      ) : null}
-      <div className="flex gap-2">
-        <Button
-          variant="destructive"
-          size="sm"
-          disabled={!reason || loading}
-          onClick={handleReject}
-        >
-          {loading ? 'Isleniyor...' : 'Siparisi Iptal Et'}
+    <div className={open ? 'w-full md:col-span-2' : 'flex w-full md:justify-end'}>
+      {!open ? (
+        <Button variant="destructive" onClick={() => setOpen(true)}>
+          Siparişi İptal Et
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setOpen(false)
-            setError(null)
-          }}
+      ) : (
+        <div
+          role="dialog"
+          aria-labelledby="reject-dialog-title"
+          className="w-full space-y-3 rounded-xl border p-5"
+          style={{ borderColor: 'var(--color-destructive)', backgroundColor: '#fff5f5' }}
         >
-          Vazgec
-        </Button>
-      </div>
+          <p
+            id="reject-dialog-title"
+            className="text-sm font-semibold"
+            style={{ color: 'var(--color-destructive)' }}
+          >
+            Siparişi İptal Et
+          </p>
+          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            Sipariş iptal edilirse ürün tutarının %20'si oranında ceza uygulanır. Devam etmek istiyor musunuz?
+          </p>
+          <label htmlFor="rejection-reason" className="sr-only">
+            Sebep
+          </label>
+          <select
+            id="rejection-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="w-full rounded-lg border px-3 py-2 text-sm"
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-primary)',
+            }}
+          >
+            <option value="">- Sebep secin -</option>
+            {REJECTION_REASONS.map((entry) => (
+              <option key={entry} value={entry}>
+                {entry}
+              </option>
+            ))}
+          </select>
+          {error ? (
+            <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>
+              {error}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="destructive" size="sm" disabled={!reason || loading} onClick={handleReject}>
+              {loading ? 'İşleniyor...' : 'Siparişi İptal Et'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setOpen(false)
+                setError(null)
+              }}
+            >
+              Vazgeç
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

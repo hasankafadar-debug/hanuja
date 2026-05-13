@@ -34,6 +34,8 @@ const createProductSchema = z.object({
   compareAtPrice: z.number().positive('Liste fiyati 0dan buyuk olmali').optional(),
   sku: z.string().max(120).optional(),
   weight: z.number().positive('Agirlik 0dan buyuk olmali').optional(),
+  colorOptionId: z.string().min(1, 'Renk secimi zorunludur'),
+  materialOptionId: z.string().min(1, 'Materyal secimi zorunludur'),
   variants: z.array(variantSchema).max(100).optional().default([]),
 }).superRefine((data, ctx) => {
   if (data.variants.length === 0 && !data.barcode?.trim()) {
@@ -155,6 +157,14 @@ export async function POST(req: NextRequest) {
           })),
         })
       }
+
+      await tx.productAttributeValue.createMany({
+        data: [
+          { productId: created.id, optionId: parsed.data.colorOptionId },
+          { productId: created.id, optionId: parsed.data.materialOptionId },
+        ],
+        skipDuplicates: true,
+      })
 
       return created
     })

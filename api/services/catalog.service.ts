@@ -156,6 +156,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       minPrice?: number
       maxPrice?: number
       inStockOnly?: boolean
+      onSaleOnly?: boolean
       sellerId?: string
       sortBy?: 'newest' | 'price-asc' | 'price-desc'
       skip?: number
@@ -165,12 +166,25 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return applyEffectivePricingToProducts(publishedProducts)
     },
 
+    async listPublishedWithCursor(params: {
+      sellerId?: string
+      categoryId?: string
+      categoryIds?: string[]
+      cursor?: string
+      take?: number
+    }) {
+      const result = await products.listPublishedWithCursor(params)
+      const pricedItems = await applyEffectivePricingToProducts(result.items)
+      return { ...result, items: pricedItems }
+    },
+
     countPublished(params: {
       categoryId?: string
       categoryIds?: string[]
       minPrice?: number
       maxPrice?: number
       inStockOnly?: boolean
+      onSaleOnly?: boolean
       sellerId?: string
     }) {
       return products.countPublished(params)
@@ -406,6 +420,10 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       await syncProductVisibility(id, product.status, 'rejected')
 
       return updated
+    },
+
+    getSellersByCategory(categoryIds: string[]) {
+      return products.getSellersByCategory(categoryIds)
     },
 
     getCategoryBySlug(slug: string) {

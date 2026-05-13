@@ -65,6 +65,11 @@ enum ProductStatus {
   rejected // Moderasyon tarafından reddedildi
 }
 
+enum ProductAttributeType {
+  color
+  material
+}
+
 enum DiscountRuleScope {
   ALL_PRODUCTS
   CATEGORY
@@ -670,10 +675,11 @@ model Category {
   createdViaImportBy String? // Seller.id — import commit ile açıldıysa; null = admin/seed
   createdViaImportAt DateTime? // Import commit zamanı
 
-  parent        Category?      @relation("CategoryTree", fields: [parentId], references: [id])
-  children      Category[]     @relation("CategoryTree")
-  products      Product[]
-  discountRules DiscountRule[]
+  parent           Category?              @relation("CategoryTree", fields: [parentId], references: [id])
+  children         Category[]             @relation("CategoryTree")
+  products         Product[]
+  discountRules    DiscountRule[]
+  attributeOptions CategoryAttributeOption[]
 
   @@index([parentId])
   @@index([slug])
@@ -713,11 +719,12 @@ model Product {
   rejectionReason    String?
   moderationFindings Json?
 
-  seller               Seller                @relation(fields: [sellerId], references: [id])
-  category             Category?             @relation(fields: [categoryId], references: [id])
+  seller               Seller                  @relation(fields: [sellerId], references: [id])
+  category             Category?               @relation(fields: [categoryId], references: [id])
   discountRuleProducts DiscountRuleProduct[]
   images               ProductImage[]
   variants             ProductVariant[]
+  attributeValues      ProductAttributeValue[]
   orderLines           OrderLine[]
   reviews              ProductReview[]
   favoritedBy          FavoriteProduct[]
@@ -1836,4 +1843,51 @@ model CustomerSupportMessageAttachment {
 
   @@unique([messageId, mediaAssetId])
   @@map("customer_support_message_attachments")
+}
+
+// =============================================================================
+// ÜRÜN ÖZELLİK SEÇENEKLERİ — Renk / Materyal dropdown listeleri
+// =============================================================================
+
+model ProductAttributeOption {
+  id        String               @id @default(cuid())
+  type      ProductAttributeType
+  label     String
+  slug      String
+  hexColor  String?
+  isActive  Boolean              @default(true)
+  sortOrder Int                  @default(0)
+  createdAt DateTime             @default(now())
+
+  categories CategoryAttributeOption[]
+  products   ProductAttributeValue[]
+
+  @@unique([type, slug])
+  @@index([type, isActive])
+  @@map("product_attribute_options")
+}
+
+model CategoryAttributeOption {
+  categoryId String
+  optionId   String
+
+  category Category               @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  option   ProductAttributeOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, optionId])
+  @@index([categoryId])
+  @@map("category_attribute_options")
+}
+
+model ProductAttributeValue {
+  productId String
+  optionId  String
+
+  product Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  option  ProductAttributeOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([productId, optionId])
+  @@index([productId])
+  @@index([optionId])
+  @@map("product_attribute_values")
 }

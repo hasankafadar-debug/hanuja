@@ -35,6 +35,8 @@ const updateProductSchema = z.object({
   sku: z.string().max(120).nullable().optional(),
   barcode: z.string().regex(/^\d{13}$/, 'Barkod 13 haneli rakam olmali').nullable().optional(),
   weight: z.number().positive().nullable().optional(),
+  colorOptionId: z.string().min(1).optional(),
+  materialOptionId: z.string().min(1).optional(),
   variants: z.array(variantSchema).max(100).optional(),
 }).superRefine((data, ctx) => {
   if (data.variants && data.variants.length > 0 && data.barcode?.trim()) {
@@ -199,6 +201,31 @@ export async function PATCH(
             })
           }
         }
+      }
+
+      // Update attribute values when provided
+      const { colorOptionId, materialOptionId } = parsed.data
+      if (colorOptionId) {
+        await tx.productAttributeValue.deleteMany({
+          where: {
+            productId: id,
+            option: { type: 'color' },
+          },
+        })
+        await tx.productAttributeValue.create({
+          data: { productId: id, optionId: colorOptionId },
+        })
+      }
+      if (materialOptionId) {
+        await tx.productAttributeValue.deleteMany({
+          where: {
+            productId: id,
+            option: { type: 'material' },
+          },
+        })
+        await tx.productAttributeValue.create({
+          data: { productId: id, optionId: materialOptionId },
+        })
       }
 
       return saved

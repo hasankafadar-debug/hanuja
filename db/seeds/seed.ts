@@ -17,6 +17,7 @@
 
 import { PrismaClient, UserRole, SellerStatus, ProductStatus, OrderStatus, PaymentMethod, PaymentStatus, ShipmentStatus, PayoutStatus, LedgerEntryType, PenaltyReason, BlogPostStatus } from '@prisma/client'
 import { createAuth } from '../../api/lib/auth'
+import { seedAttributeOptions } from './attribute-options'
 
 const prisma = new PrismaClient()
 
@@ -1168,6 +1169,14 @@ Duvara monte raf sistemleri masa üzerindeki yükü azaltır, önemli dokümanla
   })
 
   console.log('✅ Blog yazıları oluşturuldu')
+
+  // ─────────────────────────────────────────────────
+  // ÜRÜN ÖZELLİK SEÇENEKLERİ (Renk & Materyal)
+  // ─────────────────────────────────────────────────
+
+  console.log('\n🎨 Ürün özellik seçenekleri oluşturuluyor...')
+  await seedAttributeOptions(prisma)
+  console.log('✅ Özellik seçenekleri oluşturuldu')
 
   // ─────────────────────────────────────────────────
   // ÖZET

@@ -319,18 +319,6 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
         <StatCard title="Açık İade" value={openReturns} icon={<AlertTriangle className="h-5 w-5" />} />
       </div>
 
-      <div
-        className="rounded-xl border p-4 text-sm"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      >
-        <div className="flex items-center justify-between gap-4">
-          <span style={{ color: 'var(--color-muted-fg)' }}>Magazaniza uygulanan komisyon orani</span>
-          <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>
-            %{(effectiveCommissionRate.toNumber() * 100).toFixed(2)}
-          </span>
-        </div>
-      </div>
-
       {delayedOrders.length > 0 ? (
         <div
           className="flex items-start gap-3 rounded-xl border p-4"
@@ -546,6 +534,20 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
               )}
             </div>
           </section>
+        </div>
+      </div>
+
+      <div className="w-full xl:max-w-sm">
+        <div
+          className="rounded-xl border px-4 py-3"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+            Komisyon Oranı
+          </p>
+          <p className="mt-1 text-lg font-semibold" style={{ color: 'var(--color-primary)' }}>
+            %{(effectiveCommissionRate.toNumber() * 100).toFixed(2)}
+          </p>
         </div>
       </div>
 

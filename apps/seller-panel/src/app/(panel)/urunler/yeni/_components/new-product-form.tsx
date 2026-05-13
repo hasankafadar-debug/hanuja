@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Button,
@@ -19,6 +19,13 @@ import { Plus, Trash2 } from 'lucide-react'
 interface Category {
   id: string
   name: string
+}
+
+interface AttributeOption {
+  id: string
+  slug: string
+  label: string
+  hexColor: string | null
 }
 
 interface Props {
@@ -53,6 +60,10 @@ export default function NewProductForm({ categories }: Props) {
   const router = useRouter()
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [colorOptionId, setColorOptionId] = useState('')
+  const [materialOptionId, setMaterialOptionId] = useState('')
+  const [colorOptions, setColorOptions] = useState<AttributeOption[]>([])
+  const [materialOptions, setMaterialOptions] = useState<AttributeOption[]>([])
   const [price, setPrice] = useState('')
   const [compareAtPrice, setCompareAtPrice] = useState('')
   const [stock, setStock] = useState('')
@@ -67,6 +78,16 @@ export default function NewProductForm({ categories }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/attribute-options?type=color').then((r) => r.json()),
+      fetch('/api/attribute-options?type=material').then((r) => r.json()),
+    ]).then(([colorData, materialData]) => {
+      setColorOptions((colorData as { options: AttributeOption[] }).options ?? [])
+      setMaterialOptions((materialData as { options: AttributeOption[] }).options ?? [])
+    }).catch(() => {})
+  }, [])
+
   const hasVariants = variants.length > 0
   const variantsValid = variants.every(
     (variant) =>
@@ -76,14 +97,23 @@ export default function NewProductForm({ categories }: Props) {
       Number(variant.stockQuantity) >= 0,
   )
   const submitDisabled =
-    loading || !categoryId || (!hasVariants && barcode.trim().length !== 13) || (hasVariants && !variantsValid)
+    loading ||
+    !categoryId ||
+    !colorOptionId ||
+    !materialOptionId ||
+    (!hasVariants && barcode.trim().length !== 13) ||
+    (hasVariants && !variantsValid)
   const missingSubmitReason = !categoryId
     ? 'Urunu gondermek icin kategori secin.'
-    : hasVariants && !variantsValid
-      ? 'Varyasyonlu urunlerde her satir icin 13 haneli barkod, fiyat ve stok girin.'
-      : !hasVariants && barcode.trim().length !== 13
-        ? 'Urunu gondermek icin 13 haneli barkod girin.'
-        : null
+    : !colorOptionId
+      ? 'Urunu gondermek icin renk secin.'
+      : !materialOptionId
+        ? 'Urunu gondermek icin materyal secin.'
+        : hasVariants && !variantsValid
+          ? 'Varyasyonlu urunlerde her satir icin 13 haneli barkod, fiyat ve stok girin.'
+          : !hasVariants && barcode.trim().length !== 13
+            ? 'Urunu gondermek icin 13 haneli barkod girin.'
+            : null
 
   function updateVariant(localId: string, patch: Partial<VariantFormRow>) {
     setVariants((current) =>
@@ -103,6 +133,8 @@ export default function NewProductForm({ categories }: Props) {
         body: JSON.stringify({
           name,
           categoryId,
+          colorOptionId,
+          materialOptionId,
           price: parseFloat(price),
           compareAtPrice: compareAtPrice ? parseFloat(compareAtPrice) : undefined,
           stockQuantity: parseInt(stock || '0', 10),
@@ -170,6 +202,45 @@ export default function NewProductForm({ categories }: Props) {
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="color">Renk *</Label>
+          <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading}>
+            <SelectTrigger id="color" aria-label="Renk">
+              <SelectValue placeholder="Renk secin" />
+            </SelectTrigger>
+            <SelectContent>
+              {colorOptions.map((opt) => (
+                <SelectItem key={opt.id} value={opt.id}>
+                  {opt.hexColor && (
+                    <span
+                      className="mr-2 inline-block h-3 w-3 rounded-full border"
+                      style={{ backgroundColor: opt.hexColor, borderColor: 'var(--color-border)' }}
+                    />
+                  )}
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="material">Materyal *</Label>
+          <Select onValueChange={setMaterialOptionId} value={materialOptionId} disabled={loading}>
+            <SelectTrigger id="material" aria-label="Materyal">
+              <SelectValue placeholder="Materyal secin" />
+            </SelectTrigger>
+            <SelectContent>
+              {materialOptions.map((opt) => (
+                <SelectItem key={opt.id} value={opt.id}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
