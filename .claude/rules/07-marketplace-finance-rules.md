@@ -59,6 +59,20 @@ Order creation and payment attempt do not equal finance validity.
 
 Finance-sensitive operations must depend on confirmed payment status, not only on order creation.
 
+### 4. Confirm-time binding invariants (kart ödemesi)
+
+`confirmCardPayment` şu doğrulamalar geçmeden hiçbir state değişikliği yapamaz:
+
+- provider'ın bildirdiği tutar (`paidPrice`) `Order.totalAmount`'a **tam eşit** olmalı;
+  uyuşmazlık `amount_mismatch_rejected` PaymentEvent kanıtı yazar ve onayı reddeder
+- bir Iyzico `paymentId` yalnız **bir** siparişi onaylayabilir
+  (`Payment.providerPaymentId @unique` + servis ön kontrolü `providerRef_reuse_rejected`)
+- 3DS callback'te Iyzico'nun döndürdüğü `conversationId` hedef siparişle eşleşmeli;
+  `fraudStatus = -1` reddedilir
+
+Bu kontrolleri gevşeten her değişiklik güvenlik incelemesi gerektirir.
+Bkz: `docs/05-security/payment-security.md` §7.
+
 ## Seller Ledger Principle
 
 Each seller must have a ledger-style financial account.

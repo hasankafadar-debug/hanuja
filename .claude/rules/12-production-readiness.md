@@ -106,6 +106,15 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   `formatMoney(Decimal)` ve `apps/admin-panel .../urunler/[id]/page.tsx`
   `exactOptionalPropertyTypes` — bu epikte dokunulmadı, ayrı düzeltilmeli.
 
+### 16. Ödeme bağlama doğrulaması + providerPaymentId unique (yeni — 2026-07-03)
+- `confirmCardPayment` artık tutar eşitliği (`paidPrice == Order.totalAmount`) ve
+  providerRef tekrar kullanımını fail-closed doğrular; callback `conversationId` echo
+  ve `fraudStatus=-1` kontrolü yapar. Bkz `docs/05-security/payment-security.md` §7.
+- Migration `20260703100000_payment_provider_payment_id_unique` deploy zincirinin
+  parçasıdır. **Deploy öncesi** prod'da duplicate kontrolü çalıştırılmalı:
+  `SELECT "providerPaymentId", count(*) FROM payments WHERE "providerPaymentId" IS NOT NULL GROUP BY 1 HAVING count(*) > 1;`
+  Satır dönerse migration başarısız olur; önce elle mutabakat gerekir.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

@@ -49,10 +49,13 @@ Iyzico returns an HTML page that the browser renders in-place (`text/html` respo
 
 After 3DS completes, Iyzico posts to `/api/payment/callback`. This callback handler:
 
-1. Verifies the Iyzico webhook signature using `verifyIyzicoWebhook` from `packages/security/src/webhook-verifier.ts`
-2. Checks for duplicate processing using `isDuplicateWebhook` (idempotency guard)
-3. Validates that the `conversationId` matches a real pending order in the database
-4. Calls `paymentService.confirmCardPayment()` inside a database transaction
+1. Requires `mdStatus=1` (3DS verification success) before contacting Iyzico
+2. Completes the payment server-to-server via `complete3DS` — the `paymentId` is only
+   meaningful if Iyzico itself accepts the completion
+3. Verifies the `conversationId` echoed by Iyzico matches the target order and rejects
+   `fraudStatus = -1` results (see section 7, "Confirm-time binding")
+4. Calls `paymentService.confirmCardPayment()` inside a database transaction, which
+   re-verifies amount binding and provider-reference uniqueness before any state change
 
 The frontend redirect that Iyzico may send to the browser after 3DS is used only for UX navigation. It is never the trigger for payment confirmation. Payment confirmation happens only through the server-to-server callback.
 
@@ -154,6 +157,31 @@ The `totalAmount` for a payment is calculated at `checkoutSvc.createOrder()` tim
 The resulting amount is written to the `Order` record. This is the only amount sent to Iyzico. The handler at `/api/payment/start` reads `order.totalAmount.toFixed(2)` from the freshly created order — it does not read any amount from the request body.
 
 Client-supplied amounts are rejected. Any attempt to tamper with the amount in the checkout form has no effect on what is sent to the payment provider.
+
+### Confirm-time binding (fail-closed)
+
+Server authority at initiation is not sufficient on its own: the confirmation path must
+also bind the provider result to the exact order. `confirmCardPayment` enforces, before
+any state transition:
+
+1. **Amount binding** — the `paidPrice` reported by Iyzico (callback or webhook) must be
+   exactly equal to `Order.totalAmount`. A mismatch writes an `amount_mismatch_rejected`
+   `PaymentEvent` (with expected/received amounts and the provider ref) and throws
+   `ConflictError`. The order is never confirmed on a mismatched amount.
+2. **Provider reference uniqueness** — one Iyzico `paymentId` can confirm exactly one
+   order. `Payment.providerPaymentId` carries a database `@unique` constraint
+   (migration `20260703100000_payment_provider_payment_id_unique`), and the service
+   additionally pre-checks reuse and writes a `providerRef_reuse_rejected` event before
+   rejecting. A concurrent race on the unique index (P2002) is translated to the same
+   `ConflictError`.
+3. **conversationId echo verification** — the 3DS callback route compares the
+   `conversationId` returned by Iyzico's `complete3DS` response against the order being
+   confirmed. A mismatch (replaying another order's `paymentId`) is rejected before
+   `confirmCardPayment` is ever called. Payments with `fraudStatus = -1` are also
+   rejected at this point.
+
+These checks close the replay scenario where a valid `paymentId` obtained by paying for
+a cheap order is submitted against an expensive order's `conversationId`.
 
 ---
 

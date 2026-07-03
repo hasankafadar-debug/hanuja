@@ -125,6 +125,10 @@ export class Decimal {
     return this.value === o
   }
 
+  eq(other: Decimal | string | number): boolean {
+    return this.equals(other)
+  }
+
   isNegative(): boolean {
     return this.value < 0
   }

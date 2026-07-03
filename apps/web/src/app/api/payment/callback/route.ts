@@ -60,6 +60,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return redirectToError(complete3DSResult.errorMessage ?? 'Ödeme onaylanamadı')
   }
 
+  // Iyzico'nun döndürdüğü conversationId hedef siparişle eşleşmeli —
+  // başka bir siparişin paymentId'siyle replay girişimini engeller
+  if (
+    complete3DSResult.conversationId !== undefined &&
+    complete3DSResult.conversationId !== conversationId
+  ) {
+    console.error(
+      `[payment/callback] conversationId uyuşmazlığı: beklenen=${conversationId} gelen=${complete3DSResult.conversationId} paymentId=${paymentId}`,
+    )
+    return redirectToError('Ödeme doğrulanamadı')
+  }
+
+  // Iyzico fraud kontrolünden geçemeyen ödemeyi onaylama
+  if (complete3DSResult.fraudStatus === -1) {
+    console.error(
+      `[payment/callback] fraudStatus=-1 reddedildi: orderId=${conversationId} paymentId=${paymentId}`,
+    )
+    return redirectToError('Ödeme güvenlik kontrolünden geçemedi')
+  }
+
   // DB'de ödemi onayla + siparişi satıcı kuyruğuna al
   const prisma = createPrismaForRoute()
   const paymentSvc = createPaymentService({ prisma })

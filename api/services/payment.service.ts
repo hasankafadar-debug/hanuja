@@ -96,6 +96,10 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
     /**
      * Confirm a card payment (called after Iyzico webhook or callback verification).
      * Idempotent — safe to call twice with same providerRef.
+     *
+     * Fail-closed doğrulamalar (transaction öncesi, PaymentEvent kanıtı kalıcı olsun diye):
+     *   1. Tutar bağlama — provider'ın bildirdiği paidPrice sipariş toplamına eşit olmalı.
+     *   2. providerRef tekrar kullanımı — aynı Iyzico paymentId başka siparişi onaylayamaz.
      */
     async confirmCardPayment(params: {
       orderId: string
@@ -110,6 +114,38 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
 
       if (payment.status !== 'pending') {
         throw new ConflictError(`Ödeme zaten işlendi: ${payment.status}`)
+      }
+
+      const orderForBinding = await prisma.order.findUnique({
+        where: { id: params.orderId },
+        select: { totalAmount: true },
+      })
+      if (!orderForBinding) throw new NotFoundError('Order', params.orderId)
+
+      if (!params.amount.eq(orderForBinding.totalAmount)) {
+        await payments.appendEvent({
+          paymentId: payment.id,
+          eventType: 'amount_mismatch_rejected',
+          providerPayload: {
+            expected: orderForBinding.totalAmount.toFixed(2),
+            received: params.amount.toFixed(2),
+            providerRef: params.providerRef,
+          },
+        })
+        throw new ConflictError('Ödeme tutarı sipariş toplamı ile uyuşmuyor')
+      }
+
+      const existingByRef = await payments.findByProviderRef(params.providerRef)
+      if (existingByRef && existingByRef.orderId !== params.orderId) {
+        await payments.appendEvent({
+          paymentId: payment.id,
+          eventType: 'providerRef_reuse_rejected',
+          providerPayload: {
+            providerRef: params.providerRef,
+            conflictingPaymentId: existingByRef.id,
+          },
+        })
+        throw new ConflictError('Ödeme referansı başka bir siparişe ait')
       }
 
       return prisma.$transaction(async (tx) => {
@@ -172,6 +208,17 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         void firePaymentConfirmedNotifications(prisma, params.orderId)
         void fireInvoiceAliasGeneration(prisma, params.orderId)
         return result
+      }).catch((error: unknown) => {
+        // providerPaymentId @unique yarış penceresi — eşzamanlı çift onayda ikincisi P2002 alır
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          (error as { code?: string }).code === 'P2002'
+        ) {
+          throw new ConflictError('Ödeme referansı başka bir siparişe ait')
+        }
+        throw error
       })
     },
 

@@ -1285,7 +1285,7 @@ model Payment {
   currency            String        @default("TRY")
   amount              Decimal       @db.Decimal(12, 2)
   // Iyzico entegrasyon alanları
-  providerPaymentId   String? // Iyzico conversation ID veya payment ID
+  providerPaymentId   String? @unique // Iyzico payment ID — bir provider ödemesi yalnız bir siparişi onaylayabilir
   providerReferenceId String?
   providerData        Json? // Raw provider response (audit için)
   // EFT/Havale için
