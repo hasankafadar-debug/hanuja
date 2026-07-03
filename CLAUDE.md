@@ -472,7 +472,7 @@ These are platform constants. Do not contradict them in code or documentation.
 3. Hanuja issues commission and other service invoices to the seller.
 4. Seller net payout is made 30 days after `delivery_confirmed`.
 5. If the seller rejects a paid order, a penalty of 20% of the product amount is applied.
-6. If shipment is delayed past the commitment date, a penalty of 1% of the product amount accrues per overdue day; on the 20th overdue day the order is auto-cancelled and customer refund is initiated.
+6. If shipment is delayed past the commitment date, a penalty of 1% of the product amount accrues per overdue day; on the 20th overdue day the order is auto-cancelled and customer refund is initiated. The commitment date is per product: the seller enters `Product.fulfillmentDays` (business days) as a mandatory field at product creation, snapshotted to `OrderLine.promisedFulfillmentDays` at order time.
 7. An additional 10-day extension may be granted only with customer awareness and an explicit admin decision.
 8. After dispatch, cancellation is not the correct path — return/refund flow applies.
 9. A return request within 14 days is treated as a standard fast-path withdrawal.

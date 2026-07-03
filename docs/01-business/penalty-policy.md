@@ -86,13 +86,18 @@ The rejection and its financial consequence must never disappear from history.
 
 ---
 
-## 4. Trigger Case 2 — 20-Day Fulfillment Breach
+## 4. Trigger Case 2 — Fulfillment Commitment Breach
 
-Hanuja requires that the product reaches the customer within 20 days of the order being
-placed and confirmed.
+The fulfillment commitment is **per product**: the seller enters `Product.fulfillmentDays`
+(business days) as a **mandatory** field when creating the product. Made-to-order items may
+carry longer commitments than stocked items; there is no flat platform-wide 20-day promise.
 
-If this commitment is breached and the order is cancelled by the customer or by admin as
-a result of the breach:
+At order time the value is snapshotted to `OrderLine.promisedFulfillmentDays`, and the
+deadline (`OrderLine.fulfillmentDueAt`) is stamped from payment confirmation using
+business-day arithmetic.
+
+Once the commitment date lapses, a 1% daily penalty accrues per overdue day. On the 20th
+**overdue** day the order is auto-cancelled:
 
 1. Order status transitions to `cancelled_due_to_20day_breach`
 2. A `Penalty` record is created or updated with `reason = late_shipment_daily_accrual`

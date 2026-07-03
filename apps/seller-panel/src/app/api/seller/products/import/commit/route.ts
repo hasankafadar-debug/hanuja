@@ -192,7 +192,8 @@ export async function POST(req: NextRequest) {
         categoryId: raw.categoryId.trim(),
         colorOptionId: raw.colorOptionId!.trim(),
         materialOptionId: raw.materialOptionId!.trim(),
-        fulfillmentDays: raw.fulfillmentDays ?? 20,
+        // isRawSelection guard'ı >= 1 garantiler; sessiz varsayılan yok
+        fulfillmentDays: raw.fulfillmentDays!,
         stockQuantity: raw.stockQuantity ?? 0,
         barcode:
           typeof raw.barcode === 'string' ? raw.barcode.trim() || null : (raw.barcode ?? null),
@@ -206,7 +207,8 @@ export async function POST(req: NextRequest) {
       },
       colorOptionId: raw.colorOptionId!.trim(),
       materialOptionId: raw.materialOptionId!.trim(),
-      fulfillmentDays: raw.fulfillmentDays ?? 20,
+      // isRawSelection guard'ı >= 1 garantiler; sessiz varsayılan yok
+      fulfillmentDays: raw.fulfillmentDays!,
       stockQuantity: raw.stockQuantity ?? 0,
       barcode:
         typeof raw.barcode === 'string' ? raw.barcode.trim() || null : (raw.barcode ?? null),

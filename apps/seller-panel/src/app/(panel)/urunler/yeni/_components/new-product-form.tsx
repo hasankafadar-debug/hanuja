@@ -68,7 +68,8 @@ export default function NewProductForm({ categories }: Props) {
   const [colorOptions, setColorOptions] = useState<AttributeOption[]>([])
   const [materialOptions, setMaterialOptions] = useState<AttributeOption[]>([])
   const [price, setPrice] = useState('')
-  const [fulfillmentDays, setFulfillmentDays] = useState('20')
+  // Bilinçli olarak boş başlar: sevk süresi ürüne özeldir, satıcı açıkça girmek zorundadır
+  const [fulfillmentDays, setFulfillmentDays] = useState('')
   const [compareAtPrice, setCompareAtPrice] = useState('')
   const [stock, setStock] = useState('')
   const [barcode, setBarcode] = useState('')

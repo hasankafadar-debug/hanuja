@@ -163,7 +163,7 @@ function normalizePersistedSelection(value: unknown): ItemSelectionState | null 
     fulfillmentDays:
       typeof candidate.fulfillmentDays === 'number' && Number.isInteger(candidate.fulfillmentDays) && candidate.fulfillmentDays >= 1
         ? candidate.fulfillmentDays
-        : 20,
+        : 0, // 0 = girilmedi; satıcı açıkça girmeden commit engellenir
     stockQuantity:
       typeof candidate.stockQuantity === 'number' && Number.isInteger(candidate.stockQuantity) && candidate.stockQuantity >= 0
         ? candidate.stockQuantity
@@ -202,7 +202,7 @@ function createEmptySelectionState(): ItemSelectionState {
     barcode: '',
     barcodeStatus: 'idle',
     barcodeNormalized: null,
-    fulfillmentDays: 20,
+    fulfillmentDays: 0, // satıcı ürün bazlı sevk süresini kendisi girmek zorunda
     stockQuantity: 0,
   }
 }
@@ -506,7 +506,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
             barcode: item.proposedBarcode ?? '',
             barcodeStatus: 'idle' as BarcodeStatus,
             barcodeNormalized: null,
-            fulfillmentDays: 20,
+            fulfillmentDays: 0, // satıcı ürün bazlı sevk süresini kendisi girmek zorunda
             stockQuantity: Math.max(0, Math.trunc(item.stockQuantity ?? 0)),
           },
         ]
@@ -1217,13 +1217,14 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                               type="number"
                               min="1"
                               step="1"
-                              value={String(s.fulfillmentDays)}
+                              placeholder="Gün"
+                              value={s.fulfillmentDays > 0 ? String(s.fulfillmentDays) : ''}
                               onChange={(event) =>
                                 updateItemSelection(item.externalId, (current) => ({
                                   ...current,
                                   fulfillmentDays: Math.max(
-                                    1,
-                                    Number.parseInt(event.target.value || '1', 10) || 1,
+                                    0,
+                                    Number.parseInt(event.target.value || '0', 10) || 0,
                                   ),
                                 }))
                               }

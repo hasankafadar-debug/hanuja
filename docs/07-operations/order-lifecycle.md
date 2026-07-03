@@ -157,13 +157,20 @@ Muafiyet silinmez — `Penalty.status = waived`, `waivedBy`, `waivedAt`, `waiver
 
 ---
 
-## 6. 20 Günlük Teslimat Yükümlülüğü
+## 6. Sevkiyat Taahhüt Yükümlülüğü (ürün bazlı)
 
 ### Kural
-Ürün müşteriye 20 gün içinde teslim edilmelidir. Bu süre bir BullMQ zamanlayıcısıyla izlenir.
+Sevk taahhüt süresi **ürün bazlıdır**: satıcı ürünü eklerken `Product.fulfillmentDays`
+(iş günü) alanını **zorunlu** olarak girer. Siparişe özel/üretim ürünlerde bu süre
+üründen ürüne değişebilir; sabit platform geneli bir 20 gün kuralı yoktur.
+
+Sipariş anında bu değer `OrderLine.promisedFulfillmentDays` olarak snapshot'lanır ve
+ödeme onayında `OrderLine.fulfillmentDueAt` (iş günü hesabıyla) damgalanır. Süre bir
+BullMQ zamanlayıcısıyla (`fulfillment-risk` worker) izlenir.
 
 ### İhlal Sonucu
-20. gün dolduğunda ve sipariş hâlâ `shipped` veya daha önceki bir aşamada ise:
+Taahhüt tarihi (`fulfillmentDueAt`) aşıldığında günlük %1 ceza birikimi başlar.
+20. **gecikme** günü dolduğunda ve sipariş hâlâ `shipped` veya daha önceki bir aşamada ise:
 
 1. Müşteri iptal hakkı kazanır veya admin iptal edebilir
 2. Sipariş `cancelled_due_to_20day_breach` durumuna geçer
