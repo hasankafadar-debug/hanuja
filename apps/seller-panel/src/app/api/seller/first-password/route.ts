@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
+import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { PrismaClient } from '@prisma/client'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
@@ -17,6 +18,9 @@ export async function POST(req: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ message: 'Yetkisiz.' }, { status: 401 })
   }
+
+  const rl = await checkUserRateLimit(session.user.id, 'first-password', HIGH_RISK_RATE_LIMIT)
+  if (!rl.allowed) return rl.response!
 
   const body = bodySchema.safeParse(await req.json().catch(() => ({})))
   if (!body.success) {

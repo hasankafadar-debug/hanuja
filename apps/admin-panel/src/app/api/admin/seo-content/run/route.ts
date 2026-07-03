@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     if (!session?.user) throw new UnauthorizedError()
     if (session.user.role !== 'admin') throw new ForbiddenError()
 
-    const rateLimit = checkUserRateLimit(
+    const rateLimit = await checkUserRateLimit(
       session.user.id,
       'admin:seo-content:run',
       SENSITIVE_RATE_LIMIT,

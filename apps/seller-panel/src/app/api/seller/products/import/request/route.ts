@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { checkUserRateLimit, API_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 
 export async function POST() {
   try {
@@ -9,6 +10,9 @@ export async function POST() {
     if (!session?.user) {
       return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
     }
+
+    const rl = await checkUserRateLimit(session.user.id, 'products:import-request', API_RATE_LIMIT)
+    if (!rl.allowed) return rl.response!
 
     const prisma = createPrismaForRoute()
     const seller = await prisma.seller.findUnique({

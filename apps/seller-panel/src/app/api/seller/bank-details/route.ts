@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { PrismaClient } from '@prisma/client'
 import { auth } from '@/lib/auth'
+import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { createSellerBankService } from '@hanuja/api/services/seller-bank.service'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
@@ -26,6 +27,10 @@ export async function POST(req: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
   }
+
+  // IBAN değişikliği payout-kritik: deneme hızını agresif sınırla (OTP brute-force dahil)
+  const rl = await checkUserRateLimit(session.user.id, 'bank-details:change', HIGH_RISK_RATE_LIMIT)
+  if (!rl.allowed) return rl.response!
 
   const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
   if (!seller) {

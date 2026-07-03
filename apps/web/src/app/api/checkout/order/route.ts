@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     return csrfError
   }
 
-  const rl = checkRateLimit(req, 'checkout:order', SENSITIVE_RATE_LIMIT)
+  const rl = await checkRateLimit(req, 'checkout:order', SENSITIVE_RATE_LIMIT)
   if (!rl.allowed) {
     return rl.response!
   }

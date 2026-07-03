@@ -15,7 +15,7 @@ async function getSellerIdOrThrow(userId: string): Promise<string> {
 
 // POST /api/seller/shipments/tracking
 export async function POST(req: NextRequest) {
-  const rl = checkRateLimit(req, 'seller:tracking', API_RATE_LIMIT)
+  const rl = await checkRateLimit(req, 'seller:tracking', API_RATE_LIMIT)
   if (!rl.allowed) return rl.response!
 
   try {

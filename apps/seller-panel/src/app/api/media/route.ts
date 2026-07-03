@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { type NextRequest } from 'next/server'
 import { auth } from '@/lib/auth'
 import { UnauthorizedError } from '@hanuja/api/lib/errors'
+import { checkUserRateLimit, SENSITIVE_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { handleError } from '@hanuja/api/lib/response'
 import { getSanitizedR2DebugContext } from '@hanuja/api/lib/r2'
 import { requestUploadUrl, listAssets } from '@hanuja/api/routes/media'
@@ -16,6 +17,10 @@ export async function POST(req: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     userId = session.user.id
+
+    const rl = await checkUserRateLimit(session.user.id, 'media:upload-url', SENSITIVE_RATE_LIMIT)
+    if (!rl.allowed) return rl.response!
+
     return requestUploadUrl(req, session.user.id)
   } catch (err) {
     console.error('[seller-panel][media][request-upload-url]', {

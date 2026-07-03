@@ -54,6 +54,21 @@ export function createAuth({ baseURL, secret, prisma, trustedOrigins }: AuthConf
       },
     },
 
+    // ─── Rate limiting (auth uçları brute-force hedefidir) ───────────────────
+    // Not: better-auth depolaması instance-lokal çalışır; çok replikaya
+    // geçilirse secondaryStorage (Redis) yapılandırılmalıdır.
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 60,
+      customRules: {
+        '/sign-in/email': { window: 60, max: 10 },
+        '/sign-up/email': { window: 60, max: 5 },
+        '/forget-password': { window: 60, max: 5 },
+        '/reset-password': { window: 60, max: 5 },
+      },
+    },
+
     // ─── Admin plugin (role, banned, banReason, banExpires) ──────────────────
     plugins: [
       adminPlugin({

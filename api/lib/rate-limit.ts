@@ -1,17 +1,17 @@
 /**
  * Next.js App Router rate limit helper.
- * Wraps the @hanuja/security rate limiter and provides a response-ready
- * helper for use in route handlers and middleware.
+ * Redis destekli sliding-window limiter'ı sarar (REDIS_URL yoksa bellek-içi
+ * fallback) ve route handler'lar için 429 response-ready sonuç döndürür.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  rateLimit,
   type RateLimitConfig,
   AUTH_RATE_LIMIT,
   API_RATE_LIMIT,
   SENSITIVE_RATE_LIMIT,
   HIGH_RISK_RATE_LIMIT,
 } from '@hanuja/security'
+import { rateLimitRedis } from './rate-limit-redis'
 
 export { AUTH_RATE_LIMIT, API_RATE_LIMIT, SENSITIVE_RATE_LIMIT, HIGH_RISK_RATE_LIMIT }
 
@@ -44,17 +44,17 @@ export interface RateLimitCheckResult {
  * @param config Rate limit config (use preset constants or custom)
  *
  * @example
- * const { allowed, response } = checkRateLimit(req, 'login', AUTH_RATE_LIMIT)
+ * const { allowed, response } = await checkRateLimit(req, 'login', AUTH_RATE_LIMIT)
  * if (!allowed) return response!
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   req: NextRequest,
   key: string,
   config: RateLimitConfig,
-): RateLimitCheckResult {
+): Promise<RateLimitCheckResult> {
   const ip = getClientIp(req)
   const rateLimitKey = `${ip}:${key}`
-  const result = rateLimit(rateLimitKey, config)
+  const result = await rateLimitRedis(rateLimitKey, config)
 
   if (result.allowed) {
     return { allowed: true, response: null }
@@ -83,12 +83,12 @@ export function checkRateLimit(
 /**
  * Convenience: rate-limit by authenticated user ID (preferred over IP for logged-in routes).
  */
-export function checkUserRateLimit(
+export async function checkUserRateLimit(
   userId: string,
   key: string,
   config: RateLimitConfig,
-): { allowed: boolean; response: NextResponse | null } {
-  const result = rateLimit(`user:${userId}:${key}`, config)
+): Promise<{ allowed: boolean; response: NextResponse | null }> {
+  const result = await rateLimitRedis(`user:${userId}:${key}`, config)
 
   if (result.allowed) return { allowed: true, response: null }
 

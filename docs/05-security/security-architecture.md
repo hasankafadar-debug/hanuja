@@ -79,7 +79,24 @@ Mutating API routes on the storefront are protected by an explicit CSRF token la
 
 ### Layer 6 — Rate limiting
 
-Sensitive endpoints apply rate limits from `packages/security/src/rate-limiter.ts`. The `SENSITIVE_RATE_LIMIT` config is applied to payment initiation and bank detail changes. `AUTH_RATE_LIMIT` is applied to login and password reset. `HIGH_RISK_RATE_LIMIT` is applied to payout-related admin actions.
+Rate limiting is Redis-backed: `api/lib/rate-limit-redis.ts` implements a sliding window
+on the shared ioredis client (`rl:` key prefix, atomic MULTI of
+ZREMRANGEBYSCORE/ZADD/ZCARD/PEXPIRE), so limits hold across all app containers on
+Coolify. `api/lib/rate-limit.ts` wraps it with async `checkRateLimit` (IP-keyed) and
+`checkUserRateLimit` (user-keyed) helpers returning ready-made 429 responses.
+
+Preset configs still live in `packages/security/src/rate-limiter.ts`, which also serves
+as the in-memory fallback: when `REDIS_URL` is unset (local dev) or Redis errors at
+runtime, the limiter fails open to the per-instance memory window and logs the error —
+availability is preferred over strictness for this layer.
+
+Coverage: `SENSITIVE_RATE_LIMIT` on payment initiation, checkout, returns, product
+import (preview/commit) and media upload-URL issuance; `HIGH_RISK_RATE_LIMIT` on seller
+bank-detail changes and OTP requests, first-password, and admin seller password reset;
+`API_RATE_LIMIT` on barcode availability checks, review submission, dispute/support
+message creation and Turnstile verification endpoints. Better Auth's built-in rate
+limiter is enabled in the shared factory (`api/lib/auth.ts`) with stricter per-path
+rules for sign-in/sign-up/password-reset.
 
 ### Layer 7 — Audit logging
 

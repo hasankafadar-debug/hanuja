@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { ForbiddenError, UnauthorizedError } from '@hanuja/api/lib/errors'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { checkUserRateLimit, SENSITIVE_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { handleError, ok } from '@hanuja/api/lib/response'
 import { createMediaService } from '@hanuja/api/services/media.service'
 
@@ -18,6 +19,9 @@ export async function POST(req: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     if (session.user.role !== 'admin') throw new ForbiddenError()
+
+    const rl = await checkUserRateLimit(session.user.id, 'admin-media:upload-url', SENSITIVE_RATE_LIMIT)
+    if (!rl.allowed) return rl.response!
 
     const body = uploadSchema.parse(await req.json())
     const service = createMediaService({ prisma: createPrismaForRoute() })

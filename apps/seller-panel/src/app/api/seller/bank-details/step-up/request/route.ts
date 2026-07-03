@@ -4,6 +4,7 @@ import { randomInt } from 'crypto'
 import { PrismaClient } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { sendEmail } from '@hanuja/api/lib/mailer'
+import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -18,6 +19,10 @@ export async function POST() {
   if (!session?.user) {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
   }
+
+  // OTP e-posta bombardımanını ve deneme hızını sınırla
+  const rl = await checkUserRateLimit(session.user.id, 'bank-details:otp-request', HIGH_RISK_RATE_LIMIT)
+  if (!rl.allowed) return rl.response!
 
   const seller = await prisma.seller.findUnique({
     where: { userId: session.user.id },

@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { ForbiddenError, UnauthorizedError } from '@hanuja/api/lib/errors'
+import { checkUserRateLimit, SENSITIVE_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { handleError } from '@hanuja/api/lib/response'
 import { createMediaService } from '@hanuja/api/services/media.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
@@ -25,6 +26,9 @@ export async function POST(req: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     if (session.user.role !== 'admin') throw new ForbiddenError()
+
+    const rl = await checkUserRateLimit(session.user.id, 'support-media:upload-url', SENSITIVE_RATE_LIMIT)
+    if (!rl.allowed) return rl.response!
 
     const body = await req.json()
     const { mimeType, originalName } = schema.parse(body)

@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { checkUserRateLimit, SENSITIVE_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { createProductImportService, type CommitSelection } from '@hanuja/api/services/product-import/import.service'
 import type { ScrapedProduct } from '@hanuja/api/services/product-import/adapters/import-adapter'
 import { normalizeImportBarcode } from '@hanuja/api/services/product-import/barcode'
@@ -67,6 +68,10 @@ export async function POST(req: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
   }
+
+  // Toplu ürün yazma maliyetli — istek hızını sınırla
+  const rl = await checkUserRateLimit(session.user.id, 'products:import-commit', SENSITIVE_RATE_LIMIT)
+  if (!rl.allowed) return rl.response!
 
   const prisma = createPrismaForRoute()
   const seller = await prisma.seller.findUnique({

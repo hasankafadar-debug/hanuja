@@ -1,7 +1,9 @@
 /**
  * In-memory sliding-window rate limiter.
- * Production deployments with multiple instances should use a Redis-backed
- * implementation; this covers single-instance and edge-function scenarios.
+ *
+ * Üretimde birincil yol `api/lib/rate-limit-redis.ts` (Redis destekli,
+ * container'lar arası ortak pencere). Bu modül preset kaynağıdır ve
+ * REDIS_URL yokken / Redis hatasında fallback olarak kullanılır.
  */
 
 export interface RateLimitConfig {

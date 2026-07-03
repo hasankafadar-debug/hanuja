@@ -8,7 +8,7 @@ import { checkRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit
 
 // POST /api/cart/coupon — high-risk: coupon abuse vector
 export async function POST(req: NextRequest) {
-  const rl = checkRateLimit(req, 'cart:coupon', HIGH_RISK_RATE_LIMIT)
+  const rl = await checkRateLimit(req, 'cart:coupon', HIGH_RISK_RATE_LIMIT)
   if (!rl.allowed) return rl.response!
 
   try {

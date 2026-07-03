@@ -79,7 +79,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return csrfError as NextResponse
   }
 
-  const rl = checkRateLimit(req, 'payment:start', SENSITIVE_RATE_LIMIT)
+  const rl = await checkRateLimit(req, 'payment:start', SENSITIVE_RATE_LIMIT)
   if (!rl.allowed) {
     return rl.response! as NextResponse
   }

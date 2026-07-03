@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { checkRateLimit, API_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { verifyTurnstileToken } from '@hanuja/api/lib/turnstile'
 
 export async function POST(req: NextRequest) {
+  const rl = await checkRateLimit(req, 'turnstile-verify', API_RATE_LIMIT)
+  if (!rl.allowed) return rl.response!
+
   const body = (await req.json()) as { token?: string; action?: string }
   const token = body.token ?? ''
   const action = body.action
