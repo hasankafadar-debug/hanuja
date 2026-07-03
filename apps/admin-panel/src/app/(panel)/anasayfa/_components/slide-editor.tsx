@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { ImagePlus, X } from 'lucide-react'
-import { Button, Input, Label, Textarea } from '@hanuja/ui'
+import { Button, Input, Label, Textarea, normalizeMediaDisplayUrl } from '@hanuja/ui'
 import { MediaPickerModal } from '../../medya/_components/media-picker-modal'
 import { emptyToNull, readApiData, toDatetimeLocal } from './api'
 import type { HomeMediaAsset, HomeSellerOption, HomeSlideItem } from './types'
@@ -82,6 +82,9 @@ export function SlideEditor({ open, slide, sellers, nextSortOrder, onClose, onSa
 
   const isVideo = mediaAsset?.kind === 'video'
   const previewTitle = form.title.trim() || 'Slayt başlığı'
+  const normalizedMediaUrl = mediaAsset ? normalizeMediaDisplayUrl(mediaAsset.url) : null
+  const normalizedPosterUrl = posterAsset ? normalizeMediaDisplayUrl(posterAsset.url) : undefined
+  const useUnoptimizedPreview = Boolean(normalizedMediaUrl?.startsWith('/api/media/fetch?'))
 
   const payload = useMemo(() => {
     return {
@@ -283,9 +286,16 @@ export function SlideEditor({ open, slide, sellers, nextSortOrder, onClose, onSa
             <div className="relative aspect-[16/9] overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}>
               {mediaAsset ? (
                 mediaAsset.kind === 'video' ? (
-                  <video src={mediaAsset.url} poster={posterAsset?.url ?? undefined} className="h-full w-full object-cover" muted controls />
+                  <video src={normalizedMediaUrl ?? mediaAsset.url} poster={normalizedPosterUrl} className="h-full w-full object-cover" muted controls />
                 ) : (
-                  <Image src={mediaAsset.url} alt="" fill sizes="(min-width: 1024px) 420px, 100vw" className="object-cover" />
+                  <Image
+                    src={normalizedMediaUrl ?? mediaAsset.url}
+                    alt=""
+                    fill
+                    sizes="(min-width: 1024px) 420px, 100vw"
+                    className="object-cover"
+                    unoptimized={useUnoptimizedPreview}
+                  />
                 )
               ) : (
                 <div className="flex h-full items-center justify-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>

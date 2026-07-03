@@ -110,6 +110,12 @@ export {
 } from './permission-matrix'
 export type { UserRole, Action } from './permission-matrix'
 
+// Money formatting
+// `formatMoney` is sourced from ./format-money (Decimal-free) so client
+// components can import it without bundling Prisma's Node-only runtime.
+// Server-only callers should import `roundMoney` from @hanuja/security/money.
+export { formatMoney } from './format-money'
+
 // Audit logging
 export {
   buildAuditEntry,

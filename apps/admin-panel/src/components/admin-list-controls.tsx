@@ -12,6 +12,8 @@ interface Option {
 interface AdminListControlsProps {
   searchValue?: string
   searchPlaceholder?: string
+  barcodeValue?: string
+  barcodePlaceholder?: string
   statusValue?: string
   statusOptions?: Option[]
   invoiceValue?: string
@@ -25,12 +27,15 @@ interface AdminListControlsProps {
   pageSize?: number
   pageSizeOptions?: number[]
   showSellerFilter?: boolean
+  showBarcodeFilter?: boolean
   showDateRange?: boolean
 }
 
 export function AdminListControls({
   searchValue = '',
   searchPlaceholder = 'Ara...',
+  barcodeValue = '',
+  barcodePlaceholder = 'Barkod',
   statusValue = '',
   statusOptions = [],
   invoiceValue = '',
@@ -44,6 +49,7 @@ export function AdminListControls({
   pageSize = 20,
   pageSizeOptions = [10, 20, 50, 100],
   showSellerFilter = false,
+  showBarcodeFilter = false,
   showDateRange = true,
 }: AdminListControlsProps) {
   const router = useRouter()
@@ -74,6 +80,7 @@ export function AdminListControls({
         value: statusOptions.find((option) => option.value === statusValue)?.label ?? statusValue,
       })
     }
+    if (barcodeValue) chips.push({ key: 'barcode', label: 'Barkod', value: barcodeValue })
     if (invoiceValue) {
       chips.push({
         key: 'invoice',
@@ -93,7 +100,7 @@ export function AdminListControls({
     if (toValue) chips.push({ key: 'to', label: 'Bitis', value: toValue })
     if (pageSize !== 20) chips.push({ key: 'pageSize', label: 'Sayfa boyutu', value: String(pageSize) })
     return chips
-  }, [fromValue, importOptions, importValue, invoiceOptions, invoiceValue, pageSize, sellerValue, statusOptions, statusValue, toValue])
+  }, [barcodeValue, fromValue, importOptions, importValue, invoiceOptions, invoiceValue, pageSize, sellerValue, statusOptions, statusValue, toValue])
 
   function updateParams(updates: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams.toString())
@@ -117,7 +124,7 @@ export function AdminListControls({
 
   function resetFilters() {
     const next = new URLSearchParams(searchParams.toString())
-    for (const key of ['q', 'status', 'invoice', 'import', 'seller', 'from', 'to', 'page']) {
+    for (const key of ['q', 'barcode', 'status', 'invoice', 'import', 'seller', 'from', 'to', 'page']) {
       next.delete(key)
     }
     if (pageSize === 20) {
@@ -197,6 +204,15 @@ export function AdminListControls({
           value={sellerValue}
           onChange={(event) => updateParams({ seller: event.target.value || null, page: '1' })}
           placeholder={sellerPlaceholder}
+          className="h-9 w-[180px]"
+        />
+      )}
+
+      {showBarcodeFilter && (
+        <Input
+          value={barcodeValue}
+          onChange={(event) => updateParams({ barcode: event.target.value || null, page: '1' })}
+          placeholder={barcodePlaceholder}
           className="h-9 w-[180px]"
         />
       )}

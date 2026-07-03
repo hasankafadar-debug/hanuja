@@ -39,10 +39,11 @@ function formatDate(date: Date) {
 }
 
 function formatAmount(value: number) {
-  return new Intl.NumberFormat('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  const formatted = new Intl.NumberFormat('tr-TR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(value)
+  return `${formatted} TL`
 }
 
 function escapeCsv(value: string | number | null | undefined) {

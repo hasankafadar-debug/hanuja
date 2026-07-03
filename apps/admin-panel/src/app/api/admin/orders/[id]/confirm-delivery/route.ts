@@ -9,6 +9,10 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 
 const bodySchema = z.object({
   reason: z.string().optional(),
+  // Per-line confirmation: if provided, only the listed lines are stamped and
+  // the order only transitions to delivery_confirmed when ALL lines are done.
+  // Omitting the array preserves the legacy order-level behaviour.
+  orderLineIds: z.array(z.string().min(1)).optional(),
 })
 
 export async function POST(
@@ -22,17 +26,22 @@ export async function POST(
 
     const { id } = await params
     const body = await req.json().catch(() => ({}))
-    const { reason } = bodySchema.parse(body)
+    const { reason, orderLineIds } = bodySchema.parse(body)
 
     const prisma = createPrismaForRoute()
     const svc = createDeliveryService({ prisma })
-    await svc.confirmByAdmin({
+    const result = await svc.confirmByAdmin({
       orderId: id,
       adminActorId: session.user.id,
       ...(reason !== undefined ? { reason } : {}),
+      ...(orderLineIds !== undefined ? { orderLineIds } : {}),
     })
 
-    return ok({ confirmed: true })
+    return ok({
+      confirmed: true,
+      allLinesConfirmed: result?.allLinesConfirmed ?? true,
+      confirmedLineIds: result?.confirmedLineIds ?? [],
+    })
   } catch (err) {
     return handleError(err)
   }

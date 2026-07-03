@@ -56,10 +56,11 @@ type PayoutRow = {
 }
 
 function formatAmount(value: number) {
-  return `TRY ${value.toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
+  const formatted = value.toLocaleString('tr-TR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+  return `${formatted} TL`
 }
 
 function formatDate(value: Date | null | undefined) {

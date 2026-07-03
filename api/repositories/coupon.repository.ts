@@ -32,7 +32,7 @@ export function createCouponRepository(prisma: PrismaClient) {
 
     listForAdmin(params: { skip?: number; take?: number; isActive?: boolean }) {
       return prisma.coupon.findMany({
-        where: params.isActive !== undefined ? { isActive: params.isActive } : undefined,
+        ...(params.isActive !== undefined ? { where: { isActive: params.isActive } } : {}),
         orderBy: { createdAt: 'desc' },
         skip: params.skip ?? 0,
         take: params.take ?? 50,
@@ -41,6 +41,7 @@ export function createCouponRepository(prisma: PrismaClient) {
 
     create(data: {
       code: string
+      sellerId?: string | null
       discountType: 'percentage' | 'fixed_amount'
       discountValue: number
       minCartTotal?: number
@@ -53,7 +54,7 @@ export function createCouponRepository(prisma: PrismaClient) {
       return prisma.coupon.create({ data: data as never })
     },
 
-    update(id: string, data: { isActive?: boolean; expiresAt?: Date }) {
+    update(id: string, data: { sellerId?: string | null; isActive?: boolean; expiresAt?: Date }) {
       return prisma.coupon.update({ where: { id }, data })
     },
   }

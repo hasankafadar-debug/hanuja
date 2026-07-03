@@ -13,26 +13,73 @@ const updateProfileSchema = z.object({
   image: z.string().url('Geçerli bir URL giriniz').optional(),
 })
 
-const addressSchema = z.object({
-  label: z.string().max(50).optional(),
-  fullName: z.string().min(2, 'Ad soyad zorunludur'),
-  phone: z
-    .string()
-    .regex(/^(\+90|0)?[5][0-9]{9}$/, 'Geçerli bir Türkiye telefon numarası girin'),
-  addressLine1: z.string().min(5, 'Adres en az 5 karakter olmalıdır'),
-  addressLine2: z.string().optional(),
-  district: z.string().min(2, 'İlçe zorunludur'),
-  city: z.string().min(2, 'Şehir zorunludur'),
-  postalCode: z
-    .string()
-    .regex(/^\d{5}$/, 'Posta kodu 5 hane olmalıdır')
-    .optional()
-    .or(z.literal('')),
-  country: z.string().length(2).optional(),
-  isDefault: z.boolean().optional(),
-})
+const billingAddressFields = {
+  isBillingAddress: z.boolean().optional(),
+  invoiceType: z.enum(['individual', 'corporate']).optional(),
+  tcNumber: z.string().max(11).optional(),
+  isForeignNational: z.boolean().optional(),
+  companyName: z.string().max(200).optional(),
+  taxOffice: z.string().max(100).optional(),
+  taxNumber: z.string().max(20).optional(),
+}
 
-const updateAddressSchema = addressSchema.partial()
+const addressSchema = z
+  .object({
+    label: z.string().max(50).optional(),
+    fullName: z.string().min(2, 'Ad soyad zorunludur'),
+    phone: z
+      .string()
+      .regex(/^(\+90|0)?[5][0-9]{9}$/, 'Geçerli bir Türkiye telefon numarası girin'),
+    addressLine1: z.string().min(5, 'Adres en az 5 karakter olmalıdır'),
+    addressLine2: z.string().optional(),
+    district: z.string().min(2, 'İlçe zorunludur'),
+    city: z.string().min(2, 'Şehir zorunludur'),
+    postalCode: z
+      .string()
+      .regex(/^\d{5}$/, 'Posta kodu 5 hane olmalıdır')
+      .optional()
+      .or(z.literal('')),
+    country: z.string().length(2).optional(),
+    isDefault: z.boolean().optional(),
+    ...billingAddressFields,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.isBillingAddress) return
+    if (data.invoiceType === 'individual' && !data.isForeignNational && !data.tcNumber) {
+      ctx.addIssue({ code: 'custom', path: ['tcNumber'], message: 'TC Kimlik No zorunludur' })
+    }
+    if (data.invoiceType === 'corporate') {
+      if (!data.companyName) ctx.addIssue({ code: 'custom', path: ['companyName'], message: 'Ünvan zorunludur' })
+      if (!data.taxOffice) ctx.addIssue({ code: 'custom', path: ['taxOffice'], message: 'Vergi dairesi zorunludur' })
+      if (!data.taxNumber) ctx.addIssue({ code: 'custom', path: ['taxNumber'], message: 'Vergi numarası zorunludur' })
+    }
+  })
+
+const updateAddressSchema = z
+  .object({
+    label: z.string().max(50).optional(),
+    fullName: z.string().min(2).optional(),
+    phone: z.string().regex(/^(\+90|0)?[5][0-9]{9}$/).optional(),
+    addressLine1: z.string().min(5).optional(),
+    addressLine2: z.string().optional(),
+    district: z.string().min(2).optional(),
+    city: z.string().min(2).optional(),
+    postalCode: z.string().regex(/^\d{5}$/).optional().or(z.literal('')),
+    country: z.string().length(2).optional(),
+    isDefault: z.boolean().optional(),
+    ...billingAddressFields,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.isBillingAddress) return
+    if (data.invoiceType === 'individual' && !data.isForeignNational && !data.tcNumber) {
+      ctx.addIssue({ code: 'custom', path: ['tcNumber'], message: 'TC Kimlik No zorunludur' })
+    }
+    if (data.invoiceType === 'corporate') {
+      if (!data.companyName) ctx.addIssue({ code: 'custom', path: ['companyName'], message: 'Ünvan zorunludur' })
+      if (!data.taxOffice) ctx.addIssue({ code: 'custom', path: ['taxOffice'], message: 'Vergi dairesi zorunludur' })
+      if (!data.taxNumber) ctx.addIssue({ code: 'custom', path: ['taxNumber'], message: 'Vergi numarası zorunludur' })
+    }
+  })
 
 function getUserService() {
   return createUserService({ prisma: createPrismaForRoute() })
@@ -91,6 +138,13 @@ export async function addAddress(req: NextRequest, userId: string) {
       ...(body.addressLine2 !== undefined ? { addressLine2: body.addressLine2 } : {}),
       ...(body.country !== undefined ? { country: body.country } : {}),
       ...(body.isDefault !== undefined ? { isDefault: body.isDefault } : {}),
+      ...(body.isBillingAddress !== undefined ? { isBillingAddress: body.isBillingAddress } : {}),
+      ...(body.invoiceType !== undefined ? { invoiceType: body.invoiceType } : {}),
+      ...(body.tcNumber !== undefined ? { tcNumber: body.tcNumber } : {}),
+      ...(body.isForeignNational !== undefined ? { isForeignNational: body.isForeignNational } : {}),
+      ...(body.companyName !== undefined ? { companyName: body.companyName } : {}),
+      ...(body.taxOffice !== undefined ? { taxOffice: body.taxOffice } : {}),
+      ...(body.taxNumber !== undefined ? { taxNumber: body.taxNumber } : {}),
     })
     return created(address)
   } catch (err) {
@@ -114,6 +168,13 @@ export async function updateAddress(req: NextRequest, userId: string, addressId:
       ...(body.postalCode !== undefined ? { postalCode: body.postalCode } : {}),
       ...(body.country !== undefined ? { country: body.country } : {}),
       ...(body.isDefault !== undefined ? { isDefault: body.isDefault } : {}),
+      ...(body.isBillingAddress !== undefined ? { isBillingAddress: body.isBillingAddress } : {}),
+      ...(body.invoiceType !== undefined ? { invoiceType: body.invoiceType } : {}),
+      ...(body.tcNumber !== undefined ? { tcNumber: body.tcNumber } : {}),
+      ...(body.isForeignNational !== undefined ? { isForeignNational: body.isForeignNational } : {}),
+      ...(body.companyName !== undefined ? { companyName: body.companyName } : {}),
+      ...(body.taxOffice !== undefined ? { taxOffice: body.taxOffice } : {}),
+      ...(body.taxNumber !== undefined ? { taxNumber: body.taxNumber } : {}),
     })
     return ok(updated)
   } catch (err) {

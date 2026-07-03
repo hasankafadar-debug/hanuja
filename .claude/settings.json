@@ -44,10 +44,7 @@
       "Bash(git clean -fd *)",
       "Bash(rm -rf *)"
     ]
-  }
-}
-
-{
+  },
   "hooks": {
     "PreToolUse": [
       {

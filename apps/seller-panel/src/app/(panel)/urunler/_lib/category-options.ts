@@ -1,5 +1,6 @@
 interface CategoryRow {
   id: string
+  slug: string
   name: string
   parentId: string | null
 }
@@ -7,6 +8,7 @@ interface CategoryRow {
 export interface CategoryOption {
   id: string
   name: string
+  slug: string
 }
 
 function buildCategoryLabel(
@@ -33,5 +35,6 @@ export function buildCategoryOptions(categories: CategoryRow[]): CategoryOption[
   return categories.map((category) => ({
     id: category.id,
     name: buildCategoryLabel(category.id, categoryMap),
+    slug: category.slug,
   }))
 }

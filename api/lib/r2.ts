@@ -1,8 +1,8 @@
 /**
- * Cloudflare R2 client — S3-compatible presigned URL generation.
+ * Cloudflare R2 client - S3-compatible presigned URL generation.
  *
  * Uses @aws-sdk/client-s3 + @aws-sdk/s3-request-presigner (S3-compatible API).
- * File paths are generated server-side — never trust uploaded filenames.
+ * File paths are generated server-side - never trust uploaded filenames.
  *
  * Authorization for upload/download access is enforced at the route level.
  */
@@ -10,42 +10,68 @@ import {
   S3Client,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { randomUUID } from 'crypto'
+import { DomainError } from './errors'
 
-function requireEnv(key: string, fallback: string): string {
+function requireEnv(key: string): string {
   const value = process.env[key]
   if (!value) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(`${key} is required in production`)
-    }
-    return fallback
+    throw new DomainError(
+      `Medya servisi yapilandirilmamis. Eksik ortam degiskeni: ${key}`,
+      'MEDIA_CONFIG_MISSING',
+      503,
+    )
   }
   return value
 }
 
+function maskAccountId(accountId: string) {
+  if (accountId.length <= 8) return '***'
+  return `${accountId.slice(0, 4)}...${accountId.slice(-4)}`
+}
+
 function getR2Config() {
-  const accountId = requireEnv('R2_ACCOUNT_ID', 'dev-account')
-  const accessKeyId = requireEnv('R2_ACCESS_KEY_ID', 'dev-key')
-  const secretAccessKey = requireEnv('R2_SECRET_ACCESS_KEY', 'dev-secret')
-  const bucketName = requireEnv('R2_BUCKET_NAME', 'hanuja-media')
+  const accountId = requireEnv('R2_ACCOUNT_ID')
+  const accessKeyId = requireEnv('R2_ACCESS_KEY_ID')
+  const secretAccessKey = requireEnv('R2_SECRET_ACCESS_KEY')
+  const bucketName = requireEnv('R2_BUCKET_NAME')
+  const endpointHost = `${accountId}.r2.cloudflarestorage.com`
+  const endpoint = `https://${endpointHost}`
   const cdnUrl =
     process.env.R2_CDN_URL ??
     process.env.R2_PUBLIC_URL ??
-    `https://${bucketName}.${accountId}.r2.cloudflarestorage.com`
+    `https://${bucketName}.${endpointHost}`
 
-  return { accountId, accessKeyId, secretAccessKey, bucketName, cdnUrl }
+  return { accountId, accessKeyId, secretAccessKey, bucketName, endpoint, endpointHost, cdnUrl }
+}
+
+export function getSanitizedR2DebugContext() {
+  const { accountId, bucketName, endpointHost, cdnUrl } = getR2Config()
+  return {
+    accountId: maskAccountId(accountId),
+    bucketName,
+    endpointHost,
+    cdnHost: (() => {
+      try {
+        return new URL(cdnUrl).host
+      } catch {
+        return 'invalid-cdn-url'
+      }
+    })(),
+  }
 }
 
 function createR2Client() {
-  const { accountId, accessKeyId, secretAccessKey } = getR2Config()
+  const { endpoint, accessKeyId, secretAccessKey } = getR2Config()
 
   return new S3Client({
     region: 'auto',
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    endpoint,
     credentials: {
       accessKeyId,
       secretAccessKey,
@@ -78,7 +104,7 @@ export const SLIDER_VIDEO_MIME_TYPES = new Set([
   'video/webm',
 ])
 
-// KYC belgeler için genişletilmiş mime type listesi
+// Extended mime type list for KYC documents.
 export const DOCUMENT_ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -88,9 +114,11 @@ export const DOCUMENT_ALLOWED_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ])
 
-export const DOCUMENT_MAX_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB (PDF'ler daha büyük olabilir)
+export const DOCUMENT_MAX_SIZE_BYTES = 20 * 1024 * 1024
 
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+const BUCKET_ACCESS_ERROR_MESSAGE = 'R2 bucket bulunamadi veya bu account altinda erisilemiyor.'
+let bucketValidationPromise: Promise<void> | null = null
 
 export interface PresignedUploadResult {
   uploadUrl: string
@@ -99,8 +127,66 @@ export interface PresignedUploadResult {
   expiresIn: number
 }
 
+function getBucketAccessStatusCode(error: unknown) {
+  if (typeof error !== 'object' || error === null) return null
+
+  if ('$metadata' in error) {
+    const metadata = (error as { $metadata?: { httpStatusCode?: number } }).$metadata
+    if (typeof metadata?.httpStatusCode === 'number') return metadata.httpStatusCode
+  }
+
+  if ('statusCode' in error && typeof (error as { statusCode?: number }).statusCode === 'number') {
+    return (error as { statusCode: number }).statusCode
+  }
+
+  if ('Code' in error) {
+    const code = String((error as { Code?: unknown }).Code ?? '')
+    if (code === 'NoSuchBucket' || code === 'NotFound') return 404
+    if (code === 'AccessDenied' || code === 'Forbidden') return 403
+  }
+
+  return null
+}
+
+async function validateBucketAccess(folder: MediaFolder) {
+  if (!bucketValidationPromise) {
+    const context = getSanitizedR2DebugContext()
+    console.info('[r2][config-check]', {
+      ...context,
+      folder,
+    })
+
+    bucketValidationPromise = (async () => {
+      const { bucketName } = getR2Config()
+      const r2 = createR2Client()
+
+      try {
+        await r2.send(new HeadBucketCommand({ Bucket: bucketName }))
+      } catch (error) {
+        const statusCode = getBucketAccessStatusCode(error)
+        console.error('[r2][bucket-access-failed]', {
+          ...context,
+          statusCode,
+          error: error instanceof Error ? error.message : error,
+        })
+
+        if (statusCode === 403 || statusCode === 404) {
+          throw new DomainError(BUCKET_ACCESS_ERROR_MESSAGE, 'MEDIA_BUCKET_UNREACHABLE', 503)
+        }
+
+        throw error
+      }
+    })().catch((error) => {
+      bucketValidationPromise = null
+      throw error
+    })
+  }
+
+  await bucketValidationPromise
+}
+
 /**
- * Generate a presigned PUT URL for direct browser → R2 upload.
+ * Generate a presigned PUT URL for direct browser -> R2 upload.
  *
  * The key is generated server-side to prevent path traversal.
  * expiresIn: URL is valid for 5 minutes.
@@ -122,11 +208,21 @@ export async function generatePresignedUploadUrl(opts: {
   }
 
   if (!allowedTypes.has(mimeType)) {
-    throw new Error(`Desteklenmeyen dosya türü: ${mimeType}`)
+    throw new DomainError(
+      `Bu dosya turu bu alan icin desteklenmiyor: ${mimeType}`,
+      'UNSUPPORTED_MEDIA_TYPE',
+      415,
+    )
   }
 
-  const maxSize = (folder === 'documents' || folder === 'customer-support') ? DOCUMENT_MAX_SIZE_BYTES : MAX_FILE_SIZE_BYTES
-  void maxSize // enforced at route level
+  const maxSize =
+    folder === 'documents' || folder === 'customer-support'
+      ? DOCUMENT_MAX_SIZE_BYTES
+      : MAX_FILE_SIZE_BYTES
+  void maxSize
+
+  await validateBucketAccess(folder)
+
   const { bucketName, cdnUrl } = getR2Config()
   const r2 = createR2Client()
 
@@ -139,7 +235,7 @@ export async function generatePresignedUploadUrl(opts: {
   }
   const ext = mimeExt[mimeType] ?? (mimeType.split('/')[1] ?? 'jpg')
   const key = `${folder}/${ownerId}/${randomUUID()}.${ext}`
-  const expiresIn = 300 // 5 minutes
+  const expiresIn = 300
 
   const command = new PutObjectCommand({
     Bucket: bucketName,
@@ -174,7 +270,11 @@ export async function uploadObject(opts: {
   }
 
   if (!allowedTypesUpload.has(mimeType)) {
-    throw new Error(`Desteklenmeyen dosya türü: ${mimeType}`)
+    throw new DomainError(
+      `Bu dosya turu bu alan icin desteklenmiyor: ${mimeType}`,
+      'UNSUPPORTED_MEDIA_TYPE',
+      415,
+    )
   }
 
   const { bucketName, cdnUrl } = getR2Config()
@@ -250,7 +350,7 @@ export async function readObject(key: string): Promise<{
   )
 
   if (!response.Body) {
-    throw new Error('Dosya içeriği okunamadı.')
+    throw new Error('Dosya icerigi okunamadi.')
   }
 
   const streamBody = response.Body as {
@@ -274,7 +374,7 @@ export async function readObject(key: string): Promise<{
     }
     body = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
   } else {
-    throw new Error('Dosya içeriği okunamadı.')
+    throw new Error('Dosya icerigi okunamadi.')
   }
 
   return {

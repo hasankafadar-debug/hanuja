@@ -57,7 +57,13 @@ export function createProductRepository(prisma: PrismaClient) {
     findBySlug(slug: string) {
       return prisma.product.findUnique({
         where: { slug },
-        include: { images: true, variants: true, category: true, seller: true },
+        include: {
+          images: true,
+          variants: true,
+          category: true,
+          seller: true,
+          attributeValues: { include: { option: true } },
+        },
       })
     },
 
@@ -235,6 +241,7 @@ export function createProductRepository(prisma: PrismaClient) {
       careInstructions?: string | null
       price: import('@prisma/client/runtime/client').Decimal
       compareAtPrice?: import('@prisma/client/runtime/client').Decimal | null
+      fulfillmentDays: number
       stockQuantity: number
       sku?: string | null
       barcode?: string | null
@@ -247,9 +254,14 @@ export function createProductRepository(prisma: PrismaClient) {
     },
 
     findByBarcode(barcode: string) {
-      return prisma.product.findUnique({
-        where: { barcode },
-        include: { images: { take: 1 }, category: true },
+      return prisma.product.findFirst({
+        where: {
+          OR: [
+            { barcode },
+            { variants: { some: { barcode } } },
+          ],
+        },
+        include: { images: { take: 1 }, category: true, variants: true },
       })
     },
 
@@ -291,15 +303,25 @@ export function createProductRepository(prisma: PrismaClient) {
       status?: ProductStatus[]
       sellerId?: string
       query?: string
+      barcode?: string
       from?: Date
       to?: Date
       skip?: number
       take?: number
     }) {
       const normalizedQuery = params.query?.trim()
+      const normalizedBarcode = params.barcode?.trim()
       const where: Prisma.ProductWhereInput = {
         ...(params.status !== undefined && params.status.length > 0 ? { status: { in: params.status } } : {}),
         ...(params.sellerId !== undefined ? { sellerId: params.sellerId } : {}),
+        ...(normalizedBarcode
+          ? {
+              OR: [
+                { barcode: { equals: normalizedBarcode } },
+                { variants: { some: { barcode: { equals: normalizedBarcode } } } },
+              ],
+            }
+          : {}),
         ...(params.from !== undefined || params.to !== undefined
           ? {
               createdAt: {

@@ -7,17 +7,19 @@ interface CategoryPaginationProps {
   currentPage: number
   totalPages: number
   categoryPath: string
+  basePath?: string
 }
 
 export function CategoryPagination({
   currentPage,
   totalPages,
   categoryPath,
+  basePath,
 }: CategoryPaginationProps) {
   const router = useRouter()
 
   function handlePageChange(page: number) {
-    router.push(`/kategori/${categoryPath}?sayfa=${page}`)
+    router.push(`${basePath ?? `/kategori/${categoryPath}`}?sayfa=${page}`)
   }
 
   return (

@@ -53,7 +53,7 @@ export default async function ManageDiscountPage({ params }: Props) {
 
       <DiscountRuleForm
         categories={buildCategoryOptions(
-          categories as unknown as Array<{ id: string; name: string; parentId: string | null }>,
+          categories as unknown as Array<{ id: string; slug: string; name: string; parentId: string | null }>,
         )}
         products={(products as Array<{ id: string; name: string }>).map((product) => ({
           id: product.id,

@@ -1,248 +1,124 @@
-/**
- * Unit tests — coupon.service.ts
- *
- * Covers: active/expired/not-started guard, min cart total check,
- * global usage limit, per-user usage limit, discount calculation
- * (percentage + fixed), cart total after discount.
- *
- * No DB connection — pure business rule verification.
- * See: .claude/rules/07-marketplace-finance-rules.md (coupon cost share)
- */
-import { describe, it, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createCouponService } from '../../../api/services/coupon.service'
+import { ValidationError } from '../../../api/lib/errors'
 
-// ── Coupon validity guards ────────────────────────────────────────────────────
+const {
+  findByCodeMock,
+  countUsageByUserMock,
+  recordUsageMock,
+  incrementUsageMock,
+} = vi.hoisted(() => ({
+  findByCodeMock: vi.fn(),
+  countUsageByUserMock: vi.fn(),
+  recordUsageMock: vi.fn(),
+  incrementUsageMock: vi.fn(),
+}))
 
-describe('Coupon — isActive guard', () => {
-  it('rejects inactive coupon', () => {
-    const coupon = { isActive: false }
-    expect(coupon.isActive).toBe(false)
+vi.mock('../../../api/repositories/coupon.repository', () => ({
+  createCouponRepository: () => ({
+    findByCode: findByCodeMock,
+    countUsageByUser: countUsageByUserMock,
+    recordUsage: recordUsageMock,
+    incrementUsage: incrementUsageMock,
+  }),
+}))
+
+function makeCoupon(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'coupon-1',
+    code: 'SELLER10',
+    sellerId: 'seller-1',
+    isActive: true,
+    startsAt: null,
+    expiresAt: null,
+    minCartTotal: null,
+    maxUsageTotal: null,
+    maxUsagePerUser: 1,
+    usageCount: 0,
+    discountType: 'fixed_amount',
+    discountValue: 100,
+    ...overrides,
+  }
+}
+
+describe('coupon.service.validateCoupon', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    countUsageByUserMock.mockResolvedValue(0)
   })
 
-  it('accepts active coupon', () => {
-    const coupon = { isActive: true }
-    expect(coupon.isActive).toBe(true)
-  })
-})
+  it('applies seller-scoped coupon only to the matching seller subtotal', async () => {
+    findByCodeMock.mockResolvedValue(makeCoupon({ discountValue: 80 }))
+    const prisma = { $transaction: vi.fn() } as never
+    const service = createCouponService({ prisma })
 
-describe('Coupon — date validity guards', () => {
-  it('rejects coupon that has not started yet', () => {
-    const now = new Date()
-    const startsAt = new Date(now.getTime() + 86_400_000) // tomorrow
-    const isStarted = !startsAt || startsAt <= now
-    expect(isStarted).toBe(false)
-  })
+    const result = await service.validateCoupon({
+      code: 'SELLER10',
+      userId: 'user-1',
+      sellerSubtotals: [
+        { sellerId: 'seller-1', subtotal: 120 },
+        { sellerId: 'seller-2', subtotal: 300 },
+      ],
+    })
 
-  it('accepts coupon that has already started', () => {
-    const now = new Date()
-    const startsAt = new Date(now.getTime() - 86_400_000) // yesterday
-    const isStarted = !startsAt || startsAt <= now
-    expect(isStarted).toBe(true)
-  })
-
-  it('accepts coupon with no startsAt (immediate)', () => {
-    const startsAt = null
-    const now = new Date()
-    const isStarted = !startsAt || startsAt <= now
-    expect(isStarted).toBe(true)
+    expect(result.sellerId).toBe('seller-1')
+    expect(result.eligibleCartTotal).toBe(120)
+    expect(result.discountAmount).toBe(80)
+    expect(result.finalCartTotal).toBe(340)
   })
 
-  it('rejects expired coupon', () => {
-    const now = new Date()
-    const expiresAt = new Date(now.getTime() - 86_400_000) // yesterday
-    const isExpired = expiresAt !== null && expiresAt < now
-    expect(isExpired).toBe(true)
+  it('uses the matching seller subtotal for minimum cart validation', async () => {
+    findByCodeMock.mockResolvedValue(makeCoupon({ minCartTotal: 200 }))
+    const prisma = { $transaction: vi.fn() } as never
+    const service = createCouponService({ prisma })
+
+    await expect(
+      service.validateCoupon({
+        code: 'SELLER10',
+        sellerSubtotals: [
+          { sellerId: 'seller-1', subtotal: 150 },
+          { sellerId: 'seller-2', subtotal: 500 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(ValidationError)
   })
 
-  it('accepts coupon expiring in the future', () => {
-    const now = new Date()
-    const expiresAt = new Date(now.getTime() + 86_400_000) // tomorrow
-    const isExpired = expiresAt !== null && expiresAt < now
-    expect(isExpired).toBe(false)
-  })
+  it('blocks reuse when the customer reached the per-user limit', async () => {
+    findByCodeMock.mockResolvedValue(makeCoupon({ maxUsagePerUser: 2 }))
+    countUsageByUserMock.mockResolvedValue(2)
+    const prisma = { $transaction: vi.fn() } as never
+    const service = createCouponService({ prisma })
 
-  it('accepts coupon with no expiry', () => {
-    const expiresAt = null
-    const now = new Date()
-    const isExpired = expiresAt !== null && expiresAt < now
-    expect(isExpired).toBe(false)
-  })
-})
-
-// ── Min cart total check ──────────────────────────────────────────────────────
-
-describe('Coupon — minimum cart total', () => {
-  it('rejects cart below minimum total', () => {
-    const minCartTotal = 500
-    const cartTotal = 300
-    const meetsMinimum = minCartTotal === null || cartTotal >= minCartTotal
-    expect(meetsMinimum).toBe(false)
-  })
-
-  it('accepts cart at exactly minimum total', () => {
-    const minCartTotal = 500
-    const cartTotal = 500
-    const meetsMinimum = minCartTotal === null || cartTotal >= minCartTotal
-    expect(meetsMinimum).toBe(true)
-  })
-
-  it('accepts cart above minimum total', () => {
-    const minCartTotal = 500
-    const cartTotal = 750
-    const meetsMinimum = minCartTotal === null || cartTotal >= minCartTotal
-    expect(meetsMinimum).toBe(true)
-  })
-
-  it('no minimum required when minCartTotal is null', () => {
-    const minCartTotal = null
-    const cartTotal = 50
-    const meetsMinimum = minCartTotal === null || cartTotal >= minCartTotal
-    expect(meetsMinimum).toBe(true)
-  })
-})
-
-// ── Global usage limit ────────────────────────────────────────────────────────
-
-describe('Coupon — global usage limit', () => {
-  it('rejects when usage count has reached maxUsageTotal', () => {
-    const maxUsageTotal = 100
-    const usageCount = 100
-    const hasCapacity = maxUsageTotal === null || usageCount < maxUsageTotal
-    expect(hasCapacity).toBe(false)
-  })
-
-  it('rejects when usage count exceeds maxUsageTotal', () => {
-    const maxUsageTotal = 100
-    const usageCount = 105
-    const hasCapacity = maxUsageTotal === null || usageCount < maxUsageTotal
-    expect(hasCapacity).toBe(false)
-  })
-
-  it('accepts when usage count is below maxUsageTotal', () => {
-    const maxUsageTotal = 100
-    const usageCount = 50
-    const hasCapacity = maxUsageTotal === null || usageCount < maxUsageTotal
-    expect(hasCapacity).toBe(true)
-  })
-
-  it('no global limit when maxUsageTotal is null', () => {
-    const maxUsageTotal = null
-    const usageCount = 9999
-    const hasCapacity = maxUsageTotal === null || usageCount < maxUsageTotal
-    expect(hasCapacity).toBe(true)
+    await expect(
+      service.validateCoupon({
+        code: 'SELLER10',
+        userId: 'user-1',
+        cartTotal: 250,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError)
   })
 })
 
-// ── Per-user usage limit ──────────────────────────────────────────────────────
-
-describe('Coupon — per-user usage limit', () => {
-  it('rejects when user has already used the coupon maxUsagePerUser times', () => {
-    const maxUsagePerUser = 1
-    const userUsageCount = 1
-    const canUse = userUsageCount < maxUsagePerUser
-    expect(canUse).toBe(false)
+describe('coupon.service.applyCoupon', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
   })
 
-  it('accepts when user has not yet used the coupon', () => {
-    const maxUsagePerUser = 1
-    const userUsageCount = 0
-    const canUse = userUsageCount < maxUsagePerUser
-    expect(canUse).toBe(true)
-  })
+  it('records usage and increments the aggregate count in one transaction', async () => {
+    recordUsageMock.mockReturnValue({ op: 'record' })
+    incrementUsageMock.mockReturnValue({ op: 'increment' })
+    const transactionMock = vi.fn(async (operations: unknown[]) => operations)
+    const prisma = { $transaction: transactionMock } as never
+    const service = createCouponService({ prisma })
 
-  it('accepts when user is within multi-use limit', () => {
-    const maxUsagePerUser = 3
-    const userUsageCount = 2
-    const canUse = userUsageCount < maxUsagePerUser
-    expect(canUse).toBe(true)
-  })
-})
-
-// ── Discount calculation: percentage ─────────────────────────────────────────
-
-describe('Coupon — percentage discount calculation', () => {
-  it('calculates 10% discount correctly', () => {
-    const cartTotal = 1000
-    const discountValue = 10 // percent
-    const discountAmount = Math.round((cartTotal * discountValue) / 100 * 100) / 100
-    expect(discountAmount).toBe(100)
-  })
-
-  it('calculates 20% discount correctly', () => {
-    const cartTotal = 850
-    const discountValue = 20
-    const discountAmount = Math.round((cartTotal * discountValue) / 100 * 100) / 100
-    expect(discountAmount).toBe(170)
-  })
-
-  it('rounds to 2 decimal places', () => {
-    const cartTotal = 333.33
-    const discountValue = 10
-    const discountAmount = Math.round((cartTotal * discountValue) / 100 * 100) / 100
-    expect(Number.isFinite(discountAmount)).toBe(true)
-    expect(String(discountAmount).split('.')[1]?.length ?? 0).toBeLessThanOrEqual(2)
-  })
-
-  it('final cart total is cartTotal minus discount', () => {
-    const cartTotal = 1000
-    const discountAmount = 100
-    const finalCartTotal = Math.max(0, cartTotal - discountAmount)
-    expect(finalCartTotal).toBe(900)
-  })
-})
-
-// ── Discount calculation: fixed amount ───────────────────────────────────────
-
-describe('Coupon — fixed amount discount calculation', () => {
-  it('deducts fixed amount from cart total', () => {
-    const cartTotal = 1000
-    const discountValue = 50
-    const discountAmount = Math.min(discountValue, cartTotal)
-    expect(discountAmount).toBe(50)
-  })
-
-  it('caps fixed discount at cart total (cannot go below zero)', () => {
-    const cartTotal = 30
-    const discountValue = 50 // larger than cart
-    const discountAmount = Math.min(discountValue, cartTotal)
-    const finalCartTotal = Math.max(0, cartTotal - discountAmount)
-    expect(discountAmount).toBe(30) // capped at cart total
-    expect(finalCartTotal).toBe(0)
-  })
-
-  it('final cart total is never negative', () => {
-    const cartTotal = 10
-    const discountValue = 100
-    const discountAmount = Math.min(discountValue, cartTotal)
-    const finalCartTotal = Math.max(0, cartTotal - discountAmount)
-    expect(finalCartTotal).toBeGreaterThanOrEqual(0)
-  })
-})
-
-// ── applyCoupon: usage recording ─────────────────────────────────────────────
-
-describe('Coupon — usage recording (applyCoupon)', () => {
-  it('applyCoupon increments global usage count', () => {
-    const initialCount = 5
-    const afterApply = initialCount + 1
-    expect(afterApply).toBe(6)
-  })
-
-  it('applyCoupon records per-user usage entry', () => {
-    const usageRecord = {
+    await service.applyCoupon({
       couponId: 'coupon-1',
       userId: 'user-1',
       orderId: 'order-1',
-    }
-    expect(usageRecord.couponId).toBeTruthy()
-    expect(usageRecord.userId).toBeTruthy()
-    expect(usageRecord.orderId).toBeTruthy()
-  })
+    })
 
-  it('applyCoupon is called only after order confirmation — not on validation', () => {
-    // applyCoupon and validateCoupon are separate concerns by design
-    // validateCoupon: read-only check at cart time
-    // applyCoupon:    write at order confirmation time
-    const validateSideEffects = false // validateCoupon must not mutate
-    expect(validateSideEffects).toBe(false)
+    expect(recordUsageMock).toHaveBeenCalledWith('coupon-1', 'user-1', 'order-1')
+    expect(incrementUsageMock).toHaveBeenCalledWith('coupon-1')
+    expect(transactionMock).toHaveBeenCalledTimes(1)
   })
 })

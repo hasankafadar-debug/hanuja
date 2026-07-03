@@ -478,3 +478,5 @@ These are platform constants. Do not contradict them in code or documentation.
 9. A return request within 14 days is treated as a standard fast-path withdrawal.
 10. A return request after 14 days requires admin evaluation.
 11. Any order with an open return or open dispute has its payout blocked.
+12. Commission is calculated on `OrderLine.totalPrice` — the KDV-inclusive gross price. Do not use the KDV-exclusive base.
+13. EFT/Havale channel discounts (`Order.eftDiscountAmount`) are absorbed by Hanuja. They do not reduce `Payout.grossAmount` or `Payout.netAmount`.

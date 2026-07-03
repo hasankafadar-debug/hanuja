@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Outfit, DM_Sans, Cormorant_Garamond } from 'next/font/google'
+import { Outfit, DM_Sans, Plus_Jakarta_Sans } from 'next/font/google'
 import { Toaster } from '@hanuja/ui'
 import { DEFAULT_WEB_URL } from '@hanuja/api/lib/platform-info'
 import './globals.css'
@@ -18,12 +18,11 @@ const dmSans = DM_Sans({
   weight: ['300', '400', '500'],
 })
 
-const cormorant = Cormorant_Garamond({
+const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin', 'latin-ext'],
   variable: '--font-display',
   display: 'swap',
-  weight: ['300', '400', '500'],
-  style: ['normal', 'italic'],
+  weight: ['300', '400', '500', '600'],
 })
 
 export const metadata: Metadata = {
@@ -57,7 +56,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="tr" className={`${outfit.variable} ${dmSans.variable} ${cormorant.variable}`}>
+    <html lang="tr" className={`${outfit.variable} ${dmSans.variable} ${plusJakarta.variable}`}>
       <body>
         {children}
         <Toaster />

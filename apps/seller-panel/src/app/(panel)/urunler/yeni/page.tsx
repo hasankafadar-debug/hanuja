@@ -18,7 +18,7 @@ export default async function NewProductPage() {
   const svc = createCatalogService({ prisma: createPrismaForRoute() })
   const allCategories = await svc.listAllCategories()
 
-  type CategoryRow = { id: string; name: string; parentId: string | null }
+  type CategoryRow = { id: string; slug: string; name: string; parentId: string | null }
   const categories = buildCategoryOptions(allCategories as unknown as CategoryRow[])
 
   return (

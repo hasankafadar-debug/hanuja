@@ -5,6 +5,7 @@ import { RotateCcw } from 'lucide-react'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createReturnRequestRepository } from '@hanuja/api/repositories/return-request.repository'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,8 +26,9 @@ export default async function SellerReturnsPage() {
         style={{ borderColor: 'var(--color-border)', backgroundColor: '#fff7ed' }}
       >
         <p style={{ color: '#9a3412' }}>
-          <strong>Hatırlatma:</strong> 14 gün içindeki iadeler yasal cayma hakkı kapsamında değerlendirilir.
-          Açık iade durumunda hakedişiniz bloke edilir. İade süreci admin tarafından yönetilir.
+          <strong>Hatırlatma:</strong> Açık iade durumunda hakedişiniz bloke edilir. Detaydan iade
+          kargo bilgisini girin; ürün size ulaştığında onaylayın veya yanlış ürün gelmişse
+          reddedin. Reddederseniz konu admin uyuşmazlık incelemesine taşınır.
         </p>
       </div>
 
@@ -44,7 +46,7 @@ export default async function SellerReturnsPage() {
           <table className="w-full text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['İade No', 'Sipariş', 'Ürün', 'Sebep', 'Talep Tarihi', '14 Gün?', 'Durum'].map((h) => (
+                {['İade No', 'Sipariş', 'Ürün', 'Sebep', 'Talep Tarihi', '14 Gün?', 'Durum', ''].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
@@ -78,7 +80,7 @@ export default async function SellerReturnsPage() {
                         className="hover:underline font-mono text-xs"
                         style={{ color: 'var(--color-accent)' }}
                       >
-                        #{r.orderId.slice(-8).toUpperCase()}
+                        {formatOrderDisplayNumber(r.order.publicNumber, r.orderId)}
                       </Link>
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
@@ -102,6 +104,15 @@ export default async function SellerReturnsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={r.status as Parameters<typeof StatusBadge>[0]['status']} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/iadeler/${r.id}`}
+                        className="text-xs font-medium hover:underline"
+                        style={{ color: 'var(--color-accent)' }}
+                      >
+                        Detay
+                      </Link>
                     </td>
                   </tr>
                 )

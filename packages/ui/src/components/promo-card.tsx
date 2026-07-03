@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import { mediaSrcSet } from '../lib/media-url'
+import { isManagedMediaProxyUrl, mediaSrcSet } from '../lib/media-url'
 
 export interface PromoCardProps {
   imageUrl: string
@@ -10,10 +10,20 @@ export interface PromoCardProps {
   title: string
   subtitle?: string | null
   ctaHref: string
+  priority?: boolean
 }
 
-export function PromoCard({ imageUrl, imageVariants, imageAlt, title, subtitle, ctaHref }: PromoCardProps) {
+export function PromoCard({
+  imageUrl,
+  imageVariants,
+  imageAlt,
+  title,
+  subtitle,
+  ctaHref,
+  priority = false,
+}: PromoCardProps) {
   const { src, srcSet, sizes } = mediaSrcSet(imageVariants ?? null, imageUrl)
+  const useUnoptimizedImage = isManagedMediaProxyUrl(src)
 
   return (
     <Link
@@ -27,7 +37,9 @@ export function PromoCard({ imageUrl, imageVariants, imageAlt, title, subtitle, 
         alt={imageAlt}
         fill
         className="object-cover transition-transform duration-500 group-hover:scale-105"
+        priority={priority}
         sizes={sizes ?? '(max-width: 768px) 50vw, 33vw'}
+        unoptimized={useUnoptimizedImage}
         {...(srcSet ? { srcSet } : {})}
       />
 

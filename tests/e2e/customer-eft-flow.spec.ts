@@ -101,12 +101,18 @@ async function addFirstAvailableProductToCart(page: Page) {
 
 // ─── Setup: Test müşterisini DB'de hazırla ───────────────────────────────────
 test.beforeAll(() => {
-  const script = path.join(ROOT, 'tests/e2e/setup/ensure-test-customer.ts')
-  execSync(`pnpm exec tsx "${script}"`, {
-    cwd: ROOT,
-    env: { ...process.env },
-    stdio: 'pipe',
-  })
+  const scripts = [
+    path.join(ROOT, 'tests/e2e/setup/ensure-test-customer.ts'),
+    path.join(ROOT, 'tests/e2e/setup/ensure-customer-fixtures.ts'),
+  ]
+
+  for (const script of scripts) {
+    execSync(`pnpm exec tsx "${script}"`, {
+      cwd: ROOT,
+      env: { ...process.env },
+      stdio: 'pipe',
+    })
+  }
 })
 
 // ═══════════════════════════════════════════════════════════════════

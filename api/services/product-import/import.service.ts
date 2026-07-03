@@ -11,6 +11,14 @@ import { normalizeSlug, buildSlugWithSuffix } from '../../domain/slug'
 const adapters: ImportAdapter[] = [new HipiconAdapter()]
 const MAX_BARCODE_ATTEMPTS = 50
 
+type AttributeOption = {
+  id: string
+  type: 'color' | 'material'
+  label: string
+  slug: string
+  sortOrder: number
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -23,8 +31,87 @@ export interface RejectedImportItem {
 }
 
 export type CommitSelection =
-  | { externalId: string; categoryId: string; barcode?: string | null; stockQuantity: number }
-  | { externalId: string; autoCreateUnder: { parentId: string; leafName: string }; barcode?: string | null; stockQuantity: number }
+  | {
+      externalId: string
+      categoryId: string
+      colorOptionId: string
+      materialOptionId: string
+      barcode?: string | null
+      fulfillmentDays: number
+      stockQuantity: number
+    }
+  | {
+      externalId: string
+      autoCreateUnder: { parentId: string; leafName: string }
+      colorOptionId: string
+      materialOptionId: string
+      barcode?: string | null
+      fulfillmentDays: number
+      stockQuantity: number
+    }
+
+function normalizeAttributeValue(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/[^\w\s/-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+function collectAttributeCandidates(item: ScrapedProduct) {
+  const candidates = [
+    item.name,
+    item.shortDescription,
+    item.description,
+    item.story,
+    item.careInstructions,
+    item.sku,
+    ...((item.variants ?? []).map((variant) => variant.name)),
+  ]
+
+  return Array.from(
+    new Set(
+      candidates
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .map(normalizeAttributeValue),
+    ),
+  )
+}
+
+function getCategoryAttributeOptions(params: {
+  categoryId: string
+  type: 'color' | 'material'
+  optionsByCategoryId: Map<string, AttributeOption[]>
+  fallbackOptions: Record<'color' | 'material', AttributeOption[]>
+}) {
+  const categoryOptions = params.optionsByCategoryId.get(params.categoryId) ?? []
+  const scopedOptions = categoryOptions.filter((option) => option.type === params.type)
+  return scopedOptions.length > 0 ? scopedOptions : params.fallbackOptions[params.type]
+}
+
+function detectAttributeOption(params: {
+  item: ScrapedProduct
+  categoryId: string
+  type: 'color' | 'material'
+  optionsByCategoryId: Map<string, AttributeOption[]>
+  fallbackOptions: Record<'color' | 'material', AttributeOption[]>
+}) {
+  const candidates = collectAttributeCandidates(params.item)
+  if (candidates.length === 0) return null
+
+  const matches = getCategoryAttributeOptions(params).filter((option) => {
+    const label = normalizeAttributeValue(option.label)
+    const slug = normalizeAttributeValue(option.slug)
+    return candidates.some((candidate) => {
+      const haystack = ` ${candidate} `
+      return haystack.includes(` ${label} `) || haystack.includes(` ${slug} `)
+    })
+  })
+
+  if (matches.length !== 1) return null
+  return matches[0] ?? null
+}
 
 export function createProductImportService({ prisma }: { prisma: PrismaClient }) {
   function resolveAdapter(url: string) {
@@ -39,12 +126,42 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
     const adapter = resolveAdapter(url)
     const result = await adapter.fetchProducts(url)
 
-    const allCategories = await prisma.category.findMany({
-      select: { id: true, name: true, parentId: true, isActive: true },
-    })
+    const [allCategories, allAttributeOptions, categoriesWithAttributes] = await Promise.all([
+      prisma.category.findMany({
+        select: { id: true, name: true, parentId: true, isActive: true },
+      }),
+      prisma.productAttributeOption.findMany({
+        where: { isActive: true },
+        select: { id: true, type: true, label: true, slug: true, sortOrder: true },
+        orderBy: { label: 'asc' },
+      }) as Promise<AttributeOption[]>,
+      prisma.category.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          attributeOptions: {
+            select: {
+              option: {
+                select: { id: true, type: true, label: true, slug: true, sortOrder: true },
+              },
+            },
+          },
+        },
+      }) as Promise<Array<{ id: string; attributeOptions: Array<{ option: AttributeOption }> }>>,
+    ])
     const activeCategories: CategoryNode[] = allCategories
       .filter((c) => c.isActive)
       .map((c) => ({ id: c.id, name: c.name, parentId: c.parentId }))
+    const fallbackAttributeOptions = {
+      color: allAttributeOptions.filter((option) => option.type === 'color'),
+      material: allAttributeOptions.filter((option) => option.type === 'material'),
+    }
+    const attributeOptionsByCategoryId = new Map(
+      categoriesWithAttributes.map((category) => [
+        category.id,
+        category.attributeOptions.map((item) => item.option),
+      ]),
+    )
 
     const filteredItems: ScrapedProduct[] = []
     const rejected: RejectedImportItem[] = []
@@ -70,9 +187,28 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
         attempt: 0,
       })
 
+      const detectedCategoryId =
+        decision.kind === 'matched' ? decision.categoryId : decision.parentId
+      const detectedColorOption = detectAttributeOption({
+        item,
+        categoryId: detectedCategoryId,
+        type: 'color',
+        optionsByCategoryId: attributeOptionsByCategoryId,
+        fallbackOptions: fallbackAttributeOptions,
+      })
+      const detectedMaterialOption = detectAttributeOption({
+        item,
+        categoryId: detectedCategoryId,
+        type: 'material',
+        optionsByCategoryId: attributeOptionsByCategoryId,
+        fallbackOptions: fallbackAttributeOptions,
+      })
+
       const enriched: ScrapedProduct = {
         ...item,
         proposedBarcode,
+        ...(detectedColorOption ? { detectedColorOptionId: detectedColorOption.id } : {}),
+        ...(detectedMaterialOption ? { detectedMaterialOptionId: detectedMaterialOption.id } : {}),
         ...(decision.kind === 'matched' ? { resolvedCategoryId: decision.categoryId } as unknown as object : {}),
         ...(decision.kind === 'auto_create_leaf'
           ? { resolvedCategoryProposal: decision } as unknown as object
@@ -106,6 +242,60 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
       return selection ? [{ item, selection }] : []
     })
     const usedBarcodes = new Set<string>()
+    const [allAttributeOptions, categoriesWithAttributes] = await Promise.all([
+      prisma.productAttributeOption.findMany({
+        where: { isActive: true },
+        select: { id: true, type: true, label: true, slug: true, sortOrder: true },
+      }) as Promise<AttributeOption[]>,
+      prisma.category.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          attributeOptions: {
+            select: {
+              option: {
+                select: { id: true, type: true, label: true, slug: true, sortOrder: true },
+              },
+            },
+          },
+        },
+      }) as Promise<Array<{ id: string; attributeOptions: Array<{ option: AttributeOption }> }>>,
+    ])
+    const fallbackAttributeOptions = {
+      color: allAttributeOptions.filter((option) => option.type === 'color'),
+      material: allAttributeOptions.filter((option) => option.type === 'material'),
+    }
+    const attributeOptionsByCategoryId = new Map(
+      categoriesWithAttributes.map((category) => [
+        category.id,
+        category.attributeOptions.map((item) => item.option),
+      ]),
+    )
+    const attributeOptionById = new Map(allAttributeOptions.map((option) => [option.id, option]))
+
+    function validateAttributeSelection(params: {
+      categoryId: string
+      optionId: string
+      type: 'color' | 'material'
+    }) {
+      const option = attributeOptionById.get(params.optionId)
+      if (!option || option.type !== params.type) {
+        throw new Error(`Gecersiz ${params.type === 'color' ? 'renk' : 'materyal'} secimi.`)
+      }
+
+      const validOptions = getCategoryAttributeOptions({
+        categoryId: params.categoryId,
+        type: params.type,
+        optionsByCategoryId: attributeOptionsByCategoryId,
+        fallbackOptions: fallbackAttributeOptions,
+      })
+
+      if (!validOptions.some((candidate) => candidate.id === params.optionId)) {
+        throw new Error(`Secilen kategori icin gecersiz ${params.type === 'color' ? 'renk' : 'materyal'} secimi.`)
+      }
+
+      return option
+    }
 
     async function isBarcodeAvailable(barcode: string) {
       if (usedBarcodes.has(barcode)) return false
@@ -223,7 +413,10 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
     const imports: Array<{
       item: ScrapedProduct
       categoryId: string
+      fulfillmentDays: number
       stockQuantity: number
+      colorOptionId: string
+      materialOptionId: string
       productBarcode: string | null
       variantBarcodes: string[]
     }> = []
@@ -233,11 +426,24 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
       const overrideBarcode = 'barcode' in selection ? selection.barcode?.trim() || null : null
       const productSeed = `${params.sellerId}:${item.externalId}:product:${item.name}`
       const categoryId = resolveCategoryId(selection)
+      validateAttributeSelection({
+        categoryId,
+        optionId: selection.colorOptionId,
+        type: 'color',
+      })
+      validateAttributeSelection({
+        categoryId,
+        optionId: selection.materialOptionId,
+        type: 'material',
+      })
 
       imports.push({
         item,
         categoryId,
+        fulfillmentDays: selection.fulfillmentDays,
         stockQuantity: selection.stockQuantity,
+        colorOptionId: selection.colorOptionId,
+        materialOptionId: selection.materialOptionId,
         productBarcode:
           variants.length > 0
             ? null
@@ -273,9 +479,18 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
           careInstructions: item.careInstructions ?? null,
           price: new Decimal(item.price),
           compareAtPrice: item.compareAtPrice ? new Decimal(item.compareAtPrice) : null,
+          fulfillmentDays: importItem.fulfillmentDays,
           stockQuantity: importItem.stockQuantity,
           barcode: importItem.productBarcode,
           sku: item.sku ?? null,
+        })
+
+        await tx.productAttributeValue.createMany({
+          data: [
+            { productId: createdProduct.id, optionId: importItem.colorOptionId },
+            { productId: createdProduct.id, optionId: importItem.materialOptionId },
+          ],
+          skipDuplicates: true,
         })
 
         if (item.variants && item.variants.length > 0) {

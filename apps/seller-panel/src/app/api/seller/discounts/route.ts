@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createDiscountService } from '@hanuja/api/services/discount.service'
+import { createStoreFollowService } from '@hanuja/api/services/store-follow.service'
 import { auth } from '@/lib/auth'
 
 const createDiscountRuleSchema = z.object({
@@ -51,7 +52,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const service = createDiscountService({ prisma: createPrismaForRoute() })
+    const prisma = createPrismaForRoute()
+    const service = createDiscountService({ prisma })
     const createInput = {
       name: parsed.data.name,
       scope: parsed.data.scope,
@@ -63,6 +65,16 @@ export async function POST(req: NextRequest) {
       ...(parsed.data.productIds !== undefined ? { productIds: parsed.data.productIds } : {}),
     }
     const rule = await service.createRule(seller.id, createInput)
+
+    if (rule.status === 'ACTIVE') {
+      await createStoreFollowService({ prisma }).notifyFollowersAboutDiscount({
+        sellerId: seller.id,
+        sellerName: seller.displayName,
+        sellerSlug: seller.slug,
+        discountRuleId: rule.id,
+        discountFingerprint: `${rule.id}:${rule.createdAt.toISOString()}`,
+      })
+    }
 
     return NextResponse.json({ rule }, { status: 201 })
   } catch (error) {

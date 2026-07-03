@@ -7,6 +7,7 @@ import { ok, created, handleError } from '../lib/response'
 import { createCatalogService } from '../services/catalog.service'
 import { createPrismaForRoute } from '../lib/prisma'
 import { Decimal } from '@prisma/client/runtime/client'
+import { ValidationError } from '../lib/errors'
 
 function getCatalogService() {
   return createCatalogService({ prisma: createPrismaForRoute() })
@@ -73,6 +74,7 @@ export async function createProduct(req: NextRequest, sellerId: string) {
       name: data.name,
       description: data.description,
       price: new Decimal(data.price),
+      fulfillmentDays: 20,
       stockQuantity: data.stock,
       ...(data.slugOverride !== undefined ? { slugOverride: data.slugOverride } : {}),
     })
@@ -91,6 +93,7 @@ export async function listProductsForAdmin(req: NextRequest) {
       .map((value) => value.trim())
       .filter(Boolean) as import('@prisma/client').ProductStatus[]
     const query = url.searchParams.get('q')?.trim() ?? undefined
+    const barcode = url.searchParams.get('barcode')?.trim() ?? undefined
     const sellerId = url.searchParams.get('seller')?.trim() ?? undefined
     const from = url.searchParams.get('from')?.trim()
     const to = url.searchParams.get('to')?.trim()
@@ -100,6 +103,7 @@ export async function listProductsForAdmin(req: NextRequest) {
     const products = await svc.listProductsForAdmin({
       ...(status.length > 0 ? { status } : {}),
       ...(query ? { query } : {}),
+      ...(barcode ? { barcode } : {}),
       ...(sellerId ? { sellerId } : {}),
       ...(from ? { from: new Date(`${from}T00:00:00.000Z`) } : {}),
       ...(to ? { to: new Date(`${to}T23:59:59.999Z`) } : {}),
@@ -131,6 +135,31 @@ export async function rejectProduct(req: NextRequest, productId: string) {
     const svc = getCatalogService()
     const product = await svc.rejectProduct(productId, reason)
     return ok(product)
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+export async function updateAdminProduct(productId: string, body: { status?: 'unlisted' }) {
+  try {
+    const svc = getCatalogService()
+
+    if (body.status === 'unlisted') {
+      const product = await svc.adminUnlistProduct(productId)
+      return ok(product)
+    }
+
+    throw new ValidationError('Gecersiz urun guncelleme istegi.')
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+export async function deleteAdminProduct(productId: string) {
+  try {
+    const svc = getCatalogService()
+    const result = await svc.deleteProductForAdmin(productId)
+    return ok(result)
   } catch (err) {
     return handleError(err)
   }

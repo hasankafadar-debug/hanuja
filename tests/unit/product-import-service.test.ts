@@ -21,12 +21,32 @@ import { createProductImportService } from "../../api/services/product-import/im
 
 function createMockPrisma() {
   const tx = {
+    productAttributeValue: {
+      createMany: vi.fn(),
+    },
     productVariant: {
       createMany: vi.fn(),
     },
   };
 
   return {
+    productAttributeOption: {
+      findMany: vi.fn().mockResolvedValue([
+        { id: "color-1", type: "color", label: "Ceviz", slug: "ceviz", sortOrder: 0 },
+        { id: "material-1", type: "material", label: "Masif Ahşap", slug: "masif-ahsap", sortOrder: 0 },
+      ]),
+    },
+    category: {
+      findMany: vi.fn().mockResolvedValue([
+        {
+          id: "category-1",
+          attributeOptions: [
+            { option: { id: "color-1", type: "color", label: "Ceviz", slug: "ceviz", sortOrder: 0 } },
+            { option: { id: "material-1", type: "material", label: "Masif Ahşap", slug: "masif-ahsap", sortOrder: 0 } },
+          ],
+        },
+      ]),
+    },
     product: {
       findFirst: vi.fn().mockResolvedValue(null),
     },
@@ -68,7 +88,13 @@ describe("product import service commit", () => {
           externalUrl: "https://www.hipicon.com/urun/barkodsuz-urun",
         },
       ],
-      selections: [{ externalId: "hipicon-1", categoryId: "category-1" }],
+      selections: [{
+        externalId: "hipicon-1",
+        categoryId: "category-1",
+        colorOptionId: "color-1",
+        materialOptionId: "material-1",
+        stockQuantity: 0,
+      }],
     });
 
     expect(created).toEqual([
@@ -108,7 +134,13 @@ describe("product import service commit", () => {
           externalUrl: "https://www.hipicon.com/urun/kismi-barkodlu-urun",
         },
       ],
-      selections: [{ externalId: "hipicon-2", categoryId: "category-1" }],
+      selections: [{
+        externalId: "hipicon-2",
+        categoryId: "category-1",
+        colorOptionId: "color-1",
+        materialOptionId: "material-1",
+        stockQuantity: 0,
+      }],
     });
 
     expect(created).toEqual([

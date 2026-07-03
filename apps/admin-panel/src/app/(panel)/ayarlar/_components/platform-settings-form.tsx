@@ -6,6 +6,7 @@ import { Button, Input, Label } from '@hanuja/ui'
 
 interface PlatformSettingsValues {
   standardPenaltyRate: string
+  dailyPenaltyRate: string
   defaultSellerCommissionRate: string
   fulfillmentDays: string
   fulfillmentWarningDays: string
@@ -32,6 +33,7 @@ export function PlatformSettingsForm({ initialValues }: Props) {
   const [values, setValues] = useState({
     ...initialValues,
     standardPenaltyRate: decimalToPercent(initialValues.standardPenaltyRate),
+    dailyPenaltyRate: decimalToPercent(initialValues.dailyPenaltyRate),
     defaultSellerCommissionRate: decimalToPercent(initialValues.defaultSellerCommissionRate),
     eftDiscountRate: decimalToPercent(initialValues.eftDiscountRate),
   })
@@ -54,6 +56,7 @@ export function PlatformSettingsForm({ initialValues }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           standardPenaltyRate: percentToDecimal(values.standardPenaltyRate),
+          dailyPenaltyRate: percentToDecimal(values.dailyPenaltyRate),
           defaultSellerCommissionRate: percentToDecimal(values.defaultSellerCommissionRate),
           fulfillmentDays: Number(values.fulfillmentDays),
           fulfillmentWarningDays: Number(values.fulfillmentWarningDays),
@@ -87,6 +90,7 @@ export function PlatformSettingsForm({ initialValues }: Props) {
     min?: string
   }> = [
     { key: 'standardPenaltyRate', label: 'Varsayilan ceza orani', suffix: '%', step: '0.01', min: '0' },
+    { key: 'dailyPenaltyRate', label: 'Gunluk gec sevkiyat ceza orani', suffix: '%', step: '0.01', min: '0' },
     { key: 'defaultSellerCommissionRate', label: 'Genel satici komisyonu', suffix: '%', step: '0.01', min: '0' },
     { key: 'fulfillmentDays', label: 'Sevk suresi', suffix: 'gun', min: '1' },
     { key: 'fulfillmentWarningDays', label: 'Admin uyari penceresi', suffix: 'gun kala', min: '1' },

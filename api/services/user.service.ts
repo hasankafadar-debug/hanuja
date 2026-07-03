@@ -28,6 +28,13 @@ export interface AddressInput {
   postalCode?: string
   country?: string
   isDefault?: boolean
+  isBillingAddress?: boolean
+  invoiceType?: 'individual' | 'corporate'
+  tcNumber?: string
+  isForeignNational?: boolean
+  companyName?: string
+  taxOffice?: string
+  taxNumber?: string
 }
 
 export function createUserService(deps: { prisma: PrismaClient }) {
@@ -95,6 +102,13 @@ export function createUserService(deps: { prisma: PrismaClient }) {
         postalCode: input.postalCode ?? '',
         country: input.country ?? 'TR',
         isDefault: input.isDefault ?? false,
+        isBillingAddress: input.isBillingAddress ?? false,
+        ...(input.invoiceType !== undefined ? { invoiceType: input.invoiceType } : {}),
+        ...(input.tcNumber !== undefined ? { tcNumber: input.tcNumber } : {}),
+        isForeignNational: input.isForeignNational ?? false,
+        ...(input.companyName !== undefined ? { companyName: input.companyName } : {}),
+        ...(input.taxOffice !== undefined ? { taxOffice: input.taxOffice } : {}),
+        ...(input.taxNumber !== undefined ? { taxNumber: input.taxNumber } : {}),
       },
     })
   }
@@ -104,7 +118,6 @@ export function createUserService(deps: { prisma: PrismaClient }) {
     if (!address) throw new NotFoundError('Address', addressId)
     if (address.userId !== userId) throw new ForbiddenError('Bu adres size ait değil.')
 
-    // If this is being set as default, unset other defaults
     if (input.isDefault) {
       await prisma.address.updateMany({
         where: { userId, isDefault: true, id: { not: addressId } },
@@ -124,6 +137,13 @@ export function createUserService(deps: { prisma: PrismaClient }) {
         ...(input.city !== undefined && { city: input.city }),
         ...(input.postalCode !== undefined && { postalCode: input.postalCode ?? '' }),
         ...(input.isDefault !== undefined && { isDefault: input.isDefault }),
+        ...(input.isBillingAddress !== undefined && { isBillingAddress: input.isBillingAddress }),
+        ...(input.invoiceType !== undefined && { invoiceType: input.invoiceType }),
+        ...(input.tcNumber !== undefined && { tcNumber: input.tcNumber }),
+        ...(input.isForeignNational !== undefined && { isForeignNational: input.isForeignNational }),
+        ...(input.companyName !== undefined && { companyName: input.companyName }),
+        ...(input.taxOffice !== undefined && { taxOffice: input.taxOffice }),
+        ...(input.taxNumber !== undefined && { taxNumber: input.taxNumber }),
       },
     })
   }

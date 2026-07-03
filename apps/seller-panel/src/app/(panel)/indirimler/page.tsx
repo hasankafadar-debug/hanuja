@@ -14,7 +14,9 @@ export const metadata: Metadata = {
 
 function formatDiscountValue(type: string, value: { toNumber(): number } | number) {
   const numericValue = typeof value === 'object' ? value.toNumber() : Number(value)
-  return type === 'PERCENT' ? `%${numericValue}` : `TL ${numericValue.toLocaleString('tr-TR')}`
+  return type === 'PERCENT'
+    ? `%${numericValue}`
+    : `${numericValue.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL`
 }
 
 const STATUS_LABELS: Record<string, string> = {

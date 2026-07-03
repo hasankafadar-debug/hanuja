@@ -3,8 +3,12 @@ const DEFAULT_MEDIA_HOSTNAME = 'media.hanuja.com.tr'
 const DEFAULT_CDN_HOSTNAME = 'cdn.hanuja.com.tr'
 const LEGACY_CDN_HOSTNAME = 'cdn.hanuja.com'
 
+function normalizeHostname(hostname: string) {
+  return hostname.trim().toLowerCase()
+}
+
 function isLegacyManagedMediaHostname(hostname: string) {
-  const normalized = hostname.trim().toLowerCase()
+  const normalized = normalizeHostname(hostname)
   return (
     normalized === DEFAULT_CDN_HOSTNAME ||
     normalized === LEGACY_CDN_HOSTNAME ||
@@ -17,13 +21,17 @@ export function normalizeMediaDisplayUrl(sourceUrl: string, proxyPath = '/api/me
 
   try {
     const parsed = new URL(sourceUrl)
-    if (parsed.hostname.trim().toLowerCase() === DEFAULT_MEDIA_HOSTNAME) return sourceUrl
+    if (normalizeHostname(parsed.hostname) === DEFAULT_MEDIA_HOSTNAME) return sourceUrl
     return isLegacyManagedMediaHostname(parsed.hostname)
       ? `${proxyPath}?src=${encodeURIComponent(sourceUrl)}`
       : sourceUrl
   } catch {
     return sourceUrl
   }
+}
+
+export function isManagedMediaProxyUrl(sourceUrl: string, proxyPath = '/api/media/fetch') {
+  return sourceUrl.startsWith(`${proxyPath}?`)
 }
 
 export function mediaSrcSet(

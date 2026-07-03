@@ -27,11 +27,17 @@ export const PLATFORM_LEGAL_INFO = {
 export type PlatformBankInfo = {
   bankName: string
   accountHolder: string
+  accountHolderNote?: string | null
   iban: string
+  branchName?: string | null
   reference: string
   missing?: boolean
 }
 
+/**
+ * @deprecated DB-first yaklaşım için getPlatformBankAccounts() kullanın.
+ * Yalnızca DB yokken fallback (seed/migration öncesi) olarak env-var okur.
+ */
 export function getPlatformBankInfo(orderReference: string): PlatformBankInfo {
   const bankName = process.env['PLATFORM_BANK_NAME']?.trim() ?? ''
   const accountHolder = process.env['PLATFORM_BANK_HOLDER']?.trim() ?? ''
@@ -47,12 +53,7 @@ export function getPlatformBankInfo(orderReference: string): PlatformBankInfo {
     }
   }
 
-  return {
-    bankName,
-    accountHolder,
-    iban,
-    reference: orderReference,
-  }
+  return { bankName, accountHolder, iban, reference: orderReference }
 }
 
 export function getWebBaseUrl() {

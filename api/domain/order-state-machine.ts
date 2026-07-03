@@ -22,19 +22,19 @@ const ALLOWED_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
     'payment_cancelled',
     'bank_transfer_waiting',
   ],
-  bank_transfer_waiting: ['bank_transfer_confirmed', 'payment_cancelled'],
+  bank_transfer_waiting: ['bank_transfer_confirmed', 'payment_cancelled', 'cancelled_by_customer', 'cancelled_by_admin'],
   bank_transfer_confirmed: ['payment_confirmed'],
-  payment_confirmed: ['seller_queue_ready'],
+  payment_confirmed: ['seller_queue_ready', 'cancelled_by_customer', 'cancelled_by_admin'],
   payment_failed: ['payment_pending'], // Allow retry
   payment_cancelled: [], // Terminal
 
   // Seller fulfillment
-  seller_queue_ready: ['seller_reviewing', 'seller_accepted', 'seller_rejected', 'cancelled_due_to_20day_breach'],
-  seller_reviewing: ['seller_accepted', 'seller_rejected', 'cancelled_due_to_20day_breach'],
-  seller_accepted: ['preparing', 'cancelled_due_to_20day_breach'],
+  seller_queue_ready: ['seller_reviewing', 'seller_accepted', 'seller_rejected', 'cancelled_due_to_20day_breach', 'cancelled_by_customer', 'cancelled_by_admin'],
+  seller_reviewing: ['seller_accepted', 'seller_rejected', 'cancelled_due_to_20day_breach', 'cancelled_by_customer', 'cancelled_by_admin'],
+  seller_accepted: ['preparing', 'cancelled_due_to_20day_breach', 'cancelled_by_customer', 'cancelled_by_admin'],
   seller_rejected: ['cancelled_due_to_seller_rejection'],
-  preparing: ['awaiting_shipment', 'cancelled_due_to_20day_breach'],
-  awaiting_shipment: ['shipped', 'cancelled_due_to_20day_breach'],
+  preparing: ['awaiting_shipment', 'cancelled_due_to_20day_breach', 'cancelled_by_customer', 'cancelled_by_admin'],
+  awaiting_shipment: ['shipped', 'cancelled_due_to_20day_breach', 'cancelled_by_customer', 'cancelled_by_admin'],
 
   // Delivery — delivered ≠ delivery_confirmed
   shipped: ['delivered'],
@@ -42,12 +42,16 @@ const ALLOWED_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
   delivery_confirmation_pending: ['delivery_confirmed', 'return_requested'],
   delivery_confirmed: ['return_requested', 'dispute_open'], // 14-day window still open
 
-  // Return flow
-  return_requested: ['return_under_review'],
+  // Return flow — seller-driven fast path (08-order-lifecycle-rules.md).
+  // requested → approved: seller provides return cargo info (no admin review on fast path).
+  // return_under_review kept for admin-override path.
+  return_requested: ['return_approved', 'return_under_review'],
   return_under_review: ['return_approved', 'return_rejected'],
   return_approved: ['return_in_transit'],
-  return_rejected: [], // Terminal
-  return_in_transit: ['return_received'],
+  // in_transit → rejected: seller rejects the physically received item (wrong/damaged).
+  return_in_transit: ['return_received', 'return_rejected'],
+  // rejected → dispute_open: seller rejection auto-escalates to an admin dispute.
+  return_rejected: ['dispute_open'],
   return_received: ['refund_pending'],
   refund_pending: ['refund_completed'],
   refund_completed: [], // Terminal
@@ -142,6 +146,7 @@ export function isSellerVisible(status: OrderStatus): boolean {
     'return_approved',
     'return_in_transit',
     'return_received',
+    'return_rejected',
     'dispute_open',
   ]
   return sellerVisible.includes(status)

@@ -10,6 +10,8 @@ interface Props {
   productId: string
   productName: string
   basePrice: number
+  compareAtPrice?: number | null
+  fulfillmentDays?: number | null
   stock: number
   variants?: Array<{
     id: string
@@ -29,7 +31,15 @@ function getApiMessage(payload: unknown, fallback: string) {
   return fallback
 }
 
-export default function AddToCartButton({ productId, productName, basePrice, stock, variants = [] }: Props) {
+export default function AddToCartButton({
+  productId,
+  productName,
+  basePrice,
+  compareAtPrice = null,
+  fulfillmentDays = null,
+  stock,
+  variants = [],
+}: Props) {
   const router = useRouter()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
@@ -42,6 +52,9 @@ export default function AddToCartButton({ productId, productName, basePrice, sto
   const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? null
   const availableStock = selectedVariant?.stockQuantity ?? stock
   const displayPrice = selectedVariant?.price ?? basePrice
+  const displayCompareAtPrice = compareAtPrice && compareAtPrice > displayPrice ? compareAtPrice : null
+  const fulfillmentText =
+    typeof fulfillmentDays === 'number' ? `Sevk Süresi: ${fulfillmentDays} iş günü` : null
 
   useEffect(() => {
     let active = true
@@ -236,9 +249,16 @@ export default function AddToCartButton({ productId, productName, basePrice, sto
             })}
           </div>
           <div className="flex items-center gap-3 pt-1">
-            <span className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>
-              ₺{displayPrice.toLocaleString('tr-TR')}
-            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>
+                {displayPrice.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL
+              </span>
+              {displayCompareAtPrice ? (
+                <span className="text-sm line-through" style={{ color: 'var(--color-muted-fg)' }}>
+                  {displayCompareAtPrice.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL
+                </span>
+              ) : null}
+            </div>
             <span
               className="flex items-center gap-1 text-sm"
               style={{ color: availableStock > 0 ? 'var(--color-success)' : 'var(--color-destructive)' }}
@@ -249,6 +269,11 @@ export default function AddToCartButton({ productId, productName, basePrice, sto
               />
               {availableStock > 0 ? `Stokta (${availableStock} adet)` : 'Stokta yok'}
             </span>
+            {fulfillmentText ? (
+              <span className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                {fulfillmentText}
+              </span>
+            ) : null}
           </div>
         </div>
       ) : null}

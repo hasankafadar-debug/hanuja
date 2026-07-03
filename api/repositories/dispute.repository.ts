@@ -6,7 +6,25 @@ export function createDisputeRepository(prisma: PrismaClient) {
     findById(id: string) {
       return prisma.dispute.findUnique({
         where: { id },
-        include: { messages: { orderBy: { createdAt: 'asc' } }, evidence: true },
+        include: {
+          messages: { orderBy: { createdAt: 'asc' } },
+          evidence: true,
+          escalatedFromReturn: {
+            include: {
+              messages: {
+                orderBy: { createdAt: 'asc' },
+                include: { attachments: true },
+              },
+              evidence: true,
+              order: {
+                include: {
+                  lines: { include: { product: { select: { name: true } } } },
+                  payments: true,
+                },
+              },
+            },
+          },
+        },
       })
     },
 

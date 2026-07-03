@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Button, EmptyState, Separator, Spinner, normalizeMediaDisplayUrl } from '@hanuja/ui'
+import { Button, EmptyState, Separator, Spinner, isManagedMediaProxyUrl, normalizeMediaDisplayUrl } from '@hanuja/ui'
 import { Trash2, ShoppingCart, Plus, Minus, AlertTriangle } from 'lucide-react'
 import { csrfFetch } from '@/lib/csrf-fetch'
 import CouponForm from './_components/coupon-form'
@@ -39,10 +39,11 @@ interface Cart {
 }
 
 function formatPrice(value: string | number) {
-  return Number(value).toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  const formatted = Number(value).toLocaleString('tr-TR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   })
+  return `${formatted} TL`
 }
 
 export default function CartPage() {
@@ -141,7 +142,7 @@ export default function CartPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="mb-8 text-2xl font-bold" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}>
+      <h1 className="mb-8 text-2xl font-medium" style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}>
         Sepetim ({cart.itemCount} ürün)
       </h1>
 
@@ -158,6 +159,7 @@ export default function CartPage() {
           {cart.items.map((item) => {
             const product = item.product
             const image = product?.images[0]
+            const imageUrl = image ? normalizeMediaDisplayUrl(image.url) : null
             const lineTotal = Number(item.unitPrice) * item.quantity
             const isUpdating = updating === item.id
 
@@ -176,11 +178,12 @@ export default function CartPage() {
                 <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg" style={{ backgroundColor: 'var(--color-muted)' }}>
                   {image ? (
                     <Image
-                      src={normalizeMediaDisplayUrl(image.url)}
+                      src={imageUrl!}
                       alt={image.altText ?? product?.name ?? 'Sepet ürünü'}
                       fill
                       sizes="80px"
                       className="object-cover"
+                      unoptimized={Boolean(imageUrl && isManagedMediaProxyUrl(imageUrl))}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
@@ -234,7 +237,7 @@ export default function CartPage() {
 
                     <div className="flex items-center gap-3">
                       <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>
-                        TRY {formatPrice(lineTotal)}
+                        {formatPrice(lineTotal)}
                       </span>
                       <button
                         onClick={() => removeItem(item.id)}
@@ -260,21 +263,21 @@ export default function CartPage() {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Ürünler</span>
-              <span>TRY {formatPrice(grossSubtotal)}</span>
+              <span>{formatPrice(grossSubtotal)}</span>
             </div>
             {couponDiscount > 0 ? (
               <div className="flex justify-between" style={{ color: 'var(--color-success)' }}>
                 <span>Kupon indirimi</span>
-                <span>-TRY {formatPrice(couponDiscount)}</span>
+                <span>-{formatPrice(couponDiscount)}</span>
               </div>
             ) : null}
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Kargo</span>
-              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span> : `TRY ${formatPrice(shipping)}`}</span>
+              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span> : formatPrice(shipping)}</span>
             </div>
             {shipping > 0 ? (
               <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                TRY {freeShippingThreshold.toLocaleString('tr-TR')} üzeri ücretsiz kargo
+                {formatPrice(freeShippingThreshold)} üzeri ücretsiz kargo
               </p>
             ) : null}
             {cart.couponCode ? <p className="text-xs" style={{ color: 'var(--color-success)' }}>Kupon: {cart.couponCode}</p> : null}
@@ -288,7 +291,7 @@ export default function CartPage() {
             <Separator />
             <div className="flex justify-between font-semibold text-base" style={{ color: 'var(--color-primary)' }}>
               <span>Toplam</span>
-              <span>TRY {formatPrice(total)}</span>
+              <span>{formatPrice(total)}</span>
             </div>
           </div>
           <Link href="/odeme">

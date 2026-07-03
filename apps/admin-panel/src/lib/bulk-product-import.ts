@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import {
-  isManagedMediaHostname,
   normalizeManagedMediaUrl,
+  resolveManagedMediaSourceUrl,
 } from '@hanuja/api/lib/media-url'
 import {
   looksLikeCategorySlug,
@@ -11,19 +11,8 @@ import {
 
 export const MAX_BULK_IMPORT_ROWS = 500
 
-const ALLOWED_IMAGE_HOSTNAME = process.env.R2_PUBLIC_HOSTNAME ?? ''
-
 function isAllowedImageUrl(raw: string): boolean {
-  try {
-    const parsed = new URL(raw)
-    if (parsed.protocol !== 'https:') return false
-    if (ALLOWED_IMAGE_HOSTNAME) {
-      return parsed.hostname === ALLOWED_IMAGE_HOSTNAME || isManagedMediaHostname(parsed.hostname)
-    }
-    return isManagedMediaHostname(parsed.hostname)
-  } catch {
-    return false
-  }
+  return Boolean(resolveManagedMediaSourceUrl(raw))
 }
 export const BULK_PRODUCT_IMAGE_COLUMN_COUNT = 8
 const BULK_PRODUCT_IMAGE_KEYS = [
@@ -331,7 +320,9 @@ export function normalizeBulkProductRow(
   }
 
   const imageUrls = BULK_PRODUCT_IMAGE_KEYS.map((key) => parsed.data[key])
-    .filter((value): value is string => Boolean(value) && isAllowedImageUrl(value as string))
+    .filter((value): value is string => Boolean(value))
+    .map((value) => resolveManagedMediaSourceUrl(value))
+    .filter((value): value is string => Boolean(value))
     .map((value) => normalizeManagedMediaUrl(value))
 
   if (

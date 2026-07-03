@@ -288,7 +288,43 @@ When balance is negative:
 
 ---
 
-## 12. Cross-Reference
+## 12. EFT / Havale Channel Discount — Platform Absorption Rule
+
+When a customer pays via Havale/EFT and the platform offers an EFT channel discount
+(configured via `PlatformSettings.eftDiscountRate`), the discount amount is **absorbed
+entirely by Hanuja**. It does not reduce the seller's payout.
+
+### Rule
+
+```
+Order.eftDiscountAmount  → reduces customer-facing total only
+Payout.grossAmount       → NOT reduced by eftDiscountAmount
+Payout.netAmount         → NOT reduced by eftDiscountAmount
+```
+
+The seller receives the same gross payout they would have received if the customer had
+paid by card at full price. The cost of the EFT incentive is Hanuja's expense.
+
+### Rationale
+
+EFT discounts are a Hanuja-controlled payment channel incentive to reduce card processing
+costs. The seller is not party to this discount decision and must not bear its cost.
+
+### Implementation constraint
+
+`Order.eftDiscountAmount` is stored as a snapshot for audit and customer-facing display.
+It must not be subtracted from `Payout.grossAmount` or `Payout.netAmount` in any payout
+calculation. If payout logic is ever changed to account for EFT discount, this section of
+this document must be updated first, with explicit approval.
+
+### Commission base
+
+EFT discount also does NOT affect the commission base. Commission is calculated on
+`OrderLine.totalPrice` (KDV-inclusive, pre-discount gross). See `commission-policy.md`.
+
+---
+
+## 13. Cross-Reference
 
 This document must remain aligned with:
 

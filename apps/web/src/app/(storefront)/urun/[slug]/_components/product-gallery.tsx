@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { normalizeMediaDisplayUrl } from '@hanuja/ui'
+import { isManagedMediaProxyUrl, normalizeMediaDisplayUrl } from '@hanuja/ui'
 
 interface ProductGalleryProps {
   images: Array<{ url: string; altText: string | null }>
@@ -12,6 +12,7 @@ interface ProductGalleryProps {
 export default function ProductGallery({ images, productName }: ProductGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0)
   const activeImage = images[activeIndex] ?? images[0]
+  const activeImageUrl = activeImage ? normalizeMediaDisplayUrl(activeImage.url) : null
 
   if (!activeImage) {
     return (
@@ -32,11 +33,12 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
     <div className="flex flex-col gap-3">
       <div className="relative aspect-square w-full overflow-hidden rounded-xl">
         <Image
-          src={normalizeMediaDisplayUrl(activeImage.url)}
+          src={activeImageUrl!}
           alt={activeImage.altText ?? productName}
           fill
           className="object-cover"
           priority
+          unoptimized={Boolean(activeImageUrl && isManagedMediaProxyUrl(activeImageUrl))}
         />
       </div>
 
@@ -44,6 +46,7 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
         <div className="grid grid-cols-4 gap-2">
           {images.slice(0, 4).map((image, index) => {
             const isActive = index === activeIndex
+            const imageUrl = normalizeMediaDisplayUrl(image.url)
             return (
               <button
                 key={`${image.url}-${index}`}
@@ -56,10 +59,11 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
                 }}
               >
                 <Image
-                  src={normalizeMediaDisplayUrl(image.url)}
+                  src={imageUrl}
                   alt={image.altText ?? productName}
                   fill
                   className="object-cover"
+                  unoptimized={isManagedMediaProxyUrl(imageUrl)}
                 />
               </button>
             )

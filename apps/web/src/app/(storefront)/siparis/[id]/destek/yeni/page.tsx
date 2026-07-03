@@ -54,7 +54,7 @@ export default async function NewSupportTicketPage({ params }: Props) {
       </Link>
 
       <div className="mb-6">
-        <h1 className="text-xl font-bold" style={{ color: 'var(--color-primary)' }}>
+        <h1 className="text-xl font-medium" style={{ color: '#3d3529' }}>
           Destek Talebi Aç
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>

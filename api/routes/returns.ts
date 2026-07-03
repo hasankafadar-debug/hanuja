@@ -5,14 +5,16 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { ok, created, handleError } from '../lib/response'
-import { UnauthorizedError } from '../lib/errors'
 import { createReturnService } from '../services/return.service'
 import { createPrismaForRoute } from '../lib/prisma'
+
+const assetIds = z.array(z.string().min(1)).max(10).optional()
 
 const openRequestSchema = z.object({
   orderId: z.string().min(1),
   reason: z.string().min(3, 'Sebep en az 3 karakter olmalı'),
   description: z.string().optional(),
+  evidenceAssetIds: assetIds,
 })
 
 const reviewSchema = z.object({
@@ -26,6 +28,29 @@ const markReceivedSchema = z.object({
 
 const addMessageSchema = z.object({
   body: z.string().min(1, 'Mesaj boş olamaz'),
+  attachmentAssetIds: assetIds,
+})
+
+const sellerCargoInfoSchema = z.object({
+  address: z.string().min(5, 'İade adresi en az 5 karakter olmalı'),
+  carrier: z.string().min(2, 'Kargo firması gerekli'),
+  instructions: z.string().optional(),
+})
+
+const customerShipmentSchema = z
+  .object({
+    carrier: z.string().min(2, 'Kargo firması gerekli'),
+    trackingNumber: z.string().optional(),
+    barcodeAssetId: z.string().optional(),
+  })
+  .refine((v) => Boolean(v.trackingNumber) || Boolean(v.barcodeAssetId), {
+    message: 'Kargo takip numarası veya kargo barkod görseli gerekli',
+  })
+
+const rejectSchema = z.object({
+  reason: z.string().min(3, 'Sebep en az 3 karakter olmalı'),
+  description: z.string().optional(),
+  evidenceAssetIds: assetIds,
 })
 
 function getReturnService() {
@@ -37,21 +62,74 @@ function getReturnService() {
 export async function openReturnRequest(req: NextRequest, customerId: string) {
   try {
     const body = await req.json()
-    const { orderId, reason, description } = openRequestSchema.parse(body)
+    const { orderId, reason, description, evidenceAssetIds } =
+      openRequestSchema.parse(body)
     const svc = getReturnService()
-    const returnRequest = await svc.openRequest({ orderId, customerId, reason, ...(description !== undefined ? { description } : {}) })
+    const returnRequest = await svc.openRequest({
+      orderId,
+      customerId,
+      reason,
+      ...(description !== undefined ? { description } : {}),
+      ...(evidenceAssetIds !== undefined ? { evidenceAssetIds } : {}),
+    })
     return created(returnRequest)
   } catch (err) {
     return handleError(err)
   }
 }
 
-// GET /api/returns/:id — iade detayı
+// GET /api/returns/:id — iade detayı (müşteri)
 export async function getReturnRequest(returnRequestId: string) {
   try {
     const svc = getReturnService()
     const returnRequest = await svc.getRequest(returnRequestId)
     return ok(returnRequest)
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+// GET /api/returns/:id — müşteri iade detayı (ownership-scoped)
+export async function getReturnRequestForCustomer(
+  returnRequestId: string,
+  customerId: string,
+) {
+  try {
+    const svc = getReturnService()
+    const rr = await svc.getRequest(returnRequestId)
+    if (!rr || rr.customerId !== customerId) {
+      const { NotFoundError } = await import('../lib/errors')
+      throw new NotFoundError('ReturnRequest', returnRequestId)
+    }
+    return ok(rr)
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+// GET seller iade detayı (ownership-scoped)
+export async function getReturnRequestForSeller(
+  returnRequestId: string,
+  sellerId: string,
+) {
+  try {
+    const svc = getReturnService()
+    const returnRequest = await svc.getRequestForSeller(returnRequestId, sellerId)
+    return ok(returnRequest)
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+// GET seller iade listesi
+export async function listReturnsForSeller(req: NextRequest, sellerId: string) {
+  try {
+    const url = new URL(req.url)
+    const skip = Number(url.searchParams.get('skip') ?? '0')
+    const take = Number(url.searchParams.get('take') ?? '30')
+    const svc = getReturnService()
+    const rows = await svc.listForSeller({ sellerId, skip, take })
+    return ok(rows)
   } catch (err) {
     return handleError(err)
   }
@@ -66,15 +144,140 @@ export async function addReturnMessage(
 ) {
   try {
     const body = await req.json()
-    const { body: messageBody } = addMessageSchema.parse(body)
+    const { body: messageBody, attachmentAssetIds } = addMessageSchema.parse(body)
     const svc = getReturnService()
     const message = await svc.addMessage({
       returnRequestId,
       authorId,
       authorRole,
       body: messageBody,
+      ...(attachmentAssetIds !== undefined ? { attachmentAssetIds } : {}),
     })
     return created(message)
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+// POST customer iade mesajı — sahiplik doğrulamalı
+export async function addCustomerReturnMessage(
+  req: NextRequest,
+  returnRequestId: string,
+  customerId: string,
+) {
+  try {
+    const svc = getReturnService()
+    const rr = await svc.getRequest(returnRequestId)
+    if (!rr || rr.customerId !== customerId) {
+      const { NotFoundError } = await import('../lib/errors')
+      throw new NotFoundError('ReturnRequest', returnRequestId)
+    }
+    return addReturnMessage(req, returnRequestId, customerId, 'customer')
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+// POST seller iade mesajı — sahiplik doğrulamalı
+export async function addSellerReturnMessage(
+  req: NextRequest,
+  returnRequestId: string,
+  sellerId: string,
+  sellerUserId: string,
+) {
+  try {
+    const svc = getReturnService()
+    const rr = await svc.getRequestForSeller(returnRequestId, sellerId)
+    if (!rr) {
+      const { NotFoundError } = await import('../lib/errors')
+      throw new NotFoundError('ReturnRequest', returnRequestId)
+    }
+    return addReturnMessage(req, returnRequestId, sellerUserId, 'seller')
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+// POST seller iade kargo bilgisi girer
+export async function provideReturnCargoInfo(
+  req: NextRequest,
+  returnRequestId: string,
+  sellerId: string,
+) {
+  try {
+    const body = await req.json()
+    const { address, carrier, instructions } = sellerCargoInfoSchema.parse(body)
+    const svc = getReturnService()
+    const updated = await svc.provideSellerCargoInfo({
+      returnRequestId,
+      sellerId,
+      address,
+      carrier,
+      ...(instructions !== undefined ? { instructions } : {}),
+    })
+    return ok(updated)
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+// POST müşteri iade kargo bilgilerini girer
+export async function submitReturnShipment(
+  req: NextRequest,
+  returnRequestId: string,
+  customerId: string,
+) {
+  try {
+    const body = await req.json()
+    const { carrier, trackingNumber, barcodeAssetId } =
+      customerShipmentSchema.parse(body)
+    const svc = getReturnService()
+    const updated = await svc.submitCustomerShipment({
+      returnRequestId,
+      customerId,
+      carrier,
+      ...(trackingNumber !== undefined ? { trackingNumber } : {}),
+      ...(barcodeAssetId !== undefined ? { barcodeAssetId } : {}),
+    })
+    return ok(updated)
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+// POST seller iade ürününü teslim aldı, onayladı → otomatik refund
+export async function confirmReturnReceipt(
+  _req: NextRequest,
+  returnRequestId: string,
+  sellerId: string,
+) {
+  try {
+    const svc = getReturnService()
+    const updated = await svc.confirmReceiptBySeller({ returnRequestId, sellerId })
+    return ok(updated)
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+// POST seller iade ürününü reddetti → uyuşmazlığa eskale
+export async function rejectReturnReceipt(
+  req: NextRequest,
+  returnRequestId: string,
+  sellerId: string,
+) {
+  try {
+    const body = await req.json()
+    const { reason, description, evidenceAssetIds } = rejectSchema.parse(body)
+    const svc = getReturnService()
+    const updated = await svc.rejectReceiptBySeller({
+      returnRequestId,
+      sellerId,
+      reason,
+      ...(description !== undefined ? { description } : {}),
+      ...(evidenceAssetIds !== undefined ? { evidenceAssetIds } : {}),
+    })
+    return ok(updated)
   } catch (err) {
     return handleError(err)
   }
@@ -105,7 +308,12 @@ export async function reviewReturnRequest(
     const body = await req.json()
     const { decision, reviewNote } = reviewSchema.parse(body)
     const svc = getReturnService()
-    const updated = await svc.reviewRequest({ returnRequestId, adminActorId, decision, ...(reviewNote !== undefined ? { reviewNote } : {}) })
+    const updated = await svc.reviewRequest({
+      returnRequestId,
+      adminActorId,
+      decision,
+      ...(reviewNote !== undefined ? { reviewNote } : {}),
+    })
     return ok(updated)
   } catch (err) {
     return handleError(err)

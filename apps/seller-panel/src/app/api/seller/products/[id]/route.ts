@@ -14,6 +14,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 const variantSchema = z.object({
   id: z.string().uuid().optional(), // Mevcut varyantlarda DB ID — upsert için kullanılır
   color: z.string().trim().max(80).optional(),
+  material: z.string().trim().max(80).optional(),
   size: z.string().trim().max(80).optional(),
   customOptionName: z.string().trim().max(80).optional(),
   customOptionValue: z.string().trim().max(120).optional(),
@@ -31,6 +32,7 @@ const updateProductSchema = z.object({
   careInstructions: z.string().max(5000).optional(),
   price: z.number().nonnegative().optional(),
   compareAtPrice: z.number().positive('Liste fiyati 0dan buyuk olmali').nullable().optional(),
+  fulfillmentDays: z.number().int().min(1, 'Sevk suresi en az 1 is gunu olmali').max(90, 'Sevk suresi en fazla 90 is gunu olabilir').optional(),
   stockQuantity: z.number().int().min(0).optional(),
   sku: z.string().max(120).nullable().optional(),
   barcode: z.string().regex(/^\d{13}$/, 'Barkod 13 haneli rakam olmali').nullable().optional(),
@@ -51,7 +53,6 @@ type VariantInput = z.infer<typeof variantSchema>
 
 function normalizeVariant(input: VariantInput) {
   const options: Record<string, string> = {}
-  if (input.color?.trim()) options.Renk = input.color.trim()
   if (input.size?.trim()) options.Beden = input.size.trim()
   if (input.customOptionName?.trim() && input.customOptionValue?.trim()) {
     options[input.customOptionName.trim()] = input.customOptionValue.trim()
@@ -153,6 +154,9 @@ export async function PATCH(
         ...(typeof parsed.data.price === 'number' ? { price: new Decimal(parsed.data.price) } : {}),
         ...(parsed.data.compareAtPrice !== undefined
           ? { compareAtPrice: parsed.data.compareAtPrice !== null ? new Decimal(parsed.data.compareAtPrice) : null }
+          : {}),
+        ...(typeof parsed.data.fulfillmentDays === 'number'
+          ? { fulfillmentDays: parsed.data.fulfillmentDays }
           : {}),
         ...(variants
           ? { stockQuantity: variants.reduce((sum, variant) => sum + variant.stockQuantity, 0) }

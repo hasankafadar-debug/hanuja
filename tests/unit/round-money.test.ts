@@ -37,13 +37,28 @@ describe('roundMoney', () => {
 })
 
 describe('formatMoney', () => {
-  it('formats with tr-TR locale and TRY currency', () => {
-    const formatted = formatMoney(1312.975, { currency: 'TRY' })
-    expect(formatted).toContain('1.312,97')
+  it('defaults to no-decimal TL suffix for UI surfaces', () => {
+    expect(formatMoney(1250)).toBe('1.250 TL')
+    expect(formatMoney(1312.4)).toBe('1.312 TL')
+    expect(formatMoney(1312.975)).toBe('1.313 TL')
+    expect(formatMoney(0)).toBe('0 TL')
   })
 
-  it('formats plain number without currency', () => {
-    const formatted = formatMoney(1312.976)
-    expect(formatted).toBe('1.312,98')
+  it('keeps tr-TR thousands separator', () => {
+    expect(formatMoney(1_250_000)).toBe('1.250.000 TL')
+  })
+
+  it('supports negative amounts', () => {
+    expect(formatMoney(-1250)).toBe('-1.250 TL')
+  })
+
+  it('opts into kuruş precision via withKurus', () => {
+    expect(formatMoney(1312.975, { withKurus: true })).toBe('1.312,97 TL')
+    expect(formatMoney(1312.976, { withKurus: true })).toBe('1.312,98 TL')
+  })
+
+  it('drops the suffix when explicitly set to null', () => {
+    expect(formatMoney(1250, { suffix: null })).toBe('1.250')
+    expect(formatMoney(1312.97, { withKurus: true, suffix: null })).toBe('1.312,97')
   })
 })

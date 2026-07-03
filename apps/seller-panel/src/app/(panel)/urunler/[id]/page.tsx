@@ -52,6 +52,7 @@ export default async function EditProductPage({ params }: Props) {
     careInstructions: string | null
     categoryId: string | null
     price: { toNumber(): number } | number
+    fulfillmentDays: number | null
     compareAtPrice: { toNumber(): number } | number | null
     stockQuantity: number | null
     sku: string | null
@@ -71,7 +72,7 @@ export default async function EditProductPage({ params }: Props) {
       ? p.compareAtPrice.toNumber()
       : (p.compareAtPrice ?? null)
   const categories = buildCategoryOptions(
-    allCategories as unknown as Array<{ id: string; name: string; parentId: string | null }>,
+    allCategories as unknown as Array<{ id: string; slug: string; name: string; parentId: string | null }>,
   )
   const existingImages = (p.images ?? []).map((img) => ({
     id: img.id,
@@ -84,11 +85,12 @@ export default async function EditProductPage({ params }: Props) {
       variant.options && typeof variant.options === 'object' && !Array.isArray(variant.options)
         ? (variant.options as Record<string, unknown>)
         : {}
-    const customEntry = Object.entries(options).find(([key]) => key !== 'Renk' && key !== 'Beden')
+    const customEntry = Object.entries(options).find(([key]) => key !== 'Renk' && key !== 'Materyal' && key !== 'Beden')
     return {
       localId: variant.id,
       dbId: variant.id,
       color: typeof options['Renk'] === 'string' ? options['Renk'] : '',
+      material: typeof options['Materyal'] === 'string' ? options['Materyal'] : '',
       size: typeof options['Beden'] === 'string' ? options['Beden'] : '',
       customOptionName: customEntry?.[0] ?? '',
       customOptionValue: typeof customEntry?.[1] === 'string' ? customEntry[1] : '',
@@ -116,6 +118,7 @@ export default async function EditProductPage({ params }: Props) {
         initialCareInstructions={p.careInstructions ?? ''}
         initialCategoryId={p.categoryId ?? ''}
         initialPrice={price}
+        initialFulfillmentDays={p.fulfillmentDays ?? 20}
         initialCompareAtPrice={compareAtPrice}
         initialStock={p.stockQuantity ?? 0}
         initialSku={p.sku ?? ''}

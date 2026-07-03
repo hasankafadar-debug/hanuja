@@ -1,6 +1,7 @@
 export interface ImportCategoryOption {
   id: string
   name: string
+  slug: string
 }
 
 const TURKISH_CHAR_MAP: Record<string, string> = {

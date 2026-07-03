@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, Trash2 } from 'lucide-react'
-import { Badge, Button } from '@hanuja/ui'
+import { Badge, Button, normalizeMediaDisplayUrl } from '@hanuja/ui'
 import { readApiData } from './api'
 import { SlideEditor } from './slide-editor'
 import type { HomeSellerOption, HomeSlideItem } from './types'
@@ -131,6 +131,11 @@ export function SliderList({ slides, sellers, onSlidesChange, onRefresh, onMessa
           <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
             {slides.map((slide, index) => {
               const status = getWindowLabel(slide)
+              const mediaUrl = normalizeMediaDisplayUrl(slide.mediaAsset.url)
+              const posterUrl = slide.posterAsset?.url
+                ? normalizeMediaDisplayUrl(slide.posterAsset.url)
+                : undefined
+              const useUnoptimizedImage = mediaUrl.startsWith('/api/media/fetch?')
               return (
                 <div
                   key={slide.id}
@@ -152,9 +157,9 @@ export function SliderList({ slides, sellers, onSlidesChange, onRefresh, onMessa
 
                   <div className="relative h-20 overflow-hidden rounded-md border" style={{ borderColor: 'var(--color-border)' }}>
                     {slide.mediaAsset.kind === 'video' ? (
-                      <video src={slide.mediaAsset.url} poster={slide.posterAsset?.url ?? undefined} className="h-full w-full object-cover" muted />
+                      <video src={mediaUrl} poster={posterUrl} className="h-full w-full object-cover" muted />
                     ) : (
-                      <Image src={slide.mediaAsset.url} alt="" fill sizes="120px" className="object-cover" />
+                      <Image src={mediaUrl} alt="" fill sizes="120px" className="object-cover" unoptimized={useUnoptimizedImage} />
                     )}
                   </div>
 

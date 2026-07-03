@@ -29,28 +29,36 @@ describe('getLateShipmentBreachDayCount', () => {
     expect(getLateShipmentBreachDayCount(deadline, asOf)).toBe(0)
   })
 
-  it('returns 1 day after deadline', () => {
+  // NOTE: breach is counted in BUSINESS days. Weekends and TR official
+  // holidays do not contribute to the breach count.
+
+  it('returns 1 business day after deadline (next weekday)', () => {
+    // Deadline Wed 1 Apr 2026, asOf Thu 2 Apr 2026 → 1 business day
     const deadline = utcDate('2026-04-01T00:00:00Z')
     const asOf = utcDate('2026-04-02T15:00:00Z')
     expect(getLateShipmentBreachDayCount(deadline, asOf)).toBe(1)
   })
 
-  it('returns 19 day breach (one-day-before auto-cancel)', () => {
-    const deadline = utcDate('2026-04-01T00:00:00Z')
-    const asOf = utcDate('2026-04-20T00:00:00Z')
-    expect(getLateShipmentBreachDayCount(deadline, asOf)).toBe(19)
+  it('skips weekend in the breach count', () => {
+    // Deadline Fri 3 Apr 2026, asOf Mon 6 Apr 2026 → only Mon counts (1)
+    const deadline = utcDate('2026-04-03T00:00:00Z')
+    const asOf = utcDate('2026-04-06T00:00:00Z')
+    expect(getLateShipmentBreachDayCount(deadline, asOf)).toBe(1)
   })
 
-  it('returns 20 day breach (auto-cancel boundary)', () => {
-    const deadline = utcDate('2026-04-01T00:00:00Z')
-    const asOf = utcDate('2026-04-21T00:00:00Z')
-    expect(getLateShipmentBreachDayCount(deadline, asOf)).toBe(20)
+  it('skips Turkish official holiday in the breach count', () => {
+    // Deadline Wed 22 Apr 2026, asOf Fri 24 Apr 2026 → only Fri 24 counts
+    // (Thu 23 Apr = Ulusal Egemenlik holiday)
+    const deadline = utcDate('2026-04-22T00:00:00Z')
+    const asOf = utcDate('2026-04-24T00:00:00Z')
+    expect(getLateShipmentBreachDayCount(deadline, asOf)).toBe(1)
   })
 
-  it('returns 30 day breach when worker missed many runs', () => {
-    const deadline = utcDate('2026-04-01T00:00:00Z')
-    const asOf = utcDate('2026-05-01T00:00:00Z')
-    expect(getLateShipmentBreachDayCount(deadline, asOf)).toBe(30)
+  it('counts a full business week as 5 days', () => {
+    // Deadline Mon 4 May 2026, asOf Mon 11 May 2026 → 5 business days
+    const deadline = utcDate('2026-05-04T00:00:00Z')
+    const asOf = utcDate('2026-05-11T00:00:00Z')
+    expect(getLateShipmentBreachDayCount(deadline, asOf)).toBe(5)
   })
 })
 

@@ -6,15 +6,16 @@
  * Do not change these values without documented policy approval.
  */
 import { Decimal } from '@prisma/client/runtime/client'
+import { addBusinessDays, countBusinessDaysBetween } from './business-days'
 
 // Platform constants — CLAUDE.md 15.3
 export const STANDARD_PENALTY_RATE = new Decimal('0.2000') // 20%
 export const DAILY_LATE_SHIPMENT_PENALTY_RATE = new Decimal('0.0100') // 1%
-export const FULFILLMENT_DAYS = 20 // 20-day shipment commitment
+export const FULFILLMENT_DAYS = 20 // 20-business-day shipment commitment
 export const PAYOUT_HOLD_DAYS = 30 // 30-day hold after delivery_confirmed
 export const RETURN_WINDOW_DAYS = 14 // 14-day right-of-withdrawal
 export const SILENT_DELIVERY_CONFIRMATION_HOURS = 72 // 72-hour auto-confirm
-export const FULFILLMENT_EXTENSION_DAYS = 10 // Optional 10-day extension (admin only)
+export const FULFILLMENT_EXTENSION_DAYS = 10 // Optional 10-business-day extension (admin only)
 
 /**
  * Calculate penalty amount.
@@ -44,41 +45,30 @@ export function getLateShipmentPenaltyRate(
   return dailyRate.mul(breachDayCount).toDecimalPlaces(4)
 }
 
+/**
+ * Count overdue business days between the deadline and `asOf`.
+ * Weekends and Turkish official holidays do not contribute to the breach count.
+ */
 export function getLateShipmentBreachDayCount(deadlineAt: Date, asOf = new Date()): number {
-  const deadline = new Date(deadlineAt)
-  deadline.setHours(0, 0, 0, 0)
-
-  const effectiveDate = new Date(asOf)
-  effectiveDate.setHours(0, 0, 0, 0)
-
-  const diffMs = effectiveDate.getTime() - deadline.getTime()
-  if (diffMs <= 0) return 0
-
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  return countBusinessDaysBetween(deadlineAt, asOf)
 }
 
-/** Returns true if the 20-day fulfillment deadline has passed */
+/** Returns true if the 20-business-day fulfillment deadline has passed. */
 export function isFulfillmentDeadlineBreached(
   paymentConfirmedAt: Date,
   now = new Date(),
 ): boolean {
-  const deadline = new Date(paymentConfirmedAt)
-  deadline.setDate(deadline.getDate() + FULFILLMENT_DAYS)
-  return now > deadline
+  return now > getFulfillmentDeadline(paymentConfirmedAt)
 }
 
-/** Returns the 20-day fulfillment deadline date */
+/** Returns the 20-business-day fulfillment deadline date. */
 export function getFulfillmentDeadline(paymentConfirmedAt: Date): Date {
-  const deadline = new Date(paymentConfirmedAt)
-  deadline.setDate(deadline.getDate() + FULFILLMENT_DAYS)
-  return deadline
+  return addBusinessDays(paymentConfirmedAt, FULFILLMENT_DAYS)
 }
 
-/** Returns the optional extended deadline (admin-granted 10-day extension) */
+/** Returns the optional extended deadline (admin-granted 10-business-day extension). */
 export function getExtendedFulfillmentDeadline(paymentConfirmedAt: Date): Date {
-  const deadline = new Date(paymentConfirmedAt)
-  deadline.setDate(deadline.getDate() + FULFILLMENT_DAYS + FULFILLMENT_EXTENSION_DAYS)
-  return deadline
+  return addBusinessDays(paymentConfirmedAt, FULFILLMENT_DAYS + FULFILLMENT_EXTENSION_DAYS)
 }
 
 /** Returns true if delivery_confirmed is within the 14-day return window */

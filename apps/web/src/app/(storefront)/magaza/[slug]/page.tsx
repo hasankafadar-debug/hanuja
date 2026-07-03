@@ -5,10 +5,18 @@ import { buildStoreMetadata, buildLocalBusinessStructuredData, JsonLd } from '@h
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createSellerRepository } from '@hanuja/api/repositories/seller.repository'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
+import { normalizeMediaDisplayUrl } from '@hanuja/ui'
 import { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
 import StoreProductsInfiniteGrid from '@/components/storefront/store-products-infinite-grid'
 
 export const dynamic = 'force-dynamic'
+
+const FONT_SIZE_MAP: Record<string, string> = {
+  sm: '0.875rem',
+  md: '1.125rem',
+  lg: '1.5rem',
+  xl: '2rem',
+}
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -31,7 +39,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const data = await getStoreData(slug)
   const name = data?.seller.displayName || slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  return buildStoreMetadata({ name, slug })
+  const profile = data?.seller.profile
+  const ogImage = profile?.bannerUrl ?? profile?.logoUrl ?? undefined
+  return buildStoreMetadata({ name, slug, ...(ogImage ? { imageUrl: ogImage } : {}) })
 }
 
 export default async function StoreDetailPage({ params }: Props) {
@@ -43,8 +53,19 @@ export default async function StoreDetailPage({ params }: Props) {
   const { seller, products, nextCursor } = data
   const storeName = seller.displayName || slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   const bio = seller.profile?.bio ?? null
-
   const city = seller.profile?.city ?? undefined
+  const profile = seller.profile
+  const bannerUrl = profile?.bannerUrl ? normalizeMediaDisplayUrl(profile.bannerUrl) : null
+  const logoUrl = profile?.logoUrl ? normalizeMediaDisplayUrl(profile.logoUrl) : null
+
+  // Banner stil — öncelik: resim > renk > platform default
+  const bannerStyle: React.CSSProperties = bannerUrl
+    ? {
+        backgroundImage: `url("${bannerUrl}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }
+    : { backgroundColor: profile?.bannerColor ?? 'var(--color-primary)' }
 
   const storeJsonLd = buildLocalBusinessStructuredData({
     name: storeName,
@@ -58,23 +79,38 @@ export default async function StoreDetailPage({ params }: Props) {
       <JsonLd data={storeJsonLd} />
       {/* Store banner */}
       <div
-        className="h-48 w-full flex items-end"
-        style={{ backgroundColor: 'var(--color-primary)' }}
+        className="h-48 w-full flex items-end relative"
+        style={bannerStyle}
       >
+        {/* Banner üzerinde metin — yalnızca renk modunda gösterilir */}
+        {profile?.bannerHeadline && !bannerUrl && (
+          <div className="absolute inset-0 flex items-center justify-center px-6">
+            <p
+              className="text-center font-semibold"
+              style={{
+                color: profile.bannerTextColor ?? '#ffffff',
+                fontSize: FONT_SIZE_MAP[profile.bannerHeadlineFontSize ?? 'md'] ?? '1.125rem',
+              }}
+            >
+              {profile.bannerHeadline}
+            </p>
+          </div>
+        )}
+
         <div className="mx-auto w-full max-w-7xl px-4 pb-0 sm:px-6 lg:px-8">
           <div className="relative -mb-10 flex items-end gap-4">
             <div
               className="h-20 w-20 rounded-2xl border-4 flex items-center justify-center font-semibold text-xl shrink-0"
               style={{
-                backgroundColor: seller.profile?.logoUrl ? undefined : 'var(--color-accent)',
-                backgroundImage: seller.profile?.logoUrl ? `url(${seller.profile.logoUrl})` : undefined,
+                backgroundColor: logoUrl ? undefined : 'var(--color-accent)',
+                backgroundImage: logoUrl ? `url("${logoUrl}")` : undefined,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 borderColor: 'var(--color-surface)',
                 color: 'white',
               }}
             >
-              {!seller.profile?.logoUrl && storeName.charAt(0)}
+              {!logoUrl && storeName.charAt(0)}
             </div>
           </div>
         </div>

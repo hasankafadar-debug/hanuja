@@ -18,6 +18,8 @@ import {
   Image,
   LayoutTemplate,
   MessageSquare,
+  Receipt,
+  Clock,
 } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { MobileNav } from './_components/mobile-nav'
@@ -41,6 +43,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Satıcılar', href: '/saticilar', icon: <Store className="h-4 w-4" /> },
       { label: 'Siparişler', href: '/siparisler', icon: <ShoppingBag className="h-4 w-4" /> },
+      { label: 'Teslim Onayı', href: '/teslim-onayi', icon: <Package className="h-4 w-4" /> },
       { label: 'Ürün Moderasyon', href: '/urunler', icon: <Package className="h-4 w-4" /> },
     ],
   },
@@ -51,6 +54,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Hakedişler', href: '/hakedisler', icon: <Wallet className="h-4 w-4" /> },
       { label: 'Banka Değişiklikleri', href: '/saticilar/banka-degisiklikleri', icon: <Landmark className="h-4 w-4" /> },
       { label: 'Cezalar', href: '/cezalar', icon: <AlertOctagon className="h-4 w-4" /> },
+      { label: 'Komisyon Faturaları', href: '/komisyonlar', icon: <Receipt className="h-4 w-4" /> },
       { label: 'Finans Özeti', href: '/finans', icon: <ScrollText className="h-4 w-4" /> },
     ],
   },
@@ -58,6 +62,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Operasyon',
     items: [
       { label: 'İadeler', href: '/iadeler', icon: <RotateCcw className="h-4 w-4" /> },
+      { label: 'Ek Süre Talepleri', href: '/uzatma-talepleri', icon: <Clock className="h-4 w-4" /> },
       { label: 'Uyuşmazlıklar', href: '/uyusmazliklar', icon: <MessageCircleWarning className="h-4 w-4" /> },
       { label: 'Yorumlar', href: '/yorumlar', icon: <MessageSquare className="h-4 w-4" /> },
       { label: 'Müşteri Destek', href: '/musteri-destek', icon: <LifeBuoy className="h-4 w-4" /> },

@@ -1,4 +1,5 @@
 import type { FulfillmentRiskStatus, OrderStatus, PrismaClient } from '@prisma/client'
+import { addBusinessDays, countBusinessDaysBetween, subtractBusinessDays } from '../domain/business-days'
 import { createPlatformSettingsService } from './platform-settings.service'
 
 const ACTIVE_FULFILLMENT_STATUSES: OrderStatus[] = [
@@ -12,25 +13,20 @@ const ACTIVE_FULFILLMENT_STATUSES: OrderStatus[] = [
 const ACTIVE_RISK_STATUSES: FulfillmentRiskStatus[] = ['warning', 'breached']
 
 export interface FulfillmentRiskInfo {
-  sourceAt: Date
   deadlineAt: Date
   warningStartedAt: Date
   status: 'warning' | 'breached'
-  daysRemaining: number
-  daysOverdue: number
+  businessDaysRemaining: number
+  businessDaysOverdue: number
 }
 
-function addDays(date: Date, days: number) {
-  const next = new Date(date)
-  next.setDate(next.getDate() + days)
-  return next
+function startOfDay(date: Date) {
+  const value = new Date(date)
+  value.setHours(0, 0, 0, 0)
+  return value
 }
 
-function diffCalendarDays(from: Date, to: Date) {
-  return Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24))
-}
-
-export function getFulfillmentSourceDate(order: {
+function getFulfillmentSourceDate(order: {
   paymentConfirmedAt?: Date | null
   sellerQueueReadyAt?: Date | null
   createdAt: Date
@@ -38,28 +34,27 @@ export function getFulfillmentSourceDate(order: {
   return order.paymentConfirmedAt ?? order.sellerQueueReadyAt ?? order.createdAt
 }
 
-export function calculateFulfillmentRisk(params: {
-  sourceAt: Date
-  now?: Date
-  fulfillmentDays: number
+function calculateFulfillmentRisk(params: {
+  deadlineAt: Date
   warningDays: number
+  now?: Date
 }): FulfillmentRiskInfo | null {
-  const now = params.now ?? new Date()
-  const deadlineAt = addDays(params.sourceAt, params.fulfillmentDays)
-  const warningStartedAt = addDays(deadlineAt, -params.warningDays)
+  const now = startOfDay(params.now ?? new Date())
+  const deadlineAt = startOfDay(params.deadlineAt)
+  const warningStartedAt = subtractBusinessDays(deadlineAt, params.warningDays)
 
-  if (now < warningStartedAt) return null
+  if (now.getTime() < warningStartedAt.getTime()) return null
 
-  const daysRemaining = diffCalendarDays(now, deadlineAt)
-  const daysOverdue = Math.max(0, diffCalendarDays(deadlineAt, now))
+  const businessDaysOverdue = countBusinessDaysBetween(deadlineAt, now)
+  const businessDaysRemaining =
+    now.getTime() > deadlineAt.getTime() ? 0 : countBusinessDaysBetween(now, deadlineAt)
 
   return {
-    sourceAt: params.sourceAt,
     deadlineAt,
     warningStartedAt,
-    status: now > deadlineAt ? 'breached' : 'warning',
-    daysRemaining: Math.max(0, daysRemaining),
-    daysOverdue,
+    status: businessDaysOverdue > 0 ? 'breached' : 'warning',
+    businessDaysRemaining,
+    businessDaysOverdue,
   }
 }
 
@@ -68,48 +63,74 @@ export function createFulfillmentRiskService({ prisma }: { prisma: PrismaClient 
 
   async function refreshActiveRisks(now = new Date()) {
     const settings = await settingsSvc.get()
-    const orders = await prisma.order.findMany({
+    const activeLines = await prisma.orderLine.findMany({
       where: {
-        status: { in: ACTIVE_FULFILLMENT_STATUSES },
-        lines: { some: {} },
+        fulfilledAt: null,
+        promisedFulfillmentDays: { not: null },
+        order: {
+          status: { in: ACTIVE_FULFILLMENT_STATUSES },
+        },
       },
       select: {
         id: true,
-        status: true,
-        createdAt: true,
-        paymentConfirmedAt: true,
-        sellerQueueReadyAt: true,
-        lines: { select: { sellerId: true }, take: 1 },
+        sellerId: true,
+        productName: true,
+        promisedFulfillmentDays: true,
+        fulfillmentDueAt: true,
+        order: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            paymentConfirmedAt: true,
+            sellerQueueReadyAt: true,
+          },
+        },
       },
     })
 
-    const activeRiskOrderIds: string[] = []
+    const activeRiskLineIds: string[] = []
     let warning = 0
     let breached = 0
-    let resolved = 0
 
-    for (const order of orders) {
-      const sellerId = order.lines[0]?.sellerId
-      if (!sellerId) continue
+    for (const line of activeLines) {
+      const promisedFulfillmentDays = line.promisedFulfillmentDays ?? settings.fulfillmentDays
+      const activeExtension = await prisma.fulfillmentExtensionRequest.findFirst({
+        where: {
+          orderId: line.order.id,
+          sellerId: line.sellerId,
+          status: 'approved',
+          approvedDays: { not: null },
+        },
+        select: { approvedDays: true },
+        orderBy: { approvedAt: 'desc' },
+      })
+
+      const baseDeadline =
+        line.fulfillmentDueAt ??
+        addBusinessDays(getFulfillmentSourceDate(line.order), promisedFulfillmentDays)
+      const deadlineAt = activeExtension?.approvedDays
+        ? addBusinessDays(baseDeadline, activeExtension.approvedDays)
+        : baseDeadline
 
       const info = calculateFulfillmentRisk({
-        sourceAt: getFulfillmentSourceDate(order),
-        now,
-        fulfillmentDays: settings.fulfillmentDays,
+        deadlineAt,
         warningDays: settings.fulfillmentWarningDays,
+        now,
       })
 
       if (!info) continue
 
-      activeRiskOrderIds.push(order.id)
-      if (info.status === 'warning') warning++
-      if (info.status === 'breached') breached++
+      activeRiskLineIds.push(line.id)
+      if (info.status === 'warning') warning += 1
+      if (info.status === 'breached') breached += 1
 
       await prisma.fulfillmentRisk.upsert({
-        where: { orderId: order.id },
+        where: { orderLineId: line.id },
         create: {
-          orderId: order.id,
-          sellerId,
+          orderId: line.order.id,
+          orderLineId: line.id,
+          sellerId: line.sellerId,
           status: info.status,
           deadlineAt: info.deadlineAt,
           warningStartedAt: info.warningStartedAt,
@@ -117,7 +138,7 @@ export function createFulfillmentRiskService({ prisma }: { prisma: PrismaClient 
           lastSeenAt: now,
         },
         update: {
-          sellerId,
+          sellerId: line.sellerId,
           status: info.status,
           deadlineAt: info.deadlineAt,
           warningStartedAt: info.warningStartedAt,
@@ -129,10 +150,13 @@ export function createFulfillmentRiskService({ prisma }: { prisma: PrismaClient 
     }
 
     const resolvedWhere =
-      activeRiskOrderIds.length > 0
+      activeRiskLineIds.length > 0
         ? {
             status: { in: ACTIVE_RISK_STATUSES },
-            orderId: { notIn: activeRiskOrderIds },
+            OR: [
+              { orderLineId: null },
+              { orderLineId: { notIn: activeRiskLineIds } },
+            ],
           }
         : {
             status: { in: ACTIVE_RISK_STATUSES },
@@ -142,9 +166,8 @@ export function createFulfillmentRiskService({ prisma }: { prisma: PrismaClient 
       where: resolvedWhere,
       data: { status: 'resolved', resolvedAt: now, lastSeenAt: now },
     })
-    resolved = updated.count
 
-    return { warning, breached, resolved }
+    return { warning, breached, resolved: updated.count }
   }
 
   async function listActiveForAdmin(params?: { take?: number }) {
@@ -162,6 +185,16 @@ export function createFulfillmentRiskService({ prisma }: { prisma: PrismaClient 
             paymentConfirmedAt: true,
             sellerQueueReadyAt: true,
             totalAmount: true,
+          },
+        },
+        orderLine: {
+          select: {
+            id: true,
+            productName: true,
+            quantity: true,
+            promisedFulfillmentDays: true,
+            fulfillmentDueAt: true,
+            fulfilledAt: true,
           },
         },
       },

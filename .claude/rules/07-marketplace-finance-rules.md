@@ -109,6 +109,31 @@ Where relevant, also account for:
 4. If a value is configurable, store it as a rule-driven or settings-driven value, not inline magic numbers.
 5. If a rule is not finalized, make it parameterized rather than guessed.
 
+### EFT channel discount — platform absorption
+
+EFT/Havale channel discounts (`Order.eftDiscountAmount`) are **not a seller deduction**.
+They reduce the customer-facing total but do not appear in the net payout formula.
+
+```
+Payout.grossAmount  = OrderLine.totalPrice sum  (NOT reduced by eftDiscountAmount)
+Payout.netAmount    = formula above             (NOT reduced by eftDiscountAmount)
+```
+
+The EFT discount cost is absorbed entirely by Hanuja. Changing this policy requires
+explicit approval and an update to `docs/01-business/payout-policy.md` section 12.
+
+### Commission base — KDV-inclusive
+
+Commission is always calculated on `OrderLine.totalPrice`, which is the **KDV-inclusive**
+(VAT-inclusive) gross price snapshot at order creation.
+
+```
+commissionAmount = OrderLine.totalPrice × commissionRate
+```
+
+Do not use a KDV-exclusive base. Do not reduce the commission base by EFT discount,
+coupon discount, or shipping. See `docs/01-business/commission-policy.md`.
+
 ## Gross Amount vs Net Amount
 
 Finance code must distinguish clearly between:

@@ -11,6 +11,7 @@ import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { AdminListControls } from '@/components/admin-list-controls'
 import { IssueSellerInvoiceButton } from '@/components/issue-seller-invoice-button'
 import { UrlPagination } from '@/components/url-pagination'
+import { formatMoney } from '@hanuja/security'
 import {
   buildDateRange,
   getPagination,
@@ -93,6 +94,19 @@ function readBillingFilter(searchParams: RawAdminSearchParams | undefined): 'mis
   return value === 'missing' || value === 'present' ? value : undefined
 }
 
+const CANCELLED_STATUSES: OrderStatus[] = [
+  'cancelled_by_customer',
+  'cancelled_by_admin',
+  'cancelled_due_to_payment_failure',
+  'cancelled_due_to_seller_rejection',
+  'cancelled_due_to_20day_breach',
+]
+
+function readTab(searchParams: RawAdminSearchParams | undefined): string {
+  const raw = searchParams?.['tab']
+  return (Array.isArray(raw) ? raw[0] : raw) ?? ''
+}
+
 export default async function AdminOrdersPage({
   searchParams,
 }: {
@@ -102,6 +116,15 @@ export default async function AdminOrdersPage({
 
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const params = parseAdminListParams(resolvedSearchParams, { pageSize: 20 })
+  const activeTab = readTab(resolvedSearchParams)
+
+  // "İptal Edilenler" sekmesi tüm cancelled statusleri override eder
+  const effectiveStatuses: OrderStatus[] =
+    activeTab === 'cancelled'
+      ? CANCELLED_STATUSES
+      : params.status.length > 0
+        ? (params.status as OrderStatus[])
+        : []
 
   const prisma = createPrismaForRoute()
   await createFulfillmentRiskService({ prisma }).refreshActiveRisks()
@@ -109,7 +132,7 @@ export default async function AdminOrdersPage({
   const invoiceFilter = normalizeInvoiceFilter(params.invoice)
   const billingFilter = readBillingFilter(resolvedSearchParams)
   const result = await svc.listForAdmin({
-    ...(params.status.length > 0 ? { status: params.status as OrderStatus[] } : {}),
+    ...(effectiveStatuses.length > 0 ? { status: effectiveStatuses } : {}),
     ...(params.q ? { query: params.q } : {}),
     ...(params.seller ? { sellerId: params.seller } : {}),
     ...(invoiceFilter ? { invoice: invoiceFilter } : {}),
@@ -132,7 +155,11 @@ export default async function AdminOrdersPage({
     payments: Array<{ method: string; status: string }>
     sellerInvoices: Array<{ id: string }>
     financeInvoices: Array<{ id: string; invoiceNumber: string; amount: { toNumber(): number } | number }>
-    fulfillmentRisk: { status: string; deadlineAt: Date } | null
+    fulfillmentRisks?: Array<{
+      status: string
+      deadlineAt: Date
+      orderLine?: { productName: string; quantity: number } | null
+    }>
   }
 
   const rows = result.rows as unknown as OrderRow[]
@@ -170,20 +197,23 @@ export default async function AdminOrdersPage({
       />
 
       <div className="flex flex-wrap gap-2">
+        {/* Hızlı durum sekmeleri */}
         {[
-          { key: 'missing', label: 'Faturalandirilmamis' },
-          { key: 'present', label: 'Faturalandirilmis' },
+          { key: 'cancelled', label: 'İptal Edilenler', paramType: 'tab' as const },
+          { key: 'missing', label: 'Faturalandırılmamış', paramType: 'billing' as const },
+          { key: 'present', label: 'Faturalandırılmış', paramType: 'billing' as const },
         ].map((tab) => {
           const next = new URLSearchParams()
-          next.set('billing', tab.key)
+          next.set(tab.paramType, tab.key)
           if (params.q) next.set('q', params.q)
-          if (params.status.length > 0) next.set('status', params.status.join(','))
+          if (tab.paramType !== 'tab' && params.status.length > 0) next.set('status', params.status.join(','))
           if (params.seller) next.set('seller', params.seller)
           if (params.from) next.set('from', params.from)
           if (params.to) next.set('to', params.to)
           if (params.pageSize !== 20) next.set('pageSize', String(params.pageSize))
 
-          const active = billingFilter === tab.key
+          const active =
+            tab.paramType === 'tab' ? activeTab === tab.key : billingFilter === tab.key
           return (
             <Link
               key={tab.key}
@@ -231,12 +261,13 @@ export default async function AdminOrdersPage({
                     ? order.totalAmount
                     : order.totalAmount.toNumber()
                 const sellerName = order.lines[0]?.seller?.displayName ?? order.lines[0]?.seller?.profile?.companyName ?? '-'
-                const isDelayRisk = order.fulfillmentRisk?.status === 'warning' || order.fulfillmentRisk?.status === 'breached'
-                const riskDeadline = order.fulfillmentRisk?.deadlineAt
-                  ? new Date(order.fulfillmentRisk.deadlineAt)
+                const primaryRisk = order.fulfillmentRisks?.[0] ?? null
+                const isDelayRisk = primaryRisk?.status === 'warning' || primaryRisk?.status === 'breached'
+                const riskDeadline = primaryRisk?.deadlineAt
+                  ? new Date(primaryRisk.deadlineAt)
                   : null
                 const riskLabel = riskDeadline
-                  ? order.fulfillmentRisk?.status === 'breached'
+                  ? primaryRisk?.status === 'breached'
                     ? `Süre geçti: ${riskDeadline.toLocaleDateString('tr-TR')}`
                     : `Son sevk: ${riskDeadline.toLocaleDateString('tr-TR')}`
                   : 'Risk'
@@ -268,7 +299,7 @@ export default async function AdminOrdersPage({
                       {sellerName}
                     </td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
-                      TRY {amount.toLocaleString('tr-TR')}
+                      {formatMoney(amount)}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={order.status as never} />

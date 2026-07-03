@@ -133,13 +133,7 @@ export function CategoryFilters({
     activeSubcategory !== undefined
 
   return (
-    <div
-      className="rounded-xl border p-4"
-      style={{
-        backgroundColor: 'var(--color-surface)',
-        borderColor: 'var(--color-border)',
-      }}
-    >
+    <div>
       {/* Alt Kategori */}
       {subcategories.length > 0 && (
         <AccordionSection title="Alt Kategori">
@@ -178,7 +172,7 @@ export function CategoryFilters({
             type="number"
             min={0}
             defaultValue={minPrice ?? ''}
-            placeholder="Min ₺"
+            placeholder="Min TL"
             className="w-full rounded-md border px-2 py-1.5 text-sm"
             style={{
               borderColor: 'var(--color-border)',
@@ -194,7 +188,7 @@ export function CategoryFilters({
             type="number"
             min={0}
             defaultValue={maxPrice ?? ''}
-            placeholder="Max ₺"
+            placeholder="Max TL"
             className="w-full rounded-md border px-2 py-1.5 text-sm"
             style={{
               borderColor: 'var(--color-border)',
@@ -219,7 +213,7 @@ export function CategoryFilters({
       {/* Tasarımcı */}
       {sellers.length > 0 && (
         <AccordionSection title="Tasarımcı">
-          <ul className="max-h-48 space-y-1 overflow-y-auto">
+          <ul className="max-h-52 space-y-1 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
             {sellers.map((seller) => (
               <li key={seller.id}>
                 <button
@@ -257,7 +251,7 @@ export function CategoryFilters({
       )}
 
       {/* Ürün Durumu */}
-      <AccordionSection title="Ürün Durumu" defaultOpen={false}>
+      <AccordionSection title="Ürün Durumu" defaultOpen={true}>
         <div className="space-y-2">
           <label
             className="flex cursor-pointer items-center gap-2 text-sm"

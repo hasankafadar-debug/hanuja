@@ -103,23 +103,8 @@ export function AdminOrderActions({
   return (
     <>
       <div className="flex flex-wrap gap-2">
-        {canConfirmDelivery && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() =>
-              doAction(
-                'confirm',
-                `/api/admin/orders/${orderId}/confirm-delivery`,
-                { reason: 'Admin onayı ile teslim onaylandı' },
-                'Bu siparişin teslimini manuel olarak onaylamak istiyor musunuz? Payout sayacı başlayacak.',
-              )
-            }
-          >
-            {loading === 'confirm' ? '...' : 'Teslim Onayla'}
-          </Button>
-        )}
+        {/* Teslim onayı artık üstteki "Per-Line Teslim Onayı" kartından yapılıyor —
+            tek tıkla tüm siparişi onaylayan buton kaldırıldı. */}
 
         {hasEftPendingPayment && (
           <Button

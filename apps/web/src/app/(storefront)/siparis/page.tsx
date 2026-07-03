@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { Button, EmptyState, LegalDocumentDialog, StatusBadge } from '@hanuja/ui'
-import { Download, FileText, Package, LifeBuoy } from 'lucide-react'
+import { Download, Package, LifeBuoy, Receipt } from 'lucide-react'
+import { formatMoney } from '@hanuja/security'
 import { auth } from '@/lib/auth'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
@@ -24,6 +25,10 @@ async function getOrders(customerId: string) {
   } catch {
     return []
   }
+}
+
+function getCustomerOrderStatusLabel(status: string) {
+  return status === 'delivery_confirmed' ? 'Tamamlanan Sipariş' : undefined
 }
 
 export default async function OrdersPage() {
@@ -60,6 +65,7 @@ export default async function OrdersPage() {
     publicNumber?: number | null
     createdAt: Date
     status: string
+    deliveryConfirmedAt?: Date | null
     totalAmount: { toNumber(): number } | number
     lines: Array<{ product: { name: string } | null }>
     legalSnapshot: {
@@ -72,19 +78,21 @@ export default async function OrdersPage() {
       fileName: string
       seller: { id: string; displayName: string; slug: string | null }
     }>
+    returnRequests: Array<{ id: string; status: string; createdAt: Date }>
   }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
       <h1
-        className="mb-8 text-2xl font-bold"
-        style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
+        className="mb-8 text-2xl font-medium"
+        style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}
       >
         Siparişlerim
       </h1>
 
       <div className="space-y-4">
         {(orders as OrderRow[]).map((order) => {
+          const statusLabel = getCustomerOrderStatusLabel(order.status)
           const total =
             typeof order.totalAmount === 'object'
               ? order.totalAmount.toNumber()
@@ -120,9 +128,12 @@ export default async function OrdersPage() {
                   </p>
                 </div>
                 <div className="shrink-0 flex flex-col items-end gap-2">
-                  <StatusBadge status={order.status as Parameters<typeof StatusBadge>[0]['status']} />
+                  <StatusBadge
+                    status={order.status as Parameters<typeof StatusBadge>[0]['status']}
+                    {...(statusLabel ? { label: statusLabel } : {})}
+                  />
                   <span className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
-                    ₺{total.toLocaleString('tr-TR')}
+                    {formatMoney(total)}
                   </span>
                 </div>
               </div>
@@ -160,31 +171,54 @@ export default async function OrdersPage() {
                   </>
                 ) : null}
 
-                {order.sellerInvoices.map((invoice) => {
-                  const viewHref = `/api/orders/${order.id}/documents/invoices/${invoice.sellerId}`
-                  const downloadHref = `${viewHref}?download=1`
-
-                  return (
-                    <div key={invoice.id} className="flex items-center gap-2">
+                {order.sellerInvoices.length === 1 && order.sellerInvoices[0] ? (
+                  <div className="flex items-center gap-1.5">
+                    <Button asChild variant="outline" size="sm">
+                      <a
+                        href={`/api/orders/${order.id}/documents/invoices/${order.sellerInvoices[0].sellerId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5"
+                      >
+                        <Receipt className="h-3.5 w-3.5" />
+                        Fatura
+                      </a>
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <a
+                        href={`/api/orders/${order.id}/documents/invoices/${order.sellerInvoices[0].sellerId}?download=1`}
+                        aria-label="Faturayı indir"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </a>
+                    </Button>
+                  </div>
+                ) : order.sellerInvoices.length > 1 ? (
+                  order.sellerInvoices.map((invoice, idx) => (
+                    <div key={invoice.id} className="flex items-center gap-1.5">
                       <Button asChild variant="outline" size="sm">
-                        <a href={viewHref}>{invoice.seller.displayName} faturası</a>
+                        <a
+                          href={`/api/orders/${order.id}/documents/invoices/${invoice.sellerId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5"
+                        >
+                          <Receipt className="h-3.5 w-3.5" />
+                          {`Fatura ${idx + 1}`}
+                        </a>
                       </Button>
                       <Button asChild variant="outline" size="sm">
-                        <a href={downloadHref} aria-label={`${invoice.seller.displayName} faturasını indir`}>
-                          <Download className="h-4 w-4" />
+                        <a
+                          href={`/api/orders/${order.id}/documents/invoices/${invoice.sellerId}?download=1`}
+                          aria-label={`Fatura ${idx + 1} indir`}
+                        >
+                          <Download className="h-3.5 w-3.5" />
                         </a>
                       </Button>
                     </div>
-                  )
-                })}
+                  ))
+                ) : null}
               </div>
-
-              {order.sellerInvoices.length > 0 ? (
-                <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                  <FileText className="h-3.5 w-3.5" />
-                  <span>{order.sellerInvoices.length} satıcı faturası hazır</span>
-                </div>
-              ) : null}
             </div>
           )
         })}

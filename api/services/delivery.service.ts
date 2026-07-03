@@ -46,6 +46,7 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
       assertTransition(order.status, 'shipped')
 
       return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const shippedAt = new Date()
         let shipment = await shipments.findByOrderId(params.orderId)
 
         if (shipment) {
@@ -65,7 +66,15 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
         await orders.updateStatus(params.orderId, 'shipped', tx as unknown as PrismaClient)
         await (tx as PrismaClient).order.update({
           where: { id: params.orderId },
-          data: { shippedAt: new Date() },
+          data: { shippedAt },
+        })
+        await (tx as PrismaClient).orderLine.updateMany({
+          where: {
+            orderId: params.orderId,
+            sellerId: params.sellerId,
+            fulfilledAt: null,
+          },
+          data: { fulfilledAt: shippedAt },
         })
         await orders.appendStatusHistory(
           params.orderId,
@@ -159,28 +168,53 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
     },
 
     /**
-     * Admin manually confirms delivery.
+     * Admin manually confirms delivery. When `orderLineIds` is provided, only
+     * those lines are stamped — the order moves to `delivery_confirmed` and
+     * payout hold is activated only when ALL active lines are confirmed.
+     * Without `orderLineIds`, behaviour matches the legacy order-level path.
      * Must be auditable — requires adminActorId.
      */
     async confirmByAdmin(params: {
       orderId: string
       adminActorId: string
+      orderLineIds?: string[]
       reason?: string
     }) {
       const order = await orders.findById(params.orderId)
       if (!order) throw new NotFoundError('Order', params.orderId)
 
+      // Status guard — admin can only manually confirm delivery from a state
+      // that already implies the order has reached (or is reaching) the
+      // customer. Confirming earlier states would prematurely start the
+      // payout countdown.
+      const ALLOWED_STATUSES = ['shipped', 'delivered', 'delivery_confirmation_pending'] as const
+      if (!ALLOWED_STATUSES.includes(order.status as (typeof ALLOWED_STATUSES)[number])) {
+        throw new ConflictError(`Admin teslimat onayı için uygun durum değil: ${order.status}`)
+      }
+
       const confirmation = buildAdminConfirmation()
-      await this._applyDeliveryConfirmation(params.orderId, params.adminActorId, confirmation)
+      const result = await this._applyDeliveryConfirmation(
+        params.orderId,
+        params.adminActorId,
+        confirmation,
+        params.orderLineIds,
+      )
 
       await auditLog.createEntry({
         actorId: params.adminActorId,
         actionType: 'delivery_confirmed_manual',
         targetType: 'order',
         targetId: params.orderId,
-        newData: { confirmedAt: confirmation.confirmedAt, source: 'admin_manual' },
+        newData: {
+          confirmedAt: confirmation.confirmedAt,
+          source: 'admin_manual',
+          orderLevel: result.allLinesConfirmed,
+          ...(params.orderLineIds !== undefined ? { orderLineIds: params.orderLineIds } : {}),
+        },
         ...(params.reason !== undefined ? { reason: params.reason } : {}),
       })
+
+      return result
     },
 
     /**
@@ -218,25 +252,77 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
       orderId: string,
       actorId: string,
       confirmation: { confirmedAt: Date; source: string },
-    ) {
-      return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        await orders.setDeliveryConfirmed(orderId, confirmation.confirmedAt, tx as unknown as PrismaClient)
-        await orders.appendStatusHistory(
+      orderLineIds?: string[],
+    ): Promise<{
+      orderId: string
+      confirmedAt: Date
+      source: string
+      allLinesConfirmed: boolean
+      confirmedLineIds: string[]
+    }> {
+      const txResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const orderLineWhere: Prisma.OrderLineWhereInput = {
           orderId,
-          'delivery_confirmed',
-          actorId,
-          `Teslim onaylandı (${confirmation.source})`,
-          tx as unknown as PrismaClient,
-        )
+          deliveryConfirmedAt: null,
+          ...(orderLineIds && orderLineIds.length > 0 ? { id: { in: orderLineIds } } : {}),
+        }
 
-        // Payout hold activation delegated to payout service
-        // Called after transaction for clarity — payout service will do its own tx
-        return { orderId, confirmedAt: confirmation.confirmedAt, source: confirmation.source }
-      }).then(async (result) => {
+        const linesToStamp = await (tx as PrismaClient).orderLine.findMany({
+          where: orderLineWhere,
+          select: { id: true },
+        })
+        const stampedIds = linesToStamp.map((l) => l.id)
+
+        if (stampedIds.length > 0) {
+          await (tx as PrismaClient).orderLine.updateMany({
+            where: { id: { in: stampedIds } },
+            data: {
+              deliveryConfirmedAt: confirmation.confirmedAt,
+              deliveryConfirmedBy: actorId,
+            },
+          })
+        }
+
+        // Determine whether ALL active lines are now confirmed. If yes, move
+        // order to delivery_confirmed and activate payout hold (caller side).
+        const remainingUnconfirmed = await (tx as PrismaClient).orderLine.count({
+          where: { orderId, deliveryConfirmedAt: null },
+        })
+        const allLinesConfirmed = remainingUnconfirmed === 0 && stampedIds.length > 0
+
+        if (allLinesConfirmed) {
+          await orders.setDeliveryConfirmed(orderId, confirmation.confirmedAt, tx as unknown as PrismaClient)
+          await orders.appendStatusHistory(
+            orderId,
+            'delivery_confirmed',
+            actorId,
+            `Teslim onaylandı (${confirmation.source})`,
+            tx as unknown as PrismaClient,
+          )
+        } else if (stampedIds.length > 0) {
+          await orders.appendStatusHistory(
+            orderId,
+            'delivery_confirmation_pending',
+            actorId,
+            `${stampedIds.length} kalem teslim onaylandı (${confirmation.source}); kalan ${remainingUnconfirmed} kalem bekleniyor`,
+            tx as unknown as PrismaClient,
+          )
+        }
+
+        return {
+          orderId,
+          confirmedAt: confirmation.confirmedAt,
+          source: confirmation.source,
+          allLinesConfirmed,
+          confirmedLineIds: stampedIds,
+        }
+      })
+
+      if (txResult.allLinesConfirmed) {
         const payoutService = createPayoutService({ prisma })
         await payoutService.activateHold({
           orderId,
-          deliveryConfirmedAt: result.confirmedAt,
+          deliveryConfirmedAt: txResult.confirmedAt,
         })
 
         // Notify customer about delivery confirmation (fire-and-forget)
@@ -253,8 +339,9 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
             data: { orderId },
           })
         }).catch((err) => console.error('[delivery] Delivery confirmed notification failed:', err))
-        return result
-      })
+      }
+
+      return txResult
     },
   }
 }

@@ -26,6 +26,7 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
       penaltyId?: string
       note?: string
       createdBy?: string
+      visibleToSeller?: boolean
     }, tx?: PrismaClient) {
       const client = tx ?? prisma
       return client.sellerLedgerEntry.aggregate({
@@ -50,6 +51,7 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
             referenceId,
             ...(description !== undefined ? { description } : {}),
             ...(data.createdBy !== undefined ? { createdBy: data.createdBy } : {}),
+            ...(data.visibleToSeller !== undefined ? { visibleToSeller: data.visibleToSeller } : {}),
           },
         })
       })
@@ -80,11 +82,13 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
       to?: Date
       skip?: number
       take?: number
+      visibleToSeller?: boolean
     }) {
       return prisma.sellerLedgerEntry.findMany({
         where: {
           sellerId: params.sellerId,
           ...(params.type !== undefined ? { type: params.type } : {}),
+          ...(params.visibleToSeller !== undefined ? { visibleToSeller: params.visibleToSeller } : {}),
           ...((params.from !== undefined || params.to !== undefined)
             ? {
                 createdAt: {
@@ -100,11 +104,14 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
       })
     },
 
-    async getOpeningBalance(sellerId: string, before: Date) {
+    async getOpeningBalance(sellerId: string, before: Date, options?: { visibleToSeller?: boolean }) {
       const result = await prisma.sellerLedgerEntry.aggregate({
         where: {
           sellerId,
           createdAt: { lt: before },
+          ...(options?.visibleToSeller !== undefined
+            ? { visibleToSeller: options.visibleToSeller }
+            : {}),
         },
         _sum: { amount: true },
       })

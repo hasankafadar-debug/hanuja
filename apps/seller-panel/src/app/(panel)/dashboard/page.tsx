@@ -16,6 +16,7 @@ import { createPayoutRepository } from '@hanuja/api/repositories/payout.reposito
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
+import { formatMoney } from '@hanuja/security'
 
 export const dynamic = 'force-dynamic'
 
@@ -297,29 +298,67 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
     : []
   const topProductMap = new Map(topProducts.map((product) => [product.id, product]))
 
-  // Gecikme uyarısı: henüz kargoya verilmemiş, sevk taahhüt süresi uyarı penceresine girmiş veya dolmuş
-  const FULFILLMENT_DAYS = platformSettings.fulfillmentDays
-  const WARNING_WINDOW_MS = platformSettings.fulfillmentWarningDays * 24 * 60 * 60 * 1000
-  const delayedOrders = sellerOrders.filter((order) => {
-    if (!order.paymentConfirmedAt) return false
-    if (['shipped', 'delivered', 'delivery_confirmation_pending', 'delivery_confirmed'].includes(order.status)) return false
-    const deadline = new Date(order.paymentConfirmedAt)
-    deadline.setUTCDate(deadline.getUTCDate() + FULFILLMENT_DAYS)
-    return deadline.getTime() - Date.now() <= WARNING_WINDOW_MS
+  // refreshActiveRisks is handled by the BullMQ fulfillment-risk job — not on every page load
+  const sellerFulfillmentRisks = await prisma.fulfillmentRisk.findMany({
+    where: {
+      sellerId: seller.id,
+      status: { in: ['warning', 'breached'] },
+    },
+    select: {
+      orderId: true,
+      status: true,
+      deadlineAt: true,
+    },
   })
+  const criticalLateOrders = sellerFulfillmentRisks.filter((risk) => risk.status === 'breached')
+  const warningSoonOrders = sellerFulfillmentRisks.filter((risk) => risk.status === 'warning')
+  const delayedOrders = sellerFulfillmentRisks.length
 
   return (
     <div className="space-y-8" data-testid="seller-dashboard-page">
       <PageHeader title="Kontrol Paneli" description="Mağaza performansına genel bakış" />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard title="Bekleyen Sipariş" value={pendingOrders} icon={<ShoppingBag className="h-5 w-5" />} />
-        <StatCard title="Bekleyen Hakediş" value={`₺${holdAmount.toLocaleString('tr-TR')}`} icon={<Clock className="h-5 w-5" />} />
-        <StatCard title="Ödeme Hazır" value={`₺${readyAmount.toLocaleString('tr-TR')}`} icon={<CheckCircle className="h-5 w-5" />} />
-        <StatCard title="Açık İade" value={openReturns} icon={<AlertTriangle className="h-5 w-5" />} />
+        <Link href="/siparisler?status=seller_queue_ready,seller_reviewing" className="block">
+          <StatCard title="Bekleyen Sipariş" value={pendingOrders} icon={<ShoppingBag className="h-5 w-5" />} className="transition-shadow hover:shadow-sm" />
+        </Link>
+        <Link href="/odemeler?status=hold_active" className="block">
+          <StatCard title="Bekleyen Hakediş" value={formatMoney(holdAmount)} icon={<Clock className="h-5 w-5" />} className="transition-shadow hover:shadow-sm" />
+        </Link>
+        <Link href="/odemeler?status=payout_ready" className="block">
+          <StatCard title="Ödeme Hazır" value={formatMoney(readyAmount)} icon={<CheckCircle className="h-5 w-5" />} className="transition-shadow hover:shadow-sm" />
+        </Link>
+        <Link href="/iadeler" className="block">
+          <StatCard title="Açık İade" value={openReturns} icon={<AlertTriangle className="h-5 w-5" />} className="transition-shadow hover:shadow-sm" />
+        </Link>
+        <Link href="/siparisler?tab=tum&filter=late" className="block">
+          <StatCard
+            title="Gecikenler"
+            value={delayedOrders}
+            icon={<AlertTriangle className="h-5 w-5" />}
+            className="transition-shadow hover:shadow-sm"
+          />
+        </Link>
       </div>
 
-      {delayedOrders.length > 0 ? (
+      {criticalLateOrders.length > 0 ? (
+        <div
+          className="flex items-start gap-3 rounded-xl border p-4"
+          style={{ borderColor: '#dc2626', backgroundColor: '#fef2f2' }}
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" style={{ color: '#dc2626' }} />
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#991b1b' }}>
+              {criticalLateOrders.length} sipariş sevk taahhüdünü aştı
+            </p>
+            <p className="text-xs" style={{ color: '#991b1b' }}>
+              Sistem bu gecikmeleri admine bildirir. Sevki hızlandırıp gerekiyorsa adminle koordine olun.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {warningSoonOrders.length > 0 ? (
         <div
           className="flex items-start gap-3 rounded-xl border p-4"
           style={{ borderColor: '#f59e0b', backgroundColor: '#fffbeb' }}
@@ -327,10 +366,10 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" style={{ color: '#f59e0b' }} />
           <div>
             <p className="text-sm font-semibold" style={{ color: '#92400e' }}>
-              {delayedOrders.length} sipariş kargo taahhüdünde kritik
+              {warningSoonOrders.length} sipariş sevk uyarı penceresinde
             </p>
             <p className="text-xs" style={{ color: '#92400e' }}>
-              Sevk süresi doldu veya uyarı penceresine girdi — bu siparişleri hemen kargoya verin.
+              Sevk süresi yaklaştı. Bu siparişleri gecikmeye düşmeden kargoya verin.
             </p>
           </div>
         </div>
@@ -377,7 +416,7 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
                   {item.label}
                 </p>
                 <p className="mt-1 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                  {item.value.count} sipariş / ₺{item.value.amount.toLocaleString('tr-TR')}
+                  {item.value.count} sipariş / {formatMoney(item.value.amount)}
                 </p>
               </div>
             ))}
@@ -448,7 +487,7 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
                     height: `${Math.max(8, (bucket.amount / maxChartAmount) * 180)}px`,
                     background: 'linear-gradient(180deg, rgba(19,88,84,0.9) 0%, rgba(19,88,84,0.45) 100%)',
                   }}
-                  title={`${bucket.label}: ₺${bucket.amount.toLocaleString('tr-TR')}`}
+                  title={`${bucket.label}: ${formatMoney(bucket.amount)}`}
                 />
                 <div
                   className="flex h-16 items-start justify-center text-xs tabular-nums"
@@ -621,7 +660,7 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
                         <StatusBadge status={order.status as Parameters<typeof StatusBadge>[0]['status']} />
                       </td>
                       <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
-                        ₺{total.toLocaleString('tr-TR')}
+                        {formatMoney(total)}
                       </td>
                     </tr>
                   )

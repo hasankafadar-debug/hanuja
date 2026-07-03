@@ -11,6 +11,7 @@ export const QUEUE_NAMES = {
   MEDIA_PROCESSING: 'media-processing',
   PAYOUT_BATCH: 'payout-batch',
   IBAN_ACTIVATION: 'iban-activation',
+  SEO_CONTENT: 'seo-content',
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
@@ -53,3 +54,4 @@ export const mediaProcessingQueue = createQueueProxy(QUEUE_NAMES.MEDIA_PROCESSIN
 export const payoutBatchQueue = createQueueProxy(QUEUE_NAMES.PAYOUT_BATCH)
 export const fulfillmentRiskQueue = createQueueProxy(QUEUE_NAMES.FULFILLMENT_RISK)
 export const ibanActivationQueue = createQueueProxy(QUEUE_NAMES.IBAN_ACTIVATION)
+export const seoContentQueue = createQueueProxy(QUEUE_NAMES.SEO_CONTENT)

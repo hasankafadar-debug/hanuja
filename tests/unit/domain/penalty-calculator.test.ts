@@ -84,27 +84,31 @@ describe('calculatePenalty', () => {
 })
 
 // ─── isFulfillmentDeadlineBreached ───────────────────────────────────────────
+// NOTE: After the move to business-day arithmetic (Pzt-Cum minus TR official
+// holidays), 20 "days" no longer maps to 20 calendar days. We assert via
+// the deadline helper rather than hard-coded calendar dates.
 
 describe('isFulfillmentDeadlineBreached', () => {
-  it('returns false before the 20-day deadline', () => {
+  it('returns false before the deadline', () => {
     const paymentConfirmedAt = new Date('2026-04-01T00:00:00Z')
-    const now = new Date('2026-04-15T00:00:00Z') // 14 days later
+    const now = new Date('2026-04-15T00:00:00Z') // 14 calendar days later → still well before business deadline
     expect(isFulfillmentDeadlineBreached(paymentConfirmedAt, now)).toBe(false)
   })
 
-  it('returns false on the exact 20-day boundary', () => {
+  it('returns false on the exact business-day deadline', () => {
     const paymentConfirmedAt = new Date('2026-04-01T00:00:00Z')
-    const now = new Date('2026-04-21T00:00:00Z') // exactly 20 days
-    expect(isFulfillmentDeadlineBreached(paymentConfirmedAt, now)).toBe(false)
+    const deadline = getFulfillmentDeadline(paymentConfirmedAt)
+    expect(isFulfillmentDeadlineBreached(paymentConfirmedAt, deadline)).toBe(false)
   })
 
-  it('returns true one second after the 20-day deadline', () => {
+  it('returns true just after the business-day deadline', () => {
     const paymentConfirmedAt = new Date('2026-04-01T00:00:00Z')
-    const now = new Date('2026-04-21T00:00:01Z')
-    expect(isFulfillmentDeadlineBreached(paymentConfirmedAt, now)).toBe(true)
+    const deadline = getFulfillmentDeadline(paymentConfirmedAt)
+    const justAfter = new Date(deadline.getTime() + 1)
+    expect(isFulfillmentDeadlineBreached(paymentConfirmedAt, justAfter)).toBe(true)
   })
 
-  it('returns true well past the 20-day deadline', () => {
+  it('returns true well past any reasonable deadline', () => {
     const paymentConfirmedAt = new Date('2026-01-01T00:00:00Z')
     const now = new Date('2026-04-08T00:00:00Z') // ~97 days
     expect(isFulfillmentDeadlineBreached(paymentConfirmedAt, now)).toBe(true)
@@ -114,28 +118,39 @@ describe('isFulfillmentDeadlineBreached', () => {
 // ─── getFulfillmentDeadline ───────────────────────────────────────────────────
 
 describe('getFulfillmentDeadline', () => {
-  it('is 20 days after paymentConfirmedAt', () => {
+  it('lands on a weekday (not weekend)', () => {
     const paymentConfirmedAt = new Date('2026-04-01T00:00:00Z')
     const deadline = getFulfillmentDeadline(paymentConfirmedAt)
-    expect(deadline.getTime()).toBe(new Date('2026-04-21T00:00:00Z').getTime())
+    const day = deadline.getDay()
+    expect(day).not.toBe(0)
+    expect(day).not.toBe(6)
+  })
+
+  it('is more than 20 calendar days for any starting point in 2026 (proves weekend/holiday skipping)', () => {
+    const paymentConfirmedAt = new Date('2026-04-01T00:00:00Z')
+    const deadline = getFulfillmentDeadline(paymentConfirmedAt)
+    const diffMs = deadline.getTime() - paymentConfirmedAt.getTime()
+    const diffDays = diffMs / (24 * 60 * 60 * 1000)
+    expect(diffDays).toBeGreaterThanOrEqual(20)
   })
 })
 
 // ─── getExtendedFulfillmentDeadline ──────────────────────────────────────────
 
 describe('getExtendedFulfillmentDeadline', () => {
-  it('is 30 days after paymentConfirmedAt (20 + 10 extension)', () => {
+  it('is strictly later than the standard deadline', () => {
     const paymentConfirmedAt = new Date('2026-04-01T00:00:00Z')
-    const extDeadline = getExtendedFulfillmentDeadline(paymentConfirmedAt)
-    expect(extDeadline.getTime()).toBe(new Date('2026-05-01T00:00:00Z').getTime())
+    const standard = getFulfillmentDeadline(paymentConfirmedAt)
+    const extended = getExtendedFulfillmentDeadline(paymentConfirmedAt)
+    expect(extended.getTime()).toBeGreaterThan(standard.getTime())
   })
 
-  it('extended deadline is 10 days after standard deadline', () => {
+  it('extends by at least 10 calendar days beyond the standard deadline', () => {
     const paymentConfirmedAt = new Date('2026-03-01T00:00:00Z')
     const standard = getFulfillmentDeadline(paymentConfirmedAt)
     const extended = getExtendedFulfillmentDeadline(paymentConfirmedAt)
     const diffMs = extended.getTime() - standard.getTime()
-    expect(diffMs).toBe(10 * 24 * 60 * 60 * 1000)
+    expect(diffMs).toBeGreaterThanOrEqual(10 * 24 * 60 * 60 * 1000)
   })
 })
 

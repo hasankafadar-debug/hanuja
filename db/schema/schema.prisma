@@ -65,6 +65,12 @@ enum ProductStatus {
   rejected // Moderasyon tarafından reddedildi
 }
 
+enum ProductAnalyticsEventType {
+  product_view
+  cart_add
+  favorite_add
+}
+
 enum ProductAttributeType {
   color
   material
@@ -197,6 +203,11 @@ enum SellerInvoiceType {
   penalty
 }
 
+enum InvoiceType {
+  individual
+  corporate
+}
+
 enum FulfillmentRiskStatus {
   warning
   breached
@@ -236,6 +247,8 @@ enum LedgerEntryType {
   chargeback // Chargeback
   dispute_hold // Uyuşmazlık bloku
   dispute_release // Uyuşmazlık çözümü sonrası serbest bırakma
+  commission_invoice_issued // Komisyon faturası kesildi (production-readiness #10)
+  penalty_invoice_issued // Ceza faturası kesildi (production-readiness #10)
 }
 
 enum AdminActionType {
@@ -280,6 +293,17 @@ enum AdminActionType {
   customer_support_replied
   customer_support_resolved
   customer_support_reopened
+  extension_request_decision
+  seo_content_run_triggered
+}
+
+enum ExtensionRequestStatus {
+  pending_admin_review
+  awaiting_customer_decision
+  awaiting_seller_followup
+  approved
+  rejected_by_admin
+  rejected_by_customer
 }
 
 enum HomePromoSlot {
@@ -322,6 +346,7 @@ enum NotificationType {
   seller_support_reply
   admin_support_new_ticket
   invoice_uploaded
+  fulfillment_warning_5days
   product_review_pending_moderation
   product_review_approved
   product_review_rejected
@@ -329,6 +354,8 @@ enum NotificationType {
   customer_support_resolved_notify
   admin_customer_support_new
   admin_customer_support_reply
+  admin_fulfillment_risk
+  store_discount_followed_seller
 }
 
 enum SupportTicketStatus {
@@ -423,12 +450,17 @@ model User {
   supportMessages       SupportMessage[]
   productReviews        ProductReview[]
   favorites             FavoriteProduct[]
+  productAnalyticsEvents ProductAnalyticsEvent[]
+  followedStores        StoreFollow[]         @relation("StoreFollowUser")
+  storeDiscountDispatches StoreDiscountDispatch[]
   paidPayouts           Payout[]          @relation("PayoutPaidByAdmin")
   createdSellerInvoices SellerInvoice[]   @relation("SellerInvoiceCreatedByAdmin")
 
   customerSupportTickets         CustomerSupportTicket[]  @relation("CustomerSupportTicketsAsCustomer")
   resolvedCustomerSupportTickets CustomerSupportTicket[]  @relation("CustomerSupportTicketsAsResolver")
   customerSupportMessages        CustomerSupportMessage[] @relation("CustomerSupportMessageAuthor")
+
+  extensionRequests              FulfillmentExtensionRequest[]
 
   @@map("users")
 }
@@ -510,6 +542,7 @@ model Seller {
   documents         SellerDocument[]
   ledgerEntries     SellerLedgerEntry[]
   products          Product[]
+  coupons           Coupon[]
   discountRules     DiscountRule[]
   orderLines        OrderLine[]
   orderInvoices     OrderSellerInvoice[]
@@ -519,8 +552,12 @@ model Seller {
   penalties         Penalty[]
   sellerInvoices    SellerInvoice[]
   fulfillmentRisks  FulfillmentRisk[]
+  followers         StoreFollow[]          @relation("StoreFollowSeller")
+  productAnalyticsEvents ProductAnalyticsEvent[]
+  storeDiscountDispatches StoreDiscountDispatch[]
   supportTickets    SupportTicket[]
   homeSlides        HomeSlide[]
+  extensionRequests FulfillmentExtensionRequest[]
 
   @@index([status])
   @@index([slug])
@@ -530,10 +567,14 @@ model Seller {
 model SellerProfile {
   id           String    @id @default(cuid())
   sellerId     String    @unique
-  bio          String?
-  story        String?
-  logoUrl      String?
-  bannerUrl    String?
+  bio                    String?
+  story                  String?
+  logoUrl                String?
+  bannerUrl              String?
+  bannerColor            String? // hex arka plan rengi, örn. "#2d1b69" — banner resmi yoksa kullanılır
+  bannerHeadline         String? // banner üzerindeki özel metin (max 60 karakter)
+  bannerTextColor        String? // başlık metin rengi hex, örn. "#ffffff"
+  bannerHeadlineFontSize String? // "sm" | "md" | "lg" | "xl"
   companyName  String?
   city         String?
   district     String?
@@ -638,20 +679,22 @@ model SellerDocument {
 // Satıcı finansal ledger'ı — her finansal hareket buraya kayıt edilir
 // Her kayıt immutable: üzerine yazma yok, yalnızca yeni kayıt eklenir
 model SellerLedgerEntry {
-  id            String          @id @default(cuid())
-  sellerId      String
-  type          LedgerEntryType
-  amount        Decimal         @db.Decimal(12, 2) // Pozitif = giriş, negatif = çıkış
-  balanceAfter  Decimal         @db.Decimal(12, 2) // Bu kayıt sonrası güncel bakiye
-  referenceType String // 'order' | 'payout' | 'penalty' | 'manual' vb.
-  referenceId   String // İlgili kaydın ID'si
-  description   String? // İnsan okunabilir açıklama
-  createdAt     DateTime        @default(now())
-  createdBy     String? // Admin action'dan geliyorsa actor ID
+  id               String          @id @default(cuid())
+  sellerId         String
+  type             LedgerEntryType
+  amount           Decimal         @db.Decimal(12, 2) // Pozitif = giriş, negatif = çıkış
+  balanceAfter     Decimal         @db.Decimal(12, 2) // Bu kayıt sonrası güncel bakiye
+  referenceType    String // 'order' | 'payout' | 'penalty' | 'manual' vb.
+  referenceId      String // İlgili kaydın ID'si
+  description      String? // İnsan okunabilir açıklama
+  visibleToSeller  Boolean         @default(false) // Accrual entries hidden until invoice is issued; payout entries marked visible explicitly
+  createdAt        DateTime        @default(now())
+  createdBy        String? // Admin action'dan geliyorsa actor ID
 
   seller Seller @relation(fields: [sellerId], references: [id])
 
   @@index([sellerId, createdAt])
+  @@index([sellerId, visibleToSeller, createdAt])
   @@index([referenceType, referenceId])
   @@map("seller_ledger_entries")
 }
@@ -699,6 +742,7 @@ model Product {
   status           ProductStatus @default(draft)
   price            Decimal       @db.Decimal(12, 2)
   compareAtPrice   Decimal?      @db.Decimal(12, 2)
+  fulfillmentDays  Int           @default(20)
   stockQuantity    Int           @default(0)
   sku              String?
   barcode          String?       @unique @db.VarChar(13)
@@ -728,6 +772,7 @@ model Product {
   orderLines           OrderLine[]
   reviews              ProductReview[]
   favoritedBy          FavoriteProduct[]
+  analyticsEvents      ProductAnalyticsEvent[]
 
   @@index([sellerId, status])
   @@index([barcode])
@@ -750,6 +795,41 @@ model FavoriteProduct {
   @@index([userId, createdAt])
   @@index([productId])
   @@map("favorite_products")
+}
+
+model ProductAnalyticsEvent {
+  id        String                    @id @default(cuid())
+  productId String
+  sellerId  String
+  userId    String
+  eventType ProductAnalyticsEventType
+  eventDate DateTime                  @db.Date
+  createdAt DateTime                  @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  seller  Seller  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId, eventType, eventDate])
+  @@index([sellerId, eventType, eventDate])
+  @@index([productId, eventType, eventDate])
+  @@map("product_analytics_events")
+}
+
+model StoreFollow {
+  id               String   @id @default(cuid())
+  userId           String
+  sellerId         String
+  emailOptOutAt    DateTime?
+  emailOptOutToken String   @unique
+  createdAt        DateTime @default(now())
+
+  user   User   @relation("StoreFollowUser", fields: [userId], references: [id], onDelete: Cascade)
+  seller Seller @relation("StoreFollowSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sellerId])
+  @@index([sellerId, createdAt])
+  @@map("store_follows")
 }
 
 model DiscountRule {
@@ -874,11 +954,22 @@ model Address {
   postalCode   String
   country      String   @default("TR")
   isDefault    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
 
-  user   User    @relation(fields: [userId], references: [id])
-  orders Order[]
+  // Fatura adresi alanları
+  isBillingAddress  Boolean     @default(false)
+  invoiceType       InvoiceType?
+  tcNumber          String?
+  isForeignNational Boolean     @default(false)
+  companyName       String?
+  taxOffice         String?
+  taxNumber         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user          User    @relation(fields: [userId], references: [id])
+  orders        Order[] @relation("OrderDeliveryAddress")
+  billingOrders Order[] @relation("OrderBillingAddress")
 
   @@index([userId])
   @@map("addresses")
@@ -893,6 +984,7 @@ model Order {
   publicNumber       Int                      @unique @default(autoincrement())
   customerId         String
   addressId          String?
+  billingAddressId   String?
   status             OrderStatus              @default(draft)
   currency           String                   @default("TRY")
   cancellationReason OrderCancellationReason?
@@ -924,7 +1016,8 @@ model Order {
   updatedAt DateTime @updatedAt
 
   customer        User                 @relation(fields: [customerId], references: [id])
-  address         Address?             @relation(fields: [addressId], references: [id])
+  address         Address?             @relation("OrderDeliveryAddress", fields: [addressId], references: [id])
+  billingAddress  Address?             @relation("OrderBillingAddress",  fields: [billingAddressId], references: [id])
   lines           OrderLine[]
   payments        Payment[]
   shipments       Shipment[]
@@ -936,13 +1029,14 @@ model Order {
   payouts         Payout[]
   penalties       Penalty[]
   financeInvoices SellerInvoice[]      @relation("SellerInvoiceOrder")
-  fulfillmentRisk FulfillmentRisk?
+  fulfillmentRisks FulfillmentRisk[]
   returnRequests  ReturnRequest[]
   disputes        Dispute[]
   couponUsage     CouponUsage?
   supportTickets         SupportTicket[]
   productReviews         ProductReview[]
   customerSupportTickets CustomerSupportTicket[] @relation("OrderCustomerSupportTickets")
+  extensionRequests      FulfillmentExtensionRequest[]
 
   @@index([customerId, status])
   @@index([status, createdAt])
@@ -951,15 +1045,24 @@ model Order {
 }
 
 model OrderLegalSnapshot {
-  id                 String   @id @default(cuid())
-  orderId            String   @unique
-  distanceSalesHtml  String   @db.Text
-  preInformationHtml String   @db.Text
-  buyerSnapshot      Json
-  sellerSnapshot     Json
-  platformSnapshot   Json
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                       String    @id @default(cuid())
+  orderId                  String    @unique
+  distanceSalesHtml        String    @db.Text
+  preInformationHtml       String    @db.Text
+  distanceSalesVersion     String?
+  preInformationVersion    String?
+  distanceSalesHash        String?
+  preInformationHash       String?
+  acceptedDistanceSalesAt  DateTime?
+  acceptedPreInformationAt DateTime?
+  acceptedIp               String?
+  acceptedUserAgent        String?   @db.Text
+  acceptedSessionId        String?
+  buyerSnapshot            Json
+  sellerSnapshot           Json
+  platformSnapshot         Json
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -1055,21 +1158,83 @@ model OrderLine {
   commissionAmount Decimal @default(0) @db.Decimal(12, 2)
   netPayoutAmount  Decimal @default(0) @db.Decimal(12, 2)
 
+  // Komisyon muafiyeti (admin kararı ile)
+  commissionExemptedAt     DateTime?
+  commissionExemptedBy     String? // Admin User.id
+  commissionExemptedReason String?
+  commissionInvoiceId      String? // Hangi SellerInvoice'a bağlandığı (FK)
+  promisedFulfillmentDays  Int? // Sipariş anındaki sevk süresi snapshot (iş günü)
+  fulfillmentDueAt         DateTime?
+  fulfilledAt              DateTime?
+
+  // Per-satır teslimat onayı — order.deliveryConfirmedAt ile eş zamanlı yazılır
+  deliveryConfirmedAt DateTime?
+  deliveryConfirmedBy String? // 'customer' | 'admin_<id>' | 'system'
+
   createdAt DateTime @default(now())
 
-  order   Order   @relation(fields: [orderId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
-  seller  Seller  @relation(fields: [sellerId], references: [id])
-  payout  Payout?
+  order              Order          @relation(fields: [orderId], references: [id])
+  product            Product        @relation(fields: [productId], references: [id])
+  seller             Seller         @relation(fields: [sellerId], references: [id])
+  fulfillmentRisk    FulfillmentRisk?
+  payout             Payout?
+  commissionInvoice  SellerInvoice? @relation("OrderLineCommissionInvoice", fields: [commissionInvoiceId], references: [id], onDelete: SetNull)
+  penalties          Penalty[]
 
   @@index([orderId])
   @@index([sellerId])
+  @@index([commissionInvoiceId])
   @@map("order_lines")
+}
+
+// Seller requests an extra fulfillment window when the 20-business-day deadline
+// is approaching. Three-way flow: seller → admin → (optional) customer.
+// IP / UA / session snapshot on customer response provides legal evidence.
+model FulfillmentExtensionRequest {
+  id                            String                 @id @default(cuid())
+  orderId                       String
+  sellerId                      String
+  customerId                    String
+
+  requestedDays                 Int
+  sellerReason                  String
+
+  status                        ExtensionRequestStatus @default(pending_admin_review)
+
+  adminNote                     String?
+  adminReviewedAt               DateTime?
+  adminReviewedBy               String? // Admin User.id
+
+  // Admin → customer question, customer answer (with legal evidence)
+  customerQuestionFromAdmin     String?
+  customerResponseNote          String?
+  customerRespondedAt           DateTime?
+  customerResponseIp            String?
+  customerResponseUserAgent     String?
+  customerResponseSessionId     String?
+
+  // Final approved extension window
+  approvedDays                  Int?
+  approvedAt                    DateTime?
+  approvedBy                    String? // Admin User.id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller   Seller @relation(fields: [sellerId], references: [id])
+  customer User   @relation(fields: [customerId], references: [id])
+
+  @@index([orderId])
+  @@index([status, createdAt])
+  @@index([sellerId, status])
+  @@map("fulfillment_extension_requests")
 }
 
 model FulfillmentRisk {
   id               String                @id @default(cuid())
-  orderId          String                @unique
+  orderId          String
+  orderLineId      String?               @unique
   sellerId         String
   status           FulfillmentRiskStatus
   deadlineAt       DateTime
@@ -1080,9 +1245,11 @@ model FulfillmentRisk {
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
-  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderLine OrderLine? @relation(fields: [orderLineId], references: [id], onDelete: Cascade)
+  seller    Seller     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
+  @@index([orderId])
   @@index([sellerId, status])
   @@index([status, deadlineAt])
   @@map("fulfillment_risks")
@@ -1122,14 +1289,15 @@ model Payment {
   providerReferenceId String?
   providerData        Json? // Raw provider response (audit için)
   // EFT/Havale için
-  eftSenderName       String?
-  eftConfirmedBy      String? // Admin actor ID
-  eftConfirmedAt      DateTime?
-  eftRejectedBy       String?
-  eftRejectedAt       DateTime?
-  eftRejectionReason  String?
-  eftDiscountAmount   Decimal?      @db.Decimal(12, 2) // Admin tarafından uygulanan indirim tutarı
-  eftDiscountReason   String? // İndirim gerekçesi
+  eftSenderName          String?
+  eftConfirmedBy         String? // Admin actor ID
+  eftConfirmedAt         DateTime?
+  eftRejectedBy          String?
+  eftRejectedAt          DateTime?
+  eftRejectionReason     String?
+  eftDiscountAmount      Decimal?      @db.Decimal(12, 2) // Admin tarafından uygulanan indirim tutarı
+  eftDiscountReason      String? // İndirim gerekçesi
+  selectedBankAccountId  String? // Müşterinin havale yapacağı banka hesabı (snapshot için)
   // Timing
   confirmedAt         DateTime?
   failedAt            DateTime?
@@ -1137,8 +1305,9 @@ model Payment {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  order  Order          @relation(fields: [orderId], references: [id])
-  events PaymentEvent[]
+  order               Order                @relation(fields: [orderId], references: [id])
+  events              PaymentEvent[]
+  selectedBankAccount PlatformBankAccount? @relation(fields: [selectedBankAccountId], references: [id])
 
   @@index([orderId])
   @@index([status])
@@ -1287,6 +1456,7 @@ model Penalty {
   id                String        @id @default(cuid())
   sellerId          String
   orderId           String
+  orderLineId       String?
   reason            PenaltyReason
   status            PenaltyStatus @default(applied)
   baseAmount        Decimal       @db.Decimal(12, 2) // Ürün fiyatı
@@ -1308,10 +1478,12 @@ model Penalty {
 
   seller          Seller          @relation(fields: [sellerId], references: [id])
   order           Order           @relation(fields: [orderId], references: [id])
+  orderLine       OrderLine?      @relation(fields: [orderLineId], references: [id], onDelete: SetNull)
   financeInvoices SellerInvoice[] @relation("SellerInvoicePenalty")
 
   @@index([sellerId, status])
   @@index([orderId])
+  @@index([orderLineId])
   @@map("penalties")
 }
 
@@ -1323,7 +1495,10 @@ model SellerInvoice {
   invoiceDate      DateTime
   invoiceCategory  String?
   description      String?
-  amount           Decimal           @db.Decimal(12, 2)
+  amount           Decimal           @db.Decimal(12, 2) // Net tutar (KDV hariç)
+  vatRate          Decimal           @default(0) @db.Decimal(5, 4) // Komisyon faturası: 0.20, ceza faturası: 0.00
+  vatAmount        Decimal           @default(0) @db.Decimal(12, 2)
+  grossInvoiceAmount Decimal         @db.Decimal(12, 2) // amount + vatAmount
   sourceOrderId    String?
   sourcePenaltyId  String?
   payoutId         String?
@@ -1331,11 +1506,12 @@ model SellerInvoice {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
-  seller         Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  sourceOrder    Order?   @relation("SellerInvoiceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
-  sourcePenalty  Penalty? @relation("SellerInvoicePenalty", fields: [sourcePenaltyId], references: [id], onDelete: SetNull)
-  payout         Payout?  @relation("SellerInvoicePayout", fields: [payoutId], references: [id], onDelete: SetNull)
-  createdByAdmin User     @relation("SellerInvoiceCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  seller         Seller      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sourceOrder    Order?      @relation("SellerInvoiceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
+  sourcePenalty  Penalty?    @relation("SellerInvoicePenalty", fields: [sourcePenaltyId], references: [id], onDelete: SetNull)
+  payout         Payout?     @relation("SellerInvoicePayout", fields: [payoutId], references: [id], onDelete: SetNull)
+  createdByAdmin User        @relation("SellerInvoiceCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  orderLines     OrderLine[] @relation("OrderLineCommissionInvoice")
 
   @@index([sellerId, type])
   @@index([sourceOrderId])
@@ -1357,10 +1533,21 @@ model ReturnRequest {
   reason               String
   description          String?
   isWithinWindow       Boolean // 14 günlük cayma hakkı içinde mi
-  // İade kargo bilgisi
+  // Satıcı iade kargo talimatı (satıcı → müşteri)
+  sellerReturnAddress       String?
+  sellerReturnCargoCarrier  String?
+  sellerReturnInstructions  String?
+  sellerCargoInfoProvidedAt DateTime?
+  // Müşteri iade kargo bilgisi (müşteri → satıcı)
   returnTrackingNumber String?
   returnCargoProvider  String?
-  // Çözüm
+  customerShippedAt    DateTime?
+  // Satıcı teslim aldığında onay/red
+  sellerReceivedAt        DateTime?
+  sellerRejectReason      String?
+  sellerRejectDescription String?
+  sellerRejectedAt        DateTime?
+  // Çözüm (admin override yolu)
   reviewedBy           String? // Admin actor ID
   reviewedAt           DateTime?
   reviewNote           String?
@@ -1372,13 +1559,16 @@ model ReturnRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  order     Order           @relation(fields: [orderId], references: [id])
-  messages  ReturnMessage[]
-  disputeId String?
-  evidence  MediaAsset[]
+  order            Order           @relation(fields: [orderId], references: [id])
+  messages         ReturnMessage[]
+  // Satıcı reddi sonrası eskale edilen uyuşmazlık (1-1)
+  disputeId        String?         @unique
+  escalatedDispute Dispute?        @relation("ReturnEscalation", fields: [disputeId], references: [id])
+  evidence         MediaAsset[]
 
   @@index([orderId])
   @@index([customerId])
+  @@index([disputeId])
   @@map("return_requests")
 }
 
@@ -1391,6 +1581,7 @@ model ReturnMessage {
   createdAt       DateTime @default(now())
 
   returnRequest ReturnRequest @relation(fields: [returnRequestId], references: [id])
+  attachments   MediaAsset[]
 
   @@index([returnRequestId])
   @@map("return_messages")
@@ -1417,6 +1608,8 @@ model Dispute {
   order    Order            @relation(fields: [orderId], references: [id])
   messages DisputeMessage[]
   evidence MediaAsset[]
+  // Satıcı iade reddinden eskale edildiyse ilgili iade talebi (1-1)
+  escalatedFromReturn ReturnRequest? @relation("ReturnEscalation")
 
   @@index([orderId])
   @@index([status])
@@ -1450,13 +1643,89 @@ model BlogPost {
   coverUrl    String?
   status      BlogPostStatus @default(draft)
   authorId    String
+  rootTopic   String?
+  subIntent   String?
+  intentType  String?
+  targetKeyword String?
+  supportingKeywords Json?
+  linkedCategoryIds Json?
+  linkedProductIds Json?
+  clusterKey  String?
+  qualityScore Int?
+  generationMetadata Json?
+  generatedBy String?
+  generatedAt DateTime?
   publishedAt DateTime?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
   @@index([slug])
   @@index([status, publishedAt])
+  @@index([clusterKey])
+  @@index([rootTopic, intentType])
   @@map("blog_posts")
+}
+
+model SeoContentRun {
+  id             String  @id @default(cuid())
+  mode           String
+  status         String
+  triggeredBy    String?
+  budgetSnapshot Json?
+  totals         Json?
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  generations SeoContentGeneration[]
+
+  @@index([status, startedAt])
+  @@index([mode, createdAt])
+  @@map("seo_content_runs")
+}
+
+model SeoContentGeneration {
+  id                   String   @id @default(cuid())
+  runId                String
+  clusterKey           String
+  idempotencyKey       String?  @unique
+  status               String
+  candidateSnapshot    Json
+  factPackHash         String?
+  promptVersion        String?
+  schemaVersion        String?
+  promptHash           String?
+  openaiResponseId     String?
+  openaiImageResponseId String?
+  tokenUsage           Json?
+  estimatedCostUsd     Float?
+  imageAssetId         String?
+  imageObjectKey       String?
+  gateResults          Json?
+  errors               Json?
+  blogPostId           String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  run SeoContentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, status])
+  @@index([clusterKey, createdAt])
+  @@map("seo_content_generations")
+}
+
+model SiteSearchQuery {
+  id           String   @id @default(cuid())
+  query        String
+  normalizedQuery String
+  categorySlug String?
+  resultCount  Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([normalizedQuery, createdAt])
+  @@index([categorySlug, createdAt])
+  @@map("site_search_queries")
 }
 
 model Page {
@@ -1567,10 +1836,12 @@ model MediaAsset {
   verifiedAt      DateTime? // Set by media-processing job after R2 verification
   // Polymorphic relations — nullable, set when asset is attached to a record
   returnRequestId String?
+  returnMessageId String?
   disputeId       String?
   createdAt       DateTime       @default(now())
 
   returnRequest      ReturnRequest?             @relation(fields: [returnRequestId], references: [id])
+  returnMessage      ReturnMessage?             @relation(fields: [returnMessageId], references: [id])
   dispute            Dispute?                   @relation(fields: [disputeId], references: [id])
   supportAttachments         SupportMessageAttachment[]
   customerSupportAttachments CustomerSupportMessageAttachment[] @relation("CustomerSupportAttachmentAsset")
@@ -1581,6 +1852,7 @@ model MediaAsset {
 
   @@index([uploadedBy])
   @@index([uploadedBy, folder, status])
+  @@index([returnMessageId])
   @@map("media_assets")
 }
 
@@ -1641,6 +1913,7 @@ model SupportMessageAttachment {
 model PlatformSettings {
   id                       String   @id @default("platform")
   standardPenaltyRate      Decimal  @default(0.2000) @db.Decimal(5, 4)
+  dailyPenaltyRate         Decimal  @default(0.0100) @db.Decimal(5, 4) // Günlük geç sevkiyat ceza oranı (varsayılan %1)
   defaultSellerCommissionRate Decimal @default(0.1500) @db.Decimal(5, 4)
   fulfillmentDays          Int      @default(20)
   fulfillmentWarningDays   Int      @default(5)
@@ -1654,6 +1927,28 @@ model PlatformSettings {
   updatedAt                DateTime @updatedAt
 
   @@map("platform_settings")
+}
+
+// =============================================================================
+// PLATFORM BANK ACCOUNTS — EFT/Havale için dinamik banka hesabı listesi
+// =============================================================================
+
+model PlatformBankAccount {
+  id                  String   @id @default(cuid())
+  accountHolder       String
+  accountHolderNote   String? // Örn: "Hesap adı dar ise baştan sığdığı kadar yazabilirsiniz"
+  bankName            String
+  iban                String   @unique
+  branchName          String?
+  displayOrder        Int      @default(0)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  payments Payment[]
+
+  @@index([isActive, displayOrder])
+  @@map("platform_bank_accounts")
 }
 
 // =============================================================================
@@ -1700,6 +1995,23 @@ model Notification {
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+model StoreDiscountDispatch {
+  id                  String   @id @default(cuid())
+  userId              String
+  sellerId            String
+  discountRuleId      String?
+  discountFingerprint String
+  emailSentAt         DateTime?
+  createdAt           DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sellerId, discountFingerprint])
+  @@index([sellerId, createdAt])
+  @@map("store_discount_dispatches")
 }
 
 // =============================================================================
@@ -1749,6 +2061,7 @@ enum CouponDiscountType {
 model Coupon {
   id              String             @id @default(cuid())
   code            String             @unique
+  sellerId        String?
   discountType    CouponDiscountType
   discountValue   Decimal            @db.Decimal(12, 2) // Oran (0-100) veya sabit tutar
   minCartTotal    Decimal?           @db.Decimal(12, 2) // Minimum sepet tutarı
@@ -1761,10 +2074,12 @@ model Coupon {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
+  seller Seller? @relation(fields: [sellerId], references: [id], onDelete: SetNull)
   usages CouponUsage[]
 
   @@index([code, isActive])
   @@index([expiresAt])
+  @@index([sellerId])
   @@map("coupons")
 }
 

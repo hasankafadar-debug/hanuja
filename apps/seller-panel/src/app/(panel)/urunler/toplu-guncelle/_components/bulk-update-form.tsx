@@ -168,6 +168,9 @@ export function BulkUpdateForm() {
             <p style={{ color: 'var(--color-muted-fg)' }}>
               Sablonda <strong>Barkod*</strong> alanina 13 haneli barkod girin.
             </p>
+            <p style={{ color: 'var(--color-muted-fg)' }}>
+              Barkod bilgilerine Urunlerim sayfasindan Excel ile indirerek ulasabilirsiniz.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -254,7 +257,7 @@ export function BulkUpdateForm() {
                       </td>
                       <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
                         {row.oldPrice !== undefined
-                          ? `TL ${row.oldPrice.toLocaleString('tr-TR')} -> TL ${(row.newPrice ?? row.oldPrice).toLocaleString('tr-TR')}`
+                          ? `${row.oldPrice.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL -> ${(row.newPrice ?? row.oldPrice).toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL`
                           : '-'}
                       </td>
                       <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>

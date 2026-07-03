@@ -8,18 +8,24 @@ import { handleError, ok } from '@hanuja/api/lib/response'
 import { createSellerInvoiceService } from '@hanuja/api/services/seller-invoice.service'
 import { Decimal } from '@prisma/client/runtime/client'
 
-const createSellerInvoiceSchema = z.object({
-  sellerId: z.string().min(1),
-  type: z.enum(['commission', 'penalty']),
-  invoiceNumber: z.string().trim().min(1),
-  invoiceDate: z.string().datetime(),
-  invoiceCategory: z.string().trim().optional(),
-  description: z.string().trim().optional(),
-  amount: z.union([z.string(), z.number()]),
-  sourceOrderId: z.string().optional(),
-  sourcePenaltyId: z.string().optional(),
-  payoutId: z.string().optional(),
-})
+const createSellerInvoiceSchema = z
+  .object({
+    sellerId: z.string().min(1),
+    type: z.enum(['commission', 'penalty']),
+    invoiceNumber: z.string().trim().min(1),
+    invoiceDate: z.string().datetime(),
+    invoiceCategory: z.string().trim().optional(),
+    description: z.string().trim().optional(),
+    // Admin may provide either VAT-inclusive total (preferred) or net amount.
+    grossInvoiceAmount: z.union([z.string(), z.number()]).optional(),
+    amount: z.union([z.string(), z.number()]).optional(),
+    sourceOrderId: z.string().optional(),
+    sourcePenaltyId: z.string().optional(),
+    payoutId: z.string().optional(),
+  })
+  .refine((d) => d.grossInvoiceAmount !== undefined || d.amount !== undefined, {
+    message: 'Either grossInvoiceAmount or amount must be provided.',
+  })
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,7 +41,9 @@ export async function POST(req: NextRequest) {
       type: body.type,
       invoiceNumber: body.invoiceNumber,
       invoiceDate: new Date(body.invoiceDate),
-      amount: new Decimal(body.amount),
+      ...(body.grossInvoiceAmount !== undefined
+        ? { grossInvoiceAmount: new Decimal(body.grossInvoiceAmount) }
+        : { amount: new Decimal(body.amount!) }),
       createdByAdminId: session.user.id,
       ...(body.invoiceCategory !== undefined ? { invoiceCategory: body.invoiceCategory || null } : {}),
       ...(body.description !== undefined ? { description: body.description || null } : {}),

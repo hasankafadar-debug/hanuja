@@ -1,0 +1,1 @@
+ALTER SEQUENCE "orders_publicNumber_seq" RESTART WITH 26050000;

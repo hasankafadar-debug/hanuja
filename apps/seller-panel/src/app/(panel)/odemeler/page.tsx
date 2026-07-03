@@ -6,6 +6,8 @@ import { getSellerFromSession } from '@/lib/seller-session'
 import { createPayoutRepository } from '@hanuja/api/repositories/payout.repository'
 import { createSellerLedgerRepository } from '@hanuja/api/repositories/seller-ledger.repository'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { formatMoney } from '@hanuja/security'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +27,7 @@ export default async function PayoutsPage() {
   type PayoutRow = {
     id: string
     orderId: string
+    order: { id: string; publicNumber: number | null } | null
     grossAmount: { toNumber(): number } | number
     commissionAmount: { toNumber(): number } | number
     netAmount: { toNumber(): number } | number
@@ -59,7 +62,7 @@ export default async function PayoutsPage() {
     .reduce((sum, item) => sum + toNum(item._sum.netAmount), 0)
   const penaltyDeducted = toNum(penaltyDeductedDecimal)
 
-  const balance = holdAmount + readyAmount - blockedAmount - penaltyDeducted
+  const availableBalance = readyAmount - blockedAmount - penaltyDeducted
 
   return (
     <div className="space-y-8" data-testid="seller-payouts-page">
@@ -77,12 +80,12 @@ export default async function PayoutsPage() {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard title="Bekliyor (30 gün)" value={`₺${holdAmount.toLocaleString('tr-TR')}`} icon={<Clock className="h-5 w-5" />} />
-        <StatCard title="Ödeme Hazır" value={`₺${readyAmount.toLocaleString('tr-TR')}`} icon={<CheckCircle className="h-5 w-5" />} />
-        <StatCard title="Toplam Ödendi" value={`₺${paidAmount.toLocaleString('tr-TR')}`} icon={<Wallet className="h-5 w-5" />} />
+        <StatCard title="Bekliyor (30 gün)" value={formatMoney(holdAmount)} icon={<Clock className="h-5 w-5" />} />
+        <StatCard title="Ödeme Hazır" value={formatMoney(readyAmount)} icon={<CheckCircle className="h-5 w-5" />} />
+        <StatCard title="Toplam Ödendi" value={formatMoney(paidAmount)} icon={<Wallet className="h-5 w-5" />} />
         <StatCard
-          title="Güncel Bakiye"
-          value={`${balance < 0 ? '-' : ''}₺${Math.abs(balance).toLocaleString('tr-TR')}`}
+          title="Kullanılabilir Bakiye"
+          value={formatMoney(availableBalance)}
           icon={<Lock className="h-5 w-5" />}
         />
       </div>
@@ -102,19 +105,19 @@ export default async function PayoutsPage() {
       >
         <div className="flex items-center justify-between">
           <span style={{ color: 'var(--color-muted-fg)' }}>Hold bakiyesi</span>
-          <span style={{ color: 'var(--color-primary)' }}>₺{holdAmount.toLocaleString('tr-TR')}</span>
+          <span style={{ color: 'var(--color-primary)' }}>{formatMoney(holdAmount)}</span>
         </div>
         <div className="mt-2 flex items-center justify-between">
           <span style={{ color: 'var(--color-muted-fg)' }}>Ödemeye hazır</span>
-          <span style={{ color: 'var(--color-primary)' }}>₺{readyAmount.toLocaleString('tr-TR')}</span>
+          <span style={{ color: 'var(--color-primary)' }}>{formatMoney(readyAmount)}</span>
         </div>
         <div className="mt-2 flex items-center justify-between">
           <span style={{ color: 'var(--color-muted-fg)' }}>Blokeler</span>
-          <span style={{ color: 'var(--color-primary)' }}>-₺{blockedAmount.toLocaleString('tr-TR')}</span>
+          <span style={{ color: 'var(--color-primary)' }}>-{formatMoney(blockedAmount)}</span>
         </div>
         <div className="mt-2 flex items-center justify-between">
           <span style={{ color: 'var(--color-muted-fg)' }}>Cezalar</span>
-          <span style={{ color: 'var(--color-destructive)' }}>-₺{penaltyDeducted.toLocaleString('tr-TR')}</span>
+          <span style={{ color: 'var(--color-destructive)' }}>-{formatMoney(penaltyDeducted)}</span>
         </div>
       </div>
 
@@ -154,19 +157,19 @@ export default async function PayoutsPage() {
                   return (
                     <tr key={payout.id} className="border-t" style={{ borderColor: 'var(--color-border)' }}>
                       <td className="px-4 py-3 font-medium font-mono text-xs" style={{ color: 'var(--color-primary)' }}>
-                        #{payout.orderId.slice(-8).toUpperCase()}
+                        {formatOrderDisplayNumber(payout.order?.publicNumber, payout.orderId)}
                       </td>
                       <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                        {gross > 0 ? `₺${gross.toLocaleString('tr-TR')}` : '-'}
+                        {gross > 0 ? formatMoney(gross) : '-'}
                       </td>
                       <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                        {commission > 0 ? `-₺${commission.toLocaleString('tr-TR')}` : '-'}
+                        {commission > 0 ? `-${formatMoney(commission)}` : '-'}
                       </td>
                       <td
                         className="px-4 py-3 font-medium"
                         style={{ color: net < 0 ? 'var(--color-destructive)' : 'var(--color-primary)' }}
                       >
-                        {net >= 0 ? `₺${net.toLocaleString('tr-TR')}` : `-₺${Math.abs(net).toLocaleString('tr-TR')}`}
+                        {formatMoney(net)}
                       </td>
                       <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
                         {payout.holdUntil

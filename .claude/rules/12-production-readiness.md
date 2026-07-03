@@ -80,6 +80,32 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 - URL importu varyantsız ürünler için per-product `stockQuantity` input'u sağlar.
 - Variant'lı ürünlerde stoğun hangi variant'a yazılacağı henüz seçilemez — ana ürün düzeyinde yazılır. Variant-bazlı stok girişi ayrı bir epic.
 
+### 14. Kupon seller-scope + sipariÅŸ numarasÄ± sequence operasyonu (yeni â€” 2026-05-14)
+- `Coupon.sellerId` migration'Ä± deploy zincirinin parÃ§asÄ±dÄ±r; `sellerId = NULL` kuponlar platform-wide kalÄ±r, dolu olan kuponlar yalnÄ±zca ilgili satÄ±cÄ± subtotal'una uygulanÄ±r.
+- `orders_publicNumber_seq` 2026 cohort için `26050000` seviyesine bump edilmiştir; ilk yeni sipariş `26050001` (8 hane, yıl prefix `26`).
+- 2027 yılbaşı operasyon görevi: `ALTER SEQUENCE "orders_publicNumber_seq" RESTART WITH 27050000;` çalıştırılmalı ve ilk yeni siparişte smoke test yapılmalıdır.
+
+### 15. Satıcı odaklı iade + uyuşmazlık eskalasyonu (yeni — 2026-05-15)
+- Migration `20260515140000_seller_driven_return_flow` deploy zincirinin parçasıdır
+  (additive; `return_requests` yeni alanlar, `return_requests.disputeId` FK/unique,
+  `media_assets.returnMessageId` FK). Deploy öncesi `prisma migrate deploy` + client generate.
+- İade penceresi **14 takvim günü** ve **kesin** kapanır: pencere sonrası
+  `openRequest` backend tarafından reddedilir, storefront butonu pasif/gizli olur.
+  Eski "14 gün sonrası admin değerlendirmesi" yolu kaldırıldı (politika kararı).
+- Satıcı "Kargoyu Aldım" onayı **otomatik müşteri iadesini** tetikler
+  (`refund.service`, idempotent — `ReturnRequest.refundedAt` guard). Kart → Iyzico,
+  EFT → manuel. Negatif `SellerLedgerEntry` (`refund`) yazılır.
+- Satıcı reddi otomatik `Dispute` (open, payoutBlocked) açar; konuşma tek
+  `ReturnMessage` thread'inde devam eder. Admin uyuşmazlığı sonuç metni + (müşteri
+  lehine ise opsiyonel tutar) ile kapatır; tutar girilirse aynı idempotent refund yolu.
+- Bilinen sınır: kısmi iade modellenmedi (satıcı payı tam iade); çok satıcılı
+  siparişte yalnız ilgili satıcı satırları iade edilir. Satıcı tarafı timeout'ları
+  (kargo bilgisi/onay gecikmesi) şimdilik admin override route'ları ile elle yönetilir;
+  SLA job ayrı bir takip işidir.
+- Ön mevcut (bu işten bağımsız) typecheck kırıkları: `api/services/checkout.service.ts`
+  `formatMoney(Decimal)` ve `apps/admin-panel .../urunler/[id]/page.tsx`
+  `exactOptionalPropertyTypes` — bu epikte dokunulmadı, ayrı düzeltilmeli.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

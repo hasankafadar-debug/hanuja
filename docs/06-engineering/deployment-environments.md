@@ -105,6 +105,13 @@ Key variables that differ between environments:
 | `IYZICO_BASE_URL` | `https://sandbox-api.iyzipay.com` | `https://api.iyzipay.com` |
 | `NODE_ENV` | `development` | `production` |
 
+R2 checklist:
+- `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` must
+  point to the same environment-specific bucket.
+- `R2_PUBLIC_URL` and `R2_PUBLIC_HOSTNAME` affect media delivery only; upload `PUT`
+  requests still target `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`.
+- Local and staging should use a separate bucket from production.
+
 Turnstile note:
 - Do not use Cloudflare's official test keys in normal app environments if you want to avoid the red test banner in the widget.
 - The widget hostname allowlist must include `localhost`, `127.0.0.1`, and every public app domain that renders the widget.

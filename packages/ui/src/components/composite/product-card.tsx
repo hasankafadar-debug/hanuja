@@ -8,7 +8,7 @@ import * as React from "react"
 import Image from "next/image"
 import { Heart, ShoppingCart } from "lucide-react"
 import { cn } from "../../lib/utils"
-import { normalizeMediaDisplayUrl } from "../../lib/media-url"
+import { isManagedMediaProxyUrl, normalizeMediaDisplayUrl } from "../../lib/media-url"
 import { Badge } from "../badge"
 import { Button } from "../button"
 
@@ -33,15 +33,12 @@ export interface ProductCardProps {
   priority?: boolean
 }
 
-function formatPrice(amount: number, options?: { forceDecimals?: boolean }): string {
-  const showDecimals = options?.forceDecimals ?? !Number.isInteger(amount)
-
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    minimumFractionDigits: showDecimals ? 2 : 0,
-    maximumFractionDigits: 2,
-  }).format(amount)
+function formatPrice(amount: number): string {
+  const formatted = amount.toLocaleString("tr-TR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+  return `${formatted} TL`
 }
 
 function ProductCard({
@@ -92,6 +89,7 @@ function ProductCard({
   }, [gallery.length, id])
 
   const activeImageUrl = gallery[activeImageIndex] ?? null
+  const useUnoptimizedImage = Boolean(activeImageUrl && isManagedMediaProxyUrl(activeImageUrl))
   const favoriteButtonClassName = supportsHover
     ? isFavorited
       ? "opacity-70 group-hover:opacity-100"
@@ -138,6 +136,7 @@ function ProductCard({
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
               className="object-contain"
               priority={priority}
+              unoptimized={useUnoptimizedImage}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-muted-fg text-xs">
@@ -214,7 +213,7 @@ function ProductCard({
         )}
 
         <a href={cardHref} className="block">
-          <h3 className="text-sm font-medium leading-snug line-clamp-2 hover:text-primary transition-colors">
+          <h3 className="text-sm font-semibold leading-snug line-clamp-2 text-foreground hover:text-primary transition-colors">
             {title}
           </h3>
         </a>
@@ -222,11 +221,11 @@ function ProductCard({
         <div className="mt-auto flex items-end justify-between gap-2">
           <div className="flex flex-col">
             <span className="text-base font-semibold text-primary">
-              {formatPrice(price, { forceDecimals: hasDiscount })}
+              {formatPrice(price)}
             </span>
             {hasDiscount && (
               <span className="text-xs text-muted-fg line-through">
-                {formatPrice(comparePrice!, { forceDecimals: true })}
+                {formatPrice(comparePrice!)}
               </span>
             )}
           </div>

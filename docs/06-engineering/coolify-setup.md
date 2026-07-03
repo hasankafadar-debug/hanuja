@@ -92,6 +92,13 @@ Same as `web` except:
 
 All other variables (`DATABASE_URL`, `REDIS_URL`, `BETTER_AUTH_SECRET`, R2, Iyzico, Meilisearch, SMTP) are identical to the web service — use the same values.
 
+R2 note:
+- `seller-panel` and `web` must use the same `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`,
+  `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`.
+- `BETTER_AUTH_URL` may differ per service; R2 variables should not.
+- `R2_PUBLIC_URL` may point to a custom media domain, but the signed upload host is still
+  expected to be `*.r2.cloudflarestorage.com`.
+
 ---
 
 ## Service 3: admin-panel
@@ -205,6 +212,9 @@ Or trigger via admin panel search settings page.
 - [ ] `DATABASE_URL` points to production PostgreSQL
 - [ ] `REDIS_URL` points to production Redis
 - [ ] `R2_PUBLIC_HOSTNAME` set to `media.hanuja.com`
+- [ ] `seller-panel` R2 env values exactly match `web`
+- [ ] `R2_BUCKET_NAME` exists in the Cloudflare account referenced by `R2_ACCOUNT_ID`
+- [ ] The configured R2 access key can read bucket metadata and upload objects
 - [ ] Migrations ran successfully (`migrate:deploy`)
 - [ ] DNS records point to correct Coolify services
 - [ ] HTTPS certificates provisioned

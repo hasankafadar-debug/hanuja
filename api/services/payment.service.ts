@@ -14,8 +14,10 @@ import { createOrderRepository } from '../repositories/order.repository'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { assertTransition } from '../domain/order-state-machine'
+import { addBusinessDays } from '../domain/business-days'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
 import { createOrderDocumentService } from './order-document.service'
+import { formatMoney } from '@hanuja/security/money'
 
 /** Fire payment-confirmed notifications to customer + seller (fire-and-forget). */
 export async function firePaymentConfirmedNotifications(prisma: PrismaClient, orderId: string) {
@@ -71,6 +73,25 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
   const ledger = createSellerLedgerRepository(prisma)
   const auditLog = createAdminAuditLogRepository(prisma)
 
+  async function stampFulfillmentDueDates(tx: PrismaClient, orderId: string, sourceAt: Date) {
+    const lines = await tx.orderLine.findMany({
+      where: { orderId },
+      select: { id: true, promisedFulfillmentDays: true },
+    })
+
+    for (const line of lines) {
+      const promisedDays = line.promisedFulfillmentDays
+      if (!promisedDays || promisedDays <= 0) continue
+
+      await tx.orderLine.update({
+        where: { id: line.id },
+        data: {
+          fulfillmentDueAt: addBusinessDays(sourceAt, promisedDays),
+        },
+      })
+    }
+  }
+
   return {
     /**
      * Confirm a card payment (called after Iyzico webhook or callback verification).
@@ -92,6 +113,7 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
       }
 
       return prisma.$transaction(async (tx) => {
+        const confirmedAt = new Date()
         const order = await tx.order.findUnique({
           where: { id: params.orderId },
           select: { id: true, status: true, customerId: true },
@@ -110,7 +132,7 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           where: { id: params.orderId },
           data: {
             status: 'payment_confirmed',
-            paymentConfirmedAt: new Date(),
+            paymentConfirmedAt: confirmedAt,
           },
         })
         await (tx as PrismaClient).orderStatusHistory.create({
@@ -128,9 +150,10 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           where: { id: params.orderId },
           data: {
             status: 'seller_queue_ready',
-            sellerQueueReadyAt: new Date(),
+            sellerQueueReadyAt: confirmedAt,
           },
         })
+        await stampFulfillmentDueDates(tx as PrismaClient, params.orderId, confirmedAt)
         await (tx as PrismaClient).orderStatusHistory.create({
           data: {
             orderId: params.orderId,
@@ -179,6 +202,7 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         : null
 
       return prisma.$transaction(async (tx) => {
+        const confirmedAt = new Date()
         const order = await tx.order.findUnique({
           where: { id: params.orderId },
           include: { lines: { select: { sellerId: true } } },
@@ -232,7 +256,7 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           where: { id: params.orderId },
           data: {
             status: 'payment_confirmed',
-            paymentConfirmedAt: new Date(),
+            paymentConfirmedAt: confirmedAt,
           },
         })
         await (tx as PrismaClient).orderStatusHistory.create({
@@ -248,22 +272,25 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           where: { id: params.orderId },
           data: {
             status: 'seller_queue_ready',
-            sellerQueueReadyAt: new Date(),
+            sellerQueueReadyAt: confirmedAt,
           },
         })
+        await stampFulfillmentDueDates(tx as PrismaClient, params.orderId, confirmedAt)
         await (tx as PrismaClient).orderStatusHistory.create({
           data: {
             orderId: params.orderId,
             toStatus: 'seller_queue_ready',
             actorId: params.adminActorId,
-            reason: `Havale onaylandı. ${params.evidenceNote ?? ''}${discountDecimal ? ` İndirim: ₺${discountDecimal.toFixed(2)} (${params.discountReason ?? ''})` : ''}`.trim(),
+            reason: `Havale onaylandı. ${params.evidenceNote ?? ''}${discountDecimal ? ` İndirim: ${formatMoney(discountDecimal.toNumber())} (${params.discountReason ?? ''})` : ''}`.trim(),
           },
         })
         await (tx as PrismaClient).cartItem.deleteMany({
           where: { cart: { userId: order.customerId } },
         })
 
-        // EFT indirimi varsa seller ledger'a negatif kayıt ekle
+        // EFT indirim — platform-absorbe: satıcı payout'u etkilemez.
+        // Bu kayıt yalnızca mutabakat/audit amaçlı; Payout.netAmount bu girdiden hesaplanmaz.
+        // visibleToSeller: false — satıcı ekstresinde görünmez (docs/01-business/payout-policy.md §12).
         if (discountDecimal) {
           const sellerEntry = order.lines[0] as { sellerId?: string } | undefined
           const sellerId = sellerEntry?.sellerId
@@ -273,8 +300,9 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
               type: 'eft_discount',
               amount: discountDecimal.negated(),
               orderId: params.orderId,
-              note: `Havale indirimi: ${params.discountReason ?? 'Admin onayı'}`,
+              note: `Havale indirimi (platform-absorbe): ${params.discountReason ?? 'Admin onayı'}`,
               createdBy: params.adminActorId,
+              visibleToSeller: false,
             })
           }
         }

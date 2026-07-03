@@ -161,8 +161,9 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
     /**
      * Customer cancels before shipment.
      * After shipment, cancellation is not allowed - use return flow.
+     * reason: customer-facing reason label stored in status history for audit.
      */
-    async customerCancel(params: { orderId: string; customerId: string }) {
+    async customerCancel(params: { orderId: string; customerId: string; reason?: string }) {
       const order = await orders.findByIdForCustomer(params.orderId, params.customerId)
       if (!order) throw new NotFoundError('Order', params.orderId)
 
@@ -172,11 +173,12 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
         )
       }
 
+      const noteDetail = params.reason ? `: ${params.reason}` : ''
       return cancelOrder({
         orderId: params.orderId,
         actorId: params.customerId,
         toStatus: 'cancelled_by_customer',
-        note: 'Müşteri tarafından iptal edildi',
+        note: `Müşteri tarafından iptal edildi${noteDetail}`,
         cancellationReason: 'customer_requested',
       })
     },
@@ -260,6 +262,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
 
     listForSellerQueue(params: {
       sellerId: string
+      orderIds?: string[]
       status?: OrderStatus[]
       query?: string
       from?: Date
@@ -270,6 +273,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
     }) {
       return orders.listForSellerQueue({
         sellerId: params.sellerId,
+        ...(params.orderIds !== undefined ? { orderIds: params.orderIds } : {}),
         ...(params.status !== undefined ? { status: params.status } : {}),
         ...(params.query !== undefined ? { query: params.query } : {}),
         ...(params.from !== undefined ? { from: params.from } : {}),
@@ -282,6 +286,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
 
     countForSellerQueue(params: {
       sellerId: string
+      orderIds?: string[]
       status?: OrderStatus[]
       query?: string
       from?: Date

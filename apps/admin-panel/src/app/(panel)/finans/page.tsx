@@ -8,6 +8,7 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { AdminListControls } from '@/components/admin-list-controls'
 import { UrlPagination } from '@/components/url-pagination'
 import { getPagination, parseAdminListParams, type RawAdminSearchParams } from '@/lib/admin-list-params'
+import { formatMoney } from '@hanuja/security'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,7 +43,9 @@ export default async function FinanceSummaryPage({
   ])
 
   const fmt = (n: number) =>
-    n >= 1000 ? `₺${(n / 1000).toFixed(1)}K` : `₺${n.toLocaleString('tr-TR')}`
+    n >= 1000
+      ? `${(n / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 })}K TL`
+      : `${n.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL`
 
   const totalCollected = Number(collectedTotal._sum.amount ?? 0)
   const totalCommission = Number(commissionTotal._sum.commissionAmount ?? 0)
@@ -123,28 +126,28 @@ export default async function FinanceSummaryPage({
                       </div>
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                      ₺{summary.pendingPayout.toLocaleString('tr-TR')}
+                      {formatMoney(summary.pendingPayout)}
                     </td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-success)' }}>
-                      ₺{summary.payoutReady.toLocaleString('tr-TR')}
+                      {formatMoney(summary.payoutReady)}
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                      ₺{summary.paidTotal.toLocaleString('tr-TR')}
+                      {formatMoney(summary.paidTotal)}
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                      ₺{summary.commissionDeducted.toLocaleString('tr-TR')}
+                      {formatMoney(summary.commissionDeducted)}
                     </td>
                     <td
                       className="px-4 py-3"
                       style={{ color: summary.penaltyDeducted > 0 ? 'var(--color-destructive)' : 'var(--color-muted-fg)' }}
                     >
-                      {summary.penaltyDeducted > 0 ? `₺${summary.penaltyDeducted.toLocaleString('tr-TR')}` : '—'}
+                      {summary.penaltyDeducted > 0 ? formatMoney(summary.penaltyDeducted) : '—'}
                     </td>
                     <td
                       className="px-4 py-3 font-semibold"
                       style={{ color: summary.isNegativeBalance ? 'var(--color-destructive)' : 'var(--color-primary)' }}
                     >
-                      {summary.isNegativeBalance ? '-' : ''}₺{Math.abs(summary.currentBalance).toLocaleString('tr-TR')}
+                      {formatMoney(summary.currentBalance)}
                     </td>
                   </tr>
                 ))}

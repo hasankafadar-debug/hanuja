@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { initiate3DS } from '@hanuja/api/lib/iyzico'
+import { buildLegalAcceptanceEvidence, extractClientIp } from '@hanuja/api/lib/legal-acceptance'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { checkRateLimit, SENSITIVE_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { verifyTurnstileToken } from '@hanuja/api/lib/turnstile'
@@ -118,7 +119,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const turnstileResult = await verifyTurnstileToken({
     token: body.turnstileToken,
-    ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+    ip: extractClientIp(req),
     action: 'checkout-submit',
   })
 
@@ -136,12 +137,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let totalAmount: string
 
   try {
+    const legalAcceptance = await buildLegalAcceptanceEvidence({
+      prisma,
+      req,
+      userId: user.id,
+    })
+
     const { order } = await checkoutSvc.createOrder({
       userId: user.id,
       addressId: body.addressId,
       paymentMethod: 'card',
       ...(body.couponCode ? { couponCode: body.couponCode } : {}),
       ...(body.notes ? { notes: body.notes } : {}),
+      legalAcceptance,
     })
 
     orderId = order.id
@@ -195,7 +203,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       registrationAddress: buyerAddress,
       city: addr.city,
       country: 'Turkey',
-      ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1',
+      ip: extractClientIp(req) ?? '127.0.0.1',
     },
     shippingAddress: {
       contactName: addr.fullName,

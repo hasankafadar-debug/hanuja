@@ -2,6 +2,7 @@ export type RawAdminSearchParams = Record<string, string | string[] | undefined>
 
 export interface AdminListParams {
   q: string
+  barcode: string
   status: string[]
   invoice: string
   importPermission: string
@@ -17,6 +18,7 @@ export function parseAdminListParams(
   defaults: Partial<AdminListParams> = {},
 ): AdminListParams {
   const q = readSingle(searchParams, 'q') ?? defaults.q ?? ''
+  const barcode = readSingle(searchParams, 'barcode') ?? defaults.barcode ?? ''
   const status = readMulti(searchParams, 'status')
   const invoice = readSingle(searchParams, 'invoice') ?? defaults.invoice ?? ''
   const importPermission = readSingle(searchParams, 'import') ?? defaults.importPermission ?? ''
@@ -28,6 +30,7 @@ export function parseAdminListParams(
 
   return {
     q,
+    barcode,
     status: status.length > 0 ? status : defaults.status ?? [],
     invoice,
     importPermission,

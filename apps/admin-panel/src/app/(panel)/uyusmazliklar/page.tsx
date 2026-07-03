@@ -55,6 +55,23 @@ export default async function DisputesAdminPage({
     <div className="space-y-6">
       <PageHeader title="Uyuşmazlıklar" description={`${openCount} açık uyuşmazlık`} />
 
+      <div className="flex gap-2">
+        <Link
+          href="/uyusmazliklar?status=open,under_review"
+          className="rounded-lg border px-3 py-1.5 text-sm"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
+        >
+          Açık / İncelemede
+        </Link>
+        <Link
+          href="/uyusmazliklar?status=resolved_for_customer,resolved_for_seller,closed"
+          className="rounded-lg border px-3 py-1.5 text-sm"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
+        >
+          Sonuçlananlar
+        </Link>
+      </div>
+
       <div
         className="rounded-xl border p-4 text-sm"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}

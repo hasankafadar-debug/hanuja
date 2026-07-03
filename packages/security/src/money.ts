@@ -19,26 +19,8 @@ export function roundMoney(value: number | Decimal | string): Decimal {
   return sign < 0 ? roundedAbs.negated() : roundedAbs
 }
 
-export function formatMoney(
-  value: number | Decimal | string,
-  opts?: { currency?: 'TRY'; minimumFractionDigits?: number; maximumFractionDigits?: number },
-) {
-  const rounded = roundMoney(value)
-  const amount = rounded.toNumber()
-  const minimumFractionDigits = opts?.minimumFractionDigits ?? 2
-  const maximumFractionDigits = opts?.maximumFractionDigits ?? 2
-
-  if (opts?.currency === 'TRY') {
-    return amount.toLocaleString('tr-TR', {
-      style: 'currency',
-      currency: 'TRY',
-      minimumFractionDigits,
-      maximumFractionDigits,
-    })
-  }
-
-  return amount.toLocaleString('tr-TR', {
-    minimumFractionDigits,
-    maximumFractionDigits,
-  })
-}
+// `formatMoney` lives in ./format-money so client components (which cannot
+// import Prisma's Decimal runtime — it pulls node:async_hooks) can use the
+// formatter without dragging the rest of this module into the client bundle.
+// Re-export it here for server-side callers that already import from './money'.
+export { formatMoney } from './format-money'

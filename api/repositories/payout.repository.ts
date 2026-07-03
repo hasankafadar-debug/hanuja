@@ -119,6 +119,14 @@ export function createPayoutRepository(prisma: PrismaClient) {
           sellerId: params.sellerId,
           ...(params.status !== undefined ? { status: params.status } : {}),
         },
+        include: {
+          order: {
+            select: {
+              id: true,
+              publicNumber: true,
+            },
+          },
+        },
         orderBy: { createdAt: 'desc' },
         ...(params.skip !== undefined ? { skip: params.skip } : {}),
         take: params.take ?? 20,

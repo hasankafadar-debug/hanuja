@@ -4,6 +4,7 @@ import { maskIban } from '@hanuja/security'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import StoreProfileForm from './_components/store-profile-form'
+import StoreBrandForm from './_components/store-brand-form'
 import BankDetailsForm from './_components/bank-details-form'
 import DocumentsForm from './_components/documents-form'
 
@@ -60,6 +61,22 @@ export default async function SellerSettingsPage() {
               <span className="text-xs">(URL değişikliği admin onayı gerektirir)</span>
             </p>
           </div>
+
+          {/* Mağaza görselleri — logo ve banner */}
+          <div
+            className="mb-8 rounded-xl border p-5"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            <StoreBrandForm
+              logoUrl={profile?.logoUrl ?? null}
+              bannerUrl={profile?.bannerUrl ?? null}
+              bannerColor={profile?.bannerColor ?? null}
+              bannerHeadline={profile?.bannerHeadline ?? null}
+              bannerTextColor={profile?.bannerTextColor ?? null}
+              bannerHeadlineFontSize={profile?.bannerHeadlineFontSize ?? null}
+            />
+          </div>
+
           <StoreProfileForm
             storeName={sellerWithDetails?.displayName ?? ''}
             bio={profile?.bio ?? ''}

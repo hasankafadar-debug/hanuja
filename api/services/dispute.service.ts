@@ -17,7 +17,11 @@ import { createOrderRepository } from '../repositories/order.repository'
 import { createReturnRequestRepository } from '../repositories/return-request.repository'
 import { createPayoutRepository } from '../repositories/payout.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
+import { createRefundService } from './refund.service'
+import { assertTransition } from '../domain/order-state-machine'
 import { assertNoContactSharing } from './contact-sharing-guard.service'
+import { roundMoney } from '@hanuja/security/money'
+import { Decimal } from '@prisma/client/runtime/client'
 
 interface DisputeServiceDeps {
   prisma: PrismaClient
@@ -29,6 +33,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
   const returnRequests = createReturnRequestRepository(prisma)
   const payouts = createPayoutRepository(prisma)
   const auditLog = createAdminAuditLogRepository(prisma)
+  const refunds = createRefundService({ prisma })
 
   return {
     /**
@@ -120,6 +125,41 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
         }
       }
 
+      // İade reddinden eskale edilen uyuşmazlık müşteri lehine çözülürse
+      // gerçek para iadesi tetiklenir (idempotent — refund.service).
+      const rr = dispute.escalatedFromReturn
+      if (rr && isCustomerFavored && !rr.refundedAt) {
+        const sellerIds = [...new Set(rr.order.lines.map((l) => l.sellerId))]
+        if (sellerIds.length === 1) {
+          const sellerId = sellerIds[0]!
+          const refundAmount =
+            params.refundAmount ??
+            roundMoney(
+              rr.order.lines
+                .filter((l) => l.sellerId === sellerId)
+                .reduce((s, l) => s.plus(new Decimal(l.totalPrice)), new Decimal(0)),
+            )
+          await refunds.executeReturnRefund({
+            returnRequestId: rr.id,
+            orderId: rr.orderId,
+            sellerId,
+            refundAmount,
+            payments: rr.order.payments.map((p) => ({
+              method: p.method,
+              id: p.id,
+              providerPaymentId: p.providerPaymentId,
+            })),
+            actorRef: `admin_${params.adminActorId}`,
+          })
+        }
+      }
+
+      // Sipariş durumunu dispute_resolved'a taşı (yalnızca dispute_open ise)
+      const order = await orders.findById(dispute.orderId)
+      if (order && order.status === 'dispute_open') {
+        assertTransition(order.status, 'dispute_resolved')
+        await orders.updateStatus(dispute.orderId, 'dispute_resolved')
+      }
       await orders.appendStatusHistory(
         dispute.orderId,
         'dispute_resolved' as never,

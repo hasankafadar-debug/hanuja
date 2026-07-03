@@ -3,7 +3,7 @@
  * Seller can manage only their own products.
  */
 import { Prisma } from '@prisma/client'
-import type { PrismaClient, ProductStatus } from '@prisma/client'
+import type { OrderStatus, PrismaClient, ProductStatus } from '@prisma/client'
 import { NotFoundError, ForbiddenError, ConflictError, ValidationError } from '../lib/errors'
 import { createProductRepository } from '../repositories/product.repository'
 import { createCategoryRepository } from '../repositories/category.repository'
@@ -18,6 +18,19 @@ interface CatalogServiceDeps {
 }
 
 type DecimalLike = import('@prisma/client/runtime/client').Decimal
+type PublishedCatalogSort = 'newest' | 'price-asc' | 'price-desc' | 'favorited'
+
+const BEST_SELLER_ORDER_STATUSES: OrderStatus[] = [
+  'seller_queue_ready',
+  'seller_reviewing',
+  'seller_accepted',
+  'preparing',
+  'awaiting_shipment',
+  'shipped',
+  'delivered',
+  'delivery_confirmation_pending',
+  'delivery_confirmed',
+]
 
 export function createCatalogService({ prisma }: CatalogServiceDeps) {
   const products = createProductRepository(prisma)
@@ -25,6 +38,144 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
   const sellers = createSellerRepository(prisma)
   const discounts = createDiscountService({ prisma })
   const contentScanner = createContentScannerService()
+
+  function buildPublishedWhere(params: {
+    categoryId?: string
+    categoryIds?: string[]
+    minPrice?: number
+    maxPrice?: number
+    inStockOnly?: boolean
+    sellerId?: string
+  }): Prisma.ProductWhereInput {
+    const categoryFilter =
+      params.categoryIds && params.categoryIds.length > 0
+        ? { categoryId: { in: params.categoryIds } }
+        : params.categoryId !== undefined
+          ? { categoryId: params.categoryId }
+          : {}
+
+    return {
+      status: 'published',
+      ...categoryFilter,
+      ...(params.sellerId !== undefined ? { sellerId: params.sellerId } : {}),
+      ...(params.minPrice !== undefined || params.maxPrice !== undefined
+        ? {
+            price: {
+              ...(params.minPrice !== undefined ? { gte: params.minPrice } : {}),
+              ...(params.maxPrice !== undefined ? { lte: params.maxPrice } : {}),
+            },
+          }
+        : {}),
+      ...(params.inStockOnly === true ? { stockQuantity: { gt: 0 } } : {}),
+    }
+  }
+
+  async function loadPublishedCandidates(params: {
+    categoryId?: string
+    categoryIds?: string[]
+    minPrice?: number
+    maxPrice?: number
+    inStockOnly?: boolean
+    sellerId?: string
+  }) {
+    return prisma.product.findMany({
+      where: buildPublishedWhere(params),
+      include: {
+        images: {
+          take: 4,
+          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+        },
+        seller: true,
+        category: true,
+      },
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+    })
+  }
+
+  async function enrichPublishedProducts<
+    T extends {
+      id: string
+      sellerId: string
+      categoryId: string | null
+      price: DecimalLike
+      compareAtPrice: DecimalLike | null
+      publishedAt?: Date | null
+      createdAt: Date
+    },
+  >(items: T[]) {
+    const pricedItems = await applyEffectivePricingToProducts(items)
+    const productIds = pricedItems.map((item) => item.id)
+
+    const [favoriteCounts, salesCounts] = productIds.length
+      ? await Promise.all([
+          prisma.favoriteProduct.groupBy({
+            by: ['productId'],
+            where: { productId: { in: productIds } },
+            _count: { productId: true },
+          }),
+          prisma.orderLine.groupBy({
+            by: ['productId'],
+            where: {
+              productId: { in: productIds },
+              order: {
+                status: { in: BEST_SELLER_ORDER_STATUSES },
+              },
+            },
+            _sum: { quantity: true },
+          }),
+        ])
+      : [[], []]
+
+    const favoriteCountMap = new Map(
+      favoriteCounts.map((row) => [row.productId, row._count.productId]),
+    )
+    const salesCountMap = new Map(
+      salesCounts.map((row) => [row.productId, row._sum.quantity ?? 0]),
+    )
+
+    return pricedItems.map((item) => {
+      const currentPrice = item.price.toNumber()
+      const originalPrice = item.compareAtPrice?.toNumber() ?? null
+
+      return {
+        ...item,
+        favoriteCount: favoriteCountMap.get(item.id) ?? 0,
+        salesCount: salesCountMap.get(item.id) ?? 0,
+        isOnSale: originalPrice !== null && originalPrice > currentPrice,
+        rankingDate: item.publishedAt ?? item.createdAt,
+      }
+    })
+  }
+
+  function sortCuratedProducts<
+    T extends {
+      price: DecimalLike
+      favoriteCount: number
+      salesCount: number
+      isOnSale: boolean
+      rankingDate: Date
+      name: string
+    },
+  >(items: T[], sortBy: PublishedCatalogSort) {
+    return [...items].sort((left, right) => {
+      if (sortBy === 'price-asc') return left.price.toNumber() - right.price.toNumber()
+      if (sortBy === 'price-desc') return right.price.toNumber() - left.price.toNumber()
+      if (sortBy === 'favorited') {
+        return (
+          right.favoriteCount - left.favoriteCount ||
+          Number(right.isOnSale) - Number(left.isOnSale) ||
+          right.rankingDate.getTime() - left.rankingDate.getTime() ||
+          left.name.localeCompare(right.name, 'tr')
+        )
+      }
+
+      return (
+        Number(right.isOnSale) - Number(left.isOnSale) ||
+        right.rankingDate.getTime() - left.rankingDate.getTime() ||
+        left.name.localeCompare(right.name, 'tr')
+      )
+    })
+  }
 
   async function applyEffectivePricingToProduct<
     T extends {
@@ -166,6 +317,31 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return applyEffectivePricingToProducts(publishedProducts)
     },
 
+    async listPublishedCurated(params: {
+      categoryId?: string
+      categoryIds?: string[]
+      minPrice?: number
+      maxPrice?: number
+      inStockOnly?: boolean
+      onSaleOnly?: boolean
+      sellerId?: string
+      sortBy?: PublishedCatalogSort
+      skip?: number
+      take?: number
+    }) {
+      const candidates = await loadPublishedCandidates(params)
+      const enriched = await enrichPublishedProducts(candidates)
+      const filtered =
+        params.onSaleOnly === true ? enriched.filter((item) => item.isOnSale) : enriched
+      const sorted = sortCuratedProducts(filtered, params.sortBy ?? 'newest')
+      const start = params.skip ?? 0
+      const end = start + (params.take ?? 20)
+      return {
+        items: sorted.slice(start, end),
+        total: sorted.length,
+      }
+    },
+
     async listPublishedWithCursor(params: {
       sellerId?: string
       categoryId?: string
@@ -223,6 +399,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       careInstructions?: string | null
       price: DecimalLike
       compareAtPrice?: DecimalLike | null
+      fulfillmentDays: number
       stockQuantity: number
       sku?: string | null
       barcode?: string | null
@@ -240,6 +417,10 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         params.compareAtPrice.toNumber() <= params.price.toNumber()
       ) {
         throw new ValidationError('Liste fiyatı satış fiyatından büyük olmalıdır.')
+      }
+
+      if (!Number.isInteger(params.fulfillmentDays) || params.fulfillmentDays < 1) {
+        throw new ValidationError('Sevk suresi en az 1 is gunu olmalidir.')
       }
 
       const slug = await resolveUniqueProductSlug(params.slugOverride ?? params.name)
@@ -267,6 +448,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         careInstructions: params.careInstructions ?? null,
         price: params.price,
         compareAtPrice: params.compareAtPrice ?? null,
+        fulfillmentDays: params.fulfillmentDays,
         stockQuantity: params.stockQuantity,
         sku: params.sku ?? null,
         barcode: params.barcode ?? null,
@@ -292,6 +474,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       careInstructions?: string | null
       price?: DecimalLike
       compareAtPrice?: DecimalLike | null
+      fulfillmentDays?: number
       stockQuantity?: number
       sku?: string | null
       barcode?: string | null
@@ -320,20 +503,48 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         throw new ValidationError('Liste fiyatı satış fiyatından büyük olmalıdır.')
       }
 
+      if (
+        params.fulfillmentDays !== undefined &&
+        (!Number.isInteger(params.fulfillmentDays) || params.fulfillmentDays < 1)
+      ) {
+        throw new ValidationError('Sevk suresi en az 1 is gunu olmalidir.')
+      }
+
       const nextBarcode = params.barcode === undefined ? product.barcode : params.barcode
 
       await ensureUniqueIdentifiers({
         barcode: nextBarcode ?? null,
         excludeProductId: params.productId,
       })
-
-      const moderation = getModerationDecision({
-        name: params.name ?? product.name,
-        description: params.description === undefined ? product.description : params.description,
-        shortDescription: params.shortDescription === undefined ? product.shortDescription : params.shortDescription,
-        story: params.story === undefined ? product.story : params.story,
-        careInstructions: params.careInstructions === undefined ? product.careInstructions : params.careInstructions,
-      })
+      const contentFieldsChanged =
+        params.name !== undefined ||
+        params.description !== undefined ||
+        params.shortDescription !== undefined ||
+        params.story !== undefined ||
+        params.careInstructions !== undefined
+      const moderation = contentFieldsChanged
+        ? getModerationDecision({
+            name: params.name ?? product.name,
+            description: params.description === undefined ? product.description : params.description,
+            shortDescription:
+              params.shortDescription === undefined ? product.shortDescription : params.shortDescription,
+            story: params.story === undefined ? product.story : params.story,
+            careInstructions:
+              params.careInstructions === undefined ? product.careInstructions : params.careInstructions,
+          })
+        : null
+      const nextStatus =
+        moderation === null
+          ? product.status
+          : product.status === 'published'
+            ? 'published'
+            : moderation.status
+      const nextPublishedAt =
+        moderation === null
+          ? product.publishedAt
+          : nextStatus === 'published'
+            ? product.publishedAt ?? new Date()
+            : null
 
       const updated = await prisma.product.update({
         where: { id: params.productId },
@@ -346,19 +557,26 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
           ...(params.careInstructions !== undefined ? { careInstructions: params.careInstructions } : {}),
           ...(params.price !== undefined ? { price: params.price } : {}),
           ...(params.compareAtPrice !== undefined ? { compareAtPrice: params.compareAtPrice } : {}),
+          ...(params.fulfillmentDays !== undefined ? { fulfillmentDays: params.fulfillmentDays } : {}),
           ...(params.stockQuantity !== undefined ? { stockQuantity: params.stockQuantity } : {}),
           ...(params.sku !== undefined ? { sku: params.sku } : {}),
           ...(params.barcode !== undefined ? { barcode: params.barcode } : {}),
           ...(params.weight !== undefined ? { weight: params.weight } : {}),
-          status: moderation.status,
-          moderationFindings: moderation.moderationFindings,
-          rejectionReason: null,
-          rejectedAt: null,
-          publishedAt: moderation.status === 'published' ? product.publishedAt ?? new Date() : null,
+          ...(moderation
+            ? {
+                status: nextStatus,
+                moderationFindings: moderation.moderationFindings,
+                rejectionReason: null,
+                rejectedAt: null,
+                publishedAt: nextPublishedAt,
+              }
+            : {}),
         },
       })
 
-      await syncProductVisibility(updated.id, product.status, updated.status)
+      if (moderation) {
+        await syncProductVisibility(updated.id, product.status, updated.status)
+      }
 
       return updated
     },
@@ -399,6 +617,23 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return updated
     },
 
+    async adminUnlistProduct(id: string) {
+      const product = await products.findById(id)
+      if (!product) throw new NotFoundError('Product', id)
+
+      const updated = await prisma.product.update({
+        where: { id },
+        data: {
+          status: 'unlisted',
+          publishedAt: null,
+        },
+      })
+
+      await syncProductVisibility(id, product.status, 'unlisted')
+
+      return updated
+    },
+
     listProductsForAdmin(params: Parameters<typeof products.listForAdmin>[0]) {
       return products.listForAdmin(params)
     },
@@ -420,6 +655,21 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       await syncProductVisibility(id, product.status, 'rejected')
 
       return updated
+    },
+
+    async deleteProductForAdmin(id: string) {
+      const product = await products.findById(id)
+      if (!product) throw new NotFoundError('Product', id)
+
+      const linkedOrderLineCount = await prisma.orderLine.count({ where: { productId: id } })
+      if (linkedOrderLineCount > 0) {
+        throw new ValidationError('Siparis gecmisi olan urun silinemez. Once yayindan kaldirin.')
+      }
+
+      await prisma.product.delete({ where: { id } })
+      await syncProductVisibility(id, product.status, 'unlisted')
+
+      return { id }
     },
 
     getSellersByCategory(categoryIds: string[]) {
@@ -674,6 +924,35 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
 
       dfs(root.id)
       return leaves
+    },
+
+    async getHomepageFeaturedProducts(
+      groups: Array<{ key: string; categoryIds: string[] }>,
+    ) {
+      const picks: Array<Awaited<ReturnType<typeof enrichPublishedProducts>>[number]> = []
+      const pickedIds = new Set<string>()
+
+      for (const group of groups) {
+        const candidates = await loadPublishedCandidates({ categoryIds: group.categoryIds })
+        const enriched = await enrichPublishedProducts(candidates)
+        const best = [...enriched]
+          .filter((item) => !pickedIds.has(item.id))
+          .sort((left, right) => {
+          return (
+            right.salesCount - left.salesCount ||
+            Number(right.isOnSale) - Number(left.isOnSale) ||
+            right.rankingDate.getTime() - left.rankingDate.getTime() ||
+            left.name.localeCompare(right.name, 'tr')
+          )
+          })[0]
+
+        if (best) {
+          picks.push(best)
+          pickedIds.add(best.id)
+        }
+      }
+
+      return picks
     },
   }
 }

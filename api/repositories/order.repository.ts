@@ -2,6 +2,7 @@ import type { OrderStatus, Prisma, PrismaClient } from '@prisma/client'
 
 const sellerVisibleAddressSelect = {
   fullName: true,
+  phone: true,
   addressLine1: true,
   addressLine2: true,
   district: true,
@@ -44,6 +45,10 @@ export function createOrderRepository(prisma: PrismaClient) {
               },
             },
             orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
+          },
+          returnRequests: {
+            select: { id: true, status: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
           },
         },
       })
@@ -138,6 +143,10 @@ export function createOrderRepository(prisma: PrismaClient) {
             },
             orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
           },
+          returnRequests: {
+            select: { id: true, status: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+          },
         },
         orderBy: { createdAt: 'desc' },
         ...(params.skip !== undefined ? { skip: params.skip } : {}),
@@ -148,6 +157,7 @@ export function createOrderRepository(prisma: PrismaClient) {
     /** Seller queue — payment-confirmed orders only */
     listForSellerQueue(params: {
       sellerId: string
+      orderIds?: string[]
       status?: OrderStatus[]
       query?: string
       from?: Date
@@ -181,6 +191,7 @@ export function createOrderRepository(prisma: PrismaClient) {
 
       return prisma.order.findMany({
         where: {
+          ...(params.orderIds !== undefined ? { id: { in: params.orderIds } } : {}),
           lines: { some: { sellerId: params.sellerId } },
           ...(params.missingInvoice ? { sellerInvoices: { none: { sellerId: params.sellerId } } } : {}),
           status: { in: sellerVisibleStatuses },
@@ -225,6 +236,7 @@ export function createOrderRepository(prisma: PrismaClient) {
 
     countForSellerQueue(params: {
       sellerId: string
+      orderIds?: string[]
       status?: OrderStatus[]
       query?: string
       from?: Date
@@ -244,6 +256,7 @@ export function createOrderRepository(prisma: PrismaClient) {
 
       return prisma.order.count({
         where: {
+          ...(params.orderIds !== undefined ? { id: { in: params.orderIds } } : {}),
           lines: { some: { sellerId: params.sellerId } },
           ...(params.missingInvoice ? { sellerInvoices: { none: { sellerId: params.sellerId } } } : {}),
           ...(params.status !== undefined ? { status: { in: params.status } } : {}),
@@ -362,7 +375,19 @@ export function createOrderRepository(prisma: PrismaClient) {
               where: { type: 'commission' },
               orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
             },
-            fulfillmentRisk: true,
+            fulfillmentRisks: {
+              where: { status: { in: ['warning', 'breached'] } },
+              orderBy: [{ status: 'asc' }, { deadlineAt: 'asc' }],
+              include: {
+                orderLine: {
+                  select: {
+                    id: true,
+                    productName: true,
+                    quantity: true,
+                  },
+                },
+              },
+            },
             customer: {
               select: {
                 id: true,

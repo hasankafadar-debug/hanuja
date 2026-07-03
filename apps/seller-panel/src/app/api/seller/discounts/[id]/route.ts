@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createDiscountService } from '@hanuja/api/services/discount.service'
+import { createStoreFollowService } from '@hanuja/api/services/store-follow.service'
 import { auth } from '@/lib/auth'
 
 const updateDiscountRuleSchema = z.object({
@@ -63,7 +64,8 @@ export async function PATCH(
   }
 
   try {
-    const service = createDiscountService({ prisma: createPrismaForRoute() })
+    const prisma = createPrismaForRoute()
+    const service = createDiscountService({ prisma })
     const updateInput = {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.scope !== undefined ? { scope: parsed.data.scope } : {}),
@@ -80,6 +82,16 @@ export async function PATCH(
         : {}),
     }
     const rule = await service.updateRule(seller.id, id, updateInput)
+
+    if (rule?.status === 'ACTIVE') {
+      await createStoreFollowService({ prisma }).notifyFollowersAboutDiscount({
+        sellerId: seller.id,
+        sellerName: seller.displayName,
+        sellerSlug: seller.slug,
+        discountRuleId: rule.id,
+        discountFingerprint: `${rule.id}:${rule.updatedAt.toISOString()}`,
+      })
+    }
 
     return NextResponse.json({ rule })
   } catch (error) {

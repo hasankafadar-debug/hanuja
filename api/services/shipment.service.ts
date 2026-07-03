@@ -149,6 +149,7 @@ export function createShipmentService({ prisma }: ShipmentServiceDeps) {
           order: {
             select: {
               id: true,
+              publicNumber: true,
               status: true,
               totalAmount: true,
               createdAt: true,

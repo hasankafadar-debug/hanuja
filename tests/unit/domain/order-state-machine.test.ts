@@ -220,7 +220,8 @@ describe('isTerminal', () => {
   const terminals: OrderStatus[] = [
     OrderStatus.payment_cancelled,
     OrderStatus.refund_completed,
-    OrderStatus.return_rejected,
+    // return_rejected is NO LONGER terminal — it escalates to dispute_open
+    // (seller-driven return flow, 2026-05-15).
     OrderStatus.dispute_resolved,
     OrderStatus.cancelled_by_customer,
     OrderStatus.cancelled_by_admin,
@@ -241,6 +242,10 @@ describe('isTerminal', () => {
 
   it('draft is NOT terminal', () => {
     expect(isTerminal(OrderStatus.draft)).toBe(false)
+  })
+
+  it('return_rejected is NOT terminal — escalates to dispute_open', () => {
+    expect(isTerminal(OrderStatus.return_rejected)).toBe(false)
   })
 })
 

@@ -127,8 +127,8 @@ export default function FavoritesPage() {
   return (
     <div>
       <h1
-        className="mb-2 text-xl font-bold"
-        style={{ color: 'var(--color-primary)', fontFamily: 'var(--font-display)' }}
+        className="mb-2 text-xl font-medium"
+        style={{ color: '#3d3529', fontFamily: 'var(--font-display)' }}
       >
         Favorilerim
       </h1>

@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { Button, StatusBadge, PageHeader } from '@hanuja/ui'
+import { Button, StatusBadge, PageHeader, normalizeMediaDisplayUrl } from '@hanuja/ui'
 import { ArrowLeft, MessageSquare, AlertTriangle } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { DisputeResolveForm } from './_components/dispute-resolve-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,12 +32,20 @@ export default async function DisputeDetailPage({
         },
       },
       messages: { orderBy: { createdAt: 'asc' } },
+      escalatedFromReturn: {
+        include: {
+          messages: {
+            orderBy: { createdAt: 'asc' },
+            include: { attachments: true },
+          },
+          evidence: true,
+        },
+      },
     },
   })
 
   if (!dispute) notFound()
 
-  // Resolve seller display name
   const sellerId = dispute.order?.lines[0]?.sellerId
   let sellerName = '—'
   if (sellerId) {
@@ -43,6 +53,7 @@ export default async function DisputeDetailPage({
     sellerName = seller?.displayName ?? '—'
   }
   const customerName = dispute.order?.customer?.name ?? '—'
+  const rr = dispute.escalatedFromReturn
 
   const fmt = (d: Date) =>
     d.toLocaleString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -52,12 +63,30 @@ export default async function DisputeDetailPage({
     seller: 'var(--color-success)',
     admin: 'var(--color-warning)',
   }
-
   const roleLabels: Record<string, string> = {
     customer: 'Müşteri',
     seller: 'Satıcı',
     admin: 'Admin',
   }
+
+  // Eskale edilen iade varsa konuşma return thread'inde tutulur
+  const thread = rr
+    ? rr.messages.map((m) => ({
+        id: m.id,
+        authorRole: m.authorRole as string,
+        body: m.body,
+        createdAt: m.createdAt,
+        attachments: m.attachments.map((a) => ({ id: a.id, url: a.url })),
+      }))
+    : dispute.messages.map((m) => ({
+        id: m.id,
+        authorRole: m.authorRole as string,
+        body: m.body,
+        createdAt: m.createdAt,
+        attachments: [] as { id: string; url: string }[],
+      }))
+
+  const canResolve = dispute.status === 'open' || dispute.status === 'under_review'
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -71,7 +100,6 @@ export default async function DisputeDetailPage({
         <PageHeader title="Uyuşmazlık" description={dispute.reason} />
       </div>
 
-      {/* Durum Kartı */}
       <div
         className="rounded-xl border p-5 space-y-3"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
@@ -113,7 +141,7 @@ export default async function DisputeDetailPage({
           </div>
           {dispute.resolution && (
             <div>
-              <span className="text-xs uppercase tracking-wide" style={{ color: 'var(--color-muted-fg)' }}>Çözüm</span>
+              <span className="text-xs uppercase tracking-wide" style={{ color: 'var(--color-muted-fg)' }}>Sonuç</span>
               <p className="text-sm" style={{ color: 'var(--color-primary)' }}>{dispute.resolution}</p>
             </div>
           )}
@@ -129,7 +157,47 @@ export default async function DisputeDetailPage({
         )}
       </div>
 
-      {/* Mesajlar */}
+      {rr ? (
+        <div
+          className="rounded-xl border p-5 space-y-3 text-sm"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <p className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+            İade Bilgisi (#{rr.id.slice(-8).toUpperCase()})
+          </p>
+          <p style={{ color: 'var(--color-muted-fg)' }}>
+            <strong style={{ color: 'var(--color-primary)' }}>Müşteri sebebi:</strong> {rr.reason}
+          </p>
+          {rr.description ? <p style={{ color: 'var(--color-muted-fg)' }}>{rr.description}</p> : null}
+          {rr.returnCargoProvider || rr.returnTrackingNumber ? (
+            <p style={{ color: 'var(--color-muted-fg)' }}>
+              <strong style={{ color: 'var(--color-primary)' }}>Müşteri iade kargosu:</strong>{' '}
+              {rr.returnCargoProvider} {rr.returnTrackingNumber}
+            </p>
+          ) : null}
+          {rr.sellerRejectReason ? (
+            <div
+              className="rounded-lg p-3"
+              style={{ backgroundColor: '#fef2f2', color: '#dc2626' }}
+            >
+              <strong>Satıcı red sebebi:</strong> {rr.sellerRejectReason}
+              {rr.sellerRejectDescription ? <p className="mt-1">{rr.sellerRejectDescription}</p> : null}
+            </div>
+          ) : null}
+          {rr.evidence.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {rr.evidence.map((e) => (
+                <a key={e.id} href={e.url} target="_blank" rel="noreferrer">
+                  <span className="relative block h-16 w-16 overflow-hidden rounded border" style={{ borderColor: 'var(--color-border)' }}>
+                    <Image src={normalizeMediaDisplayUrl(e.url)} alt="Kanıt" fill className="object-cover" />
+                  </span>
+                </a>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div
         className="rounded-xl border"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
@@ -137,14 +205,14 @@ export default async function DisputeDetailPage({
         <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
           <MessageSquare className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
           <span className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-            Mesajlar ({dispute.messages.length})
+            Yazışma ({thread.length})
           </span>
         </div>
-        {dispute.messages.length === 0 && (
+        {thread.length === 0 && (
           <p className="px-5 py-4 text-sm" style={{ color: 'var(--color-muted-fg)' }}>Henüz mesaj yok.</p>
         )}
         <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-          {dispute.messages.map((msg) => (
+          {thread.map((msg) => (
             <div key={msg.id} className="px-5 py-4 space-y-1">
               <div className="flex items-center justify-between">
                 <span
@@ -160,45 +228,27 @@ export default async function DisputeDetailPage({
               <p className="text-sm" style={{ color: 'var(--color-primary)' }}>
                 {msg.body}
               </p>
+              {msg.attachments.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {msg.attachments.map((a) => (
+                    <a key={a.id} href={a.url} target="_blank" rel="noreferrer">
+                      <span className="relative block h-14 w-14 overflow-hidden rounded border" style={{ borderColor: 'var(--color-border)' }}>
+                        <Image src={normalizeMediaDisplayUrl(a.url)} alt="Ek" fill className="object-cover" />
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Admin Çözüm Aksiyonları */}
-      {(dispute.status === 'open' || dispute.status === 'under_review') && (
-        <div
-          className="rounded-xl border p-5 space-y-4"
-          style={{ borderColor: 'var(--color-warning)', backgroundColor: '#fffbeb' }}
-        >
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" style={{ color: 'var(--color-warning)' }} />
-            <span className="text-sm font-semibold" style={{ color: '#92400e' }}>
-              Uyuşmazlığı Çöz
-            </span>
-          </div>
-          <p className="text-xs" style={{ color: '#92400e' }}>
-            Bu işlem geri alınamaz. Müşteri lehine çözümde ödeme iadesi başlatılır ve hakediş kalıcı bloke edilir.
-            Satıcı lehine çözümde hakediş serbest kalır.
-          </p>
-          <div className="flex items-center gap-3">
-            <form action={`/api/admin/disputes/${id}/resolve`} method="POST">
-              <input type="hidden" name="resolutionType" value="resolved_for_customer" />
-              <input type="hidden" name="resolution" value="Admin kararıyla müşteri lehine çözüldü" />
-              <Button type="submit" size="sm" variant="destructive">
-                Müşteri Lehine Çöz
-              </Button>
-            </form>
-            <form action={`/api/admin/disputes/${id}/resolve`} method="POST">
-              <input type="hidden" name="resolutionType" value="resolved_for_seller" />
-              <input type="hidden" name="resolution" value="Admin kararıyla satıcı lehine çözüldü" />
-              <Button type="submit" size="sm" variant="outline">
-                Satıcı Lehine Çöz
-              </Button>
-            </form>
-          </div>
-        </div>
-      )}
+      <DisputeResolveForm
+        disputeId={dispute.id}
+        returnRequestId={rr?.id ?? null}
+        canResolve={canResolve}
+      />
     </div>
   )
 }

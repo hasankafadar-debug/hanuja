@@ -24,3 +24,13 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Dev/test artifacts
+*.log
+output/
+test-results/
+tests/test-results/
+playwright-report/
+tests/playwright-report/
+.playwright-cli/
+.codex/

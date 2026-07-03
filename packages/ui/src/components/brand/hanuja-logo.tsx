@@ -10,26 +10,28 @@ function HanujaSymbol({ scale = 1, fg, ac }: SymbolProps) {
   const s = scale
   return (
     <svg width={44 * s} height={44 * s} viewBox="0 0 44 44" fill="none" aria-hidden="true">
-      {/* büyük blok — sol üst */}
+      {/* buyuk blok - sol ust */}
       <rect x="2" y="2" width="22" height="14" fill={fg} opacity="0.92" />
-      {/* küçük kare — sağ üst */}
+      {/* kucuk kare - sag ust */}
       <rect x="28" y="2" width="14" height="14" fill="none" stroke={fg} strokeWidth="1.4" />
-      {/* ince yatay şerit — sol alt, accent rengi */}
+      {/* ince yatay serit - sol alt, accent rengi */}
       <rect x="2" y="22" width="14" height="5" fill={ac} />
-      {/* orta boy blok — sağ alt */}
+      {/* orta boy blok - sag alt */}
       <rect x="20" y="20" width="22" height="22" fill="none" stroke={fg} strokeWidth="1.4" />
-      {/* küçük nokta aksan — sol en alt */}
+      {/* kucuk nokta aksan - sol en alt */}
       <rect x="2" y="32" width="8" height="10" fill={fg} opacity="0.35" />
     </svg>
   )
 }
 
 export interface HanujaLogoProps {
-  /** Ölçek çarpanı (default 1) */
+  /** Olcek carpani (default 1) */
   scale?: number
-  /** Zemin türü — logo rengini belirler */
+  /** Sadece metin blogu icin ayri olcek carpani */
+  textScale?: number
+  /** Zemin turu - logo rengini belirler */
   variant?: 'light' | 'dark'
-  /** Sadece sembol — favicon, mobil header */
+  /** Sadece sembol - favicon, mobil header */
   compact?: boolean
   className?: string
 }
@@ -37,12 +39,13 @@ export interface HanujaLogoProps {
 /**
  * Hanuja marka logosu.
  *
- * CSS custom property'lerinden renk okur; brand swap otomatik çalışır.
- * variant='dark' → krem üstüne koyu zemin (header, footer dark bölge).
- * variant='light' → koyu üstüne açık zemin (varsayılan).
+ * CSS custom property'lerinden renk okur; brand swap otomatik calisir.
+ * variant='dark' -> krem ustune koyu zemin (header, footer dark bolge).
+ * variant='light' -> koyu ustune acik zemin (varsayilan).
  */
 export function HanujaLogo({
   scale = 1,
+  textScale = 1,
   variant = 'light',
   compact = false,
   className,
@@ -50,6 +53,11 @@ export function HanujaLogo({
   const fg = variant === 'dark' ? 'var(--color-primary-fg)' : 'var(--color-primary)'
   const ac = 'var(--color-accent)'
   const taglineColor = variant === 'dark' ? ac : 'var(--color-secondary)'
+  const textGap = 4 * scale * textScale
+  const wordmarkFontSize = 26 * scale * textScale
+  const wordmarkLetterSpacing = 9 * scale * textScale
+  const taglineFontSize = 7.5 * scale * textScale
+  const taglineLetterSpacing = 4 * scale * textScale
 
   if (compact) {
     return (
@@ -66,15 +74,13 @@ export function HanujaLogo({
       aria-label="Hanuja"
     >
       <HanujaSymbol scale={scale} fg={fg} ac={ac} />
-      <span
-        style={{ display: 'flex', flexDirection: 'column', gap: 4 * scale, alignItems: 'center' }}
-      >
+      <span style={{ display: 'flex', flexDirection: 'column', gap: textGap, alignItems: 'center' }}>
         <span
           style={{
             fontFamily: 'var(--font-sans)',
             fontWeight: 200,
-            fontSize: 26 * scale,
-            letterSpacing: 9 * scale,
+            fontSize: wordmarkFontSize,
+            letterSpacing: wordmarkLetterSpacing,
             color: fg,
             lineHeight: 1,
             textTransform: 'uppercase',
@@ -86,8 +92,8 @@ export function HanujaLogo({
           style={{
             fontFamily: 'var(--font-body, var(--font-sans))',
             fontWeight: 300,
-            fontSize: 7.5 * scale,
-            letterSpacing: 4 * scale,
+            fontSize: taglineFontSize,
+            letterSpacing: taglineLetterSpacing,
             color: taglineColor,
             textTransform: 'uppercase',
           }}

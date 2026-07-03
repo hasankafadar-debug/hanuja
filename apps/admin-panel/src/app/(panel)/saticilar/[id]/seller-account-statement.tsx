@@ -15,10 +15,11 @@ interface Props {
 }
 
 function formatCurrency(value: number) {
-  return `₺${value.toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
+  const formatted = value.toLocaleString('tr-TR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+  return `${formatted} TL`
 }
 
 export function SellerAccountStatement({ from, fromInput, toInput, exportHref, statement }: Props) {

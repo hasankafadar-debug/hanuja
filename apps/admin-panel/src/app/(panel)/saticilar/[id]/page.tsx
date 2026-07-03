@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { maskIban } from '@hanuja/security'
+import { maskIban, formatMoney } from '@hanuja/security'
 import { createSellerFinanceService } from '@hanuja/api/services/seller-finance.service'
 import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 import { SellerAdminActions } from '@/components/seller-admin-actions'
@@ -196,15 +196,15 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
           { label: 'Toplam Sipariş', value: totalOrders },
           {
             label: 'Bekleyen Hakediş',
-            value: pendingPayout > 0 ? `₺${pendingPayout.toLocaleString('tr-TR')}` : '—',
+            value: pendingPayout > 0 ? formatMoney(pendingPayout) : '—',
           },
           {
             label: 'Toplam Ödenen',
-            value: paidPayout > 0 ? `₺${paidPayout.toLocaleString('tr-TR')}` : '—',
+            value: paidPayout > 0 ? formatMoney(paidPayout) : '—',
           },
           {
             label: 'Toplam Ceza',
-            value: penaltyTotal > 0 ? `₺${penaltyTotal.toLocaleString('tr-TR')}` : '—',
+            value: penaltyTotal > 0 ? formatMoney(penaltyTotal) : '—',
           },
         ].map((stat) => (
           <div
@@ -468,36 +468,32 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
               {[
                 {
                   label: 'Toplam Komisyon Kesintisi',
-                  value: `-₺${commissionTotal.toLocaleString('tr-TR')}`,
+                  value: `-${formatMoney(commissionTotal)}`,
                   danger: commissionTotal > 0,
                 },
                 {
                   label: 'Toplam Ceza Kesintisi',
-                  value: penaltyTotal > 0 ? `-₺${penaltyTotal.toLocaleString('tr-TR')}` : '—',
+                  value: penaltyTotal > 0 ? `-${formatMoney(penaltyTotal)}` : '—',
                   danger: penaltyTotal > 0,
                 },
                 {
                   label: 'Beklemede (Hold + Bloke)',
-                  value: pendingPayout > 0 ? `₺${pendingPayout.toLocaleString('tr-TR')}` : '—',
+                  value: pendingPayout > 0 ? formatMoney(pendingPayout) : '—',
                   danger: false,
                 },
                 {
                   label: 'Ödenmeye Hazır',
-                  value: readyPayout > 0 ? `₺${readyPayout.toLocaleString('tr-TR')}` : '—',
+                  value: readyPayout > 0 ? formatMoney(readyPayout) : '—',
                   danger: false,
                 },
                 {
                   label: 'Ödenen Hakediş',
-                  value: paidPayout > 0 ? `₺${paidPayout.toLocaleString('tr-TR')}` : '—',
+                  value: paidPayout > 0 ? formatMoney(paidPayout) : '—',
                   danger: false,
                 },
                 {
                   label: 'Ledger Bakiyesi',
-                  value: isNegativeBalance
-                    ? `-₺${Math.abs(ledgerBalance).toLocaleString('tr-TR')}`
-                    : ledgerBalance > 0
-                      ? `₺${ledgerBalance.toLocaleString('tr-TR')}`
-                      : '₺0',
+                  value: formatMoney(ledgerBalance),
                   danger: isNegativeBalance,
                 },
               ].map(({ label, value, danger }) => (
@@ -569,7 +565,7 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                           className="px-4 py-3 font-medium"
                           style={{ color: 'var(--color-destructive)' }}
                         >
-                          ₺{amount.toLocaleString('tr-TR')}
+                          {formatMoney(amount)}
                         </td>
                         <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
                           {penalty.reason}

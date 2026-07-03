@@ -20,6 +20,7 @@ export const metadata: Metadata = {
 
 interface CategoryRow {
   id: string
+  slug: string
   name: string
   parentId: string | null
 }

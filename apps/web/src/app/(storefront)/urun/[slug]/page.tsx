@@ -10,14 +10,14 @@ import {
   TabsContent,
   normalizeMediaDisplayUrl,
 } from '@hanuja/ui'
-import { RotateCcw, Shield } from 'lucide-react'
+import { BadgePercent, RotateCcw, Shield, Truck } from 'lucide-react'
+import { formatMoney } from '@hanuja/security'
 import {
   buildProductMetadata,
   buildProductStructuredData,
   buildBreadcrumbStructuredData,
   JsonLd,
 } from '@hanuja/seo'
-import { cache } from 'react'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { createProductReviewService } from '@hanuja/api/services/product-review.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
@@ -27,6 +27,8 @@ import { ReviewStars } from './_components/review-stars'
 import { ReviewList } from './_components/review-list'
 import ReviewForm from './_components/review-form'
 import ProductGallery from './_components/product-gallery'
+import { StoreFollowButton } from './_components/store-follow-button'
+import { ProductViewTracker } from './_components/product-view-tracker'
 
 export const revalidate = 300
 
@@ -34,7 +36,7 @@ interface Props {
   params: Promise<{ slug: string }>
 }
 
-const getProduct = cache(async (slug: string) => {
+async function getProduct(slug: string) {
   try {
     const svc = createCatalogService({ prisma: createPrismaForRoute() })
     return await svc.getProductBySlug(slug)
@@ -42,7 +44,47 @@ const getProduct = cache(async (slug: string) => {
     if (err instanceof NotFoundError) return null
     throw err
   }
-})
+}
+
+async function getVisualSiblings(params: { sellerId: string; sku: string }) {
+  const prisma = createPrismaForRoute()
+  return prisma.product.findMany({
+    where: {
+      sellerId: params.sellerId,
+      sku: params.sku,
+      status: 'published',
+    },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      attributeValues: {
+        select: {
+          option: {
+            select: { type: true, label: true, hexColor: true },
+          },
+        },
+      },
+    },
+    orderBy: [{ createdAt: 'asc' }, { name: 'asc' }],
+  })
+}
+
+function getAttributeLabel(
+  attributeValues: Array<{ option?: { type?: string; label?: string; hexColor?: string | null } }> | undefined,
+  type: 'color' | 'material',
+) {
+  return attributeValues?.find((attribute) => attribute.option?.type === type)?.option ?? null
+}
+
+function buildVisualOptionLabel(
+  attributeValues: Array<{ option?: { type?: string; label?: string; hexColor?: string | null } }> | undefined,
+  fallback: string,
+) {
+  const color = getAttributeLabel(attributeValues, 'color')?.label
+  const material = getAttributeLabel(attributeValues, 'material')?.label
+  return [color, material].filter(Boolean).join(' / ') || fallback
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
@@ -63,6 +105,11 @@ export default async function ProductDetailPage({ params }: Props) {
   const product = await getProduct(slug)
 
   if (!product) notFound()
+
+  const fulfillmentText =
+    typeof product.fulfillmentDays === 'number'
+      ? `Sevk Süresi: ${product.fulfillmentDays} iş günü`
+      : null
 
   const seller = product.seller as { displayName: string; slug: string } | null
   const category = product.category as { name: string; slug: string } | null
@@ -99,6 +146,17 @@ export default async function ProductDetailPage({ params }: Props) {
 
   const price = Number(product.price)
   const compareAtPrice = product.compareAtPrice ? Number(product.compareAtPrice) : null
+  const colorValue =
+    (product.attributeValues as Array<{ option?: { type?: string; label?: string } }> | undefined)?.find(
+      (attribute) => attribute.option?.type === 'color',
+    )?.option?.label ?? null
+  const materialValue =
+    (product.attributeValues as Array<{ option?: { type?: string; label?: string } }> | undefined)?.find(
+      (attribute) => attribute.option?.type === 'material',
+    )?.option?.label ?? null
+  const visualSiblings = product.sku?.trim()
+    ? await getVisualSiblings({ sellerId: product.sellerId, sku: product.sku.trim() })
+    : []
   const story = product.story?.trim()
   const careInstructions = product.careInstructions?.trim()
   const hasSpecs = Boolean(category) || typeof product.stockQuantity === 'number'
@@ -131,6 +189,7 @@ export default async function ProductDetailPage({ params }: Props) {
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <JsonLd data={productJsonLd} />
       <JsonLd data={breadcrumbJsonLd} />
+      <ProductViewTracker slug={slug} />
       <Breadcrumb items={breadcrumbItems} className="mb-6" />
 
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
@@ -147,15 +206,18 @@ export default async function ProductDetailPage({ params }: Props) {
         <div className="flex flex-col gap-6">
           <div>
             {seller?.slug && (
-              <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                <Link
-                  href={`/magaza/${seller.slug}`}
-                  className="hover:underline"
-                  style={{ color: 'var(--color-accent)' }}
-                >
-                  {seller.displayName}
-                </Link>
-              </p>
+              <div className="flex flex-wrap items-center gap-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                <p>
+                  <Link
+                    href={`/magaza/${seller.slug}`}
+                    className="hover:underline"
+                    style={{ color: 'var(--color-accent)' }}
+                  >
+                    {seller.displayName}
+                  </Link>
+                </p>
+                <StoreFollowButton sellerId={product.sellerId} />
+              </div>
             )}
             <h1
               className="mt-1 text-2xl font-semibold leading-snug"
@@ -184,14 +246,20 @@ export default async function ProductDetailPage({ params }: Props) {
             <>
               <div className="flex items-baseline gap-3">
                 <span className="text-3xl font-bold" style={{ color: 'var(--color-primary)' }}>
-                  ₺{price.toLocaleString('tr-TR')}
+                  {formatMoney(price)}
                 </span>
                 {compareAtPrice && compareAtPrice > price && (
                   <span className="text-sm line-through" style={{ color: 'var(--color-muted-fg)' }}>
-                    ₺{compareAtPrice.toLocaleString('tr-TR')}
+                    {formatMoney(compareAtPrice)}
                   </span>
                 )}
               </div>
+              {(colorValue || materialValue) && (
+                <div className="mt-2 flex flex-wrap gap-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                  {colorValue ? <span><strong>Renk:</strong> {colorValue}</span> : null}
+                  {materialValue ? <span><strong>Materyal:</strong> {materialValue}</span> : null}
+                </div>
+              )}
 
               <Separator />
 
@@ -206,6 +274,7 @@ export default async function ProductDetailPage({ params }: Props) {
                   />
                   {(product.stockQuantity ?? 0) > 0 ? `Stokta (${product.stockQuantity} adet)` : 'Stokta yok'}
                 </span>
+                {fulfillmentText ? <span>{fulfillmentText}</span> : null}
               </div>
             </>
           )}
@@ -215,13 +284,52 @@ export default async function ProductDetailPage({ params }: Props) {
             productId={product.id}
             productName={product.name}
             basePrice={price}
+            compareAtPrice={compareAtPrice}
+            fulfillmentDays={typeof product.fulfillmentDays === 'number' ? product.fulfillmentDays : null}
             stock={product.stockQuantity}
             variants={variants}
           />
 
+          {visualSiblings.length > 1 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                Renk / Materyal
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {visualSiblings.map((sibling) => {
+                  const isCurrent = sibling.id === product.id
+                  const color = getAttributeLabel(sibling.attributeValues, 'color')
+                  const label = buildVisualOptionLabel(sibling.attributeValues, sibling.name)
+
+                  return (
+                    <Link
+                      key={sibling.id}
+                      href={`/urun/${sibling.slug}`}
+                      aria-current={isCurrent ? 'page' : undefined}
+                      className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
+                      style={{
+                        borderColor: isCurrent ? 'var(--color-primary)' : 'var(--color-border)',
+                        backgroundColor: isCurrent ? 'var(--color-muted)' : 'var(--color-surface)',
+                        color: 'var(--color-primary)',
+                      }}
+                    >
+                      {color?.hexColor ? (
+                        <span
+                          className="inline-block h-3 w-3 rounded-full border"
+                          style={{ backgroundColor: color.hexColor, borderColor: 'var(--color-border)' }}
+                        />
+                      ) : null}
+                      {label}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
+
           {/* Trust badges */}
           <div
-            className="grid grid-cols-2 gap-3 rounded-xl p-4 text-center text-xs"
+            className="grid grid-cols-2 gap-3 rounded-xl p-4 text-center text-xs md:grid-cols-4"
             style={{ backgroundColor: 'var(--color-muted)' }}
           >
             <div className="flex flex-col items-center gap-1" style={{ color: 'var(--color-muted-fg)' }}>
@@ -231,6 +339,14 @@ export default async function ProductDetailPage({ params }: Props) {
             <div className="flex flex-col items-center gap-1" style={{ color: 'var(--color-muted-fg)' }}>
               <Shield className="h-5 w-5" />
               <span>Güvenli Ödeme</span>
+            </div>
+            <div className="flex flex-col items-center gap-1" style={{ color: 'var(--color-muted-fg)' }}>
+              <BadgePercent className="h-5 w-5" />
+              <span>En İyi Fiyat Garantisi</span>
+            </div>
+            <div className="flex flex-col items-center gap-1" style={{ color: 'var(--color-muted-fg)' }}>
+              <Truck className="h-5 w-5" />
+              <span>Ücretsiz Kargo</span>
             </div>
           </div>
         </div>

@@ -46,10 +46,10 @@ export async function getCustomerOrder(orderId: string, customerId: string) {
 }
 
 // POST /api/orders/:id/cancel — customer pre-shipment cancel
-export async function cancelOrderAsCustomer(orderId: string, customerId: string) {
+export async function cancelOrderAsCustomer(orderId: string, customerId: string, reason?: string) {
   try {
     const svc = getOrderService()
-    await svc.customerCancel({ orderId, customerId })
+    await svc.customerCancel({ orderId, customerId, ...(reason !== undefined ? { reason } : {}) })
     return ok({ cancelled: true })
   } catch (err) {
     return handleError(err)

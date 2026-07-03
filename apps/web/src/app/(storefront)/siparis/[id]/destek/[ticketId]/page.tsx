@@ -143,7 +143,7 @@ export default async function TicketDetailPage({ params }: Props) {
       <div className="mb-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold" style={{ color: 'var(--color-primary)' }}>
+            <h1 className="text-xl font-medium" style={{ color: '#3d3529' }}>
               {ticket.subject}
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm" style={{ color: 'var(--color-muted-fg)' }}>

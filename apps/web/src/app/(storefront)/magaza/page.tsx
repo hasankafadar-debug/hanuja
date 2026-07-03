@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Store } from 'lucide-react'
-import { Breadcrumb } from '@hanuja/ui'
+import { Breadcrumb, normalizeMediaDisplayUrl } from '@hanuja/ui'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createSellerRepository } from '@hanuja/api/repositories/seller.repository'
 
@@ -29,7 +29,7 @@ export default async function StoresPage() {
       <div className="mb-8 flex items-center gap-3">
         <Store className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>
+          <h1 className="text-2xl font-medium" style={{ color: '#3d3529' }}>
             Mağazalar
           </h1>
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
@@ -45,7 +45,9 @@ export default async function StoresPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sellers.map((seller) => {
-            const logoUrl = seller.profile?.logoUrl ?? null
+            const logoUrl = seller.profile?.logoUrl
+              ? normalizeMediaDisplayUrl(seller.profile.logoUrl)
+              : null
             return (
               <Link
                 key={seller.id}
@@ -61,7 +63,7 @@ export default async function StoresPage() {
                     className="flex h-14 w-14 items-center justify-center rounded-2xl text-lg font-semibold text-white"
                     style={{
                       backgroundColor: logoUrl ? undefined : 'var(--color-accent)',
-                      backgroundImage: logoUrl ? `url(${logoUrl})` : undefined,
+                      backgroundImage: logoUrl ? `url("${logoUrl}")` : undefined,
                       backgroundSize: 'cover',
                       backgroundPosition: 'center',
                     }}

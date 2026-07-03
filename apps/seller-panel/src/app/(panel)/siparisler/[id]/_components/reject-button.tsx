@@ -33,22 +33,22 @@ export default function RejectButton({ orderId }: { orderId: string }) {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setError(data.error ?? 'Bir hata olustu.')
+        setError(data.error ?? 'Bir hata oluştu.')
         setLoading(false)
       } else {
         router.push('/siparisler')
         router.refresh()
       }
     } catch {
-      setError('Baglanti hatasi.')
+      setError('Bağlantı hatası.')
       setLoading(false)
     }
   }
 
   return (
-    <div className={open ? 'w-full md:col-span-2' : 'flex w-full md:justify-end'}>
+    <div className={open ? 'w-full md:col-span-2' : 'w-full'}>
       {!open ? (
-        <Button variant="destructive" onClick={() => setOpen(true)}>
+        <Button variant="destructive" className="w-full" onClick={() => setOpen(true)}>
           Siparişi İptal Et
         </Button>
       ) : (
@@ -66,7 +66,7 @@ export default function RejectButton({ orderId }: { orderId: string }) {
             Siparişi İptal Et
           </p>
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Sipariş iptal edilirse ürün tutarının %20'si oranında ceza uygulanır. Devam etmek istiyor musunuz?
+            Sipariş iptal edilirse ürün tutarının %20&apos;si oranında ceza uygulanır. Devam etmek istiyor musunuz?
           </p>
           <label htmlFor="rejection-reason" className="sr-only">
             Sebep
@@ -82,7 +82,7 @@ export default function RejectButton({ orderId }: { orderId: string }) {
               color: 'var(--color-primary)',
             }}
           >
-            <option value="">- Sebep secin -</option>
+            <option value="">- Sebep seçin -</option>
             {REJECTION_REASONS.map((entry) => (
               <option key={entry} value={entry}>
                 {entry}

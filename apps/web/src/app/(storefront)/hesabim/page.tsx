@@ -70,8 +70,8 @@ export default function AccountProfilePage() {
   return (
     <div>
       <h1
-        className="mb-6 text-xl font-bold"
-        style={{ color: 'var(--color-primary)', fontFamily: 'var(--font-display)' }}
+        className="mb-6 text-xl font-medium"
+        style={{ color: '#3d3529', fontFamily: 'var(--font-display)' }}
       >
         Profil Bilgilerim
       </h1>

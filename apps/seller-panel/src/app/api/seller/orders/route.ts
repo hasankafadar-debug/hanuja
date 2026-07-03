@@ -34,10 +34,10 @@ function buildOrderCsv(rows: Array<{
       year: 'numeric',
     }).format(date)
   const formatAmount = (value: number) =>
-    new Intl.NumberFormat('tr-TR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value)
+    `${new Intl.NumberFormat('tr-TR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value)} TL`
   const escape = (value: string) => `"${value.replace(/"/g, '""')}"`
 
   const header = ['Siparis No', 'Tarih', 'Musteri', 'Durum', 'Urunler', 'Toplam']

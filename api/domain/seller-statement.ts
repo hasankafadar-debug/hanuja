@@ -39,6 +39,10 @@ export function getSellerStatementTopic(type: LedgerEntryType): string {
       return 'Uyuşmazlık Blokesi'
     case 'dispute_release':
       return 'Uyuşmazlık Çözümü'
+    case 'commission_invoice_issued':
+      return 'Komisyon Faturası'
+    case 'penalty_invoice_issued':
+      return 'Ceza Faturası'
   }
 }
 
@@ -70,5 +74,9 @@ export function getSellerStatementDescription(type: LedgerEntryType): string {
       return 'Uyuşmazlık nedeniyle geçici bloke'
     case 'dispute_release':
       return 'Uyuşmazlık blokesi kaldırıldı'
+    case 'commission_invoice_issued':
+      return 'Komisyon faturası kesildi'
+    case 'penalty_invoice_issued':
+      return 'Ceza faturası kesildi'
   }
 }

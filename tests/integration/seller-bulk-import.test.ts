@@ -245,6 +245,8 @@ describe('normalizeBulkProductRow - barcode format', () => {
   const validBase = {
     'Urun Adi*': 'Test Urun',
     'Kategori Slug*': 'mobilya-sehpa',
+    'Urun Rengi*': 'Ceviz',
+    'Materyal*': 'Masif Ahsap',
     'Fiyat*': 1990,
     'Stok*': 10,
     'Barkod (13 hane)*': '8691234567890',
@@ -287,6 +289,8 @@ describe('normalizeBulkProductRow - barcode format', () => {
       {
         'Urun Adi*': 'Test Urun',
         'Kategori*': 'Mobilya / Sehpa',
+        'Urun Rengi*': 'Ceviz',
+        'Materyal*': 'Masif Ahsap',
         'Fiyat*': 1990,
         'Stok*': 10,
         'Barkod (13 hane)*': '8691234567890',

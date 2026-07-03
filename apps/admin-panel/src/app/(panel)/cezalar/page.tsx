@@ -5,11 +5,20 @@ import { PageHeader } from '@hanuja/ui'
 import { getAdminSession } from '@/lib/admin-session'
 import { WaivePenaltyButton } from '@/components/waive-penalty-button'
 import { IssueSellerInvoiceButton } from '@/components/issue-seller-invoice-button'
+import { EditInvoiceDialog, EditPenaltyDialog } from '@/components/edit-invoice-dialog'
 import { createPenaltyService } from '@hanuja/api/services/penalty.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { AdminListControls } from '@/components/admin-list-controls'
 import { UrlPagination } from '@/components/url-pagination'
-import { buildDateRange, getPagination, getPrimaryStatusValue, parseAdminListParams, type RawAdminSearchParams } from '@/lib/admin-list-params'
+import { formatMoney } from '@hanuja/security'
+import {
+  buildDateRange,
+  getPagination,
+  getPrimaryStatusValue,
+  parseAdminListParams,
+  type RawAdminSearchParams,
+} from '@/lib/admin-list-params'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,10 +37,20 @@ const STATUS_OPTIONS = [
   { value: 'offset', label: 'Mahsup edildi' },
 ]
 
-function readBillingFilter(searchParams: RawAdminSearchParams | undefined): 'missing' | 'present' | undefined {
-  const raw = searchParams?.billing
-  const value = Array.isArray(raw) ? raw[0] : raw
-  return value === 'missing' || value === 'present' ? value : undefined
+function readPenaltyTab(
+  searchParams: RawAdminSearchParams | undefined,
+): 'unbilled' | 'billed' | 'waived' {
+  const tabRaw = searchParams?.tab
+  const tabValue = Array.isArray(tabRaw) ? tabRaw[0] : tabRaw
+  if (tabValue === 'unbilled' || tabValue === 'billed' || tabValue === 'waived') {
+    return tabValue
+  }
+
+  const billingRaw = searchParams?.billing
+  const billingValue = Array.isArray(billingRaw) ? billingRaw[0] : billingRaw
+  if (billingValue === 'present') return 'billed'
+  if (billingValue === 'missing') return 'unbilled'
+  return 'unbilled'
 }
 
 type PenaltyRow = {
@@ -42,8 +61,19 @@ type PenaltyRow = {
   status: string
   penaltyAmount: { toNumber(): number } | number
   createdAt: Date
+  waivedBy?: string | null
+  waivedAt?: Date | null
+  waiverReason?: string | null
   seller: { displayName: string; profile: { storeName: string } | null } | null
-  financeInvoices: Array<{ id: string; invoiceNumber: string }>
+  financeInvoices: Array<{
+    id: string
+    invoiceNumber: string
+    invoiceDate: Date
+    invoiceCategory: string | null
+    description: string | null
+    grossInvoiceAmount: { toNumber(): number } | number
+    payoutId: string | null
+  }>
 }
 
 export default async function PenaltiesPage({
@@ -55,7 +85,7 @@ export default async function PenaltiesPage({
 
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const params = parseAdminListParams(resolvedSearchParams, { pageSize: 20 })
-  const billingFilter = readBillingFilter(resolvedSearchParams)
+  const currentTab = readPenaltyTab(resolvedSearchParams)
 
   const prisma = createPrismaForRoute()
   const svc = createPenaltyService({ prisma })
@@ -63,7 +93,7 @@ export default async function PenaltiesPage({
     ...(params.status[0] ? { status: params.status[0] as PenaltyStatus } : {}),
     ...(params.q ? { query: params.q } : {}),
     ...(params.seller ? { sellerId: params.seller } : {}),
-    ...(billingFilter ? { financeInvoice: billingFilter } : {}),
+    tab: currentTab,
     ...buildDateRange(params),
     ...getPagination(params),
   })
@@ -71,17 +101,42 @@ export default async function PenaltiesPage({
   const rows = result.rows as unknown as PenaltyRow[]
   const totalPages = Math.max(1, Math.ceil(result.total / params.pageSize))
 
+  const uniqueOrderIds = [...new Set(rows.map((row) => row.orderId))]
+  const orderPublicNumberMap = new Map<string, number | null>()
+  if (uniqueOrderIds.length > 0) {
+    const orderRows = await prisma.order.findMany({
+      where: { id: { in: uniqueOrderIds } },
+      select: { id: true, publicNumber: true },
+    })
+    for (const row of orderRows) {
+      orderPublicNumberMap.set(row.id, row.publicNumber)
+    }
+  }
+
+  const waivedAdminIds = [...new Set(rows.map((row) => row.waivedBy).filter(Boolean) as string[])]
+  const waivedAdminMap = new Map<string, string>()
+  if (waivedAdminIds.length > 0) {
+    const admins = await prisma.user.findMany({
+      where: { id: { in: waivedAdminIds } },
+      select: { id: true, name: true, email: true },
+    })
+    for (const admin of admins) {
+      waivedAdminMap.set(admin.id, admin.name ?? admin.email ?? admin.id)
+    }
+  }
+
   return (
     <div className="space-y-6" data-testid="admin-penalties-page">
       <PageHeader title="Cezalar" description={`${result.total} ceza kaydi`} />
 
       <div className="flex flex-wrap gap-2">
         {[
-          { key: 'missing', label: 'Faturalandirilmamis' },
-          { key: 'present', label: 'Faturalandirilmis' },
+          { key: 'unbilled', label: 'Faturalandirilmamis' },
+          { key: 'billed', label: 'Faturalandirilmis' },
+          { key: 'waived', label: 'Muaflar' },
         ].map((tab) => {
           const next = new URLSearchParams()
-          next.set('billing', tab.key)
+          next.set('tab', tab.key)
           if (params.q) next.set('q', params.q)
           if (params.status.length > 0) next.set('status', params.status.join(','))
           if (params.seller) next.set('seller', params.seller)
@@ -89,7 +144,7 @@ export default async function PenaltiesPage({
           if (params.to) next.set('to', params.to)
           if (params.pageSize !== 20) next.set('pageSize', String(params.pageSize))
 
-          const active = billingFilter === tab.key
+          const active = currentTab === tab.key
           return (
             <Link
               key={tab.key}
@@ -155,11 +210,19 @@ export default async function PenaltiesPage({
             </thead>
             <tbody>
               {rows.map((penalty) => {
-                const amount = typeof penalty.penaltyAmount === 'number'
-                  ? penalty.penaltyAmount
-                  : penalty.penaltyAmount.toNumber()
-                const storeName = penalty.seller?.profile?.storeName ?? penalty.seller?.displayName ?? penalty.sellerId.slice(0, 8)
+                const amount =
+                  typeof penalty.penaltyAmount === 'number'
+                    ? penalty.penaltyAmount
+                    : penalty.penaltyAmount.toNumber()
+                const storeName =
+                  penalty.seller?.profile?.storeName ??
+                  penalty.seller?.displayName ??
+                  penalty.sellerId.slice(0, 8)
                 const waived = penalty.status === 'waived'
+                const orderDisplayNumber = formatOrderDisplayNumber(
+                  orderPublicNumberMap.get(penalty.orderId),
+                  penalty.orderId,
+                )
 
                 return (
                   <tr
@@ -169,7 +232,7 @@ export default async function PenaltiesPage({
                   >
                     <td className="px-4 py-3">
                       <Link href={`/siparisler/${penalty.orderId}`} className="hover:underline" style={{ color: 'var(--color-accent)' }}>
-                        {penalty.orderId.slice(-8).toUpperCase()}
+                        {orderDisplayNumber}
                       </Link>
                     </td>
                     <td className="px-4 py-3">
@@ -177,8 +240,11 @@ export default async function PenaltiesPage({
                         {storeName}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 font-medium" style={{ color: waived ? 'var(--color-muted-fg)' : 'var(--color-destructive)' }}>
-                      {waived ? <s>TRY {amount.toLocaleString('tr-TR')}</s> : `TRY ${amount.toLocaleString('tr-TR')}`}
+                    <td
+                      className="px-4 py-3 font-medium"
+                      style={{ color: waived ? 'var(--color-muted-fg)' : 'var(--color-destructive)' }}
+                    >
+                      {waived ? <s>{formatMoney(amount)}</s> : formatMoney(amount)}
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
                       {REASON_MAP[penalty.reason] ?? penalty.reason}
@@ -197,26 +263,69 @@ export default async function PenaltiesPage({
                       >
                         {waived ? 'Muaf tutuldu' : 'Uygulandi'}
                       </span>
+                      {waived ? (
+                        <div className="mt-1 space-y-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                          <p>{waivedAdminMap.get(penalty.waivedBy ?? '') ?? 'Admin'} tarafindan muaf tutuldu</p>
+                          {penalty.waivedAt ? (
+                            <p>
+                              {new Date(penalty.waivedAt).toLocaleDateString('tr-TR', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </p>
+                          ) : null}
+                          {penalty.waiverReason ? <p>{penalty.waiverReason}</p> : null}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       {!waived && penalty.financeInvoices.length === 0 ? (
                         <div className="flex gap-2">
+                          <EditPenaltyDialog
+                            penaltyId={penalty.id}
+                            amount={amount.toFixed(2)}
+                            reason={penalty.reason}
+                          />
                           <WaivePenaltyButton penaltyId={penalty.id} />
                           <IssueSellerInvoiceButton
                             sellerId={penalty.sellerId}
                             type="penalty"
                             sourcePenaltyId={penalty.id}
                             sourceOrderId={penalty.orderId}
-                            orderNumber={penalty.orderId.slice(-8).toUpperCase()}
-                            defaultDescription={`Penalty for order ${penalty.orderId.slice(-8).toUpperCase()}`}
+                            orderNumber={orderDisplayNumber}
+                            defaultDescription={`Ceza faturasi: ${orderDisplayNumber}`}
                             defaultAmount={String(amount)}
                             buttonLabel="Faturalandir"
                           />
                         </div>
                       ) : penalty.financeInvoices[0] ? (
-                        <span className="text-xs font-medium" style={{ color: 'var(--color-success)' }}>
-                          {penalty.financeInvoices[0].invoiceNumber}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium" style={{ color: 'var(--color-success)' }}>
+                            {penalty.financeInvoices[0].invoiceNumber}
+                          </span>
+                          {!penalty.financeInvoices[0].payoutId ? (
+                            <EditInvoiceDialog
+                              invoiceId={penalty.financeInvoices[0].id}
+                              invoiceNumber={penalty.financeInvoices[0].invoiceNumber}
+                              invoiceDate={penalty.financeInvoices[0].invoiceDate.toISOString()}
+                              invoiceCategory={penalty.financeInvoices[0].invoiceCategory}
+                              description={penalty.financeInvoices[0].description}
+                              grossInvoiceAmount={String(
+                                typeof penalty.financeInvoices[0].grossInvoiceAmount === 'number'
+                                  ? penalty.financeInvoices[0].grossInvoiceAmount
+                                  : penalty.financeInvoices[0].grossInvoiceAmount.toNumber(),
+                              )}
+                              type="penalty"
+                            />
+                          ) : null}
+                        </div>
+                      ) : !waived ? (
+                        <EditPenaltyDialog
+                          penaltyId={penalty.id}
+                          amount={amount.toFixed(2)}
+                          reason={penalty.reason}
+                        />
                       ) : null}
                     </td>
                   </tr>

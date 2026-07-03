@@ -26,10 +26,11 @@ function formatDateInput(date: Date) {
 }
 
 function formatCurrency(value: number) {
-  return `₺${value.toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
+  const formatted = value.toLocaleString('tr-TR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+  return `${formatted} TL`
 }
 
 export default async function SellerStatementPage({ searchParams }: Props) {

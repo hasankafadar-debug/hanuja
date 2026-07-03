@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import {
-  isManagedMediaHostname,
   normalizeManagedMediaUrl,
+  resolveManagedMediaSourceUrl,
 } from '@hanuja/api/lib/media-url'
 import {
   looksLikeCategorySlug,
@@ -11,19 +11,8 @@ import {
 
 export const MAX_BULK_IMPORT_ROWS = 500
 
-const ALLOWED_IMAGE_HOSTNAME = process.env.R2_PUBLIC_HOSTNAME ?? ''
-
 function isAllowedImageUrl(raw: string): boolean {
-  try {
-    const parsed = new URL(raw)
-    if (parsed.protocol !== 'https:') return false
-    if (ALLOWED_IMAGE_HOSTNAME) {
-      return parsed.hostname === ALLOWED_IMAGE_HOSTNAME || isManagedMediaHostname(parsed.hostname)
-    }
-    return isManagedMediaHostname(parsed.hostname)
-  } catch {
-    return false
-  }
+  return Boolean(resolveManagedMediaSourceUrl(raw))
 }
 export const BULK_PRODUCT_IMAGE_COLUMN_COUNT = 8
 const BULK_PRODUCT_IMAGE_KEYS = [
@@ -49,10 +38,14 @@ export const BULK_PRODUCT_COLUMN_CONFIG = [
   { key: 'productGroupCode', label: 'Urun Grup Kodu' },
   { key: 'name', label: 'Urun Adi*' },
   { key: 'categorySlug', label: 'Kategori*' },
+  { key: 'productColor', label: 'Urun Rengi*' },
+  { key: 'productMaterial', label: 'Materyal*' },
   { key: 'price', label: 'Fiyat*' },
+  { key: 'fulfillmentDays', label: 'Sevk Suresi (is gunu)*' },
   { key: 'stockQuantity', label: 'Stok*' },
   { key: 'barcode', label: 'Barkod (13 hane)*' },
-  { key: 'variantColor', label: 'Renk' },
+  { key: 'variantColor', label: 'Varyant Rengi' },
+  { key: 'variantMaterial', label: 'Varyant Materyali' },
   { key: 'variantSize', label: 'Beden' },
   { key: 'variantCustomOptionName', label: 'Ek Ozellik Adi' },
   { key: 'variantCustomOptionValue', label: 'Ek Ozellik Degeri' },
@@ -73,7 +66,13 @@ export type BulkProductColumnKey = (typeof BULK_PRODUCT_COLUMN_CONFIG)[number]['
 type BulkImportMappedColumnKey = BulkProductColumnKey | 'rootCategorySlug'
 
 export const BULK_PRODUCT_HEADERS = BULK_PRODUCT_COLUMN_CONFIG.map((column) => column.key)
-export const BULK_PRODUCT_TEMPLATE_HEADERS = BULK_PRODUCT_COLUMN_CONFIG.map((column) => column.label)
+export const BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG = BULK_PRODUCT_COLUMN_CONFIG.filter(
+  (
+    column,
+  ): column is Exclude<(typeof BULK_PRODUCT_COLUMN_CONFIG)[number], { key: 'productGroupCode' }> =>
+    column.key !== 'productGroupCode',
+)
+export const BULK_PRODUCT_TEMPLATE_HEADERS = BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.map((column) => column.label)
 
 const TURKISH_TO_INTERNAL_HEADER_MAP = new Map<string, BulkImportMappedColumnKey>(
   BULK_PRODUCT_COLUMN_CONFIG.flatMap((column) => {
@@ -87,6 +86,13 @@ const TURKISH_TO_INTERNAL_HEADER_MAP = new Map<string, BulkImportMappedColumnKey
 )
 
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Eski Fiyat'), 'compareAtPrice')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Urun Rengi'), 'productColor')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Urun Rengi*'), 'productColor')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Urun Renk'), 'productColor')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Urun Renk*'), 'productColor')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Materyal'), 'productMaterial')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Materyal*'), 'productMaterial')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Renk'), 'variantColor')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Ana Kategori*'), 'rootCategorySlug')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Ana Kategori'), 'rootCategorySlug')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('rootCategorySlug'), 'rootCategorySlug')
@@ -116,10 +122,14 @@ export const BULK_PRODUCT_TEMPLATE_SAMPLE_ROW: Record<BulkProductColumnKey, stri
   productGroupCode: 'SEHPA-001',
   name: 'Dogal Mese Yan Sehpa',
   categorySlug: 'Mobilya / Sehpa Modelleri',
+  productColor: 'Ceviz',
+  productMaterial: 'Masif Ahsap',
   price: 3490,
+  fulfillmentDays: 7,
   stockQuantity: 8,
   barcode: '8691234567890',
   variantColor: 'Ceviz',
+  variantMaterial: '',
   variantSize: '',
   variantCustomOptionName: 'Ayak',
   variantCustomOptionValue: 'Metal',
@@ -145,10 +155,14 @@ const bulkProductRowSchema = z.object({
   name: z.string().trim().min(3, 'Urun adi en az 3 karakter olmali').max(200),
   rootCategorySlug: optionalString.pipe(z.string().max(120).optional()),
   categorySlug: z.string().trim().min(1, 'Kategori zorunludur'),
+  productColor: z.string().trim().min(1, 'Urun rengi zorunludur').max(80),
+  productMaterial: z.string().trim().min(1, 'Materyal zorunludur').max(80),
   price: z.number().positive('Fiyat 0dan buyuk olmali'),
+  fulfillmentDays: z.number().int('Sevk suresi tam sayi olmali').min(1, 'Sevk suresi en az 1 is gunu olmali'),
   stockQuantity: z.number().int('Stok tam sayi olmali').min(0, 'Stok negatif olamaz'),
   barcode: barcodeSchema,
   variantColor: optionalString.pipe(z.string().max(80).optional()),
+  variantMaterial: optionalString.pipe(z.string().max(80).optional()),
   variantSize: optionalString.pipe(z.string().max(80).optional()),
   variantCustomOptionName: optionalString.pipe(z.string().max(80).optional()),
   variantCustomOptionValue: optionalString.pipe(z.string().max(120).optional()),
@@ -200,15 +214,14 @@ function normalizeFingerprintValue(value: string | number | undefined) {
 }
 
 export function buildBulkProductGroupKey(row: BulkProductImportRow) {
-  const groupCode = row.productGroupCode?.trim()
-  if (groupCode) return `group:${groupCode.toLowerCase()}`
-
   const sku = row.sku?.trim()
   if (sku) return `sku:${sku.toLowerCase()}`
 
   const fingerprint = JSON.stringify({
     name: normalizeFingerprintValue(row.name).toLowerCase(),
     categorySlug: normalizeFingerprintValue(row.categorySlug).toLowerCase(),
+    productColor: normalizeFingerprintValue(row.productColor).toLowerCase(),
+    productMaterial: normalizeFingerprintValue(row.productMaterial).toLowerCase(),
     shortDescription: normalizeFingerprintValue(row.shortDescription),
     description: normalizeFingerprintValue(row.description),
     story: normalizeFingerprintValue(row.story),
@@ -263,9 +276,10 @@ function mapRawRowToInternalKeys(raw: Record<string, unknown>) {
 
 export function getMissingBulkProductHeaders(headers: string[]) {
   const normalizedHeaders = new Set(headers.map((header) => normalizeHeaderKey(header)))
+  const requiredKeys = ['name', 'productColor', 'productMaterial', 'price', 'fulfillmentDays', 'stockQuantity', 'barcode']
   const missing = BULK_PRODUCT_COLUMN_CONFIG
     .filter((column) =>
-      ['name', 'price', 'stockQuantity', 'barcode'].includes(column.key) &&
+      requiredKeys.includes(column.key) &&
       !normalizedHeaders.has(normalizeHeaderKey(column.label)) &&
       !normalizedHeaders.has(normalizeHeaderKey(column.key)),
     )
@@ -297,10 +311,14 @@ export function normalizeBulkProductRow(
       ? normalizeRootCategoryValue(String(mapped.rootCategorySlug))
       : undefined,
     categorySlug: normalizeCategoryValue(mapped.categorySlug),
+    productColor: mapped.productColor,
+    productMaterial: mapped.productMaterial,
     price: parseOptionalNumber(mapped.price),
+    fulfillmentDays: parseOptionalNumber(mapped.fulfillmentDays),
     stockQuantity: parseOptionalNumber(mapped.stockQuantity),
     barcode: String(mapped.barcode ?? '').trim(),
     variantColor: mapped.variantColor,
+    variantMaterial: mapped.variantMaterial,
     variantSize: mapped.variantSize,
     variantCustomOptionName: mapped.variantCustomOptionName,
     variantCustomOptionValue: mapped.variantCustomOptionValue,
@@ -331,7 +349,9 @@ export function normalizeBulkProductRow(
   }
 
   const imageUrls = BULK_PRODUCT_IMAGE_KEYS.map((key) => parsed.data[key])
-    .filter((value): value is string => Boolean(value) && isAllowedImageUrl(value as string))
+    .filter((value): value is string => Boolean(value))
+    .map((value) => resolveManagedMediaSourceUrl(value))
+    .filter((value): value is string => Boolean(value))
     .map((value) => normalizeManagedMediaUrl(value))
 
   if (
@@ -359,6 +379,7 @@ export function normalizeBulkProductRow(
 
   const hasVariant = Boolean(
     parsed.data.variantColor ||
+      parsed.data.variantMaterial ||
       parsed.data.variantSize ||
       parsed.data.variantCustomOptionName ||
       parsed.data.variantCustomOptionValue,
@@ -372,10 +393,14 @@ export function normalizeBulkProductRow(
       name: parsed.data.name,
       rootCategorySlug: parsed.data.rootCategorySlug,
       categorySlug: parsed.data.categorySlug,
+      productColor: parsed.data.productColor,
+      productMaterial: parsed.data.productMaterial,
       price: parsed.data.price,
+      fulfillmentDays: parsed.data.fulfillmentDays,
       stockQuantity: parsed.data.stockQuantity,
       barcode: parsed.data.barcode,
       variantColor: parsed.data.variantColor,
+      variantMaterial: parsed.data.variantMaterial,
       variantSize: parsed.data.variantSize,
       variantCustomOptionName: parsed.data.variantCustomOptionName,
       variantCustomOptionValue: parsed.data.variantCustomOptionValue,

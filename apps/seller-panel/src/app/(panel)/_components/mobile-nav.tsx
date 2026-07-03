@@ -12,6 +12,7 @@ import {
   type NavSection,
 } from '@hanuja/ui'
 import {
+  BarChart3,
   Download,
   Images,
   LayoutDashboard,
@@ -33,6 +34,7 @@ const MOBILE_NAV_SECTIONS: NavSection[] = [
   {
     items: [
       { label: 'Kontrol Paneli', href: '/dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+      { label: 'Rapor', href: '/rapor', icon: <BarChart3 className="h-4 w-4" /> },
     ],
   },
   {

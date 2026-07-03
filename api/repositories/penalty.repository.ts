@@ -64,7 +64,7 @@ export function createPenaltyRepository(prisma: PrismaClient) {
         rate: Decimal
         penaltyAmount: Decimal
         accrualDayCount: number
-        lastAccrualAt: Date
+        lastAccrualAt?: Date | null
       },
       tx?: PrismaClient,
     ) {
@@ -97,6 +97,7 @@ export function createPenaltyRepository(prisma: PrismaClient) {
       sellerId?: string
       status?: PenaltyStatus
       query?: string
+      tab?: 'unbilled' | 'billed' | 'waived'
       financeInvoice?: 'missing' | 'present'
       from?: Date
       to?: Date
@@ -104,11 +105,31 @@ export function createPenaltyRepository(prisma: PrismaClient) {
       take?: number
     }) {
       const normalizedQuery = params.query?.trim()
+      const tabWhere: Prisma.PenaltyWhereInput =
+        params.tab === 'waived'
+          ? { status: 'waived' }
+          : params.tab === 'unbilled'
+            ? {
+                status: { not: 'waived' as const },
+                financeInvoices: {
+                  none: { type: 'penalty' },
+                },
+              }
+            : params.tab === 'billed'
+              ? {
+                  status: { not: 'waived' as const },
+                  financeInvoices: {
+                    some: { type: 'penalty' },
+                  },
+                }
+              : {}
       const where: Prisma.PenaltyWhereInput = {
         ...(params.sellerId !== undefined ? { sellerId: params.sellerId } : {}),
         ...(params.status !== undefined ? { status: params.status } : {}),
+        ...tabWhere,
         ...(params.financeInvoice === 'missing'
           ? {
+              status: { not: 'waived' as const },
               financeInvoices: {
                 none: { type: 'penalty' },
               },

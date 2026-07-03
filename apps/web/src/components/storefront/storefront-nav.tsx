@@ -42,6 +42,10 @@ function buildMenuItem(
   item: StorefrontNavItemConfig,
   allCats: FlatCategory[],
 ): MegaMenuItem {
+  if (item.kind === 'link') {
+    return { label: item.label, href: item.href, columns: [] }
+  }
+
   if (item.kind === 'collection') {
     const aggregateSlugs = VIRTUAL_COLLECTION_MAP[item.collectionSlug]
     const labels = VIRTUAL_COLLECTION_LABELS[item.collectionSlug]

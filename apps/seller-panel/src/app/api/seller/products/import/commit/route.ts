@@ -25,7 +25,10 @@ interface RawSelection {
   externalId: string
   categoryId?: string | null
   autoCreateUnder?: { parentId: string; leafName: string } | null
+  colorOptionId?: string | null
+  materialOptionId?: string | null
   barcode?: string | null
+  fulfillmentDays?: number | null
   stockQuantity?: number | null
 }
 
@@ -46,8 +49,15 @@ function isRawSelection(value: unknown): value is RawSelection {
     typeof c.stockQuantity === 'number' &&
     Number.isInteger(c.stockQuantity) &&
     c.stockQuantity >= 0
+  const hasValidFulfillmentDays =
+    typeof c.fulfillmentDays === 'number' &&
+    Number.isInteger(c.fulfillmentDays) &&
+    c.fulfillmentDays >= 1
+  const hasColorOptionId = typeof c.colorOptionId === 'string' && c.colorOptionId.trim().length > 0
+  const hasMaterialOptionId =
+    typeof c.materialOptionId === 'string' && c.materialOptionId.trim().length > 0
 
-  return (hasCategoryId || hasAutoCreate) && hasValidStock
+  return (hasCategoryId || hasAutoCreate) && hasValidStock && hasValidFulfillmentDays && hasColorOptionId && hasMaterialOptionId
 }
 
 const SAFE_LEAF_NAME_RE = /^[^./\\<>:"|?*\x00-\x1f]{1,80}$/
@@ -180,6 +190,9 @@ export async function POST(req: NextRequest) {
       return {
         externalId: raw.externalId.trim(),
         categoryId: raw.categoryId.trim(),
+        colorOptionId: raw.colorOptionId!.trim(),
+        materialOptionId: raw.materialOptionId!.trim(),
+        fulfillmentDays: raw.fulfillmentDays ?? 20,
         stockQuantity: raw.stockQuantity ?? 0,
         barcode:
           typeof raw.barcode === 'string' ? raw.barcode.trim() || null : (raw.barcode ?? null),
@@ -191,6 +204,9 @@ export async function POST(req: NextRequest) {
         parentId: raw.autoCreateUnder!.parentId.trim(),
         leafName: raw.autoCreateUnder!.leafName.trim(),
       },
+      colorOptionId: raw.colorOptionId!.trim(),
+      materialOptionId: raw.materialOptionId!.trim(),
+      fulfillmentDays: raw.fulfillmentDays ?? 20,
       stockQuantity: raw.stockQuantity ?? 0,
       barcode:
         typeof raw.barcode === 'string' ? raw.barcode.trim() || null : (raw.barcode ?? null),

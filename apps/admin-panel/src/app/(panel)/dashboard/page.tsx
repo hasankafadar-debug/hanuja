@@ -12,6 +12,10 @@ import {
   Store,
   KeyRound,
   LifeBuoy,
+  BadgeAlert,
+  PackageSearch,
+  FileWarning,
+  RefreshCcw,
 } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createAdminAnalyticsService } from '@hanuja/api/services/admin-analytics.service'
@@ -40,6 +44,7 @@ export default async function AdminDashboardPage() {
 
   type OrderRow = {
     id: string
+    publicNumber?: number | null
     createdAt: Date
     status: string
     totalAmount: { toNumber(): number } | number
@@ -49,12 +54,14 @@ export default async function AdminDashboardPage() {
   const rows = recentOrdersResult.rows as unknown as OrderRow[]
 
   const fmt = (n: number) =>
-    n >= 1000 ? `₺${(n / 1000).toFixed(1)}K` : `₺${n.toLocaleString('tr-TR')}`
+    n >= 1000
+      ? `${(n / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 })}K TL`
+      : `${n.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL`
 
   const urgentItems: Array<{ type: string; description: string; href: string; urgent: boolean }> = []
   if (stats.payments.pendingEftApprovals > 0) {
     urgentItems.push({
-      type: 'EFT Onayı',
+      type: 'EFT Onayi',
       description: `${stats.payments.pendingEftApprovals} havale onay bekliyor`,
       href: '/odemeler?method=eft&status=pending',
       urgent: true,
@@ -63,7 +70,7 @@ export default async function AdminDashboardPage() {
   if (stats.orders.delayedOrders > 0) {
     urgentItems.push({
       type: 'Gecikme Riski',
-      description: `${stats.orders.delayedOrders} sipariş 20 gün sınırında`,
+      description: `${stats.orders.delayedOrders} siparis sevk riski tasiyor`,
       href: '/siparisler',
       urgent: true,
     })
@@ -74,7 +81,7 @@ export default async function AdminDashboardPage() {
       month: 'short',
     })
     urgentItems.push({
-      type: risk.status === 'breached' ? 'Sevk Süresi Geçti' : 'Sevk Uyarısı',
+      type: risk.status === 'breached' ? 'Sevk Suresi Gecti' : 'Sevk Uyarisi',
       description: `${risk.seller.displayName} - ${formatOrderDisplayNumber(risk.order.publicNumber, risk.order.id)} - son tarih ${deadline}`,
       href: `/siparisler/${risk.orderId}`,
       urgent: risk.status === 'breached',
@@ -82,15 +89,15 @@ export default async function AdminDashboardPage() {
   }
   if (stats.orders.openDisputes > 0) {
     urgentItems.push({
-      type: 'Açık Uyuşmazlık',
-      description: `${stats.orders.openDisputes} uyuşmazlık inceleme bekliyor`,
+      type: 'Acik Uyusmazlik',
+      description: `${stats.orders.openDisputes} uyusmazlik inceleme bekliyor`,
       href: '/uyusmazliklar?status=open',
       urgent: false,
     })
   }
   if (stats.orders.openReturns > 0) {
     urgentItems.push({
-      type: 'Açık İade',
+      type: 'Acik Iade',
       description: `${stats.orders.openReturns} iade talebi bekliyor`,
       href: '/iadeler',
       urgent: false,
@@ -98,95 +105,143 @@ export default async function AdminDashboardPage() {
   }
   if (stats.sellers.pendingImportPermissions > 0) {
     urgentItems.push({
-      type: 'Hipicon Import İzni',
-      description: `${stats.sellers.pendingImportPermissions} satıcı import izni bekliyor`,
+      type: 'Hipicon Import Izni',
+      description: `${stats.sellers.pendingImportPermissions} satici import izni bekliyor`,
       href: '/saticilar?import=pending',
       urgent: false,
     })
   }
 
+  const statCards = [
+    {
+      href: null,
+      title: 'Bugunku Tahsilat',
+      value: fmt(stats.payments.collectedToday),
+      icon: <TrendingUp className="h-5 w-5" />,
+    },
+    {
+      href: '/odemeler?method=eft&status=pending',
+      title: 'EFT Onay Bekleyen',
+      value: String(stats.payments.pendingEftApprovals),
+      icon: <CreditCard className="h-5 w-5" />,
+    },
+    {
+      href: '/hakedisler?status=payout_ready',
+      title: 'Hakedis - Vadesi Dolan',
+      value: fmt(stats.payouts.payoutReadyTotal),
+      icon: <Wallet className="h-5 w-5" />,
+    },
+    {
+      href: '/uyusmazliklar?status=open',
+      title: 'Acik Uyusmazlik',
+      value: String(stats.orders.openDisputes),
+      icon: <AlertOctagon className="h-5 w-5" />,
+    },
+    {
+      href: '/siparisler?status=seller_queue_ready,seller_reviewing',
+      title: 'Satici Kuyrugunda',
+      value: String(stats.orders.pendingSellerAction),
+      icon: <ShoppingBag className="h-5 w-5" />,
+    },
+    {
+      href: '/siparisler',
+      title: 'Geciken Siparis',
+      value: String(stats.orders.delayedOrders),
+      icon: <Clock className="h-5 w-5" />,
+    },
+    {
+      href: null,
+      title: 'Bloke Hakedis',
+      value: fmt(stats.payouts.blockedPayoutTotal),
+      icon: <Wallet className="h-5 w-5" />,
+    },
+    {
+      href: '/saticilar?status=active',
+      title: 'Aktif Satici',
+      value: String(stats.sellers.totalActive),
+      icon: <Store className="h-5 w-5" />,
+    },
+    {
+      href: '/saticilar?import=pending',
+      title: 'Hipicon Izin Bekleyen',
+      value: String(stats.sellers.pendingImportPermissions),
+      icon: <KeyRound className="h-5 w-5" />,
+    },
+    {
+      href: '/musteri-destek?status=waiting_for_admin',
+      title: 'Musteri Destek',
+      value: `${stats.customerSupport.newTickets} yeni, ${stats.customerSupport.customerReplied} yanit`,
+      icon: <LifeBuoy className="h-5 w-5" />,
+    },
+    {
+      href: '/teslim-onayi',
+      title: 'Teslim Onayi',
+      value: String(stats.orders.pendingDeliveryConfirmation),
+      icon: <BadgeAlert className="h-5 w-5" />,
+    },
+    {
+      href: '/urunler',
+      title: 'Urun Moderasyon',
+      value: String(stats.moderation.pendingProducts),
+      icon: <PackageSearch className="h-5 w-5" />,
+    },
+    {
+      href: '/cezalar?tab=unbilled',
+      title: 'Yeni Cezalar',
+      value: String(stats.penalties.newCount),
+      icon: <AlertTriangle className="h-5 w-5" />,
+    },
+    {
+      href: '/komisyonlar',
+      title: 'Komisyon Faturasi',
+      value: String(stats.invoices.pendingCommission),
+      icon: <FileWarning className="h-5 w-5" />,
+    },
+    {
+      href: '/ek-sure-talepleri',
+      title: 'Ek Sure Talebi',
+      value: String(stats.extensions.pending),
+      icon: <RefreshCcw className="h-5 w-5" />,
+    },
+    {
+      href: '/iadeler',
+      title: 'Iade Talepleri',
+      value: String(stats.orders.openReturns),
+      icon: <RefreshCcw className="h-5 w-5" />,
+    },
+    {
+      href: '/destek',
+      title: 'Satici Destek',
+      value: String(stats.customerSupport.sellerPending),
+      icon: <LifeBuoy className="h-5 w-5" />,
+    },
+  ] as const
+
   return (
     <div className="space-y-8" data-testid="admin-dashboard-page">
       <PageHeader
         title="Kontrol Paneli"
-        description={`Pazar yeri genel görünümü — ${new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+        description={`Pazar yeri genel gorunumu - ${new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          title="Bugünkü Tahsilat"
-          value={fmt(stats.payments.collectedToday)}
-          icon={<TrendingUp className="h-5 w-5" />}
-        />
-        <Link href="/odemeler?method=eft&status=pending" className="block">
-          <StatCard
-            title="EFT Onay Bekleyen"
-            value={String(stats.payments.pendingEftApprovals)}
-            icon={<CreditCard className="h-5 w-5" />}
-            className="transition-shadow hover:shadow-sm"
-          />
-        </Link>
-        <Link href="/hakedisler?status=payout_ready" className="block">
-          <StatCard
-            title="Hakediş — Vadesi Dolan"
-            value={fmt(stats.payouts.payoutReadyTotal)}
-            icon={<Wallet className="h-5 w-5" />}
-            className="transition-shadow hover:shadow-sm"
-          />
-        </Link>
-        <Link href="/uyusmazliklar?status=open" className="block">
-          <StatCard
-            title="Açık Uyuşmazlık"
-            value={String(stats.orders.openDisputes)}
-            icon={<AlertOctagon className="h-5 w-5" />}
-            className="transition-shadow hover:shadow-sm"
-          />
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Link href="/siparisler?status=seller_queue_ready,seller_reviewing" className="block">
-          <StatCard
-            title="Satıcı Kuyruğunda"
-            value={String(stats.orders.pendingSellerAction)}
-            icon={<ShoppingBag className="h-5 w-5" />}
-            className="transition-shadow hover:shadow-sm"
-          />
-        </Link>
-        <StatCard
-          title="Geciken Sipariş"
-          value={String(stats.orders.delayedOrders)}
-          icon={<Clock className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Bloke Hakediş"
-          value={fmt(stats.payouts.blockedPayoutTotal)}
-          icon={<Wallet className="h-5 w-5" />}
-        />
-        <Link href="/saticilar?status=active" className="block">
-          <StatCard
-            title="Aktif Satıcı"
-            value={String(stats.sellers.totalActive)}
-            icon={<Store className="h-5 w-5" />}
-            className="transition-shadow hover:shadow-sm"
-          />
-        </Link>
-        <Link href="/saticilar?import=pending" className="block">
-          <StatCard
-            title="Hipicon İzin Bekleyen"
-            value={String(stats.sellers.pendingImportPermissions)}
-            icon={<KeyRound className="h-5 w-5" />}
-            className="transition-shadow hover:shadow-sm"
-          />
-        </Link>
-        <Link href="/musteri-destek?status=waiting_for_admin" className="block">
-          <StatCard
-            title="Müşteri Destek"
-            value={`${stats.customerSupport.newTickets} yeni, ${stats.customerSupport.customerReplied} yanıt`}
-            icon={<LifeBuoy className="h-5 w-5" />}
-            className="transition-shadow hover:shadow-sm"
-          />
-        </Link>
+        {statCards.map((card) => {
+          const content = (
+            <StatCard
+              title={card.title}
+              value={card.value}
+              icon={card.icon}
+              {...(card.href ? { className: 'transition-shadow hover:shadow-sm' } : {})}
+            />
+          )
+          return card.href ? (
+            <Link key={card.title} href={card.href} className="block">
+              {content}
+            </Link>
+          ) : (
+            <div key={card.title}>{content}</div>
+          )
+        })}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -202,7 +257,7 @@ export default async function AdminDashboardPage() {
           ) : (
             <div className="space-y-2">
               {urgentItems.map((item, i) => (
-                <Link key={i} href={item.href}>
+                <Link key={`${item.href}-${i}`} href={item.href}>
                   <div
                     className="flex items-start gap-3 rounded-xl border p-4 transition-shadow hover:shadow-sm"
                     style={{
@@ -234,9 +289,9 @@ export default async function AdminDashboardPage() {
 
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Son Siparişler</h2>
+            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Son Siparisler</h2>
             <Link href="/siparisler" className="text-sm hover:underline" style={{ color: 'var(--color-accent)' }}>
-              Tümü →
+              Tumu →
             </Link>
           </div>
           <div
@@ -245,13 +300,13 @@ export default async function AdminDashboardPage() {
           >
             {rows.length === 0 ? (
               <p className="p-6 text-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                Henüz sipariş yok.
+                Henuz siparis yok.
               </p>
             ) : (
               <table className="w-full text-sm">
                 <thead style={{ backgroundColor: 'var(--color-muted)' }}>
                   <tr>
-                    {['Sipariş', 'Satıcı', 'Tutar', 'Durum', 'Tarih'].map((h) => (
+                    {['Siparis', 'Satici', 'Tutar', 'Durum', 'Tarih'].map((h) => (
                       <th
                         key={h}
                         className="px-3 py-2.5 text-left text-xs font-semibold"
@@ -263,37 +318,39 @@ export default async function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((o) => {
-                    const amount = typeof o.totalAmount === 'number'
-                      ? o.totalAmount
-                      : o.totalAmount.toNumber()
-                    const sellerName = o.lines[0]?.seller?.profile?.storeName ?? '—'
+                  {rows.map((order) => {
+                    const amount =
+                      typeof order.totalAmount === 'number'
+                        ? order.totalAmount
+                        : order.totalAmount.toNumber()
+                    const sellerName = order.lines[0]?.seller?.profile?.storeName ?? '-'
+
                     return (
                       <tr
-                        key={o.id}
+                        key={order.id}
                         className="border-t hover:bg-[var(--color-muted)]"
                         style={{ borderColor: 'var(--color-border)' }}
                       >
                         <td className="px-3 py-2.5">
                           <Link
-                            href={`/siparisler/${o.id}`}
+                            href={`/siparisler/${order.id}`}
                             className="font-medium hover:underline"
                             style={{ color: 'var(--color-primary)' }}
                           >
-                            {o.id.slice(-8).toUpperCase()}
+                            {formatOrderDisplayNumber(order.publicNumber, order.id)}
                           </Link>
                         </td>
                         <td className="px-3 py-2.5" style={{ color: 'var(--color-muted-fg)' }}>
                           {sellerName}
                         </td>
                         <td className="px-3 py-2.5 font-medium" style={{ color: 'var(--color-primary)' }}>
-                          ₺{amount.toLocaleString('tr-TR')}
+                          {amount.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL
                         </td>
                         <td className="px-3 py-2.5">
-                          <StatusBadge status={o.status as never} />
+                          <StatusBadge status={order.status as never} />
                         </td>
                         <td className="px-3 py-2.5" style={{ color: 'var(--color-muted-fg)' }}>
-                          {new Date(o.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
+                          {new Date(order.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
                         </td>
                       </tr>
                     )

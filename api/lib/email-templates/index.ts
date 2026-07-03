@@ -3,7 +3,7 @@
  * Each function returns { subject, html, text } ready for sendEmail().
  *
  * Language: Turkish (primary platform language).
- * All amounts are formatted as Turkish Lira (₺).
+ * All amounts are formatted as Turkish Lira (TL) using formatMoney.
  */
 
 import { PLATFORM_LEGAL_INFO } from '../platform-info'
@@ -306,6 +306,41 @@ export function penaltyAppliedTemplate(params: {
     subject: `Hesabınıza Ceza Uygulandı — #${params.orderNumber}`,
     html: layout('Ceza Uygulandı', body),
     text: `Merhaba ${params.sellerName}, #${params.orderNumber} için ${params.penaltyAmount} ceza uygulandı. Sebep: ${params.penaltyReason}`,
+  }
+}
+
+export function storeDiscountFollowedSellerTemplate(params: {
+  customerName: string
+  sellerName: string
+  storeUrl: string
+  unsubscribeUrl: string
+}): EmailTemplate {
+  const body = `
+    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Takip Ettiğiniz Mağazada İndirim Var</h2>
+    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${params.customerName},</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#555;">
+      <strong>${params.sellerName}</strong> mağazasında yeni bir indirim başladı.
+      Güncel ürünleri görmek için mağaza sayfasını ziyaret edebilirsiniz.
+    </p>
+    <p style="margin:0 0 24px;">
+      <a
+        href="${params.storeUrl}"
+        style="display:inline-block;background:#135854;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;"
+      >
+        Mağazayı Gör
+      </a>
+    </p>
+    <p style="margin:0;font-size:13px;color:#777;">
+      Bu mağaza için e-posta almak istemiyorsanız
+      <a href="${params.unsubscribeUrl}" style="color:#135854;">buradan çıkış yapabilirsiniz</a>.
+      Desteklenen posta kutularında bu e-postayı <strong>RET</strong> yazarak yanıtlamak da e-posta bildirimlerini kapatır.
+    </p>
+  `
+
+  return {
+    subject: `${params.sellerName} mağazasında indirim başladı`,
+    html: layout('Takip Ettiğiniz Mağazada İndirim Var', body),
+    text: `Merhaba ${params.customerName}, ${params.sellerName} mağazasında indirim başladı. Mağaza: ${params.storeUrl} Çıkış: ${params.unsubscribeUrl}`,
   }
 }
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { mediaSrcSet } from '../lib/media-url'
+import { isManagedMediaProxyUrl, mediaSrcSet, normalizeMediaDisplayUrl } from '../lib/media-url'
 
 export interface HeroSlide {
   id: string
@@ -108,6 +108,8 @@ export function HeroSlider({ slides, autoPlayMs = 6000, loop = true }: HeroSlide
           ? mediaSrcSet(slide.posterAsset.variants, slide.posterAsset.url).src
           : undefined
         const imgMeta = mediaSrcSet(slide.mediaAsset.variants, slide.mediaAsset.url)
+        const videoSrc = normalizeMediaDisplayUrl(slide.mediaAsset.url)
+        const useUnoptimizedImage = isManagedMediaProxyUrl(imgMeta.src)
 
         return (
           <div
@@ -123,7 +125,7 @@ export function HeroSlider({ slides, autoPlayMs = 6000, loop = true }: HeroSlide
             {isVideo ? (
               <video
                 className="absolute inset-0 h-full w-full object-cover"
-                src={slide.mediaAsset.url}
+                src={videoSrc}
                 poster={posterSrc}
                 autoPlay
                 muted
@@ -139,6 +141,7 @@ export function HeroSlider({ slides, autoPlayMs = 6000, loop = true }: HeroSlide
                 className="object-cover"
                 priority={i === 0}
                 sizes="(max-width: 768px) 100vw, 66vw"
+                unoptimized={useUnoptimizedImage}
                 {...(imgMeta.srcSet ? { srcSet: imgMeta.srcSet } : {})}
               />
             )}

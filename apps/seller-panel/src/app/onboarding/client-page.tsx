@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { TurnstileWidget } from '@hanuja/ui'
-import { hasMatchingNormalizedTokens } from '@hanuja/security'
+import { hasMatchingNormalizedTokens } from '@hanuja/security/turkish-normalize'
 import { authClient, useSession } from '@/lib/auth-client'
 import {
   type CompanyType,

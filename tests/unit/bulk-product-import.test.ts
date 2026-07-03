@@ -11,6 +11,7 @@ import {
   getMissingBulkProductHeaders,
   normalizeBulkProductRow,
 } from '@/lib/bulk-product-import'
+import { sortAttributeOptions } from '@/lib/attribute-option-sort'
 
 describe('bulk product import row validator', () => {
   it('normalizes a valid row with barcode and image urls', () => {
@@ -19,6 +20,8 @@ describe('bulk product import row validator', () => {
         name: 'Masif Mese Sehpa',
         'Ana Kategori*': 'Ev',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Urun Rengi*': 'Ceviz',
+        'Materyal*': 'Masif Ahsap',
         price: '1890',
         stockQuantity: '6',
         barcode: '8691234567890',
@@ -38,6 +41,8 @@ describe('bulk product import row validator', () => {
     expect(result.errors).toHaveLength(0)
     expect(result.data?.rootCategorySlug).toBe('ev')
     expect(result.data?.categorySlug).toBe('Mobilya / Sehpa Modelleri')
+    expect(result.data?.productColor).toBe('Ceviz')
+    expect(result.data?.productMaterial).toBe('Masif Ahsap')
     expect(result.data?.price).toBe(1890)
     expect(result.data?.compareAtPrice).toBe(2190)
     expect(result.data?.barcode).toBe('8691234567890')
@@ -69,6 +74,8 @@ describe('bulk product import row validator', () => {
       {
         'Urun Adi*': 'Ornek Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Urun Rengi*': 'Ceviz',
+        'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
         'Stok*': '4',
         'Barkod (13 hane)*': '8691234567890',
@@ -86,6 +93,8 @@ describe('bulk product import row validator', () => {
         'Urun Adi*': 'Ornek Urun',
         'Ana Kategori*': 'Ev',
         'Kategori*': 'Mobilya',
+        'Urun Rengi*': 'Ceviz',
+        'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
         'Stok*': '4',
         'Barkod (13 hane)*': '8691234567890',
@@ -102,6 +111,8 @@ describe('bulk product import row validator', () => {
       {
         'Urun Adi*': 'Ornek Urun',
         'Kategori Slug*': 'EV-MOBILYA',
+        'Urun Rengi*': 'Ceviz',
+        'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
         'Stok*': '4',
         'Barkod (13 hane)*': '8691234567890',
@@ -117,6 +128,8 @@ describe('bulk product import row validator', () => {
   it('detects missing required template headers', () => {
     const missing = getMissingBulkProductHeaders(['Urun Adi*', 'Kategori Slug*'])
 
+    expect(missing).toContain('Urun Rengi*')
+    expect(missing).toContain('Materyal*')
     expect(missing).toContain('Fiyat*')
     expect(missing).toContain('Stok*')
     expect(missing).toContain('Barkod (13 hane)*')
@@ -128,6 +141,39 @@ describe('bulk product import row validator', () => {
 
   it('removes Ana Kategori from the new template headers', () => {
     expect(BULK_PRODUCT_TEMPLATE_HEADERS).not.toContain('Ana Kategori*')
+  })
+
+  it('keeps legacy Renk header mapped to variant color', () => {
+    const result = normalizeBulkProductRow(
+      {
+        'Urun Adi*': 'Ornek Urun',
+        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Urun Rengi*': 'Ceviz',
+        'Materyal*': 'Masif Ahsap',
+        'Fiyat*': '1200',
+        'Stok*': '4',
+        'Barkod (13 hane)*': '8691234567890',
+        Renk: 'Siyah',
+      },
+      2,
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.data?.productColor).toBe('Ceviz')
+    expect(result.data?.variantColor).toBe('Siyah')
+  })
+})
+
+describe('attribute option sorting', () => {
+  it('groups color tones after the base color', () => {
+    const sorted = sortAttributeOptions([
+      { type: 'color', label: 'Açık Kırmızı' },
+      { type: 'color', label: 'Mavi' },
+      { type: 'color', label: 'Kırmızı' },
+      { type: 'color', label: 'Koyu Kırmızı' },
+    ]).map((option) => option.label)
+
+    expect(sorted).toEqual(['Kırmızı', 'Açık Kırmızı', 'Koyu Kırmızı', 'Mavi'])
   })
 })
 
@@ -165,12 +211,14 @@ describe('bulk template areas', () => {
 })
 
 describe('bulk product group key', () => {
-  it('uses product group code before any other fallback', () => {
+  it('ignores product group code when SKU is missing', () => {
     const row = normalizeBulkProductRow(
       {
         'Urun Grup Kodu': 'TAKIM-01',
         'Urun Adi*': 'Ayni Isimli Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Urun Rengi*': 'Ceviz',
+        'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
         'Stok*': '4',
         'Barkod (13 hane)*': '8691234567890',
@@ -180,7 +228,7 @@ describe('bulk product group key', () => {
     )
 
     expect(row.data).toBeDefined()
-    expect(buildBulkProductGroupKey(row.data!)).toBe('group:takim-01')
+    expect(buildBulkProductGroupKey(row.data!).startsWith('fingerprint:')).toBe(true)
   })
 
   it('falls back to sku when product group code is missing', () => {
@@ -188,6 +236,8 @@ describe('bulk product group key', () => {
       {
         'Urun Adi*': 'Ayni Isimli Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Urun Rengi*': 'Ceviz',
+        'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
         'Stok*': '4',
         'Barkod (13 hane)*': '8691234567890',
@@ -206,6 +256,8 @@ describe('bulk product group key', () => {
       {
         'Urun Adi*': 'Ayni Isimli Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Urun Rengi*': 'Ceviz',
+        'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
         'Stok*': '4',
         'Barkod (13 hane)*': '8691234567890',
@@ -218,6 +270,8 @@ describe('bulk product group key', () => {
       {
         'Urun Adi*': 'Ayni Isimli Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Urun Rengi*': 'Siyah',
+        'Materyal*': 'Metal',
         'Fiyat*': '1250',
         'Stok*': '7',
         'Barkod (13 hane)*': '8691234567891',

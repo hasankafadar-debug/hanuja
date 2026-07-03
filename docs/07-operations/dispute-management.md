@@ -235,6 +235,25 @@ indefinitely for audit purposes and must not be deleted after dispute closure.
 
 ---
 
+## Return-rejection escalation (2026-05-15)
+
+When a seller rejects a physically received return item, the system auto-opens a
+`Dispute` (`status = open`, `payoutBlocked = true`) linked to the return via
+`ReturnRequest.disputeId` (`Dispute.escalatedFromReturn`). The customer↔seller
+conversation continues on the **single `ReturnMessage` thread**, not
+`DisputeMessage`. The admin uyuşmazlık detail renders that thread plus the seller's
+reject reason and customer evidence; admin notes post into the same return thread.
+
+Admin resolution (`/api/admin/disputes/:id/resolve`):
+- `resolved_for_customer` with an amount → idempotent refund via `refund.service`
+  (linked return → `refund_completed`), payout stays blocked.
+- `resolved_for_seller` → payout unblocked, return stays `rejected`.
+- Order moves `dispute_open → dispute_resolved`; resolution recorded on
+  `Dispute.resolution` + `AdminAuditLog`. Resolved disputes appear under the admin
+  "Sonuçlananlar" filter.
+
+---
+
 ## Cross-Reference
 
 - `.claude/rules/08-order-lifecycle-rules.md` — `dispute_open` and `dispute_resolved` in lifecycle

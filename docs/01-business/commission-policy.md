@@ -85,12 +85,20 @@ resolved rate.
 ### Calculation formula
 
 ```
-commissionAmount = unitPrice × quantity × commissionRate
-               = orderLine.totalPrice × commissionRate
+commissionAmount = orderLine.totalPrice × commissionRate
 ```
 
-The base amount for commission is the gross product amount — the price the customer paid
-for the product line before any shipping or coupon adjustments.
+**The commission base is `OrderLine.totalPrice`, which is the KDV-inclusive (VAT-inclusive)
+gross product amount for that line.** It is the price the customer paid for the product
+line — including tax — before any shipping or coupon adjustments.
+
+Commission is calculated on the KDV-inclusive price. This is the agreed platform policy.
+Do not calculate commission on KDV-exclusive (net) amounts unless this document explicitly
+changes that rule.
+
+Coupon discounts and EFT channel discounts do NOT reduce the commission base.
+`OrderLine.totalPrice` is the pre-discount gross; any discount adjustment is a separate
+financial element that Hanuja absorbs at the platform level (see EFT discount policy below).
 
 ### Relationship to net payout
 

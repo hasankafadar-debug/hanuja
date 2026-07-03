@@ -48,6 +48,7 @@ Use this section when deploying a new client marketplace from the Hanuja templat
 ## C. Database and Migrations
 
 - [ ] Production database is provisioned and accessible
+- [ ] Verify `20260513150200_fulfillment_extension_request` is applied before storefront smoke tests
 - [ ] Run `pnpm db:migrate:deploy` — verify all migrations apply cleanly
 - [ ] Check for any pending migration warnings in output
 - [ ] Run `pnpm db:seed` — verify seed completes without errors
@@ -135,6 +136,7 @@ Perform these manually after each production deployment.
 - [ ] A product detail page loads
 - [ ] Search returns results
 - [ ] Login / registration flow works
+- [ ] Customer order detail opens without schema-out-of-sync or generic error screen
 
 ### Seller Panel
 - [ ] Seller can log in

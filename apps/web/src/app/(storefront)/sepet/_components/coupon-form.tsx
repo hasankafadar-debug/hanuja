@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@hanuja/ui'
 import { csrfFetch } from '@/lib/csrf-fetch'
 
@@ -14,6 +14,16 @@ export default function CouponForm({
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (!error) return
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    errorTimerRef.current = setTimeout(() => setError(null), 2000)
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    }
+  }, [error])
 
   async function applyCoupon() {
     const normalizedCode = code.trim()
@@ -33,7 +43,11 @@ export default function CouponForm({
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(body.message ?? 'Kupon uygulanamadı.')
+        if (res.status === 404 || body.code === 'NOT_FOUND') {
+          setError('Girdiğiniz kod yanlıştır.')
+        } else {
+          setError('Kupon uygulanamadı.')
+        }
         return
       }
 

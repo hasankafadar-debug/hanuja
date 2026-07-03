@@ -12,9 +12,14 @@ const standaloneOutput = process.platform === 'win32' ? {} : { output: 'standalo
 
 const config: NextConfig = {
   ...standaloneOutput,
-  serverExternalPackages: ['iyzipay', '@prisma/client', 'prisma'],
+  serverExternalPackages: ['iyzipay', '@prisma/client', 'prisma', 'better-auth'],
   transpilePackages: ['@hanuja/ui', '@hanuja/security', '@hanuja/types', '@hanuja/api'],
   images: {
+    localPatterns: [
+      {
+        pathname: '/api/media/fetch',
+      },
+    ],
     remotePatterns: remoteImageHostnames.map((hostname) => ({
       protocol: 'https',
       hostname,

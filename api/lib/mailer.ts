@@ -15,6 +15,7 @@ export interface SendEmailOptions {
   subject: string
   html: string
   text?: string
+  replyTo?: string
 }
 
 let _transport: Transporter | null = null
@@ -51,6 +52,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
   const info = await transport.sendMail({
     from,
     to: Array.isArray(options.to) ? options.to.join(', ') : options.to,
+    ...(options.replyTo ? { replyTo: options.replyTo } : {}),
     subject: options.subject,
     html: options.html,
     text: options.text,

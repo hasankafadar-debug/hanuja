@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { LegalDocumentDialog, PageHeader, Separator, StatusBadge } from '@hanuja/ui'
 import { ArrowLeft, FileText, MapPin, UserRound } from 'lucide-react'
-import { maskCustomerName } from '@hanuja/security'
+import { maskCustomerName, formatMoney } from '@hanuja/security'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { createOrderDocumentService } from '@hanuja/api/services/order-document.service'
@@ -22,7 +22,12 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  return { title: `Sipariş #${id.slice(-8).toUpperCase()}` }
+  const prisma = createPrismaForRoute()
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { publicNumber: true },
+  })
+  return { title: `Sipariş ${formatOrderDisplayNumber(order?.publicNumber, id)}` }
 }
 
 export default async function SellerOrderDetailPage({ params }: Props) {
@@ -38,6 +43,27 @@ export default async function SellerOrderDetailPage({ params }: Props) {
   const invoiceAlias = await createOrderDocumentService({ prisma })
     .ensureInvoiceAliasForSeller(id, seller.id)
     .catch(() => null)
+
+  const ACTIVE_FULFILLMENT_STATUSES = new Set([
+    'seller_queue_ready',
+    'seller_reviewing',
+    'seller_accepted',
+    'preparing',
+    'awaiting_shipment',
+  ])
+  const canRequestExtension = ACTIVE_FULFILLMENT_STATUSES.has(order.status)
+  const openExtensionRequest = canRequestExtension
+    ? await prisma.fulfillmentExtensionRequest.findFirst({
+        where: {
+          orderId: id,
+          sellerId: seller.id,
+          status: {
+            in: ['pending_admin_review', 'awaiting_customer_decision', 'awaiting_seller_followup'],
+          },
+        },
+        select: { id: true },
+      })
+    : null
 
   type OrderLine = {
     id: string
@@ -67,6 +93,7 @@ export default async function SellerOrderDetailPage({ params }: Props) {
 
   type Address = {
     fullName: string
+    phone?: string | null
     addressLine1: string
     addressLine2?: string | null
     district: string
@@ -163,7 +190,7 @@ export default async function SellerOrderDetailPage({ params }: Props) {
                       </p>
                     </div>
                     <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                      ₺{total.toLocaleString('tr-TR')}
+                      {formatMoney(total)}
                     </p>
                   </div>
                 )
@@ -176,6 +203,8 @@ export default async function SellerOrderDetailPage({ params }: Props) {
             status={order.status}
             trackingNumber={latestShipment?.trackingNumber ?? null}
             cargoProvider={latestShipment?.cargoProvider ?? null}
+            canRequestExtension={canRequestExtension}
+            pendingRequestId={openExtensionRequest?.id ?? null}
           />
 
           <OrderTimeline items={statusHistory} />
@@ -252,6 +281,11 @@ export default async function SellerOrderDetailPage({ params }: Props) {
                 <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
                   {address?.fullName ?? maskCustomerName(customer?.name)}
                 </p>
+                {address?.phone ? (
+                  <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                    {address.phone}
+                  </p>
+                ) : null}
               </div>
               <Separator />
               <div className="flex items-start gap-2">
@@ -289,7 +323,7 @@ export default async function SellerOrderDetailPage({ params }: Props) {
                       <StatusBadge status={penalty.status} />
                     </div>
                     <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                      ₺{toNumber(penalty.penaltyAmount).toLocaleString('tr-TR')}
+                      {formatMoney(toNumber(penalty.penaltyAmount))}
                     </p>
                   </div>
                 ))}

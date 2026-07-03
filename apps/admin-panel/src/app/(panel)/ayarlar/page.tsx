@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
 import { PageHeader } from '@hanuja/ui'
-import { Info, Lock } from 'lucide-react'
+import { Building2, Info, Lock } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
+import { createPlatformBankAccountService } from '@hanuja/api/services/platform-bank-account.service'
 import { PlatformSettingsForm } from './_components/platform-settings-form'
+import { BankAccountsForm } from './_components/bank-accounts-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +17,7 @@ export default async function AdminSettingsPage() {
 
   const prisma = createPrismaForRoute()
   const platformSettings = await createPlatformSettingsService({ prisma }).get()
+  const bankAccounts = await createPlatformBankAccountService({ prisma }).listAll()
   const sellerCount = await prisma.seller.count({ where: { status: 'active' } })
   const productPendingCount = await prisma.product.count({ where: { status: 'pending_review' } })
 
@@ -38,6 +41,7 @@ export default async function AdminSettingsPage() {
         <PlatformSettingsForm
           initialValues={{
             standardPenaltyRate: platformSettings.standardPenaltyRate.toString(),
+            dailyPenaltyRate: platformSettings.dailyPenaltyRate.toString(),
             defaultSellerCommissionRate: platformSettings.defaultSellerCommissionRate.toString(),
             fulfillmentDays: String(platformSettings.fulfillmentDays),
             fulfillmentWarningDays: String(platformSettings.fulfillmentWarningDays),
@@ -47,6 +51,22 @@ export default async function AdminSettingsPage() {
             eftDiscountRate: platformSettings.eftDiscountRate.toString(),
           }}
         />
+      </section>
+
+      <section
+        className="space-y-1 rounded-xl border p-5"
+        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+      >
+        <div className="mb-4 flex items-center gap-2">
+          <Building2 className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
+          <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+            EFT / Havale Banka Hesaplari
+          </h2>
+        </div>
+        <p className="mb-4 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+          Müşterilerin havale/EFT yapacağı banka hesapları. Sipariş detay sayfası ve sipariş e-postasında gösterilir.
+        </p>
+        <BankAccountsForm initialAccounts={bankAccounts} />
       </section>
 
       <section

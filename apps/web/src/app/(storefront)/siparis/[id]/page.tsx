@@ -4,12 +4,20 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { Breadcrumb, Button, LegalDocumentDialog, Separator, StatusBadge } from '@hanuja/ui'
+import { formatMoney } from '@hanuja/security'
 import { CreditCard, Download, FileText, MapPin, Package } from 'lucide-react'
 import { auth } from '@/lib/auth'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { RETURN_WINDOW_DAYS } from '@hanuja/api/domain/penalty-calculator'
+import { getPlatformBankInfo } from '@hanuja/api/lib/platform-info'
+import { formatOrderDisplayNumber, formatOrderNumber } from '@hanuja/api/lib/order-number'
+import { createPlatformBankAccountService } from '@hanuja/api/services/platform-bank-account.service'
 import { SupportSection } from './destek/_components/support-section'
+import { CancelOrderButton } from './_components/cancel-order-button'
+import ExtensionRequestDecision from './_components/extension-request-decision'
+import ReturnRequestButton from './_components/return-request-button'
+import { ReturnPanel } from './_components/return-panel'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,17 +30,39 @@ function moneyToNumber(value: { toNumber(): number } | number | null | undefined
   return typeof value === 'object' ? value.toNumber() : Number(value)
 }
 
-function formatMoney(value: number) {
-  return `TRY ${value.toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
+function formatIban(value: string) {
+  return value.replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim()
+}
+
+function isSchemaOutOfSyncError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    ((error as { code?: string }).code === 'P2021' || (error as { code?: string }).code === 'P2022')
+  )
+}
+
+function getCustomerOrderStatusLabel(status: string) {
+  return status === 'delivery_confirmed' ? 'Tamamlanan Sipariş' : undefined
+}
+
+function isWithinReturnWindow(deliveryConfirmedAt: Date | string | null | undefined) {
+  if (!deliveryConfirmedAt) return false
+  const deadline = new Date(deliveryConfirmedAt)
+  deadline.setDate(deadline.getDate() + RETURN_WINDOW_DAYS)
+  return new Date() <= deadline
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
+  const prisma = createPrismaForRoute()
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { publicNumber: true },
+  })
   return {
-    title: `Sipariş #${id.slice(-8).toUpperCase()}`,
+    title: `Sipariş ${formatOrderDisplayNumber(order?.publicNumber, id)}`,
     robots: { index: false, follow: false },
   }
 }
@@ -45,9 +75,10 @@ export default async function OrderDetailPage({ params }: Props) {
     redirect(`/giris?redirect=/siparis/${id}`)
   }
 
+  const prisma = createPrismaForRoute()
   let order
   try {
-    const service = createOrderService({ prisma: createPrismaForRoute() })
+    const service = createOrderService({ prisma })
     order = await service.getOrderForCustomer(id, session.user.id)
   } catch (err) {
     console.error('[OrderDetailPage] getOrderForCustomer failed:', err)
@@ -55,6 +86,44 @@ export default async function OrderDetailPage({ params }: Props) {
   }
 
   if (!order) notFound()
+
+  let pendingCustomerExtensionRequest: {
+    id: string
+    requestedDays: number
+    sellerReason: string | null
+    customerQuestionFromAdmin: string | null
+  } | null = null
+
+  try {
+    pendingCustomerExtensionRequest = await prisma.fulfillmentExtensionRequest.findFirst({
+      where: {
+        orderId: id,
+        customerId: session.user.id,
+        status: 'awaiting_customer_decision',
+      },
+      select: {
+        id: true,
+        requestedDays: true,
+        sellerReason: true,
+        customerQuestionFromAdmin: true,
+      },
+    })
+  } catch (err) {
+    if (isSchemaOutOfSyncError(err)) {
+      console.warn('[OrderDetailPage] fulfillmentExtensionRequest query skipped due to schema mismatch:', err)
+    } else {
+      throw err
+    }
+  }
+
+  // bank_transfer_waiting yalnızca EFT siparişlerinde atanır
+  const isEftPending = order.status === 'bank_transfer_waiting'
+  const bankAccounts = isEftPending
+    ? await createPlatformBankAccountService({ prisma }).listActive().catch(() => [])
+    : []
+  const fallbackBankAccount = isEftPending && bankAccounts.length === 0
+    ? getPlatformBankInfo(formatOrderNumber(order.publicNumber, order.id))
+    : null
 
   type OrderLine = {
     id: string
@@ -101,17 +170,44 @@ export default async function OrderDetailPage({ params }: Props) {
     seller: { id: string; displayName: string; slug: string | null }
   }
 
+  type ReturnRequest = {
+    id: string
+    status: string
+    createdAt: Date
+  }
+
   const lines = order.lines as unknown as OrderLine[]
   const shipments = (order.shipments ?? []) as unknown as Shipment[]
   const payments = (order.payments ?? []) as unknown as Payment[]
   const address = (order.address ?? null) as Address
   const legalSnapshot = (order.legalSnapshot ?? null) as LegalSnapshot
   const sellerInvoices = (order.sellerInvoices ?? []) as unknown as SellerInvoice[]
+  const returnRequests = (order.returnRequests ?? []) as unknown as ReturnRequest[]
 
   const grossAmount = moneyToNumber(order.grossAmount)
   const shippingAmount = moneyToNumber(order.shippingAmount)
   const eftDiscount = moneyToNumber(order.eftDiscountAmount)
   const totalAmount = moneyToNumber(order.totalAmount)
+
+  const CUSTOMER_CANCELLABLE_STATUSES = new Set([
+    'bank_transfer_waiting',
+    'payment_confirmed',
+    'seller_queue_ready',
+    'seller_reviewing',
+    'seller_accepted',
+    'preparing',
+    'awaiting_shipment',
+  ])
+  const canCustomerCancel = CUSTOMER_CANCELLABLE_STATUSES.has(order.status)
+  const latestReturn = returnRequests[0]
+  const hasActiveReturn = returnRequests.some((r) => r.status !== 'refund_completed')
+  const withinReturnWindow = isWithinReturnWindow(order.deliveryConfirmedAt)
+  const canCustomerReturn =
+    order.status === 'delivery_confirmed' && withinReturnWindow && !hasActiveReturn
+  // Pencere kapandıktan sonra iade yolu tamamen kapalıdır (politika kararı)
+  const returnWindowClosed =
+    order.status === 'delivery_confirmed' && !withinReturnWindow && returnRequests.length === 0
+  const statusLabel = getCustomerOrderStatusLabel(order.status)
 
   const latestShipment = shipments[0]
   const addressLines = address
@@ -154,8 +250,57 @@ export default async function OrderDetailPage({ params }: Props) {
             {date}
           </p>
         </div>
-        <StatusBadge status={order.status as Parameters<typeof StatusBadge>[0]['status']} />
+        <div className="flex items-center gap-3">
+          <StatusBadge
+            status={order.status as Parameters<typeof StatusBadge>[0]['status']}
+            {...(statusLabel ? { label: statusLabel } : {})}
+          />
+          {canCustomerCancel ? <CancelOrderButton orderId={order.id} /> : null}
+        </div>
       </div>
+
+      {latestReturn ? <ReturnPanel returnRequestId={latestReturn.id} /> : null}
+
+      {canCustomerReturn ? (
+        <section
+          className="mb-5 rounded-xl border p-5"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <div className="mb-3">
+            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+              İade
+            </h2>
+            <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+              Teslim onayından itibaren 14 gün içinde iade talebi oluşturabilirsiniz.
+            </p>
+          </div>
+          <ReturnRequestButton orderId={order.id} />
+        </section>
+      ) : null}
+
+      {returnWindowClosed ? (
+        <section
+          className="mb-5 rounded-xl border p-4 text-sm"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
+        >
+          <p style={{ color: 'var(--color-muted-fg)' }}>
+            İade süresi doldu. Teslim onayından sonraki 14 günlük iade hakkı sona erdiği için
+            bu sipariş için iade talebi oluşturulamaz.
+          </p>
+        </section>
+      ) : null}
+
+      {pendingCustomerExtensionRequest ? (
+        <div className="mb-5">
+          <ExtensionRequestDecision
+            orderId={order.id}
+            requestId={pendingCustomerExtensionRequest.id}
+            requestedDays={pendingCustomerExtensionRequest.requestedDays}
+            sellerReason={pendingCustomerExtensionRequest.sellerReason ?? ''}
+            questionFromAdmin={pendingCustomerExtensionRequest.customerQuestionFromAdmin ?? null}
+          />
+        </div>
+      ) : null}
 
       <section
         className="mb-5 rounded-xl border p-5"
@@ -200,7 +345,7 @@ export default async function OrderDetailPage({ params }: Props) {
                   </p>
                 </div>
                 <span className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                  ₺{(price * line.quantity).toLocaleString('tr-TR')}
+                  {formatMoney(price * line.quantity)}
                 </span>
               </div>
             )
@@ -268,6 +413,89 @@ export default async function OrderDetailPage({ params }: Props) {
           )}
         </section>
       </div>
+
+      {isEftPending ? (
+        <section
+          className="mt-5 rounded-xl border p-5"
+          style={{
+            borderColor: 'var(--color-warning, #f59e0b)',
+            backgroundColor: 'var(--color-surface)',
+          }}
+        >
+          <h2 className="mb-1 flex items-center gap-2 font-semibold" style={{ color: 'var(--color-primary)' }}>
+            <CreditCard className="h-4 w-4" /> Havale / EFT Ödeme Bilgileri
+          </h2>
+          <p className="mb-4 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+            Aşağıdaki hesaplardan birine havale/EFT yapabilirsiniz. Siparişinizin onaylanabilmesi için lütfen açıklama kısmına sipariş numaranızı yazınız.
+          </p>
+          <div
+            className="mb-4 rounded-lg border p-3 text-sm"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
+          >
+            <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
+              Havale aciklamasi / referans
+            </p>
+            <p className="mt-1 font-mono text-base" style={{ color: 'var(--color-primary)' }}>
+              {formatOrderNumber(order.publicNumber, order.id)}
+            </p>
+          </div>
+          <div className="space-y-3">
+            {bankAccounts.map((bank) => (
+              <div
+                key={bank.id}
+                className="rounded-lg border p-4"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                <p className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                  {bank.bankName}
+                  {bank.branchName ? ` — ${bank.branchName}` : ''}
+                </p>
+                <p className="mt-0.5 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                  {bank.accountHolder}
+                  {bank.accountHolderNote ? (
+                    <span className="ml-1 text-xs italic">({bank.accountHolderNote})</span>
+                  ) : null}
+                </p>
+                <p className="mt-1 font-mono text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                  {formatIban(bank.iban)}
+                </p>
+              </div>
+            ))}
+            {fallbackBankAccount?.missing ? (
+              <div className="rounded-lg border p-4 text-sm" style={{ borderColor: 'var(--color-border)' }}>
+                Banka bilgileri su an listelenemedi. Size kisa sure icinde e-posta ile iletilecek.
+              </div>
+            ) : fallbackBankAccount ? (
+              <div className="rounded-lg border p-4" style={{ borderColor: 'var(--color-border)' }}>
+                <p className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                  {fallbackBankAccount.bankName}
+                  {fallbackBankAccount.branchName ? ` - ${fallbackBankAccount.branchName}` : ''}
+                </p>
+                <p className="mt-0.5 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                  {fallbackBankAccount.accountHolder}
+                  {fallbackBankAccount.accountHolderNote ? (
+                    <span className="ml-1 text-xs italic">({fallbackBankAccount.accountHolderNote})</span>
+                  ) : null}
+                </p>
+                <p className="mt-1 font-mono text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                  {formatIban(fallbackBankAccount.iban)}
+                </p>
+              </div>
+            ) : null}
+          </div>
+          <div
+            className="mt-4 rounded-lg p-3 text-sm font-medium"
+            style={{
+              backgroundColor: 'var(--color-warning-bg, #fffbeb)',
+              color: 'var(--color-warning-fg, #92400e)',
+              border: '1px solid var(--color-warning, #f59e0b)',
+            }}
+          >
+            ⚠️ Havale/EFT ile ödeme yaptığınızda açıklama kısmına{' '}
+            <span className="font-bold">sipariş numaranızı</span> yazmanız zorunludur. Teşekkürler.
+          </div>
+        </section>
+      ) : null}
 
       {legalSnapshot ? (
         <section

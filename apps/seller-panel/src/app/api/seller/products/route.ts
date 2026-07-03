@@ -13,6 +13,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 const variantSchema = z.object({
   color: z.string().trim().max(80).optional(),
+  material: z.string().trim().max(80).optional(),
   size: z.string().trim().max(80).optional(),
   customOptionName: z.string().trim().max(80).optional(),
   customOptionValue: z.string().trim().max(120).optional(),
@@ -25,6 +26,7 @@ const createProductSchema = z.object({
   name: z.string().min(3, 'Urun adi en az 3 karakter olmali').max(200),
   categoryId: z.string().min(1, 'Kategori secimi zorunludur'),
   price: z.number().positive('Fiyat 0dan buyuk olmali'),
+  fulfillmentDays: z.number().int().min(1, 'Sevk suresi en az 1 is gunu olmali').max(90, 'Sevk suresi en fazla 90 is gunu olabilir'),
   stockQuantity: z.number().int().min(0, 'Stok negatif olamaz'),
   barcode: z.string().regex(/^\d{13}$/, 'Barkod 13 haneli rakam olmali').nullable().optional(),
   shortDescription: z.string().max(500).optional(),
@@ -47,7 +49,6 @@ type VariantInput = z.infer<typeof variantSchema>
 
 function normalizeVariant(input: VariantInput) {
   const options: Record<string, string> = {}
-  if (input.color?.trim()) options.Renk = input.color.trim()
   if (input.size?.trim()) options.Beden = input.size.trim()
   if (input.customOptionName?.trim() && input.customOptionValue?.trim()) {
     options[input.customOptionName.trim()] = input.customOptionValue.trim()
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
         price: new Decimal(parsed.data.price),
         compareAtPrice:
           parsed.data.compareAtPrice !== undefined ? new Decimal(parsed.data.compareAtPrice) : null,
+        fulfillmentDays: parsed.data.fulfillmentDays,
         stockQuantity:
           variants.length > 0
             ? variants.reduce((sum, variant) => sum + variant.stockQuantity, 0)

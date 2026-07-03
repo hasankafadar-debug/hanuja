@@ -10,11 +10,16 @@ const {
   refreshActiveRisksMock,
   accrueDailyLateShipmentMock,
   autoCancelForFulfillmentBreachMock,
+  notifySellerFulfillmentWarningMock,
 } = vi.hoisted(() => ({
-  prismaMock: { fulfillmentRisk: { findMany: vi.fn() } },
+  prismaMock: {
+    fulfillmentRisk: { findMany: vi.fn() },
+    notification: { findFirst: vi.fn() },
+  },
   refreshActiveRisksMock: vi.fn(),
   accrueDailyLateShipmentMock: vi.fn(),
   autoCancelForFulfillmentBreachMock: vi.fn(),
+  notifySellerFulfillmentWarningMock: vi.fn(),
 }))
 
 vi.mock('../../../api/lib/redis', () => ({ redis: {} }))
@@ -32,6 +37,11 @@ vi.mock('../../../api/services/fulfillment-risk.service', () => ({
 vi.mock('../../../api/services/penalty.service', () => ({
   createPenaltyService: () => ({ accrueDailyLateShipment: accrueDailyLateShipmentMock }),
 }))
+vi.mock('../../../api/services/notification.service', () => ({
+  createNotificationService: () => ({
+    notifySellerFulfillmentWarning: notifySellerFulfillmentWarningMock,
+  }),
+}))
 vi.mock('../../../api/services/order.service', () => ({
   createOrderService: () => ({ autoCancelForFulfillmentBreach: autoCancelForFulfillmentBreachMock }),
 }))
@@ -40,14 +50,24 @@ function makeJob(): Job<{ warnAtDays?: number }> {
   return { data: { warnAtDays: 18 } } as unknown as Job<{ warnAtDays?: number }>
 }
 
+// The job now calls findMany twice: once for warning risks and once for breached risks.
+// Helper to return [] for warning lookups and supplied list for breached lookups.
+function mockBreachedRisks(rows: unknown[]) {
+  prismaMock.fulfillmentRisk.findMany.mockImplementation(async (args: { where?: { status?: string } } = {}) => {
+    if (args.where?.status === 'warning') return []
+    return rows
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   refreshActiveRisksMock.mockResolvedValue({ breached: 0, warning: 0, resolved: 0 })
+  prismaMock.notification.findFirst.mockResolvedValue(null)
 })
 
 describe('processFulfillmentRisk', () => {
   it('skips breaches whose order has no seller line', async () => {
-    prismaMock.fulfillmentRisk.findMany.mockResolvedValue([
+    mockBreachedRisks([
       { orderId: 'o1', order: { id: 'o1', status: 'preparing', lines: [] } },
     ])
 
@@ -61,7 +81,7 @@ describe('processFulfillmentRisk', () => {
   })
 
   it('accrues penalty for a 19-day breach but does NOT auto-cancel', async () => {
-    prismaMock.fulfillmentRisk.findMany.mockResolvedValue([
+    mockBreachedRisks([
       {
         orderId: 'o1',
         order: { id: 'o1', status: 'awaiting_shipment', lines: [{ sellerId: 's1' }] },
@@ -82,7 +102,7 @@ describe('processFulfillmentRisk', () => {
   })
 
   it('triggers auto-cancel when accrualDayCount reaches 20', async () => {
-    prismaMock.fulfillmentRisk.findMany.mockResolvedValue([
+    mockBreachedRisks([
       {
         orderId: 'o2',
         order: { id: 'o2', status: 'awaiting_shipment', lines: [{ sellerId: 's2' }] },
@@ -102,7 +122,7 @@ describe('processFulfillmentRisk', () => {
   })
 
   it('does not double-cancel an order that is already cancelled_due_to_20day_breach', async () => {
-    prismaMock.fulfillmentRisk.findMany.mockResolvedValue([
+    mockBreachedRisks([
       {
         orderId: 'o3',
         order: { id: 'o3', status: 'cancelled_due_to_20day_breach', lines: [{ sellerId: 's3' }] },
@@ -118,7 +138,7 @@ describe('processFulfillmentRisk', () => {
   })
 
   it('skips orders where accrueDailyLateShipment returns null (deadline not breached)', async () => {
-    prismaMock.fulfillmentRisk.findMany.mockResolvedValue([
+    mockBreachedRisks([
       {
         orderId: 'o4',
         order: { id: 'o4', status: 'preparing', lines: [{ sellerId: 's4' }] },
@@ -134,7 +154,7 @@ describe('processFulfillmentRisk', () => {
   })
 
   it('processes multiple breached orders independently', async () => {
-    prismaMock.fulfillmentRisk.findMany.mockResolvedValue([
+    mockBreachedRisks([
       { orderId: 'o5', order: { id: 'o5', status: 'preparing', lines: [{ sellerId: 's5' }] } },
       { orderId: 'o6', order: { id: 'o6', status: 'awaiting_shipment', lines: [{ sellerId: 's6' }] } },
     ])

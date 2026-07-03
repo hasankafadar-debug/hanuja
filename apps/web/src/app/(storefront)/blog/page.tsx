@@ -35,8 +35,8 @@ export default async function BlogListPage({
     return (
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <h1
-          className="text-3xl font-bold mb-6"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
+          className="text-3xl font-normal mb-6"
+          style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}
         >
           Blog & İlham
         </h1>
@@ -52,8 +52,8 @@ export default async function BlogListPage({
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       <div className="mb-10">
         <h1
-          className="text-3xl font-bold"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
+          className="text-3xl font-normal"
+          style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}
         >
           Blog & İlham
         </h1>
@@ -89,7 +89,7 @@ export default async function BlogListPage({
             />
             <div className="relative">
               <h2
-                className="text-2xl font-bold md:text-3xl"
+                className="text-2xl font-normal md:text-3xl"
                 style={{ fontFamily: 'var(--font-display)' }}
               >
                 {featured.title}

@@ -9,6 +9,8 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Geçerli bir renk kodu girin (örn. #FF0000)')
+
 const profileSchema = z.object({
   storeName: z.string().min(2, 'Mağaza adı en az 2 karakter olmalı').max(80).optional(),
   bio: z.string().max(1000).optional(),
@@ -21,6 +23,12 @@ const profileSchema = z.object({
   taxOffice: z.string().max(120).optional(),
   taxNumber: z.string().max(20).optional(),
   mersis: z.string().max(30).optional(),
+  logoUrl: z.string().url('Geçerli bir URL girin').max(500).startsWith('https://', 'Yalnızca HTTPS URL kabul edilir').optional(),
+  bannerUrl: z.string().url('Geçerli bir URL girin').max(500).startsWith('https://', 'Yalnızca HTTPS URL kabul edilir').optional(),
+  bannerColor: hexColor.optional(),
+  bannerHeadline: z.string().max(60, 'Banner başlığı en fazla 60 karakter olabilir').optional(),
+  bannerTextColor: hexColor.optional(),
+  bannerHeadlineFontSize: z.enum(['sm', 'md', 'lg', 'xl']).optional(),
 })
 
 /** PATCH /api/seller/profile — mağaza profili güncelle */
@@ -53,6 +61,12 @@ export async function PATCH(req: NextRequest) {
     taxOffice,
     taxNumber,
     mersis,
+    logoUrl,
+    bannerUrl,
+    bannerColor,
+    bannerHeadline,
+    bannerTextColor,
+    bannerHeadlineFontSize,
   } = parsed.data
   const svc = createSellerService({ prisma })
   await svc.updateProfile(seller.id, session.user.id, {
@@ -67,6 +81,12 @@ export async function PATCH(req: NextRequest) {
     ...(taxOffice !== undefined ? { taxOffice } : {}),
     ...(taxNumber !== undefined ? { taxNumber } : {}),
     ...(mersis !== undefined ? { mersis } : {}),
+    ...(logoUrl !== undefined ? { logoUrl } : {}),
+    ...(bannerUrl !== undefined ? { bannerUrl } : {}),
+    ...(bannerColor !== undefined ? { bannerColor } : {}),
+    ...(bannerHeadline !== undefined ? { bannerHeadline } : {}),
+    ...(bannerTextColor !== undefined ? { bannerTextColor } : {}),
+    ...(bannerHeadlineFontSize !== undefined ? { bannerHeadlineFontSize } : {}),
   })
 
   return NextResponse.json({ success: true })

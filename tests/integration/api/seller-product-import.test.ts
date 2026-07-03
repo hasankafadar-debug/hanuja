@@ -46,6 +46,7 @@ function createPrismaMock(opts?: {
     status?: string
     sellerNumber?: number
     userId?: string
+    importEnabled?: boolean
   } | null
 }) {
   const seller =
@@ -55,6 +56,7 @@ function createPrismaMock(opts?: {
           status: 'active',
           sellerNumber: 42,
           userId: 'seller-user-1',
+          importEnabled: true,
         }
       : opts.seller
 
@@ -132,7 +134,13 @@ describe('Seller product URL import routes', () => {
           adapter: 'hipicon',
           externalUrl: 'https://www.hipicon.com/magaza',
           items: [makePreviewItem()],
-          selections: [{ externalId: 'hipicon-1', categoryId: 'category-1' }],
+          selections: [{
+            externalId: 'hipicon-1',
+            categoryId: 'category-1',
+            colorOptionId: 'color-1',
+            materialOptionId: 'material-1',
+            stockQuantity: 1,
+          }],
         }),
         headers: { 'Content-Type': 'application/json' },
       }) as never,
@@ -220,7 +228,16 @@ describe('Seller product URL import routes', () => {
           adapter: 'hipicon',
           externalUrl: 'https://www.hipicon.com/magaza',
           items: [makePreviewItem()],
-          selections: [{ externalId: 'hipicon-1', categoryId: 'category-1', barcode: '4200000012345' }],
+          selections: [
+            {
+              externalId: 'hipicon-1',
+              categoryId: 'category-1',
+              colorOptionId: 'color-1',
+              materialOptionId: 'material-1',
+              barcode: '4200000012345',
+              stockQuantity: 5,
+            },
+          ],
         }),
         headers: { 'Content-Type': 'application/json' },
       }) as never,
@@ -244,7 +261,16 @@ describe('Seller product URL import routes', () => {
       sellerNumber: 42,
       ownerId: 'seller-user-1',
       items: [makePreviewItem()],
-      selections: [{ externalId: 'hipicon-1', categoryId: 'category-1', barcode: '4200000012345' }],
+      selections: [
+        {
+          externalId: 'hipicon-1',
+          categoryId: 'category-1',
+          colorOptionId: 'color-1',
+          materialOptionId: 'material-1',
+          barcode: '4200000012345',
+          stockQuantity: 5,
+        },
+      ],
     })
   })
 

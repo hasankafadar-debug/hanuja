@@ -62,6 +62,15 @@ export async function POST(
     return NextResponse.json({ error: 'Gecerli gorsel bulunamadi.' }, { status: 400 })
   }
 
+  if (assets.length !== parsed.data.mediaAssetIds.length) {
+    return NextResponse.json(
+      {
+        error: 'Bazi gorseller henuz hazir degil veya urune baglanamadi. Lutfen yuklemelerin tamamlanmasini bekleyip tekrar deneyin.',
+      },
+      { status: 409 },
+    )
+  }
+
   const existing = await prisma.productImage.findMany({
     where: { productId },
     select: { sortOrder: true },

@@ -101,7 +101,8 @@ export function createPayoutService({
                 amount: grossAmount,
                 referenceType: 'order',
                 referenceId: params.orderId,
-                description: 'Brut satis',
+                description: 'Brüt satış (fatura kesilince satıcı ekstresinde görünür)',
+                visibleToSeller: false,
               })
             }
 
@@ -118,7 +119,8 @@ export function createPayoutService({
                 amount: commissionAmount.negated(),
                 referenceType: 'payout',
                 referenceId: payout.id,
-                description: 'Platform komisyonu',
+                description: 'Platform komisyonu (fatura kesilince satıcı ekstresinde görünür)',
+                visibleToSeller: false,
               })
             }
 
@@ -286,14 +288,33 @@ export function createPayoutService({
         referenceId: payout.id,
       })
       if (!payoutLedgerEntry) {
+        const transferLabel = params.transferBankName?.trim() || 'EFT'
+        const referenceSuffix = params.transferReference?.trim()
+          ? ` (Ref: ${params.transferReference.trim()})`
+          : ''
         await ledger.createEntry({
           sellerId: payout.sellerId,
           type: 'payout',
           amount: payout.netAmount.negated(),
           referenceType: 'payout',
           referenceId: payout.id,
-          description: params.transferBankName?.trim() || 'EFT',
+          description: `Satıcı ödemesi — ${transferLabel}${referenceSuffix}`,
           createdBy: params.adminActorId,
+          visibleToSeller: true,
+        })
+
+        // Reveal accrual entries linked to this payout (sale + commission) so
+        // that the seller statement reconciles with the now-visible payout.
+        await prisma.sellerLedgerEntry.updateMany({
+          where: {
+            sellerId: payout.sellerId,
+            visibleToSeller: false,
+            OR: [
+              { type: 'commission', referenceType: 'payout', referenceId: payout.id },
+              { type: 'sale', referenceType: 'order', referenceId: payout.orderId },
+            ],
+          },
+          data: { visibleToSeller: true },
         })
       }
 

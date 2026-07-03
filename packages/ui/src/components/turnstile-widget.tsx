@@ -91,10 +91,7 @@ export function TurnstileWidget({
       } else {
         onChange("")
       }
-
-      return () => {
-        onChange("")
-      }
+      return
     }
 
     onChange("")

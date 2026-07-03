@@ -131,4 +131,4 @@ export {
 // ── Storefront ─────────────────────────────────────────────────────────────
 export { HeroSlider, type HeroSlide, type HeroSliderProps } from './components/hero-slider'
 export { PromoCard, type PromoCardProps } from './components/promo-card'
-export { mediaSrcSet, normalizeMediaDisplayUrl } from './lib/media-url'
+export { isManagedMediaProxyUrl, mediaSrcSet, normalizeMediaDisplayUrl } from './lib/media-url'

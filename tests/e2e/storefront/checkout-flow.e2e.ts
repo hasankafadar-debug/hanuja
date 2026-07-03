@@ -14,6 +14,29 @@ const ROOT = path.resolve(__dirname, '../../..')
 const TEST_EMAIL = 'playwright-eft@hanuja.test'
 const TEST_PASSWORD = 'PlaywrightEFT1234!'
 
+async function openFirstHref(page: Page, selector: string) {
+  const href = await page.locator(selector).evaluateAll((links) => {
+    for (const link of links) {
+      const href = link.getAttribute('href')
+      if (href?.startsWith('/')) return href
+    }
+    return null
+  })
+
+  expect(href).toBeTruthy()
+  await safeGoto(page, href!)
+}
+
+async function safeGoto(page: Page, href: string) {
+  try {
+    await page.goto(href, { waitUntil: 'domcontentloaded' })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!message.includes('ERR_ABORTED')) throw error
+    await page.goto(href, { waitUntil: 'domcontentloaded' })
+  }
+}
+
 async function loginCustomer(page: Page) {
   await mockTurnstile(page)
   const hydration = trackHydrationErrors(page)
@@ -31,27 +54,77 @@ async function loginCustomer(page: Page) {
 
 async function openFirstCategory(page: Page) {
   await page.goto('/kategori')
-  const categoryLink = page.locator('a[href*="/kategori/"]').first()
-  await expect(categoryLink).toBeVisible()
-  await categoryLink.click()
-  await page.waitForLoadState('networkidle')
+  await expect(page.locator('a[href*="/kategori/"]').first()).toBeVisible()
+  await openFirstHref(page, 'a[href*="/kategori/"]')
+  await expect(page.getByTestId('product-card').first()).toBeVisible({ timeout: 15_000 })
 }
 
 async function openFirstProduct(page: Page) {
   await openFirstCategory(page)
-  const productLink = page.locator('a[href*="/urun/"]').first()
-  await expect(productLink).toBeVisible()
-  await productLink.click()
-  await page.waitForLoadState('networkidle')
+  await expect(page.locator('[data-testid="product-card"] a[href*="/urun/"]').first()).toBeVisible()
+  await openFirstHref(page, '[data-testid="product-card"] a[href*="/urun/"]')
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('add-to-cart')).toBeVisible({ timeout: 15_000 })
+}
+
+async function addFirstAvailableProductToCart(page: Page) {
+  await page.goto('/kategori')
+  await expect(page.locator('a[href*="/kategori/"]').first()).toBeVisible()
+
+  const categoryHrefs = await page.locator('a[href*="/kategori/"]').evaluateAll((links) =>
+    Array.from(
+      new Set(
+        links
+          .map((link) => link.getAttribute('href'))
+          .filter((href): href is string => Boolean(href && href.startsWith('/'))),
+      ),
+    ).slice(0, 5),
+  )
+
+  for (const categoryHref of categoryHrefs) {
+    await page.goto(categoryHref)
+    await expect(page.getByTestId('product-card').first()).toBeVisible({ timeout: 15_000 })
+
+    const productHrefs = await page.locator('[data-testid="product-card"] a[href*="/urun/"]').evaluateAll((links) =>
+      Array.from(
+        new Set(
+          links
+            .map((link) => link.getAttribute('href'))
+            .filter((href): href is string => Boolean(href && href.startsWith('/'))),
+        ),
+      ).slice(0, 12),
+    )
+
+    for (const productHref of productHrefs) {
+      await page.goto(productHref)
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })
+
+      const addToCartButton = page.getByTestId('add-to-cart')
+      if ((await addToCartButton.count()) === 0) continue
+      if (await addToCartButton.isDisabled()) continue
+
+      await expect(addToCartButton).toBeVisible({ timeout: 15_000 })
+      await addToCartButton.click()
+      return
+    }
+  }
+
+  throw new Error('Sepete eklenebilir stokta urun bulunamadi.')
 }
 
 test.beforeAll(() => {
-  const script = path.join(ROOT, 'tests/e2e/setup/ensure-test-customer.ts')
-  execSync(`pnpm exec tsx "${script}"`, {
-    cwd: ROOT,
-    env: { ...process.env },
-    stdio: 'pipe',
-  })
+  const scripts = [
+    path.join(ROOT, 'tests/e2e/setup/ensure-test-customer.ts'),
+    path.join(ROOT, 'tests/e2e/setup/ensure-customer-fixtures.ts'),
+  ]
+
+  for (const script of scripts) {
+    execSync(`pnpm exec tsx "${script}"`, {
+      cwd: ROOT,
+      env: { ...process.env },
+      stdio: 'pipe',
+    })
+  }
 })
 
 test.describe('checkout journey', () => {
@@ -78,23 +151,21 @@ test.describe('checkout journey', () => {
 
   test('add to cart and view cart', async ({ page }) => {
     await loginCustomer(page)
-    await openFirstProduct(page)
-    await page.getByTestId('add-to-cart').click()
-    await page.goto('/sepet')
+    await addFirstAvailableProductToCart(page)
+    await safeGoto(page, '/sepet')
     await expect(page.getByTestId('cart-item').first()).toBeVisible()
   })
 
   test('checkout requires authentication', async ({ page }) => {
     await page.goto('/odeme')
-    await expect(page).toHaveURL(/giris/)
+    await expect(page).toHaveURL(/giris/, { timeout: 20_000 })
   })
 
   test('authenticated checkout flow completes', async ({ page }) => {
     await loginCustomer(page)
-    await openFirstProduct(page)
-    await page.getByTestId('add-to-cart').click()
+    await addFirstAvailableProductToCart(page)
 
-    await page.goto('/sepet')
+    await safeGoto(page, '/sepet')
     await page.getByTestId('cart-checkout').click()
     await expect(page).toHaveURL(/siparis|odeme|checkout/)
   })
@@ -149,22 +220,32 @@ test.describe('SEO route integrity', () => {
 })
 
 test.describe('customer order tracking', () => {
+  test.setTimeout(45_000)
+
   test.beforeEach(async ({ page }) => {
     await loginCustomer(page)
   })
 
   test('order list shows customer orders', async ({ page }) => {
-    await page.goto('/siparis')
+    await safeGoto(page, '/siparis')
     const hasOrders = (await page.getByTestId('order-row').count()) > 0
     const hasEmptyState = (await page.getByTestId('empty-state').count()) > 0
     expect(hasOrders || hasEmptyState).toBe(true)
   })
 
   test('order detail page shows status', async ({ page }) => {
-    await page.goto('/siparis')
+    await safeGoto(page, '/siparis')
     if ((await page.getByTestId('order-row').count()) > 0) {
-      await page.getByTestId('order-row').first().getByRole('link', { name: /Detay/i }).click()
+      const detailLink = page.getByTestId('order-row').first().getByRole('link', { name: /Detay/i })
+      await expect(detailLink).toBeVisible()
+      const detailHref = await detailLink.getAttribute('href')
+      expect(detailHref).toBeTruthy()
+      await safeGoto(page, detailHref!)
       await expect(page).toHaveURL(/\/siparis\//)
+      await expect(page.getByText('Bir sorun oluştu')).not.toBeVisible()
+      await expect(page.getByText('Sayfa Bulunamadı')).not.toBeVisible()
+      await expect(page.getByRole('heading', { name: /Sipari/i })).toBeVisible()
+      await expect(page.getByTestId('status-badge')).toBeVisible()
     }
   })
 })

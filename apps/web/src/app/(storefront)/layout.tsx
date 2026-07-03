@@ -20,7 +20,7 @@ function SiteHeader() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
           <Link href="/" className="shrink-0" aria-label="Hanuja — Ana Sayfa">
-            <HanujaLogo scale={0.85} variant="light" />
+            <HanujaLogo scale={0.85} textScale={1.4} variant="light" />
           </Link>
 
           <form action="/arama" className="hidden flex-1 max-w-md md:flex">

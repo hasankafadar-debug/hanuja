@@ -73,6 +73,10 @@ export function resolveCommissionRate(
   return productRate ?? categoryRate ?? sellerRate ?? systemDefaultRate
 }
 
+/**
+ * Commission base = OrderLine.totalPrice (KDV dahil, pre-discount gross).
+ * This is the agreed platform policy: commission is calculated on the KDV-inclusive price.
+ */
 export function calculateCommission(grossAmount: Decimal, rate: Decimal): Decimal {
   return grossAmount.mul(rate).toDecimalPlaces(2)
 }

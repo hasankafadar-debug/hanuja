@@ -36,6 +36,11 @@ export interface SellerProfileUpdateInput {
   storeName?: string
   bio?: string
   logoUrl?: string
+  bannerUrl?: string
+  bannerColor?: string
+  bannerHeadline?: string
+  bannerTextColor?: string
+  bannerHeadlineFontSize?: string
   phone?: string
   companyName?: string
   legalAddress?: string
@@ -197,10 +202,15 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
       storeNameChanged = input.storeName !== seller.displayName
     }
 
-    // bio, logoUrl, phone SellerProfile tablosunda
+    // bio, logoUrl, banner alanları ve diğerleri SellerProfile tablosunda
     const profileData: Record<string, unknown> = {}
     if (input.bio !== undefined) profileData.bio = input.bio
     if (input.logoUrl !== undefined) profileData.logoUrl = input.logoUrl
+    if (input.bannerUrl !== undefined) profileData.bannerUrl = input.bannerUrl
+    if (input.bannerColor !== undefined) profileData.bannerColor = input.bannerColor
+    if (input.bannerHeadline !== undefined) profileData.bannerHeadline = input.bannerHeadline
+    if (input.bannerTextColor !== undefined) profileData.bannerTextColor = input.bannerTextColor
+    if (input.bannerHeadlineFontSize !== undefined) profileData.bannerHeadlineFontSize = input.bannerHeadlineFontSize
     if (input.phone !== undefined) profileData.phone = input.phone
     if (input.companyName !== undefined) profileData.companyName = input.companyName
     if (input.legalAddress !== undefined) profileData.legalAddress = input.legalAddress

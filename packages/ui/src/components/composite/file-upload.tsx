@@ -42,6 +42,7 @@ export interface FileUploadProps {
   maxFiles?: number | null
   value?: UploadedAsset[]
   onChange?: (assets: UploadedAsset[]) => void
+  onPendingChange?: (pendingCount: number) => void
   className?: string
   showPreviews?: boolean
   showMaxFilesHint?: boolean
@@ -71,6 +72,7 @@ export function FileUpload({
   maxFiles = 5,
   value = [],
   onChange,
+  onPendingChange,
   className,
   showPreviews = true,
   showMaxFilesHint = true,
@@ -81,6 +83,11 @@ export function FileUpload({
   const [uploads, setUploads] = React.useState<UploadState[]>([])
   const [isDragOver, setIsDragOver] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const valueRef = React.useRef(value)
+
+  React.useEffect(() => {
+    valueRef.current = value
+  }, [value])
 
   const acceptedTypes = imageConstraints?.allowedTypes?.length
     ? imageConstraints.allowedTypes
@@ -224,7 +231,7 @@ export function FileUpload({
         ),
       )
 
-      onChange?.([...value, confirmedAsset])
+      onChange?.([...valueRef.current, confirmedAsset])
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Yükleme başarısız.'
       setUploads((prev) =>
@@ -258,6 +265,10 @@ export function FileUpload({
 
   const activeUploads = uploads.filter((upload) => upload.status !== 'done' && upload.status !== 'error')
   const errorUploads = uploads.filter((upload) => upload.status === 'error')
+
+  React.useEffect(() => {
+    onPendingChange?.(activeUploads.length)
+  }, [activeUploads.length, onPendingChange])
 
   return (
     <div className={cn('space-y-3', className)}>

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { HeroSlider, PromoCard } from '@hanuja/ui'
 import {
@@ -15,7 +16,8 @@ import {
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { createHomeCmsService } from '@hanuja/api/services/home-cms.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import StorefrontProductGrid, { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
+import FeaturedProductsCarousel from '@/components/storefront/featured-products-carousel'
+import type { StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
 
 export const revalidate = 300
 
@@ -36,6 +38,47 @@ const FEATURED_CATEGORIES = [
   { label: 'Tekstil', description: 'Sıcaklık ve konfor', href: '/kategori/ev-tekstil', Icon: Layers },
 ]
 
+const HOMEPAGE_FEATURED_GROUPS = [
+  ['ev-mobilya', 'ofis-mobilya'],
+  ['ev-aydinlatma', 'ofis-aydinlatma'],
+  ['ev-aksesuar', 'ofis-aksesuar'],
+  ['ev-mutfak'],
+  ['ev-dekorasyon'],
+  ['ev-tekstil'],
+  ['ev'],
+  ['ofis'],
+] as const
+
+function collectCategoryIds(
+  rootIds: string[],
+  categories: Array<{ id: string; slug: string; parentId: string | null }>,
+) {
+  const collected = new Set<string>(rootIds)
+  let changed = true
+
+  while (changed) {
+    changed = false
+    for (const category of categories) {
+      if (category.parentId && collected.has(category.parentId) && !collected.has(category.id)) {
+        collected.add(category.id)
+        changed = true
+      }
+    }
+  }
+
+  return Array.from(collected)
+}
+
+function resolveDiscoveryHref(href: string, ...content: Array<string | null | undefined>) {
+  const lookup = [href, ...content].filter(Boolean).join(' ').toLocaleLowerCase('tr-TR')
+
+  if (lookup.includes('favori')) return '/urunler?vitrin=favorited&siralama=favorited'
+  if (lookup.includes('yeni')) return '/urunler?vitrin=newest&siralama=newest'
+  if (lookup.includes('indirim')) return '/urunler?vitrin=discounts&indirimli=1'
+
+  return href
+}
+
 type ProductRow = {
   id: string
   name: string
@@ -51,19 +94,48 @@ async function getPageData() {
   const catalogSvc = createCatalogService({ prisma })
   const cmsSvc = createHomeCmsService({ prisma })
 
-  const [featuredProducts, slides, topPromo, bottomPromo] = await Promise.all([
-    catalogSvc.listPublished({ skip: 0, take: 8 }).catch(() => []),
+  const [allCategories, slides, topPromo, bottomPromo] = await Promise.all([
+    catalogSvc.listAllCategories().catch(() => []),
     cmsSvc.getActiveSlides().catch(() => []),
     cmsSvc.getActivePromo('TOP_RIGHT').catch(() => null),
     cmsSvc.getActivePromo('BOTTOM_RIGHT').catch(() => null),
   ])
+
+  const featuredGroups = HOMEPAGE_FEATURED_GROUPS.map((group) => {
+    const rootIds = allCategories
+      .filter((category) => group.some((slug) => slug === category.slug))
+      .map((category) => category.id)
+
+    return {
+      key: group.join('-'),
+      categoryIds: collectCategoryIds(rootIds, allCategories),
+    }
+  }).filter((group) => group.categoryIds.length > 0)
+
+  const featuredProducts = await catalogSvc.getHomepageFeaturedProducts(featuredGroups).catch(() => [])
 
   return { featuredProducts, slides, topPromo, bottomPromo }
 }
 
 export default async function HomePage() {
   const { featuredProducts, slides, topPromo, bottomPromo } = await getPageData()
-  const hasPromo = topPromo !== null || bottomPromo !== null
+  const heroSlides = slides.map((slide) => ({
+    ...slide,
+    ctaHref: resolveDiscoveryHref(slide.ctaHref, slide.title, slide.body, slide.ctaLabel),
+  }))
+  const resolvedTopPromo = topPromo
+    ? {
+        ...topPromo,
+        ctaHref: resolveDiscoveryHref(topPromo.ctaHref, topPromo.title, topPromo.subtitle),
+      }
+    : null
+  const resolvedBottomPromo = bottomPromo
+    ? {
+        ...bottomPromo,
+        ctaHref: resolveDiscoveryHref(bottomPromo.ctaHref, bottomPromo.title, bottomPromo.subtitle),
+      }
+    : null
+  const hasPromo = resolvedTopPromo !== null || resolvedBottomPromo !== null
 
   return (
     <div style={{ backgroundColor: 'var(--color-background)' }}>
@@ -75,32 +147,34 @@ export default async function HomePage() {
         >
           {/* Slider — takes 2/3 on desktop when promos present */}
           <div className={hasPromo ? 'lg:col-span-2' : ''}>
-            <HeroSlider slides={slides} autoPlayMs={6000} />
+            <HeroSlider slides={heroSlides} autoPlayMs={6000} />
           </div>
 
           {/* Promo column — visible only on lg+ when at least one promo exists */}
           {hasPromo && (
             <div className="hidden lg:flex lg:flex-col lg:gap-4">
-              {topPromo ? (
+              {resolvedTopPromo ? (
                 <PromoCard
-                  imageUrl={topPromo.mediaAsset.url}
-                  imageVariants={topPromo.mediaAsset.variants}
-                  imageAlt={topPromo.title}
-                  title={topPromo.title}
-                  subtitle={topPromo.subtitle}
-                  ctaHref={topPromo.ctaHref}
+                  imageUrl={resolvedTopPromo.mediaAsset.url}
+                  imageVariants={resolvedTopPromo.mediaAsset.variants}
+                  imageAlt={resolvedTopPromo.title}
+                  title={resolvedTopPromo.title}
+                  subtitle={resolvedTopPromo.subtitle}
+                  ctaHref={resolvedTopPromo.ctaHref}
+                  priority
                 />
               ) : (
                 <div className="flex-1 rounded-xl" style={{ backgroundColor: 'var(--color-muted)' }} />
               )}
-              {bottomPromo ? (
+              {resolvedBottomPromo ? (
                 <PromoCard
-                  imageUrl={bottomPromo.mediaAsset.url}
-                  imageVariants={bottomPromo.mediaAsset.variants}
-                  imageAlt={bottomPromo.title}
-                  title={bottomPromo.title}
-                  subtitle={bottomPromo.subtitle}
-                  ctaHref={bottomPromo.ctaHref}
+                  imageUrl={resolvedBottomPromo.mediaAsset.url}
+                  imageVariants={resolvedBottomPromo.mediaAsset.variants}
+                  imageAlt={resolvedBottomPromo.title}
+                  title={resolvedBottomPromo.title}
+                  subtitle={resolvedBottomPromo.subtitle}
+                  ctaHref={resolvedBottomPromo.ctaHref}
+                  priority
                 />
               ) : (
                 <div className="flex-1 rounded-xl" style={{ backgroundColor: 'var(--color-muted)' }} />
@@ -114,7 +188,7 @@ export default async function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="mb-10 flex items-end justify-between">
           <div>
-            <h2 className="text-3xl font-bold" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}>
+            <h2 className="text-3xl font-medium" style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}>
               Kategoriler
             </h2>
             <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
@@ -163,17 +237,17 @@ export default async function HomePage() {
           <div className="mb-10 flex items-end justify-between">
             <div>
               <h2
-                className="text-3xl font-bold"
-                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
+                className="text-3xl font-medium"
+                style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}
               >
                 Öne Çıkan Ürünler
               </h2>
               <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                Editörlerimizin seçtikleri
+                Her kategoriden öne çıkanlar
               </p>
             </div>
             <Link
-              href="/kategori"
+              href="/urunler"
               className="hidden text-sm font-medium sm:inline-flex items-center gap-1 transition-colors hover:opacity-80"
               style={{ color: 'var(--color-accent)' }}
             >
@@ -187,7 +261,7 @@ export default async function HomePage() {
               Henüz ürün eklenmemiş.
             </p>
           ) : (
-            <StorefrontProductGrid
+            <FeaturedProductsCarousel
               products={(featuredProducts as unknown as ProductRow[]).map<StorefrontGridProduct>((product) => ({
                 id: product.id,
                 title: product.name,
@@ -210,28 +284,36 @@ export default async function HomePage() {
 
       {/* Editorial CTA */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div
-          className="rounded-2xl px-8 py-14 text-center sm:px-16"
-          style={{ backgroundColor: 'var(--color-primary)' }}
-        >
-          <h2
-            className="text-3xl font-bold sm:text-4xl"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary-fg)' }}
-          >
-            Evi Sıfırdan mı Döşüyorsunuz?
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
-            Uzman içeriklerimiz ve ilham veren rehberlerimizle doğru ürünleri daha kolay bulun. Mobilyadan
-            aydınlatmaya her şey için fikirler blog&apos;da sizi bekliyor.
-          </p>
-          <Link
-            href="/blog"
-            className="mt-8 inline-flex items-center gap-2 rounded-full px-8 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
-            style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-accent-fg)' }}
-          >
-            Blog&apos;u Keşfet
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+        <div className="relative overflow-hidden rounded-2xl px-8 py-14 text-center sm:px-16">
+          <Image
+            src="https://images.unsplash.com/photo-1618219908412-a29a1bb7b86e?w=1600&q=80&auto=format&fit=crop"
+            alt=""
+            fill
+            className="object-cover scale-105 blur-sm"
+            sizes="(max-width: 1280px) 100vw, 1280px"
+            aria-hidden="true"
+          />
+          <div className="absolute inset-0" style={{ backgroundColor: 'rgba(18,14,10,0.72)' }} />
+          <div className="relative z-10">
+            <h2
+              className="text-3xl font-medium sm:text-4xl"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary-fg)' }}
+            >
+              Evi Sıfırdan mı Döşüyorsunuz?
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Uzman içeriklerimiz ve ilham veren rehberlerimizle doğru ürünleri daha kolay bulun. Mobilyadan
+              aydınlatmaya her şey için fikirler blog&apos;da sizi bekliyor.
+            </p>
+            <Link
+              href="/blog"
+              className="mt-8 inline-flex items-center gap-2 rounded-full px-8 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-accent-fg)' }}
+            >
+              Blog&apos;u Keşfet
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       </section>
     </div>

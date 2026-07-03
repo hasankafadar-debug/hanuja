@@ -5,17 +5,18 @@ import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { ProductModerationActions } from '@/components/product-moderation-actions'
 import { buildSuggestedRejectReason, parseModerationFindings } from '@/lib/product-moderation'
+import { formatMoney } from '@hanuja/security'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = { title: 'Ürün Moderasyon Detayı' }
+export const metadata: Metadata = { title: 'Urun Moderasyon Detayi' }
 
 const STATUS_MAP: Record<string, { label: string; variant: 'warning' | 'success' | 'destructive' | 'secondary' }> = {
-  pending_review: { label: 'İnceleme bekliyor', variant: 'warning' },
-  published: { label: 'Yayında', variant: 'success' },
+  pending_review: { label: 'Inceleme bekliyor', variant: 'warning' },
+  published: { label: 'Yayinda', variant: 'success' },
   rejected: { label: 'Reddedildi', variant: 'destructive' },
   draft: { label: 'Taslak', variant: 'secondary' },
-  unlisted: { label: 'Yayından kaldırıldı', variant: 'secondary' },
+  unlisted: { label: 'Yayindan kaldirildi', variant: 'secondary' },
 }
 
 export default async function AdminProductDetailPage({
@@ -52,7 +53,7 @@ export default async function AdminProductDetailPage({
     <div className="space-y-8">
       <PageHeader
         title={product.name}
-        description={`${product.seller?.displayName ?? 'Satıcı yok'} • ${product.category?.name ?? 'Kategori yok'}`}
+        description={`${product.seller?.displayName ?? 'Satici yok'} • ${product.category?.name ?? 'Kategori yok'}`}
       />
 
       <div className="grid gap-8 lg:grid-cols-[1.4fr_0.9fr]">
@@ -63,7 +64,7 @@ export default async function AdminProductDetailPage({
                 className="flex aspect-square items-center justify-center rounded-lg border text-sm"
                 style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
               >
-                Görsel yok
+                Gorsel yok
               </div>
             ) : (
               product.images.map((image) => (
@@ -90,23 +91,23 @@ export default async function AdminProductDetailPage({
               </span>
             </div>
 
-            {product.rejectionReason && (
+            {product.rejectionReason ? (
               <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 <strong>Ret nedeni:</strong> {product.rejectionReason}
               </div>
-            )}
+            ) : null}
 
-            <Field label="Kısa açıklama" value={product.shortDescription} />
-            <Field label="Açıklama" value={product.description} multiline />
-            <Field label="Ürün hikayesi" value={product.story} multiline />
-            <Field label="Bakım talimatı" value={product.careInstructions} multiline />
+            <Field label="Kisa aciklama" value={product.shortDescription} />
+            <Field label="Aciklama" value={product.description} multiline />
+            <Field label="Urun hikayesi" value={product.story} multiline />
+            <Field label="Bakim talimati" value={product.careInstructions} multiline />
           </div>
 
           <div className="space-y-4 rounded-xl border p-5" style={{ borderColor: 'var(--color-border)' }}>
-            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Moderasyon Bulguları</h2>
+            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Moderasyon Bulgulari</h2>
             {findings.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                Bu ürün için kaydedilmiş bir moderasyon bulgusu yok.
+                Bu urun icin kaydedilmis bir moderasyon bulgusu yok.
               </p>
             ) : (
               <div className="space-y-3">
@@ -138,32 +139,37 @@ export default async function AdminProductDetailPage({
 
         <aside className="space-y-4">
           <div className="rounded-xl border p-5" style={{ borderColor: 'var(--color-border)' }}>
-            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Ürün Özeti</h2>
+            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Urun Ozeti</h2>
             <dl className="mt-4 space-y-3 text-sm">
-              <MetaRow label="Satıcı" value={product.seller?.displayName ?? '—'} />
-              <MetaRow label="Şehir" value={product.seller?.profile?.city ?? '—'} />
+              <MetaRow label="Satici" value={product.seller?.displayName ?? '—'} />
+              <MetaRow label="Sehir" value={product.seller?.profile?.city ?? '—'} />
               <MetaRow label="Kategori" value={product.category?.name ?? '—'} />
-              <MetaRow label="Fiyat" value={`₺${product.price.toNumber().toLocaleString('tr-TR')}`} />
+              <MetaRow label="Fiyat" value={formatMoney(product.price.toNumber())} />
               <MetaRow label="Stok" value={String(product.stockQuantity)} />
               <MetaRow label="SKU" value={product.sku ?? '—'} />
               <MetaRow label="Barkod" value={product.barcode ?? '—'} />
             </dl>
           </div>
 
-          {product.status === 'pending_review' && (
-            <div className="rounded-xl border p-5" style={{ borderColor: 'var(--color-border)' }}>
-              <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Moderasyon Kararı</h2>
-              <p className="mt-2 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                Bulgular satıcıya gösterilecek ret metni için başlangıç noktası sağlar.
-              </p>
-              <div className="mt-4">
-                <ProductModerationActions
-                  productId={product.id}
-                  defaultRejectReason={suggestedRejectReason}
-                />
-              </div>
+          <div className="rounded-xl border p-5" style={{ borderColor: 'var(--color-border)' }}>
+            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+              {product.status === 'pending_review' ? 'Moderasyon Karari' : 'Urun Yonetimi'}
+            </h2>
+            <p className="mt-2 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+              {product.status === 'pending_review'
+                ? 'Bulgular saticiya gosterilecek ret metni icin baslangic noktasi saglar.'
+                : 'Yayin durumunu degistirebilir veya siparis gecmisi yoksa urunu silebilirsiniz.'}
+            </p>
+            <div className="mt-4">
+              <ProductModerationActions
+                productId={product.id}
+                status={product.status}
+                {...(product.status === 'pending_review' && suggestedRejectReason
+                  ? { defaultRejectReason: suggestedRejectReason }
+                  : {})}
+              />
             </div>
-          )}
+          </div>
         </aside>
       </div>
     </div>

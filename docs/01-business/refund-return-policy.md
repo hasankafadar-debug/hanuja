@@ -311,6 +311,51 @@ Access to evidence files must be authorization-checked. Evidence is not publicly
 
 ---
 
+## 14.1 Seller-Driven Return Flow (2026-05-15)
+
+The return flow is **seller-driven**. Admin enters only on dispute escalation.
+
+Locked policy decisions:
+
+1. **14 CALENDAR-day hard cutoff.** `openRequest` is rejected by the backend if
+   `now > deliveryConfirmedAt + 14 calendar days`. There is **no** post-window
+   admin-evaluation path (the previously documented post-14-day path is removed).
+   The storefront button is hidden/passive after the window.
+2. **Seller receipt confirmation auto-triggers the customer refund**
+   (`confirmReceiptBySeller` → idempotent `refund.service`). The seller's payout for
+   the order is already blocked, so this is finance-safe. Card → Iyzico; EFT →
+   manual. A negative `SellerLedgerEntry` (`type = refund`) is written for
+   reconciliation.
+3. **Seller rejection of the received item auto-opens a `Dispute`** (status `open`,
+   `payoutBlocked = true`), linked to the return via `ReturnRequest.disputeId` /
+   `Dispute.escalatedFromReturn`. The conversation continues on the single
+   `ReturnMessage` thread (customer ↔ seller ↔ admin).
+
+Status mapping (order ← ReturnRequest):
+
+```
+delivery_confirmed
+  → return_requested   (requested)    customer reason+desc+photos, seller notified
+  → return_approved    (approved)     seller provides return cargo info
+  → return_in_transit  (in_transit)   customer ships: carrier+tracking OR barcode photo
+  → return_received → refund_pending → refund_completed   (seller confirms → auto refund)
+  OR return_rejected → dispute_open   (seller rejects → admin dispute)
+  → dispute_resolved   (admin closes; customer-favored with amount → refund)
+```
+
+New `ReturnRequest` fields: `sellerReturnAddress`, `sellerReturnCargoCarrier`,
+`sellerReturnInstructions`, `sellerCargoInfoProvidedAt`, `customerShippedAt`,
+`sellerReceivedAt`, `sellerRejectReason`, `sellerRejectDescription`,
+`sellerRejectedAt`, `disputeId`. `ReturnMessage` gains message-level attachments
+(`MediaAsset.returnMessageId`).
+
+Known limitation: partial returns are not modeled — the refund equals the full
+seller-portion of the order; multi-seller orders refund only the acting seller's
+lines. Seller-side timeouts (no cargo info / no receipt confirmation) are handled
+manually via admin override routes; an SLA job is a follow-up.
+
+---
+
 ## 15. Cross-Reference
 
 This document must remain aligned with:

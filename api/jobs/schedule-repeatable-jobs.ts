@@ -27,6 +27,7 @@ import {
   deliverySilentConfirmQueue,
   fulfillmentRiskQueue,
   ibanActivationQueue,
+  seoContentQueue,
 } from '../lib/queue'
 
 export async function scheduleRepeatableJobs(): Promise<void> {
@@ -83,6 +84,19 @@ export async function scheduleRepeatableJobs(): Promise<void> {
       },
       removeOnComplete: { count: 10 },
       removeOnFail: { count: 20 },
+    },
+  )
+
+  await seoContentQueue.add(
+    'seo-content-weekly',
+    {},
+    {
+      repeat: {
+        pattern: '0 6 * * 0',
+        tz: 'Europe/Istanbul',
+      },
+      removeOnComplete: { count: 20 },
+      removeOnFail: { count: 50 },
     },
   )
 

@@ -166,6 +166,10 @@ AWS SDK v3 S3 client pointed at the R2 endpoint
 server-side for seller uploads. The browser uploads directly to R2 using the presigned URL —
 the API server never proxies binary data.
 
+`R2_PUBLIC_URL` and `R2_PUBLIC_HOSTNAME` are used for public media delivery and image display.
+They do not control the upload target. Upload requests always go to the S3-compatible R2
+endpoint derived from `R2_ACCOUNT_ID`, using `R2_BUCKET_NAME` plus the configured access key.
+
 ### Public access
 
 The bucket is configured with a public custom domain (`R2_PUBLIC_URL`). Asset URLs stored
@@ -185,6 +189,9 @@ in the database use this public base. Next.js `<Image>` optimization is permitte
 
 - If presigned URL generation fails, the upload flow returns an error to the seller and no
   database record is created.
+- If upload setup returns `404 Not Found`, first verify `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`,
+  `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`. A wrong custom media domain alone should
+  not cause upload `404`, because uploads do not use `R2_PUBLIC_URL`.
 - R2 outages affect media display but do not affect order, payment, or payout logic.
 - File type and size must be validated server-side before issuing a presigned URL.
 

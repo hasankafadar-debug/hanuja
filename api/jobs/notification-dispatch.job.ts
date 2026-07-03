@@ -16,6 +16,7 @@ import {
   returnRequestTemplate,
   payoutProcessedTemplate,
   penaltyAppliedTemplate,
+  storeDiscountFollowedSellerTemplate,
 } from '../lib/email-templates'
 
 type CanonicalNotificationType = (typeof NotificationTypeEnum)[keyof typeof NotificationTypeEnum]
@@ -29,6 +30,7 @@ export interface NotificationDispatchJobData {
   data?: Record<string, unknown>
   /** If set, send email to this address in addition to in-app notification */
   emailTo?: string
+  replyTo?: string
 }
 
 /** Notification types that warrant an email */
@@ -40,6 +42,7 @@ const EMAIL_NOTIFICATION_TYPES = new Set<CanonicalNotificationType>([
   NotificationTypeEnum.payout_paid,
   NotificationTypeEnum.penalty_applied,
   NotificationTypeEnum.invoice_uploaded,
+  NotificationTypeEnum.store_discount_followed_seller,
 ])
 
 function normalizeNotificationType(type: string) {
@@ -142,13 +145,21 @@ async function buildEmailPayload(
         orderNumber: String(data['orderNumber'] ?? ''),
       })
 
+    case NotificationTypeEnum.store_discount_followed_seller:
+      return storeDiscountFollowedSellerTemplate({
+        customerName: String(data['customerName'] ?? 'Değerli Müşterimiz'),
+        sellerName: String(data['sellerName'] ?? 'Takip ettiğiniz mağaza'),
+        storeUrl: String(data['storeUrl'] ?? ''),
+        unsubscribeUrl: String(data['unsubscribeUrl'] ?? ''),
+      })
+
     default:
       return null
   }
 }
 
 export async function processNotificationDispatch(job: Job<NotificationDispatchJobData>) {
-  const { userId, type, title, body, data, emailTo } = job.data
+  const { userId, type, title, body, data, emailTo, replyTo } = job.data
   const canonicalType = resolveNotificationType(type)
 
   if (!canonicalType) {
@@ -188,7 +199,7 @@ export async function processNotificationDispatch(job: Job<NotificationDispatchJ
     const emailPayload = await buildEmailPayload(canonicalType, data)
     if (emailPayload) {
       try {
-        await sendEmail({ to: emailTo, ...emailPayload })
+        await sendEmail({ to: emailTo, ...emailPayload, ...(replyTo ? { replyTo } : {}) })
       } catch (err) {
         console.error(`[notification-dispatch] Email send failed for ${canonicalType}:`, err)
       }

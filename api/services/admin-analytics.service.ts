@@ -7,6 +7,7 @@
  * These stats are read-only aggregations — no state mutations occur here.
  */
 import type { PrismaClient } from '@prisma/client'
+import { isMissingDatabaseObjectError } from '../lib/prisma-runtime'
 import { createFulfillmentRiskService } from './fulfillment-risk.service'
 
 export interface AdminDashboardStats {
@@ -16,6 +17,10 @@ export interface AdminDashboardStats {
     delayedOrders: number
     openReturns: number
     openDisputes: number
+    pendingDeliveryConfirmation: number
+  }
+  moderation: {
+    pendingProducts: number
   }
   payments: {
     pendingEftApprovals: number
@@ -29,15 +34,23 @@ export interface AdminDashboardStats {
   }
   penalties: {
     pendingPenaltyTotal: number
+    newCount: number
+  }
+  invoices: {
+    pendingCommission: number
   }
   sellers: {
     totalActive: number
     pendingApproval: number
     pendingImportPermissions: number
   }
+  extensions: {
+    pending: number
+  }
   customerSupport: {
     newTickets: number
     customerReplied: number
+    sellerPending: number
   }
 }
 
@@ -64,6 +77,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
     const [
       totalOrdersToday,
       pendingSellerAction,
+      pendingDeliveryConfirmation,
       openReturns,
       openDisputes,
       pendingEftApprovals,
@@ -73,6 +87,10 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       blockedPayoutResult,
       negativeBalanceCount,
       pendingPenaltyResult,
+      pendingPenaltyCount,
+      pendingProducts,
+      pendingCommissionInvoices,
+      pendingExtensionRequests,
       activeSellers,
       pendingSellers,
       pendingImportPermissions,
@@ -80,12 +98,16 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       // Customer support ticket counts
       customerSupportNewTickets,
       customerSupportRepliedTickets,
+      sellerSupportPendingTickets,
     ] = await Promise.all([
       prisma.order.count({
         where: { createdAt: { gte: startOfToday } },
       }),
       prisma.order.count({
         where: { status: { in: ['seller_queue_ready', 'seller_reviewing'] } },
+      }),
+      prisma.order.count({
+        where: { status: 'delivery_confirmation_pending' },
       }),
       prisma.returnRequest.count({
         where: { status: { in: ['requested', 'under_review'] } },
@@ -125,6 +147,33 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
         where: { status: 'applied' },
         _sum: { penaltyAmount: true },
       }),
+      prisma.penalty.count({
+        where: { status: 'applied', financeInvoices: { none: {} } },
+      }),
+      prisma.product.count({
+        where: { status: 'pending_review' },
+      }),
+      prisma.sellerInvoice.count({
+        where: { type: 'commission', payoutId: null },
+      }),
+      prisma.fulfillmentExtensionRequest
+        .count({
+          where: { status: 'pending_admin_review' },
+        })
+        .catch((error) => {
+          if (
+            isMissingDatabaseObjectError(error, {
+              tableNames: ['fulfillment_extension_requests'],
+            })
+          ) {
+            console.warn(
+              '[admin-analytics] fulfillment_extension_requests tablosu hazir degil; extension count 0 kabul edildi.',
+            )
+            return 0
+          }
+
+          throw error
+        }),
       prisma.seller.count({ where: { status: 'active' } }),
       prisma.seller.count({ where: { status: 'pending' } }),
       prisma.seller.count({
@@ -138,9 +187,27 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       prisma.customerSupportTicket.count({
         where: { status: 'waiting_for_admin', lastAdminMessageAt: { not: null } },
       }),
+      prisma.supportTicket.count({
+        where: { status: 'waiting_for_admin' },
+      }),
     ])
 
-    const activeFulfillmentRisks = await createFulfillmentRiskService({ prisma }).listActiveForAdmin()
+    const activeFulfillmentRisks = await createFulfillmentRiskService({ prisma })
+      .listActiveForAdmin()
+      .catch((error) => {
+        if (
+          isMissingDatabaseObjectError(error, {
+            tableNames: ['fulfillment_extension_requests'],
+          })
+        ) {
+          console.warn(
+            '[admin-analytics] fulfillment risk extension baglantisi hazir degil; aktif risk listesi bos dondu.',
+          )
+          return []
+        }
+
+        throw error
+      })
     const delayedOrders = activeFulfillmentRisks.length
 
     return {
@@ -150,6 +217,10 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
         delayedOrders,
         openReturns,
         openDisputes,
+        pendingDeliveryConfirmation,
+      },
+      moderation: {
+        pendingProducts,
       },
       payments: {
         pendingEftApprovals,
@@ -163,15 +234,23 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       },
       penalties: {
         pendingPenaltyTotal: Number(pendingPenaltyResult._sum.penaltyAmount ?? 0),
+        newCount: pendingPenaltyCount,
+      },
+      invoices: {
+        pendingCommission: pendingCommissionInvoices,
       },
       sellers: {
         totalActive: activeSellers,
         pendingApproval: pendingSellers,
         pendingImportPermissions,
       },
+      extensions: {
+        pending: pendingExtensionRequests,
+      },
       customerSupport: {
         newTickets: customerSupportNewTickets,
         customerReplied: customerSupportRepliedTickets,
+        sellerPending: sellerSupportPendingTickets,
       },
     }
   }

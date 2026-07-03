@@ -39,12 +39,19 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   delivery_confirmation_pending:{ label: "Teslim Onayı Bekleniyor", variant: "warning" },
   delivery_confirmed:           { label: "Teslim Onaylandı",    variant: "success" },
 
-  // ── Cancellation states ───────────────────────────────────────
-  canceled_by_customer:         { label: "Müşteri İptal",       variant: "destructive" },
-  canceled_by_admin:            { label: "Yönetici İptal",      variant: "destructive" },
-  canceled_due_to_payment_failure: { label: "Ödeme Hatası İptal", variant: "destructive" },
-  canceled_due_to_seller_rejection: { label: "Satıcı Reddi İptal", variant: "destructive" },
-  canceled_due_to_20_day_breach:{ label: "Süre Aşımı İptal",   variant: "destructive" },
+  // ── Cancellation states (schema: cancelled_ British spelling) ─
+  cancelled_by_customer:              { label: "Müşteri İptal",       variant: "destructive" },
+  cancelled_by_admin:                 { label: "Yönetici İptal",      variant: "destructive" },
+  cancelled_due_to_payment_failure:   { label: "Ödeme Hatası İptal",  variant: "destructive" },
+  cancelled_due_to_seller_rejection:  { label: "Satıcı Reddi İptal",  variant: "destructive" },
+  cancelled_due_to_20day_breach:      { label: "Süre Aşımı İptal",    variant: "destructive" },
+  payment_cancelled:                  { label: "Ödeme İptal",         variant: "destructive" },
+  // Legacy aliases (American spelling) — kept for any existing references
+  canceled_by_customer:               { label: "Müşteri İptal",       variant: "destructive" },
+  canceled_by_admin:                  { label: "Yönetici İptal",      variant: "destructive" },
+  canceled_due_to_payment_failure:    { label: "Ödeme Hatası İptal",  variant: "destructive" },
+  canceled_due_to_seller_rejection:   { label: "Satıcı Reddi İptal",  variant: "destructive" },
+  canceled_due_to_20_day_breach:      { label: "Süre Aşımı İptal",    variant: "destructive" },
 
   // ── Return / Dispute states ───────────────────────────────────
   return_requested:             { label: "İade Talep Edildi",   variant: "warning" },

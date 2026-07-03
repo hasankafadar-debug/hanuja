@@ -51,6 +51,11 @@ export type StorefrontNavItemConfig =
       href: string
       collectionSlug: VirtualCollectionSlug
     }
+  | {
+      kind: 'link'
+      label: string
+      href: string
+    }
 
 export const STOREFRONT_NAV_ITEMS: StorefrontNavItemConfig[] = [
   { kind: 'tree', label: 'Ev', href: '/kategori/ev', rootSlug: 'ev' },
@@ -90,5 +95,10 @@ export const STOREFRONT_NAV_ITEMS: StorefrontNavItemConfig[] = [
     label: 'Tekstil',
     href: '/kategori/ev-tekstil',
     rootSlug: 'ev-tekstil',
+  },
+  {
+    kind: 'link',
+    label: 'İndirim',
+    href: '/urunler?vitrin=discounts&indirimli=1',
   },
 ]

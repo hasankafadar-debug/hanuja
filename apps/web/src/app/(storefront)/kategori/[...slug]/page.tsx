@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { cache } from 'react'
 import { Breadcrumb } from '@hanuja/ui'
 import { CategoryFilters, type FilterSeller, type FilterSubcategory } from './_components/category-filters'
 import { CategorySort } from './_components/category-sort'
@@ -122,15 +121,15 @@ function buildBreadcrumbs(slugParts: string[], category: { name: string } | null
   return items
 }
 
-const getCategoryBySlug = cache(async (lastSlug: string) => {
+async function getCategoryBySlug(lastSlug: string) {
   const svc = createCatalogService({ prisma: createPrismaForRoute() })
   return svc.getCategoryBySlug(lastSlug)
-})
+}
 
-const getAllCategories = cache(async () => {
+async function getAllCategories() {
   const svc = createCatalogService({ prisma: createPrismaForRoute() })
   return svc.listAllCategories()
-})
+}
 
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const { slug } = await params
@@ -160,7 +159,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const sp = await searchParams
 
   const currentPage = Math.max(1, Number(sp.sayfa ?? '1'))
-  const currentSort = sp.siralama as 'newest' | 'price-asc' | 'price-desc' | undefined
+  const currentSort = sp.siralama as 'newest' | 'favorited' | 'price-asc' | 'price-desc' | undefined
   const inStockOnly = sp.stokta === '1'
   const onSaleOnly = sp.indirimli === '1'
   const activeSeller = sp.tasarimci
@@ -211,9 +210,8 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
     const baseCategoryIds = collectCategoryIds(rootIds, allCategories)
     const categoryIds = altCategoryIds ?? baseCategoryIds
 
-    const [products, total, sellers] = await Promise.all([
-      svc.listPublished({ categoryIds, ...listOpts }),
-      svc.countPublished({ categoryIds, ...priceRange, ...(inStockOnly ? { inStockOnly: true as const } : {}), ...(onSaleOnly ? { onSaleOnly: true as const } : {}), ...(sellerId !== undefined ? { sellerId } : {}) }),
+    const [catalogResult, sellers] = await Promise.all([
+      svc.listPublishedCurated({ categoryIds, ...listOpts }),
       svc.getSellersByCategory(baseCategoryIds),
     ])
 
@@ -223,7 +221,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 
     const labelMap: Record<string, string> = { mobilya: 'Mobilya', aydinlatma: 'Aydınlatma', aksesuar: 'Aksesuar' }
     const categoryLabel = labelMap[firstSlug] ?? firstSlug
-    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+    const totalPages = Math.max(1, Math.ceil(catalogResult.total / PAGE_SIZE))
     const breadcrumbs = [{ label: 'Ana Sayfa', href: '/' }, { label: categoryLabel }]
     const breadcrumbJsonLd = buildBreadcrumbStructuredData([
       { name: 'Ana Sayfa', url: '/' },
@@ -235,8 +233,8 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
         breadcrumbJsonLd={breadcrumbJsonLd}
         breadcrumbs={breadcrumbs}
         categoryLabel={categoryLabel}
-        products={products.map(toGridProduct as never)}
-        totalProducts={total}
+        products={catalogResult.items.map(toGridProduct as never)}
+        totalProducts={catalogResult.total}
         categoryPath={categoryPath}
         currentPage={currentPage}
         totalPages={totalPages}
@@ -267,9 +265,8 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const baseCategoryIds = collectCategoryIds([category.id], allCategories)
   const categoryIds = altCategoryIds ?? baseCategoryIds
 
-  const [products, total, sellers] = await Promise.all([
-    svc.listPublished({ categoryIds, ...listOpts }),
-    svc.countPublished({ categoryIds, ...priceRange, ...(inStockOnly ? { inStockOnly: true as const } : {}), ...(onSaleOnly ? { onSaleOnly: true as const } : {}), ...(sellerId !== undefined ? { sellerId } : {}) }),
+  const [catalogResult, sellers] = await Promise.all([
+    svc.listPublishedCurated({ categoryIds, ...listOpts }),
     svc.getSellersByCategory(baseCategoryIds),
   ])
 
@@ -279,7 +276,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 
   const categoryLabel = category.name
   const breadcrumbs = buildBreadcrumbs(slug, category)
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(catalogResult.total / PAGE_SIZE))
 
   const breadcrumbJsonLd = buildBreadcrumbStructuredData([
     { name: 'Ana Sayfa', url: '/' },
@@ -291,8 +288,8 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
       breadcrumbJsonLd={breadcrumbJsonLd}
       breadcrumbs={breadcrumbs}
       categoryLabel={categoryLabel}
-      products={products.map(toGridProduct as never)}
-      totalProducts={total}
+      products={catalogResult.items.map(toGridProduct as never)}
+      totalProducts={catalogResult.total}
       categoryPath={categoryPath}
       currentPage={currentPage}
       totalPages={totalPages}
@@ -328,7 +325,7 @@ interface CategoryLayoutProps {
   activeSeller?: string
   activeSubcategory?: string
   onSaleOnly: boolean
-  currentSort?: 'newest' | 'price-asc' | 'price-desc'
+  currentSort?: 'newest' | 'favorited' | 'price-asc' | 'price-desc'
 }
 
 function CategoryLayout({
@@ -367,8 +364,8 @@ function CategoryLayout({
 
         <div className="mb-6">
           <h1
-            className="text-3xl font-bold"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
+            className="text-3xl font-medium"
+            style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}
           >
             {categoryLabel}
           </h1>

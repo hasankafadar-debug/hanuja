@@ -28,6 +28,13 @@ interface AutoCreateProposal {
   leafName: string
 }
 
+interface AttributeOption {
+  id: string
+  slug: string
+  label: string
+  hexColor?: string | null
+}
+
 interface EnrichedScrapedProduct extends ScrapedProduct {
   resolvedCategoryId?: string
   resolvedCategoryProposal?: AutoCreateProposal
@@ -61,9 +68,12 @@ type BarcodeStatus = 'idle' | 'checking' | 'ok' | 'invalid' | 'in_use'
 interface ItemSelectionState {
   selected: boolean
   categoryId: string
+  colorOptionId: string
+  materialOptionId: string
   barcode: string
   barcodeStatus: BarcodeStatus
   barcodeNormalized: string | null
+  fulfillmentDays: number
   stockQuantity: number
 }
 
@@ -144,10 +154,16 @@ function normalizePersistedSelection(value: unknown): ItemSelectionState | null 
   return {
     selected: candidate.selected,
     categoryId: typeof candidate.categoryId === 'string' ? candidate.categoryId : '',
+    colorOptionId: typeof candidate.colorOptionId === 'string' ? candidate.colorOptionId : '',
+    materialOptionId: typeof candidate.materialOptionId === 'string' ? candidate.materialOptionId : '',
     barcode: typeof candidate.barcode === 'string' ? candidate.barcode : '',
     barcodeStatus: isBarcodeStatus(candidate.barcodeStatus) ? candidate.barcodeStatus : 'idle',
     barcodeNormalized:
       typeof candidate.barcodeNormalized === 'string' ? candidate.barcodeNormalized : null,
+    fulfillmentDays:
+      typeof candidate.fulfillmentDays === 'number' && Number.isInteger(candidate.fulfillmentDays) && candidate.fulfillmentDays >= 1
+        ? candidate.fulfillmentDays
+        : 20,
     stockQuantity:
       typeof candidate.stockQuantity === 'number' && Number.isInteger(candidate.stockQuantity) && candidate.stockQuantity >= 0
         ? candidate.stockQuantity
@@ -160,7 +176,11 @@ function normalizePersistedSelection(value: unknown): ItemSelectionState | null 
 // ---------------------------------------------------------------------------
 
 function formatMoney(value: number) {
-  return `₺${value.toLocaleString('tr-TR')}`
+  const formatted = value.toLocaleString('tr-TR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+  return `${formatted} TL`
 }
 
 function rejectionReasonLabel(reason: string): string {
@@ -170,6 +190,20 @@ function rejectionReasonLabel(reason: string): string {
     case 'too_divergent': return 'Hipicon çok derin kategori'
     case 'empty_path': return 'Kategori bilgisi yok'
     default: return reason
+  }
+}
+
+function createEmptySelectionState(): ItemSelectionState {
+  return {
+    selected: false,
+    categoryId: '',
+    colorOptionId: '',
+    materialOptionId: '',
+    barcode: '',
+    barcodeStatus: 'idle',
+    barcodeNormalized: null,
+    fulfillmentDays: 20,
+    stockQuantity: 0,
   }
 }
 
@@ -341,6 +375,10 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
   const [url, setUrl] = useState('')
   const [preview, setPreview] = useState<PreviewPayload | null>(null)
   const [selections, setSelections] = useState<Record<string, ItemSelectionState>>({})
+  const [attributeOptionsByCategoryId, setAttributeOptionsByCategoryId] = useState<
+    Record<string, { colorOptions: AttributeOption[]; materialOptions: AttributeOption[] }>
+  >({})
+  const [attributeLoadingByCategoryId, setAttributeLoadingByCategoryId] = useState<Record<string, boolean>>({})
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [commitError, setCommitError] = useState<string | null>(null)
   const [result, setResult] = useState<ImportResult | null>(null)
@@ -368,6 +406,10 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
 
   const categoryNameById = useMemo(
     () => new Map(categories.map((c) => [c.id, c.name])),
+    [categories],
+  )
+  const categorySlugById = useMemo(
+    () => new Map(categories.map((c) => [c.id, c.slug])),
     [categories],
   )
 
@@ -407,6 +449,36 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     }).length
   }, [importedByExternalId, preview, selections])
 
+  const missingColorCount = useMemo(() => {
+    if (!preview) return 0
+    return preview.items.filter((item) => {
+      if (importedByExternalId[item.externalId]) return false
+      const s = selections[item.externalId]
+      if (!s?.selected) return false
+      return !s.colorOptionId.trim()
+    }).length
+  }, [importedByExternalId, preview, selections])
+
+  const missingMaterialCount = useMemo(() => {
+    if (!preview) return 0
+    return preview.items.filter((item) => {
+      if (importedByExternalId[item.externalId]) return false
+      const s = selections[item.externalId]
+      if (!s?.selected) return false
+      return !s.materialOptionId.trim()
+    }).length
+  }, [importedByExternalId, preview, selections])
+
+  const missingFulfillmentCount = useMemo(() => {
+    if (!preview) return 0
+    return preview.items.filter((item) => {
+      if (importedByExternalId[item.externalId]) return false
+      const s = selections[item.externalId]
+      if (!s?.selected) return false
+      return !Number.isInteger(s.fulfillmentDays) || s.fulfillmentDays < 1
+    }).length
+  }, [importedByExternalId, preview, selections])
+
   useEffect(() => {
     if (!preview) return
     writePersistedSession({ url, preview, selections, importedByExternalId, result })
@@ -429,9 +501,12 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
           restored ?? {
             selected: true,
             categoryId: resolvedId,
+            colorOptionId: item.detectedColorOptionId ?? '',
+            materialOptionId: item.detectedMaterialOptionId ?? '',
             barcode: item.proposedBarcode ?? '',
             barcodeStatus: 'idle' as BarcodeStatus,
             barcodeNormalized: null,
+            fulfillmentDays: 20,
             stockQuantity: Math.max(0, Math.trunc(item.stockQuantity ?? 0)),
           },
         ]
@@ -444,6 +519,8 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     setCommitError(null)
     setResult(null)
     setImportedByExternalId({})
+    setAttributeOptionsByCategoryId({})
+    setAttributeLoadingByCategoryId({})
     setShowAllRejected(false)
   }
 
@@ -452,14 +529,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     updater: (current: ItemSelectionState) => ItemSelectionState,
   ) {
     setSelections((current) => {
-      const existing = current[externalId] ?? {
-        selected: false,
-        categoryId: '',
-        barcode: '',
-        barcodeStatus: 'idle' as BarcodeStatus,
-        barcodeNormalized: null,
-        stockQuantity: 0,
-      }
+      const existing = current[externalId] ?? createEmptySelectionState()
       return { ...current, [externalId]: updater(existing) }
     })
   }
@@ -486,6 +556,42 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
       ),
     )
   }
+
+  const ensureAttributeOptionsLoaded = useCallback(
+    async (categoryId: string) => {
+      const categorySlug = categorySlugById.get(categoryId)
+      if (!categoryId || !categorySlug || attributeOptionsByCategoryId[categoryId] || attributeLoadingByCategoryId[categoryId]) {
+        return
+      }
+
+      setAttributeLoadingByCategoryId((current) => ({ ...current, [categoryId]: true }))
+
+      try {
+        const response = await fetch(`/api/categories/${encodeURIComponent(categorySlug)}/attributes`)
+        const payload = (await response.json().catch(() => ({}))) as {
+          colorOptions?: AttributeOption[]
+          materialOptions?: AttributeOption[]
+        }
+
+        if (!response.ok) return
+
+        setAttributeOptionsByCategoryId((current) => ({
+          ...current,
+          [categoryId]: {
+            colorOptions: payload.colorOptions ?? [],
+            materialOptions: payload.materialOptions ?? [],
+          },
+        }))
+      } finally {
+        setAttributeLoadingByCategoryId((current) => {
+          const next = { ...current }
+          delete next[categoryId]
+          return next
+        })
+      }
+    },
+    [attributeLoadingByCategoryId, attributeOptionsByCategoryId, categorySlugById],
+  )
 
   const handleBarcodeChange = useCallback(
     (externalId: string, value: string) => {
@@ -540,6 +646,27 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview?.adapter])
 
+  useEffect(() => {
+    if (!preview) return
+    const categoryIds = new Set<string>()
+
+    for (const item of preview.items) {
+      const selection = selections[item.externalId]
+      if (selection?.categoryId) {
+        categoryIds.add(selection.categoryId)
+        continue
+      }
+
+      if (item.resolvedCategoryProposal?.parentId) {
+        categoryIds.add(item.resolvedCategoryProposal.parentId)
+      }
+    }
+
+    for (const categoryId of categoryIds) {
+      void ensureAttributeOptionsLoaded(categoryId)
+    }
+  }, [ensureAttributeOptionsLoaded, preview, selections])
+
   function buildCommitSelections(): CommitSelection[] {
     if (!preview) return []
 
@@ -559,7 +686,10 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
             parentId: proposal.parentId,
             leafName: proposal.leafName,
           },
+          colorOptionId: s.colorOptionId.trim(),
+          materialOptionId: s.materialOptionId.trim(),
           barcode: s.barcode.trim() || null,
+          fulfillmentDays: s.fulfillmentDays,
           stockQuantity: s.stockQuantity,
         })
         continue
@@ -568,7 +698,10 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
       commitSelections.push({
         externalId: item.externalId,
         categoryId: s.categoryId.trim(),
+        colorOptionId: s.colorOptionId.trim(),
+        materialOptionId: s.materialOptionId.trim(),
         barcode: s.barcode.trim() || null,
+        fulfillmentDays: s.fulfillmentDays,
         stockQuantity: s.stockQuantity,
       })
     }
@@ -615,6 +748,8 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
   function handleClearPreview() {
     setPreview(null)
     setSelections({})
+    setAttributeOptionsByCategoryId({})
+    setAttributeLoadingByCategoryId({})
     setPreviewError(null)
     setCommitError(null)
     setResult(null)
@@ -633,6 +768,10 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
 
     if (commitSelections.some((s) => !('autoCreateUnder' in s) && !s.categoryId)) {
       setCommitError('Seçili ürünlerin tamamında kategori zorunludur.')
+      return
+    }
+    if (commitSelections.some((s) => !s.colorOptionId || !s.materialOptionId)) {
+      setCommitError('Seçili ürünlerin tamamında renk ve materyal zorunludur.')
       return
     }
 
@@ -695,7 +834,10 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     isBusy ||
     selectedCount === 0 ||
     missingCategoryCount > 0 ||
-    missingBarcodeCount > 0
+    missingBarcodeCount > 0 ||
+    missingFulfillmentCount > 0 ||
+    missingColorCount > 0 ||
+    missingMaterialCount > 0
 
   return (
     <div className="space-y-6">
@@ -802,6 +944,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                   { label: 'Eklenen ürün', value: importedCount },
                   { label: 'Seçilen ürün', value: selectedCount },
                   { label: 'Kategori bekleyen', value: missingCategoryCount },
+                  { label: 'Sevk süresi bekleyen', value: missingFulfillmentCount },
                 ].map((stat) => (
                   <div
                     key={stat.label}
@@ -897,6 +1040,21 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                     {missingBarcodeCount} seçili üründe barkod eksik veya geçersiz.
                   </p>
                 ) : null}
+                {missingFulfillmentCount > 0 ? (
+                  <p style={{ color: 'var(--color-destructive)' }}>
+                    {missingFulfillmentCount} seçili üründe sevk süresi eksik veya geçersiz.
+                  </p>
+                ) : null}
+                {missingColorCount > 0 ? (
+                  <p style={{ color: 'var(--color-destructive)' }}>
+                    {missingColorCount} seçili üründe renk seçimi bekleniyor.
+                  </p>
+                ) : null}
+                {missingMaterialCount > 0 ? (
+                  <p style={{ color: 'var(--color-destructive)' }}>
+                    {missingMaterialCount} seçili üründe materyal seçimi bekleniyor.
+                  </p>
+                ) : null}
               </div>
 
               {/* Table */}
@@ -909,8 +1067,11 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                         'Ürün',
                         'Barkod',
                         'Stok',
+                        'Sevk',
                         'Hipicon kategorisi',
                         'Hedef kategori',
+                        'Renk',
+                        'Materyal',
                         'Fiyat',
                         'Varyasyon',
                         'Kaynak',
@@ -930,23 +1091,27 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                   </thead>
                   <tbody>
                     {preview.items.map((item) => {
-                      const s = selections[item.externalId] ?? {
-                        selected: false,
-                        categoryId: '',
-                        barcode: '',
-                        barcodeStatus: 'idle' as BarcodeStatus,
-                        barcodeNormalized: null,
-                        stockQuantity: 0,
-                      }
+                      const s = selections[item.externalId] ?? createEmptySelectionState()
                       const hasVariants = (item.variants?.length ?? 0) > 0
                       const proposal = item.resolvedCategoryProposal
                       const importedProduct = importedByExternalId[item.externalId]
+                      const attributeCategoryId = s.categoryId || proposal?.parentId || ''
+                      const attributeOptions = attributeCategoryId
+                        ? attributeOptionsByCategoryId[attributeCategoryId]
+                        : undefined
+                      const attributeLoading = attributeCategoryId
+                        ? Boolean(attributeLoadingByCategoryId[attributeCategoryId])
+                        : false
 
                       const categoryDisplay = proposal
                         ? null // handled separately
                         : s.categoryId
                           ? (categoryNameById.get(s.categoryId) ?? s.categoryId)
                           : ''
+                      const selectedColorLabel =
+                        attributeOptions?.colorOptions.find((option) => option.id === s.colorOptionId)?.label ?? ''
+                      const selectedMaterialLabel =
+                        attributeOptions?.materialOptions.find((option) => option.id === s.materialOptionId)?.label ?? ''
 
                       return (
                         <tr key={item.externalId} style={{ opacity: importedProduct ? 0.72 : 1 }}>
@@ -1044,6 +1209,29 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                             />
                           </td>
 
+                          <td
+                            className="border-b px-3 py-3 align-top text-center"
+                            style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
+                          >
+                            <Input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={String(s.fulfillmentDays)}
+                              onChange={(event) =>
+                                updateItemSelection(item.externalId, (current) => ({
+                                  ...current,
+                                  fulfillmentDays: Math.max(
+                                    1,
+                                    Number.parseInt(event.target.value || '1', 10) || 1,
+                                  ),
+                                }))
+                              }
+                              disabled={!s.selected || isBusy || Boolean(importedProduct)}
+                              className="mx-auto w-24 text-center"
+                            />
+                          </td>
+
                           {/* Hipicon category */}
                           <td
                             className="border-b px-3 py-3 align-top"
@@ -1096,12 +1284,18 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                                 <select
                                   id={`category-${item.externalId}`}
                                   value={s.categoryId}
-                                  onChange={(e) =>
+                                  onChange={(e) => {
+                                    const nextCategoryId = e.target.value
                                     updateItemSelection(item.externalId, (cur) => ({
                                       ...cur,
-                                      categoryId: e.target.value,
+                                      categoryId: nextCategoryId,
+                                      colorOptionId: '',
+                                      materialOptionId: '',
                                     }))
-                                  }
+                                    if (nextCategoryId) {
+                                      void ensureAttributeOptionsLoaded(nextCategoryId)
+                                    }
+                                  }}
                                   disabled={Boolean(importedProduct) || !s.selected || isBusy}
                                   className="w-full rounded-md border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                                   style={{
@@ -1123,6 +1317,118 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                                 ) : null}
                               </div>
                             )}
+                          </td>
+
+                          {/* Color */}
+                          <td
+                            className="border-b px-3 py-3 align-top"
+                            style={{ borderColor: 'var(--color-border)' }}
+                          >
+                            <div className="min-w-[180px] space-y-2">
+                              <label htmlFor={`color-${item.externalId}`} className="sr-only">
+                                Renk
+                              </label>
+                              <select
+                                id={`color-${item.externalId}`}
+                                value={s.colorOptionId}
+                                onChange={(e) =>
+                                  updateItemSelection(item.externalId, (cur) => ({
+                                    ...cur,
+                                    colorOptionId: e.target.value,
+                                  }))
+                                }
+                                disabled={
+                                  Boolean(importedProduct) ||
+                                  !s.selected ||
+                                  isBusy ||
+                                  !attributeCategoryId ||
+                                  attributeLoading
+                                }
+                                className="w-full rounded-md border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                                style={{
+                                  borderColor: 'var(--color-border)',
+                                  backgroundColor: 'var(--color-surface)',
+                                }}
+                              >
+                                <option value="">
+                                  {!attributeCategoryId
+                                    ? '-- Önce kategori seçin --'
+                                    : attributeLoading
+                                      ? '-- Renkler yükleniyor --'
+                                      : '-- Renk seçin --'}
+                                </option>
+                                {(attributeOptions?.colorOptions ?? []).map((option) => (
+                                  <option key={option.id} value={option.id}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {!attributeCategoryId ? (
+                                <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                                  Önce kategori seçin.
+                                </p>
+                              ) : selectedColorLabel ? (
+                                <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                                  {selectedColorLabel}
+                                </p>
+                              ) : null}
+                            </div>
+                          </td>
+
+                          {/* Material */}
+                          <td
+                            className="border-b px-3 py-3 align-top"
+                            style={{ borderColor: 'var(--color-border)' }}
+                          >
+                            <div className="min-w-[180px] space-y-2">
+                              <label htmlFor={`material-${item.externalId}`} className="sr-only">
+                                Materyal
+                              </label>
+                              <select
+                                id={`material-${item.externalId}`}
+                                value={s.materialOptionId}
+                                onChange={(e) =>
+                                  updateItemSelection(item.externalId, (cur) => ({
+                                    ...cur,
+                                    materialOptionId: e.target.value,
+                                  }))
+                                }
+                                disabled={
+                                  Boolean(importedProduct) ||
+                                  !s.selected ||
+                                  isBusy ||
+                                  !attributeCategoryId ||
+                                  attributeLoading
+                                }
+                                className="w-full rounded-md border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                                style={{
+                                  borderColor: 'var(--color-border)',
+                                  backgroundColor: 'var(--color-surface)',
+                                }}
+                              >
+                                <option value="">
+                                  {!attributeCategoryId
+                                    ? '-- Önce kategori seçin --'
+                                    : attributeLoading
+                                      ? '-- Materyaller yükleniyor --'
+                                      : '-- Materyal seçin --'}
+                                </option>
+                                {(attributeOptions?.materialOptions ?? []).map((option) => (
+                                  <option key={option.id} value={option.id}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {!attributeCategoryId ? (
+                                <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                                  Önce kategori seçin.
+                                </p>
+                              ) : selectedMaterialLabel ? (
+                                <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                                  {selectedMaterialLabel}
+                                </p>
+                              ) : null}
+                            </div>
                           </td>
 
                           {/* Price */}

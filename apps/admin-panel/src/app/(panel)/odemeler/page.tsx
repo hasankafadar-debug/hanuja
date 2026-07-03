@@ -6,6 +6,8 @@ import { getAdminSession } from '@/lib/admin-session'
 import { EftActions } from '@/components/eft-actions'
 import { createPaymentService } from '@hanuja/api/services/payment.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { formatMoney } from '@hanuja/security'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +43,7 @@ export default async function AdminPaymentsPage() {
     createdAt: Date
     order: {
       id: string
+      publicNumber: number | null
       lines: Array<{ product: { seller: { displayName: string } } | null }>
     } | null
   }
@@ -54,6 +57,7 @@ export default async function AdminPaymentsPage() {
     confirmedAt: Date | null
     order: {
       id: string
+      publicNumber: number | null
       lines: Array<{ product: { seller: { displayName: string } } | null }>
     } | null
   }
@@ -108,11 +112,11 @@ export default async function AdminPaymentsPage() {
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4" style={{ color: 'var(--color-destructive)' }} />
                         <span className="font-semibold text-sm" style={{ color: 'var(--color-primary)' }}>
-                          {eft.orderId.slice(-8).toUpperCase()} — {sellerName}
+                          {formatOrderDisplayNumber(eft.order?.publicNumber, eft.orderId)} — {sellerName}
                         </span>
                       </div>
                       <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                        ₺{amount.toLocaleString('tr-TR')} ·{' '}
+                        {formatMoney(amount)} ·{' '}
                         {new Date(eft.createdAt).toLocaleString('tr-TR', {
                           day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
                         })}
@@ -178,7 +182,7 @@ export default async function AdminPaymentsPage() {
                           className="font-medium hover:underline"
                           style={{ color: 'var(--color-accent)' }}
                         >
-                          {p.orderId.slice(-8).toUpperCase()}
+                          {formatOrderDisplayNumber(p.order?.publicNumber, p.orderId)}
                         </Link>
                       </td>
                       <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
@@ -188,7 +192,7 @@ export default async function AdminPaymentsPage() {
                         {p.method === 'eft' ? 'EFT/Havale' : 'Kart'}
                       </td>
                       <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
-                        ₺{amount.toLocaleString('tr-TR')}
+                        {formatMoney(amount)}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={'payment_confirmed' as never} />

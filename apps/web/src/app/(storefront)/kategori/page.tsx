@@ -28,7 +28,7 @@ export default async function KategorilerPage() {
 
       <div className="mb-8 flex items-center gap-3">
         <LayoutGrid className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>
+        <h1 className="text-2xl font-medium" style={{ color: '#3d3529' }}>
           Tüm Kategoriler
         </h1>
       </div>

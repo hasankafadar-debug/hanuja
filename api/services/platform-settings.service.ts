@@ -5,6 +5,7 @@ export const PLATFORM_SETTINGS_ID = 'platform'
 
 export const DEFAULT_PLATFORM_SETTINGS = {
   standardPenaltyRate: new Decimal('0.2000'),
+  dailyPenaltyRate: new Decimal('0.0100'),
   defaultSellerCommissionRate: new Decimal('0.1500'),
   fulfillmentDays: 20,
   fulfillmentWarningDays: 5,
@@ -27,6 +28,7 @@ export function createPlatformSettingsService({ prisma }: { prisma: PrismaClient
 
     return {
       standardPenaltyRate: row.standardPenaltyRate,
+      dailyPenaltyRate: row.dailyPenaltyRate,
       defaultSellerCommissionRate: row.defaultSellerCommissionRate,
       fulfillmentDays: row.fulfillmentDays,
       fulfillmentWarningDays: row.fulfillmentWarningDays,
@@ -42,6 +44,7 @@ export function createPlatformSettingsService({ prisma }: { prisma: PrismaClient
 
   async function update(params: {
     standardPenaltyRate: Decimal
+    dailyPenaltyRate: Decimal
     defaultSellerCommissionRate: Decimal
     fulfillmentDays: number
     fulfillmentWarningDays: number

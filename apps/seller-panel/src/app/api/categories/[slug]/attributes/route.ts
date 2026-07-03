@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { sortAttributeOptions } from '@/lib/attribute-option-sort'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,19 +30,19 @@ export async function GET(
   }
 
   const options = category.attributeOptions.map((ao) => ao.option)
-  const colorOptions = options.filter((o) => o.type === 'color')
-  const materialOptions = options.filter((o) => o.type === 'material')
+  const colorOptions = sortAttributeOptions(options.filter((o) => o.type === 'color'))
+  const materialOptions = sortAttributeOptions(options.filter((o) => o.type === 'material'))
 
   // Fall back to all active options if none are category-specific
   if (colorOptions.length === 0 && materialOptions.length === 0) {
     const allOptions = await prisma.productAttributeOption.findMany({
       where: { isActive: true },
       select: { id: true, type: true, slug: true, label: true, hexColor: true },
-      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+      orderBy: { label: 'asc' },
     })
     return NextResponse.json({
-      colorOptions: allOptions.filter((o) => o.type === 'color'),
-      materialOptions: allOptions.filter((o) => o.type === 'material'),
+      colorOptions: sortAttributeOptions(allOptions.filter((o) => o.type === 'color')),
+      materialOptions: sortAttributeOptions(allOptions.filter((o) => o.type === 'material')),
     })
   }
 

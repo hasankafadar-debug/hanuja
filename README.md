@@ -44,8 +44,13 @@ pnpm install
 
 ```bash
 pnpm db:migrate    # runs Prisma migrations
+pnpm db:migrate:status
 pnpm db:seed       # seeds initial data
 ```
+
+Before running storefront smoke tests, confirm the latest schema is applied locally. In particular,
+`db/schema/migrations/20260513150200_fulfillment_extension_request/` must appear in the applied migration list from
+`pnpm db:migrate:status`.
 
 ### 5. Start all apps
 
@@ -58,7 +63,8 @@ Apps run at:
 - **Seller panel**: http://localhost:3001
 - **Admin panel**: http://localhost:3002
 
-If login or signup returns a `500` error locally, first verify PostgreSQL is reachable on `localhost:5432`, then rerun `pnpm db:migrate` and `pnpm db:seed`.
+If login or signup returns a `500` error locally, first verify PostgreSQL is reachable on `localhost:5432`, then rerun `pnpm db:migrate`, `pnpm db:migrate:status`, and `pnpm db:seed`.
+If `Siparislerim > Detay` shows a generic error page, verify `20260513150200_fulfillment_extension_request` is applied before retrying the storefront smoke test.
 
 ---
 

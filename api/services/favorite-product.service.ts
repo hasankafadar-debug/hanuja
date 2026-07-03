@@ -3,12 +3,14 @@ import { NotFoundError } from '../lib/errors'
 import { createFavoriteProductRepository } from '../repositories/favorite-product.repository'
 import { createProductRepository } from '../repositories/product.repository'
 import { createUserRepository } from '../repositories/user.repository'
+import { createProductAnalyticsService } from './product-analytics.service'
 
 export function createFavoriteProductService(deps: { prisma: PrismaClient }) {
   const { prisma } = deps
   const users = createUserRepository(prisma)
   const products = createProductRepository(prisma)
   const favorites = createFavoriteProductRepository(prisma)
+  const productAnalytics = createProductAnalyticsService({ prisma })
 
   async function assertUserExists(userId: string) {
     const user = await users.findById(userId)
@@ -61,6 +63,13 @@ export function createFavoriteProductService(deps: { prisma: PrismaClient }) {
       await assertUserExists(userId)
       await getPublishedProduct(productId)
       await favorites.createIfMissing(userId, productId)
+      await productAnalytics.recordProductEvent({
+        productId,
+        userId,
+        eventType: 'favorite_add',
+      }).catch((error) => {
+        console.error('[analytics] Failed to record favorite_add event', error)
+      })
       return { success: true, isFavorite: true }
     },
 

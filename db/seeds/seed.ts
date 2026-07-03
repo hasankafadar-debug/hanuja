@@ -1098,7 +1098,7 @@ async function main() {
 
   await prisma.blogPost.upsert({
     where: { slug: 'kucuk-salon-dekorasyon-fikirleri-2025' },
-    update: {},
+    update: { coverUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=1200&q=80&auto=format&fit=crop' },
     create: {
       id: 'blog_01',
       slug: 'kucuk-salon-dekorasyon-fikirleri-2025',
@@ -1130,13 +1130,13 @@ Depolama özellikli puf, uzatılabilir sehpa veya katlanan yan sehpalar gibi ço
       status: BlogPostStatus.published,
       authorId: adminUser.id,
       publishedAt: new Date('2025-02-15T09:00:00Z'),
-      coverUrl: 'https://cdn.hanuja.com.tr/blog/kucuk-salon-dekorasyon-01.jpg',
+      coverUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=1200&q=80&auto=format&fit=crop',
     },
   })
 
   await prisma.blogPost.upsert({
     where: { slug: 'ev-ofis-duzeni-nasil-kurulur-verimli-calisma-alani' },
-    update: {},
+    update: { coverUrl: 'https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=1200&q=80&auto=format&fit=crop' },
     create: {
       id: 'blog_02',
       slug: 'ev-ofis-duzeni-nasil-kurulur-verimli-calisma-alani',
@@ -1164,7 +1164,7 @@ Duvara monte raf sistemleri masa üzerindeki yükü azaltır, önemli dokümanla
       status: BlogPostStatus.published,
       authorId: adminUser.id,
       publishedAt: new Date('2025-03-10T10:00:00Z'),
-      coverUrl: 'https://cdn.hanuja.com.tr/blog/ev-ofis-duzeni-01.jpg',
+      coverUrl: 'https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=1200&q=80&auto=format&fit=crop',
     },
   })
 

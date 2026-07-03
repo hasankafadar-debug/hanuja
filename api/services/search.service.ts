@@ -49,7 +49,7 @@ export function createSearchService(deps: { prisma: PrismaClient }) {
       })
 
       if (result.totalHits > 0) {
-        return {
+        const response = {
           hits: result.hits,
           totalHits: result.totalHits,
           page,
@@ -59,6 +59,12 @@ export function createSearchService(deps: { prisma: PrismaClient }) {
           processingTimeMs: result.processingTimeMs,
           query: normalizedQuery,
         }
+        void recordSiteSearchQuery({
+          query: normalizedQuery,
+          ...(categorySlug ? { categorySlug } : {}),
+          resultCount: result.totalHits,
+        })
+        return response
       }
     } catch {
       // Search projection is unavailable; fall back to PostgreSQL below.
@@ -72,7 +78,7 @@ export function createSearchService(deps: { prisma: PrismaClient }) {
       take: limit,
     })
 
-    return {
+    const response = {
       hits: fallback.items.map(mapProductToSearchHit),
       totalHits: fallback.total,
       page,
@@ -80,6 +86,31 @@ export function createSearchService(deps: { prisma: PrismaClient }) {
       totalPages: fallback.total > 0 ? Math.ceil(fallback.total / limit) : 1,
       processingTimeMs: 0,
       query: normalizedQuery,
+    }
+    void recordSiteSearchQuery({
+      query: normalizedQuery,
+      ...(categorySlug ? { categorySlug } : {}),
+      resultCount: fallback.total,
+    })
+    return response
+  }
+
+  async function recordSiteSearchQuery(params: {
+    query: string
+    categorySlug?: string
+    resultCount: number
+  }) {
+    try {
+      await prisma.siteSearchQuery.create({
+        data: {
+          query: params.query,
+          normalizedQuery: params.query.trim().toLocaleLowerCase('tr-TR').replace(/\s+/g, ' '),
+          ...(params.categorySlug ? { categorySlug: params.categorySlug } : {}),
+          resultCount: params.resultCount,
+        },
+      })
+    } catch (error) {
+      console.error('[search] Failed to record site search query:', error)
     }
   }
 

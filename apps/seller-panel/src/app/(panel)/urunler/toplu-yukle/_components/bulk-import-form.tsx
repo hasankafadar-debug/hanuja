@@ -4,7 +4,6 @@ import { useMemo, useState, useTransition } from 'react'
 import * as XLSX from 'xlsx'
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@hanuja/ui'
 import {
-  BULK_PRODUCT_TEMPLATE_HEADERS,
   MAX_BULK_IMPORT_ROWS,
   getMissingBulkProductHeaders,
   normalizeBulkProductRow,
@@ -36,6 +35,17 @@ interface ImportResult {
 interface BulkImportFormProps {
   areas: TemplateArea[]
 }
+
+const REQUIRED_BULK_PRODUCT_HEADERS = [
+  'Urun Adi*',
+  'Kategori*',
+  'Urun Rengi*',
+  'Materyal*',
+  'Fiyat*',
+  'Sevk Suresi (is gunu)*',
+  'Stok*',
+  'Barkod (13 hane)*',
+]
 
 export function BulkImportForm({ areas }: BulkImportFormProps) {
   const [rootCategorySlug, setRootCategorySlug] = useState<'ev' | 'ofis' | ''>('')
@@ -273,6 +283,11 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
             Indirdiginiz sablonda yalnizca secilen kapsama uygun kategori listesi yer alir.
             Excel icindeki <strong>Kategori*</strong> alani bu listeden secilmelidir.
           </p>
+          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            <strong>Uyari:</strong> Excel icindeki <strong>Urun Rengi*</strong> ve <strong>Materyal*</strong>{' '}
+            secimleri kategoriye baglidir. Bu listeler ancak ayni satirda once <strong>Kategori*</strong>{' '}
+            secildikten sonra gorunur.
+          </p>
         </CardContent>
       </Card>
 
@@ -302,10 +317,13 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
               Sablon bos satirlarla gelir. Verinizi 2. satirdan itibaren doldurun.
             </p>
             <p style={{ color: 'var(--color-muted-fg)' }}>
-              Zorunlu basliklar: {BULK_PRODUCT_TEMPLATE_HEADERS.slice(0, 6).join(', ')}.
+              Zorunlu basliklar: {REQUIRED_BULK_PRODUCT_HEADERS.join(', ')}.
             </p>
             <p style={{ color: 'var(--color-muted-fg)' }}>
               Gorsel URL sutunlari istege baglidir; girildiginde ilk URL ana gorsel olarak kaydedilir.
+            </p>
+            <p style={{ color: 'var(--color-muted-fg)' }}>
+              Urun gorsellerinde 1:1 tavsiye edilir. Farkli oranlar kabul edilir; kare alanlarda uygun sekilde kirpilarak gosterilir.
             </p>
             <p style={{ color: 'var(--color-muted-fg)' }}>
               Indirim gostermek isterseniz <strong>Liste Fiyati (ustu cizili)</strong> alanina daha yuksek tutari yazin.
@@ -315,6 +333,9 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
             </p>
             <p style={{ color: 'var(--color-muted-fg)' }}>
               Ayni urun adi kullanilabilir. Varyasyonlu veya varyasyonsuz urunlerde isimler ayni olabilir.
+            </p>
+            <p style={{ color: 'var(--color-warning, #b45309)' }}>
+              Varyantli urunleri baglamak icin lutfen <strong>SKU</strong> alanini ayni girin.
             </p>
             <p style={{ color: 'var(--color-warning, #b45309)' }}>
               Yalnizca barkod benzersiz olmalidir. Barkod baska bir saticinin mevcut urun veya varyasyon kaydinda kullaniliyorsa ilgili satir reddedilir ve barkod degistirilmelidir.
@@ -392,7 +413,7 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr>
-                    {['Urun', 'Kategori', 'Satis Fiyati', 'Liste Fiyati', 'Stok', 'Barkod', 'Gorsel'].map((heading) => (
+                    {['Urun', 'Kategori', 'Renk', 'Materyal', 'Satis Fiyati', 'Liste Fiyati', 'Stok', 'Barkod', 'Gorsel'].map((heading) => (
                       <th
                         key={heading}
                         className="border-b px-3 py-2 text-left"
@@ -413,10 +434,16 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
                         {row.categorySlug}
                       </td>
                       <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
-                        TL {row.price.toLocaleString('tr-TR')}
+                        {row.productColor}
                       </td>
                       <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
-                        {row.compareAtPrice ? `TL ${row.compareAtPrice.toLocaleString('tr-TR')}` : '-'}
+                        {row.productMaterial}
+                      </td>
+                      <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
+                        {row.price.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL
+                      </td>
+                      <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
+                        {row.compareAtPrice ? `${row.compareAtPrice.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL` : '-'}
                       </td>
                       <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
                         {row.stockQuantity}

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Button, EmptyState, PageHeader, StatusBadge } from '@hanuja/ui'
 import { Download, ShoppingBag } from 'lucide-react'
-import { maskCustomerName } from '@hanuja/security'
+import { maskCustomerName, formatMoney } from '@hanuja/security'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createOrderService } from '@hanuja/api/services/order.service'
@@ -49,10 +49,13 @@ function buildQueryString(params: Record<string, string | number | undefined>) {
 export default async function SellerOrdersPage({ searchParams }: Props) {
   const resolvedSearchParams = (await searchParams) ?? {}
   const { seller } = await getSellerFromSession()
-  const service = createOrderService({ prisma: createPrismaForRoute() })
+  const prisma = createPrismaForRoute()
+  const service = createOrderService({ prisma })
 
   const tabParam = getSingleValue(resolvedSearchParams.tab)
   const currentTab: SellerOrderTab = tabParam && isSellerOrderTab(tabParam) ? tabParam : 'tum'
+  const filter = getSingleValue(resolvedSearchParams.filter)
+  const lateOnly = filter === 'late'
   const missingInvoice = currentTab === 'faturasi-olmayanlar'
   const q = getSingleValue(resolvedSearchParams.q)?.trim() ?? ''
   const from = getSingleValue(resolvedSearchParams.from) ?? ''
@@ -67,10 +70,17 @@ export default async function SellerOrdersPage({ searchParams }: Props) {
     ...(from ? { from: toDateStart(from) } : {}),
     ...(to ? { to: toDateEnd(to) } : {}),
   }
+  const lateOrderIds = lateOnly
+    ? (await prisma.fulfillmentRisk.findMany({
+        where: { sellerId: seller.id, status: { in: ['warning', 'breached'] } },
+        select: { orderId: true },
+      })).map((risk) => risk.orderId)
+    : undefined
 
   const [orders, total, counts] = await Promise.all([
     service.listForSellerQueue({
       ...baseFilters,
+      ...(lateOrderIds ? { orderIds: lateOrderIds } : {}),
       status: getSellerOrderStatusesForTab(currentTab),
       ...(missingInvoice ? { missingInvoice: true } : {}),
       skip,
@@ -78,6 +88,7 @@ export default async function SellerOrdersPage({ searchParams }: Props) {
     }),
     service.countForSellerQueue({
       ...baseFilters,
+      ...(lateOrderIds ? { orderIds: lateOrderIds } : {}),
       status: getSellerOrderStatusesForTab(currentTab),
       ...(missingInvoice ? { missingInvoice: true } : {}),
     }),
@@ -140,6 +151,7 @@ export default async function SellerOrdersPage({ searchParams }: Props) {
             q: q || undefined,
             from: from || undefined,
             to: to || undefined,
+            filter: lateOnly ? 'late' : undefined,
           })
           const isActive = tab === currentTab
 
@@ -165,6 +177,7 @@ export default async function SellerOrdersPage({ searchParams }: Props) {
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         <input type="hidden" name="tab" value={currentTab} />
+        {lateOnly ? <input type="hidden" name="filter" value="late" /> : null}
         <input
           type="text"
           name="q"
@@ -291,11 +304,11 @@ export default async function SellerOrdersPage({ searchParams }: Props) {
                       />
                     </td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
-                      ₺{displayTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatMoney(displayTotal)}
                     </td>
                     <td className="px-4 py-3">
                       <Link href={`/siparisler/${order.id}`}>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="outline" size="sm">
                           Yönet
                         </Button>
                       </Link>

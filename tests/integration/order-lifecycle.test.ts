@@ -158,15 +158,16 @@ describe('20-day fulfillment breach', () => {
     expect(isTerminal(OrderStatus.cancelled_due_to_20day_breach)).toBe(true)
   })
 
-  it('detects breach correctly after 21 days', () => {
+  it('detects breach well past the 20-business-day window', () => {
+    // 60 calendar days is enough to clear weekends + holidays in any month
     const paymentConfirmedAt = new Date('2026-03-01T00:00:00Z')
-    const now = new Date('2026-03-22T00:00:00Z') // 21 days later
+    const now = new Date('2026-04-30T00:00:00Z') // 60 calendar days
     expect(isFulfillmentDeadlineBreached(paymentConfirmedAt, now)).toBe(true)
   })
 
-  it('does NOT detect breach at day 19', () => {
+  it('does NOT detect breach at calendar day 19 (business days are fewer)', () => {
     const paymentConfirmedAt = new Date('2026-03-01T00:00:00Z')
-    const now = new Date('2026-03-20T00:00:00Z') // 19 days later
+    const now = new Date('2026-03-20T00:00:00Z') // 19 calendar days later
     expect(isFulfillmentDeadlineBreached(paymentConfirmedAt, now)).toBe(false)
   })
 
@@ -298,9 +299,12 @@ describe('return window: 14-day rule', () => {
     expect(isTerminal(OrderStatus.refund_completed)).toBe(true)
   })
 
-  it('return can be rejected (non-standard case)', () => {
+  it('return can be rejected and escalates to dispute (seller-driven flow)', () => {
     expect(canTransition(OrderStatus.return_under_review, OrderStatus.return_rejected)).toBe(true)
-    expect(isTerminal(OrderStatus.return_rejected)).toBe(true)
+    expect(canTransition(OrderStatus.return_in_transit, OrderStatus.return_rejected)).toBe(true)
+    // return_rejected is NO LONGER terminal — seller rejection auto-opens a dispute
+    expect(isTerminal(OrderStatus.return_rejected)).toBe(false)
+    expect(canTransition(OrderStatus.return_rejected, OrderStatus.dispute_open)).toBe(true)
   })
 })
 

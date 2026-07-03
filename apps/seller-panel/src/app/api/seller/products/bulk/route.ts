@@ -19,15 +19,28 @@ import {
   normalizeBulkProductRow,
   type BulkProductImportRow,
 } from '@/lib/bulk-product-import'
+import { sortAttributeOptions } from '@/lib/attribute-option-sort'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
+type AttributeOption = {
+  id: string
+  type: 'color' | 'material'
+  label: string
+  slug: string
+  sortOrder: number
+}
+
+type ResolvedBulkProductImportRow = BulkProductImportRow & {
+  productColorOptionId: string
+  productMaterialOptionId: string
+}
+
 function variantName(row: BulkProductImportRow) {
   const parts: string[] = []
-  if (row.variantColor) parts.push(`Renk: ${row.variantColor}`)
   if (row.variantSize) parts.push(`Beden: ${row.variantSize}`)
   if (row.variantCustomOptionName && row.variantCustomOptionValue) {
     parts.push(`${row.variantCustomOptionName}: ${row.variantCustomOptionValue}`)
@@ -37,12 +50,80 @@ function variantName(row: BulkProductImportRow) {
 
 function variantOptions(row: BulkProductImportRow) {
   const options: Record<string, string> = {}
-  if (row.variantColor) options.Renk = row.variantColor
   if (row.variantSize) options.Beden = row.variantSize
   if (row.variantCustomOptionName && row.variantCustomOptionValue) {
     options[row.variantCustomOptionName] = row.variantCustomOptionValue
   }
   return options
+}
+
+function hasDetailVariant(row: BulkProductImportRow) {
+  return Boolean(row.variantSize || row.variantCustomOptionName || row.variantCustomOptionValue)
+}
+
+function buildVisualVariantKey(row: ResolvedBulkProductImportRow) {
+  return [
+    row.productColorOptionId,
+    row.productMaterialOptionId,
+    normalizeAttributeValue(row.productColor),
+    normalizeAttributeValue(row.productMaterial),
+  ].join('::')
+}
+
+function normalizeAttributeValue(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/[^\w\s/-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+function buildSkuRequirementKey(row: BulkProductImportRow) {
+  const legacyGroupCode = row.productGroupCode?.trim()
+  if (legacyGroupCode) {
+    return `legacy:${normalizeAttributeValue(legacyGroupCode)}`
+  }
+
+  return JSON.stringify({
+    name: normalizeAttributeValue(row.name),
+    categorySlug: normalizeAttributeValue(row.categorySlug),
+    shortDescription: normalizeAttributeValue(row.shortDescription ?? ''),
+    description: normalizeAttributeValue(row.description ?? ''),
+    story: normalizeAttributeValue(row.story ?? ''),
+    careInstructions: normalizeAttributeValue(row.careInstructions ?? ''),
+    imageUrls: row.imageUrls.map((url) => url.trim().toLowerCase()),
+  })
+}
+
+function getCategoryAttributeOptions(params: {
+  categorySlug: string
+  type: 'color' | 'material'
+  optionsByCategorySlug: Map<string, AttributeOption[]>
+  fallbackOptions: Record<'color' | 'material', AttributeOption[]>
+}) {
+  const categoryOptions = params.optionsByCategorySlug.get(params.categorySlug) ?? []
+  const scopedOptions = categoryOptions.filter((option) => option.type === params.type)
+  return scopedOptions.length > 0 ? scopedOptions : params.fallbackOptions[params.type]
+}
+
+function resolveAttributeOption(params: {
+  categorySlug: string
+  type: 'color' | 'material'
+  value: string
+  optionsByCategorySlug: Map<string, AttributeOption[]>
+  fallbackOptions: Record<'color' | 'material', AttributeOption[]>
+}) {
+  const normalizedValue = normalizeAttributeValue(params.value)
+  const options = getCategoryAttributeOptions(params)
+
+  return (
+    options.find(
+      (option) =>
+        normalizeAttributeValue(option.label) === normalizedValue ||
+        normalizeAttributeValue(option.slug) === normalizedValue,
+    ) ?? null
+  )
 }
 
 function collectAllowedLegacyCategorySlugs(
@@ -209,13 +290,46 @@ export async function POST(req: NextRequest) {
     row.data ? [{ rowNumber: row.rowNumber, data: row.data }] : [],
   )
 
-  const allCategories = await prisma.category.findMany({
-    where: { isActive: true },
-    select: { id: true, slug: true, name: true, parentId: true },
-  })
+  const [allCategories, allAttributeOptions, categoriesWithAttributes] = await Promise.all([
+    prisma.category.findMany({
+      where: { isActive: true },
+      select: { id: true, slug: true, name: true, parentId: true },
+    }),
+    prisma.productAttributeOption.findMany({
+      where: { isActive: true },
+      select: { id: true, type: true, label: true, slug: true, sortOrder: true },
+      orderBy: { label: 'asc' },
+    }) as Promise<AttributeOption[]>,
+    prisma.category.findMany({
+      where: { isActive: true },
+      select: {
+        slug: true,
+        attributeOptions: {
+          select: {
+            option: {
+              select: { id: true, type: true, label: true, slug: true, sortOrder: true },
+            },
+          },
+        },
+      },
+    }) as Promise<Array<{
+      slug: string
+      attributeOptions: Array<{ option: AttributeOption }>
+    }>>,
+  ])
   const categoryMap = new Map(allCategories.map((category) => [category.slug, category.id]))
   const realCategorySlugs = new Set(allCategories.map((category) => category.slug))
   const referenceRows = buildBulkCategoryReferenceRows(allCategories)
+  const fallbackAttributeOptions = {
+    color: sortAttributeOptions(allAttributeOptions.filter((option) => option.type === 'color')),
+    material: sortAttributeOptions(allAttributeOptions.filter((option) => option.type === 'material')),
+  }
+  const attributeOptionsByCategorySlug = new Map(
+    categoriesWithAttributes.map((category) => [
+      category.slug,
+      sortAttributeOptions(category.attributeOptions.map((item) => item.option)),
+    ]),
+  )
 
   let allowedCategorySlugs: Set<string> | null = null
   if (rootCategorySlug && scopeCategorySlug) {
@@ -283,23 +397,103 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const validRows = resolvedEntries.map((entry) => entry.data)
+  const attributeErrors: Array<{ rowNumber: number; message: string }> = []
+  const resolvedEntriesWithAttributes: Array<{
+    rowNumber: number
+    data: ResolvedBulkProductImportRow
+  }> = resolvedEntries.flatMap((entry) => {
+    const productColorOption = resolveAttributeOption({
+      categorySlug: entry.data.categorySlug,
+      type: 'color',
+      value: entry.data.productColor,
+      optionsByCategorySlug: attributeOptionsByCategorySlug,
+      fallbackOptions: fallbackAttributeOptions,
+    })
+    const productMaterialOption = resolveAttributeOption({
+      categorySlug: entry.data.categorySlug,
+      type: 'material',
+      value: entry.data.productMaterial,
+      optionsByCategorySlug: attributeOptionsByCategorySlug,
+      fallbackOptions: fallbackAttributeOptions,
+    })
+
+    if (!productColorOption) {
+      attributeErrors.push({
+        rowNumber: entry.rowNumber,
+        message: `Renk secilen kategori icin gecersiz: ${entry.data.productColor}`,
+      })
+    }
+    if (!productMaterialOption) {
+      attributeErrors.push({
+        rowNumber: entry.rowNumber,
+        message: `Materyal secilen kategori icin gecersiz: ${entry.data.productMaterial}`,
+      })
+    }
+
+    if (!productColorOption || !productMaterialOption) return []
+
+    return [
+      {
+        rowNumber: entry.rowNumber,
+        data: {
+          ...entry.data,
+          productColorOptionId: productColorOption.id,
+          productMaterialOptionId: productMaterialOption.id,
+        },
+      },
+    ]
+  })
+
+  if (attributeErrors.length > 0) {
+    return NextResponse.json(
+      { error: 'Bazi satirlarda renk veya materyal gecersiz.', errors: attributeErrors },
+      { status: 400 },
+    )
+  }
+
+  const skuValidationErrors: Array<{ rowNumber: number; message: string }> = []
+  const skuRequirementGroups = new Map<string, Array<{ rowNumber: number; data: ResolvedBulkProductImportRow }>>()
+
+  for (const entry of resolvedEntriesWithAttributes) {
+    const key = buildSkuRequirementKey(entry.data)
+    const group = skuRequirementGroups.get(key) ?? []
+    group.push(entry)
+    skuRequirementGroups.set(key, group)
+  }
+
+  for (const group of skuRequirementGroups.values()) {
+    const groupHasLinkingIntent =
+      group.length > 1 ||
+      group.some((entry) => entry.data.hasVariant || hasDetailVariant(entry.data))
+
+    if (!groupHasLinkingIntent) continue
+
+    for (const entry of group) {
+      if (!entry.data.sku?.trim()) {
+        skuValidationErrors.push({
+          rowNumber: entry.rowNumber,
+          message: 'Varyantli urunleri baglamak icin lutfen SKU alanini ayni girin.',
+        })
+      }
+    }
+  }
+
+  if (skuValidationErrors.length > 0) {
+    return NextResponse.json(
+      { error: 'SKU alani eksik satirlar var.', errors: skuValidationErrors },
+      { status: 400 },
+    )
+  }
+
+  const validRows = resolvedEntriesWithAttributes.map((entry) => entry.data)
 
   const duplicateErrors: Array<{ rowNumber: number; message: string }> = []
   const seenBarcodes = new Set<string>()
-  for (const entry of resolvedEntries) {
+  for (const entry of resolvedEntriesWithAttributes) {
     if (seenBarcodes.has(entry.data.barcode)) {
       duplicateErrors.push({ rowNumber: entry.rowNumber, message: `Ayni barkod tekrar ediyor: ${entry.data.barcode}` })
     }
     seenBarcodes.add(entry.data.barcode)
-  }
-
-  const grouped = new Map<string, Array<{ rowNumber: number; data: BulkProductImportRow }>>()
-  for (const entry of resolvedEntries) {
-    const key = entry.data.hasVariant ? buildBulkProductGroupKey(entry.data) : `row:${entry.rowNumber}`
-    const group = grouped.get(key) ?? []
-    group.push(entry)
-    grouped.set(key, group)
   }
 
   if (duplicateErrors.length > 0) {
@@ -309,7 +503,6 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const productBarcodesToCreate = validRows.filter((row) => !row.hasVariant).map((row) => row.barcode)
   const allBarcodes = validRows.map((row) => row.barcode)
 
   const [existingProductBarcodes, existingVariantBarcodes] = await Promise.all([
@@ -329,91 +522,117 @@ export async function POST(req: NextRequest) {
   const errors: Array<{ rowNumber: number; message: string }> = []
   let imported = 0
 
-  for (const group of grouped.values()) {
-    const first = group[0]
-    if (!first) continue
-    const data = first.data
-    const usesVariants = group.length > 1 || group.some((entry) => entry.data.hasVariant)
+  const skuGroups = new Map<string, Array<{ rowNumber: number; data: ResolvedBulkProductImportRow }>>()
+  for (const entry of resolvedEntriesWithAttributes) {
+    const key = entry.data.sku?.trim() ? buildBulkProductGroupKey(entry.data) : `row:${entry.rowNumber}`
+    const group = skuGroups.get(key) ?? []
+    group.push(entry)
+    skuGroups.set(key, group)
+  }
 
-    if (allowedCategorySlugs && !allowedCategorySlugs.has(data.categorySlug)) {
-      errors.push({ rowNumber: first.rowNumber, message: `Bu kategori secilen sablon kapsaminda degil: ${data.categorySlug}` })
-      continue
+  for (const skuGroup of skuGroups.values()) {
+    const visualGroups = new Map<string, Array<{ rowNumber: number; data: ResolvedBulkProductImportRow }>>()
+
+    for (const entry of skuGroup) {
+      const visualKey = buildVisualVariantKey(entry.data)
+      const group = visualGroups.get(visualKey) ?? []
+      group.push(entry)
+      visualGroups.set(visualKey, group)
     }
 
-    const categoryId = categoryMap.get(data.categorySlug)
-    if (!categoryId) {
-      errors.push({ rowNumber: first.rowNumber, message: `Kategori bulunamadi: ${data.categorySlug}` })
-      continue
-    }
+    for (const group of visualGroups.values()) {
+      const first = group[0]
+      if (!first) continue
 
-    const groupBarcodes = group.map((entry) => entry.data.barcode)
-    const conflictingBarcode = groupBarcodes.find(
-      (barcode) =>
-        existingProductBarcodeSet.has(barcode) ||
-        existingVariantBarcodeSet.has(barcode) ||
-        (!usesVariants && !productBarcodesToCreate.includes(barcode)),
-    )
-    if (conflictingBarcode) {
-      errors.push({ rowNumber: first.rowNumber, message: `Barkod zaten kullaniliyor: ${conflictingBarcode}` })
-      continue
-    }
+      const data = first.data
+      const usesVariants = group.length > 1 || group.some((entry) => hasDetailVariant(entry.data))
 
-    try {
-      await prisma.$transaction(async (tx) => {
-        const catalogService = createCatalogService({ prisma: tx as unknown as PrismaClient })
-        const product = await catalogService.createProduct({
-          sellerId: seller.id,
-          categoryId,
-          name: data.name,
-          description: data.description ?? '',
-          shortDescription: data.shortDescription ?? null,
-          story: data.story ?? null,
-          careInstructions: data.careInstructions ?? null,
-          price: new Decimal(data.price),
-          compareAtPrice: data.compareAtPrice !== undefined ? new Decimal(data.compareAtPrice) : null,
-          stockQuantity: usesVariants
-            ? group.reduce((sum, entry) => sum + entry.data.stockQuantity, 0)
-            : data.stockQuantity,
-          sku: data.sku ?? null,
-          barcode: usesVariants ? null : data.barcode,
-          weight: data.weight !== undefined ? new Decimal(data.weight) : null,
+      if (allowedCategorySlugs && !allowedCategorySlugs.has(data.categorySlug)) {
+        errors.push({ rowNumber: first.rowNumber, message: `Bu kategori secilen sablon kapsaminda degil: ${data.categorySlug}` })
+        continue
+      }
+
+      const categoryId = categoryMap.get(data.categorySlug)
+      if (!categoryId) {
+        errors.push({ rowNumber: first.rowNumber, message: `Kategori bulunamadi: ${data.categorySlug}` })
+        continue
+      }
+
+      const groupBarcodes = group.map((entry) => entry.data.barcode)
+      const conflictingBarcode = groupBarcodes.find(
+        (barcode) => existingProductBarcodeSet.has(barcode) || existingVariantBarcodeSet.has(barcode),
+      )
+      if (conflictingBarcode) {
+        errors.push({ rowNumber: first.rowNumber, message: `Barkod zaten kullaniliyor: ${conflictingBarcode}` })
+        continue
+      }
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          const catalogService = createCatalogService({ prisma: tx as unknown as PrismaClient })
+          const product = await catalogService.createProduct({
+            sellerId: seller.id,
+            categoryId,
+            name: data.name,
+            description: data.description ?? '',
+            shortDescription: data.shortDescription ?? null,
+            story: data.story ?? null,
+            careInstructions: data.careInstructions ?? null,
+            price: new Decimal(data.price),
+            compareAtPrice: data.compareAtPrice !== undefined ? new Decimal(data.compareAtPrice) : null,
+            fulfillmentDays: data.fulfillmentDays,
+            stockQuantity: usesVariants
+              ? group.reduce((sum, entry) => sum + entry.data.stockQuantity, 0)
+              : data.stockQuantity,
+            sku: data.sku ?? null,
+            barcode: usesVariants ? null : data.barcode,
+            weight: data.weight !== undefined ? new Decimal(data.weight) : null,
+          })
+
+          if (usesVariants) {
+            await tx.productVariant.createMany({
+              data: group.map((entry) => ({
+                productId: product.id,
+                name: variantName(entry.data),
+                options: variantOptions(entry.data),
+                barcode: entry.data.barcode,
+                price: new Decimal(entry.data.price),
+                stockQuantity: entry.data.stockQuantity,
+              })),
+            })
+          }
+
+          await tx.productAttributeValue.createMany({
+            data: [
+              { productId: product.id, optionId: data.productColorOptionId },
+              { productId: product.id, optionId: data.productMaterialOptionId },
+            ],
+            skipDuplicates: true,
+          })
+
+          if (data.imageUrls.length > 0) {
+            await tx.productImage.createMany({
+              data: data.imageUrls.map((url, index) => ({
+                productId: product.id,
+                url,
+                sortOrder: index,
+                isPrimary: index === 0,
+              })),
+            })
+          }
         })
 
-        if (usesVariants) {
-          await tx.productVariant.createMany({
-            data: group.map((entry) => ({
-              productId: product.id,
-              name: variantName(entry.data),
-              options: variantOptions(entry.data),
-              barcode: entry.data.barcode,
-              price: new Decimal(entry.data.price),
-              stockQuantity: entry.data.stockQuantity,
-            })),
-          })
+        imported += 1
+        for (const barcode of groupBarcodes) {
+          if (usesVariants) existingVariantBarcodeSet.add(barcode)
+          else existingProductBarcodeSet.add(barcode)
         }
-
-        if (data.imageUrls.length > 0) {
-          await tx.productImage.createMany({
-            data: data.imageUrls.map((url, index) => ({
-              productId: product.id,
-              url,
-              sortOrder: index,
-              isPrimary: index === 0,
-            })),
-          })
-        }
-      })
-
-      imported += 1
-      for (const barcode of groupBarcodes) {
-        if (usesVariants) existingVariantBarcodeSet.add(barcode)
-        else existingProductBarcodeSet.add(barcode)
+      } catch (error) {
+        errors.push({
+          rowNumber: first.rowNumber,
+          message: error instanceof Error ? error.message : 'Satir ice aktarilamadi.',
+        })
       }
-    } catch (error) {
-      errors.push({
-        rowNumber: first.rowNumber,
-        message: error instanceof Error ? error.message : 'Satir ice aktarilamadi.',
-      })
     }
   }
 

@@ -16,6 +16,7 @@ import {
 } from '@hanuja/ui'
 import { FileUpload, type UploadedAsset } from '@hanuja/ui'
 import { Plus, Star, Trash2 } from 'lucide-react'
+import { sortAttributeOptions } from '@/lib/attribute-option-sort'
 
 interface Category {
   id: string
@@ -33,6 +34,7 @@ interface VariantFormRow {
   localId: string
   dbId?: string // DB'deki gerçek ID — mevcut varyantlarda dolu, yenilerde boş
   color: string
+  material: string
   size: string
   customOptionName: string
   customOptionValue: string
@@ -54,6 +56,7 @@ interface Props {
   initialCareInstructions?: string
   initialCategoryId?: string
   initialPrice: number
+  initialFulfillmentDays: number
   initialCompareAtPrice?: number | null
   initialStock: number
   initialSku?: string
@@ -70,6 +73,7 @@ function createVariantRow(): VariantFormRow {
   return {
     localId: crypto.randomUUID(),
     color: '',
+    material: '',
     size: '',
     customOptionName: '',
     customOptionValue: '',
@@ -88,6 +92,7 @@ export default function ProductEditForm({
   initialCareInstructions = '',
   initialCategoryId = '',
   initialPrice,
+  initialFulfillmentDays,
   initialCompareAtPrice = null,
   initialStock,
   initialSku = '',
@@ -111,6 +116,7 @@ export default function ProductEditForm({
   const [colorOptions, setColorOptions] = useState<AttributeOption[]>([])
   const [materialOptions, setMaterialOptions] = useState<AttributeOption[]>([])
   const [price, setPrice] = useState(initialPrice)
+  const [fulfillmentDays, setFulfillmentDays] = useState(initialFulfillmentDays)
   const [compareAtPrice, setCompareAtPrice] = useState(
     initialCompareAtPrice !== null && initialCompareAtPrice !== undefined ? String(initialCompareAtPrice) : '',
   )
@@ -118,6 +124,7 @@ export default function ProductEditForm({
   const [sku, setSku] = useState(initialSku)
   const [barcode, setBarcode] = useState(initialBarcode)
   const [images, setImages] = useState<UploadedAsset[]>(existingImages)
+  const [pendingImageUploads, setPendingImageUploads] = useState(0)
   const [primaryImageId, setPrimaryImageId] = useState(existingImages.find((image) => image.isPrimary)?.id ?? existingImages[0]?.id ?? '')
   const [variants, setVariants] = useState<VariantFormRow[]>(initialVariants)
   const [loading, setLoading] = useState(false)
@@ -129,12 +136,13 @@ export default function ProductEditForm({
       fetch('/api/attribute-options?type=color').then((r) => r.json()),
       fetch('/api/attribute-options?type=material').then((r) => r.json()),
     ]).then(([colorData, materialData]) => {
-      setColorOptions((colorData as { options: AttributeOption[] }).options ?? [])
-      setMaterialOptions((materialData as { options: AttributeOption[] }).options ?? [])
+      setColorOptions(sortAttributeOptions((colorData as { options: AttributeOption[] }).options ?? []))
+      setMaterialOptions(sortAttributeOptions((materialData as { options: AttributeOption[] }).options ?? []))
     }).catch(() => {})
   }, [])
 
   const hasVariants = variants.length > 0
+  const totalVariantStock = variants.reduce((sum, variant) => sum + Number(variant.stockQuantity || 0), 0)
   const variantsValid = variants.every(
     (variant) =>
       variant.barcode.trim().length === 13 &&
@@ -146,7 +154,35 @@ export default function ProductEditForm({
     Boolean(categoryId) &&
     Boolean(colorOptionId) &&
     Boolean(materialOptionId) &&
+    fulfillmentDays >= 1 &&
+    pendingImageUploads === 0 &&
     (!hasVariants ? barcode.trim().length === 13 : variantsValid)
+
+  async function attachNewImages(mediaAssetIds: string[]) {
+    const response = await fetch(`/api/seller/products/${productId}/images`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mediaAssetIds }),
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(payload.error ?? 'Yeni gorseller urune baglanamadi.')
+    }
+  }
+
+  async function updatePrimaryImage() {
+    const response = await fetch(`/api/seller/products/${productId}/images`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ primaryImageId }),
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(payload.error ?? 'Ana gorsel guncellenemedi.')
+    }
+  }
 
   function updateVariant(localId: string, patch: Partial<VariantFormRow>) {
     setVariants((current) =>
@@ -174,13 +210,13 @@ export default function ProductEditForm({
           colorOptionId: colorOptionId || undefined,
           materialOptionId: materialOptionId || undefined,
           price,
+          fulfillmentDays,
           compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
           stockQuantity: stock,
           sku: sku.trim() || null,
           barcode: hasVariants ? null : barcode.trim(),
           variants: variants.map((variant) => ({
             ...(variant.dbId ? { id: variant.dbId } : {}),
-            color: variant.color.trim() || undefined,
             size: variant.size.trim() || undefined,
             customOptionName: variant.customOptionName.trim() || undefined,
             customOptionValue: variant.customOptionValue.trim() || undefined,
@@ -200,19 +236,11 @@ export default function ProductEditForm({
       const existingIds = new Set(existingImages.map((img) => img.id))
       const newImages = images.filter((img) => !existingIds.has(img.id))
       if (newImages.length > 0) {
-        await fetch(`/api/seller/products/${productId}/images`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mediaAssetIds: newImages.map((img) => img.id) }),
-        })
+        await attachNewImages(newImages.map((img) => img.id))
       }
 
       if (primaryImageId) {
-        await fetch(`/api/seller/products/${productId}/images`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ primaryImageId }),
-        })
+        await updatePrimaryImage()
       }
 
       setSaved(true)
@@ -296,6 +324,10 @@ export default function ProductEditForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
+          <Label htmlFor="fulfillmentDays">Sevk Suresi (is gunu) *</Label>
+          <Input id="fulfillmentDays" type="number" min={1} step={1} value={fulfillmentDays} onChange={(e) => setFulfillmentDays(Number(e.target.value))} required disabled={loading} />
+        </div>
+        <div className="space-y-1.5">
           <Label htmlFor="edit-color">Renk *</Label>
           <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading}>
             <SelectTrigger id="edit-color" aria-label="Renk">
@@ -342,7 +374,7 @@ export default function ProductEditForm({
         <div className="space-y-1.5">
           <Label htmlFor="stock">Stok *</Label>
           <Input id="stock" type="number" min={0} value={stock} onChange={(e) => setStock(Number(e.target.value))} required disabled={loading || hasVariants} />
-          {hasVariants ? <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Stok varyasyon satirlarindan hesaplanir.</p> : null}
+          {hasVariants ? <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Stok varyasyon satirlarindan hesaplanir. Toplam: {totalVariantStock}</p> : null}
         </div>
       </div>
 
@@ -371,7 +403,7 @@ export default function ProductEditForm({
         <div className="flex items-center justify-between gap-3">
           <div>
             <Label>Varyasyonlar</Label>
-            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Renk, beden veya ek ozellik varsa her varyasyonu ayri barkodla girin.</p>
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Beden, olcu veya ek ozellik varsa her varyasyonu ayri barkodla girin. Farkli renk veya materyal kardeslerini baglamak icin SKU alanini ayni girin.</p>
           </div>
           <Button type="button" variant="outline" onClick={() => setVariants((current) => [...current, createVariantRow()])} disabled={loading}>
             <Plus className="h-4 w-4" /> Varyasyon Ekle
@@ -387,7 +419,6 @@ export default function ProductEditForm({
               </Button>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <Input placeholder="Renk" value={variant.color} onChange={(e) => updateVariant(variant.localId, { color: e.target.value })} disabled={loading} />
               <Input placeholder="Beden" value={variant.size} onChange={(e) => updateVariant(variant.localId, { size: e.target.value })} disabled={loading} />
               <Input placeholder="Ek Ozellik Adi" value={variant.customOptionName} onChange={(e) => updateVariant(variant.localId, { customOptionName: e.target.value })} disabled={loading} />
               <Input placeholder="Ek Ozellik Degeri" value={variant.customOptionValue} onChange={(e) => updateVariant(variant.localId, { customOptionValue: e.target.value })} disabled={loading} />
@@ -422,6 +453,7 @@ export default function ProductEditForm({
       <div className="space-y-2">
         <Label>Urun Gorselleri</Label>
         <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Ana gorseli yildiz dugmesiyle secebilirsiniz.</p>
+        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>1:1 tavsiye edilir. Farkli oranlar kabul edilir; kare alanlarda uygun sekilde kirpilarak gosterilir.</p>
         {existingImages.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {existingImages.map((image) => (
@@ -452,6 +484,7 @@ export default function ProductEditForm({
           maxFiles={8}
           value={images}
           onChange={setImages}
+          onPendingChange={setPendingImageUploads}
           disabled={loading}
           inputLabel="Urun gorseli yukle"
           showPreviews
@@ -463,6 +496,11 @@ export default function ProductEditForm({
             allowedTypes: ['image/jpeg', 'image/png'],
           }}
         />
+        {pendingImageUploads > 0 ? (
+          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            Gorsel yuklemeleri tamamlanmadan kaydetme islemi baslatilamaz.
+          </p>
+        ) : null}
       </div>
 
       {error && <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>{error}</p>}

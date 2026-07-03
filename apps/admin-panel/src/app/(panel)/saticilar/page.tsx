@@ -6,6 +6,7 @@ import { createSellerRepository } from '@hanuja/api/repositories/seller.reposito
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { AdminListControls } from '@/components/admin-list-controls'
 import { UrlPagination } from '@/components/url-pagination'
+import { formatMoney } from '@hanuja/security'
 import { buildDateRange, getPagination, getPrimaryStatusValue, parseAdminListParams, type RawAdminSearchParams } from '@/lib/admin-list-params'
 
 export const dynamic = 'force-dynamic'
@@ -158,17 +159,13 @@ export default async function SellersPage({
                       {productCount}
                     </td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
-                      {pendingPayout > 0 ? `₺${pendingPayout.toLocaleString('tr-TR')}` : '—'}
+                      {pendingPayout > 0 ? formatMoney(pendingPayout) : '—'}
                     </td>
                     <td
                       className="px-4 py-3 font-medium"
                       style={{ color: isNegative ? 'var(--color-destructive)' : 'var(--color-muted-fg)' }}
                     >
-                      {isNegative
-                        ? `-₺${Math.abs(balance).toLocaleString('tr-TR')}`
-                        : balance > 0
-                        ? `₺${balance.toLocaleString('tr-TR')}`
-                        : '—'}
+                      {balance === 0 ? '—' : formatMoney(balance)}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={status.variant}>{status.label}</Badge>

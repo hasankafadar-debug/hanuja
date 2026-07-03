@@ -15,6 +15,8 @@ export interface NotificationPayload {
   title: string
   body: string
   data?: Record<string, unknown>
+  emailTo?: string
+  replyTo?: string
 }
 
 export interface NotificationServiceDeps {
@@ -33,6 +35,8 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
       title: payload.title,
       body: payload.body,
       ...(payload.data ? { data: payload.data } : {}),
+      ...(payload.emailTo ? { emailTo: payload.emailTo } : {}),
+      ...(payload.replyTo ? { replyTo: payload.replyTo } : {}),
     })
   }
 
@@ -144,6 +148,21 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     })
   }
 
+  async function notifySellerFulfillmentWarning(
+    sellerUserId: string,
+    orderId: string,
+    orderNumber: string,
+    daysRemaining: number,
+  ) {
+    return send({
+      userId: sellerUserId,
+      type: 'fulfillment_warning_5days',
+      title: 'Sevk suresi yaklasiyor',
+      body: `${orderNumber} numarali siparis icin ${daysRemaining} gun kaldi.`,
+      data: { orderId, orderNumber, daysRemaining },
+    })
+  }
+
   async function notifySellerSupportReply(userId: string, ticketId: string, subject: string) {
     return send({
       userId,
@@ -251,6 +270,7 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     notifySellerOrderReceived,
     notifySellerPayoutReady,
     notifySellerPenaltyApplied,
+    notifySellerFulfillmentWarning,
     notifySellerSupportReply,
     notifyAdminSupportNewTicket,
     notifyAdminsCustomerSupportNew,

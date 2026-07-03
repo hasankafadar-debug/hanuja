@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { ImagePlus } from 'lucide-react'
-import { Button, Input, Label, Textarea } from '@hanuja/ui'
+import { Button, Input, Label, Textarea, normalizeMediaDisplayUrl } from '@hanuja/ui'
 import { MediaPickerModal } from '../../medya/_components/media-picker-modal'
 import { emptyToNull, readApiData, toDatetimeLocal } from './api'
 import type { HomeMediaAsset, HomePromoItem, HomePromoSlot } from './types'
@@ -77,6 +77,8 @@ export function PromoEditor({ slot, title, promo, onRefresh, onMessage }: Props)
       isActive: form.isActive,
     }
   }, [form, mediaAsset?.id])
+  const normalizedMediaUrl = mediaAsset ? normalizeMediaDisplayUrl(mediaAsset.url) : null
+  const useUnoptimizedPreview = Boolean(normalizedMediaUrl?.startsWith('/api/media/fetch?'))
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -193,7 +195,14 @@ export function PromoEditor({ slot, title, promo, onRefresh, onMessage }: Props)
         </h3>
         <div className="relative aspect-[5/3] overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}>
           {mediaAsset ? (
-            <Image src={mediaAsset.url} alt="" fill sizes="360px" className="object-cover" />
+            <Image
+              src={normalizedMediaUrl ?? mediaAsset.url}
+              alt=""
+              fill
+              sizes="360px"
+              className="object-cover"
+              unoptimized={useUnoptimizedPreview}
+            />
           ) : (
             <div className="flex h-full items-center justify-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
               Görsel seçin

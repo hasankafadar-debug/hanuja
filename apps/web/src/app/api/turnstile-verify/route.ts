@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyTurnstileToken } from '@hanuja/api/lib/turnstile'
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as { token?: string; action?: string }
+  const body = (await req.json().catch(() => null)) as { token?: string; action?: string } | null
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ ok: false, message: 'Gecersiz istek govdesi.' }, { status: 400 })
+  }
+
   const token = body.token ?? ''
   const action = body.action
   const rawIp =

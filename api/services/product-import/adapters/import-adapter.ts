@@ -23,6 +23,8 @@ export interface ScrapedProduct {
   categoryPath?: string[]
   stockQuantity?: number
   proposedBarcode?: string
+  detectedColorOptionId?: string
+  detectedMaterialOptionId?: string
   variants?: ScrapedProductVariant[]
 }
 

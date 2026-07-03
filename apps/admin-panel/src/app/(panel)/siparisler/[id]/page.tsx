@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Button, LegalDocumentDialog, PageHeader, Separator, StatusBadge } from '@hanuja/ui'
+import { formatMoney } from '@hanuja/security'
 import { AlertTriangle, ArrowLeft, Download, FileText } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
@@ -9,6 +10,8 @@ import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { createFulfillmentRiskService } from '@hanuja/api/services/fulfillment-risk.service'
 import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 import { AdminOrderActions } from '@/components/admin-order-actions'
+import { CancellationDetailCard } from './_components/cancellation-detail-card'
+import { PerLineDeliveryConfirm } from './_components/per-line-delivery-confirm'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,16 +24,14 @@ function moneyToNumber(value: { toNumber(): number } | number | null | undefined
   return typeof value === 'object' && 'toNumber' in value ? value.toNumber() : Number(value)
 }
 
-function formatMoney(value: number) {
-  return `TRY ${value.toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  return { title: `Sipariş ${id.slice(-8).toUpperCase()}` }
+  const prisma = createPrismaForRoute()
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { publicNumber: true },
+  })
+  return { title: `Sipariş ${formatOrderDisplayNumber(order?.publicNumber, id)}` }
 }
 
 const TERMINAL_STATUSES = new Set([
@@ -84,7 +85,15 @@ export default async function AdminOrderDetailPage({ params }: Props) {
       },
       payouts: { orderBy: { createdAt: 'desc' } },
       penalties: { orderBy: { createdAt: 'desc' } },
-      fulfillmentRisk: true,
+      fulfillmentRisks: {
+        where: { status: { in: ['warning', 'breached'] } },
+        orderBy: [{ deadlineAt: 'asc' }, { createdAt: 'desc' }],
+        include: {
+          orderLine: {
+            select: { id: true, productName: true, quantity: true },
+          },
+        },
+      },
     },
   })
 
@@ -101,15 +110,16 @@ export default async function AdminOrderDetailPage({ params }: Props) {
   const hasBlockablePayout = order.payouts.some((payout) => BLOCKABLE_PAYOUT_STATUSES.has(payout.status))
   const canCancel = !isTerminal
 
-  const isDelayRisk = order.fulfillmentRisk?.status === 'warning' || order.fulfillmentRisk?.status === 'breached'
-  const shipmentDeadline = order.fulfillmentRisk?.deadlineAt
-    ? new Date(order.fulfillmentRisk.deadlineAt).toLocaleDateString('tr-TR', {
+  const primaryRisk = order.fulfillmentRisks[0] ?? null
+  const isDelayRisk = primaryRisk?.status === 'warning' || primaryRisk?.status === 'breached'
+  const shipmentDeadline = primaryRisk?.deadlineAt
+    ? new Date(primaryRisk.deadlineAt).toLocaleDateString('tr-TR', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
       })
     : null
-  const riskTitle = order.fulfillmentRisk?.status === 'breached'
+  const riskTitle = primaryRisk?.status === 'breached'
     ? 'Kargo sınırı aşıldı'
     : 'Kargo sınırı yaklaşıyor'
 
@@ -164,8 +174,13 @@ export default async function AdminOrderDetailPage({ params }: Props) {
               {riskTitle}: {shipmentDeadline}
             </p>
             <p className="mt-0.5 text-xs" style={{ color: '#7f1d1d' }}>
-              Sevk süresi aşılırsa admin gecikme cezasını bu siparişten manuel değerlendirebilir.
+              Sistem yalnızca admine bilgi verir. Gecikme olursa manuel ceza değerlendirmesi admin tarafında yapılır.
             </p>
+            {primaryRisk?.orderLine ? (
+              <p className="mt-1 text-xs" style={{ color: '#7f1d1d' }}>
+                Riskli satır: {primaryRisk.orderLine.productName} x {primaryRisk.orderLine.quantity}
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -180,17 +195,24 @@ export default async function AdminOrderDetailPage({ params }: Props) {
           </h2>
           <div className="space-y-2">
             {order.lines.map((line) => (
-              <div key={line.id} className="flex justify-between text-sm">
-                <span style={{ color: 'var(--color-muted-fg)' }}>
-                  {line.productName} × {line.quantity}
-                </span>
-                <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
-                  ₺
-                  {(typeof line.totalPrice === 'object'
-                    ? line.totalPrice.toNumber()
-                    : Number(line.totalPrice)
-                  ).toLocaleString('tr-TR')}
-                </span>
+              <div key={line.id} className="text-sm">
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--color-muted-fg)' }}>
+                    {line.productName} × {line.quantity}
+                  </span>
+                  <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                    {formatMoney(
+                      typeof line.totalPrice === 'object'
+                        ? line.totalPrice.toNumber()
+                        : Number(line.totalPrice),
+                    )}
+                  </span>
+                </div>
+                {line.deliveryConfirmedAt ? (
+                  <p className="mt-0.5 text-xs" style={{ color: 'var(--color-success)' }}>
+                    ✓ Teslim onaylandı — {new Date(line.deliveryConfirmedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>
@@ -443,7 +465,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                       : ''}
                   </span>
                   <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
-                    ₺{net.toLocaleString('tr-TR')}
+                    {formatMoney(net)}
                   </span>
                 </div>
               )
@@ -472,7 +494,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                     {penalty.reason} · {penalty.status}
                   </span>
                   <span className="font-medium" style={{ color: 'var(--color-destructive)' }}>
-                    ₺{amount.toLocaleString('tr-TR')}
+                    {formatMoney(amount)}
                   </span>
                 </div>
               )
@@ -480,6 +502,25 @@ export default async function AdminOrderDetailPage({ params }: Props) {
           </div>
         </section>
       ) : null}
+
+      <CancellationDetailCard
+        cancellationReason={order.cancellationReason}
+        cancelledAt={order.cancelledAt}
+        orderStatus={order.status}
+        statusHistory={order.statusHistory}
+        penalties={order.penalties}
+      />
+
+      <PerLineDeliveryConfirm
+        orderId={order.id}
+        lines={order.lines.map((l) => ({
+          id: l.id,
+          productName: l.productName,
+          quantity: l.quantity,
+          deliveryConfirmedAt: l.deliveryConfirmedAt ?? null,
+        }))}
+        canConfirm={canConfirmDelivery}
+      />
 
       <section
         className="rounded-xl border p-5"

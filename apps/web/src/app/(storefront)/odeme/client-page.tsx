@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Banknote, CheckCircle2, CreditCard, Lock, MapPin, Plus } from 'lucide-react'
+import { AlertTriangle, Banknote, CheckCircle2, CreditCard, FileText, Lock, MapPin, Plus } from 'lucide-react'
 import { Button, Separator, Spinner, TurnstileWidget } from '@hanuja/ui'
 import LegalDocumentDialog from '@/components/legal-document-dialog'
 import { csrfFetch } from '@/lib/csrf-fetch'
@@ -18,6 +18,9 @@ interface Address {
   city: string
   postalCode: string
   isDefault: boolean
+  isBillingAddress: boolean
+  invoiceType: 'individual' | 'corporate' | null
+  companyName: string | null
 }
 
 interface CartSummary {
@@ -54,10 +57,11 @@ type CheckoutPageClientProps = {
 }
 
 function formatPrice(value: string | number) {
-  return Number(value).toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  const formatted = Number(value).toLocaleString('tr-TR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   })
+  return `${formatted} TL`
 }
 
 export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps) {
@@ -75,6 +79,8 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showAddressForm, setShowAddressForm] = useState(false)
+  const [useDifferentBilling, setUseDifferentBilling] = useState(false)
+  const [selectedBillingAddressId, setSelectedBillingAddressId] = useState<string | null>(null)
   const [turnstileToken, setTurnstileToken] = useState('')
   const [cardForm, setCardForm] = useState<CardForm>({
     cardHolderName: '',
@@ -308,6 +314,9 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             addressId: selectedAddressId,
+            ...(useDifferentBilling && selectedBillingAddressId
+              ? { billingAddressId: selectedBillingAddressId }
+              : {}),
             cardHolderName: cardForm.cardHolderName,
             cardNumber: cardForm.cardNumber.replace(/\s/g, ''),
             expireMonth: cardForm.expireMonth,
@@ -341,6 +350,9 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           addressId: selectedAddressId,
+          ...(useDifferentBilling && selectedBillingAddressId
+            ? { billingAddressId: selectedBillingAddressId }
+            : {}),
           paymentMethod: 'eft',
           turnstileToken,
           acceptedDistanceSales: true,
@@ -386,8 +398,8 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
       <h1
-        className="mb-8 text-2xl font-bold"
-        style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
+        className="mb-8 text-2xl font-medium"
+        style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}
       >
         Ödeme
       </h1>
@@ -425,7 +437,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
             ) : null}
 
             <div className="space-y-3">
-              {addresses.map((address) => (
+              {addresses.filter((a) => !a.isBillingAddress).map((address) => (
                 <label
                   key={address.id}
                   className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors"
@@ -534,6 +546,117 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
                 <Plus className="h-4 w-4" />
                 Yeni adres ekle
               </button>
+            )}
+          </section>
+
+          {/* Farklı fatura adresi bölümü */}
+          <section
+            className="rounded-xl border p-6"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <label className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={useDifferentBilling}
+                onChange={(e) => {
+                  setUseDifferentBilling(e.target.checked)
+                  if (!e.target.checked) setSelectedBillingAddressId(null)
+                }}
+                className="h-4 w-4 rounded"
+                style={{ accentColor: 'var(--color-accent)' }}
+              />
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                  Farklı fatura adresi kullan
+                </span>
+              </div>
+            </label>
+
+            {useDifferentBilling && (
+              <div className="mt-4">
+                {(() => {
+                  const billingAddrs = addresses.filter((a) => a.isBillingAddress)
+                  if (billingAddrs.length === 0) {
+                    return (
+                      <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                        Kayıtlı fatura adresiniz yok.{' '}
+                        <a
+                          href="/hesabim/adresler"
+                          className="underline"
+                          style={{ color: 'var(--color-accent)' }}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Adreslerim
+                        </a>
+                        {' '}sayfasından yeni fatura adresi ekleyebilirsiniz.
+                      </p>
+                    )
+                  }
+                  return (
+                    <div className="space-y-3">
+                      {billingAddrs.map((addr) => (
+                        <label
+                          key={addr.id}
+                          className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors"
+                          style={{
+                            borderColor:
+                              selectedBillingAddressId === addr.id
+                                ? selectedOptionBorderColor
+                                : 'var(--color-border)',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="billingAddress"
+                            value={addr.id}
+                            checked={selectedBillingAddressId === addr.id}
+                            onChange={() => setSelectedBillingAddressId(addr.id)}
+                            className="mt-0.5"
+                            style={{ accentColor: selectedOptionBorderColor }}
+                          />
+                          <div className="flex-1 text-sm">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                                {addr.invoiceType === 'corporate' && addr.companyName
+                                  ? addr.companyName
+                                  : addr.fullName}
+                              </span>
+                              <span
+                                className="rounded px-1.5 py-0.5 text-xs"
+                                style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-muted-fg)' }}
+                              >
+                                {addr.invoiceType === 'corporate' ? 'Kurumsal' : 'Bireysel'}
+                              </span>
+                            </div>
+                            <p style={{ color: 'var(--color-muted-fg)' }}>
+                              {addr.addressLine1}
+                              {addr.addressLine2 ? `, ${addr.addressLine2}` : ''}
+                            </p>
+                            <p style={{ color: 'var(--color-muted-fg)' }}>
+                              {[addr.district, '/', addr.city, addr.postalCode].filter(Boolean).join(' ')}
+                            </p>
+                          </div>
+                          {selectedBillingAddressId === addr.id ? (
+                            <CheckCircle2 className="mt-0.5 h-4 w-4" style={{ color: selectedOptionBorderColor }} />
+                          ) : null}
+                        </label>
+                      ))}
+                      <a
+                        href="/hesabim/adresler"
+                        className="mt-1 inline-flex items-center gap-1.5 text-xs"
+                        style={{ color: 'var(--color-accent)' }}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Adreslerim&apos;den yönet
+                      </a>
+                    </div>
+                  )
+                })()}
+              </div>
             )}
           </section>
 
@@ -801,10 +924,20 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
                   style={{ accentColor: selectedOptionBorderColor }}
                 />
                 <Banknote className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
-                <div>
-                  <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                    Havale / EFT
-                  </p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                      Havale / EFT
+                    </p>
+                    {(cartSummary?.eftDiscountRatePercent ?? 0) > 0 ? (
+                      <span
+                        className="rounded px-1.5 py-0.5 text-xs font-medium"
+                        style={{ backgroundColor: '#dcfce7', color: 'var(--color-success)' }}
+                      >
+                        %{cartSummary!.eftDiscountRatePercent} indirim
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                     Sipariş sonrasında banka bilgileri gösterilir
                   </p>
@@ -825,33 +958,33 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
           <div className="space-y-3 text-sm">
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Ürünler</span>
-              <span>TRY {formatPrice(grossSubtotal)}</span>
+              <span>{formatPrice(grossSubtotal)}</span>
             </div>
             {paymentMethod === 'eft' && eftDiscount > 0 && (cartSummary?.eftDiscountRatePercent ?? 0) > 0 ? (
               <div className="flex justify-between" style={{ color: 'var(--color-success)' }}>
                 <span>EFT / Havale indirimi</span>
-                <span>-TRY {formatPrice(eftDiscount)}</span>
+                <span>-{formatPrice(eftDiscount)}</span>
               </div>
             ) : null}
             {couponDiscount > 0 ? (
               <div className="flex justify-between" style={{ color: 'var(--color-success)' }}>
                 <span>Kupon indirimi</span>
-                <span>-TRY {formatPrice(couponDiscount)}</span>
+                <span>-{formatPrice(couponDiscount)}</span>
               </div>
             ) : null}
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Kargo</span>
-              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span> : `TRY ${formatPrice(shipping)}`}</span>
+              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span> : formatPrice(shipping)}</span>
             </div>
             {shipping > 0 ? (
               <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                TRY {freeShippingThreshold.toLocaleString('tr-TR')} ve üzeri siparişlerde kargo ücretsizdir.
+                {formatPrice(freeShippingThreshold)} ve üzeri siparişlerde kargo ücretsizdir.
               </p>
             ) : null}
             <Separator />
             <div className="flex justify-between text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
               <span>Toplam</span>
-              <span>TRY {formatPrice(total)}</span>
+              <span>{formatPrice(total)}</span>
             </div>
           </div>
 

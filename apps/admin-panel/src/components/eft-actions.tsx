@@ -125,13 +125,13 @@ export function EftActions({ orderId }: EftActionsProps) {
               }
             >
               <option value="none">İndirim yok</option>
-              <option value="try">TRY tutarı gir</option>
+              <option value="try">TL tutarı gir</option>
             </select>
 
             {modal.discountType !== 'none' && (
               <>
                 <label className="mb-1 block text-sm font-medium">
-                  İndirim tutarı (₺)
+                  İndirim tutarı (TL)
                 </label>
                 <input
                   type="number"
