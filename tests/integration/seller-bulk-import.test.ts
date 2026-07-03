@@ -248,6 +248,7 @@ describe('normalizeBulkProductRow - barcode format', () => {
     'Urun Rengi*': 'Ceviz',
     'Materyal*': 'Masif Ahsap',
     'Fiyat*': 1990,
+    'Sevk Suresi (is gunu)*': 7,
     'Stok*': 10,
     'Barkod (13 hane)*': '8691234567890',
   }
@@ -292,6 +293,7 @@ describe('normalizeBulkProductRow - barcode format', () => {
         'Urun Rengi*': 'Ceviz',
         'Materyal*': 'Masif Ahsap',
         'Fiyat*': 1990,
+        'Sevk Suresi (is gunu)*': 7,
         'Stok*': 10,
         'Barkod (13 hane)*': '8691234567890',
       },

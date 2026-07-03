@@ -92,7 +92,9 @@ export async function searchIndex<T = Record<string, unknown>>(
     totalHits: data.estimatedTotalHits ?? data.totalHits ?? 0,
     limit: data.limit ?? limit,
     offset: data.offset ?? offset,
-    facetDistribution: data.facetDistribution,
+    ...(data.facetDistribution !== undefined
+      ? { facetDistribution: data.facetDistribution }
+      : {}),
     processingTimeMs: data.processingTimeMs ?? 0,
   }
 }

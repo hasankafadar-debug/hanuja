@@ -1,5 +1,11 @@
 import type { OrderStatus, Prisma, PrismaClient } from '@prisma/client'
 
+// Delivery/cargo coordination is the seller's operational responsibility, so
+// the customer's delivery phone number is intentionally exposed to sellers
+// here (business decision, see `.claude/rules/12-production-readiness.md` §8).
+// Unlike `customer.email` (never selected below) and `customer.name` (masked
+// in the UI via `maskCustomerName`), `address.phone` is returned raw on
+// purpose. Do not add masking here without an explicit policy change.
 const sellerVisibleAddressSelect = {
   fullName: true,
   phone: true,

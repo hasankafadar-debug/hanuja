@@ -4,8 +4,16 @@
  * Verifies that seller-facing repository methods do NOT request `email`
  * on the customer relation. The seller-panel UI also masks customer name.
  *
- * Until full email aliasing infra (separate epic) lands, this is the
- * minimum boundary that prevents direct customer email exposure.
+ * `address.phone` is intentionally NOT stripped or masked for seller-facing
+ * reads: delivery/cargo coordination is the seller's operational
+ * responsibility, so the customer's delivery phone is shown raw in seller
+ * order payloads (business decision, 2026-07-03). This is different from
+ * `customer.email` (never selected) and `customer.name` (masked via
+ * `maskCustomerName`). See `.claude/rules/12-production-readiness.md` §8.
+ *
+ * Until full email aliasing infra (separate epic) lands, the no-email
+ * select is the minimum boundary that prevents direct customer email
+ * exposure.
  *
  * 05-security-rules.md, 09-seller-panel-rules.md
  */
@@ -67,26 +75,6 @@ describe('seller-facing repository methods — no customer.email leakage', () =>
     expect(select?.email).toBeUndefined()
   })
 
-  it('findByIdForSeller does not select address.phone', async () => {
-    const { prisma, calls } = makePrismaSpy()
-    const repo = createOrderRepository(prisma)
-    await repo.findByIdForSeller('order_1', 'seller_1')
-    const select = addressSelect(calls[0]!.args)
-    expect(select).toBeDefined()
-    expect(select).not.toHaveProperty('phone')
-    expect(select?.phone).toBeUndefined()
-  })
-
-  it('listForSellerQueue does not select address.phone', async () => {
-    const { prisma, calls } = makePrismaSpy()
-    const repo = createOrderRepository(prisma)
-    await repo.listForSellerQueue({ sellerId: 'seller_1' })
-    const select = addressSelect(calls[0]!.args)
-    expect(select).toBeDefined()
-    expect(select).not.toHaveProperty('phone')
-    expect(select?.phone).toBeUndefined()
-  })
-
   it('listForAdmin still selects customer.email (admin context allowed)', async () => {
     const { prisma, calls } = makePrismaSpy()
     const repo = createOrderRepository(prisma)
@@ -94,6 +82,26 @@ describe('seller-facing repository methods — no customer.email leakage', () =>
     const select = customerSelect(calls[0]!.args)
     expect(select).toBeDefined()
     expect(select?.email).toBe(true)
+  })
+})
+
+describe('seller-facing repository methods — address.phone is permitted raw (delivery coordination)', () => {
+  it('findByIdForSeller selects address.phone (seller needs it for delivery/cargo coordination)', async () => {
+    const { prisma, calls } = makePrismaSpy()
+    const repo = createOrderRepository(prisma)
+    await repo.findByIdForSeller('order_1', 'seller_1')
+    const select = addressSelect(calls[0]!.args)
+    expect(select).toBeDefined()
+    expect(select?.phone).toBe(true)
+  })
+
+  it('listForSellerQueue selects address.phone (seller needs it for delivery/cargo coordination)', async () => {
+    const { prisma, calls } = makePrismaSpy()
+    const repo = createOrderRepository(prisma)
+    await repo.listForSellerQueue({ sellerId: 'seller_1' })
+    const select = addressSelect(calls[0]!.args)
+    expect(select).toBeDefined()
+    expect(select?.phone).toBe(true)
   })
 })
 

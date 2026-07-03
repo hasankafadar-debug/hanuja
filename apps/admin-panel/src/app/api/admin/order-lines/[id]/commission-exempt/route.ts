@@ -2,7 +2,8 @@ import { headers } from 'next/headers'
 import { type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
-import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '@hanuja/api/lib/errors'
+import { ConflictError, NotFoundError, UnauthorizedError, ValidationError } from '@hanuja/api/lib/errors'
+import { assertRoleCan } from '@hanuja/api/lib/authorize'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { handleError, ok } from '@hanuja/api/lib/response'
 
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
-    if (session.user.role !== 'admin') throw new ForbiddenError()
+    assertRoleCan(session.user.role, 'finance:adjust_manual')
 
     const { id } = await params
     const body = bodySchema.parse(await req.json())

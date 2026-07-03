@@ -3,16 +3,22 @@ export type SortableAttributeOption = {
   type?: 'color' | 'material' | string
 }
 
-const TONE_PREFIXES = ['acik', 'açık', 'koyu']
-
 function normalizeForSort(value: string) {
   return value
     .trim()
     .toLocaleLowerCase('tr')
     .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/\s+/g, ' ')
 }
+
+// Raw prefixes are written with correct Turkish spelling and run through the same
+// normalizeForSort() pipeline used for compared labels. This guarantees the tone
+// prefixes always match the actual normalized output. Turkish-locale lowercasing of
+// "Açık" keeps the dotless "ı" character (it is a distinct base letter, not a
+// combining diacritic stripped by NFKD) — a literal spelled with the ASCII dotted
+// "i" ("acik") would silently never match without being normalized the same way.
+const TONE_PREFIXES = ['açık', 'koyu'].map((prefix) => normalizeForSort(prefix))
 
 function colorSortParts(label: string) {
   const normalized = normalizeForSort(label)

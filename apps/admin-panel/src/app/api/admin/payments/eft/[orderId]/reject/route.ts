@@ -2,7 +2,8 @@ import { headers } from 'next/headers'
 import { type NextRequest } from 'next/server'
 import { auth } from '@/lib/auth'
 import { rejectEft } from '@hanuja/api/routes/payments'
-import { UnauthorizedError, ForbiddenError } from '@hanuja/api/lib/errors'
+import { UnauthorizedError } from '@hanuja/api/lib/errors'
+import { assertRoleCan } from '@hanuja/api/lib/authorize'
 import { handleError } from '@hanuja/api/lib/response'
 
 export async function POST(
@@ -12,7 +13,7 @@ export async function POST(
   try {
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
-    if (session.user.role !== 'admin') throw new ForbiddenError()
+    assertRoleCan(session.user.role, 'payment:reject_eft')
     const { orderId } = await params
     return rejectEft(req, orderId, session.user.id)
   } catch (err) {

@@ -27,6 +27,9 @@ describe('import commit — barcode override conflict', () => {
   it('throws when override barcode is already in use', async () => {
     const conflictBarcode = '1234567890123'
 
+    const colorOption = { id: 'color-1', type: 'color', label: 'Kırmızı', slug: 'kirmizi', sortOrder: 0 }
+    const materialOption = { id: 'material-1', type: 'material', label: 'Ahşap', slug: 'ahsap', sortOrder: 0 }
+
     const mockPrisma = {
       product: {
         findFirst: vi.fn().mockImplementation(({ where }: { where: { barcode: string } }) =>
@@ -36,8 +39,16 @@ describe('import commit — barcode override conflict', () => {
       productVariant: {
         findFirst: vi.fn().mockResolvedValue(null),
       },
+      productAttributeOption: {
+        findMany: vi.fn().mockResolvedValue([colorOption, materialOption]),
+      },
       category: {
-        findMany: vi.fn().mockResolvedValue([]),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'cat-1',
+            attributeOptions: [{ option: colorOption }, { option: materialOption }],
+          },
+        ]),
         findUnique: vi.fn().mockResolvedValue(null),
         findFirst: vi.fn().mockResolvedValue(null),
       },
@@ -65,7 +76,11 @@ describe('import commit — barcode override conflict', () => {
           {
             externalId: 'ext-1',
             categoryId: 'cat-1',
+            colorOptionId: 'color-1',
+            materialOptionId: 'material-1',
             barcode: conflictBarcode,
+            fulfillmentDays: 7,
+            stockQuantity: 5,
           },
         ],
       }),

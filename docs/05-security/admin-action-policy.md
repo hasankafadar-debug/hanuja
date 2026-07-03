@@ -302,6 +302,53 @@ capture reason shown to customer.
 
 ---
 
+## Permission Matrix Enforcement Status
+
+Historically, `packages/security/src/permission-matrix.ts` defined 75+ actions
+but no route called `can()` / `assertCan()` — admin routes enforced authorization
+with an inline `if (session.user.role !== 'admin') throw new ForbiddenError()`
+check instead. As of 2026-07-03, the following six finance-critical admin routes
+call the matrix directly through `assertRoleCan()` (`api/lib/authorize.ts`), which
+wraps `assertCan()` and rethrows a `ForbiddenError` (403) on denial so the
+existing `handleError()` route error handler maps it correctly:
+
+| Route | Permission matrix action |
+|---|---|
+| `POST /api/admin/payouts/[id]/release` | `payout:release` |
+| `POST /api/admin/payments/eft/[orderId]/approve` | `payment:approve_eft` |
+| `POST /api/admin/payments/eft/[orderId]/reject` | `payment:reject_eft` |
+| `POST /api/admin/penalties/[id]/waive` | `penalty:waive` |
+| `POST /api/admin/orders/[id]/penalties` | `penalty:apply` |
+| `POST /api/admin/order-lines/[id]/commission-exempt` | `finance:adjust_manual` |
+
+**Behavior today is unchanged.** The matrix currently grants every one of these
+actions only to the `admin` role (see the T1–T4 tiers above, which are all
+collapsed into `admin` in the matrix), so these routes still 403 any non-admin
+session exactly as the old inline check did. The `401` (no session) check is
+untouched and still runs before the permission check in every route.
+
+**Why this matters going forward:** when finance/support role separation is
+implemented (e.g. a distinct `finance` or a real `support` role that should be
+able to view but not release payouts), the change is contained entirely to
+`PERMISSIONS` in `permission-matrix.ts` — for example moving `payout:release`
+out of a new `finance-viewer` role's set. No route code needs to change because
+the routes already assert the specific action, not a role string. This is the
+concrete first step toward the T1–T4 tier model documented above becoming real
+matrix data instead of only documentation.
+
+The remaining admin routes not listed above still use the inline
+`role !== 'admin'` check and have not yet been migrated to `assertRoleCan()`.
+Migrating them is out of scope for this change; when a route is migrated, add
+it to the table above in the same change.
+
+Test coverage: `tests/security/admin-permission-matrix.test.ts` verifies
+`can()`/`assertCan()` for all six actions across `admin`, `seller`, `customer`,
+and `support`, and includes a route-level example
+(`POST /api/admin/payouts/[id]/release`) confirming a `seller` session gets
+403 while an `admin` session succeeds.
+
+---
+
 ## General Rules Applying to All Actions
 
 1. Every action in this document must produce an `AdminAuditLog` row in the

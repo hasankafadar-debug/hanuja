@@ -56,6 +56,7 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 ### 8. Müşteri PII satıcı görünürlüğü
 - Satıcıya dönen sipariş payload'ları (detay, queue listesi, CSV export) müşteri e-postasını içermez; ad `maskCustomerName` ile "Ahmet Y." formatında gösterilir.
 - Kalıcı email aliasing altyapısı (Faz 4) ayrı epic; geldiğinde aynı select noktasına alias alanı eklenir.
+- Müşteri teslimat telefonu (`address.phone`) kargo/teslimat operasyonu satıcıya ait olduğu için satıcı sipariş payload'larında HAM görünür (iş sahibi kararı, 2026-07-03). E-posta gizli kalır, ad `maskCustomerName` ile maskelenir. `api/repositories/order.repository.ts` içindeki `sellerVisibleAddressSelect` bu kararı üstte kod içi yorumla belgeler; `tests/security/seller-cannot-see-customer-email.test.ts` müşteri e-postasının seçilmediğini doğrular ve telefonun izinli-ham durumunu ayrı bir testte belgeler.
 
 ### 9. Geç sevkiyat günlük ceza birikimi (yeni — 2026-05-09)
 - `fulfillment-risk` BullMQ worker artık günlük %1 ceza birikimini idempotent şekilde işler ve 20. günde `cancelled_due_to_20day_breach` auto-cancel + refund tetikler.
