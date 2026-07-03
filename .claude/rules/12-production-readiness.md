@@ -114,9 +114,16 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   providerRef tekrar kullanımını fail-closed doğrular; callback `conversationId` echo
   ve `fraudStatus=-1` kontrolü yapar. Bkz `docs/05-security/payment-security.md` §7.
 - Migration `20260703100000_payment_provider_payment_id_unique` deploy zincirinin
-  parçasıdır. **Deploy öncesi** prod'da duplicate kontrolü çalıştırılmalı:
-  `SELECT "providerPaymentId", count(*) FROM payments WHERE "providerPaymentId" IS NOT NULL GROUP BY 1 HAVING count(*) > 1;`
-  Satır dönerse migration başarısız olur; önce elle mutabakat gerekir.
+  parçasıdır. **Deploy öncesi** prod'da duplicate kontrolü artık otomatik bir guard
+  script ile yapılır: `pnpm check-duplicate-payments`
+  (`tools/scripts/check-duplicate-provider-payment-ids.ts`). Script canlı
+  `DATABASE_URL`'e karşı çalışır, duplicate `providerPaymentId` bulursa ilişkili
+  `payment.id`/`orderId` listesiyle birlikte hata basıp `exit(1)` ile döner
+  (fail-closed — bağlantı/DATABASE_URL sorunu da `exit(1)` üretir). Bu script
+  genel `pnpm release-check` zincirinde DEĞİLDİR; `pnpm db:migrate:deploy`'dan
+  hemen önce, prod ortamına karşı ayrı bir manuel/pipeline adımı olarak
+  çalıştırılmalıdır. Sıra ve detaylar:
+  `docs/07-operations/production-deploy-runbook.md` adım 4.
 
 ## Operasyonel Not
 

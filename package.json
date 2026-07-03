@@ -22,6 +22,7 @@
     "validate-brand": "tsx tools/validators/validate-brand.ts",
     "brand-swap": "tsx tools/scripts/brand-swap.ts",
     "check-env": "tsx tools/scripts/check-env.ts",
+    "check-duplicate-payments": "tsx tools/scripts/check-duplicate-provider-payment-ids.ts",
     "search:seed": "tsx tools/scripts/seed-search.ts",
     "media:backfill": "tsx tools/scripts/backfill-media-urls.ts",
     "ledger:backfill": "tsx tools/scripts/backfill-seller-ledger.ts",
