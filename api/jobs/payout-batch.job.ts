@@ -18,7 +18,7 @@ export interface PayoutBatchJobData {
 async function processPayoutBatch(job: Job<PayoutBatchJobData>) {
   // Find all ready payouts not yet assigned to a batch
   const readyPayouts = await prisma.payout.findMany({
-    where: { status: 'ready', batchId: null },
+    where: { status: 'payout_ready', batchId: null },
     include: { seller: true },
   })
 

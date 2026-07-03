@@ -102,9 +102,10 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   siparişte yalnız ilgili satıcı satırları iade edilir. Satıcı tarafı timeout'ları
   (kargo bilgisi/onay gecikmesi) şimdilik admin override route'ları ile elle yönetilir;
   SLA job ayrı bir takip işidir.
-- Ön mevcut (bu işten bağımsız) typecheck kırıkları: `api/services/checkout.service.ts`
-  `formatMoney(Decimal)` ve `apps/admin-panel .../urunler/[id]/page.tsx`
-  `exactOptionalPropertyTypes` — bu epikte dokunulmadı, ayrı düzeltilmeli.
+- (2026-07-03 güncellemesi) Eski typecheck kırıkları giderildi; `pnpm typecheck` yeşil.
+  `@hanuja/api` paketi artık kendi `typecheck` script'ine sahip (worker/jobs dosyaları
+  dahil). Not: api tsconfig'de `exactOptionalPropertyTypes` ve `noUncheckedIndexedAccess`
+  ilk etapta kapalı — sıkılaştırma ayrı temizlik işi.
 
 ### 16. Ödeme bağlama doğrulaması + providerPaymentId unique (yeni — 2026-07-03)
 - `confirmCardPayment` artık tutar eşitliği (`paidPrice == Order.totalAmount`) ve

@@ -78,7 +78,15 @@ export async function searchIndex<T = Record<string, unknown>>(
     throw new Error(`Meilisearch search failed [${res.status}]: ${text}`)
   }
 
-  const data = await res.json()
+  const data = (await res.json()) as {
+    hits?: T[]
+    estimatedTotalHits?: number
+    totalHits?: number
+    limit?: number
+    offset?: number
+    facetDistribution?: Record<string, Record<string, number>>
+    processingTimeMs?: number
+  }
   return {
     hits: data.hits ?? [],
     totalHits: data.estimatedTotalHits ?? data.totalHits ?? 0,

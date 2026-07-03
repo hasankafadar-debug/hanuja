@@ -19,10 +19,15 @@
     "iyzipay": "^2.0.67",
     "nodemailer": "^6.9.0",
     "sharp": "^0.33.5",
-    "zod": "^3.23.0"
+    "zod": "^3.23.0",
+    "better-auth": "^1.6.0"
   },
   "devDependencies": {
     "@types/nodemailer": "^6.4.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "@hanuja/config": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
   }
 }

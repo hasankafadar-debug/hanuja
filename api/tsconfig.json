@@ -1,0 +1,15 @@
+{
+  "extends": "@hanuja/config/tsconfig/base",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    // Bu iki bayrak app tsconfig'lerinde etkin ama api dosyaları tarihsel olarak
+    // hiç doğrudan typecheck edilmedi; ilk etapta gerçek tip hatalarına odaklan.
+    // Sıkılaştırma ayrı bir temizlik işi olarak planlanmalı.
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["domain", "services", "repositories", "routes", "jobs", "lib", "worker.ts"]
+}

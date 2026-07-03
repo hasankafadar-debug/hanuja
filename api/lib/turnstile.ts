@@ -54,7 +54,8 @@ export async function verifyTurnstileToken(
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
-      cache: 'no-store',
+      // Next.js fetch cache genişletmesi — Node tipi RequestInit'te yok
+      ...({ cache: 'no-store' } as RequestInit),
     })
 
     if (!response.ok) {

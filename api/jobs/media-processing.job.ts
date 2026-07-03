@@ -90,7 +90,7 @@ async function generateVariants(
   }
 
   return {
-    variants: results as MediaVariants,
+    variants: results as unknown as MediaVariants,
     width: originalWidth,
     height: originalHeight,
   }

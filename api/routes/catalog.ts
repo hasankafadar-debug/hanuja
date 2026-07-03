@@ -130,7 +130,7 @@ export async function approveProduct(productId: string, adminActorId: string) {
 // POST /api/admin/products/:id/reject
 export async function rejectProduct(req: NextRequest, productId: string) {
   try {
-    const body = await req.json().catch(() => ({}))
+    const body = (await req.json().catch(() => ({}))) as { reason?: unknown }
     const reason = typeof body.reason === 'string' ? body.reason : undefined
     const svc = getCatalogService()
     const product = await svc.rejectProduct(productId, reason)
