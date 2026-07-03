@@ -72,9 +72,10 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 - EFT indirimi platform-absorbe: `Order.eftDiscountAmount` müşteri toplamından düşer fakat satıcı `Payout.grossAmount`/`netAmount`'unu etkilemez. Bu yaklaşımı değiştirmek isteyen herhangi bir politika kararı önce finance docs'ta güncellenmeli.
 - Order persistence: `netSubtotal`, `taxBreakdownJson`, `eftDiscountAmount`, `eftDiscountRateSnapshot` snapshot olarak yazılır; admin sipariş detayı bu snapshot'lardan render eder.
 
-### 12. Para yuvarlama (`roundMoney`)
-- `packages/security/src/money.ts` 3. ondalık kuralını uygular (≤5 truncate, ≥6 yukarı yuvarla). 27 fixture ile test edilir (`tests/unit/round-money.test.ts`).
-- Şu an cart/checkout pipeline'ında persist-time uygulanır. `payout.service.ts`, `penalty.service.ts`, `seller-invoice.service.ts` Decimal aritmetiği yapıp `toDecimalPlaces(2)` ile yuvarlıyor — bu `roundMoney` kuralından **biraz farklı** (3. ondalık 5'te banker's vs truncate kararı). Finance açısından sapma 0,005 TRY mertebesindedir; ileride bu kuralı tüm servislere `roundMoney` ile birleştirmek için ayrı bir migration planı yapılmalıdır.
+### 12. Para yuvarlama (`roundMoney`) — birleştirildi (2026-07-03)
+- `packages/security/src/money.ts` 3. ondalık kuralını uygular (≤5 truncate, ≥6 yukarı yuvarla). Fixture testleri: `tests/unit/round-money.test.ts` + sınır davranışı için `tests/unit/rounding-parity.test.ts`.
+- Birleştirme tamamlandı: `payout-calculator.ts`, `penalty-calculator.ts` ve `seller-invoice.service.ts` nihai para tutarlarında artık `roundMoney` kullanır (`toDecimalPlaces(2)` kaldırıldı; oran/etiket değerleri — ör. günlük ceza oranı `toDecimalPlaces(4)` — para tutarı olmadığı için değişmedi).
+- Cutover notu: birleştirme öncesi persist edilmiş payout/ceza/fatura kayıtları eski yuvarlamayla yazıldı; mutabakatta tarihi kayıtlar için ±0,01 TL tolerans uygulanır (bkz. `docs/07-operations/reconciliation-process.md`).
 
 ### 13. Variant stoğu içe aktarma
 - URL importu varyantsız ürünler için per-product `stockQuantity` input'u sağlar.

@@ -36,10 +36,16 @@ export class Decimal {
 
   toDecimalPlaces(dp: number, mode?: number): Decimal {
     const factor = Math.pow(10, dp)
+    // `value * factor` can land a hair below/above the true integer boundary
+    // due to IEEE-754 float representation (e.g. 66.6 * 100 === 6659.999999999999
+    // in real double-precision arithmetic). Real Decimal.js is arbitrary-precision
+    // and does not have this problem; this mock nudges by a tiny epsilon before
+    // floor/ceil so truncation matches the decimal (not binary-float) boundary.
+    const EPSILON = 1e-9
     if (mode === Decimal.ROUND_DOWN) {
       const truncated = this.value < 0
-        ? Math.ceil(this.value * factor) / factor
-        : Math.floor(this.value * factor) / factor
+        ? Math.ceil(this.value * factor - EPSILON) / factor
+        : Math.floor(this.value * factor + EPSILON) / factor
       return new Decimal(truncated)
     }
     return new Decimal(Math.round(this.value * factor) / factor)

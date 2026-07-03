@@ -8,6 +8,7 @@
  * Uses Decimal for precision — never use JS floats for money.
  */
 import { Decimal } from '@prisma/client/runtime/client'
+import { roundMoney } from '@hanuja/security/money'
 import { PAYOUT_HOLD_DAYS } from './penalty-calculator'
 
 export interface PayoutComponents {
@@ -25,6 +26,12 @@ export interface PayoutSnapshotLine {
   totalPrice: Decimal
   commissionAmount: Decimal
   netPayoutAmount: Decimal
+  /**
+   * When set (admin commission exemption), the line's commission is treated as 0.
+   * The commission that was subtracted at order creation is added back to net.
+   * See docs/01-business/payout-policy.md — Komisyon muafiyeti.
+   */
+  commissionExemptedAt?: Date | null
 }
 
 /**
@@ -32,7 +39,7 @@ export interface PayoutSnapshotLine {
  * Result may be negative — that creates a seller debt.
  */
 export function calculateNetPayout(c: PayoutComponents): Decimal {
-  return c.grossAmount
+  const rawNet = c.grossAmount
     .minus(c.commissionAmount)
     .minus(c.couponShareAmount)
     .minus(c.cargoChargeAmount)
@@ -40,7 +47,7 @@ export function calculateNetPayout(c: PayoutComponents): Decimal {
     .minus(c.penaltyAmount)
     .minus(c.refundAmount)
     .plus(c.adjustmentAmount)
-    .toDecimalPlaces(2)
+  return roundMoney(rawNet)
 }
 
 /**
@@ -78,16 +85,37 @@ export function resolveCommissionRate(
  * This is the agreed platform policy: commission is calculated on the KDV-inclusive price.
  */
 export function calculateCommission(grossAmount: Decimal, rate: Decimal): Decimal {
-  return grossAmount.mul(rate).toDecimalPlaces(2)
+  return roundMoney(grossAmount.mul(rate))
 }
 
+/**
+ * Aggregate seller payout figures from order-line snapshots.
+ *
+ * Commission exemption (admin decision, OrderLine.commissionExemptedAt) removes
+ * the line's commission from BOTH the commission total and the net calculation:
+ * - gross is never affected by exemption
+ * - an exempt line contributes 0 commission
+ * - the commission originally subtracted from netPayoutAmount at order creation
+ *   is added back, so the seller receives the un-commissioned amount
+ *
+ * The commissionAmount returned here is what the payout snapshot and the
+ * `commission` ledger entry must reflect — i.e. only non-exempt commission.
+ */
 export function sumPayoutSnapshot(lines: PayoutSnapshotLine[]) {
+  const zero = new Decimal(0)
   return lines.reduce(
-    (totals, line) => ({
-      grossAmount: totals.grossAmount.plus(line.totalPrice),
-      commissionAmount: totals.commissionAmount.plus(line.commissionAmount),
-      netAmount: totals.netAmount.plus(line.netPayoutAmount),
-    }),
+    (totals, line) => {
+      const isExempt = line.commissionExemptedAt != null
+      const lineCommission = isExempt ? zero : line.commissionAmount
+      const lineNet = isExempt
+        ? line.netPayoutAmount.plus(line.commissionAmount)
+        : line.netPayoutAmount
+      return {
+        grossAmount: totals.grossAmount.plus(line.totalPrice),
+        commissionAmount: totals.commissionAmount.plus(lineCommission),
+        netAmount: totals.netAmount.plus(lineNet),
+      }
+    },
     {
       grossAmount: new Decimal(0),
       commissionAmount: new Decimal(0),

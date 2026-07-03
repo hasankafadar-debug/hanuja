@@ -263,6 +263,16 @@ Chargeback gerçekleşirse:
 - Ledger tutarlılık koşulu `balanceAfter` zinciriyle kod seviyesinde doğrulanabilir olmalıdır
 - Payout batch işlemi kısmi başarısızlık senaryosunu destekler; başarısızlık geri alınamaz batch onaylarını etkilemez
 
+### Yuvarlama cutover'ı (2026-07-03)
+
+Payout, ceza ve satıcı fatura hesapları bu tarihte `toDecimalPlaces(2)` yuvarlamasından
+`roundMoney` kuralına (3. ondalık ≤5 truncate, ≥6 yukarı) geçirildi. Cutover öncesi
+persist edilmiş kayıtlar eski yuvarlamayla yazıldığı için tarihi kayıtlar yeniden
+hesaplanırken satır başına en fazla 0,01 TL fark görülebilir. Mutabakat kontrollerinde
+cutover öncesi kayıtlar için **±0,01 TL tolerans** uygulanır; cutover sonrası kayıtlarda
+tolerans yoktur. Bkz. `.claude/rules/12-production-readiness.md` §12,
+`tests/unit/rounding-parity.test.ts`.
+
 ---
 
 ## 12. Çapraz Referanslar

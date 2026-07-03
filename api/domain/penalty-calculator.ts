@@ -6,6 +6,7 @@
  * Do not change these values without documented policy approval.
  */
 import { Decimal } from '@prisma/client/runtime/client'
+import { roundMoney } from '@hanuja/security/money'
 import { addBusinessDays, countBusinessDaysBetween } from './business-days'
 
 // Platform constants — CLAUDE.md 15.3
@@ -25,7 +26,7 @@ export function calculatePenalty(
   productAmount: Decimal,
   rate: Decimal = STANDARD_PENALTY_RATE,
 ): Decimal {
-  return productAmount.mul(rate).toDecimalPlaces(2)
+  return roundMoney(productAmount.mul(rate))
 }
 
 export function calculateDailyLateShipmentPenalty(
@@ -34,7 +35,7 @@ export function calculateDailyLateShipmentPenalty(
   dailyRate: Decimal = DAILY_LATE_SHIPMENT_PENALTY_RATE,
 ): Decimal {
   if (breachDayCount <= 0) return new Decimal(0)
-  return orderAmount.mul(dailyRate).mul(breachDayCount).toDecimalPlaces(2)
+  return roundMoney(orderAmount.mul(dailyRate).mul(breachDayCount))
 }
 
 export function getLateShipmentPenaltyRate(

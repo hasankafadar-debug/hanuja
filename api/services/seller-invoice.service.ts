@@ -1,5 +1,6 @@
 import type { PrismaClient, SellerInvoiceType } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
+import { roundMoney } from '@hanuja/security/money'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors'
 
 // Commission invoices carry 20% VAT; penalty invoices carry 0% VAT (default rates).
@@ -50,11 +51,11 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
 
       if (params.grossInvoiceAmount) {
         grossInvoiceAmount = params.grossInvoiceAmount
-        amount = grossInvoiceAmount.div(ONE.plus(vatRate)).toDecimalPlaces(2)
+        amount = roundMoney(grossInvoiceAmount.div(ONE.plus(vatRate)))
         vatAmount = grossInvoiceAmount.minus(amount)
       } else if (params.amount) {
         amount = params.amount
-        vatAmount = amount.mul(vatRate).toDecimalPlaces(2)
+        vatAmount = roundMoney(amount.mul(vatRate))
         grossInvoiceAmount = amount.plus(vatAmount)
       } else {
         throw new ValidationError('Either grossInvoiceAmount or amount must be provided.')

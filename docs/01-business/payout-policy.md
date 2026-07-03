@@ -324,7 +324,50 @@ EFT discount also does NOT affect the commission base. Commission is calculated 
 
 ---
 
-## 13. Cross-Reference
+## 13. Commission Exemption — Payout Effect
+
+Admin can exempt an individual order line from commission via
+`POST /api/admin/order-lines/[id]/commission-exempt`, which stamps
+`OrderLine.commissionExemptedAt / commissionExemptedBy / commissionExemptedReason`.
+Those fields are the durable audit record of the decision.
+
+### How exemption flows into payout
+
+When the payout snapshot is created (`payout.service.activateHold`), each order line is
+aggregated by `sumPayoutSnapshot`. A line whose `commissionExemptedAt` is set is treated as
+follows:
+
+```
+exempt line commission contribution → 0  (removed from Payout.commissionAmount)
+exempt line net contribution        → netPayoutAmount + original commissionAmount
+gross                               → unchanged (exemption never touches gross)
+```
+
+The commission that was subtracted from `OrderLine.netPayoutAmount` at order creation is
+added back, so the seller receives the un-commissioned amount for that line. The
+`commission`-type `SellerLedgerEntry` written during hold activation only reflects the
+commission of **non-exempt** lines. If every line of a seller is exempt, no `commission`
+ledger entry is written.
+
+### Hard rule — no exemption after a payout snapshot exists
+
+Commission exemption **must be rejected once a `Payout` record exists for that
+order + seller** (`409 CONFLICT`, message: "Hakediş kaydı oluşturulmuş siparişte komisyon
+muafiyeti uygulanamaz"). At that point the commission is already locked into
+`Payout.commissionAmount` / `Payout.netAmount`; exempting afterward would silently diverge
+the payout from the ledger.
+
+Post-payout compensation (e.g. crediting the commission back via an adjustment ledger entry
+after payout) is intentionally **out of scope** and is not modeled. If that capability is
+ever needed, it must be designed as an explicit, auditable adjustment flow and this section
+updated first.
+
+This mirrors the existing rule that an exemption is rejected once the line has been bound to
+a commission invoice (`commissionInvoiceId`).
+
+---
+
+## 14. Cross-Reference
 
 This document must remain aligned with:
 
