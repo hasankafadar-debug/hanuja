@@ -14,8 +14,13 @@
  */
 import { betterFetch } from '@better-fetch/fetch'
 import { NextResponse, type NextRequest } from 'next/server'
+import { generateCsrfToken, getCsrfCookieOptions, getMirrorCsrfCookieOptions, CSRF_COOKIE_NAME, CSRF_MIRROR_COOKIE_NAME } from '@hanuja/security'
 
 function applySecurityHeaders(response: NextResponse): void {
+  const csrfToken = generateCsrfToken()
+  const isProduction = process.env['NODE_ENV'] === 'production'
+  response.cookies.set(CSRF_COOKIE_NAME, csrfToken, getCsrfCookieOptions(isProduction))
+  response.cookies.set(CSRF_MIRROR_COOKIE_NAME, csrfToken, getMirrorCsrfCookieOptions(isProduction))
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('Content-Security-Policy', "frame-ancestors 'none'")
   response.headers.set('X-Content-Type-Options', 'nosniff')

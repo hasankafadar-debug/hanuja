@@ -4,7 +4,7 @@ import LegalDocumentHtml from '@/components/legal-document-html'
 import { LegalEntityBox } from '@/components/storefront/legal-entity-box'
 
 export const metadata: Metadata = {
-  title: 'Mesafeli Satış Sözleşmesi | Hanuja',
+  title: 'Mesafeli Satış Sözleşmesi',
   description: 'Hanuja siparişlerinde kullanılan mesafeli satış sözleşmesinin genel örneği.',
   robots: { index: true, follow: true },
 }

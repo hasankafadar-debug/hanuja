@@ -7,6 +7,7 @@ import { createSellerRepository } from '@hanuja/api/repositories/seller.reposito
 import { CategoryFilters, type FilterSeller } from '../kategori/[...slug]/_components/category-filters'
 import { CategoryPageBody } from '../kategori/[...slug]/_components/category-page-body'
 import { CategorySort } from '../kategori/[...slug]/_components/category-sort'
+import { getCustomerVisibleCategories } from '@/lib/customer-visible-categories'
 import { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
 
 export const revalidate = 300
@@ -109,7 +110,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const prisma = createPrismaForRoute()
   const svc = createCatalogService({ prisma })
   const sellerRepo = createSellerRepository(prisma)
-  const allCategories = await svc.listAllCategories()
+  const allCategories = await getCustomerVisibleCategories()
 
   let sellerId: string | undefined
   if (activeSeller) {

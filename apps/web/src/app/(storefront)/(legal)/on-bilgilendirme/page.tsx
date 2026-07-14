@@ -4,7 +4,7 @@ import LegalDocumentHtml from '@/components/legal-document-html'
 import { LegalEntityBox } from '@/components/storefront/legal-entity-box'
 
 export const metadata: Metadata = {
-  title: 'Ön Bilgilendirme Formu | Hanuja',
+  title: 'Ön Bilgilendirme Formu',
   description: 'Hanuja siparişleri için checkout sırasında oluşturulan ön bilgilendirme formunun genel örneği.',
   robots: { index: true, follow: true },
 }

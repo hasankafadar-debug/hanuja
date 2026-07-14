@@ -11,6 +11,7 @@ import { created, handleError } from '@hanuja/api/lib/response'
 import { createBinaryFileResponse } from '@hanuja/api/lib/file-response'
 import { readObject } from '@hanuja/api/lib/r2'
 import { createOrderDocumentService } from '@hanuja/api/services/order-document.service'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 interface Context {
   params: Promise<{ id: string }>
@@ -57,6 +58,8 @@ export async function GET(req: NextRequest, ctx: Context) {
 
 export async function POST(req: NextRequest, ctx: Context) {
   try {
+    const csrfError = checkCsrf(req)
+    if (csrfError) return csrfError
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
 

@@ -32,7 +32,7 @@ export function CategorySort({ currentSort, totalProducts }: CategorySortProps) 
 
   return (
     <div
-      className="flex items-center justify-between rounded-lg border px-4 py-2"
+      className="flex min-w-0 items-center justify-between gap-2 rounded-lg border px-3 py-2 sm:px-4"
       style={{
         backgroundColor: 'var(--color-surface)',
         borderColor: 'var(--color-border)',
@@ -45,14 +45,14 @@ export function CategorySort({ currentSort, totalProducts }: CategorySortProps) 
         ürün
       </p>
       <div className="flex items-center gap-2">
-        <label htmlFor="sort" className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+        <label htmlFor="sort" className="hidden text-sm sm:inline" style={{ color: 'var(--color-muted-fg)' }}>
           Sırala:
         </label>
         <select
           id="sort"
           value={currentSort ?? 'newest'}
           onChange={(e) => handleSortChange(e.target.value)}
-          className="rounded-md border py-1 pl-2 pr-6 text-sm"
+          className="min-w-0 max-w-[180px] rounded-md border py-1 pl-2 pr-6 text-sm"
           style={{
             borderColor: 'var(--color-border)',
             color: 'var(--color-primary)',

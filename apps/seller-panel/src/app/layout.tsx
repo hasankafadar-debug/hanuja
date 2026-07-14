@@ -22,6 +22,7 @@ export const metadata: Metadata = {
     default: 'Hanuja Satıcı Paneli',
   },
   description: 'Hanuja satıcı yönetim paneli.',
+  icons: { icon: '/favicon.svg', shortcut: '/favicon.svg' },
   robots: { index: false, follow: false },
 }
 

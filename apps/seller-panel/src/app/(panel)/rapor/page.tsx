@@ -6,6 +6,7 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { DEFAULT_WEB_URL } from '@hanuja/api/lib/platform-info'
 import { createProductAnalyticsService } from '@hanuja/api/services/product-analytics.service'
 import { createStoreFollowService } from '@hanuja/api/services/store-follow.service'
+import { resolveReportingDateRange } from '@hanuja/api/lib/reporting-time'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { ReportTableClient } from './_components/report-table-client'
 
@@ -21,42 +22,14 @@ function getSingleValue(value?: string | string[]) {
   return Array.isArray(value) ? value[0] : value
 }
 
-function formatDateInput(date: Date) {
-  const year = date.getUTCFullYear()
-  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getUTCDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function parseDateInput(value: string | undefined, fallback: Date, endOfDay: boolean) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(fallback)
-  const parsed = new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`)
-  if (Number.isNaN(parsed.getTime())) return new Date(fallback)
-  return parsed
-}
-
-function getDefaultRange() {
-  const now = new Date()
-  const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
-  const from = new Date(to)
-  from.setUTCDate(from.getUTCDate() - 29)
-  from.setUTCHours(0, 0, 0, 0)
-  return { from, to }
-}
-
 export default async function SellerReportPage({ searchParams }: Props) {
   const resolvedSearchParams = (await searchParams) ?? {}
   const { seller } = await getSellerFromSession()
-  const defaults = getDefaultRange()
-
-  let from = parseDateInput(getSingleValue(resolvedSearchParams.from), defaults.from, false)
-  let to = parseDateInput(getSingleValue(resolvedSearchParams.to), defaults.to, true)
-
-  if (from > to) {
-    const previousFrom = from
-    from = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate(), 0, 0, 0, 0))
-    to = new Date(Date.UTC(previousFrom.getUTCFullYear(), previousFrom.getUTCMonth(), previousFrom.getUTCDate(), 23, 59, 59, 999))
-  }
+  const range = resolveReportingDateRange({
+    from: getSingleValue(resolvedSearchParams.from),
+    to: getSingleValue(resolvedSearchParams.to),
+  })
+  const { from, to } = range
 
   const [report, followerCount] = await Promise.all([
     createProductAnalyticsService({ prisma: createPrismaForRoute() }).getSellerProductReport({
@@ -85,7 +58,7 @@ export default async function SellerReportPage({ searchParams }: Props) {
           type="date"
           name="from"
           aria-label="Baslangic tarihi"
-          defaultValue={formatDateInput(from)}
+          defaultValue={range.fromKey}
           className="h-10 rounded-lg border px-3 text-sm"
           style={{
             borderColor: 'var(--color-border)',
@@ -98,7 +71,7 @@ export default async function SellerReportPage({ searchParams }: Props) {
           type="date"
           name="to"
           aria-label="Bitis tarihi"
-          defaultValue={formatDateInput(to)}
+          defaultValue={range.toKey}
           className="h-10 rounded-lg border px-3 text-sm"
           style={{
             borderColor: 'var(--color-border)',

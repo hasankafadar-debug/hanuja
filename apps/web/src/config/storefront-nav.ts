@@ -37,6 +37,12 @@ export const VIRTUAL_COLLECTION_LABELS: Record<
 
 // Each nav item: either a direct link into the category tree or a virtual
 // collection that aggregates two sub-trees.
+//
+// UYARI: rootSlug / VIRTUAL_COLLECTION_MAP değerleri DB kategori slug'larına
+// string literal olarak bağlıdır. Admin panelden bir kök slug değiştirilirse
+// ilgili nav öğesi (ve anasayfa kartı / footer linki) sessizce kaybolur —
+// boş-kategori gizleme özelliği çalışıyormuş gibi görünür. Slug değiştirmeden
+// önce buradaki eşlemeleri güncelleyin.
 export type StorefrontNavItemConfig =
   | {
       kind: 'tree'

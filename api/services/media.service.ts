@@ -213,7 +213,7 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
   }) {
     const response = await fetch(opts.sourceUrl, {
       headers: {
-        'User-Agent': 'Hanuja-Import-Bot/1.0 (+https://hanuja.com/bot)',
+        'User-Agent': 'Hanuja-Import-Bot/1.0 (+https://www.hanuja.com.tr/bot)',
       },
     })
 

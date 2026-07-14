@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { PLATFORM_LEGAL_INFO } from '@hanuja/api/lib/platform-info'
 
 export const metadata: Metadata = {
-  title: 'İletişim | Hanuja',
+  title: 'İletişim',
   description: 'Hanuja müşteri hizmetleri ve iletişim bilgileri.',
   robots: { index: true, follow: true },
 }
@@ -49,6 +49,10 @@ export default function IletisimPage() {
                   {PLATFORM_LEGAL_INFO.supportEmail}
                 </a>
               </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>KEP</dt>
+              <dd className="min-w-0 break-all">{PLATFORM_LEGAL_INFO.kvkkEmail}</dd>
             </div>
             <div className="flex gap-2">
               <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>Vergi Dairesi</dt>

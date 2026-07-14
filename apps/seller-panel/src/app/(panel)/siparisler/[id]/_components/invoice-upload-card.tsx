@@ -1,4 +1,5 @@
 'use client'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -66,7 +67,7 @@ export default function InvoiceUploadCard({ orderId, currentInvoice }: Props) {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch(`/api/seller/orders/${orderId}/invoice`, {
+      const response = await csrfFetch(`/api/seller/orders/${orderId}/invoice`, {
         method: 'POST',
         body: formData,
       })

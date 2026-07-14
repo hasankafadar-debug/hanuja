@@ -53,9 +53,12 @@ export function HanujaLogo({
   const fg = variant === 'dark' ? 'var(--color-primary-fg)' : 'var(--color-primary)'
   const ac = 'var(--color-accent)'
   const taglineColor = variant === 'dark' ? ac : 'var(--color-secondary)'
+  // HANUJA kelime markasi %10 kucultuldu; hemen solundaki sembol %20 buyutuldu.
+  const wordmarkShrink = 0.9
+  const symbolScale = scale * 1.2
   const textGap = 4 * scale * textScale
-  const wordmarkFontSize = 26 * scale * textScale
-  const wordmarkLetterSpacing = 9 * scale * textScale
+  const wordmarkFontSize = 26 * scale * textScale * wordmarkShrink
+  const wordmarkLetterSpacing = 9 * scale * textScale * wordmarkShrink
   const taglineFontSize = 7.5 * scale * textScale
   const taglineLetterSpacing = 4 * scale * textScale
 
@@ -73,7 +76,7 @@ export function HanujaLogo({
       style={{ display: 'inline-flex', alignItems: 'center', gap: 18 * scale }}
       aria-label="Hanuja"
     >
-      <HanujaSymbol scale={scale} fg={fg} ac={ac} />
+      <HanujaSymbol scale={symbolScale} fg={fg} ac={ac} />
       <span style={{ display: 'flex', flexDirection: 'column', gap: textGap, alignItems: 'center' }}>
         <span
           style={{

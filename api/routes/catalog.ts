@@ -165,11 +165,13 @@ export async function deleteAdminProduct(productId: string) {
   }
 }
 
-// GET /api/categories — root categories
+// GET /api/categories — customer-visible root categories.
+// Public storefront endpoint: empty categories (no published product in the
+// subtree) are hidden here. Seller/admin flows use listAllCategories instead.
 export async function listCategories() {
   try {
     const svc = getCatalogService()
-    const categories = await svc.listRootCategories()
+    const categories = await svc.listCustomerVisibleRootCategories()
     return ok(categories)
   } catch (err) {
     return handleError(err)

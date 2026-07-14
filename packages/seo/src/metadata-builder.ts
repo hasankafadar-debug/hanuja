@@ -16,7 +16,8 @@ export interface ProductMetaInput {
 
 export function buildProductMetadata(input: ProductMetaInput): Metadata {
   const url = absoluteCanonical.product(input.slug)
-  const title = `${input.name} | ${SITE_NAME}`
+  const title = input.name
+  const socialTitle = `${input.name} | ${SITE_NAME}`
   const description =
     input.description.length > 155
       ? input.description.slice(0, 152) + '...'
@@ -27,7 +28,7 @@ export function buildProductMetadata(input: ProductMetaInput): Metadata {
     description,
     alternates: { canonical: url },
     openGraph: {
-      title,
+      title: socialTitle,
       description,
       url: absoluteCanonical.product(input.slug),
       siteName: SITE_NAME,
@@ -37,7 +38,7 @@ export function buildProductMetadata(input: ProductMetaInput): Metadata {
     },
     twitter: {
       card: 'summary_large_image',
-      title,
+      title: socialTitle,
       description,
       ...(input.imageUrl ? { images: [input.imageUrl] } : {}),
     },
@@ -50,11 +51,17 @@ export interface CategoryMetaInput {
   label: string
   slugParts: string[]
   description?: string
+  /**
+   * Empty categories (no published product in the subtree) must not be
+   * indexed; links stay followable so crawlers keep discovering the site.
+   */
+  noindex?: boolean
 }
 
 export function buildCategoryMetadata(input: CategoryMetaInput): Metadata {
   const url = absoluteCanonical.category(input.slugParts)
-  const title = `${input.label} | ${SITE_NAME}`
+  const title = input.label
+  const socialTitle = `${input.label} | ${SITE_NAME}`
   const description =
     input.description ??
     `Hanuja'da ${input.label.toLowerCase()} kategorisindeki tüm ürünleri keşfedin. Türkiye'nin en iyi tasarım mağazalarından seçkin ürünler.`
@@ -63,15 +70,16 @@ export function buildCategoryMetadata(input: CategoryMetaInput): Metadata {
     title,
     description,
     alternates: { canonical: url },
+    ...(input.noindex === true ? { robots: { index: false, follow: true } } : {}),
     openGraph: {
-      title,
+      title: socialTitle,
       description,
       url: absoluteCanonical.category(input.slugParts),
       siteName: SITE_NAME,
       locale: 'tr_TR',
       type: 'website',
     },
-    twitter: { card: 'summary_large_image', title, description },
+    twitter: { card: 'summary_large_image', title: socialTitle, description },
   }
 }
 
@@ -86,7 +94,8 @@ export interface StoreMetaInput {
 
 export function buildStoreMetadata(input: StoreMetaInput): Metadata {
   const url = absoluteCanonical.store(input.slug)
-  const title = `${input.name} Mağazası | ${SITE_NAME}`
+  const title = `${input.name} Mağazası`
+  const socialTitle = `${title} | ${SITE_NAME}`
   const description =
     input.description ?? `${input.name} mağazasının tüm ürünleri Hanuja'da.`
 
@@ -95,7 +104,7 @@ export function buildStoreMetadata(input: StoreMetaInput): Metadata {
     description,
     alternates: { canonical: url },
     openGraph: {
-      title,
+      title: socialTitle,
       description,
       url: absoluteCanonical.store(input.slug),
       siteName: SITE_NAME,
@@ -103,7 +112,7 @@ export function buildStoreMetadata(input: StoreMetaInput): Metadata {
       type: 'website',
       ...(input.imageUrl ? { images: [{ url: input.imageUrl, alt: input.name }] } : {}),
     },
-    twitter: { card: 'summary_large_image', title, description },
+    twitter: { card: 'summary_large_image', title: socialTitle, description },
   }
 }
 
@@ -120,7 +129,8 @@ export interface BlogPostMetaInput {
 
 export function buildBlogPostMetadata(input: BlogPostMetaInput): Metadata {
   const url = absoluteCanonical.blog(input.slug)
-  const titleTag = `${input.title} | ${SITE_NAME} Blog`
+  const titleTag = input.title
+  const socialTitle = `${input.title} | ${SITE_NAME} Blog`
   const description =
     input.excerpt ?? `${input.title} — Hanuja Blog'da ev dekorasyonu ve yaşam alanı fikirleri.`
 
@@ -129,7 +139,7 @@ export function buildBlogPostMetadata(input: BlogPostMetaInput): Metadata {
     description,
     alternates: { canonical: url },
     openGraph: {
-      title: titleTag,
+      title: socialTitle,
       description,
       url: absoluteCanonical.blog(input.slug),
       siteName: SITE_NAME,
@@ -139,7 +149,7 @@ export function buildBlogPostMetadata(input: BlogPostMetaInput): Metadata {
       ...(input.authorName ? { authors: [input.authorName] } : {}),
       ...(input.imageUrl ? { images: [{ url: input.imageUrl, alt: input.title }] } : {}),
     },
-    twitter: { card: 'summary_large_image', title: titleTag, description },
+    twitter: { card: 'summary_large_image', title: socialTitle, description },
   }
 }
 

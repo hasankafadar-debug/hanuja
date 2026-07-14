@@ -3,7 +3,7 @@ import { PLATFORM_LEGAL_INFO } from '@hanuja/api/lib/platform-info'
 import { LegalEntityBox } from '@/components/storefront/legal-entity-box'
 
 export const metadata: Metadata = {
-  title: 'İade ve İptal Koşulları | Hanuja',
+  title: 'İade ve İptal Koşulları',
   description: 'Hanuja iade, iptal, cayma hakkı, kargo ve uyuşmazlık koşulları.',
   robots: { index: true, follow: true },
 }

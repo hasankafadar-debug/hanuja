@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { Breadcrumb } from '@hanuja/ui'
 import { CategoryFilters, type FilterSeller, type FilterSubcategory } from './_components/category-filters'
 import { CategorySort } from './_components/category-sort'
@@ -8,6 +9,7 @@ import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createSellerRepository } from '@hanuja/api/repositories/seller.repository'
 import { isVirtualCollection, VIRTUAL_COLLECTION_MAP } from '@/config/storefront-nav'
+import { getCustomerVisibleCategories } from '@/lib/customer-visible-categories'
 import { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
 
 export const revalidate = 1800
@@ -126,11 +128,6 @@ async function getCategoryBySlug(lastSlug: string) {
   return svc.getCategoryBySlug(lastSlug)
 }
 
-async function getAllCategories() {
-  const svc = createCatalogService({ prisma: createPrismaForRoute() })
-  return svc.listAllCategories()
-}
-
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const { slug } = await params
   const firstSlug = slug[0] ?? 'kategori'
@@ -140,16 +137,43 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
       aydinlatma: 'Aydınlatma',
       aksesuar: 'Aksesuar',
     }
-    return buildCategoryMetadata({ label: labelMap[firstSlug] ?? firstSlug, slugParts: slug })
+    const label = labelMap[firstSlug] ?? firstSlug
+    try {
+      const visibleCategories = await getCustomerVisibleCategories()
+      const visibleSlugs = new Set(visibleCategories.map((c) => c.slug))
+      const hasVisibleMember = VIRTUAL_COLLECTION_MAP[firstSlug].some((memberSlug) =>
+        visibleSlugs.has(memberSlug),
+      )
+      return buildCategoryMetadata({
+        label,
+        slugParts: slug,
+        ...(hasVisibleMember ? {} : { noindex: true }),
+      })
+    } catch {
+      // Transient DB failure must not cache a deindex directive for 30 min.
+      return buildCategoryMetadata({ label, slugParts: slug })
+    }
   }
   const lastSlug = slug[slug.length - 1] ?? 'kategori'
   try {
-    const category = await getCategoryBySlug(lastSlug)
+    const [category, visibleCategories] = await Promise.all([
+      getCategoryBySlug(lastSlug),
+      getCustomerVisibleCategories(),
+    ])
     const label =
       category?.name ??
       lastSlug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-    return buildCategoryMetadata({ label, slugParts: slug })
+    // Empty (or unknown) categories are noindex,follow; they become indexable
+    // automatically once a published product lands in the subtree.
+    const isCustomerVisible =
+      category !== null && visibleCategories.some((c) => c.id === category.id)
+    return buildCategoryMetadata({
+      label,
+      slugParts: slug,
+      ...(isCustomerVisible ? {} : { noindex: true }),
+    })
   } catch {
+    // Transient DB failure must not cache a deindex directive for 30 min.
     return buildCategoryMetadata({ label: lastSlug, slugParts: slug })
   }
 }
@@ -181,7 +205,9 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   }
 
   const svc = createCatalogService({ prisma: createPrismaForRoute() })
-  const allCategories = await getAllCategories()
+  // Customer-visible tree only; invisible descendants have zero published
+  // products by definition, so excluding them does not change listings.
+  const allCategories = await getCustomerVisibleCategories()
   const firstSlug = slug[0] ?? ''
 
   // Resolve alt subcategory → descendant IDs
@@ -255,11 +281,9 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const lastSlug = slug[slug.length - 1] ?? ''
   const category = await getCategoryBySlug(lastSlug)
   if (!category) {
-    return (
-      <div className="mx-auto max-w-7xl px-4 py-16 text-center">
-        <p style={{ color: 'var(--color-muted-fg)' }}>Kategori bulunamadı.</p>
-      </div>
-    )
+    // Unknown slug must be a real 404 — the previous soft-200 page was an
+    // indexable soft-404. Existing-but-empty categories still render below.
+    notFound()
   }
 
   const baseCategoryIds = collectCategoryIds([category.id], allCategories)

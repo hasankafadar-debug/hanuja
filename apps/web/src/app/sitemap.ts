@@ -8,12 +8,22 @@ import {
   buildSitemapEntry,
 } from '@hanuja/seo'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { createCatalogService } from '@hanuja/api/services/catalog.service'
 
 /**
  * Next.js sitemap route.
  * In production, category/product/store/blog slugs are fetched from the DB.
  * These static entries cover the guaranteed-indexable surfaces.
+ *
+ * Kategori girişleri müşteri-görünürlük kuralına tabidir: alt ağacında en az
+ * bir yayınlanmış ürün olmayan kategoriler sitemap'e girmez (noindex politikası
+ * ile uyumlu). Ürün yayınlandıkça kategori bir sonraki yenilemede otomatik girer.
  */
+
+// Without this the handler is statically snapshotted at build time (no fetch /
+// dynamic API in the module) and would never refresh until the next deploy.
+// One-hour ISR keeps the sitemap a live, self-updating URL for Google.
+export const revalidate = 3600
 const staticCategories = [
   'mobilya',
   'dekor',
@@ -49,17 +59,36 @@ function staticSitemap(): MetadataRoute.Sitemap {
   ]
 }
 
+type SitemapCategory = { id: string; slug: string; parentId: string | null }
+
+/**
+ * Builds the full hierarchical slug path (root → leaf) so sitemap URLs match
+ * the nav's canonical form (/kategori/ev/ev-mobilya, not /kategori/ev-mobilya).
+ * Ancestors of a visible category are always visible too (upward roll-up),
+ * so the walk never leaves the provided map.
+ */
+function buildCategorySlugPath(
+  category: SitemapCategory,
+  categoriesById: Map<string, SitemapCategory>,
+): string[] {
+  const path: string[] = []
+  let current: SitemapCategory | undefined = category
+  const walked = new Set<string>()
+  while (current && !walked.has(current.id)) {
+    walked.add(current.id)
+    path.unshift(current.slug)
+    current = current.parentId ? categoriesById.get(current.parentId) : undefined
+  }
+  return path
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const prisma = createPrismaForRoute()
 
   try {
+    const catalogSvc = createCatalogService({ prisma })
     const [categories, products, blogPosts, stores] = await Promise.all([
-      prisma.category.findMany({
-        where: { isActive: true },
-        select: { slug: true, updatedAt: true },
-        orderBy: { sortOrder: 'asc' },
-        take: 5000,
-      }),
+      catalogSvc.listCustomerVisibleCategories(),
       prisma.product.findMany({
         where: { status: 'published' },
         select: { slug: true, updatedAt: true },
@@ -80,10 +109,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }),
     ])
 
+    const categoriesById = new Map(categories.map((category) => [category.id, category]))
+
     return [
       homeSitemapEntry(),
       buildSitemapEntry('/blog', { priority: 0.8, changeFrequency: 'daily' }),
-      ...categories.map((category) => categorySitemapEntry([category.slug], category.updatedAt)),
+      ...categories.map((category) =>
+        categorySitemapEntry(buildCategorySlugPath(category, categoriesById), category.updatedAt),
+      ),
       ...products.map((product) => productSitemapEntry(product.slug, product.updatedAt)),
       ...blogPosts.map((post) => blogSitemapEntry(post.slug, post.updatedAt)),
       ...stores.map((store) => storeSitemapEntry(store.slug, store.updatedAt)),

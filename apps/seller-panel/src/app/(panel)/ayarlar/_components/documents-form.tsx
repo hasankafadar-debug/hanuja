@@ -13,6 +13,7 @@
 import { useState, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Upload, FileText, CheckCircle2, XCircle, Clock, Trash2, ExternalLink } from 'lucide-react'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 type DocType =
   | 'identity'
@@ -106,8 +107,7 @@ export default function DocumentsForm({ initialDocuments }: Props) {
     setSuccess(null)
 
     try {
-      // 1. Presigned URL al
-      const initRes = await fetch('/api/seller/documents', {
+      const initRes = await csrfFetch('/api/seller/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -121,19 +121,12 @@ export default function DocumentsForm({ initialDocuments }: Props) {
       if (!initRes.ok) throw new Error(initData.message ?? 'Yükleme başlatılamadı.')
 
       const { documentId, uploadUrl } = initData as { documentId: string; uploadUrl: string }
-
-      // 2. R2'ye doğrudan yükle
       const uploadRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
+        method: 'PUT', headers: { 'Content-Type': file.type }, body: file,
       })
       if (!uploadRes.ok) throw new Error('Dosya R2\'ye yüklenemedi. Lütfen tekrar deneyin.')
 
-      // 3. Confirm
-      const confirmRes = await fetch(`/api/seller/documents/${documentId}/confirm`, {
-        method: 'POST',
-      })
+      const confirmRes = await csrfFetch(`/api/seller/documents/${documentId}/confirm`, { method: 'POST' })
       if (!confirmRes.ok) {
         const d = await confirmRes.json()
         throw new Error(d.message ?? 'Yükleme doğrulanamadı.')
@@ -161,7 +154,7 @@ export default function DocumentsForm({ initialDocuments }: Props) {
     if (!confirm('Bu belgeyi silmek istediğinize emin misiniz?')) return
     setError(null)
     try {
-      const res = await fetch(`/api/seller/documents/${docId}`, { method: 'DELETE' })
+      const res = await csrfFetch(`/api/seller/documents/${docId}`, { method: 'DELETE' })
       if (!res.ok) {
         const d = await res.json()
         throw new Error(d.message ?? 'Silme başarısız.')

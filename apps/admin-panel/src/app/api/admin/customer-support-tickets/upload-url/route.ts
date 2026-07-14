@@ -10,10 +10,7 @@ import { z } from 'zod'
 
 const schema = z.object({
   mimeType: z.enum([
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'application/pdf',
+    'image/jpeg', 'image/png', 'image/webp', 'application/pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ]),
@@ -26,23 +23,13 @@ export async function POST(req: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     if (session.user.role !== 'admin') throw new ForbiddenError()
-
     const rl = await checkUserRateLimit(session.user.id, 'support-media:upload-url', SENSITIVE_RATE_LIMIT)
     if (!rl.allowed) return rl.response!
-
-    const body = await req.json()
-    const { mimeType, originalName } = schema.parse(body)
-
-    const svc = createMediaService({ prisma: createPrismaForRoute() })
-    const result = await svc.requestUploadUrl({
-      ownerId: session.user.id,
-      folder: 'customer-support',
-      mimeType,
+    const { mimeType, originalName } = schema.parse(await req.json())
+    const result = await createMediaService({ prisma: createPrismaForRoute() }).requestUploadUrl({
+      ownerId: session.user.id, folder: 'customer-support', mimeType,
       ...(originalName ? { originalName } : {}),
     })
-
     return NextResponse.json(result, { status: 200 })
-  } catch (err) {
-    return handleError(err)
-  }
+  } catch (err) { return handleError(err) }
 }

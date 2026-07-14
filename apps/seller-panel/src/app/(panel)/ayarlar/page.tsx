@@ -56,7 +56,7 @@ export default async function SellerSettingsPage() {
           <div className="mb-4 space-y-1">
             <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
               <span className="font-medium" style={{ color: 'var(--color-primary)' }}>Mağaza URL:</span>{' '}
-              hanuja.com.tr/magaza/{seller.slug}
+              www.hanuja.com.tr/magaza/{seller.slug}
               {' '}
               <span className="text-xs">(URL değişikliği admin onayı gerektirir)</span>
             </p>

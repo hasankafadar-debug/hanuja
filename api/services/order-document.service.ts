@@ -79,7 +79,7 @@ function validateInvoiceFile(mimeType: string, sizeBytes: number) {
 }
 
 function getInboundEmailDomain() {
-  return process.env['INBOUND_EMAIL_DOMAIN']?.trim() || 'fatura.hanuja.tr'
+  return process.env['INBOUND_EMAIL_DOMAIN']?.trim() || 'fatura.hanuja.com.tr'
 }
 
 function isInvoiceAliasingEnabled() {

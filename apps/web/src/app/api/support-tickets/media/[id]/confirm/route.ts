@@ -14,7 +14,5 @@ export async function POST(
     if (!session?.user) throw new UnauthorizedError()
     const { id } = await params
     return confirmUpload(id, session.user.id)
-  } catch (err) {
-    return handleError(err)
-  }
+  } catch (err) { return handleError(err) }
 }

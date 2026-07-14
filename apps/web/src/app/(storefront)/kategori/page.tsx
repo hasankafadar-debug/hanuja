@@ -8,14 +8,14 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Tüm Kategoriler | Hanuja',
+  title: 'Tüm Kategoriler',
   description: 'Ev, ofis ve yaşam kategorilerini keşfedin. Mobilya, dekor, aydınlatma ve daha fazlası.',
   robots: { index: true, follow: true },
 }
 
 export default async function KategorilerPage() {
   const svc = createCatalogService({ prisma: createPrismaForRoute() })
-  const categories = await svc.listRootCategories()
+  const categories = await svc.listCustomerVisibleRootCategories()
 
   const breadcrumbItems = [
     { label: 'Anasayfa', href: '/' },

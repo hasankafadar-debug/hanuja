@@ -24,8 +24,27 @@ export default async function ProductsPage() {
     price: typeof (p.price as unknown as { toNumber?: () => number }).toNumber === 'function'
       ? (p.price as unknown as { toNumber: () => number }).toNumber()
       : Number(p.price),
-    stockQuantity: p.stockQuantity ?? 0,
+    stockQuantity:
+      p.variants.length > 0
+        ? p.variants.reduce((sum, variant) => sum + variant.stockQuantity, 0)
+        : (p.stockQuantity ?? 0),
     images: p.images as Array<{ url: string }>,
+    variants: p.variants.map((variant) => ({
+      id: variant.id,
+      name: variant.name,
+      barcode: variant.barcode,
+      price:
+        variant.price && typeof (variant.price as unknown as { toNumber?: () => number }).toNumber === 'function'
+          ? (variant.price as unknown as { toNumber: () => number }).toNumber()
+          : variant.price === null
+            ? null
+            : Number(variant.price),
+      stockQuantity: variant.stockQuantity,
+      options:
+        variant.options && typeof variant.options === 'object' && !Array.isArray(variant.options)
+          ? (variant.options as Record<string, string>)
+          : {},
+    })),
   }))
 
   return (

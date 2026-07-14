@@ -1,15 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ProductCard, useToast } from '@hanuja/ui'
 import { csrfFetch } from '@/lib/csrf-fetch'
 import type { StorefrontGridProduct } from './storefront-product-grid'
 
 const CARD_GAP = 16
-const AUTO_PLAY_MS = 2000   // 2s aralık — her adımda 1 kart kayar
-const TRANSITION_MS = 600   // geçiş süresi (ms)
+// Sürekli kayma hızı — piksel/saniye. Sakin, okunabilir bir vitrin temposu.
+const SPEED_PX_PER_SEC = 40
+// Görsel (kare, yükseklik = kart genişliği) altındaki içerik alanı için ayrılan
+// sabit yükseklik: satıcı adı + 2 satır başlık + fiyat satırı + padding.
+// Tüm kartların eşit yükseklikte olmasını sağlar (ProductCard `h-full` +
+// `mt-auto` fiyatı alta sabitler).
+const CARD_CONTENT_RESERVED_HEIGHT = 168
 
 function getApiMessage(payload: unknown, fallback: string): string {
   if (typeof payload === 'object' && payload !== null) {
@@ -29,14 +33,15 @@ export default function FeaturedProductsCarousel({
   const { toast } = useToast()
   const containerRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const snapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // true during the instant (no-animation) snap back to real position
-  const isSnapping = useRef(false)
 
-  const [currentIndex, setCurrentIndex] = useState(0)
+  // rAF-driven marquee state — refs only, no per-frame React re-render.
+  const offsetRef = useRef(0)
+  const isPausedRef = useRef(false)
+  const rafRef = useRef<number | null>(null)
+  const lastFrameTsRef = useRef<number | null>(null)
+
   const [cardWidth, setCardWidth] = useState(280)
-  const [visibleCount, setVisibleCount] = useState(4)
+  const [containerWidth, setContainerWidth] = useState(0)
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
   const [favoriteLoading, setFavoriteLoading] = useState<Record<string, boolean>>({})
 
@@ -46,15 +51,14 @@ export default function FeaturedProductsCarousel({
   useEffect(() => {
     const compute = () => {
       if (!containerRef.current) return
-      // 44px per arrow × 2 + 8px gap × 2 = 104px
-      const trackWidth = containerRef.current.clientWidth - 104
+      const trackWidth = containerRef.current.clientWidth
       let count: number
       if (trackWidth >= 960) count = 5
       else if (trackWidth >= 720) count = 4
       else if (trackWidth >= 480) count = 3
       else if (trackWidth >= 280) count = 2
       else count = 1
-      setVisibleCount(count)
+      setContainerWidth(trackWidth)
       setCardWidth(Math.floor((trackWidth - CARD_GAP * (count - 1)) / count))
     }
     compute()
@@ -63,67 +67,55 @@ export default function FeaturedProductsCarousel({
     return () => obs.disconnect()
   }, [])
 
-  // On resize: if we were in clone territory, reset to real position 0
-  useEffect(() => {
-    setCurrentIndex((prev) => (prev >= products.length ? 0 : prev))
-  }, [visibleCount, products.length])
-
-  // ── Infinite-loop clone technique ─────────────────────────────────────────
+  // ── Continuous marquee ────────────────────────────────────────────────────
   //
-  // Track layout: [real cards 0…n-1] [clone cards 0…visibleCount-1]
+  // The track renders [products, products] as one flex row. One copy spans
+  // exactly `products.length * (cardWidth + CARD_GAP)` px (each cell + its
+  // trailing gap), so wrapping the offset by that period is seamless — the
+  // second copy is pixel-identical to the first.
   //
-  // The carousel advances normally into the clone zone (smooth animation).
-  // When currentIndex reaches products.length (full clone view = same as 0),
-  // we wait for the transition to finish, then instantly snap to 0.
-  // The snap is invisible because both positions look identical.
-
-  const clones = products.slice(0, visibleCount)
-
-  // Detect entry into clone zone and schedule the silent snap
-  useEffect(() => {
-    if (currentIndex < products.length) return
-
-    if (snapTimerRef.current) clearTimeout(snapTimerRef.current)
-    snapTimerRef.current = setTimeout(() => {
-      isSnapping.current = true
-      setCurrentIndex((prev) => prev - products.length)
-    }, TRANSITION_MS + 16) // wait for transition + 1 frame
-
-    return () => {
-      if (snapTimerRef.current) clearTimeout(snapTimerRef.current)
-    }
-  }, [currentIndex, products.length])
-
-  // Disable transition for the silent snap so the browser renders it instantly
-  useLayoutEffect(() => {
-    if (!isSnapping.current) return
-    isSnapping.current = false
-    const el = trackRef.current
-    if (!el) return
-    el.style.transition = 'none'
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (el) el.style.transition = `transform ${TRANSITION_MS}ms ease-in-out`
-      })
-    })
-  }, [currentIndex])
-
-  // ── Auto-play ─────────────────────────────────────────────────────────────
-  const advance = useCallback(() => {
-    setCurrentIndex((prev) => prev + 1)
-  }, [])
-
-  const startTimer = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current)
-    timerRef.current = setInterval(advance, AUTO_PLAY_MS)
-  }, [advance])
+  // The offset advances inside a requestAnimationFrame loop and is written
+  // straight to the DOM node (no state) to avoid re-rendering every frame.
+  // Hover freezes the offset (isPausedRef); prefers-reduced-motion disables
+  // the loop entirely (same precedent as HeroSlider).
+  const contentWidth = products.length * (cardWidth + CARD_GAP)
+  const shouldAnimate = products.length > 0 && contentWidth > containerWidth
 
   useEffect(() => {
-    startTimer()
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
+    const track = trackRef.current
+    if (!track) return
+
+    // Yeni ölçüm/veri: kaymayı baştan başlat.
+    offsetRef.current = 0
+    lastFrameTsRef.current = null
+    track.style.transform = 'translateX(0px)'
+
+    if (!shouldAnimate) return
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    if (reducedMotion.matches) return
+
+    const step = (ts: number) => {
+      const last = lastFrameTsRef.current
+      lastFrameTsRef.current = ts
+
+      if (!isPausedRef.current && last !== null) {
+        const deltaSeconds = Math.min((ts - last) / 1000, 0.1)
+        let next = offsetRef.current + SPEED_PX_PER_SEC * deltaSeconds
+        if (next >= contentWidth) next -= contentWidth
+        offsetRef.current = next
+        track.style.transform = `translateX(-${next}px)`
+      }
+
+      rafRef.current = requestAnimationFrame(step)
     }
-  }, [startTimer])
+
+    rafRef.current = requestAnimationFrame(step)
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+  }, [shouldAnimate, contentWidth, productIdsKey])
 
   // ── Favorites ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -182,19 +174,17 @@ export default function FeaturedProductsCarousel({
 
   if (products.length === 0) return null
 
-  const translateX = currentIndex * (cardWidth + CARD_GAP)
-
-  const arrowCls =
-    'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border shadow-sm transition-all duration-200 hover:scale-105'
+  const cardHeight = cardWidth + CARD_CONTENT_RESERVED_HEIGHT
 
   function renderCard(product: StorefrontGridProduct, key: string) {
     return (
-      <div key={key} style={{ width: `${cardWidth}px`, flexShrink: 0 }}>
+      <div key={key} style={{ width: `${cardWidth}px`, height: `${cardHeight}px`, flexShrink: 0 }}>
         <ProductCard
           id={product.id}
           title={product.title}
           slug={product.slug}
           price={product.price}
+          className="h-full"
           {...(product.comparePrice !== undefined ? { comparePrice: product.comparePrice } : {})}
           {...(product.imageUrl !== undefined ? { imageUrl: product.imageUrl } : {})}
           {...(product.imageUrls !== undefined ? { imageUrls: product.imageUrls } : {})}
@@ -209,71 +199,22 @@ export default function FeaturedProductsCarousel({
   }
 
   return (
-    <div ref={containerRef} className="flex items-center gap-2">
-      {/* Left arrow */}
-      <button
-        type="button"
-        onClick={() => { setCurrentIndex((prev) => Math.max(0, prev - 1)); startTimer() }}
-        aria-label="Önceki ürünler"
-        className={arrowCls}
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget
-          el.style.backgroundColor = 'var(--color-accent)'
-          el.style.borderColor = 'var(--color-accent)'
-          el.style.color = 'white'
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget
-          el.style.backgroundColor = 'var(--color-surface)'
-          el.style.borderColor = 'var(--color-border)'
-          el.style.color = 'var(--color-primary)'
-        }}
+    <div
+      ref={containerRef}
+      className="overflow-hidden"
+      onMouseEnter={() => { isPausedRef.current = true }}
+      onMouseLeave={() => { isPausedRef.current = false }}
+    >
+      <div
+        ref={trackRef}
+        className="flex"
+        style={{ gap: `${CARD_GAP}px`, willChange: 'transform' }}
       >
-        <ChevronLeft className="h-5 w-5" />
-      </button>
-
-      {/* Carousel track */}
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <div
-          ref={trackRef}
-          className="flex"
-          style={{
-            gap: `${CARD_GAP}px`,
-            transform: `translateX(-${translateX}px)`,
-            transition: `transform ${TRANSITION_MS}ms ease-in-out`,
-            willChange: 'transform',
-          }}
-        >
-          {/* Real cards */}
-          {products.map((product) => renderCard(product, product.id))}
-          {/* Clone cards — seamless loop buffer */}
-          {clones.map((product, i) => renderCard(product, `clone-${i}-${product.id}`))}
-        </div>
+        {products.map((product) => renderCard(product, product.id))}
+        {/* İkinci kopya — kusursuz sonsuz döngü için birebir tekrar */}
+        {shouldAnimate &&
+          products.map((product) => renderCard(product, `loop-${product.id}`))}
       </div>
-
-      {/* Right arrow */}
-      <button
-        type="button"
-        onClick={() => { advance(); startTimer() }}
-        aria-label="Sonraki ürünler"
-        className={arrowCls}
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget
-          el.style.backgroundColor = 'var(--color-accent)'
-          el.style.borderColor = 'var(--color-accent)'
-          el.style.color = 'white'
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget
-          el.style.backgroundColor = 'var(--color-surface)'
-          el.style.borderColor = 'var(--color-border)'
-          el.style.color = 'var(--color-primary)'
-        }}
-      >
-        <ChevronRight className="h-5 w-5" />
-      </button>
     </div>
   )
 }

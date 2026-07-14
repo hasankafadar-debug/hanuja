@@ -1,18 +1,15 @@
 import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { PrismaClient } from '@prisma/client'
+import type { PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { z } from 'zod'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { ConflictError, ValidationError } from '@hanuja/api/lib/errors'
-
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
-const prisma = globalForPrisma.prisma ?? new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 
 const variantSchema = z.object({
-  id: z.string().uuid().optional(), // Mevcut varyantlarda DB ID — upsert için kullanılır
+  id: z.string().cuid().optional(), // Mevcut varyantlarda DB ID — upsert için kullanılır
   color: z.string().trim().max(80).optional(),
   material: z.string().trim().max(80).optional(),
   size: z.string().trim().max(80).optional(),
@@ -67,14 +64,14 @@ function normalizeVariant(input: VariantInput) {
     stockQuantity: input.stockQuantity,
   }
 }
-
-async function getSellerOrFail() {
+async function getSellerOrFail(prisma: PrismaClient) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) return null
   return prisma.seller.findUnique({ where: { userId: session.user.id } })
 }
 
 async function assertVariantBarcodesAvailable(params: {
+  prisma: PrismaClient
   productId: string
   barcodes: string[]
   productBarcode?: string | null
@@ -91,11 +88,11 @@ async function assertVariantBarcodesAvailable(params: {
   if (uniqueBarcodes.length === 0) return
 
   const [productBarcode, variantBarcode] = await Promise.all([
-    prisma.product.findFirst({
+    params.prisma.product.findFirst({
       where: { barcode: { in: uniqueBarcodes }, id: { not: params.productId } },
       select: { barcode: true },
     }),
-    prisma.productVariant.findFirst({
+    params.prisma.productVariant.findFirst({
       where: { barcode: { in: uniqueBarcodes }, productId: { not: params.productId } },
       select: { barcode: true },
     }),
@@ -110,7 +107,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const seller = await getSellerOrFail()
+  const prisma = createPrismaForRoute()
+  const seller = await getSellerOrFail(prisma)
   if (!seller) return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
 
   const { id } = await params
@@ -128,6 +126,7 @@ export async function PATCH(
     const variants = parsed.data.variants?.map(normalizeVariant)
     if (variants) {
       await assertVariantBarcodesAvailable({
+        prisma,
         productId: id,
         barcodes: variants.map((variant) => variant.barcode),
         productBarcode: parsed.data.barcode?.trim() || null,
@@ -158,7 +157,7 @@ export async function PATCH(
         ...(typeof parsed.data.fulfillmentDays === 'number'
           ? { fulfillmentDays: parsed.data.fulfillmentDays }
           : {}),
-        ...(variants
+        ...(variants && variants.length > 0
           ? { stockQuantity: variants.reduce((sum, variant) => sum + variant.stockQuantity, 0) }
           : typeof parsed.data.stockQuantity === 'number'
             ? { stockQuantity: Math.floor(parsed.data.stockQuantity) }
@@ -174,9 +173,17 @@ export async function PATCH(
           : {}),
       })
 
-      if (variants) {
+      if (variants !== undefined) {
         // Gelen ID'leri koru (upsert), listede olmayan eski varyantları sil
         const incomingIds = variants.filter((v) => v.id).map((v) => v.id as string)
+        if (incomingIds.length > 0) {
+          const ownedVariantCount = await tx.productVariant.count({
+            where: { productId: id, id: { in: incomingIds } },
+          })
+          if (ownedVariantCount !== incomingIds.length) {
+            throw new ValidationError('Varyasyonlardan biri bu urune ait degil.')
+          }
+        }
         await tx.productVariant.deleteMany({
           where: { productId: id, id: { notIn: incomingIds } },
         })
@@ -260,7 +267,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const seller = await getSellerOrFail()
+  const prisma = createPrismaForRoute()
+  const seller = await getSellerOrFail(prisma)
   if (!seller) return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
 
   const { id } = await params

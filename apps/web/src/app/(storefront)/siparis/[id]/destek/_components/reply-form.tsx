@@ -37,17 +37,9 @@ export function ReplyForm({ ticketId, onReplySent }: ReplyFormProps) {
     })
     if (!urlRes.ok) throw new Error('Yükleme URL alınamadı.')
     const { uploadUrl, key } = await urlRes.json()
-
-    const putRes = await fetch(uploadUrl, {
-      method: 'PUT',
-      body: file,
-      headers: { 'Content-Type': file.type },
-    })
+    const putRes = await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
     if (!putRes.ok) throw new Error('Dosya yüklenemedi.')
-
-    const confirmRes = await fetch(`/api/support-tickets/media/${key}/confirm`, {
-      method: 'POST',
-    })
+    const confirmRes = await fetch(`/api/support-tickets/media/${key}/confirm`, { method: 'POST' })
     if (!confirmRes.ok) throw new Error('Dosya doğrulanamadı.')
     const { id: assetId } = await confirmRes.json()
     return assetId

@@ -19,7 +19,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const params = await searchParams
   const q = params.q ?? ''
   return {
-    title: q ? `"${q}" için arama sonuçları — Hanuja` : 'Ürün Ara — Hanuja',
+    title: q ? `"${q}" için arama sonuçları` : 'Ürün Ara',
     description: q
       ? `"${q}" arama sonuçları. Hanuja'da binlerce ürün arasından en iyisini bul.`
       : "Hanuja'da ürün ara.",

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { PLATFORM_LEGAL_INFO } from '@hanuja/api/lib/platform-info'
 
 export const metadata: Metadata = {
-  title: 'Gizlilik Politikası | Hanuja',
+  title: 'Gizlilik Politikası',
   description: 'Hanuja gizlilik politikası.',
   robots: { index: true, follow: true },
 }

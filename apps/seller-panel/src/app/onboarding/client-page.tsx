@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { TurnstileWidget } from '@hanuja/ui'
 import { hasMatchingNormalizedTokens } from '@hanuja/security/turkish-normalize'
 import { authClient, useSession } from '@/lib/auth-client'
+import { csrfFetch } from '@/lib/csrf-fetch'
 import {
   type CompanyType,
   getTaxNumberFieldMeta,
@@ -235,11 +236,10 @@ export function OnboardingPageClient({ turnstileSiteKey }: OnboardingPageClientP
       setError('Başvuruyu göndermeden önce insan doğrulamasını tamamlayın.')
       return
     }
-
     setSubmitting(true)
 
     try {
-      const res = await fetch('/api/seller/onboarding', {
+      const res = await csrfFetch('/api/seller/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -348,7 +348,7 @@ export function OnboardingPageClient({ turnstileSiteKey }: OnboardingPageClientP
                   </label>
                   <div className="flex overflow-hidden rounded-lg border border-neutral-300 transition focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-neutral-900/10">
                     <span className="whitespace-nowrap border-r border-neutral-300 bg-neutral-50 px-3 py-2 text-sm text-neutral-400">
-                      hanuja.com.tr/magaza/
+                      www.hanuja.com.tr/magaza/
                     </span>
                     <input
                       type="text"

@@ -6,6 +6,7 @@ import { checkUserRateLimit, SENSITIVE_RATE_LIMIT } from '@hanuja/api/lib/rate-l
 import { handleError } from '@hanuja/api/lib/response'
 import { getSanitizedR2DebugContext } from '@hanuja/api/lib/r2'
 import { requestUploadUrl, listAssets } from '@hanuja/api/routes/media'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 // POST /api/media - request presigned upload URL
 export async function POST(req: NextRequest) {
@@ -13,6 +14,7 @@ export async function POST(req: NextRequest) {
   let userId: string | undefined
 
   try {
+    const csrfError = checkCsrf(req); if (csrfError) return csrfError
     requestBody = await req.clone().json().catch(() => null)
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()

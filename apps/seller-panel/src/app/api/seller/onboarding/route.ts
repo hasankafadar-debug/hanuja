@@ -18,6 +18,7 @@ import {
 import { verifyTurnstileToken } from '@hanuja/api/lib/turnstile'
 import { hasMatchingNormalizedTokens } from '@hanuja/security'
 import { handleError } from '@hanuja/api/lib/response'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -37,6 +38,8 @@ function isCompanyType(value: string): value is CompanyType {
 
 export async function POST(request: NextRequest) {
   try {
+    const csrfError = checkCsrf(request)
+    if (csrfError) return csrfError
     const session = await auth.api.getSession({ headers: await headers() })
 
     if (!session?.user) {

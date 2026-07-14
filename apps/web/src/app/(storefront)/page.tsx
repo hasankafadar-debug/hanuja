@@ -16,26 +16,38 @@ import {
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { createHomeCmsService } from '@hanuja/api/services/home-cms.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { VIRTUAL_COLLECTION_MAP } from '@/config/storefront-nav'
+import { getCustomerVisibleCategories } from '@/lib/customer-visible-categories'
 import FeaturedProductsCarousel from '@/components/storefront/featured-products-carousel'
 import type { StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
 
 export const revalidate = 300
 
 export const metadata: Metadata = {
-  title: 'Hanuja — Ev, Ofis & Yaşam Ürünleri',
+  title: 'Ev, Ofis & Yaşam Ürünleri',
   description:
     "Yaşam alanlarınız için seçkin mobilya, dekor, aydınlatma ve ofis ürünleri. Türkiye'nin en iyi tasarım mağazaları tek platformda.",
 }
 
-const FEATURED_CATEGORIES = [
-  { label: 'Ev', description: 'Eviniz için her şey', href: '/kategori/ev', Icon: House },
-  { label: 'Ofis', description: 'Üretken çalışma alanları', href: '/kategori/ofis', Icon: BriefcaseBusiness },
-  { label: 'Mobilya', description: 'Masif ahşaptan modern tasarımlara', href: '/kategori/mobilya', Icon: Sofa },
-  { label: 'Mutfak & Sofra', description: 'Sofranıza zarafet katın', href: '/kategori/ev-mutfak', Icon: UtensilsCrossed },
-  { label: 'Aydınlatma', description: 'Doğru ışık, doğru atmosfer', href: '/kategori/aydinlatma', Icon: Lamp },
-  { label: 'Dekorasyon', description: 'Mekanınıza ruh katan objeler', href: '/kategori/ev-dekorasyon', Icon: Flower2 },
-  { label: 'Aksesuar', description: 'Tamamlayıcı dokunuşlar', href: '/kategori/aksesuar', Icon: Package },
-  { label: 'Tekstil', description: 'Sıcaklık ve konfor', href: '/kategori/ev-tekstil', Icon: Layers },
+// visibilitySlugs: kartın görünürlüğünü belirleyen DB kategori slug'ları —
+// alt ağacında yayınlanmış ürün olan en az bir slug varsa kart gösterilir.
+// UYARI: slug'lar DB'ye string literal bağlıdır; admin panelden kök slug
+// değişirse ilgili kart sessizce kaybolur (bkz. config/storefront-nav.ts).
+const FEATURED_CATEGORIES: Array<{
+  label: string
+  description: string
+  href: string
+  Icon: typeof House
+  visibilitySlugs: readonly string[]
+}> = [
+  { label: 'Ev', description: 'Eviniz için her şey', href: '/kategori/ev', Icon: House, visibilitySlugs: ['ev'] },
+  { label: 'Ofis', description: 'Üretken çalışma alanları', href: '/kategori/ofis', Icon: BriefcaseBusiness, visibilitySlugs: ['ofis'] },
+  { label: 'Mobilya', description: 'Masif ahşaptan modern tasarımlara', href: '/kategori/mobilya', Icon: Sofa, visibilitySlugs: VIRTUAL_COLLECTION_MAP.mobilya },
+  { label: 'Mutfak & Sofra', description: 'Sofranıza zarafet katın', href: '/kategori/ev-mutfak', Icon: UtensilsCrossed, visibilitySlugs: ['ev-mutfak'] },
+  { label: 'Aydınlatma', description: 'Doğru ışık, doğru atmosfer', href: '/kategori/aydinlatma', Icon: Lamp, visibilitySlugs: VIRTUAL_COLLECTION_MAP.aydinlatma },
+  { label: 'Dekorasyon', description: 'Mekanınıza ruh katan objeler', href: '/kategori/ev-dekorasyon', Icon: Flower2, visibilitySlugs: ['ev-dekorasyon'] },
+  { label: 'Aksesuar', description: 'Tamamlayıcı dokunuşlar', href: '/kategori/aksesuar', Icon: Package, visibilitySlugs: VIRTUAL_COLLECTION_MAP.aksesuar },
+  { label: 'Tekstil', description: 'Sıcaklık ve konfor', href: '/kategori/ev-tekstil', Icon: Layers, visibilitySlugs: ['ev-tekstil'] },
 ]
 
 const HOMEPAGE_FEATURED_GROUPS = [
@@ -89,13 +101,31 @@ type ProductRow = {
   seller: { displayName: string; slug: string } | null
 }
 
+function toGridProduct(product: ProductRow): StorefrontGridProduct {
+  return {
+    id: product.id,
+    title: product.name,
+    slug: product.slug,
+    price: typeof product.price === 'object' ? product.price.toNumber() : Number(product.price),
+    comparePrice:
+      product.compareAtPrice && typeof product.compareAtPrice === 'object'
+        ? product.compareAtPrice.toNumber()
+        : (product.compareAtPrice ?? null),
+    imageUrl: product.images?.[0]?.url ?? null,
+    imageUrls: product.images?.map((image) => image.url) ?? [],
+    ...(product.seller
+      ? { sellerName: product.seller.displayName, sellerSlug: product.seller.slug }
+      : {}),
+  }
+}
+
 async function getPageData() {
   const prisma = createPrismaForRoute()
   const catalogSvc = createCatalogService({ prisma })
   const cmsSvc = createHomeCmsService({ prisma })
 
   const [allCategories, slides, topPromo, bottomPromo] = await Promise.all([
-    catalogSvc.listAllCategories().catch(() => []),
+    getCustomerVisibleCategories().catch(() => []),
     cmsSvc.getActiveSlides().catch(() => []),
     cmsSvc.getActivePromo('TOP_RIGHT').catch(() => null),
     cmsSvc.getActivePromo('BOTTOM_RIGHT').catch(() => null),
@@ -112,13 +142,40 @@ async function getPageData() {
     }
   }).filter((group) => group.categoryIds.length > 0)
 
-  const featuredProducts = await catalogSvc.getHomepageFeaturedProducts(featuredGroups).catch(() => [])
+  const [featuredProducts, weeklyFavorites, campaignDiscounts] = await Promise.all([
+    catalogSvc.getHomepageFeaturedProducts(featuredGroups).catch(() => []),
+    catalogSvc.getWeeklyFavoriteShowcase(featuredGroups, 20).catch(() => []),
+    catalogSvc.getCampaignDiscountProducts(25).catch(() => []),
+  ])
 
-  return { featuredProducts, slides, topPromo, bottomPromo }
+  const visibleCategorySlugs = new Set(allCategories.map((category) => category.slug))
+
+  return {
+    featuredProducts,
+    weeklyFavorites,
+    campaignDiscounts,
+    slides,
+    topPromo,
+    bottomPromo,
+    visibleCategorySlugs,
+  }
 }
 
 export default async function HomePage() {
-  const { featuredProducts, slides, topPromo, bottomPromo } = await getPageData()
+  const {
+    featuredProducts,
+    weeklyFavorites,
+    campaignDiscounts,
+    slides,
+    topPromo,
+    bottomPromo,
+    visibleCategorySlugs,
+  } = await getPageData()
+  const weeklyFavoriteProducts = (weeklyFavorites as unknown as ProductRow[]).map(toGridProduct)
+  const campaignDiscountProducts = (campaignDiscounts as unknown as ProductRow[]).map(toGridProduct)
+  const visibleFeaturedCategories = FEATURED_CATEGORIES.filter((cat) =>
+    cat.visibilitySlugs.some((slug) => visibleCategorySlugs.has(slug)),
+  )
   const heroSlides = slides.map((slide) => ({
     ...slide,
     ctaHref: resolveDiscoveryHref(slide.ctaHref, slide.title, slide.body, slide.ctaLabel),
@@ -206,7 +263,7 @@ export default async function HomePage() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {FEATURED_CATEGORIES.map((cat) => (
+          {visibleFeaturedCategories.map((cat) => (
             <Link
               key={cat.href}
               href={cat.href}
@@ -236,9 +293,11 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-10 flex items-end justify-between">
             <div>
+              {/* marginLeft: display fontundaki "Ö" glifinin optik sol boşluğunu
+                  telafi eder — alt başlıkla mürekkep (ink) hizası ölçülerek bulundu. */}
               <h2
                 className="text-3xl font-medium"
-                style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}
+                style={{ fontFamily: 'var(--font-display)', color: '#3d3529', marginLeft: '-1px' }}
               >
                 Öne Çıkan Ürünler
               </h2>
@@ -262,25 +321,73 @@ export default async function HomePage() {
             </p>
           ) : (
             <FeaturedProductsCarousel
-              products={(featuredProducts as unknown as ProductRow[]).map<StorefrontGridProduct>((product) => ({
-                id: product.id,
-                title: product.name,
-                slug: product.slug,
-                price: typeof product.price === 'object' ? product.price.toNumber() : Number(product.price),
-                comparePrice:
-                  product.compareAtPrice && typeof product.compareAtPrice === 'object'
-                    ? product.compareAtPrice.toNumber()
-                    : (product.compareAtPrice ?? null),
-                imageUrl: product.images?.[0]?.url ?? null,
-                imageUrls: product.images?.map((image) => image.url) ?? [],
-                ...(product.seller
-                  ? { sellerName: product.seller.displayName, sellerSlug: product.seller.slug }
-                  : {}),
-              }))}
+              products={(featuredProducts as unknown as ProductRow[]).map(toGridProduct)}
             />
           )}
         </div>
       </section>
+
+      {/* Haftanın Favorileri — supplementary discovery section; hidden when empty */}
+      {weeklyFavoriteProducts.length > 0 && (
+        <section className="py-16">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-10 flex items-end justify-between">
+              <div>
+                <h2
+                  className="text-3xl font-medium"
+                  style={{ fontFamily: 'var(--font-display)', color: '#3d3529', marginLeft: '-1px' }}
+                >
+                  Haftanın Favorileri
+                </h2>
+                <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                  Bu hafta en çok favorilenen ürünler
+                </p>
+              </div>
+              <Link
+                href="/urunler?vitrin=favorited&siralama=favorited"
+                className="hidden text-sm font-medium sm:inline-flex items-center gap-1 transition-colors hover:opacity-80"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                Tümünü gör
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+
+            <FeaturedProductsCarousel products={weeklyFavoriteProducts} />
+          </div>
+        </section>
+      )}
+
+      {/* Özel Kampanyalı Ürünler — supplementary discovery section; hidden when empty */}
+      {campaignDiscountProducts.length > 0 && (
+        <section className="py-16" style={{ backgroundColor: 'var(--color-muted)' }}>
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-10 flex items-end justify-between">
+              <div>
+                <h2
+                  className="text-3xl font-medium"
+                  style={{ fontFamily: 'var(--font-display)', color: '#3d3529', marginLeft: '-1px' }}
+                >
+                  Özel Kampanyalı Ürünler
+                </h2>
+                <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                  Son 3 ayın en avantajlı kampanyaları
+                </p>
+              </div>
+              <Link
+                href="/urunler?vitrin=discounts&indirimli=1"
+                className="hidden text-sm font-medium sm:inline-flex items-center gap-1 transition-colors hover:opacity-80"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                Tümünü gör
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+
+            <FeaturedProductsCarousel products={campaignDiscountProducts} />
+          </div>
+        </section>
+      )}
 
       {/* Editorial CTA */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">

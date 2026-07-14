@@ -130,7 +130,7 @@ export default function StorefrontProductGrid({
 
   return (
     <div className={gridClassName}>
-      {products.map((product) => (
+      {products.map((product, index) => (
         <ProductCard
           key={product.id}
           id={product.id}
@@ -145,6 +145,7 @@ export default function StorefrontProductGrid({
           isFavorited={favoriteIds.has(product.id)}
           favoriteLoading={Boolean(favoriteLoading[product.id])}
           onToggleFavorite={handleToggleFavorite}
+          priority={index < 2}
         />
       ))}
     </div>

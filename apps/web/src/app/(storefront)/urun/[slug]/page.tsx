@@ -355,13 +355,15 @@ export default async function ProductDetailPage({ params }: Props) {
       {/* Tabs */}
       <div className="mt-16">
         <Tabs defaultValue="description">
-          <TabsList>
-            <TabsTrigger value="description">Açıklama</TabsTrigger>
-            <TabsTrigger value="story">Ürün Hikayesi</TabsTrigger>
-            <TabsTrigger value="care">Bakım Tavsiyesi</TabsTrigger>
-            {hasSpecs && <TabsTrigger value="specs">Özellikler</TabsTrigger>}
-            <TabsTrigger value="reviews">Değerlendirmeler</TabsTrigger>
-          </TabsList>
+          <div className="max-w-full overflow-x-auto">
+            <TabsList className="min-w-max">
+              <TabsTrigger value="description">Açıklama</TabsTrigger>
+              <TabsTrigger value="story">Ürün Hikayesi</TabsTrigger>
+              <TabsTrigger value="care">Bakım Tavsiyesi</TabsTrigger>
+              {hasSpecs && <TabsTrigger value="specs">Özellikler</TabsTrigger>}
+              <TabsTrigger value="reviews">Değerlendirmeler</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="description" className="mt-6 max-w-2xl">
             <p className="leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>

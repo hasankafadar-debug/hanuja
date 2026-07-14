@@ -5,6 +5,10 @@ import { Download } from 'lucide-react'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createSellerFinanceService } from '@hanuja/api/services/seller-finance.service'
+import {
+  formatReportingDate,
+  resolveReportingDateRange,
+} from '@hanuja/api/lib/reporting-time'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,13 +20,6 @@ interface Props {
 
 function getSingleValue(value?: string | string[]) {
   return Array.isArray(value) ? value[0] : value
-}
-
-function formatDateInput(date: Date) {
-  const year = date.getUTCFullYear()
-  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getUTCDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
 }
 
 function formatCurrency(value: number) {
@@ -38,16 +35,13 @@ export default async function SellerStatementPage({ searchParams }: Props) {
   const { seller } = await getSellerFromSession()
   const service = createSellerFinanceService({ prisma: createPrismaForRoute() })
 
-  const now = new Date()
-  const defaultTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
-  const defaultFrom = new Date(defaultTo)
-  defaultFrom.setUTCDate(defaultFrom.getUTCDate() - 29)
-  defaultFrom.setUTCHours(0, 0, 0, 0)
-
-  const fromInput = getSingleValue(resolvedSearchParams.from) ?? formatDateInput(defaultFrom)
-  const toInput = getSingleValue(resolvedSearchParams.to) ?? formatDateInput(defaultTo)
-  const from = new Date(`${fromInput}T00:00:00.000Z`)
-  const to = new Date(`${toInput}T23:59:59.999Z`)
+  const range = resolveReportingDateRange({
+    from: getSingleValue(resolvedSearchParams.from),
+    to: getSingleValue(resolvedSearchParams.to),
+  })
+  const fromInput = range.fromKey
+  const toInput = range.toKey
+  const { from, to } = range
 
   const statement = await service.getStatement({
     sellerId: seller.id,
@@ -149,7 +143,7 @@ export default async function SellerStatementPage({ searchParams }: Props) {
           <tbody>
             <tr className="border-t" style={{ borderColor: 'var(--color-border)' }}>
               <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                {from.toLocaleDateString('tr-TR')}
+                {formatReportingDate(from)}
               </td>
               <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
                 -
@@ -173,7 +167,7 @@ export default async function SellerStatementPage({ searchParams }: Props) {
             {statement.rows.map((row) => (
               <tr key={row.id} className="border-t" style={{ borderColor: 'var(--color-border)' }}>
                 <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                  {new Date(row.date).toLocaleDateString('tr-TR')}
+                  {formatReportingDate(new Date(row.date))}
                 </td>
                 <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
                   {row.reference}

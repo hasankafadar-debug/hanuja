@@ -27,18 +27,18 @@ function getSellerSignInErrorMessage(authError: AuthClientError | null | undefin
     message.includes('prisma') ||
     message.includes('connect')
   ) {
-    return 'Satici girisi su anda gecici bir sunucu veya veritabani hatasi nedeniyle tamamlanamiyor. Lutfen seller panel servislerini kontrol edip tekrar deneyin.'
+    return 'Satıcı girişi şu anda geçici bir sunucu veya veritabanı hatası nedeniyle tamamlanamıyor. Lütfen satıcı paneli servislerini kontrol edip tekrar deneyin.'
   }
 
   if (authError?.status === 401 || authError?.status === 403) {
-    return 'E-posta veya sifre hatali.'
+    return 'E-posta veya şifre hatalı.'
   }
 
   if (authError?.message) {
     return authError.message
   }
 
-  return 'Giris yapilamadi. Lutfen tekrar deneyin.'
+  return 'Giriş yapılamadı. Lütfen tekrar deneyin.'
 }
 
 async function verifyTurnstile(token: string): Promise<string | null> {
@@ -49,7 +49,7 @@ async function verifyTurnstile(token: string): Promise<string | null> {
   })
   if (res.ok) return null
   const data = (await res.json()) as { message?: string }
-  return data.message ?? 'Guvenlik dogrulamasi basarisiz. Lutfen tekrar deneyin.'
+  return data.message ?? 'Güvenlik doğrulaması başarısız. Lütfen tekrar deneyin.'
 }
 
 export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClientProps) {
@@ -73,7 +73,7 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
     setError(null)
 
     if (!turnstileToken) {
-      setError('Lutfen once guvenlik dogrulamasini tamamlayin.')
+      setError('Lütfen önce güvenlik doğrulamasını tamamlayın.')
       return
     }
 
@@ -101,7 +101,7 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
 
       router.push(callbackUrl)
     } catch {
-      setError('Giris yapilamadi. Ag ve sunucu baglantisini kontrol edip tekrar deneyin.')
+      setError('Giriş yapılamadı. Ağ ve sunucu bağlantısını kontrol edip tekrar deneyin.')
     } finally {
       setLoading(false)
     }
@@ -109,7 +109,7 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
 
   return (
     <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-      <h1 className="mb-6 text-xl font-semibold text-neutral-900">Satici Girisi</h1>
+      <h1 className="mb-6 text-xl font-semibold text-neutral-900">Satıcı Girişi</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -129,7 +129,7 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
 
         <div>
           <label htmlFor="password" className="mb-1 block text-sm font-medium text-neutral-700">
-            Sifre
+            Şifre
           </label>
           <input
             id="password"
@@ -156,20 +156,20 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
           disabled={loading || !turnstileToken}
           className="w-full rounded-lg bg-neutral-900 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50"
         >
-          {loading ? 'Giris yapiliyor...' : 'Giris Yap'}
+          {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
         </button>
       </form>
 
       <p className="mt-6 text-center text-sm text-neutral-500">
-        Satici hesabin yok mu?{' '}
+        Satıcı hesabın yok mu?{' '}
         <a href="/basvuru" className="font-medium text-neutral-900 hover:underline">
-          Magaza basvurusu yap
+          Mağaza başvurusu yap
         </a>
       </p>
 
       <p className="mt-3 text-center text-sm text-neutral-500">
         <a href="/sifremi-unuttum" className="font-medium text-neutral-900 hover:underline">
-          Sifrenizi mi unuttunuz?
+          Şifrenizi mi unuttunuz?
         </a>
       </p>
     </div>

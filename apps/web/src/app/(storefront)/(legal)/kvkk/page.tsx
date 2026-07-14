@@ -3,7 +3,7 @@ import { PLATFORM_LEGAL_INFO } from '@hanuja/api/lib/platform-info'
 import { LegalEntityBox } from '@/components/storefront/legal-entity-box'
 
 export const metadata: Metadata = {
-  title: 'KVKK Aydınlatma Metni | Hanuja',
+  title: 'KVKK Aydınlatma Metni',
   description: 'Hanuja kişisel verilerin korunması kanunu kapsamında aydınlatma metni.',
   robots: { index: true, follow: true },
 }

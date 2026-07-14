@@ -88,6 +88,7 @@ const _auth = betterAuth({
     updateAge: 60 * 60 * 24,
     cookieCache: { enabled: true, maxAge: 60 * 5 },
   },
+  rateLimit: { enabled: true, window: 60, max: 60, customRules: { '/change-password': { window: 60, max: 5 } } },
   plugins: [adminPlugin({ defaultRole: 'customer', adminRoles: ['admin'] })],
   trustedOrigins: expandTrustedOriginVariants([
     baseURL,
@@ -108,6 +109,10 @@ const _auth = betterAuth({
     } | null>
     sendVerificationEmail: (opts: {
       body: { callbackURL?: string; email: string }
+    }) => Promise<unknown>
+    changePassword: (opts: {
+      headers: Headers
+      body: { currentPassword: string; newPassword: string; revokeOtherSessions: boolean }
     }) => Promise<unknown>
   }
 }

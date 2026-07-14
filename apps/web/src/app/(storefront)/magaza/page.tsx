@@ -8,7 +8,7 @@ import { createSellerRepository } from '@hanuja/api/repositories/seller.reposito
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Mağazalar | Hanuja',
+  title: 'Mağazalar',
   description: 'Hanuja üzerindeki aktif mağazaları keşfedin.',
 }
 

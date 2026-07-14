@@ -66,6 +66,7 @@ export function createAuth({ baseURL, secret, prisma, trustedOrigins }: AuthConf
         '/sign-up/email': { window: 60, max: 5 },
         '/forget-password': { window: 60, max: 5 },
         '/reset-password': { window: 60, max: 5 },
+        '/change-password': { window: 60, max: 5 },
       },
     },
 

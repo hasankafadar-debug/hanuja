@@ -16,6 +16,13 @@ import { createPayoutRepository } from '@hanuja/api/repositories/payout.reposito
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
+import {
+  addReportingDateDays,
+  formatReportingDate,
+  getReportingDateKey,
+  reportingDayStart,
+  resolveReportingDateRange,
+} from '@hanuja/api/lib/reporting-time'
 import { formatMoney } from '@hanuja/security'
 
 export const dynamic = 'force-dynamic'
@@ -30,13 +37,6 @@ function getSingleValue(value?: string | string[]) {
   return Array.isArray(value) ? value[0] : value
 }
 
-function formatDateInput(date: Date) {
-  const year = date.getUTCFullYear()
-  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getUTCDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 export default async function SellerDashboardPage({ searchParams }: Props) {
   const resolvedSearchParams = (await searchParams) ?? {}
   const { seller } = await getSellerFromSession()
@@ -48,26 +48,19 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
     seller.commissionRateOverride ?? platformSettings.defaultSellerCommissionRate
 
   const now = new Date()
-  const defaultTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
-  const defaultFrom = new Date(defaultTo)
-  defaultFrom.setUTCDate(defaultFrom.getUTCDate() - 29)
-  defaultFrom.setUTCHours(0, 0, 0, 0)
-
-  const chartFromInput = getSingleValue(resolvedSearchParams.from) ?? formatDateInput(defaultFrom)
-  const chartToInput = getSingleValue(resolvedSearchParams.to) ?? formatDateInput(defaultTo)
-  const chartFrom = new Date(`${chartFromInput}T00:00:00.000Z`)
-  const chartTo = new Date(`${chartToInput}T23:59:59.999Z`)
-
-  const last30Days = new Date(defaultTo)
-  last30Days.setUTCDate(last30Days.getUTCDate() - 29)
-  last30Days.setUTCHours(0, 0, 0, 0)
-
-  const todayStart = new Date(defaultTo)
-  todayStart.setUTCHours(0, 0, 0, 0)
-
-  const last7Days = new Date(defaultTo)
-  last7Days.setUTCDate(last7Days.getUTCDate() - 6)
-  last7Days.setUTCHours(0, 0, 0, 0)
+  const defaultRange = resolveReportingDateRange({ now })
+  const chartRange = resolveReportingDateRange({
+    from: getSingleValue(resolvedSearchParams.from),
+    to: getSingleValue(resolvedSearchParams.to),
+    now,
+  })
+  const chartFromInput = chartRange.fromKey
+  const chartToInput = chartRange.toKey
+  const chartFrom = chartRange.from
+  const chartTo = chartRange.to
+  const last30Days = defaultRange.from
+  const todayStart = reportingDayStart(defaultRange.toKey)
+  const last7Days = reportingDayStart(addReportingDateDays(defaultRange.toKey, -6))
 
   const [recentOrders, payoutSummary, openReturns, sellerOrders, chartOrders, productCounts, topOrderLines] = await Promise.all([
     orderService.listForSellerQueue({ sellerId: seller.id, skip: 0, take: 5 }),
@@ -259,16 +252,28 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
 
   const chartBucketCount = Math.max(
     1,
-    Math.round((chartTo.getTime() - chartFrom.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+    Math.round(
+      (new Date(`${chartRange.toKey}T00:00:00.000Z`).getTime() -
+        new Date(`${chartRange.fromKey}T00:00:00.000Z`).getTime()) /
+        (1000 * 60 * 60 * 24),
+    ) + 1,
   )
+  const chartOrdersByDay = new Map<string, typeof chartOrders>()
+  for (const order of chartOrders) {
+    const key = getReportingDateKey(order.createdAt)
+    const orders = chartOrdersByDay.get(key) ?? []
+    orders.push(order)
+    chartOrdersByDay.set(key, orders)
+  }
   const chartBuckets = Array.from({ length: chartBucketCount }, (_, index) => {
-    const bucketDate = new Date(chartFrom)
-    bucketDate.setUTCDate(bucketDate.getUTCDate() + index)
-    const key = bucketDate.toISOString().slice(0, 10)
-    const dayOrders = chartOrders.filter((order) => order.createdAt.toISOString().slice(0, 10) === key)
+    const key = addReportingDateDays(chartRange.fromKey, index)
+    const dayOrders = chartOrdersByDay.get(key) ?? []
     return {
       key,
-      label: bucketDate.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' }),
+      label: formatReportingDate(reportingDayStart(key), {
+        day: '2-digit',
+        month: '2-digit',
+      }),
       count: dayOrders.length,
       amount: dayOrders.reduce(
         (sum, order) =>
@@ -650,7 +655,7 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
                         {firstProduct}
                       </td>
                       <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                        {new Date(order.createdAt).toLocaleDateString('tr-TR', {
+                        {formatReportingDate(new Date(order.createdAt), {
                           day: '2-digit',
                           month: '2-digit',
                           year: 'numeric',

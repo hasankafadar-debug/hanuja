@@ -86,7 +86,13 @@ export function createProductRepository(prisma: PrismaClient) {
           sellerId: params.sellerId,
           ...(params.status !== undefined ? { status: params.status } : {}),
         },
-        include: { images: publishedImageInclude, category: true },
+        include: {
+          images: publishedImageInclude,
+          category: true,
+          variants: {
+            orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          },
+        },
         orderBy: { createdAt: 'desc' },
         ...(params.skip !== undefined ? { skip: params.skip } : {}),
         take: params.take ?? 20,
@@ -167,6 +173,14 @@ export function createProductRepository(prisma: PrismaClient) {
           return { ...seller, productCount: r._count.id }
         })
         .filter((s): s is NonNullable<typeof s> => s !== null)
+    },
+
+    countPublishedGroupedByCategory() {
+      return prisma.product.groupBy({
+        by: ['categoryId'],
+        where: { status: 'published', categoryId: { not: null } },
+        _count: { _all: true },
+      })
     },
 
     countPublished(params: {

@@ -15,7 +15,7 @@ async function getUserId() {
 
 export async function GET(_req: Request, { params }: RouteContext) {
   const userId = await getUserId()
-  if (!userId) return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
+  if (!userId) return NextResponse.json({ data: { isFollowing: false } })
 
   const { sellerId } = await params
   const service = createStoreFollowService({ prisma: createPrismaForRoute() })

@@ -5,7 +5,7 @@ import {
   type ScrapedProductVariant,
 } from './import-adapter'
 
-const USER_AGENT = 'Hanuja-Import-Bot/1.0 (+https://hanuja.com/bot)'
+const USER_AGENT = 'Hanuja-Import-Bot/1.0 (+https://www.hanuja.com.tr/bot)'
 const HIPICON_API_ORIGIN = 'https://api.hipicon.com'
 
 interface HipiconProduct {

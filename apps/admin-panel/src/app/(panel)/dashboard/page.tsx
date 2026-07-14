@@ -139,7 +139,7 @@ export default async function AdminDashboardPage() {
     },
     {
       href: '/siparisler?status=seller_queue_ready,seller_reviewing',
-      title: 'Satici Kuyrugunda',
+      title: 'Satıcı Kuyruğunda',
       value: String(stats.orders.pendingSellerAction),
       icon: <ShoppingBag className="h-5 w-5" />,
     },
@@ -157,7 +157,7 @@ export default async function AdminDashboardPage() {
     },
     {
       href: '/saticilar?status=active',
-      title: 'Aktif Satici',
+      title: 'Aktif Satıcı',
       value: String(stats.sellers.totalActive),
       icon: <Store className="h-5 w-5" />,
     },
@@ -211,7 +211,7 @@ export default async function AdminDashboardPage() {
     },
     {
       href: '/destek',
-      title: 'Satici Destek',
+      title: 'Satıcı Destek',
       value: String(stats.customerSupport.sellerPending),
       icon: <LifeBuoy className="h-5 w-5" />,
     },
@@ -306,7 +306,7 @@ export default async function AdminDashboardPage() {
               <table className="w-full text-sm">
                 <thead style={{ backgroundColor: 'var(--color-muted)' }}>
                   <tr>
-                    {['Siparis', 'Satici', 'Tutar', 'Durum', 'Tarih'].map((h) => (
+                    {['Sipariş', 'Satıcı', 'Tutar', 'Durum', 'Tarih'].map((h) => (
                       <th
                         key={h}
                         className="px-3 py-2.5 text-left text-xs font-semibold"

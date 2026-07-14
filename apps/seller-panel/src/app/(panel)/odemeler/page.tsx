@@ -8,6 +8,7 @@ import { createSellerLedgerRepository } from '@hanuja/api/repositories/seller-le
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { formatMoney } from '@hanuja/security'
+import { holdDaysRemainingLabel, formatTrDate, payoutStatusDisplay } from './_lib/payout-display'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,7 @@ export default async function PayoutsPage() {
     commissionAmount: { toNumber(): number } | number
     netAmount: { toNumber(): number } | number
     status: string
+    holdStartedAt: Date | null
     holdUntil: Date | null
   }
 
@@ -137,33 +139,40 @@ export default async function PayoutsPage() {
             <table className="w-full whitespace-nowrap text-sm">
               <thead style={{ backgroundColor: 'var(--color-muted)' }}>
                 <tr>
-                  {['Sipariş', 'Brüt', 'Komisyon', 'Net', 'Bloke Bitiş', 'Durum'].map((header) => (
-                    <th
-                      key={header}
-                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: 'var(--color-muted-fg)' }}
-                    >
-                      {header}
-                    </th>
-                  ))}
+                  {['Tarih', 'Sipariş No', 'Bloke Süresi (gün)', 'Ödeme Durumu', 'Satıcı Hakediş Tutarı', ''].map(
+                    (header) => (
+                      <th
+                        key={header || 'detay'}
+                        className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
+                        style={{ color: 'var(--color-muted-fg)' }}
+                      >
+                        {header}
+                      </th>
+                    ),
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((payout) => {
-                  const gross = toNum(payout.grossAmount)
-                  const commission = toNum(payout.commissionAmount)
                   const net = toNum(payout.netAmount)
+                  const statusDisplay = payoutStatusDisplay(payout.status)
 
                   return (
                     <tr key={payout.id} className="border-t" style={{ borderColor: 'var(--color-border)' }}>
+                      <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
+                        {formatTrDate(payout.holdStartedAt)}
+                      </td>
                       <td className="px-4 py-3 font-medium font-mono text-xs" style={{ color: 'var(--color-primary)' }}>
                         {formatOrderDisplayNumber(payout.order?.publicNumber, payout.orderId)}
                       </td>
                       <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                        {gross > 0 ? formatMoney(gross) : '-'}
+                        {holdDaysRemainingLabel(payout.holdUntil)}
                       </td>
-                      <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                        {commission > 0 ? `-${formatMoney(commission)}` : '-'}
+                      <td className="px-4 py-3">
+                        <StatusBadge
+                          status={statusDisplay.badgeStatus as Parameters<typeof StatusBadge>[0]['status']}
+                          label={statusDisplay.label}
+                        />
                       </td>
                       <td
                         className="px-4 py-3 font-medium"
@@ -171,17 +180,10 @@ export default async function PayoutsPage() {
                       >
                         {formatMoney(net)}
                       </td>
-                      <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                        {payout.holdUntil
-                          ? new Date(payout.holdUntil).toLocaleDateString('tr-TR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                            })
-                          : '-'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={payout.status as Parameters<typeof StatusBadge>[0]['status']} />
+                      <td className="px-4 py-3 text-right">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/odemeler/${payout.id}`}>Detay</Link>
+                        </Button>
                       </td>
                     </tr>
                   )

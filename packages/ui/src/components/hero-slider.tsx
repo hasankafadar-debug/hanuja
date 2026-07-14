@@ -139,7 +139,7 @@ export function HeroSlider({ slides, autoPlayMs = 6000, loop = true }: HeroSlide
                 alt={slide.title}
                 fill
                 className="object-cover"
-                priority={i === 0}
+                priority
                 sizes="(max-width: 768px) 100vw, 66vw"
                 unoptimized={useUnoptimizedImage}
                 {...(imgMeta.srcSet ? { srcSet: imgMeta.srcSet } : {})}

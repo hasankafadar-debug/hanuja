@@ -68,7 +68,7 @@ export function CategoryPageBody({
   return (
     <>
       {/* Toolbar: filter toggle + clear + sort */}
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <div ref={containerRef} className="relative">
           <button
             type="button"
@@ -141,16 +141,24 @@ export function CategoryPageBody({
           </button>
         )}
 
-        <div className="flex-1">{sortContent}</div>
+        <div className="w-full min-w-0 sm:flex-1">{sortContent}</div>
       </div>
 
       {/* Product grid — always 4 cols */}
       {products.length === 0 ? (
-        <EmptyState
-          icon={<Package className="h-6 w-6" />}
-          title="Bu kategoride ürün bulunamadı"
-          description="Filtrelerinizi değiştirerek tekrar deneyin."
-        />
+        activeFilterCount > 0 ? (
+          <EmptyState
+            icon={<Package className="h-6 w-6" />}
+            title="Bu kategoride ürün bulunamadı"
+            description="Filtrelerinizi değiştirerek tekrar deneyin."
+          />
+        ) : (
+          <EmptyState
+            icon={<Package className="h-6 w-6" />}
+            title="Bu kategoride yakında ürünler olacak"
+            description="Yeni ürünler eklendikçe burada görünecek."
+          />
+        )
       ) : (
         <>
           <StorefrontProductGrid gridClassName={GRID_CLASS} products={products} />

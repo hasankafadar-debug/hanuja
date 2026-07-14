@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { PLATFORM_LEGAL_INFO } from '@hanuja/api/lib/platform-info'
 
 export const metadata: Metadata = {
-  title: 'Kullanım Koşulları | Hanuja',
+  title: 'Kullanım Koşulları',
   description: 'Hanuja platform kullanım, sipariş, iade ve sorumluluk koşulları.',
   robots: { index: true, follow: true },
 }

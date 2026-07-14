@@ -9,8 +9,14 @@ import { createProductRepository } from '../repositories/product.repository'
 import { createCategoryRepository } from '../repositories/category.repository'
 import { createSellerRepository } from '../repositories/seller.repository'
 import { createDiscountService } from './discount.service'
+import type { EffectivePriceResult } from './discount.service'
 import { createContentScannerService } from './content-scanner.service'
 import { buildSlugWithSuffix, isValidSlug, normalizeSlug } from '../domain/slug'
+import { computeCustomerVisibleCategoryIds } from '../domain/category-visibility'
+import {
+  selectCampaignDiscountShowcase,
+  selectWeeklyFavoriteShowcase,
+} from '../domain/homepage-showcase'
 import { enqueueCategorySync, enqueueProductSync } from '../jobs/search-index-sync.job'
 
 interface CatalogServiceDeps {
@@ -68,6 +74,19 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         : {}),
       ...(params.inStockOnly === true ? { stockQuantity: { gt: 0 } } : {}),
     }
+  }
+
+  async function loadCustomerVisibleCategoryData() {
+    const [all, counts] = await Promise.all([
+      categories.findAll(),
+      products.countPublishedGroupedByCategory(),
+    ])
+    const countByCategoryId = new Map<string, number>()
+    for (const row of counts) {
+      if (row.categoryId !== null) countByCategoryId.set(row.categoryId, row._count._all)
+    }
+    const visibleIds = computeCustomerVisibleCategoryIds(all, countByCategoryId)
+    return { all, visibleIds }
   }
 
   async function loadPublishedCandidates(params: {
@@ -203,17 +222,18 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       price: DecimalLike
       compareAtPrice: DecimalLike | null
     },
-  >(items: T[]): Promise<T[]> {
+  >(items: T[]): Promise<Array<T & { discountSource: EffectivePriceResult['discountSource'] }>> {
     const pricingMap = await discounts.resolveEffectivePrices(items)
 
     return items.map((item) => {
       const pricing = pricingMap.get(item.id)
-      if (!pricing) return item
+      if (!pricing) return { ...item, discountSource: null }
 
       return {
         ...item,
         price: pricing.effectivePrice,
         compareAtPrice: pricing.discountSource ? pricing.originalPrice : item.compareAtPrice,
+        discountSource: pricing.discountSource,
       }
     })
   }
@@ -314,7 +334,11 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       take?: number
     }) {
       const publishedProducts = await products.listPublished(params)
-      return applyEffectivePricingToProducts(publishedProducts)
+      const pricedProducts = await applyEffectivePricingToProducts(publishedProducts)
+      // Bu metodun sonucu public JSON route'unda (GET /api/products) ham döner;
+      // discountSource internal bir zenginleştirme alanıdır (kural adı/id içerir)
+      // ve public payload'a sızmaması için burada çıkarılır.
+      return pricedProducts.map(({ discountSource: _discountSource, ...item }) => item)
     },
 
     async listPublishedCurated(params: {
@@ -692,6 +716,27 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return categories.findAll()
     },
 
+    // ── Customer-visible categories ─────────────────────────────────────────
+    // Launch policy: customers only see categories whose subtree contains at
+    // least one published product. Seller/admin flows keep listAllCategories.
+
+    async getCustomerVisibleCategoryIdSet() {
+      const { visibleIds } = await loadCustomerVisibleCategoryData()
+      return visibleIds
+    },
+
+    async listCustomerVisibleCategories() {
+      const { all, visibleIds } = await loadCustomerVisibleCategoryData()
+      return all.filter((category) => visibleIds.has(category.id))
+    },
+
+    async listCustomerVisibleRootCategories() {
+      const { all, visibleIds } = await loadCustomerVisibleCategoryData()
+      return all
+        .filter((category) => category.parentId === null && visibleIds.has(category.id))
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+    },
+
     async updateCategoryForAdmin(params: {
       categoryId: string
       name?: string
@@ -953,6 +998,54 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       }
 
       return picks
+    },
+
+    /**
+     * "Haftanın Favorileri" — most-favorited products of the last 7 calendar days.
+     * One product per homepage featured group first, then filled to `limit`
+     * (see selectWeeklyFavoriteShowcase for the fill rules).
+     *
+     * Not: tüm yayınlanmış katalog üzerinde tek tam-tarama yapar (mevcut
+     * getHomepageFeaturedProducts ile benzer maliyet profili); anasayfa
+     * revalidate=300 (5 dk ISR) olduğundan kabul edilebilir.
+     */
+    async getWeeklyFavoriteShowcase(
+      groups: Array<{ key: string; categoryIds: string[] }>,
+      limit = 20,
+    ) {
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+      const [candidates, weeklyFavoriteRows] = await Promise.all([
+        loadPublishedCandidates({}),
+        prisma.favoriteProduct.groupBy({
+          by: ['productId'],
+          where: { createdAt: { gte: sevenDaysAgo } },
+          _count: { productId: true },
+        }),
+      ])
+
+      const enriched = await enrichPublishedProducts(candidates)
+      const weeklyFavoriteCountByProductId = new Map(
+        weeklyFavoriteRows.map((row) => [row.productId, row._count.productId]),
+      )
+
+      return selectWeeklyFavoriteShowcase(enriched, weeklyFavoriteCountByProductId, groups, limit)
+    },
+
+    /**
+     * "Özel Kampanyalı Ürünler" — active DiscountRule campaigns started within
+     * the last 3 calendar months, ranked by highest discount percent against the
+     * real sale price. No filler when fewer qualify (intentional).
+     */
+    async getCampaignDiscountProducts(limit = 25) {
+      const cutoffDate = new Date()
+      cutoffDate.setMonth(cutoffDate.getMonth() - 3)
+
+      const candidates = await loadPublishedCandidates({})
+      const enriched = await enrichPublishedProducts(candidates)
+
+      return selectCampaignDiscountShowcase(enriched, cutoffDate, limit)
     },
   }
 }

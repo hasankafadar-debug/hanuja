@@ -1,6 +1,5 @@
 import { MegaMenu, type MegaMenuItem, type MegaMenuColumn } from '@hanuja/ui'
-import { createCatalogService } from '@hanuja/api/services/catalog.service'
-import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { getCustomerVisibleCategories } from '@/lib/customer-visible-categories'
 import {
   STOREFRONT_NAV_ITEMS,
   VIRTUAL_COLLECTION_MAP,
@@ -99,22 +98,45 @@ function buildMenuItem(
   return { label: item.label, href: item.href, columns: [column] }
 }
 
+/** A nav item stays visible only if its category subtree has published products. */
+function isNavItemVisible(
+  item: StorefrontNavItemConfig,
+  visibleSlugs: Set<string>,
+): boolean {
+  if (item.kind === 'link') return true
+  if (item.kind === 'tree') return visibleSlugs.has(item.rootSlug)
+  return VIRTUAL_COLLECTION_MAP[item.collectionSlug].some((slug) =>
+    visibleSlugs.has(slug),
+  )
+}
+
 /**
- * Async server component — fetches category tree once and passes
- * pre-built column data to the MegaMenu client component.
+ * Async server component — fetches the customer-visible category tree once
+ * and passes pre-built column data to the MegaMenu client component.
+ * Categories whose subtree has no published product are hidden here; they
+ * reappear automatically once a product is published (launch policy).
  */
 export async function StorefrontNav() {
   let allCats: FlatCategory[] = []
   try {
-    const svc = createCatalogService({ prisma: createPrismaForRoute() })
-    allCats = await svc.listAllCategories()
+    allCats = await getCustomerVisibleCategories()
   } catch {
     // Nav remains functional without sub-items if DB is unreachable at build time.
   }
 
-  const menuItems: MegaMenuItem[] = STOREFRONT_NAV_ITEMS.map((item) =>
-    buildMenuItem(item, allCats),
-  )
+  // Only filter nav items when the category list actually loaded — an empty
+  // list from a DB failure must not blank the whole header.
+  const visibleSlugs = new Set(allCats.map((c) => c.slug))
+  const navItems =
+    allCats.length > 0
+      ? STOREFRONT_NAV_ITEMS.filter((item) => isNavItemVisible(item, visibleSlugs))
+      : STOREFRONT_NAV_ITEMS
 
-  return <MegaMenu items={menuItems} className="relative" />
+  const menuItems: MegaMenuItem[] = navItems.map((item) => buildMenuItem(item, allCats))
+
+  return (
+    <div className="max-w-full overflow-x-auto overscroll-x-contain">
+      <MegaMenu items={menuItems} className="relative min-w-max" />
+    </div>
+  )
 }

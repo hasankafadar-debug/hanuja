@@ -1,5 +1,5 @@
-export const DEFAULT_WEB_URL = 'https://hanuja.com.tr'
-export const DEFAULT_SELLER_PANEL_URL = 'https://seller.hanuja.com.tr'
+export const DEFAULT_WEB_URL = 'https://www.hanuja.com.tr'
+export const DEFAULT_SELLER_PANEL_URL = 'https://satici.hanuja.com.tr'
 export const DEFAULT_ADMIN_PANEL_URL = 'https://admin.hanuja.com.tr'
 export const DEFAULT_MEDIA_HOSTNAME = 'media.hanuja.com.tr'
 export const DEFAULT_CDN_HOSTNAME = 'cdn.hanuja.com.tr'
@@ -18,8 +18,8 @@ export const PLATFORM_LEGAL_INFO = {
   mersis: '0781-0515-5550-0001',
   supportEmail: 'destek@hanuja.com.tr',
   kvkkEmail: 'suatsalihayakkabideri@hs01.kep.tr',
-  phoneDisplay: '0 (850) 888 8758',
-  phoneHref: 'tel:+908508888758',
+  phoneDisplay: '0 (507) 551 57 77',
+  phoneHref: 'tel:+905075515777',
   domain: 'hanuja.com.tr',
   websiteUrl: DEFAULT_WEB_URL,
 } as const
