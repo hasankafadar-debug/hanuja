@@ -14,7 +14,11 @@
  */
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
-import { calculateCommission, resolveCommissionRate } from '../domain/payout-calculator'
+import {
+  allocateCouponDiscount,
+  calculateCommission,
+  resolveCommissionRate,
+} from '../domain/payout-calculator'
 import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
 import { NotFoundError, ValidationError, ConflictError } from '../lib/errors'
 import { createCartRepository } from '../repositories/cart.repository'
@@ -28,6 +32,7 @@ import { createPlatformSettingsService } from './platform-settings.service'
 import { createDiscountService, type EffectivePriceResult } from './discount.service'
 import { createCouponService } from './coupon.service'
 import { roundMoney, formatMoney as baseFormatMoney } from '@hanuja/security/money'
+import { assertPaymentMethodEnabled } from '../lib/payment-capabilities'
 
 // Sistem varsayılan komisyon oranı - proje büyüdükçe commission config tablosuna taşınır
 // Öncelik sırası (CLAUDE.md 15.1): ürün override > kategori > satıcı genel > sistem default
@@ -80,6 +85,7 @@ type CheckoutDraft = {
     totalPrice: Decimal
     taxRate: Decimal
     taxAmount: Decimal
+    couponDiscountAmount: Decimal
     commissionRate: Decimal
     commissionAmount: Decimal
     netPayoutAmount: Decimal
@@ -89,6 +95,7 @@ type CheckoutDraft = {
   netSubtotal: Decimal
   shippingAmount: Decimal
   discountAmount: Decimal
+  couponId: string | null
   eftDiscountAmount: Decimal
   eftDiscountRate: Decimal
   taxAmount: Decimal
@@ -154,8 +161,11 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
   async function buildCheckoutDraft(params: {
     userId: string
     addressId: string
+    billingAddressId?: string
     paymentMethod: CheckoutPaymentMethod
   }): Promise<CheckoutDraft> {
+    assertPaymentMethodEnabled(params.paymentMethod)
+
     const cart = await carts.findByUserId(params.userId)
     if (!cart || cart.items.length === 0) {
       throw new ValidationError('Sepet boş veya bulunamadı')
@@ -171,6 +181,10 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
 
     if (!address) throw new NotFoundError('Adres', params.addressId)
     if (!customer) throw new NotFoundError('Kullanıcı', params.userId)
+    const billingAddress = params.billingAddressId && params.billingAddressId !== address.id
+      ? await prisma.address.findFirst({ where: { id: params.billingAddressId, userId: params.userId } })
+      : address
+    if (!billingAddress) throw new NotFoundError('Fatura adresi', params.billingAddressId)
 
     const productIds = cart.items.map((item) => item.productId)
     const [products, categories] = await Promise.all([
@@ -188,7 +202,24 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
     const discountSvc = createDiscountService({ prisma })
     const effectivePriceMap = await discountSvc.resolveEffectivePrices(products)
 
-    const lines: CheckoutDraft['lines'] = []
+    // Faz 1: satır fiyat/vergi snapshot'ları — kupon payı ve komisyon henüz
+    // hesaplanmaz (kupon dağıtımı yalnız satıcı kuponunda gerekir ve subtotal'lar
+    // gerektirir; komisyon tabanı kupon payı düşüldükten sonra belirlenir).
+    type RawLine = {
+      productId: string
+      sellerId: string
+      variantId: string | null
+      productName: string
+      variantName: string | null
+      quantity: number
+      unitPrice: Decimal
+      totalPrice: Decimal
+      taxRate: Decimal
+      taxAmount: Decimal
+      commissionRate: Decimal
+      promisedFulfillmentDays: number
+    }
+    const rawLines: RawLine[] = []
     const sellerMap = new Map<string, ReturnType<typeof buildSellerSnapshot>>()
 
     for (const item of cart.items as Array<{
@@ -231,14 +262,12 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         product.seller.commissionRateOverride,
         settings.defaultSellerCommissionRate,
       )
-      const commissionAmount = calculateCommission(totalPrice, commissionRate)
-      const netPayoutAmount = roundMoney(totalPrice.sub(commissionAmount))
 
       if (!sellerMap.has(product.sellerId)) {
         sellerMap.set(product.sellerId, buildSellerSnapshot(product.seller))
       }
 
-      lines.push({
+      rawLines.push({
         productId: product.id,
         sellerId: product.sellerId,
         variantId: item.variantId,
@@ -250,14 +279,12 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         taxRate,
         taxAmount,
         commissionRate,
-        commissionAmount,
-        netPayoutAmount,
         promisedFulfillmentDays: product.fulfillmentDays ?? settings.fulfillmentDays,
       })
     }
 
-      const grossAmount = lines.reduce((sum, line) => sum.add(line.totalPrice), new Decimal(0))
-      const sellerSubtotals = [...lines.reduce((map, line) => {
+      const grossAmount = rawLines.reduce((sum, line) => sum.add(line.totalPrice), new Decimal(0))
+      const sellerSubtotals = [...rawLines.reduce((map, line) => {
         map.set(line.sellerId, (map.get(line.sellerId) ?? new Decimal(0)).add(line.totalPrice))
         return map
       }, new Map<string, Decimal>()).entries()].map(([sellerId, subtotal]) => ({
@@ -277,6 +304,57 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           })
         : null
       const discountAmount = new Decimal(couponValidation?.discountAmount ?? 0)
+      const couponId = couponValidation?.couponId ?? null
+
+      // Faz 2: satıcı-scope'lu kupon indirimini o satıcının satırlarına dağıt.
+      // Platform kuponunda (couponValidation.sellerId null) satırlar etkilenmez —
+      // indirim maliyeti platform tarafından emilir (mevcut EFT indirimi felsefesi).
+      const couponSellerId = couponValidation?.sellerId ?? null
+      const couponShareByLineIndex: Decimal[] = rawLines.map(() => new Decimal(0))
+      if (couponSellerId && discountAmount.gt(0)) {
+        const sellerLineIndices = rawLines
+          .map((line, index) => ({ line, index }))
+          .filter(({ line }) => line.sellerId === couponSellerId)
+        const shares = allocateCouponDiscount(
+          sellerLineIndices.map(({ line }) => ({ totalPrice: line.totalPrice })),
+          discountAmount,
+        )
+        sellerLineIndices.forEach(({ index }, i) => {
+          couponShareByLineIndex[index] = shares[i] ?? new Decimal(0)
+        })
+      }
+
+      // Faz 3: kupon payı düşüldükten sonra KDV dahil komisyon + net hakediş.
+      const lines: CheckoutDraft['lines'] = rawLines.map((line, index) => {
+        const couponDiscountAmount = couponShareByLineIndex[index] ?? new Decimal(0)
+        const commissionBase = roundMoney(line.totalPrice.sub(couponDiscountAmount))
+        const commissionAmount = calculateCommission(
+          commissionBase,
+          line.commissionRate,
+          settings.commissionVatRate,
+        )
+        const netPayoutAmount = roundMoney(
+          line.totalPrice.sub(couponDiscountAmount).sub(commissionAmount),
+        )
+        return {
+          productId: line.productId,
+          sellerId: line.sellerId,
+          variantId: line.variantId,
+          productName: line.productName,
+          variantName: line.variantName,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          totalPrice: line.totalPrice,
+          taxRate: line.taxRate,
+          taxAmount: line.taxAmount,
+          couponDiscountAmount,
+          commissionRate: line.commissionRate,
+          commissionAmount,
+          netPayoutAmount,
+          promisedFulfillmentDays: line.promisedFulfillmentDays,
+        }
+      })
+
       const taxAmount = lines.reduce((sum, line) => sum.add(line.taxAmount), new Decimal(0))
       const netSubtotal = grossAmount.sub(taxAmount)
       const eftDiscountRate = params.paymentMethod === 'eft' ? settings.eftDiscountRate : new Decimal(0)
@@ -296,6 +374,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         }))
       const totalAmount = grossAmount.add(shippingAmount).sub(discountAmount).sub(eftDiscountAmount)
       const deliveryAddress = formatAddress(address)
+      const formattedBillingAddress = formatAddress(billingAddress)
 
       return {
         cart: {
@@ -314,6 +393,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       netSubtotal,
       shippingAmount,
       discountAmount,
+      couponId,
       eftDiscountAmount,
       eftDiscountRate,
       taxAmount,
@@ -325,7 +405,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           email: fallbackText(customer.email, '-'),
           phone: fallbackText(address.phone, '-'),
           deliveryAddress,
-          billingAddress: deliveryAddress,
+          billingAddress: formattedBillingAddress,
         },
         sellers: Array.from(sellerMap.values()),
         items: lines.map((line) => ({
@@ -415,6 +495,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
     async previewLegalDocuments(params: {
       userId: string
       addressId: string
+      billingAddressId?: string
       paymentMethod: CheckoutPaymentMethod
     }) {
       const draft = await buildCheckoutDraft(params)
@@ -438,7 +519,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       couponCode?: string
       idempotencyKey?: string
       notes?: string
-      legalAcceptance?: LegalAcceptanceEvidence
+      legalAcceptance: LegalAcceptanceEvidence
     }) {
       const draft = await buildCheckoutDraft(params)
 
@@ -495,11 +576,11 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
             preInformationVersion: legalBundle.preInformationVersion,
             distanceSalesHash: hashLegalDocumentHtml(legalBundle.distanceSalesHtml),
             preInformationHash: hashLegalDocumentHtml(legalBundle.preInformationHtml),
-            acceptedDistanceSalesAt: params.legalAcceptance?.acceptedAt ?? order.createdAt,
-            acceptedPreInformationAt: params.legalAcceptance?.acceptedAt ?? order.createdAt,
-            acceptedIp: params.legalAcceptance?.ipAddress ?? null,
-            acceptedUserAgent: params.legalAcceptance?.userAgent ?? null,
-            acceptedSessionId: params.legalAcceptance?.sessionId ?? null,
+            acceptedDistanceSalesAt: params.legalAcceptance.acceptedAt,
+            acceptedPreInformationAt: params.legalAcceptance.acceptedAt,
+            acceptedIp: params.legalAcceptance.ipAddress,
+            acceptedUserAgent: params.legalAcceptance.userAgent,
+            acceptedSessionId: params.legalAcceptance.sessionId,
             buyerSnapshot: legalBundle.buyerSnapshot as unknown as Prisma.InputJsonValue,
             sellerSnapshot: legalBundle.sellerSnapshot as unknown as Prisma.InputJsonValue,
             platformSnapshot: legalBundle.platformSnapshot as unknown as Prisma.InputJsonValue,
@@ -564,6 +645,18 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         if (params.paymentMethod === 'eft') {
           await tx.cartItem.deleteMany({
             where: { cart: { userId: params.userId } },
+          })
+        }
+
+        // Kupon kullanımını kaydet (CouponUsage + usageCount) — aynı transaction
+        // içinde, sipariş oluşturma ile atomik. orderId unique kısıtı idempotency
+        // sağlar (aynı sipariş için ikinci applyCoupon çağrısı P2002 fırlatır).
+        if (draft.couponId) {
+          await couponService.applyCoupon({
+            couponId: draft.couponId,
+            userId: params.userId,
+            orderId: order.id,
+            tx: tx as unknown as PrismaClient,
           })
         }
 

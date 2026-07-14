@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { initiate3DS } from '@hanuja/api/lib/iyzico'
+import { isCardPaymentsEnabled } from '@hanuja/api/lib/payment-capabilities'
 import { buildLegalAcceptanceEvidence, extractClientIp } from '@hanuja/api/lib/legal-acceptance'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { checkRateLimit, SENSITIVE_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
@@ -20,6 +21,7 @@ const APP_URL =
 
 const startPaymentSchema = z.object({
   addressId: z.string().min(1, 'Adres seçimi zorunludur'),
+  billingAddressId: z.string().min(1).optional(),
   couponCode: z.string().optional(),
   notes: z.string().max(500).optional(),
   cardHolderName: z.string().min(2, 'Kart üzerindeki ad zorunludur'),
@@ -74,6 +76,16 @@ function htmlResponse(html: string, status = 200): NextResponse {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  if (!isCardPaymentsEnabled()) {
+    return NextResponse.json(
+      {
+        error: 'Kartla ödeme geçici olarak kullanılamıyor. Lütfen Havale / EFT seçeneğini kullanın.',
+        code: 'CARD_PAYMENTS_DISABLED',
+      },
+      { status: 503 },
+    )
+  }
+
   const csrfError = checkCsrf(req)
   if (csrfError) {
     return csrfError as NextResponse
@@ -146,6 +158,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const { order } = await checkoutSvc.createOrder({
       userId: user.id,
       addressId: body.addressId,
+      ...(body.billingAddressId ? { billingAddressId: body.billingAddressId } : {}),
       paymentMethod: 'card',
       ...(body.couponCode ? { couponCode: body.couponCode } : {}),
       ...(body.notes ? { notes: body.notes } : {}),

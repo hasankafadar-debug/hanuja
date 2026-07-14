@@ -53,6 +53,7 @@ interface CardForm {
 }
 
 type CheckoutPageClientProps = {
+  cardPaymentsEnabled: boolean
   turnstileSiteKey?: string | undefined
 }
 
@@ -64,13 +65,15 @@ function formatPrice(value: string | number) {
   return `${formatted} TL`
 }
 
-export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps) {
+export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: CheckoutPageClientProps) {
   const router = useRouter()
   const selectedOptionBorderColor = 'var(--color-success)'
 
   const [addresses, setAddresses] = useState<Address[]>([])
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
+    cardPaymentsEnabled ? 'card' : 'eft',
+  )
   const [cartSummary, setCartSummary] = useState<CartSummary | null>(null)
   const [legalPreview, setLegalPreview] = useState<LegalPreview | null>(null)
   const [legalLoading, setLegalLoading] = useState(false)
@@ -155,7 +158,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
   useEffect(() => {
     setAcceptedMesafeliSatis(false)
     setAcceptedOnBilgilendirme(false)
-  }, [paymentMethod, selectedAddressId])
+  }, [paymentMethod, selectedAddressId, selectedBillingAddressId, useDifferentBilling])
 
   useEffect(() => {
     if (!selectedAddressId) {
@@ -174,7 +177,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
 
       try {
         const res = await fetch(
-          `/api/checkout/contracts-preview?addressId=${encodeURIComponent(addressId)}&paymentMethod=${paymentMethod}`,
+          `/api/checkout/contracts-preview?addressId=${encodeURIComponent(addressId)}&paymentMethod=${paymentMethod}${useDifferentBilling && selectedBillingAddressId ? `&billingAddressId=${encodeURIComponent(selectedBillingAddressId)}` : ''}`,
           { cache: 'no-store' },
         )
 
@@ -208,7 +211,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
     return () => {
       cancelled = true
     }
-  }, [paymentMethod, router, selectedAddressId])
+  }, [paymentMethod, router, selectedAddressId, selectedBillingAddressId, useDifferentBilling])
 
   async function saveAddress() {
     if (!newAddress.fullName || !newAddress.addressLine1 || !newAddress.city) {
@@ -672,7 +675,7 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
             </div>
 
             <div className="space-y-3">
-              <label
+              {cardPaymentsEnabled ? <label
                 className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
                 style={{
                   borderColor:
@@ -696,9 +699,17 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
                     Güvenli ödeme - iyzico altyapısı
                   </p>
                 </div>
-              </label>
+              </label> : (
+                <div
+                  className="rounded-lg border p-3 text-sm"
+                  style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
+                >
+                  Kartla ödeme yakında iyzico ile açılacaktır. Şimdilik yalnız Havale / EFT ile
+                  sipariş verebilirsiniz.
+                </div>
+              )}
 
-              {paymentMethod === 'card' ? (
+              {cardPaymentsEnabled && paymentMethod === 'card' ? (
                 <div
                   className="space-y-3 rounded-lg border p-4"
                   style={{ borderColor: 'var(--color-border)' }}
@@ -1082,9 +1093,9 @@ export function CheckoutPageClient({ turnstileSiteKey }: CheckoutPageClientProps
                 İşleniyor...
               </span>
             ) : paymentMethod === 'card' ? (
-              'Ödemeye Geç'
+              'Siparişi Onayla ve Öde'
             ) : (
-              'Siparişi Onayla'
+              'Siparişi Onayla ve Havale Bilgilerini Göster'
             )}
           </Button>
 

@@ -18,11 +18,19 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyWebhookSignature } from '@hanuja/api/lib/iyzico'
+import { isCardPaymentsEnabled } from '@hanuja/api/lib/payment-capabilities'
 import { createPaymentService } from '@hanuja/api/services/payment.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { Decimal } from '@prisma/client/runtime/client'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  if (!isCardPaymentsEnabled()) {
+    return NextResponse.json(
+      { error: 'Kartla ödeme geçici olarak kullanılamıyor.', code: 'CARD_PAYMENTS_DISABLED' },
+      { status: 503 },
+    )
+  }
+
   // Raw body'yi önce oku — imza doğrulaması raw text üzerinden yapılır
   const rawBody = await req.text()
   const signature = req.headers.get('x-iyz-signature') ?? ''

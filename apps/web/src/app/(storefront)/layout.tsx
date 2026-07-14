@@ -3,10 +3,25 @@ import Link from 'next/link'
 import { Heart, User, Search } from 'lucide-react'
 import { HanujaLogo } from '@hanuja/ui'
 import { getSellerPanelUrl, PLATFORM_LEGAL_INFO } from '@hanuja/api/lib/platform-info'
+import { isCardPaymentsEnabled } from '@hanuja/api/lib/payment-capabilities'
 import CartIcon from '@/components/cart-icon'
 import { StorefrontNav } from '@/components/storefront/storefront-nav'
+import { VIRTUAL_COLLECTION_MAP } from '@/config/storefront-nav'
+import { getCustomerVisibleCategories } from '@/lib/customer-visible-categories'
 
 const SELLER_PANEL_URL = getSellerPanelUrl()
+
+// Alt ağacında yayınlanmış ürün olan linkler gösterilir (bkz. visibilitySlugs
+// slug-bağımlılığı uyarısı: config/storefront-nav.ts).
+const FOOTER_CATEGORY_LINKS: Array<{
+  label: string
+  href: string
+  visibilitySlugs: readonly string[]
+}> = [
+  { label: 'Mobilya', href: '/kategori/mobilya', visibilitySlugs: VIRTUAL_COLLECTION_MAP.mobilya },
+  { label: 'Aydınlatma', href: '/kategori/aydinlatma', visibilitySlugs: VIRTUAL_COLLECTION_MAP.aydinlatma },
+  { label: 'Dekorasyon', href: '/kategori/ev-dekorasyon', visibilitySlugs: ['ev-dekorasyon'] },
+]
 
 function SiteHeader() {
   return (
@@ -19,8 +34,13 @@ function SiteHeader() {
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
-          <Link href="/" className="shrink-0" aria-label="Hanuja — Ana Sayfa">
-            <HanujaLogo scale={0.85} textScale={1.4} variant="light" />
+          <Link href="/" className="min-w-0 shrink-0" aria-label="Hanuja — Ana Sayfa">
+            <span className="inline-flex min-[400px]:hidden">
+              <HanujaLogo compact scale={0.72} variant="light" />
+            </span>
+            <span className="hidden min-[400px]:inline-flex">
+              <HanujaLogo scale={0.85} textScale={1.4} variant="light" />
+            </span>
           </Link>
 
           <form action="/arama" className="hidden flex-1 max-w-md md:flex">
@@ -106,8 +126,22 @@ function PaymentBadge({ label }: { label: string }) {
   )
 }
 
-function SiteFooter() {
+async function SiteFooter() {
   const year = new Date().getFullYear()
+  const cardPaymentsEnabled = isCardPaymentsEnabled()
+
+  let visibleSlugs: Set<string> | null = null
+  try {
+    const visibleCategories = await getCustomerVisibleCategories()
+    visibleSlugs = new Set(visibleCategories.map((category) => category.slug))
+  } catch {
+    // DB unreachable — keep all links rather than blanking the footer block.
+  }
+  const categoryLinks = visibleSlugs
+    ? FOOTER_CATEGORY_LINKS.filter((link) =>
+        link.visibilitySlugs.some((slug) => visibleSlugs.has(slug)),
+      )
+    : FOOTER_CATEGORY_LINKS
 
   return (
     <footer
@@ -135,21 +169,13 @@ function SiteFooter() {
               Alışveriş
             </p>
             <ul className="mt-4 space-y-2 text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
-              <li>
-                <Link href="/kategori/mobilya" className="hover:text-white transition-colors">
-                  Mobilya
-                </Link>
-              </li>
-              <li>
-                <Link href="/kategori/aydinlatma" className="hover:text-white transition-colors">
-                  Aydınlatma
-                </Link>
-              </li>
-              <li>
-                <Link href="/kategori/ev-dekorasyon" className="hover:text-white transition-colors">
-                  Dekorasyon
-                </Link>
-              </li>
+              {categoryLinks.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="hover:text-white transition-colors">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
               <li>
                 <Link href="/blog" className="hover:text-white transition-colors">
                   Blog & İlham
@@ -187,6 +213,11 @@ function SiteFooter() {
                 </Link>
               </li>
               <li>
+                <Link href="/hakkimizda" className="hover:text-white transition-colors">
+                  Hakkımızda
+                </Link>
+              </li>
+              <li>
                 <Link href="/iletisim" className="hover:text-white transition-colors">
                   İletişim
                 </Link>
@@ -199,7 +230,7 @@ function SiteFooter() {
               className="text-sm font-semibold uppercase tracking-wider"
               style={{ color: 'rgba(255,255,255,0.5)' }}
             >
-              Basvuru
+              Başvuru
             </p>
             <ul className="mt-4 space-y-2 text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
               <li>
@@ -207,7 +238,7 @@ function SiteFooter() {
                   href={`${SELLER_PANEL_URL}/basvuru`}
                   className="hover:text-white transition-colors"
                 >
-                  Magaza Basvurusu
+                  Mağaza Başvurusu
                 </a>
               </li>
             </ul>
@@ -219,10 +250,17 @@ function SiteFooter() {
           style={{ borderColor: 'rgba(255,255,255,0.1)' }}
         >
           <div className="flex items-center gap-3 flex-wrap">
-            <PaymentBadge label="Visa" />
-            <PaymentBadge label="Mastercard" />
-            <PaymentBadge label="Troy" />
-            <PaymentBadge label="Amex" />
+            {cardPaymentsEnabled ? (
+              <>
+                <img src="/payment/iyzico-ile-ode.svg" alt="iyzico ile Öde" width="104" height="32" className="h-8 w-auto rounded bg-white px-2" />
+                <PaymentBadge label="Troy" />
+                <PaymentBadge label="Amex" />
+              </>
+            ) : (
+              <PaymentBadge label="Havale / EFT ile ödeme" />
+            )}
+            <img src="/payment/visa.svg" alt="Visa" width="50" height="32" className="h-8 w-auto rounded bg-white px-2" />
+            <img src="/payment/mastercard.svg" alt="Mastercard" width="50" height="32" className="h-8 w-auto rounded bg-white px-2" />
             <div
               className="flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold"
               style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }}
@@ -243,7 +281,9 @@ function SiteFooter() {
             </div>
           </div>
           <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            Tüm ödemeler Iyzico altyapısı ile güvenle işlenir.
+            {cardPaymentsEnabled
+              ? 'Kart ödemeleri iyzico altyapısı ile güvenle işlenir.'
+              : 'Siparişler şu anda güvenli Havale / EFT yöntemiyle alınır.'}
           </p>
         </div>
 
@@ -273,6 +313,9 @@ function SiteFooter() {
             <Link href="/iade-iptal" className="hover:text-white transition-colors">
               İade & İptal
             </Link>
+            <Link href="/islem-rehberi" className="hover:text-white transition-colors">
+              İşlem Rehberi
+            </Link>
           </div>
         </div>
       </div>
@@ -289,4 +332,3 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
     </>
   )
 }
-

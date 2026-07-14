@@ -17,6 +17,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { complete3DS } from '@hanuja/api/lib/iyzico'
+import { isCardPaymentsEnabled } from '@hanuja/api/lib/payment-capabilities'
 import { createPaymentService } from '@hanuja/api/services/payment.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { Decimal } from '@prisma/client/runtime/client'
@@ -34,6 +35,13 @@ function redirectToError(message: string): NextResponse {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  if (!isCardPaymentsEnabled()) {
+    return NextResponse.json(
+      { error: 'Kartla ödeme geçici olarak kullanılamıyor.', code: 'CARD_PAYMENTS_DISABLED' },
+      { status: 503 },
+    )
+  }
+
   // Iyzico callback body: application/x-www-form-urlencoded
   let formData: URLSearchParams
   try {

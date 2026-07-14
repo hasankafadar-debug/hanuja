@@ -31,6 +31,7 @@ interface EnvVar {
   key: string
   required: boolean
   requiredInProd?: boolean
+  requiredWhen?: 'card-payments' | 'invoice-aliasing'
   description: string
   /** If true, must be a real non-placeholder value in production */
   sensitiveInProd?: boolean
@@ -53,10 +54,11 @@ const ENV_VARS: EnvVar[] = [
   { key: 'ADMIN_PANEL_URL', required: true, description: 'Admin panel base URL', apps: ['all'] },
 
   // Payment
-  { key: 'IYZICO_API_KEY', required: true, sensitiveInProd: true, description: 'Iyzico API key', apps: ['api'] },
-  { key: 'IYZICO_SECRET_KEY', required: true, sensitiveInProd: true, description: 'Iyzico secret key', apps: ['api'] },
-  { key: 'IYZICO_BASE_URL', required: true, description: 'Iyzico base URL (sandbox or live)', apps: ['api'] },
-  { key: 'IYZICO_WEBHOOK_SECRET', required: true, sensitiveInProd: true, description: 'Iyzico webhook HMAC secret', apps: ['api'] },
+  { key: 'CARD_PAYMENTS_ENABLED', required: false, requiredInProd: true, description: 'Card payment feature flag (true/false)', apps: ['all'] },
+  { key: 'IYZICO_API_KEY', required: false, requiredWhen: 'card-payments', sensitiveInProd: true, description: 'Iyzico API key', apps: ['api'] },
+  { key: 'IYZICO_SECRET_KEY', required: false, requiredWhen: 'card-payments', sensitiveInProd: true, description: 'Iyzico secret key', apps: ['api'] },
+  { key: 'IYZICO_BASE_URL', required: false, requiredWhen: 'card-payments', description: 'Iyzico base URL (sandbox or live)', apps: ['api'] },
+  { key: 'IYZICO_WEBHOOK_SECRET', required: false, requiredWhen: 'card-payments', sensitiveInProd: true, description: 'Iyzico webhook HMAC secret', apps: ['api'] },
 
   // Turnstile
   { key: 'NEXT_PUBLIC_TURNSTILE_SITE_KEY', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Cloudflare Turnstile site key', apps: ['web', 'seller-panel', 'admin-panel'] },
@@ -80,10 +82,10 @@ const ENV_VARS: EnvVar[] = [
   { key: 'SMTP_USER', required: false, description: 'SMTP authentication user', apps: ['api'] },
   { key: 'SMTP_PASS', required: false, sensitiveInProd: true, description: 'SMTP password', apps: ['api'] },
   { key: 'SMTP_FROM', required: false, description: 'From address for outgoing emails', apps: ['api'] },
-  { key: 'INVOICE_ALIASING_ENABLED', required: false, description: 'Invoice aliasing feature flag', apps: ['all'] },
-  { key: 'INBOUND_EMAIL_DOMAIN', required: false, requiredInProd: true, description: 'Inbound invoice email domain, e.g. fatura.hanuja.tr', apps: ['api', 'web'] },
-  { key: 'POSTMARK_INBOUND_WEBHOOK_USER', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Postmark inbound webhook basic auth user', apps: ['web'] },
-  { key: 'POSTMARK_INBOUND_WEBHOOK_PASS', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Postmark inbound webhook basic auth password', apps: ['web'] },
+  { key: 'INVOICE_ALIASING_ENABLED', required: false, requiredInProd: true, description: 'Invoice aliasing feature flag (true/false)', apps: ['all'] },
+  { key: 'INBOUND_EMAIL_DOMAIN', required: false, requiredWhen: 'invoice-aliasing', description: 'Inbound invoice email domain, e.g. fatura.hanuja.com.tr', apps: ['api', 'web'] },
+  { key: 'POSTMARK_INBOUND_WEBHOOK_USER', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Postmark inbound webhook basic auth user', apps: ['web'] },
+  { key: 'POSTMARK_INBOUND_WEBHOOK_PASS', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Postmark inbound webhook basic auth password', apps: ['web'] },
 
   // App metadata
   { key: 'NEXT_PUBLIC_SITE_NAME', required: false, description: 'Site display name', apps: ['web'] },
@@ -107,6 +109,16 @@ function isPlaceholder(value: string): boolean {
   return PLACEHOLDER_PATTERNS.some((p) => p.test(value))
 }
 
+function isEnabledFlag(key: 'CARD_PAYMENTS_ENABLED' | 'INVOICE_ALIASING_ENABLED'): boolean {
+  return process.env[key]?.trim().toLowerCase() === 'true'
+}
+
+function isConditionalRequirementActive(requiredWhen: EnvVar['requiredWhen']): boolean {
+  if (requiredWhen === 'card-payments') return isEnabledFlag('CARD_PAYMENTS_ENABLED')
+  if (requiredWhen === 'invoice-aliasing') return isEnabledFlag('INVOICE_ALIASING_ENABLED')
+  return false
+}
+
 // ── Checking ──────────────────────────────────────────────────────────────────
 
 function parseArgs(): Record<string, string> {
@@ -124,9 +136,14 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
 
   for (const envVar of vars) {
     const value = process.env[envVar.key]
+    const conditionalRequired = isConditionalRequirementActive(envVar.requiredWhen)
+
+    if (envVar.requiredWhen && !conditionalRequired) {
+      continue
+    }
 
     if (!value || value.trim() === '') {
-      if (envVar.required || (isProd && envVar.requiredInProd)) {
+      if (envVar.required || conditionalRequired || (isProd && envVar.requiredInProd)) {
         missing.push(`${envVar.key}  (${envVar.description})`)
       } else {
         warnings.push(`${envVar.key}  (optional — ${envVar.description})`)
@@ -138,6 +155,13 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
       missing.push(
         `${envVar.key}  looks like a placeholder in production: "${value.slice(0, 30)}..."`,
       )
+    }
+
+    if (
+      (envVar.key === 'CARD_PAYMENTS_ENABLED' || envVar.key === 'INVOICE_ALIASING_ENABLED') &&
+      !/^(true|false)$/i.test(value.trim())
+    ) {
+      missing.push(`${envVar.key} must be exactly true or false.`)
     }
 
     // Auth secret length check

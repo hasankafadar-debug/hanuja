@@ -4,6 +4,8 @@ import { Toaster } from '@hanuja/ui'
 import { DEFAULT_WEB_URL } from '@hanuja/api/lib/platform-info'
 import './globals.css'
 
+const previewDeployment = process.env.PREVIEW_DEPLOYMENT === 'true'
+
 const outfit = Outfit({
   subsets: ['latin', 'latin-ext'],
   variable: '--font-sans',
@@ -45,8 +47,8 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
   },
   robots: {
-    index: true,
-    follow: true,
+    index: !previewDeployment,
+    follow: !previewDeployment,
   },
 }
 
