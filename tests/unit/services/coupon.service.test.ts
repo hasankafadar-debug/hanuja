@@ -1,26 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCouponService } from '../../../api/services/coupon.service'
-import { ValidationError } from '../../../api/lib/errors'
+import { ConflictError, NotFoundError, ValidationError } from '../../../api/lib/errors'
 
 const {
   findByCodeMock,
+  findByIdMock,
   countUsageByUserMock,
   recordUsageMock,
   incrementUsageMock,
+  createMock,
+  updateMock,
+  listBySellerMock,
+  createCouponRepositoryMock,
 } = vi.hoisted(() => ({
   findByCodeMock: vi.fn(),
+  findByIdMock: vi.fn(),
   countUsageByUserMock: vi.fn(),
   recordUsageMock: vi.fn(),
   incrementUsageMock: vi.fn(),
+  createMock: vi.fn(),
+  updateMock: vi.fn(),
+  listBySellerMock: vi.fn(),
+  createCouponRepositoryMock: vi.fn(),
 }))
 
 vi.mock('../../../api/repositories/coupon.repository', () => ({
-  createCouponRepository: () => ({
-    findByCode: findByCodeMock,
-    countUsageByUser: countUsageByUserMock,
-    recordUsage: recordUsageMock,
-    incrementUsage: incrementUsageMock,
-  }),
+  createCouponRepository: (...args: unknown[]) => {
+    createCouponRepositoryMock(...args)
+    return {
+      findByCode: findByCodeMock,
+      findById: findByIdMock,
+      countUsageByUser: countUsageByUserMock,
+      recordUsage: recordUsageMock,
+      incrementUsage: incrementUsageMock,
+      create: createMock,
+      update: updateMock,
+      listBySeller: listBySellerMock,
+    }
+  },
 }))
 
 function makeCoupon(overrides: Record<string, unknown> = {}) {
@@ -120,5 +137,156 @@ describe('coupon.service.applyCoupon', () => {
     expect(recordUsageMock).toHaveBeenCalledWith('coupon-1', 'user-1', 'order-1')
     expect(incrementUsageMock).toHaveBeenCalledWith('coupon-1')
     expect(transactionMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs inside the caller tx (no new $transaction) when tx is provided', async () => {
+    recordUsageMock.mockResolvedValue({ id: 'usage-1' })
+    incrementUsageMock.mockResolvedValue({ id: 'coupon-1', usageCount: 1 })
+    const transactionMock = vi.fn()
+    const prisma = { $transaction: transactionMock } as never
+    const service = createCouponService({ prisma })
+    const tx = {} as never
+
+    await service.applyCoupon({
+      couponId: 'coupon-1',
+      userId: 'user-1',
+      orderId: 'order-1',
+      tx,
+    })
+
+    expect(transactionMock).not.toHaveBeenCalled()
+    // The repo is re-instantiated bound to `tx` (closure-scoped), so the
+    // individual recordUsage/incrementUsage calls don't need a per-call tx arg.
+    expect(recordUsageMock).toHaveBeenCalledWith('coupon-1', 'user-1', 'order-1')
+    expect(incrementUsageMock).toHaveBeenCalledWith('coupon-1')
+    // Confirm the tx-scoped repository instance was actually built from `tx`.
+    expect(createCouponRepositoryMock).toHaveBeenLastCalledWith(tx)
+  })
+})
+
+describe('coupon.service.createSellerCoupon', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('normalizes the code to uppercase/trimmed and creates the coupon', async () => {
+    findByCodeMock.mockResolvedValue(null)
+    createMock.mockImplementation((data: Record<string, unknown>) => ({ id: 'coupon-new', ...data }))
+    const service = createCouponService({ prisma: {} as never })
+
+    const coupon = await service.createSellerCoupon({
+      sellerId: 'seller-1',
+      code: '  summer10  ',
+      discountType: 'percentage',
+      discountValue: 10,
+    })
+
+    expect(findByCodeMock).toHaveBeenCalledWith('SUMMER10')
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'SUMMER10', sellerId: 'seller-1', discountType: 'percentage', discountValue: 10 }),
+    )
+    expect((coupon as { code: string }).code).toBe('SUMMER10')
+  })
+
+  it('rejects a duplicate code', async () => {
+    findByCodeMock.mockResolvedValue({ id: 'existing-coupon', code: 'DUPE10' })
+    const service = createCouponService({ prisma: {} as never })
+
+    await expect(
+      service.createSellerCoupon({
+        sellerId: 'seller-1',
+        code: 'DUPE10',
+        discountType: 'fixed_amount',
+        discountValue: 50,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError)
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a percentage discount outside 1-100', async () => {
+    const service = createCouponService({ prisma: {} as never })
+    await expect(
+      service.createSellerCoupon({
+        sellerId: 'seller-1',
+        code: 'BAD100',
+        discountType: 'percentage',
+        discountValue: 150,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('rejects a non-positive fixed discount', async () => {
+    const service = createCouponService({ prisma: {} as never })
+    await expect(
+      service.createSellerCoupon({
+        sellerId: 'seller-1',
+        code: 'FREE0',
+        discountType: 'fixed_amount',
+        discountValue: 0,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('rejects an expiresAt date in the past', async () => {
+    findByCodeMock.mockResolvedValue(null)
+    const service = createCouponService({ prisma: {} as never })
+    await expect(
+      service.createSellerCoupon({
+        sellerId: 'seller-1',
+        code: 'OLD10',
+        discountType: 'percentage',
+        discountValue: 10,
+        expiresAt: new Date('2020-01-01'),
+      }),
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('rejects a maxUsageTotal below 1', async () => {
+    findByCodeMock.mockResolvedValue(null)
+    const service = createCouponService({ prisma: {} as never })
+    await expect(
+      service.createSellerCoupon({
+        sellerId: 'seller-1',
+        code: 'LIMIT0',
+        discountType: 'percentage',
+        discountValue: 10,
+        maxUsageTotal: 0,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+})
+
+describe('coupon.service.updateSellerCoupon', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('updates isActive/expiresAt/maxUsageTotal for the owning seller', async () => {
+    findByIdMock.mockResolvedValue({ id: 'coupon-1', sellerId: 'seller-1' })
+    updateMock.mockResolvedValue({ id: 'coupon-1', isActive: false })
+    const service = createCouponService({ prisma: {} as never })
+
+    await service.updateSellerCoupon({ sellerId: 'seller-1', couponId: 'coupon-1', isActive: false })
+
+    expect(updateMock).toHaveBeenCalledWith('coupon-1', { isActive: false })
+  })
+
+  it('throws NotFoundError when the coupon belongs to a different seller (no existence leak)', async () => {
+    findByIdMock.mockResolvedValue({ id: 'coupon-1', sellerId: 'seller-OTHER' })
+    const service = createCouponService({ prisma: {} as never })
+
+    await expect(
+      service.updateSellerCoupon({ sellerId: 'seller-1', couponId: 'coupon-1', isActive: false }),
+    ).rejects.toBeInstanceOf(NotFoundError)
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('throws NotFoundError when the coupon does not exist', async () => {
+    findByIdMock.mockResolvedValue(null)
+    const service = createCouponService({ prisma: {} as never })
+
+    await expect(
+      service.updateSellerCoupon({ sellerId: 'seller-1', couponId: 'missing', isActive: false }),
+    ).rejects.toBeInstanceOf(NotFoundError)
   })
 })

@@ -109,9 +109,9 @@ describe('net payout formula — real marketplace scenarios', () => {
     }
   }
 
-  it('scenario: normal sale with 15% commission', () => {
-    // Bambu Raf Sistemi: gross 1299, commission 194.85 (15%)
-    const commission = calculateCommission(new Decimal(1299), new Decimal('0.15'))
+  it('scenario: normal sale with 15% commission (historical KDV-exclusive parity, vatRate=0)', () => {
+    // Bambu Raf Sistemi: gross 1299, commission 194.85 (15%, no VAT)
+    const commission = calculateCommission(new Decimal(1299), new Decimal('0.15'), new Decimal(0))
     const net = calculateNetPayout(
       makeComponents({
         grossAmount: new Decimal(1299),
@@ -119,6 +119,19 @@ describe('net payout formula — real marketplace scenarios', () => {
       }),
     )
     expect(net.toNumber()).toBeCloseTo(1104.15, 1)
+  })
+
+  it('scenario: KDV dahil komisyon — reference example (52.690 → 8.535,78 → 38.885,22)', () => {
+    // Satıcı kuponu ile: base 47.421 (52.690 - 5.269 kupon payı), %15 komisyon, %20 KDV
+    const commission = calculateCommission(new Decimal(47421), new Decimal('0.15'), new Decimal('0.20'))
+    expect(commission.toNumber()).toBe(8535.78)
+    const net = calculateNetPayout(
+      makeComponents({
+        grossAmount: new Decimal(47421),
+        commissionAmount: commission,
+      }),
+    )
+    expect(net.toNumber()).toBeCloseTo(38885.22, 2)
   })
 
   it('scenario: sale with cargo chargeback', () => {

@@ -85,20 +85,66 @@ resolved rate.
 ### Calculation formula
 
 ```
-commissionAmount = orderLine.totalPrice × commissionRate
+commissionBase   = OrderLine.totalPrice − OrderLine.couponDiscountAmount
+commissionAmount = roundMoney(commissionBase × commissionRate × (1 + commissionVatRate))
 ```
 
-**The commission base is `OrderLine.totalPrice`, which is the KDV-inclusive (VAT-inclusive)
-gross product amount for that line.** It is the price the customer paid for the product
-line — including tax — before any shipping or coupon adjustments.
+**The commission base is the KDV-inclusive (VAT-inclusive) amount the customer actually
+paid for that line** — that is `OrderLine.totalPrice` (KDV-inclusive gross snapshot) minus
+any seller-coupon discount allocated to the line (`OrderLine.couponDiscountAmount`).
 
 Commission is calculated on the KDV-inclusive price. This is the agreed platform policy.
 Do not calculate commission on KDV-exclusive (net) amounts unless this document explicitly
 changes that rule.
 
-Coupon discounts and EFT channel discounts do NOT reduce the commission base.
-`OrderLine.totalPrice` is the pre-discount gross; any discount adjustment is a separate
-financial element that Hanuja absorbs at the platform level (see EFT discount policy below).
+### Commission is charged KDV-inclusive
+
+The commission deduction itself carries KDV. The applied rate is grossed up by
+`commissionVatRate`:
+
+```
+commissionAmount = roundMoney(commissionBase × commissionRate × (1 + commissionVatRate))
+```
+
+`commissionVatRate` is stored in `PlatformSettings.commissionVatRate` (default `0.2000` =
+20%). It must not be a hardcoded constant. Final money amounts use `roundMoney`
+(see `packages/security/src/money.ts`).
+
+### Which discounts reduce the commission base
+
+- **Seller coupon** (`Coupon.sellerId` set): the coupon discount is distributed
+  proportionally across that seller's order lines into `OrderLine.couponDiscountAmount`
+  and **reduces the commission base**. The seller bears the coupon cost.
+- **Seller discount rule** (`DiscountRule`): reduces the sale price directly, so
+  `OrderLine.totalPrice` is already the discounted price and commission is naturally
+  computed on it. No separate share allocation is performed.
+- **Platform coupon** (`Coupon.sellerId` null) and **EFT channel discount**
+  (`Order.eftDiscountAmount`): absorbed by Hanuja. Line snapshots stay at full price;
+  these do NOT reduce the commission base or the seller payout (see EFT discount policy
+  below and `payout-policy.md` §6).
+
+### Cutover
+
+The KDV-inclusive commission and the seller-coupon base reduction apply to **new orders
+only** (snapshotted at order time). Orders confirmed before 2026-07-09 keep their original
+KDV-exclusive commission snapshot; reconciliation treats those historical records with the
+old formula (see `docs/07-operations/reconciliation-process.md`).
+
+### Worked example — seller coupon + KDV-inclusive commission
+
+- Product price (KDV-inclusive): `52.690,00 TL` → `OrderLine.totalPrice`
+- Seller coupon allocated to the line: `5.269,00 TL` → `OrderLine.couponDiscountAmount`
+- Customer pays for the line: `52.690,00 − 5.269,00 = 47.421,00 TL`
+- Commission rate: `%15` (`0.1500`); `commissionVatRate = 0.2000`
+
+```
+commissionBase   = 52.690,00 − 5.269,00                = 47.421,00 TL
+commissionAmount = 47.421,00 × 0,15 × 1,20             =  8.535,78 TL
+netPayoutAmount  = 52.690,00 − 5.269,00 − 8.535,78     = 38.885,22 TL
+```
+
+The seller absorbs both the coupon (`5.269,00`) and the KDV-inclusive commission
+(`8.535,78`), receiving `38.885,22 TL` net for that line.
 
 ### Relationship to net payout
 
@@ -116,9 +162,16 @@ net_payout = gross_product_amount
            - other_valid_offsets
 ```
 
-The `OrderLine.netPayoutAmount` field stores the pre-calculated net payout for that line
-at order creation time. This value must be recalculated if a coupon share, cargo charge,
-or other deduction is applied after confirmation (for example, via admin adjustment).
+For a seller-coupon line, `coupon_share_effect` is `OrderLine.couponDiscountAmount`
+(aggregated into `Payout.couponShareAmount`). The `OrderLine.netPayoutAmount` field stores
+the pre-calculated net payout for that line at order creation time:
+
+```
+OrderLine.netPayoutAmount = totalPrice − couponDiscountAmount − commissionAmount
+```
+
+This value must be recalculated if a cargo charge or other deduction is applied after
+confirmation (for example, via admin adjustment).
 
 ---
 

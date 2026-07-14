@@ -82,4 +82,26 @@ describe('seller statement export rows', () => {
       Bakiye: '424,75',
     })
   })
+
+  it('formats statement rows using the Istanbul calendar day', () => {
+    const rows = buildSellerStatementExportRows({
+      from: new Date('2026-07-05T21:00:00.000Z'),
+      openingBalance: 0,
+      rows: [
+        {
+          id: 'row-midnight',
+          date: new Date('2026-07-05T21:30:00.000Z'),
+          reference: '#MIDNIGHT',
+          topic: 'Satış',
+          description: 'Gece satışı',
+          credit: 100,
+          debit: 0,
+          balance: 100,
+        },
+      ],
+    })
+
+    expect(rows[0]?.Tarih).toBe('06.07.2026')
+    expect(rows[1]?.Tarih).toBe('06.07.2026')
+  })
 })

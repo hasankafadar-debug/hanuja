@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { toReportingDateOnly } from '../lib/reporting-time'
 
 export type ProductAnalyticsEventName = 'product_view' | 'cart_add' | 'favorite_add'
 
@@ -46,10 +47,6 @@ const CONVERTED_ORDER_STATUSES = [
   'refund_completed',
 ] as const
 
-function toUtcDateOnly(value: Date) {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()))
-}
-
 function addCustomer(target: Map<string, Set<string>>, productId: string, userId?: string | null) {
   if (!userId) return
   const customers = target.get(productId) ?? new Set<string>()
@@ -87,7 +84,7 @@ export function createProductAnalyticsService({ prisma }: ProductAnalyticsServic
         return { recorded: false }
       }
 
-      const eventDate = toUtcDateOnly(params.occurredAt ?? new Date())
+      const eventDate = toReportingDateOnly(params.occurredAt ?? new Date())
 
       await prisma.productAnalyticsEvent.upsert({
         where: {
@@ -117,13 +114,7 @@ export function createProductAnalyticsService({ prisma }: ProductAnalyticsServic
       to: Date
     }): Promise<SellerProductReport> {
       const from = new Date(params.from)
-      from.setUTCHours(0, 0, 0, 0)
-
       const to = new Date(params.to)
-      to.setUTCHours(23, 59, 59, 999)
-
-      const eventFrom = toUtcDateOnly(from)
-      const eventTo = toUtcDateOnly(to)
 
       const products = await prisma.product.findMany({
         where: { sellerId: params.sellerId },
@@ -159,7 +150,7 @@ export function createProductAnalyticsService({ prisma }: ProductAnalyticsServic
         prisma.productAnalyticsEvent.findMany({
           where: {
             sellerId: params.sellerId,
-            eventDate: { gte: eventFrom, lte: eventTo },
+            createdAt: { gte: from, lte: to },
           },
           select: {
             productId: true,

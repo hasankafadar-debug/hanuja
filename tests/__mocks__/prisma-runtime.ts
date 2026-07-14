@@ -69,6 +69,13 @@ export class Decimal {
   }
 
   static ROUND_DOWN = 1
+  static ROUND_HALF_UP = 4
+
+  comparedTo(other: Decimal | string | number): number {
+    const o = other instanceof Decimal ? other.value : parseFloat(String(other))
+    if (this.value === o) return 0
+    return this.value > o ? 1 : -1
+  }
 
   toNumber(): number {
     return this.value
@@ -151,5 +158,11 @@ export class Decimal {
     const leftValue = left instanceof Decimal ? left.value : parseFloat(String(left))
     const rightValue = right instanceof Decimal ? right.value : parseFloat(String(right))
     return new Decimal(Math.max(leftValue, rightValue))
+  }
+
+  static min(left: Decimal | string | number, right: Decimal | string | number): Decimal {
+    const leftValue = left instanceof Decimal ? left.value : parseFloat(String(left))
+    const rightValue = right instanceof Decimal ? right.value : parseFloat(String(right))
+    return new Decimal(Math.min(leftValue, rightValue))
   }
 }

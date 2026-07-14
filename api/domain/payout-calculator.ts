@@ -32,6 +32,11 @@ export interface PayoutSnapshotLine {
    * See docs/01-business/payout-policy.md — Komisyon muafiyeti.
    */
   commissionExemptedAt?: Date | null
+  /**
+   * Satır bazında satıcı kuponu payı snapshot'ı (OrderLine.couponDiscountAmount).
+   * Yalnız satıcı kuponunda > 0 olur; platform kuponunda 0 kalır.
+   */
+  couponDiscountAmount?: Decimal | null
 }
 
 /**
@@ -81,11 +86,72 @@ export function resolveCommissionRate(
 }
 
 /**
- * Commission base = OrderLine.totalPrice (KDV dahil, pre-discount gross).
- * This is the agreed platform policy: commission is calculated on the KDV-inclusive price.
+ * Commission base = customer-paid line amount (KDV dahil, satıcı kuponu indirimi
+ * düşülmüş). Seller-scoped kupon indirimi komisyon tabanını düşürür; platform
+ * kuponu satır snapshot'larını etkilemez (bkz. allocateCouponDiscount).
+ *
+ * Komisyon kesintisi KDV DAHİL (07-marketplace-finance-rules.md):
+ *   commissionAmount = roundMoney(base × rate × (1 + vatRate))
+ * `vatRate` mutlaka PlatformSettings.commissionVatRate'ten gelmeli — hardcode etme.
  */
-export function calculateCommission(grossAmount: Decimal, rate: Decimal): Decimal {
-  return roundMoney(grossAmount.mul(rate))
+export function calculateCommission(base: Decimal, rate: Decimal, vatRate: Decimal): Decimal {
+  return roundMoney(base.mul(rate).mul(vatRate.plus(1)))
+}
+
+/**
+ * Bir satıcı-scope'lu kupon indirimini o satıcının sipariş satırlarına, satır
+ * totalPrice'ına oransal olarak dağıtır. Largest-remainder yöntemiyle kuruş
+ * farksız toplam eşitliği garanti edilir (sum(sonuç) === totalDiscount).
+ *
+ * Platform kuponunda (Coupon.sellerId null) bu fonksiyon hiç çağrılmaz — satır
+ * snapshot'ları tam fiyat üzerinden kalır, indirim maliyetini platform emer.
+ *
+ * Kenar durumlar: boş satır listesi, sıfır/negatif indirim, indirim > satır
+ * toplamı (indirim satır toplamına clamp edilir) güvenle ele alınır.
+ */
+export function allocateCouponDiscount(
+  lines: { totalPrice: Decimal }[],
+  totalDiscount: Decimal,
+): Decimal[] {
+  const zero = new Decimal(0)
+  if (lines.length === 0) return []
+  if (totalDiscount.lte(0)) return lines.map(() => zero)
+
+  const sumTotalPrice = lines.reduce((sum, line) => sum.plus(line.totalPrice), zero)
+  if (sumTotalPrice.lte(0)) return lines.map(() => zero)
+
+  // İndirim satır toplamını asla aşmasın — savunmacı clamp.
+  const clampedDiscount = Decimal.min(totalDiscount, sumTotalPrice)
+
+  // Kuruş bazında (×100) tam sayı payları üzerinden largest-remainder uygula.
+  const totalCents = clampedDiscount.mul(100).toDecimalPlaces(0, Decimal.ROUND_HALF_UP)
+
+  const rawShares = lines.map((line) => {
+    const shareCents = line.totalPrice.mul(totalCents).div(sumTotalPrice)
+    const flooredCents = shareCents.toDecimalPlaces(0, Decimal.ROUND_DOWN)
+    return {
+      flooredCents,
+      remainder: shareCents.minus(flooredCents),
+    }
+  })
+
+  const allocatedCents = rawShares.reduce((sum, share) => sum.plus(share.flooredCents), zero)
+  let remainingCents = totalCents.minus(allocatedCents).toNumber()
+
+  // Kalan kuruşları en büyük kesirli kalana sahip satırlara sırayla dağıt
+  // (largest-remainder method) — toplam kuruşu kuruşuna eşitlenir.
+  const order = rawShares
+    .map((share, index) => ({ index, remainder: share.remainder }))
+    .sort((a, b) => b.remainder.comparedTo(a.remainder))
+
+  const finalCents = rawShares.map((share) => share.flooredCents)
+  for (let i = 0; i < order.length && remainingCents > 0; i++) {
+    const idx = order[i]!.index
+    finalCents[idx] = finalCents[idx]!.plus(1)
+    remainingCents -= 1
+  }
+
+  return finalCents.map((cents) => cents.div(100).toDecimalPlaces(2))
 }
 
 /**
@@ -114,12 +180,14 @@ export function sumPayoutSnapshot(lines: PayoutSnapshotLine[]) {
         grossAmount: totals.grossAmount.plus(line.totalPrice),
         commissionAmount: totals.commissionAmount.plus(lineCommission),
         netAmount: totals.netAmount.plus(lineNet),
+        couponShareAmount: totals.couponShareAmount.plus(line.couponDiscountAmount ?? zero),
       }
     },
     {
       grossAmount: new Decimal(0),
       commissionAmount: new Decimal(0),
       netAmount: new Decimal(0),
+      couponShareAmount: new Decimal(0),
     },
   )
 }

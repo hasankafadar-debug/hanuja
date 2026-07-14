@@ -16,9 +16,52 @@ export interface PayoutMaturityJobData {
   batchSize?: number
 }
 
+/**
+ * Safety-net sweep: finds orders stuck at delivery_confirmed with no Payout
+ * record (activateHold chain interrupted — e.g. a crash between
+ * setDeliveryConfirmed and activateHold) and self-heals them.
+ *
+ * Idempotent (activateHold no-ops if a payout already exists) and resilient —
+ * a failure on one order is logged and does not stop the sweep from
+ * processing the rest. See .claude/rules/12-production-readiness.md §9,
+ * repair-missing-payouts.ts (one-off backfill for pre-existing gaps).
+ */
+async function sweepMissingPayouts(payoutRepo: ReturnType<typeof createPayoutRepository>, payoutSvc: ReturnType<typeof createPayoutService>) {
+  let repaired = 0
+  let failed = 0
+
+  const orphaned = await payoutRepo.findDeliveryConfirmedOrdersMissingPayout()
+  for (const order of orphaned) {
+    const deliveryConfirmedAt = order.deliveryConfirmedAt ?? order.updatedAt
+    try {
+      await payoutSvc.activateHold({ orderId: order.id, deliveryConfirmedAt })
+      console.warn(
+        `[payout-maturity] sweep: repaired missing payout for order #${order.publicNumber} (${order.id}), holdStartedAt=${deliveryConfirmedAt.toISOString()}`,
+      )
+      repaired++
+    } catch (error) {
+      console.error(
+        `[payout-maturity] sweep: failed to repair order #${order.publicNumber} (${order.id})`,
+        error,
+      )
+      failed++
+    }
+  }
+
+  if (repaired > 0 || failed > 0) {
+    console.warn(`[payout-maturity] sweep summary — repaired: ${repaired}, failed: ${failed}`)
+  }
+
+  return { repaired, failed }
+}
+
 async function processPayoutMaturity(_job: Job<PayoutMaturityJobData>) {
   const payoutRepo = createPayoutRepository(prisma)
   const payoutSvc = createPayoutService({ prisma })
+
+  // Self-healing sweep runs first so any newly-repaired payouts are eligible
+  // for the same maturity pass below.
+  await sweepMissingPayouts(payoutRepo, payoutSvc)
 
   const readyCandidates = await payoutRepo.findReadyForRelease()
 

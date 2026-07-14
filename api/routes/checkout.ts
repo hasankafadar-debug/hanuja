@@ -25,6 +25,7 @@ export type CreateOrderInput = z.infer<typeof createOrderSchema>
 
 const contractsPreviewSchema = z.object({
   addressId: z.string().min(1, 'Adres secimi zorunludur'),
+  billingAddressId: z.string().min(1).optional(),
   paymentMethod: z.enum(['card', 'eft']).default('card'),
 })
 
@@ -88,6 +89,7 @@ export async function getContractsPreview(req: NextRequest, userId: string) {
   try {
     const query = contractsPreviewSchema.parse({
       addressId: req.nextUrl.searchParams.get('addressId'),
+      billingAddressId: req.nextUrl.searchParams.get('billingAddressId') ?? undefined,
       paymentMethod: req.nextUrl.searchParams.get('paymentMethod') ?? 'card',
     })
 
@@ -95,6 +97,7 @@ export async function getContractsPreview(req: NextRequest, userId: string) {
     const contracts = await svc.previewLegalDocuments({
       userId,
       addressId: query.addressId,
+      ...(query.billingAddressId ? { billingAddressId: query.billingAddressId } : {}),
       paymentMethod: query.paymentMethod,
     })
 

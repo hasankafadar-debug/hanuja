@@ -11,6 +11,8 @@ import {
   isHoldExpired,
   resolveCommissionRate,
   calculateCommission,
+  allocateCouponDiscount,
+  sumPayoutSnapshot,
   type PayoutComponents,
 } from '../../../api/domain/payout-calculator'
 
@@ -203,23 +205,147 @@ describe('resolveCommissionRate — CLAUDE.md §15.1 priority order', () => {
   })
 })
 
-// ─── calculateCommission ──────────────────────────────────────────────────────
+// ─── calculateCommission — KDV DAHİL (07-marketplace-finance-rules.md) ────────
+// commissionAmount = roundMoney(base × rate × (1 + vatRate))
 
-describe('calculateCommission', () => {
-  it('calculates 15% commission on ₺1000', () => {
-    expect(calculateCommission(new Decimal(1000), new Decimal('0.15')).toNumber()).toBe(150)
+describe('calculateCommission — KDV dahil', () => {
+  const VAT_20 = new Decimal('0.20')
+
+  it('calculates 15% commission + %20 KDV on ₺1000 → 180', () => {
+    // 1000 * 0.15 * 1.20 = 180
+    expect(calculateCommission(new Decimal(1000), new Decimal('0.15'), VAT_20).toNumber()).toBe(180)
   })
 
-  it('calculates 15% commission on ₺1299 (Bambu Raf example)', () => {
-    expect(calculateCommission(new Decimal(1299), new Decimal('0.15')).toNumber()).toBe(194.85)
+  it('calculates 15% commission + %20 KDV on ₺1299 (Bambu Raf example)', () => {
+    // 1299 * 0.15 * 1.20 = 233.82
+    expect(calculateCommission(new Decimal(1299), new Decimal('0.15'), VAT_20).toNumber()).toBe(233.82)
   })
 
   it('rounds to 2 decimal places', () => {
-    // 333 * 0.15 = 49.95 — exact 2dp
-    expect(calculateCommission(new Decimal(333), new Decimal('0.15')).toNumber()).toBe(49.95)
+    // 333 * 0.15 * 1.20 = 59.94
+    expect(calculateCommission(new Decimal(333), new Decimal('0.15'), VAT_20).toNumber()).toBe(59.94)
   })
 
-  it('returns 0 commission for 0 gross', () => {
-    expect(calculateCommission(new Decimal(0), new Decimal('0.15')).toNumber()).toBe(0)
+  it('returns 0 commission for 0 base', () => {
+    expect(calculateCommission(new Decimal(0), new Decimal('0.15'), VAT_20).toNumber()).toBe(0)
+  })
+
+  it('with vatRate 0, behaves like the old KDV-exclusive formula (historical parity)', () => {
+    expect(calculateCommission(new Decimal(1000), new Decimal('0.15'), new Decimal(0)).toNumber()).toBe(150)
+  })
+
+  it('reference example: 47.421 base, %15 rate, %20 KDV → 8.535,78', () => {
+    // 52.690 ürün, 5.269 kupon indirimi → müşteri öder 47.421 (komisyon tabanı)
+    const base = new Decimal(47421)
+    const commission = calculateCommission(base, new Decimal('0.15'), VAT_20)
+    expect(commission.toNumber()).toBe(8535.78)
+  })
+})
+
+// ─── allocateCouponDiscount — largest-remainder dağıtım ───────────────────────
+
+describe('allocateCouponDiscount', () => {
+  it('allocates the full discount to a single line', () => {
+    const shares = allocateCouponDiscount([{ totalPrice: new Decimal(1000) }], new Decimal(100))
+    expect(shares.map((s) => s.toNumber())).toEqual([100])
+  })
+
+  it('splits proportionally across multiple lines with exact penny total', () => {
+    const lines = [
+      { totalPrice: new Decimal(300) },
+      { totalPrice: new Decimal(700) },
+    ]
+    const shares = allocateCouponDiscount(lines, new Decimal(100))
+    expect(shares[0]!.toNumber()).toBe(30)
+    expect(shares[1]!.toNumber()).toBe(70)
+    const total = shares.reduce((sum, s) => sum.plus(s), new Decimal(0))
+    expect(total.toNumber()).toBe(100)
+  })
+
+  it('largest-remainder distributes rounding penny to no penny drift (3-way split)', () => {
+    // 100 / 3 lines of equal value → 33.33 each would sum to 99.99, not 100.
+    // Largest-remainder gives one line an extra 0.01 so the sum is exact.
+    const lines = [
+      { totalPrice: new Decimal(100) },
+      { totalPrice: new Decimal(100) },
+      { totalPrice: new Decimal(100) },
+    ]
+    const shares = allocateCouponDiscount(lines, new Decimal(100))
+    const total = shares.reduce((sum, s) => sum.plus(s), new Decimal(0))
+    expect(total.toNumber()).toBe(100)
+    // Two lines get 33.33, one gets 33.34 (or equivalent exact-sum distribution)
+    const sorted = shares.map((s) => s.toNumber()).sort((a, b) => a - b)
+    expect(sorted[0]).toBeCloseTo(33.33, 2)
+    expect(sorted[2]).toBeCloseTo(33.34, 2)
+  })
+
+  it('returns all zeros for empty discount', () => {
+    const lines = [{ totalPrice: new Decimal(500) }, { totalPrice: new Decimal(500) }]
+    const shares = allocateCouponDiscount(lines, new Decimal(0))
+    expect(shares.map((s) => s.toNumber())).toEqual([0, 0])
+  })
+
+  it('returns all zeros for negative discount (defensive)', () => {
+    const lines = [{ totalPrice: new Decimal(500) }]
+    const shares = allocateCouponDiscount(lines, new Decimal(-50))
+    expect(shares.map((s) => s.toNumber())).toEqual([0])
+  })
+
+  it('returns empty array for empty line list', () => {
+    expect(allocateCouponDiscount([], new Decimal(100))).toEqual([])
+  })
+
+  it('clamps discount to the sum of line totals when discount exceeds it', () => {
+    const lines = [{ totalPrice: new Decimal(100) }]
+    const shares = allocateCouponDiscount(lines, new Decimal(500))
+    expect(shares[0]!.toNumber()).toBe(100)
+  })
+
+  it('reference example: 52.690 product, 5.269 coupon discount allocated to one line', () => {
+    const shares = allocateCouponDiscount([{ totalPrice: new Decimal(52690) }], new Decimal(5269))
+    expect(shares[0]!.toNumber()).toBe(5269)
+  })
+})
+
+// ─── Reference example (end-to-end) — 52.690 → 8.535,78 → 38.885,22 ──────────
+// CLAUDE.md işbağlamı kararı: ürün 52.690,00; kupon indirimi 5.269,00;
+// müşteri öder 47.421,00; komisyon %15 → 47.421 × 0,15 × 1,20 = 8.535,78;
+// netPayout = 47.421 − 8.535,78 = 38.885,22.
+
+describe('reference example — satıcı kuponu + KDV dahil komisyon', () => {
+  it('matches the documented reference calculation exactly', () => {
+    const totalPrice = new Decimal(52690)
+    const couponDiscountAmount = allocateCouponDiscount(
+      [{ totalPrice }],
+      new Decimal(5269),
+    )[0]!
+    expect(couponDiscountAmount.toNumber()).toBe(5269)
+
+    const commissionBase = totalPrice.sub(couponDiscountAmount)
+    expect(commissionBase.toNumber()).toBe(47421)
+
+    const commissionAmount = calculateCommission(
+      commissionBase,
+      new Decimal('0.15'),
+      new Decimal('0.20'),
+    )
+    expect(commissionAmount.toNumber()).toBe(8535.78)
+
+    const netPayoutAmount = commissionBase.sub(commissionAmount)
+    expect(netPayoutAmount.toNumber()).toBeCloseTo(38885.22, 2)
+
+    // sumPayoutSnapshot aggregation matches the same line-level math
+    const snapshot = sumPayoutSnapshot([
+      {
+        totalPrice,
+        commissionAmount,
+        netPayoutAmount,
+        couponDiscountAmount,
+      },
+    ])
+    expect(snapshot.grossAmount.toNumber()).toBe(52690)
+    expect(snapshot.couponShareAmount.toNumber()).toBe(5269)
+    expect(snapshot.commissionAmount.toNumber()).toBe(8535.78)
+    expect(snapshot.netAmount.toNumber()).toBeCloseTo(38885.22, 2)
   })
 })

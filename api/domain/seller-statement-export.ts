@@ -1,4 +1,5 @@
 import type { SellerStatementRow } from './seller-statement'
+import { formatReportingDate } from '../lib/reporting-time'
 
 export const SELLER_STATEMENT_EXPORT_HEADERS = [
   'Tarih',
@@ -15,11 +16,11 @@ export type SellerStatementExportHeader = (typeof SELLER_STATEMENT_EXPORT_HEADER
 export type SellerStatementExportRow = Record<SellerStatementExportHeader, string>
 
 export function formatSellerStatementDate(date: Date) {
-  return new Intl.DateTimeFormat('tr-TR', {
+  return formatReportingDate(date, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-  }).format(date)
+  })
 }
 
 export function formatSellerStatementAmount(value: number) {

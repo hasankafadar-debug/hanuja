@@ -120,12 +120,30 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
       // Resolve payout IDs that correspond to the source order so we can unhide
       // commission accrual entries (which reference payoutId, not orderId).
       let linkedPayoutIds: string[] = []
+      let alreadyAccruedCommissionAmount = new Decimal(0)
       if (params.type === 'commission' && params.sourceOrderId) {
         const payouts = await prisma.payout.findMany({
           where: { orderId: params.sourceOrderId },
-          select: { id: true },
+          select: { id: true, commissionAmount: true },
         })
         linkedPayoutIds = payouts.map((p) => p.id)
+        // KDV çifte-ekleme kontrolü (07-marketplace-finance-rules.md — komisyon
+        // tabanı KDV dahil): commissionVatRate cutover'ından (2026-07-09) sonra
+        // oluşturulan siparişlerde Payout.commissionAmount / OrderLine.commissionAmount
+        // ARTIK KDV DAHİL — accrual anında (payout.service.activateHold) yazılan
+        // `commission` ledger entry zaten tam KDV'li tutarı içerir. Cutover
+        // öncesi (tarihi) siparişlerde ise bu tutar KDV'siz (net) idi ve KDV
+        // ayrıca bu fatura akışında eklenirdi. Aşağıdaki `alreadyAccruedCommissionAmount`
+        // her iki rejimde de doğru sonuç verir çünkü ledger'a yazılacak tutar
+        // grossInvoiceAmount'tan bu değer düşülerek (residual/top-up yöntemi)
+        // hesaplanır — accrual'da KDV dahil yazılmışsa top-up ~0'a yakın çıkar,
+        // KDV'siz yazılmışsa top-up tam KDV payını tamamlar. Böylece iki adımın
+        // (accrual + fatura) toplamı her zaman grossInvoiceAmount'a eşitlenir,
+        // KDV asla iki kez eklenmez.
+        alreadyAccruedCommissionAmount = payouts.reduce(
+          (sum, p) => sum.plus(p.commissionAmount),
+          new Decimal(0),
+        )
       }
 
       return prisma.$transaction(async (tx) => {
@@ -189,15 +207,33 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
           })
         }
 
-        // VAT ledger entry — debits the seller for the VAT portion of the
-        // invoice. Net commission/penalty was already debited at accrual time
-        // (and just made visible above). VAT amount is 0 for penalty invoices.
+        // Ledger top-up entry — debits the seller for whatever portion of
+        // grossInvoiceAmount was NOT already debited at accrual time (residual
+        // / "top-up" method, not a blind vatAmount debit — see the KDV
+        // double-counting comment above `alreadyAccruedCommissionAmount`).
+        //
+        // - Commission invoices WITH a sourceOrderId: ledgerTopUp = grossInvoiceAmount
+        //   − alreadyAccruedCommissionAmount. Post-cutover orders already accrued
+        //   the full KDV-inclusive commission at payout.activateHold time, so this
+        //   is ~0 (no double VAT debit). Pre-cutover (historical) orders accrued
+        //   only the KDV-exclusive net, so this correctly resolves to the VAT
+        //   portion — unchanged behavior for historical records.
+        // - Commission invoices WITHOUT a sourceOrderId (ad-hoc) and all penalty
+        //   invoices: nothing was accrued elsewhere for this invoice, so the
+        //   pre-existing vatAmount-only debit is preserved (0 for penalties by
+        //   default, per DEFAULT_VAT_RATE).
         const previousBalanceAgg = await tx.sellerLedgerEntry.aggregate({
           where: { sellerId: params.sellerId },
           _sum: { amount: true },
         })
         const previousBalance = previousBalanceAgg._sum.amount ?? new Decimal(0)
-        const vatLedgerAmount = vatAmount.greaterThan(0) ? vatAmount.negated() : new Decimal(0)
+        const ledgerTopUpAmount =
+          params.type === 'commission' && params.sourceOrderId
+            ? roundMoney(grossInvoiceAmount.minus(alreadyAccruedCommissionAmount))
+            : vatAmount
+        const vatLedgerAmount = ledgerTopUpAmount.greaterThan(0)
+          ? ledgerTopUpAmount.negated()
+          : new Decimal(0)
         const balanceAfter = previousBalance.plus(vatLedgerAmount)
 
         await tx.sellerLedgerEntry.create({

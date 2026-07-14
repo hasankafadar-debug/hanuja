@@ -74,8 +74,11 @@ Her `payment_confirmed` ödeme için:
 Her `OrderLine` için:
 
 - `unitPrice * quantity = totalPrice` doğrulanmalı
-- `commissionAmount = totalPrice * commissionRate` eşleşmeli
-- `netPayoutAmount = totalPrice - commissionAmount` eşleşmeli
+- **2026-07-09 ve sonrası siparişler:** `commissionBase = totalPrice - couponDiscountAmount`;
+  `commissionAmount = roundMoney(commissionBase * commissionRate * (1 + commissionVatRate))`
+  eşleşmeli; `netPayoutAmount = totalPrice - couponDiscountAmount - commissionAmount` eşleşmeli
+- **2026-07-09 öncesi siparişler:** `commissionAmount = totalPrice * commissionRate` (KDV'siz);
+  `netPayoutAmount = totalPrice - commissionAmount` eşleşmeli (bkz. §11 tarihi kayıt notu)
 - Buna karşılık gelen bir `Payout.grossAmount` kaydı olmalı
 
 ### 4.3 Payout — Ledger Tutarlılığı
@@ -262,6 +265,20 @@ Chargeback gerçekleşirse:
 - Uyarı kapatma aksiyonu `AdminAuditLog`'a kaydedilir
 - Ledger tutarlılık koşulu `balanceAfter` zinciriyle kod seviyesinde doğrulanabilir olmalıdır
 - Payout batch işlemi kısmi başarısızlık senaryosunu destekler; başarısızlık geri alınamaz batch onaylarını etkilemez
+
+### Komisyon KDV cutover'ı (2026-07-09)
+
+2026-07-09'dan itibaren komisyon KDV-dahil hesaplanır ve satıcı kuponu komisyon tabanını
+düşürür (taban = `OrderLine.totalPrice - OrderLine.couponDiscountAmount`,
+`commissionAmount = roundMoney(taban × commissionRate × (1 + commissionVatRate))`). Yeni
+formüller yalnızca sipariş anında snapshot alınan **yeni** siparişlerde geçerlidir.
+
+Cutover öncesi (2026-07-09'dan önce) onaylanmış siparişlerin komisyon snapshot'ları
+**KDV'siz** oranla yazıldı. Mutabakatta bu dönem kayıtları için beklenen değer
+`commissionAmount = commissionBase × commissionRate` (KDV çarpanı **yok**) olmalıdır; bu
+kayıtlar `(1 + commissionVatRate)` çarpanıyla yeniden hesaplanmaya çalışılmamalıdır. Satıcı
+kuponu bulunmayan tarihi kayıtlarda taban `OrderLine.totalPrice`'a eşittir. Bkz.
+`docs/01-business/commission-policy.md`, `.claude/rules/12-production-readiness.md`.
 
 ### Yuvarlama cutover'ı (2026-07-03)
 

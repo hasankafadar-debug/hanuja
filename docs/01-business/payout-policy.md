@@ -160,6 +160,44 @@ Each component is stored as a separate field in the `Payout` model:
 The `netAmount` must never be calculated as a single shortcut value. It must be derivable
 from the individual fields above.
 
+### `couponShareAmount` — seller coupon cost
+
+`Payout.couponShareAmount` is a **real deduction**, not a placeholder. When a customer uses a
+seller coupon (`Coupon.sellerId` set), the coupon discount is distributed proportionally
+across that seller's order lines into `OrderLine.couponDiscountAmount`, and:
+
+```
+Payout.couponShareAmount = sum(OrderLine.couponDiscountAmount)
+```
+
+At the line level:
+
+```
+OrderLine.netPayoutAmount = totalPrice − couponDiscountAmount − commissionAmount
+```
+
+The seller coupon also reduces the commission base (commission is charged on
+`totalPrice − couponDiscountAmount`, KDV-inclusive). See `commission-policy.md`.
+
+### Worked example
+
+- `OrderLine.totalPrice` = `52.690,00 TL`
+- Seller coupon allocated (`couponDiscountAmount`) = `5.269,00 TL`
+- Commission rate `%15`, `commissionVatRate = 0.2000`
+
+```
+commissionBase   = 52.690,00 − 5.269,00               = 47.421,00 TL
+commissionAmount = 47.421,00 × 0,15 × 1,20            =  8.535,78 TL
+netPayoutAmount  = 52.690,00 − 5.269,00 − 8.535,78    = 38.885,22 TL
+```
+
+### Platform coupon and EFT discount exception
+
+A platform coupon (`Coupon.sellerId` null) and the EFT channel discount
+(`Order.eftDiscountAmount`) are absorbed by Hanuja. They do NOT populate
+`couponShareAmount`, do NOT reduce `grossAmount`, and do NOT reduce `netAmount`. Line
+snapshots remain at full price (see §12).
+
 ---
 
 ## 7. Seller Ledger

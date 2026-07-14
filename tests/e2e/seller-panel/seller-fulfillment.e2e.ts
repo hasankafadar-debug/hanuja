@@ -248,13 +248,46 @@ test.describe('ödemeler — hold/ready/paid ayırımı', () => {
     await expect(page.getByTestId('stat-card').first()).toBeVisible()
   })
 
-  test('komisyon kaydı ledger tablosunda görünüyor', async ({ page }) => {
+  test('hakediş tablosu yeni kolon başlıklarını gösteriyor', async ({ page }) => {
     await page.goto('/odemeler')
     await page.waitForLoadState('networkidle')
     await expect(page.getByTestId('seller-payouts-page')).toBeVisible()
     const table = page.getByRole('table')
     if (await table.isVisible()) {
-      await expect(page.getByText(/Komisyon/i)).toBeVisible()
+      await expect(page.getByRole('columnheader', { name: 'Tarih' })).toBeVisible()
+      await expect(page.getByRole('columnheader', { name: 'Sipariş No' })).toBeVisible()
+      await expect(page.getByRole('columnheader', { name: /Bloke Süresi/i })).toBeVisible()
+      await expect(page.getByRole('columnheader', { name: 'Ödeme Durumu' })).toBeVisible()
+      await expect(page.getByRole('columnheader', { name: /Satıcı Hakediş Tutarı/i })).toBeVisible()
+    }
+  })
+
+  test('ödeme durumu bekliyor/tamamlandı/bloke etiketleriyle gösteriliyor', async ({ page }) => {
+    await page.goto('/odemeler')
+    await page.waitForLoadState('networkidle')
+    const table = page.getByRole('table')
+    if (await table.isVisible()) {
+      const badges = page.getByTestId('status-badge')
+      const count = await badges.count()
+      for (let i = 0; i < count; i++) {
+        const text = (await badges.nth(i).textContent()) ?? ''
+        expect(text).toMatch(/Bekliyor|Tamamlandı|Bloke/i)
+      }
+    }
+  })
+
+  test('satır Detay butonu ile hakediş detay sayfasına gidiliyor', async ({ page }) => {
+    await page.goto('/odemeler')
+    await page.waitForLoadState('networkidle')
+    const table = page.getByRole('table')
+    if (await table.isVisible()) {
+      const detailButton = page.getByRole('link', { name: 'Detay' }).first()
+      if (await detailButton.isVisible()) {
+        await detailButton.click()
+        await page.waitForLoadState('networkidle')
+        await expect(page).toHaveURL(/\/odemeler\/[^/]+$/)
+        await expect(page.getByTestId('seller-payout-detail-page')).toBeVisible({ timeout: 10000 })
+      }
     }
   })
 
@@ -262,6 +295,37 @@ test.describe('ödemeler — hold/ready/paid ayırımı', () => {
     await page.goto('/odemeler')
     await page.waitForLoadState('networkidle')
     await expect(page.getByTestId('stat-card').first()).toBeVisible()
+  })
+})
+
+// ─── HAKEDİŞ DETAY SAYFASI ────────────────────────────────────────────────────
+
+test.describe('hakediş detay sayfası', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsSeller(page)
+  })
+
+  test('hakediş yoksa liste boş durumunu, varsa detay içeriğini gösteriyor', async ({ page }) => {
+    await page.goto('/odemeler')
+    await page.waitForLoadState('networkidle')
+    const detailLink = page.getByRole('link', { name: 'Detay' }).first()
+
+    if (!(await detailLink.isVisible())) {
+      // Hiç hakediş kaydı yok — boş durum mesajı beklenir, test burada biter.
+      await expect(page.getByText(/Henüz payout kaydı yok/i)).toBeVisible()
+      return
+    }
+
+    const href = await detailLink.getAttribute('href')
+    expect(href).toBeTruthy()
+    if (href) {
+      await page.goto(href)
+      await page.waitForLoadState('networkidle')
+      await expect(page.getByTestId('seller-payout-detail-page')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByText('Hesap Dökümü')).toBeVisible()
+      await expect(page.getByText('Net Hakediş')).toBeVisible()
+      await expect(page.getByText('Zaman Çizelgesi')).toBeVisible()
+    }
   })
 })
 

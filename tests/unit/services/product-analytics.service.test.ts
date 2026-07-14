@@ -23,11 +23,20 @@ function buildPrismaMock(params: {
   orderLines?: Array<{ productId: string; order: { customerId: string } }>
 }) {
   return {
+    user: {
+      findUnique: vi.fn().mockResolvedValue({ role: 'customer' }),
+    },
     product: {
       findMany: vi.fn().mockResolvedValue(params.products ?? [product('product-1')]),
+      findUnique: vi.fn().mockResolvedValue({
+        id: 'product-1',
+        sellerId: 'seller-1',
+        status: 'published',
+      }),
     },
     productAnalyticsEvent: {
       findMany: vi.fn().mockResolvedValue(params.events ?? []),
+      upsert: vi.fn().mockResolvedValue({}),
     },
     favoriteProduct: {
       findMany: vi.fn().mockResolvedValue(params.favorites ?? []),
@@ -42,6 +51,46 @@ function buildPrismaMock(params: {
 }
 
 describe('ProductAnalyticsService seller report', () => {
+  it('stores new daily analytics keys using the Istanbul calendar day', async () => {
+    const prisma = buildPrismaMock({})
+    const service = createProductAnalyticsService({ prisma: prisma as never })
+
+    await service.recordProductEvent({
+      productId: 'product-1',
+      userId: 'customer-1',
+      eventType: 'product_view',
+      occurredAt: new Date('2026-07-05T21:30:00.000Z'),
+    })
+
+    expect(prisma.productAnalyticsEvent.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          productId_userId_eventType_eventDate: expect.objectContaining({
+            eventDate: new Date('2026-07-06T00:00:00.000Z'),
+          }),
+        },
+      }),
+    )
+  })
+
+  it('filters analytics events by exact createdAt instants', async () => {
+    const prisma = buildPrismaMock({})
+    const service = createProductAnalyticsService({ prisma: prisma as never })
+    const from = new Date('2026-07-05T21:00:00.000Z')
+    const to = new Date('2026-07-06T20:59:59.999Z')
+
+    await service.getSellerProductReport({ sellerId: 'seller-1', from, to })
+
+    expect(prisma.productAnalyticsEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          sellerId: 'seller-1',
+          createdAt: { gte: from, lte: to },
+        },
+      }),
+    )
+  })
+
   it('queries products for the requested seller only', async () => {
     const prisma = buildPrismaMock({ products: [product('seller-product')] })
     const service = createProductAnalyticsService({ prisma: prisma as never })

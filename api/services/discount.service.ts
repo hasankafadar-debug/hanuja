@@ -24,6 +24,8 @@ export interface EffectivePriceResult {
     scope: DiscountRuleScope
     type: DiscountType
     value: Decimal
+    /** Kampanya başlangıç referansı: rule.startsAt varsa o, yoksa kural oluşturulma anı (createdAt). */
+    effectiveStartsAt: Date
   } | null
 }
 
@@ -105,6 +107,7 @@ function buildEffectivePriceResult(
       scope: rule.scope,
       type: rule.type,
       value: rule.value,
+      effectiveStartsAt: rule.startsAt ?? rule.createdAt,
     },
   }
 }

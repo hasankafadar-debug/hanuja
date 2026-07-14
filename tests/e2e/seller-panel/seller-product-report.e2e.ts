@@ -17,11 +17,15 @@ const SELLER_PANEL_URL = 'http://localhost:3001'
 const SELLER_EMAIL = 'satici@atelyenoa.com'
 const SELLER_PASSWORD = 'Seller1234!'
 
-function utcDateInput(date = new Date()) {
-  const year = date.getUTCFullYear()
-  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getUTCDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
+function reportingDateInput(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values['year']}-${values['month']}-${values['day']}`
 }
 
 async function safeGoto(page: Page, href: string) {
@@ -112,7 +116,7 @@ async function verifySellerReport(browser: Browser) {
   try {
     await signIn(context, SELLER_PANEL_URL, SELLER_EMAIL, SELLER_PASSWORD)
 
-    const today = utcDateInput()
+    const today = reportingDateInput()
     await safeGoto(page, `${SELLER_PANEL_URL}/rapor?from=${today}&to=${today}`)
     await expect(page.getByTestId('seller-report-page')).toBeVisible({ timeout: 15_000 })
 

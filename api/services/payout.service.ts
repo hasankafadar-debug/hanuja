@@ -64,7 +64,7 @@ export function createPayoutService({
         const snapshotTotals = sumPayoutSnapshot(sellerLines)
         const grossAmount = snapshotTotals.grossAmount
         const commissionAmount = snapshotTotals.commissionAmount
-        const couponShareAmount = zero
+        const couponShareAmount = snapshotTotals.couponShareAmount
         const cargoChargeAmount = zero
         const adFeeAmount = zero
         const penaltyAmount = zero
@@ -348,6 +348,11 @@ export function createPayoutService({
         ...(skip !== undefined ? { skip } : {}),
         ...(take !== undefined ? { take } : {}),
       })
+    },
+
+    /** Seller-scoped payout detail — returns null if not found or not owned. */
+    findForSeller(payoutId: string, sellerId: string) {
+      return payouts.findByIdForSeller(payoutId, sellerId)
     },
 
     listForAdmin(params: Parameters<typeof payouts.listForAdmin>[0]) {
