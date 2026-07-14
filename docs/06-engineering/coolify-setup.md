@@ -29,7 +29,7 @@ Before configuring apps, ensure the following backing services are running in Co
 **Dockerfile**: `Dockerfile.web`  
 **Build context**: `.` (repo root)  
 **Port**: `3000`  
-**Public URL**: `https://hanuja.com`
+**Public URL**: `https://www.hanuja.com.tr`
 
 ### Environment Variables
 
@@ -39,11 +39,11 @@ Before configuring apps, ensure the following backing services are running in Co
 | `DATABASE_URL` | `postgresql://USER:PASS@HOST:5432/hanuja_prod` |
 | `REDIS_URL` | `redis://HOST:6379` |
 | `BETTER_AUTH_SECRET` | *(generate: `openssl rand -base64 32`)* |
-| `BETTER_AUTH_URL` | `https://hanuja.com` |
-| `NEXT_PUBLIC_APP_URL` | `https://hanuja.com` |
-| `NEXT_PUBLIC_WEB_URL` | `https://hanuja.com` |
-| `SELLER_PANEL_URL` | `https://seller.hanuja.com` |
-| `ADMIN_PANEL_URL` | `https://admin.hanuja.com` |
+| `BETTER_AUTH_URL` | `https://www.hanuja.com.tr` |
+| `NEXT_PUBLIC_APP_URL` | `https://www.hanuja.com.tr` |
+| `NEXT_PUBLIC_WEB_URL` | `https://www.hanuja.com.tr` |
+| `SELLER_PANEL_URL` | `https://satici.hanuja.com.tr` |
+| `ADMIN_PANEL_URL` | `https://admin.hanuja.com.tr` |
 | `IYZICO_API_KEY` | *(live key from Iyzico dashboard)* |
 | `IYZICO_SECRET_KEY` | *(live secret from Iyzico dashboard)* |
 | `IYZICO_BASE_URL` | `https://api.iyzipay.com` |
@@ -52,8 +52,8 @@ Before configuring apps, ensure the following backing services are running in Co
 | `R2_ACCESS_KEY_ID` | *(R2 API token access key)* |
 | `R2_SECRET_ACCESS_KEY` | *(R2 API token secret)* |
 | `R2_BUCKET_NAME` | `hanuja-media` |
-| `R2_PUBLIC_URL` | `https://media.hanuja.com` |
-| `R2_PUBLIC_HOSTNAME` | `media.hanuja.com` |
+| `R2_PUBLIC_URL` | `https://media.hanuja.com.tr` |
+| `R2_PUBLIC_HOSTNAME` | `media.hanuja.com.tr` |
 | `MEILISEARCH_URL` | `http://meilisearch:7700` (or external URL) |
 | `MEILISEARCH_ADMIN_KEY` | *(Meilisearch master key)* |
 | `MEILISEARCH_SEARCH_KEY` | *(Meilisearch search-only key)* |
@@ -61,9 +61,9 @@ Before configuring apps, ensure the following backing services are running in Co
 | `SMTP_PORT` | `587` |
 | `SMTP_USER` | *(SMTP username)* |
 | `SMTP_PASS` | *(SMTP password)* |
-| `SMTP_FROM` | `Hanuja <no-reply@hanuja.com>` |
+| `SMTP_FROM` | `Hanuja <destek@hanuja.com.tr>` |
 | `NEXT_PUBLIC_SITE_NAME` | `Hanuja` |
-| `NEXT_PUBLIC_SITE_URL` | `https://hanuja.com` |
+| `NEXT_PUBLIC_SITE_URL` | `https://www.hanuja.com.tr` |
 
 ### Pre-deploy Command (run migrations)
 ```bash
@@ -79,7 +79,7 @@ pnpm --filter @hanuja/db run migrate:deploy
 **Dockerfile**: `Dockerfile.seller-panel`  
 **Build context**: `.`  
 **Port**: `3001`  
-**Public URL**: `https://seller.hanuja.com`
+**Public URL**: `https://satici.hanuja.com.tr`
 
 ### Environment Variables
 
@@ -87,8 +87,8 @@ Same as `web` except:
 
 | Variable | Value |
 |---|---|
-| `BETTER_AUTH_URL` | `https://seller.hanuja.com` |
-| `NEXT_PUBLIC_APP_URL` | `https://seller.hanuja.com` |
+| `BETTER_AUTH_URL` | `https://satici.hanuja.com.tr` |
+| `NEXT_PUBLIC_APP_URL` | `https://satici.hanuja.com.tr` |
 
 All other variables (`DATABASE_URL`, `REDIS_URL`, `BETTER_AUTH_SECRET`, R2, Iyzico, Meilisearch, SMTP) are identical to the web service — use the same values.
 
@@ -108,7 +108,7 @@ R2 note:
 **Dockerfile**: `Dockerfile.admin-panel`  
 **Build context**: `.`  
 **Port**: `3002`  
-**Public URL**: `https://admin.hanuja.com`
+**Public URL**: `https://admin.hanuja.com.tr`
 
 ### Environment Variables
 
@@ -116,8 +116,8 @@ Same as `web` except:
 
 | Variable | Value |
 |---|---|
-| `BETTER_AUTH_URL` | `https://admin.hanuja.com` |
-| `NEXT_PUBLIC_APP_URL` | `https://admin.hanuja.com` |
+| `BETTER_AUTH_URL` | `https://admin.hanuja.com.tr` |
+| `NEXT_PUBLIC_APP_URL` | `https://admin.hanuja.com.tr` |
 
 ---
 
@@ -147,7 +147,7 @@ Same as `web` except:
 | `SMTP_PORT` | `587` |
 | `SMTP_USER` | *(same as web)* |
 | `SMTP_PASS` | *(same as web)* |
-| `SMTP_FROM` | `Hanuja <no-reply@hanuja.com>` |
+| `SMTP_FROM` | `Hanuja <destek@hanuja.com.tr>` |
 
 The worker does **not** need Iyzico credentials (payment flows run in the web app's API routes, not in background jobs).
 
@@ -170,11 +170,11 @@ Then set the same value in all four services.
 
 | Domain | Service |
 |---|---|
-| `hanuja.com` | web |
-| `www.hanuja.com` | web (redirect to bare domain) |
-| `seller.hanuja.com` | seller-panel |
-| `admin.hanuja.com` | admin-panel |
-| `media.hanuja.com` | Cloudflare R2 custom domain |
+| `www.hanuja.com.tr` | web (canonical) |
+| `hanuja.com.tr`, `hanuja.tr`, `www.hanuja.tr` | tek adımlı 301 → canonical |
+| `satici.hanuja.com.tr` | seller-panel |
+| `admin.hanuja.com.tr` | admin-panel |
+| `media.hanuja.com.tr` | Cloudflare R2 production bucket custom domain |
 
 Configure HTTPS certificates via Let's Encrypt in Coolify's domain settings for each service.
 
@@ -211,7 +211,7 @@ Or trigger via admin panel search settings page.
 - [ ] `IYZICO_BASE_URL` points to `https://api.iyzipay.com` (live, not sandbox)
 - [ ] `DATABASE_URL` points to production PostgreSQL
 - [ ] `REDIS_URL` points to production Redis
-- [ ] `R2_PUBLIC_HOSTNAME` set to `media.hanuja.com`
+- [ ] `R2_PUBLIC_HOSTNAME` set to `media.hanuja.com.tr`
 - [ ] `seller-panel` R2 env values exactly match `web`
 - [ ] `R2_BUCKET_NAME` exists in the Cloudflare account referenced by `R2_ACCOUNT_ID`
 - [ ] The configured R2 access key can read bucket metadata and upload objects

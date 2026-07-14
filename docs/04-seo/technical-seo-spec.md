@@ -25,7 +25,8 @@ Kaynak zinciri: `.claude/rules/04-seo-rules.md` -> `docs/04-seo/seo-url-slug-rul
 | Sayfa tipi | Varsayilan durum |
 |------------|------------------|
 | Ana sayfa | index |
-| Kategori | index |
+| Kategori (alt agacinda >=1 published urun) | index |
+| Kategori (bos — alt agacinda published urun yok) | noindex, follow + sitemap disi |
 | Urun | index |
 | Store | index |
 | Blog liste ve detay | index |
@@ -33,6 +34,16 @@ Kaynak zinciri: `.claude/rules/04-seo-rules.md` -> `docs/04-seo/seo-url-slug-rul
 | Search | noindex veya robots disallow |
 | Cart, checkout, account, order | noindex |
 | Seller ve admin panelleri | noindex |
+
+Kategori musteri-gorunurluk kurali (launch politikasi, 2026-07): bir kategori,
+kendisi veya herhangi bir alt torunu en az bir `published` urun iceriyorsa
+musteriye gorunur ve indexlenir. Bos kategoriler storefront nav, `/kategori`
+index sayfasi, anasayfa kartlari, footer ve sitemap'ten gizlenir; dogrudan URL
+erisiminde sayfa 200 doner, bos durum mesaji gosterir ve `noindex, follow`
+tasir. Urun yayinlandiginda kategori otomatik olarak gorunur ve indexlenebilir
+hale gelir (ISR yenileme pencereleri icinde). Kaynak mantik:
+`api/domain/category-visibility.ts` + `catalog.service.listCustomerVisibleCategories()`.
+Satici/admin akislari bu kuraldan ETKILENMEZ — tam aktif agaci gormeye devam eder.
 
 ## Robots ve sitemap
 
@@ -66,7 +77,7 @@ Kaynak zinciri: `.claude/rules/04-seo-rules.md` -> `docs/04-seo/seo-url-slug-rul
 
 - Metadata client-side tahminle degil, server tarafinda uretilir.
 - Lazy loading kararları, above-the-fold iceriğin gec yuklenmesine sebep olmamalidir.
-- Soft 404 ureten bos kategori, unpublished urun veya gecersiz slug senaryolari net olarak ele alinmalidir.
+- Soft 404 senaryolari acik olarak tanimlidir: var olmayan kategori slug'i gercek 404 doner (`notFound()`); var olan ama bos kategori 200 + bos durum + `noindex, follow` doner.
 - Turkce tek dil varsayimidir; hreflang ancak ikinci dil geldikten sonra eklenmelidir.
 
 ## Uygulama etkileri

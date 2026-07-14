@@ -50,10 +50,10 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
           REDIS_URL: redis://localhost:6379
           BETTER_AUTH_SECRET: ci-test-secret-32-chars-minimum-xxxx
-          BETTER_AUTH_URL: https://hanuja.com
-          NEXT_PUBLIC_APP_URL: https://hanuja.com
-          SELLER_PANEL_URL: https://satici.hanuja.com
-          ADMIN_PANEL_URL: https://admin.hanuja.com
+          BETTER_AUTH_URL: https://www.hanuja.com.tr
+          NEXT_PUBLIC_APP_URL: https://www.hanuja.com.tr
+          SELLER_PANEL_URL: https://satici.hanuja.com.tr
+          ADMIN_PANEL_URL: https://admin.hanuja.com.tr
           IYZICO_API_KEY: ${{ secrets.IYZICO_API_KEY || 'ci-iyzico-key' }}
           IYZICO_SECRET_KEY: ${{ secrets.IYZICO_SECRET_KEY || 'ci-iyzico-secret' }}
           IYZICO_BASE_URL: https://sandbox-api.iyzipay.com
@@ -61,9 +61,9 @@ jobs:
           R2_ACCOUNT_ID: ci-r2-account
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || 'ci-r2-key' }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || 'ci-r2-secret' }}
-          R2_BUCKET_NAME: hanuja-media
-          R2_PUBLIC_URL: https://media.hanuja.com
-          R2_PUBLIC_HOSTNAME: media.hanuja.com
+          R2_BUCKET_NAME: hanuja-media-production
+          R2_PUBLIC_URL: https://media.hanuja.com.tr
+          R2_PUBLIC_HOSTNAME: media.hanuja.com.tr
           MEILISEARCH_URL: http://localhost:7700
           MEILISEARCH_ADMIN_KEY: ${{ secrets.MEILISEARCH_ADMIN_KEY || 'ci-meili-key' }}
           MEILISEARCH_SEARCH_KEY: ci-meili-search-key
@@ -77,10 +77,10 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
           REDIS_URL: redis://localhost:6379
           BETTER_AUTH_SECRET: ci-test-secret-32-chars-minimum-xxxx
-          BETTER_AUTH_URL: https://hanuja.com
-          NEXT_PUBLIC_APP_URL: https://hanuja.com
-          SELLER_PANEL_URL: https://satici.hanuja.com
-          ADMIN_PANEL_URL: https://admin.hanuja.com
+          BETTER_AUTH_URL: https://www.hanuja.com.tr
+          NEXT_PUBLIC_APP_URL: https://www.hanuja.com.tr
+          SELLER_PANEL_URL: https://satici.hanuja.com.tr
+          ADMIN_PANEL_URL: https://admin.hanuja.com.tr
           IYZICO_API_KEY: ${{ secrets.IYZICO_API_KEY || 'ci-iyzico-key' }}
           IYZICO_SECRET_KEY: ${{ secrets.IYZICO_SECRET_KEY || 'ci-iyzico-secret' }}
           IYZICO_BASE_URL: https://sandbox-api.iyzipay.com
@@ -88,8 +88,8 @@ jobs:
           R2_ACCOUNT_ID: ci-r2-account
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || 'ci-r2-key' }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || 'ci-r2-secret' }}
-          R2_BUCKET_NAME: hanuja-media
-          R2_PUBLIC_URL: https://media.hanuja.com
+          R2_BUCKET_NAME: hanuja-media-production
+          R2_PUBLIC_URL: https://media.hanuja.com.tr
           MEILISEARCH_URL: http://localhost:7700
           MEILISEARCH_ADMIN_KEY: ${{ secrets.MEILISEARCH_ADMIN_KEY || 'ci-meili-key' }}
           MEILISEARCH_SEARCH_KEY: ci-meili-search-key

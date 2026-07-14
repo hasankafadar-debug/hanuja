@@ -1,5 +1,5 @@
-# Son güncelleme: 2026-04-18
-# Durum: taslak v1
+# Son güncelleme: 2026-07-05
+# Durum: taslak v2
 
 # Sitemap
 
@@ -21,7 +21,7 @@ Ayni slug farkli varlik tiplerinde tekrar edebilir; ayrim namespace ile saglanir
 | Rota | Durum | Not |
 |------|-------|-----|
 | `/` | index | ana sayfa |
-| `/kategori/[...slug]` | index | kategori ve alt kategori landingleri |
+| `/kategori/[...slug]` | index (kosullu) | yalnizca alt agacinda >=1 published urun olan kategoriler; bos kategoriler `noindex, follow` doner ve sitemap'e girmez |
 | `/urun/[slug]` | index | canonical urun detayi |
 | `/magaza/[slug]` | index | seller storefront sayfasi |
 | `/blog` | index | blog liste |
@@ -51,6 +51,25 @@ Ayni slug farkli varlik tiplerinde tekrar edebilir; ayrim namespace ile saglanir
 - Sadece canonical ve indexlenebilir public URL'ler sitemap'e girer.
 - Paneller, auth, cart, checkout, search ve hesap sayfalari sitemap'e girmez.
 - Dynamic entry ureten yardimcilar `homeSitemapEntry`, `categorySitemapEntry`, `productSitemapEntry`, `storeSitemapEntry`, `blogSitemapEntry` ile hizalidir.
+- Kategori girisleri musteri-gorunurluk kuralina tabidir: alt agacinda en az bir
+  `published` urun olmayan kategori sitemap'e girmez
+  (`catalog.service.listCustomerVisibleCategories()`; bkz.
+  `docs/04-seo/technical-seo-spec.md` index politikasi).
+- Kategori girisleri tam hiyerarsik yolu kullanir (`/kategori/ev/ev-mobilya`),
+  nav ile ayni canonical formda. Duz tek-slug form sitemap'te kullanilmaz.
+
+## Yenileme modeli (Google tarafi)
+
+- `apps/web/src/app/sitemap.ts` canli bir URL'dir ve `revalidate = 3600` ile
+  en fazla saatte bir kendini DB'den yeniden uretir. Elle yukleme, haftalik
+  guncelleme veya satici kaydi basina islem YOKTUR.
+- Tek seferlik kurulum: Google Search Console > Sitemaps ekranina
+  `https://<domain>/sitemap.xml` bir kez gonderilir. Sonrasinda Google sitemap'i
+  kendi programinda ceker ve `lastmod` alanlarina gore tarama onceligi verir.
+- Google'in `google.com/ping?sitemap=` endpoint'i Haziran 2023'te kaldirildi;
+  ping otomasyonu KURULMAZ. Dogru `lastmod` degerleri yeterli sinyaldir.
+- `sitemap.ts` icindeki statik fallback listesi yalnizca DB hatasi durumunda
+  devreye girer; guncel tutulmasi kritik degildir, hata modu icindir.
 
 ## Robots uyumu
 

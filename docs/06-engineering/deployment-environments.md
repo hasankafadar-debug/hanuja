@@ -98,8 +98,8 @@ Key variables that differ between environments:
 |---|---|---|
 | `DATABASE_URL` | `postgresql://hanuja:hanuja_dev_password@localhost:5432/hanuja_dev` | Production PostgreSQL URL |
 | `REDIS_URL` | `redis://localhost:6379` | Production Redis URL |
-| `BETTER_AUTH_URL` | `http://localhost:3000` | `https://hanuja.com` |
-| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | `https://hanuja.com` |
+| `BETTER_AUTH_URL` | `http://localhost:3000` | `https://www.hanuja.com.tr` |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | `https://www.hanuja.com.tr` |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Real widget site key with `localhost` and `127.0.0.1` allowed | Real widget site key |
 | `TURNSTILE_SECRET_KEY` | Matching real secret key | Matching real secret key |
 | `IYZICO_BASE_URL` | `https://sandbox-api.iyzipay.com` | `https://api.iyzipay.com` |

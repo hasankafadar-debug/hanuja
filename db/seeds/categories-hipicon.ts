@@ -1,3 +1,14 @@
+// =============================================================================
+// UYARI — BU LANSMAN TAKSONOMİSİ DEĞİLDİR.
+// =============================================================================
+// Bu seed, Hipicon kaynaklı geniş bir kategori ağacı üretir. Storefront navigasyonu
+// (`apps/web/src/config/storefront-nav.ts`) ise EV + OFİS slug'larına HARD-CODED'dur.
+// Bu script'i üretimde çalıştırmak, storefront'un asla göstermediği ORPHAN bir
+// taksonomi (bağlı olmayan kategoriler) oluşturur ve SEO/navigasyon tutarsızlığı
+// yaratır. Lansman kategorileri seed.ts + storefront-nav.ts üzerinden yönetilir.
+// Buradaki hiçbir mantığı değiştirmeyin; yalnızca bilinçli dev senaryolarında kullanın.
+// =============================================================================
+
 import { PrismaClient } from '@prisma/client'
 import { normalizeSlug } from '../../api/domain/slug'
 

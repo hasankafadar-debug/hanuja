@@ -19,7 +19,7 @@ Bu adım otomatikleştirilemez; bu doküman sadece hatırlatma listesi sağlar. 
 
 - [ ] VDS/sunucu tedarik edilmiş (öneri: 8GB+ RAM, 4 vCPU+ — dört Next.js servisi + worker + Postgres + Redis + Meilisearch aynı makinede/ağda çalışacaksa bu asgari düzeydir; büyüme planına göre artırın)
 - [ ] Coolify sunucuya kurulmuş ve erişilebilir
-- [ ] Domain/DNS kayıtları `docs/06-engineering/coolify-setup.md` §"DNS / Domain Setup" tablosuna göre ayarlanmış (`hanuja.com`, `seller.hanuja.com`, `admin.hanuja.com`, `media.hanuja.com`)
+- [ ] Domain/DNS kayıtları `docs/06-engineering/coolify-setup.md` tablosuna göre ayarlanmış (`www.hanuja.com.tr`, `satici.hanuja.com.tr`, `admin.hanuja.com.tr`, `media.hanuja.com.tr`)
 - [ ] Coolify'da her servis için Let's Encrypt üzerinden SSL/HTTPS sertifikası provision edilmiş
 - [ ] PostgreSQL 16 servisi Coolify üzerinde (veya yönetilen ayrı bir servis olarak) provision edilmiş — CLAUDE.md §"Redis ve PostgreSQL ayrı yönetilen servisler olmalı" kuralına göre uygulama container'ının İÇİNDE DEĞİL
 - [ ] Redis 7 servisi ayrı yönetilen servis olarak provision edilmiş
@@ -62,7 +62,7 @@ Gerekli/opsiyonel değişkenlerin tek doğru kaynağı `tools/scripts/check-env.
 |---|---|
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key |
 | `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key (dev bypass token kabul edilmez) |
-| `INBOUND_EMAIL_DOMAIN` | Gelen fatura e-posta domaini (örn. `fatura.hanuja.tr`) |
+| `INBOUND_EMAIL_DOMAIN` | Gelen fatura e-posta domaini (örn. `fatura.hanuja.com.tr`) |
 | `POSTMARK_INBOUND_WEBHOOK_USER` | Postmark inbound webhook basic auth kullanıcı |
 | `POSTMARK_INBOUND_WEBHOOK_PASS` | Postmark inbound webhook basic auth şifre |
 
@@ -106,7 +106,7 @@ Iyzico incelemeyi tamamlayıp live API anahtarlarını teslim ettiğinde:
    - `IYZICO_SECRET_KEY` → live secret
    - `IYZICO_BASE_URL` → `https://api.iyzipay.com`
    - `IYZICO_WEBHOOK_SECRET` → Iyzico live webhook ayarlarından alınan yeni secret
-2. Iyzico dashboard'da live webhook URL'ini `https://hanuja.com/api/webhooks/iyzico` (veya ilgili route) olarak kayıt edin.
+2. iyzico dashboard'da live webhook URL'ini `https://www.hanuja.com.tr/api/webhooks/iyzico` olarak kayıt edin.
 3. `pnpm check-env --env=prod` tekrar çalıştırılıp placeholder/sandbox kalıntısı olmadığı doğrulanmalı.
 4. Servisi yeniden deploy edin (env değişikliği Coolify'da yeni bir deploy tetikler).
 5. Küçük tutarlı gerçek bir kart işlemiyle (varsa) veya Iyzico'nun sağladığı doğrulama akışıyla live bağlantı test edilmeli.

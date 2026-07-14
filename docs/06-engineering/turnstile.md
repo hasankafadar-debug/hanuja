@@ -25,7 +25,7 @@ The Cloudflare Turnstile widget must allow all app entrypoints that render the w
 
 - `localhost`
 - `127.0.0.1`
-- `hanuja.com.tr`
+- `www.hanuja.com.tr`
 - `satici.hanuja.com.tr`
 - `admin.hanuja.com.tr`
 

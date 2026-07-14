@@ -339,7 +339,7 @@ The widget's Cloudflare hostname allowlist must include every app surface that r
 
 - `localhost`
 - `127.0.0.1`
-- `hanuja.com.tr`
+- `www.hanuja.com.tr`
 - `satici.hanuja.com.tr`
 - `admin.hanuja.com.tr`
 

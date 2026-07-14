@@ -18,6 +18,7 @@
 import { PrismaClient, UserRole, SellerStatus, ProductStatus, OrderStatus, PaymentMethod, PaymentStatus, ShipmentStatus, PayoutStatus, LedgerEntryType, PenaltyReason, BlogPostStatus } from '@prisma/client'
 import { createAuth } from '../../api/lib/auth'
 import { seedAttributeOptions } from './attribute-options'
+import { isLocalDatabaseUrl } from './seed-guard'
 
 const prisma = new PrismaClient()
 
@@ -60,6 +61,20 @@ async function ensureUser(params: {
 }
 
 async function main() {
+  // Yıkıcı seed guard — üretim / uzak veritabanına yanlışlıkla seed atmayı engeller.
+  // CI localhost kullanır ve geçmeye devam eder. Bilinçli override: SEED_ALLOW_DESTRUCTIVE=1.
+  const allowDestructive = process.env.SEED_ALLOW_DESTRUCTIVE === '1'
+  if (!allowDestructive) {
+    const isProd = process.env.NODE_ENV === 'production'
+    const isLocal = isLocalDatabaseUrl(process.env.DATABASE_URL ?? '')
+    if (isProd || !isLocal) {
+      console.error('⛔ Seed reddedildi: hedef veritabanı yerel değil veya NODE_ENV=production.')
+      console.error('   Bu seed yıkıcıdır ve yalnızca localhost / 127.0.0.1 / ::1 üzerinde çalışmalıdır.')
+      console.error('   Bilinçli olarak devam etmek istiyorsanız SEED_ALLOW_DESTRUCTIVE=1 ayarlayın.')
+      process.exit(1)
+    }
+  }
+
   console.log('🌱 Seed başlıyor...')
 
   // ─────────────────────────────────────────────────
