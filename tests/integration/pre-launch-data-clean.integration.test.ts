@@ -20,7 +20,12 @@ run('pre-launch cleanup fixture (dedicated database)', () => {
     await prisma.$disconnect()
   })
   it('deletes seller data and preserves customer data plus the admin credential hash', async () => {
-    await performCleanup(prisma)
+    await performCleanup(prisma, {
+      sellerIds: ['cleanup-seller'],
+      sellers: 1,
+      products: 0,
+      orders: 0,
+    })
     expect(await prisma.seller.count()).toBe(0)
     expect(await prisma.user.count({ where: { id: 'cleanup-seller-user' } })).toBe(0)
     expect(await prisma.user.count({ where: { id: 'cleanup-customer', role: 'customer' } })).toBe(1)

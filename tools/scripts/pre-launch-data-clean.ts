@@ -16,7 +16,17 @@ import { deleteObject } from '../../api/lib/r2'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '../../')
 
-type Mode = { kind: 'dry-run' } | { kind: 'confirm'; databaseName: string }
+type CleanupExpectations = {
+  sellerIds: string[]
+  sellers: number
+  products: number
+  orders: number
+}
+
+type Mode = (
+  | { kind: 'dry-run' }
+  | { kind: 'confirm'; databaseName: string }
+) & CleanupExpectations
 type DbClient = PrismaClient | Prisma.TransactionClient
 
 type CleanupScope = {
@@ -41,14 +51,52 @@ type CleanupResult = {
   failedStorageKeys: string[]
 }
 
+function readIntegerFlag(argv: string[], name: string): number | null {
+  const values = argv.filter((arg) => arg.startsWith(`${name}=`))
+  if (values.length !== 1) return null
+  const value = Number(values[0]?.slice(name.length + 1))
+  return Number.isInteger(value) && value >= 0 ? value : null
+}
+
 export function parseMode(argv: string[]): Mode | null {
   const dryRun = argv.filter((arg) => arg === '--dry-run')
   const confirms = argv.filter((arg) => arg.startsWith('--confirm='))
-  const unknown = argv.filter((arg) => arg !== '--dry-run' && !arg.startsWith('--confirm='))
+  const sellerIdFlags = argv.filter((arg) => arg.startsWith('--seller-ids='))
+  const knownPrefixes = [
+    '--confirm=',
+    '--seller-ids=',
+    '--expect-sellers=',
+    '--expect-products=',
+    '--expect-orders=',
+  ]
+  const unknown = argv.filter(
+    (arg) => arg !== '--dry-run' && !knownPrefixes.some((prefix) => arg.startsWith(prefix)),
+  )
   if (unknown.length > 0 || dryRun.length + confirms.length !== 1) return null
-  if (dryRun.length === 1) return { kind: 'dry-run' }
+  if (sellerIdFlags.length !== 1) return null
+  const sellerIds = [
+    ...new Set(
+      (sellerIdFlags[0]?.slice('--seller-ids='.length) ?? '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  ]
+  const sellers = readIntegerFlag(argv, '--expect-sellers')
+  const products = readIntegerFlag(argv, '--expect-products')
+  const orders = readIntegerFlag(argv, '--expect-orders')
+  if (
+    sellerIds.length === 0 ||
+    sellers === null ||
+    products === null ||
+    orders === null ||
+    sellers !== sellerIds.length
+  ) return null
+
+  const expectations = { sellerIds, sellers, products, orders }
+  if (dryRun.length === 1) return { kind: 'dry-run', ...expectations }
   const databaseName = confirms[0]?.slice('--confirm='.length).trim() ?? ''
-  return databaseName ? { kind: 'confirm', databaseName } : null
+  return databaseName ? { kind: 'confirm', databaseName, ...expectations } : null
 }
 
 export function databaseNameFromUrl(databaseUrl: string): string {
@@ -73,16 +121,17 @@ function describeTarget(databaseUrl: string): string {
 function printUsage(): void {
   console.error('\nHanuja Lansman Oncesi Dar Kapsamli Temizlik')
   console.error('Kullanim:')
-  console.error('  pnpm launch:clean-data --dry-run')
-  console.error('  pnpm launch:clean-data --confirm=<veritabani_adi>')
+  console.error('  pnpm launch:clean-data --dry-run --seller-ids=<id1,id2,id3> --expect-sellers=3 --expect-products=19 --expect-orders=19')
+  console.error('  pnpm launch:clean-data --confirm=<veritabani_adi> --seller-ids=<id1,id2,id3> --expect-sellers=3 --expect-products=19 --expect-orders=19')
 }
 
 function ids(rows: Array<{ id: string }>): string[] {
   return rows.map((row) => row.id)
 }
 
-async function buildScope(prisma: DbClient): Promise<CleanupScope> {
+async function buildScope(prisma: DbClient, sellerIds: string[]): Promise<CleanupScope> {
   const sellers = await prisma.seller.findMany({
+    where: { id: { in: sellerIds } },
     select: {
       id: true,
       userId: true,
@@ -91,12 +140,12 @@ async function buildScope(prisma: DbClient): Promise<CleanupScope> {
       documents: { select: { fileKey: true } },
     },
   })
-  const sellerIds = sellers.map((seller) => seller.id)
+  const selectedSellerIds = sellers.map((seller) => seller.id)
   const sellerUserIds = sellers.map((seller) => seller.userId)
   const sellerEmails = sellers.map((seller) => seller.user.email)
 
   const products = await prisma.product.findMany({
-    where: { sellerId: { in: sellerIds } },
+    where: { sellerId: { in: selectedSellerIds } },
     select: { id: true, images: { select: { url: true } } },
   })
   const productIds = ids(products)
@@ -105,7 +154,7 @@ async function buildScope(prisma: DbClient): Promise<CleanupScope> {
     where: {
       OR: [
         { customerId: { in: sellerUserIds } },
-        { lines: { some: { OR: [{ sellerId: { in: sellerIds } }, { productId: { in: productIds } }] } } },
+        { lines: { some: { OR: [{ sellerId: { in: selectedSellerIds } }, { productId: { in: productIds } }] } } },
       ],
     },
     select: { id: true },
@@ -115,7 +164,7 @@ async function buildScope(prisma: DbClient): Promise<CleanupScope> {
   const [supportTickets, customerSupportTickets, returnRequests, disputes, coupons, discountRules] =
     await Promise.all([
       prisma.supportTicket.findMany({
-        where: { OR: [{ sellerId: { in: sellerIds } }, { orderId: { in: orderIds } }] },
+        where: { OR: [{ sellerId: { in: selectedSellerIds } }, { orderId: { in: orderIds } }] },
         select: { id: true },
       }),
       prisma.customerSupportTicket.findMany({
@@ -124,8 +173,8 @@ async function buildScope(prisma: DbClient): Promise<CleanupScope> {
       }),
       prisma.returnRequest.findMany({ where: { orderId: { in: orderIds } }, select: { id: true } }),
       prisma.dispute.findMany({ where: { orderId: { in: orderIds } }, select: { id: true } }),
-      prisma.coupon.findMany({ where: { sellerId: { in: sellerIds } }, select: { id: true } }),
-      prisma.discountRule.findMany({ where: { sellerId: { in: sellerIds } }, select: { id: true } }),
+      prisma.coupon.findMany({ where: { sellerId: { in: selectedSellerIds } }, select: { id: true } }),
+      prisma.discountRule.findMany({ where: { sellerId: { in: selectedSellerIds } }, select: { id: true } }),
     ])
 
   const returnRequestIds = ids(returnRequests)
@@ -143,7 +192,7 @@ async function buildScope(prisma: DbClient): Promise<CleanupScope> {
   const mediaAssets = await prisma.mediaAsset.findMany({
     where: {
       OR: [
-        { uploadedBy: { in: [...sellerIds, ...sellerUserIds] } },
+        { uploadedBy: { in: [...selectedSellerIds, ...sellerUserIds] } },
         { url: { in: [...productUrls, ...profileUrls] } },
         { returnRequestId: { in: returnRequestIds } },
         { returnMessageId: { in: returnMessageIds } },
@@ -154,12 +203,12 @@ async function buildScope(prisma: DbClient): Promise<CleanupScope> {
   })
 
   const orderInvoices = await prisma.orderSellerInvoice.findMany({
-    where: { OR: [{ orderId: { in: orderIds } }, { sellerId: { in: sellerIds } }] },
+    where: { OR: [{ orderId: { in: orderIds } }, { sellerId: { in: selectedSellerIds } }] },
     select: { fileKey: true },
   })
 
   return {
-    sellerIds,
+    sellerIds: selectedSellerIds,
     sellerUserIds,
     sellerEmails,
     productIds,
@@ -235,15 +284,45 @@ function assertPreserved(before: Record<string, number>, after: Record<string, n
   }
 }
 
+async function assertExpectedScope(
+  prisma: DbClient,
+  scope: CleanupScope,
+  expected: CleanupExpectations,
+): Promise<void> {
+  const totalSellerCount = await prisma.seller.count()
+  const actual = {
+    sellers: scope.sellerIds.length,
+    products: scope.productIds.length,
+    orders: scope.orderIds.length,
+  }
+  const mismatches = (['sellers', 'products', 'orders'] as const)
+    .filter((key) => actual[key] !== expected[key])
+    .map((key) => `${key}: ${actual[key]} != ${expected[key]}`)
+  if (totalSellerCount !== expected.sellers) {
+    mismatches.push(`total sellers: ${totalSellerCount} != ${expected.sellers}`)
+  }
+  if (scope.sellerIds.length !== expected.sellerIds.length) {
+    mismatches.push(
+      `allowlist seller matches: ${scope.sellerIds.length} != ${expected.sellerIds.length}`,
+    )
+  }
+  if (mismatches.length > 0) {
+    throw new Error(`Beklenen temizlik kapsami degisti: ${mismatches.join(', ')}`)
+  }
+}
+
 export async function performCleanup(
   prisma: PrismaClient,
-  options: { deleteStorageObjects?: boolean } = {},
+  options: CleanupExpectations & { deleteStorageObjects?: boolean },
 ): Promise<CleanupResult> {
-  const scope = await buildScope(prisma)
+  const scope = await buildScope(prisma, options.sellerIds)
+  await assertExpectedScope(prisma, scope, options)
   const preservedBefore = await collectPreservedCounts(prisma)
   const deleted: Array<[string, number]> = []
 
   await prisma.$transaction(async (tx) => {
+    const currentScope = await buildScope(tx, options.sellerIds)
+    await assertExpectedScope(tx, currentScope, options)
     const adminCredential = await tx.user.findFirst({
       where: { role: 'admin', accounts: { some: { providerId: 'credential', password: { not: null } } } },
       select: { id: true },
@@ -374,11 +453,18 @@ async function main() {
       select: { id: true },
     })
     if (!adminCredential) throw new Error('Parola hash bulunan admin credential account zorunludur.')
-    const scope = await buildScope(prisma)
+    const scope = await buildScope(prisma, mode.sellerIds)
+    await assertExpectedScope(prisma, scope, mode)
     printCountTable('SILINECEK DAR KAPSAM', await collectScopeCounts(prisma, scope))
     printCountTable('KORUNACAK SAYILAR', Object.entries(await collectPreservedCounts(prisma)))
     if (mode.kind === 'dry-run') { console.log('\nDRY-RUN tamamlandi; veri degismedi.\n'); return }
-    const result = await performCleanup(prisma, { deleteStorageObjects: true })
+    const result = await performCleanup(prisma, {
+      sellerIds: mode.sellerIds,
+      sellers: mode.sellers,
+      products: mode.products,
+      orders: mode.orders,
+      deleteStorageObjects: true,
+    })
     printCountTable('SILINEN KAYITLAR', result.deleted)
     if (result.failedStorageKeys.length > 0) {
       console.error(`\nDB temizlendi ancak ${result.failedStorageKeys.length} R2 nesnesi silinemedi.`)

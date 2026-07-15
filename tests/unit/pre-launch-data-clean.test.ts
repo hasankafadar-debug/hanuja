@@ -7,13 +7,33 @@ import {
 
 describe('pre-launch cleanup safety', () => {
   it('requires exactly one non-conflicting mode', () => {
+    const scope = [
+      '--seller-ids=seller-1,seller-2,seller-3',
+      '--expect-sellers=3',
+      '--expect-products=19',
+      '--expect-orders=19',
+    ]
     expect(parseMode([])).toBeNull()
     expect(parseMode(['--confirm'])).toBeNull()
-    expect(parseMode(['--dry-run', '--confirm=hanuja_prod'])).toBeNull()
-    expect(parseMode(['--dry-run', '--dry-run'])).toBeNull()
+    expect(parseMode(['--dry-run', '--confirm=hanuja_prod', ...scope])).toBeNull()
+    expect(parseMode(['--dry-run', '--dry-run', ...scope])).toBeNull()
     expect(parseMode(['--unknown'])).toBeNull()
-    expect(parseMode(['--dry-run'])).toEqual({ kind: 'dry-run' })
-    expect(parseMode(['--confirm=hanuja_prod'])).toEqual({ kind: 'confirm', databaseName: 'hanuja_prod' })
+    expect(parseMode(['--dry-run'])).toBeNull()
+    expect(parseMode(['--dry-run', ...scope])).toEqual({
+      kind: 'dry-run',
+      sellerIds: ['seller-1', 'seller-2', 'seller-3'],
+      sellers: 3,
+      products: 19,
+      orders: 19,
+    })
+    expect(parseMode(['--confirm=hanuja_prod', ...scope])).toEqual({
+      kind: 'confirm',
+      databaseName: 'hanuja_prod',
+      sellerIds: ['seller-1', 'seller-2', 'seller-3'],
+      sellers: 3,
+      products: 19,
+      orders: 19,
+    })
   })
 
   it('extracts the exact database name without exposing credentials', () => {
