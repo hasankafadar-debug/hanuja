@@ -331,6 +331,9 @@ export async function performCleanup(
 
     const blogs = await tx.blogPost.findMany({ select: { id: true, linkedProductIds: true } })
     for (const blog of blogs) {
+      // Legacy blog rows can contain NULL even though the current Prisma field is a list.
+      // They have no product links to remove, so leave them untouched.
+      if (!Array.isArray(blog.linkedProductIds)) continue
       const linkedProductIds = blog.linkedProductIds.filter((id) => !scope.productIds.includes(id))
       if (linkedProductIds.length !== blog.linkedProductIds.length) {
         await tx.blogPost.update({ where: { id: blog.id }, data: { linkedProductIds } })
