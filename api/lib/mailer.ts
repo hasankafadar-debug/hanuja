@@ -46,7 +46,7 @@ function getTransport(): Transporter {
 
 export async function sendEmail(options: SendEmailOptions): Promise<void> {
   const from =
-    process.env['SMTP_FROM'] ?? `Hanuja <${PLATFORM_LEGAL_INFO.supportEmail}>`
+    process.env['SMTP_FROM'] ?? `Hanuja <${PLATFORM_LEGAL_INFO.transactionalEmail}>`
   const transport = getTransport()
 
   const info = await transport.sendMail({

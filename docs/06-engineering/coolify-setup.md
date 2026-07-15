@@ -61,7 +61,7 @@ Before configuring apps, ensure the following backing services are running in Co
 | `SMTP_PORT` | `587` |
 | `SMTP_USER` | *(SMTP username)* |
 | `SMTP_PASS` | *(SMTP password)* |
-| `SMTP_FROM` | `Hanuja <destek@hanuja.com.tr>` |
+| `SMTP_FROM` | `Hanuja <noreply@hanuja.com.tr>` |
 | `NEXT_PUBLIC_SITE_NAME` | `Hanuja` |
 | `NEXT_PUBLIC_SITE_URL` | `https://www.hanuja.com.tr` |
 
@@ -147,7 +147,7 @@ Same as `web` except:
 | `SMTP_PORT` | `587` |
 | `SMTP_USER` | *(same as web)* |
 | `SMTP_PASS` | *(same as web)* |
-| `SMTP_FROM` | `Hanuja <destek@hanuja.com.tr>` |
+| `SMTP_FROM` | `Hanuja <noreply@hanuja.com.tr>` |
 
 The worker does **not** need Iyzico credentials (payment flows run in the web app's API routes, not in background jobs).
 

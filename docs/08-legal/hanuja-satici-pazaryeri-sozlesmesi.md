@@ -18,7 +18,7 @@ Bu sozlesme, Hanuja markasi altinda faaliyet gosteren pazaryeri platformunda uru
 **MERSİS:** 0781-0515-5550-0001  
 **Web sitesi:** https://hanuja.com.tr  
 **Satici paneli:** https://seller.hanuja.com.tr  
-**E-posta:** destek@hanuja.com.tr  
+**E-posta:** admin@hanuja.com.tr
 **KEP:** suatsalihayakkabideri@hs01.kep.tr
 
 Bu sozlesmede "Hanuja", "Platform" veya "Şirket" olarak anilacaktir.
