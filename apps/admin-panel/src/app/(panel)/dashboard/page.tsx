@@ -198,7 +198,7 @@ export default async function AdminDashboardPage() {
       icon: <FileWarning className="h-5 w-5" />,
     },
     {
-      href: '/ek-sure-talepleri',
+      href: '/uzatma-talepleri',
       title: 'Ek Sure Talebi',
       value: String(stats.extensions.pending),
       icon: <RefreshCcw className="h-5 w-5" />,
