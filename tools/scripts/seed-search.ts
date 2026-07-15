@@ -72,6 +72,19 @@ async function waitForTask(taskUid: number, timeoutMs = 30_000) {
   throw new Error(`Task ${taskUid} timed out`)
 }
 
+async function clearDocuments(indexName: string) {
+  const res = await fetch(`${MEILI_URL}/indexes/${indexName}/documents`, {
+    method: 'DELETE',
+    headers: meiliHeaders(),
+  })
+  if (!res.ok) {
+    throw new Error(`clearDocuments failed [${res.status}]: ${await res.text()}`)
+  }
+  const task = await res.json()
+  await waitForTask(task.taskUid)
+  console.log(`  Cleared existing documents (taskUid: ${task.taskUid})`)
+}
+
 async function main() {
   console.log('🔍 Meilisearch seed başlıyor...')
   console.log(`   URL: ${MEILI_URL}`)
@@ -95,6 +108,8 @@ async function main() {
     throw new Error(`configureIndex failed: ${await settingsRes.text()}`)
   }
   const settingsTask = await settingsRes.json()
+  // Rebuild from the database so deleted or unpublished products cannot linger.
+  await clearDocuments('products')
   console.log(`  ✓ Ayarlar gönderildi (taskUid: ${settingsTask.taskUid})`)
 
   // 3. Published ürünleri DB'den çek
