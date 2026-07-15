@@ -33,6 +33,8 @@ export interface HanujaLogoProps {
   variant?: 'light' | 'dark'
   /** Sadece sembol - favicon, mobil header */
   compact?: boolean
+  /** Kelime markasinin altindaki slogan gosterilsin mi? */
+  showTagline?: boolean
   className?: string
 }
 
@@ -48,6 +50,7 @@ export function HanujaLogo({
   textScale = 1,
   variant = 'light',
   compact = false,
+  showTagline = true,
   className,
 }: HanujaLogoProps) {
   const fg = variant === 'dark' ? 'var(--color-primary-fg)' : 'var(--color-primary)'
@@ -91,18 +94,20 @@ export function HanujaLogo({
         >
           hanuja
         </span>
-        <span
-          style={{
-            fontFamily: 'var(--font-body, var(--font-sans))',
-            fontWeight: 300,
-            fontSize: taglineFontSize,
-            letterSpacing: taglineLetterSpacing,
-            color: taglineColor,
-            textTransform: 'uppercase',
-          }}
-        >
-          curated living
-        </span>
+        {showTagline ? (
+          <span
+            style={{
+              fontFamily: 'var(--font-body, var(--font-sans))',
+              fontWeight: 300,
+              fontSize: taglineFontSize,
+              letterSpacing: taglineLetterSpacing,
+              color: taglineColor,
+              textTransform: 'uppercase',
+            }}
+          >
+            curated living
+          </span>
+        ) : null}
       </span>
     </span>
   )

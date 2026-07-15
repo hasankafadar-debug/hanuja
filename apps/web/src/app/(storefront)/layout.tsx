@@ -33,10 +33,10 @@ function SiteHeader() {
       }}
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between gap-4">
+        <div className="flex h-16 items-center justify-between gap-1 min-[400px]:gap-4">
           <Link href="/" className="min-w-0 shrink-0" aria-label="Hanuja — Ana Sayfa">
             <span className="inline-flex min-[400px]:hidden">
-              <HanujaLogo compact scale={0.72} variant="light" />
+              <HanujaLogo scale={0.58} textScale={0.72} showTagline={false} variant="light" />
             </span>
             <span className="hidden min-[400px]:inline-flex">
               <HanujaLogo scale={0.85} textScale={1.4} variant="light" />
@@ -259,8 +259,15 @@ async function SiteFooter() {
             ) : (
               <PaymentBadge label="Havale / EFT ile ödeme" />
             )}
-            <img src="/payment/visa.svg" alt="Visa" width="50" height="32" className="h-8 w-auto rounded bg-white px-2" />
-            <img src="/payment/mastercard.svg" alt="Mastercard" width="50" height="32" className="h-8 w-auto rounded bg-white px-2" />
+            {/* The supplied combined brand artwork is a fixed public asset and must remain unmodified. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/payment/visa-mastercard.jpg"
+              alt="Mastercard ve Visa"
+              width="116"
+              height="32"
+              className="h-8 w-[116px] shrink-0 rounded bg-white object-contain"
+            />
             <div
               className="flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold"
               style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }}
@@ -283,7 +290,7 @@ async function SiteFooter() {
           <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
             {cardPaymentsEnabled
               ? 'Kart ödemeleri iyzico altyapısı ile güvenle işlenir.'
-              : 'Siparişler şu anda güvenli Havale / EFT yöntemiyle alınır.'}
+              : 'Siparişler güvenli Havale / EFT yöntemiyle alınır.'}
           </p>
         </div>
 
