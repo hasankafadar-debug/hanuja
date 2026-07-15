@@ -118,19 +118,20 @@ function isNavItemVisible(
  */
 export async function StorefrontNav() {
   let allCats: FlatCategory[] = []
+  let categoryLoadFailed = false
   try {
     allCats = await getCustomerVisibleCategories()
   } catch {
+    categoryLoadFailed = true
     // Nav remains functional without sub-items if DB is unreachable at build time.
   }
 
-  // Only filter nav items when the category list actually loaded — an empty
-  // list from a DB failure must not blank the whole header.
+  // A successful empty result means there are no published products yet.
+  // Use the complete fallback menu only when the category query itself fails.
   const visibleSlugs = new Set(allCats.map((c) => c.slug))
-  const navItems =
-    allCats.length > 0
-      ? STOREFRONT_NAV_ITEMS.filter((item) => isNavItemVisible(item, visibleSlugs))
-      : STOREFRONT_NAV_ITEMS
+  const navItems = categoryLoadFailed
+    ? STOREFRONT_NAV_ITEMS
+    : STOREFRONT_NAV_ITEMS.filter((item) => isNavItemVisible(item, visibleSlugs))
 
   const menuItems: MegaMenuItem[] = navItems.map((item) => buildMenuItem(item, allCats))
 
