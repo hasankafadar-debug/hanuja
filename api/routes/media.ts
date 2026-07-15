@@ -49,7 +49,8 @@ function buildMissingManagedImagePlaceholder(sourceUrl: string) {
 }
 
 function shouldServeManagedImagePlaceholder(sourceUrl: string) {
-  if (process.env.NODE_ENV === 'production') return false
+  const isProtectedPreview = process.env.PREVIEW_DEPLOYMENT === 'true'
+  if (process.env.NODE_ENV === 'production' && !isProtectedPreview) return false
 
   try {
     const pathname = new URL(sourceUrl).pathname
