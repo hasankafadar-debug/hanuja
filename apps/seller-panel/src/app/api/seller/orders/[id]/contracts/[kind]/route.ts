@@ -22,7 +22,7 @@ async function getSellerIdOrThrow(userId: string) {
     select: { id: true, status: true },
   })
 
-  if (!seller || seller.status !== 'active') {
+  if (!seller || (seller.status !== 'active' && seller.status !== 'suspended')) {
     throw new ForbiddenError('Aktif satıcı hesabı gerekli')
   }
 

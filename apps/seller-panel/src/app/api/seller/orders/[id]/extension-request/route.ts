@@ -2,9 +2,9 @@ import { type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { handleError, ok } from '@hanuja/api/lib/response'
-import { NotFoundError, ForbiddenError } from '@hanuja/api/lib/errors'
+import { NotFoundError } from '@hanuja/api/lib/errors'
 import { createExtensionRequestService } from '@hanuja/api/services/extension-request.service'
-import { getActiveSellerIdOrThrow } from '@/lib/route-seller'
+import { getOperationalSellerIdOrThrow } from '@/lib/route-seller'
 
 const bodySchema = z.object({
   requestedDays: z.number().int().min(1).max(30),
@@ -13,7 +13,7 @@ const bodySchema = z.object({
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const sellerId = await getActiveSellerIdOrThrow()
+    const sellerId = await getOperationalSellerIdOrThrow()
     const { id: orderId } = await params
     const body = bodySchema.parse(await req.json())
 

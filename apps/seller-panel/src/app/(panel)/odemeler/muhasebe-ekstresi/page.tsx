@@ -32,7 +32,7 @@ function formatCurrency(value: number) {
 
 export default async function SellerStatementPage({ searchParams }: Props) {
   const resolvedSearchParams = (await searchParams) ?? {}
-  const { seller } = await getSellerFromSession()
+  const { seller } = await getSellerFromSession({ allowSuspended: true })
   const service = createSellerFinanceService({ prisma: createPrismaForRoute() })
 
   const range = resolveReportingDateRange({

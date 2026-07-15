@@ -45,6 +45,7 @@ export function createFavoriteProductRepository(prisma: PrismaClient) {
           product: {
             is: {
               status: 'published',
+              seller: { is: { status: 'active' } },
             },
           },
         },

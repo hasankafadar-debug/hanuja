@@ -18,7 +18,7 @@ interface Props {
 
 export default async function SellerReturnDetailPage({ params }: Props) {
   const { id } = await params
-  const { seller } = await getSellerFromSession()
+  const { seller } = await getSellerFromSession({ allowSuspended: true })
 
   const repo = createReturnRequestRepository(createPrismaForRoute())
   const rr = await repo.findByIdForSeller(id, seller.id)

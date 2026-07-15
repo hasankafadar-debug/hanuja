@@ -287,6 +287,9 @@ enum AdminActionType {
   home_promo_updated
   product_review_approved
   product_review_rejected
+  product_unlisted
+  product_deleted
+  seller_deleted
   seller_products_imported
   seller_import_permission_granted
   category_tax_rate_changed

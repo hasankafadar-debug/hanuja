@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { csrfFetch } from '@/lib/csrf-fetch'
 import {
   Button,
   Dialog,
@@ -29,13 +30,14 @@ export function ProductModerationActions({
   const [managementLoading, setManagementLoading] = useState<'unlist' | 'delete' | null>(null)
   const [isRejectOpen, setIsRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState(defaultRejectReason ?? '')
+  const [managementMessage, setManagementMessage] = useState<string | null>(null)
 
   const busy = loading !== null || managementLoading !== null
 
   async function handleApprove() {
     setLoading('approve')
     try {
-      await fetch(`/api/admin/products/${productId}/approve`, { method: 'POST' })
+      await csrfFetch(`/api/admin/products/${productId}/approve`, { method: 'POST' })
       router.refresh()
     } finally {
       setLoading(null)
@@ -45,7 +47,7 @@ export function ProductModerationActions({
   async function handleReject() {
     setLoading('reject')
     try {
-      await fetch(`/api/admin/products/${productId}/reject`, {
+      await csrfFetch(`/api/admin/products/${productId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: rejectReason.trim() || undefined }),
@@ -59,12 +61,19 @@ export function ProductModerationActions({
 
   async function handleUnlist() {
     setManagementLoading('unlist')
+    setManagementMessage(null)
     try {
-      await fetch(`/api/admin/products/${productId}`, {
+      const response = await csrfFetch(`/api/admin/products/${productId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'unlisted' }),
       })
+      const payload = (await response.json().catch(() => ({}))) as { message?: string }
+      if (!response.ok) {
+        setManagementMessage(payload.message ?? 'Ürün yayından kaldırılamadı.')
+        return
+      }
+      setManagementMessage('Ürün yayından kaldırıldı.')
       router.refresh()
     } finally {
       setManagementLoading(null)
@@ -72,16 +81,20 @@ export function ProductModerationActions({
   }
 
   async function handleDelete() {
-    const confirmed = window.confirm('Bu urunu silmek istediginize emin misiniz?')
+    const confirmed = window.confirm('Bu ürünü kalıcı olarak silmek istediğinize emin misiniz?')
     if (!confirmed) return
 
     setManagementLoading('delete')
+    setManagementMessage(null)
     try {
-      const response = await fetch(`/api/admin/products/${productId}`, { method: 'DELETE' })
+      const response = await csrfFetch(`/api/admin/products/${productId}`, { method: 'DELETE' })
+      const payload = (await response.json().catch(() => ({}))) as { message?: string }
       if (response.ok) {
         router.push('/urunler')
         router.refresh()
+        return
       }
+      setManagementMessage(payload.message ?? 'Ürün silinemedi.')
     } finally {
       setManagementLoading(null)
     }
@@ -112,6 +125,11 @@ export function ProductModerationActions({
           </>
         )}
       </div>
+      {managementMessage ? (
+        <p className="mt-2 text-sm" role="status">
+          {managementMessage}
+        </p>
+      ) : null}
 
       <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
         <DialogContent>

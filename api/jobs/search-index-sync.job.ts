@@ -13,6 +13,7 @@ import { redis } from '../lib/redis'
 import { QUEUE_NAMES } from '../lib/queue'
 import { getMeilisearchConfig } from '../lib/meilisearch'
 import { prisma } from '../lib/prisma'
+import { buildPublicProductWhere } from '../domain/product-visibility'
 
 export interface SearchIndexSyncJobData {
   type: 'product' | 'category' | 'store'
@@ -34,12 +35,11 @@ async function listPublishedProductDocuments(scope: PublishedProductScope) {
 
   while (true) {
     const products = await prisma.product.findMany({
-      where: {
-        status: 'published',
+      where: buildPublicProductWhere({
         ...(scope.productId ? { id: scope.productId } : {}),
         ...(scope.categoryId ? { categoryId: scope.categoryId } : {}),
         ...(scope.sellerId ? { sellerId: scope.sellerId } : {}),
-      },
+      }),
       include: {
         images: {
           take: 4,
@@ -104,6 +104,24 @@ async function syncScopedProductDocuments(
   await upsertDocuments(meiliUrl, meiliKey, PRODUCT_SEARCH_INDEX, documents)
 }
 
+async function deleteSellerProductDocuments(
+  meiliUrl: string,
+  meiliKey: string,
+  sellerId: string,
+) {
+  const products = await prisma.product.findMany({
+    where: { sellerId },
+    select: { id: true },
+  })
+  if (products.length === 0) return
+  await deleteBatchFromIndex(
+    meiliUrl,
+    meiliKey,
+    PRODUCT_SEARCH_INDEX,
+    products.map((product) => product.id),
+  )
+}
+
 export async function processSearchIndexSync(job: Job<SearchIndexSyncJobData>) {
   const { type, entityId, operation } = job.data
 
@@ -123,9 +141,14 @@ export async function processSearchIndexSync(job: Job<SearchIndexSyncJobData>) {
   }
 
   if (type === 'store') {
-    await syncScopedProductDocuments(meiliUrl, meiliKey, {
-      ...(entityId ? { sellerId: entityId } : {}),
-    })
+    if (entityId) {
+      await deleteSellerProductDocuments(meiliUrl, meiliKey, entityId)
+      if (operation === 'upsert') {
+        await syncScopedProductDocuments(meiliUrl, meiliKey, { sellerId: entityId })
+      }
+    } else if (operation === 'upsert') {
+      await syncProductDocuments(meiliUrl, meiliKey, { operation: 'upsert' })
+    }
   }
 
   console.log(
@@ -166,6 +189,26 @@ async function deleteFromIndex(
 
   if (!res.ok && res.status !== 404) {
     throw new Error(`Meilisearch delete failed: ${res.status}`)
+  }
+}
+
+async function deleteBatchFromIndex(
+  baseUrl: string,
+  apiKey: string,
+  index: string,
+  ids: string[],
+) {
+  const res = await fetch(`${baseUrl}/indexes/${index}/documents/delete-batch`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(ids),
+  })
+
+  if (!res.ok) {
+    throw new Error(`Meilisearch batch delete failed: ${res.status}`)
   }
 }
 
@@ -213,11 +256,15 @@ export async function enqueueCategorySync(params: { entityId: string }) {
   )
 }
 
-export async function enqueueStoreSync(params: { entityId: string }) {
+export async function enqueueStoreSync(params: {
+  entityId: string
+  operation?: 'upsert' | 'delete'
+}) {
+  const operation = params.operation ?? 'upsert'
   const { searchIndexSyncQueue } = await import('../lib/queue')
   await searchIndexSyncQueue.add(
-    `store-upsert-${params.entityId}`,
-    { type: 'store', operation: 'upsert', entityId: params.entityId },
+    `store-${operation}-${params.entityId}`,
+    { type: 'store', operation, entityId: params.entityId },
     { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
   )
 }

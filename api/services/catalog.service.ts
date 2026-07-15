@@ -4,7 +4,13 @@
  */
 import { Prisma } from '@prisma/client'
 import type { OrderStatus, PrismaClient, ProductStatus } from '@prisma/client'
-import { NotFoundError, ForbiddenError, ConflictError, ValidationError } from '../lib/errors'
+import {
+  NotFoundError,
+  ForbiddenError,
+  ConflictError,
+  ProductHasOrderHistoryError,
+  ValidationError,
+} from '../lib/errors'
 import { createProductRepository } from '../repositories/product.repository'
 import { createCategoryRepository } from '../repositories/category.repository'
 import { createSellerRepository } from '../repositories/seller.repository'
@@ -13,11 +19,13 @@ import type { EffectivePriceResult } from './discount.service'
 import { createContentScannerService } from './content-scanner.service'
 import { buildSlugWithSuffix, isValidSlug, normalizeSlug } from '../domain/slug'
 import { computeCustomerVisibleCategoryIds } from '../domain/category-visibility'
+import { buildPublicProductWhere } from '../domain/product-visibility'
 import {
   selectCampaignDiscountShowcase,
   selectWeeklyFavoriteShowcase,
 } from '../domain/homepage-showcase'
 import { enqueueCategorySync, enqueueProductSync } from '../jobs/search-index-sync.job'
+import { deleteObject } from '../lib/r2'
 
 interface CatalogServiceDeps {
   prisma: PrismaClient
@@ -60,8 +68,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
           ? { categoryId: params.categoryId }
           : {}
 
-    return {
-      status: 'published',
+    return buildPublicProductWhere({
       ...categoryFilter,
       ...(params.sellerId !== undefined ? { sellerId: params.sellerId } : {}),
       ...(params.minPrice !== undefined || params.maxPrice !== undefined
@@ -73,7 +80,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
           }
         : {}),
       ...(params.inStockOnly === true ? { stockQuantity: { gt: 0 } } : {}),
-    }
+    })
   }
 
   async function loadCustomerVisibleCategoryData() {
@@ -309,7 +316,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
   return {
     async getProductBySlug(slug: string) {
       const product = await products.findBySlug(slug)
-      if (!product || product.status !== 'published') {
+      if (!product || product.status !== 'published' || product.seller.status !== 'active') {
         throw new NotFoundError('Product', slug)
       }
       return applyEffectivePricingToProduct(product)
@@ -641,16 +648,29 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return updated
     },
 
-    async adminUnlistProduct(id: string) {
+    async adminUnlistProduct(id: string, adminActorId: string) {
       const product = await products.findById(id)
       if (!product) throw new NotFoundError('Product', id)
 
-      const updated = await prisma.product.update({
-        where: { id },
-        data: {
-          status: 'unlisted',
-          publishedAt: null,
-        },
+      const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.product.update({
+          where: { id },
+          data: {
+            status: 'unlisted',
+            publishedAt: null,
+          },
+        })
+        await tx.adminAuditLog.create({
+          data: {
+            actorId: adminActorId,
+            actionType: 'product_unlisted',
+            targetType: 'product',
+            targetId: id,
+            previousData: { status: product.status },
+            newData: { status: 'unlisted' },
+          },
+        })
+        return row
       })
 
       await syncProductVisibility(id, product.status, 'unlisted')
@@ -681,19 +701,64 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return updated
     },
 
-    async deleteProductForAdmin(id: string) {
+    async deleteProductForAdmin(id: string, adminActorId: string) {
       const product = await products.findById(id)
       if (!product) throw new NotFoundError('Product', id)
 
       const linkedOrderLineCount = await prisma.orderLine.count({ where: { productId: id } })
       if (linkedOrderLineCount > 0) {
-        throw new ValidationError('Siparis gecmisi olan urun silinemez. Once yayindan kaldirin.')
+        throw new ProductHasOrderHistoryError(linkedOrderLineCount)
       }
 
-      await prisma.product.delete({ where: { id } })
+      const imageUrls = product.images.map((image) => image.url)
+      const mediaAssets = imageUrls.length > 0
+        ? await prisma.mediaAsset.findMany({
+            where: {
+              url: { in: imageUrls },
+              homeSlideMedia: { none: {} },
+              homeSlidePoster: { none: {} },
+              homePromoMedia: { none: {} },
+              supportAttachments: { none: {} },
+              customerSupportAttachments: { none: {} },
+            },
+            select: { id: true, key: true },
+          })
+        : []
+
+      await prisma.$transaction(async (tx) => {
+        await tx.cartItem.deleteMany({ where: { productId: id } })
+        if (mediaAssets.length > 0) {
+          await tx.mediaAsset.deleteMany({ where: { id: { in: mediaAssets.map((asset) => asset.id) } } })
+        }
+        await tx.product.delete({ where: { id } })
+        await tx.adminAuditLog.create({
+          data: {
+            actorId: adminActorId,
+            actionType: 'product_deleted',
+            targetType: 'product',
+            targetId: id,
+            previousData: {
+              sellerId: product.sellerId,
+              name: product.name,
+              status: product.status,
+            },
+            newData: { deleted: true },
+          },
+        })
+      })
       await syncProductVisibility(id, product.status, 'unlisted')
 
-      return { id }
+      const failedMediaKeys: string[] = []
+      for (const asset of mediaAssets) {
+        if (!asset.key) continue
+        try {
+          await deleteObject(asset.key)
+        } catch {
+          failedMediaKeys.push(asset.key)
+        }
+      }
+
+      return { id, failedMediaKeys }
     },
 
     getSellersByCategory(categoryIds: string[]) {

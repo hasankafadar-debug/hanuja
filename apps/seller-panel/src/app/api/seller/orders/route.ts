@@ -6,7 +6,7 @@ import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { getSellerOrderStatusesForTab, isSellerOrderTab } from '@hanuja/api/domain/seller-order-tabs'
 import { maskCustomerName } from '@hanuja/security'
-import { getActiveSellerIdOrThrow } from '@/lib/route-seller'
+import { getOperationalSellerIdOrThrow } from '@/lib/route-seller'
 
 function toDateStart(value: string) {
   return new Date(`${value}T00:00:00.000Z`)
@@ -66,7 +66,7 @@ function buildOrderCsv(rows: Array<{
 
 export async function GET(req: NextRequest) {
   try {
-    const sellerId = await getActiveSellerIdOrThrow()
+    const sellerId = await getOperationalSellerIdOrThrow()
     const url = new URL(req.url)
     const tab = url.searchParams.get('tab')?.trim()
     const q = url.searchParams.get('q')?.trim() ?? undefined

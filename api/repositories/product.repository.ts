@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient, ProductStatus } from '@prisma/client'
+import { buildPublicProductWhere } from '../domain/product-visibility'
 
 function buildPublishedOrderBy(sortBy?: 'newest' | 'price-asc' | 'price-desc' | 'name-asc') {
   if (sortBy === 'price-asc') return { price: 'asc' as const }
@@ -28,8 +29,7 @@ function buildPublishedWhere(params: {
       ? { categoryId: params.categoryId }
       : {}
 
-  return {
-    status: 'published',
+  return buildPublicProductWhere({
     ...categoryFilter,
     ...(params.sellerId !== undefined ? { sellerId: params.sellerId } : {}),
     ...(params.minPrice !== undefined || params.maxPrice !== undefined
@@ -42,7 +42,7 @@ function buildPublishedWhere(params: {
       : {}),
     ...(params.inStockOnly === true ? { stockQuantity: { gt: 0 } } : {}),
     ...(params.onSaleOnly === true ? { compareAtPrice: { not: null } } : {}),
-  }
+  })
 }
 
 export function createProductRepository(prisma: PrismaClient) {
@@ -149,10 +149,7 @@ export function createProductRepository(prisma: PrismaClient) {
     async getSellersByCategory(categoryIds: string[]) {
       const rows = await prisma.product.groupBy({
         by: ['sellerId'],
-        where: {
-          status: 'published',
-          categoryId: { in: categoryIds },
-        },
+        where: buildPublicProductWhere({ categoryId: { in: categoryIds } }),
         _count: { id: true },
         orderBy: { _count: { id: 'desc' } },
       })
@@ -178,7 +175,7 @@ export function createProductRepository(prisma: PrismaClient) {
     countPublishedGroupedByCategory() {
       return prisma.product.groupBy({
         by: ['categoryId'],
-        where: { status: 'published', categoryId: { not: null } },
+        where: buildPublicProductWhere({ categoryId: { not: null } }),
         _count: { _all: true },
       })
     },
@@ -205,8 +202,7 @@ export function createProductRepository(prisma: PrismaClient) {
       take?: number
     }) {
       const normalizedQuery = params.q.trim()
-      const where: Prisma.ProductWhereInput = {
-        status: 'published',
+      const where: Prisma.ProductWhereInput = buildPublicProductWhere({
         ...(params.categorySlug
           ? {
               category: {
@@ -228,7 +224,7 @@ export function createProductRepository(prisma: PrismaClient) {
             },
           },
         ],
-      }
+      })
 
       const [items, total] = await Promise.all([
         prisma.product.findMany({

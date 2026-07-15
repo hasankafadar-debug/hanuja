@@ -5,7 +5,7 @@ import { handleError } from '@hanuja/api/lib/response'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { SELLER_STATEMENT_EXPORT_HEADERS } from '@hanuja/api/domain/seller-statement-export'
 import { createSellerFinanceService } from '@hanuja/api/services/seller-finance.service'
-import { getActiveSellerIdOrThrow } from '@/lib/route-seller'
+import { getOperationalSellerIdOrThrow } from '@/lib/route-seller'
 import { resolveReportingDateRange } from '@hanuja/api/lib/reporting-time'
 
 function parseDateRange(req: NextRequest) {
@@ -16,7 +16,7 @@ function parseDateRange(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const sellerId = await getActiveSellerIdOrThrow()
+    const sellerId = await getOperationalSellerIdOrThrow()
     const { from, to } = parseDateRange(req)
     const format = req.nextUrl.searchParams.get('format')
     const service = createSellerFinanceService({ prisma: createPrismaForRoute() })

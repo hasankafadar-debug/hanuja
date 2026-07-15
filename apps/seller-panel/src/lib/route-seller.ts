@@ -14,3 +14,15 @@ export async function getActiveSellerIdOrThrow() {
 
   return seller.id
 }
+
+export async function getOperationalSellerIdOrThrow() {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) throw new UnauthorizedError()
+
+  const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
+  if (!seller || (seller.status !== 'active' && seller.status !== 'suspended')) {
+    throw new ForbiddenError('Satıcı hesabı sipariş işlemlerine kapalı')
+  }
+
+  return seller.id
+}

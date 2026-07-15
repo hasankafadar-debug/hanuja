@@ -50,7 +50,12 @@ describe('search.service', () => {
       processingTimeMs: 4,
     })
 
-    const service = createSearchService({ prisma: {} as never })
+    const service = createSearchService({
+      prisma: {
+        product: { findMany: vi.fn().mockResolvedValue([{ id: 'prod-1' }]) },
+        siteSearchQuery: { create: vi.fn().mockResolvedValue({}) },
+      } as never,
+    })
     const result = await service.searchProducts({
       q: 'sehpa',
       categorySlug: 'mobilya',

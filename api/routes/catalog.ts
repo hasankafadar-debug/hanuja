@@ -140,12 +140,16 @@ export async function rejectProduct(req: NextRequest, productId: string) {
   }
 }
 
-export async function updateAdminProduct(productId: string, body: { status?: 'unlisted' }) {
+export async function updateAdminProduct(
+  productId: string,
+  body: { status?: 'unlisted' },
+  adminActorId: string,
+) {
   try {
     const svc = getCatalogService()
 
     if (body.status === 'unlisted') {
-      const product = await svc.adminUnlistProduct(productId)
+      const product = await svc.adminUnlistProduct(productId, adminActorId)
       return ok(product)
     }
 
@@ -155,10 +159,10 @@ export async function updateAdminProduct(productId: string, body: { status?: 'un
   }
 }
 
-export async function deleteAdminProduct(productId: string) {
+export async function deleteAdminProduct(productId: string, adminActorId: string) {
   try {
     const svc = getCatalogService()
-    const result = await svc.deleteProductForAdmin(productId)
+    const result = await svc.deleteProductForAdmin(productId, adminActorId)
     return ok(result)
   } catch (err) {
     return handleError(err)

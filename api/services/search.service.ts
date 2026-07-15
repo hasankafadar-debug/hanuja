@@ -12,6 +12,7 @@ import {
 } from '../domain/search'
 import { searchIndex } from '../lib/meilisearch'
 import { createCatalogService } from './catalog.service'
+import { buildPublicProductWhere } from '../domain/product-visibility'
 
 export function createSearchService(deps: { prisma: PrismaClient }) {
   const { prisma } = deps
@@ -49,6 +50,14 @@ export function createSearchService(deps: { prisma: PrismaClient }) {
       })
 
       if (result.totalHits > 0) {
+        const visibleRows = await prisma.product.findMany({
+          where: buildPublicProductWhere({ id: { in: result.hits.map((hit) => hit.id) } }),
+          select: { id: true },
+        })
+        const visibleIds = new Set(visibleRows.map((row) => row.id))
+        if (visibleIds.size !== result.hits.length) {
+          throw new Error('Search projection contains non-public products')
+        }
         const response = {
           hits: result.hits,
           totalHits: result.totalHits,

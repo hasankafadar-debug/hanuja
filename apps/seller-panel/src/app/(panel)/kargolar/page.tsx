@@ -32,7 +32,7 @@ function serializeShipments(
 }
 
 export default async function ShipmentsPage() {
-  const { seller } = await getSellerFromSession()
+  const { seller } = await getSellerFromSession({ allowSuspended: true })
   const prisma = createPrismaForRoute()
   const shipmentService = createShipmentService({ prisma })
   const shipments = await shipmentService.listShipmentsForSeller(seller.id)

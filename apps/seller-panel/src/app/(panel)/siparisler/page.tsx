@@ -48,7 +48,7 @@ function buildQueryString(params: Record<string, string | number | undefined>) {
 
 export default async function SellerOrdersPage({ searchParams }: Props) {
   const resolvedSearchParams = (await searchParams) ?? {}
-  const { seller } = await getSellerFromSession()
+  const { seller } = await getSellerFromSession({ allowSuspended: true })
   const prisma = createPrismaForRoute()
   const service = createOrderService({ prisma })
 

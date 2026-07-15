@@ -185,7 +185,11 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
             description={`ID: ${id.slice(-8).toUpperCase()} · Katılım: ${new Date(seller.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
           />
           <div className="flex flex-col items-end gap-2">
-            <SellerStatusButtons sellerId={seller.id} currentStatus={seller.status} />
+            <SellerStatusButtons
+              sellerId={seller.id}
+              currentStatus={seller.status}
+              displayName={seller.displayName}
+            />
             <SellerAdminActions sellerId={seller.id} />
           </div>
         </div>

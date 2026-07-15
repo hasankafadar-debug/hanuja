@@ -10,10 +10,20 @@ import { createAdminAuditLogRepository } from '@hanuja/api/repositories/admin-au
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { sellerApprovalTemplate } from '@hanuja/api/lib/email-templates/seller-approval'
 import { sendEmail } from '@hanuja/api/lib/mailer'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
+import { enqueueStoreSync } from '@hanuja/api/jobs/search-index-sync.job'
 
 const bodySchema = z.object({
   status: z.enum(['active', 'suspended', 'rejected']),
   reason: z.string().optional(),
+}).superRefine((value, ctx) => {
+  if (value.status === 'suspended' && !value.reason?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['reason'],
+      message: 'Askıya alma gerekçesi zorunludur.',
+    })
+  }
 })
 
 export async function POST(
@@ -21,6 +31,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const csrfError = checkCsrf(req)
+    if (csrfError) return csrfError
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     if (session.user.role !== 'admin') throw new ForbiddenError()
@@ -41,8 +53,11 @@ export async function POST(
       },
     })
     if (!seller) throw new NotFoundError('Seller', id)
+    const affectedProducts = await prisma.product.count({
+      where: { sellerId: id, status: 'published' },
+    })
 
-    if (status === 'active') {
+    if (status === 'active' && seller.status !== 'suspended') {
       const approvedDocs = await prisma.sellerDocument.findMany({
         where: { sellerId: id, status: 'approved' },
         select: { type: true },
@@ -118,10 +133,17 @@ export async function POST(
       targetId: id,
       previousData: { status: seller.status },
       newData: { status },
-      ...(reason !== undefined ? { reason } : {}),
+      ...(reason !== undefined ? { reason: reason.trim() } : {}),
     })
 
-    return ok({ updated: true, status })
+    await enqueueStoreSync({
+      entityId: id,
+      operation: status === 'active' ? 'upsert' : 'delete',
+    }).catch((error) => {
+      console.error('[seller-status] Search sync enqueue failed', error)
+    })
+
+    return ok({ updated: true, status, affectedProducts })
   } catch (err) {
     return handleError(err)
   }

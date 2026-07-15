@@ -31,7 +31,7 @@ const cardStyle = { borderColor: 'var(--color-border)', backgroundColor: 'var(--
 
 export default async function PayoutDetailPage({ params }: Props) {
   const { id } = await params
-  const { seller } = await getSellerFromSession()
+  const { seller } = await getSellerFromSession({ allowSuspended: true })
 
   const payoutRepo = createPayoutRepository(createPrismaForRoute())
   const payout = await payoutRepo.findByIdForSeller(id, seller.id)

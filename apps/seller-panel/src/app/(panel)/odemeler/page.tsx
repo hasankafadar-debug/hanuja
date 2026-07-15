@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Ödemeler & Hakediş' }
 
 export default async function PayoutsPage() {
-  const { seller } = await getSellerFromSession()
+  const { seller } = await getSellerFromSession({ allowSuspended: true })
   const prisma = createPrismaForRoute()
   const payoutRepo = createPayoutRepository(prisma)
   const sellerLedgerRepo = createSellerLedgerRepository(prisma)

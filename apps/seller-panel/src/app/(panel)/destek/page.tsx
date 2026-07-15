@@ -26,7 +26,7 @@ function formatDate(date: Date) {
 }
 
 export default async function SupportPage() {
-  const { seller } = await getSellerFromSession()
+  const { seller } = await getSellerFromSession({ allowSuspended: true })
   const prisma = createPrismaForRoute()
   const service = createSupportTicketService({ prisma })
 

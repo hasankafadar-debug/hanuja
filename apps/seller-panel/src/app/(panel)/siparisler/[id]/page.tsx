@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function SellerOrderDetailPage({ params }: Props) {
   const { id } = await params
-  const { seller } = await getSellerFromSession()
+  const { seller } = await getSellerFromSession({ allowSuspended: true })
 
   const prisma = createPrismaForRoute()
   const service = createOrderService({ prisma })

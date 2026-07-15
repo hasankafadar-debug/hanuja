@@ -38,7 +38,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default async function SupportTicketDetailPage({ params }: Props) {
   const { id } = await params
-  const { seller } = await getSellerFromSession()
+  const { seller } = await getSellerFromSession({ allowSuspended: true })
   const service = createSupportTicketService({ prisma: createPrismaForRoute() })
   const ticket = await service.getForSeller(id, seller.id).catch(() => null)
 

@@ -53,6 +53,7 @@ async function getVisualSiblings(params: { sellerId: string; sku: string }) {
       sellerId: params.sellerId,
       sku: params.sku,
       status: 'published',
+      seller: { is: { status: 'active' } },
     },
     select: {
       id: true,

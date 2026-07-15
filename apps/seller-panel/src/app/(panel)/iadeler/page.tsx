@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'İadeler' }
 
 export default async function SellerReturnsPage() {
-  const { seller } = await getSellerFromSession()
+  const { seller } = await getSellerFromSession({ allowSuspended: true })
 
   const returnRepo = createReturnRequestRepository(createPrismaForRoute())
   const returns = await returnRepo.listForSeller({ sellerId: seller.id })

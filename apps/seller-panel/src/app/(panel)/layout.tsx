@@ -72,9 +72,19 @@ const NAV_SECTIONS: NavSection[] = [
 ]
 
 export default async function SellerPanelLayout({ children }: { children: React.ReactNode }) {
-  const { seller } = await getSellerFromSession()
+  const { seller } = await getSellerFromSession({ allowSuspended: true })
   const displayName = seller.displayName
   const initial = displayName.charAt(0).toUpperCase()
+  const navSections = seller.status === 'suspended'
+    ? [
+        NAV_SECTIONS[2]!,
+        NAV_SECTIONS[3]!,
+        {
+          ...NAV_SECTIONS[4]!,
+          items: NAV_SECTIONS[4]!.items.filter((item) => item.href === '/destek'),
+        },
+      ]
+    : NAV_SECTIONS
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
@@ -98,7 +108,7 @@ export default async function SellerPanelLayout({ children }: { children: React.
           </span>
         </div>
         <div className="flex-1 overflow-y-auto py-4">
-          <SidebarNav sections={NAV_SECTIONS} />
+          <SidebarNav sections={navSections} />
         </div>
       </aside>
 
@@ -108,7 +118,7 @@ export default async function SellerPanelLayout({ children }: { children: React.
           style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         >
           <div className="flex items-center gap-3 md:hidden">
-            <MobileNav />
+            <MobileNav sections={navSections} />
             <span
               className="font-semibold"
               style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
@@ -122,7 +132,14 @@ export default async function SellerPanelLayout({ children }: { children: React.
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          {seller.status === 'suspended' ? (
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              Mağazanız askıya alındı. Yeni satış ve katalog işlemleri kapalıdır; mevcut sipariş, iade ve finans kayıtlarını yönetebilirsiniz.
+            </div>
+          ) : null}
+          {children}
+        </main>
       </div>
     </div>
   )

@@ -20,7 +20,12 @@ import {
   resolveCommissionRate,
 } from '../domain/payout-calculator'
 import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
-import { NotFoundError, ValidationError, ConflictError } from '../lib/errors'
+import {
+  ConflictError,
+  NotFoundError,
+  SellerSuspendedError,
+  ValidationError,
+} from '../lib/errors'
 import { createCartRepository } from '../repositories/cart.repository'
 import { hashLegalDocumentHtml, renderLegalDocuments } from '../lib/legal-documents'
 import type { LegalAcceptanceEvidence } from '../lib/legal-acceptance'
@@ -189,7 +194,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
     const productIds = cart.items.map((item) => item.productId)
     const [products, categories] = await Promise.all([
       prisma.product.findMany({
-        where: { id: { in: productIds }, status: 'published' },
+        where: { id: { in: productIds } },
         include: {
           seller: { include: { profile: true } },
           variants: true,
@@ -228,10 +233,14 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       quantity: number
     }>) {
       const product = products.find((entry) => entry.id === item.productId)
-      if (!product) {
+      if (!product || product.status !== 'published') {
         throw new ConflictError(
           'Sepetteki bir ürün artık satışta değil. Lütfen sepeti güncelleyin.',
         )
+      }
+
+      if (product.seller.status !== 'active') {
+        throw new SellerSuspendedError(product.name)
       }
 
       const variant = item.variantId

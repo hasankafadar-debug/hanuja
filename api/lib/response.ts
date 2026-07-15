@@ -17,7 +17,12 @@ export function noContent() {
 export function handleError(error: unknown): NextResponse {
   if (error instanceof DomainError) {
     return NextResponse.json(
-      { success: false, code: error.code, message: error.message },
+      {
+        success: false,
+        code: error.code,
+        message: error.message,
+        ...(error.details ? { details: error.details } : {}),
+      },
       { status: error.statusCode },
     )
   }

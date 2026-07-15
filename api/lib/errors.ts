@@ -7,12 +7,19 @@
 export class DomainError extends Error {
   readonly code: string
   readonly statusCode: number
+  readonly details: Record<string, unknown> | undefined
 
-  constructor(message: string, code: string, statusCode = 400) {
+  constructor(
+    message: string,
+    code: string,
+    statusCode = 400,
+    details?: Record<string, unknown>,
+  ) {
     super(message)
     this.name = 'DomainError'
     this.code = code
     this.statusCode = statusCode
+    this.details = details
   }
 }
 
@@ -77,6 +84,43 @@ export class SellerNotActiveError extends DomainError {
   constructor() {
     super('Satıcı hesabı aktif değil', 'SELLER_NOT_ACTIVE', 403)
     this.name = 'SellerNotActiveError'
+  }
+}
+
+export class SellerSuspendedError extends DomainError {
+  constructor(productName?: string) {
+    super(
+      productName
+        ? `"${productName}" satıcısı askıya alındığı için satın alınamaz.`
+        : 'Satıcı askıya alındığı için bu işlem yapılamaz.',
+      'SELLER_SUSPENDED',
+      409,
+    )
+    this.name = 'SellerSuspendedError'
+  }
+}
+
+export class ProductHasOrderHistoryError extends DomainError {
+  constructor(orderLineCount: number) {
+    super(
+      'Sipariş geçmişi olan ürün kalıcı olarak silinemez. Ürünü yayından kaldırabilirsiniz.',
+      'PRODUCT_HAS_ORDER_HISTORY',
+      409,
+      { orderLineCount },
+    )
+    this.name = 'ProductHasOrderHistoryError'
+  }
+}
+
+export class SellerHasCommercialHistoryError extends DomainError {
+  constructor(blockingCounts: Record<string, number>) {
+    super(
+      'Ticari geçmişi olan satıcı kalıcı olarak silinemez. Satıcıyı askıya alabilirsiniz.',
+      'SELLER_HAS_COMMERCIAL_HISTORY',
+      409,
+      { blockingCounts },
+    )
+    this.name = 'SellerHasCommercialHistoryError'
   }
 }
 

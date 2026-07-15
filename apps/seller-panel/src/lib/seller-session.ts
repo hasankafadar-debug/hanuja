@@ -11,7 +11,7 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
-export async function getSellerFromSession() {
+export async function getSellerFromSession(options: { allowSuspended?: boolean } = {}) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
     redirect('/giris')
@@ -23,6 +23,14 @@ export async function getSellerFromSession() {
 
   if (!seller) {
     redirect('/basvuru')
+  }
+
+  if (seller.status === 'pending' || seller.status === 'rejected') {
+    redirect('/basvuru')
+  }
+
+  if (seller.status === 'suspended' && !options.allowSuspended) {
+    redirect('/siparisler?hesap=askida')
   }
 
   return { session, seller }

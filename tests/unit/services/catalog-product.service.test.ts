@@ -114,4 +114,26 @@ describe('catalog.service product creation', () => {
     )
     expect(productCreateMock).toHaveBeenCalledOnce()
   })
+
+  it('does not expose a published product owned by a suspended seller', async () => {
+    const prisma = {
+      product: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'prod-suspended',
+          slug: 'askidaki-urun',
+          status: 'published',
+          seller: { id: 'seller-1', status: 'suspended' },
+          images: [],
+          variants: [],
+          category: null,
+          attributeValues: [],
+        }),
+      },
+    } as never
+
+    const service = createCatalogService({ prisma })
+    await expect(service.getProductBySlug('askidaki-urun')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+  })
 })

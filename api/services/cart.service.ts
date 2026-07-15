@@ -4,7 +4,7 @@
 import type { PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
-import { NotFoundError, ValidationError } from '../lib/errors'
+import { NotFoundError, SellerSuspendedError, ValidationError } from '../lib/errors'
 import { createCartRepository } from '../repositories/cart.repository'
 import { createPlatformSettingsService } from './platform-settings.service'
 import { createDiscountService, type EffectivePriceResult } from './discount.service'
@@ -205,10 +205,15 @@ export function createCartService({ prisma }: CartServiceDeps) {
       }
 
       const product = await prisma.product.findUnique({
-        where: { id: params.productId, status: 'published' },
-        include: { variants: true },
+        where: { id: params.productId },
+        include: { variants: true, seller: { select: { status: true } } },
       })
-      if (!product) throw new NotFoundError('Urun', params.productId)
+      if (!product || product.status !== 'published') {
+        throw new NotFoundError('Urun', params.productId)
+      }
+      if (product.seller.status !== 'active') {
+        throw new SellerSuspendedError(product.name)
+      }
       if (product.variants.length > 0 && !params.variantId) {
         throw new ValidationError('Lutfen bir varyasyon secin')
       }

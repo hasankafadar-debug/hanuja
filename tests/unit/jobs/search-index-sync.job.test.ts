@@ -86,10 +86,15 @@ describe('search-index-sync.job', () => {
 
     expect(findManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          status: 'published',
-          categoryId: 'cat-42',
-        }),
+        where: {
+          AND: [
+            {
+              status: 'published',
+              seller: { is: { status: 'active' } },
+            },
+            { categoryId: 'cat-42' },
+          ],
+        },
       }),
     )
   })
