@@ -45,4 +45,4 @@ RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 worker
 USER worker
 
-CMD ["node", "--import", "tsx/esm", "api/jobs/worker-entrypoint.ts"]
+CMD ["pnpm", "exec", "tsx", "api/jobs/worker-entrypoint.ts"]
