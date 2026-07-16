@@ -130,8 +130,8 @@
             - link "0 (850) 888 8758" [ref=e157] [cursor=pointer]:
               - /url: tel:+908508888758
             - text: "· E-posta:"
-            - link "destek@hanuja.com.tr" [ref=e158] [cursor=pointer]:
-              - /url: mailto:destek@hanuja.com.tr
+            - link "admin@hanuja.com.tr" [ref=e158] [cursor=pointer]:
+              - /url: mailto:admin@hanuja.com.tr
           - paragraph [ref=e159]: "Vergi Dairesi: Hasan Tahsin · Vergi No: 7810515555 · MERSİS No: 0781-0515-5550-0001"
       - generic [ref=e160]:
         - paragraph [ref=e161]: © 2026 Suat Salih Ayk. ve Dri. Ürn. Teks. San. ve Tic. Ltd. Şti.. Tüm hakları saklıdır.

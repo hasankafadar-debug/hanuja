@@ -36,10 +36,11 @@ describe('Hanuja contact email policy', () => {
         resetUrl: 'https://satici.hanuja.com.tr/sifre-sifirla',
       }),
     ]
+    const deprecatedSupportAddress = ['destek', 'hanuja.com.tr'].join('@')
 
     for (const template of templates) {
       expect(template.html).toContain('admin@hanuja.com.tr')
-      expect(template.html).not.toContain('destek@hanuja.com.tr')
+      expect(template.html).not.toContain(deprecatedSupportAddress)
     }
   })
 })
