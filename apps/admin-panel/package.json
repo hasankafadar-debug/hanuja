@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@better-fetch/fetch": "^1.1.0",
+    "@fontsource/dm-sans": "^5.2.8",
+    "@fontsource/outfit": "^5.2.8",
     "@hanuja/api": "workspace:*",
     "@hanuja/security": "workspace:*",
     "@hanuja/types": "workspace:*",
