@@ -255,7 +255,7 @@ If you propose a replacement, document the reason, migration impact, and rollout
 | `api/routes/` | Thin HTTP handlers — validate input, call services, return response |
 | `api/jobs/` | BullMQ workers — payout maturity, delivery timers, reconciliation, index sync |
 | `db/schema/` | Prisma schema |
-| `db/migrations/` | Prisma migrations |
+| `db/schema/migrations/` | Prisma migrations |
 | `db/seeds/` | Seed data |
 | `packages/ui` | Shared design system components |
 | `packages/config` | Shared TypeScript/lint/Tailwind config |
@@ -478,5 +478,7 @@ These are platform constants. Do not contradict them in code or documentation.
 9. A return request within 14 days is treated as a standard fast-path withdrawal.
 10. A return request after 14 days requires admin evaluation.
 11. Any order with an open return or open dispute has its payout blocked.
-12. Commission is calculated on `OrderLine.totalPrice` — the KDV-inclusive gross price. Do not use the KDV-exclusive base.
-13. EFT/Havale channel discounts (`Order.eftDiscountAmount`) are absorbed by Hanuja. They do not reduce `Payout.grossAmount` or `Payout.netAmount`.
+12. Commission base is the KDV-inclusive amount the customer actually paid for the line: `OrderLine.totalPrice − OrderLine.couponDiscountAmount`. Do not use the KDV-exclusive base.
+13. The commission deduction is itself KDV-inclusive: `commissionAmount = roundMoney(base × commissionRate × (1 + commissionVatRate))`, where `commissionVatRate` is `PlatformSettings.commissionVatRate` (default 0.2000).
+14. Seller coupon (`Coupon.sellerId` set) and seller discount rule cost belongs to the seller: the coupon discount is allocated to the seller's lines as `OrderLine.couponDiscountAmount`, reduces the commission base, and reduces net payout (`netPayoutAmount = totalPrice − couponDiscountAmount − commissionAmount`).
+15. Platform coupon (`Coupon.sellerId` null) and EFT/Havale channel discount (`Order.eftDiscountAmount`) are absorbed by Hanuja. They do not reduce the commission base, `Payout.grossAmount`, or `Payout.netAmount`.

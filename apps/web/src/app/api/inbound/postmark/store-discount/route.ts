@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createStoreFollowService } from '@hanuja/api/services/store-follow.service'
+import { createCampaignDiscountService } from '@hanuja/api/services/campaign-discount.service'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,8 +40,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, status: 'ignored' })
     }
 
-    const service = createStoreFollowService({ prisma: createPrismaForRoute() })
+    const prisma = createPrismaForRoute()
+    const service = createStoreFollowService({ prisma })
     const updated = await service.unsubscribeByReplyEmail(fromEmail)
+
+    // A "RET" reply also opts the sender out of all marketing (campaign) email.
+    await createCampaignDiscountService({ prisma }).revokeMarketingEmailConsentByEmail(fromEmail)
 
     return NextResponse.json({
       success: true,

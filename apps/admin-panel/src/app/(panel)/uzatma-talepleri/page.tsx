@@ -129,8 +129,7 @@ export default async function UzatmaTalepleriPage({
           className="rounded-xl border px-4 py-3 text-sm"
           style={{ borderColor: '#f59e0b', backgroundColor: '#fffbeb', color: '#92400e' }}
         >
-          Ek sure talepleri tablosu bu ortamda henuz hazir degil. Migration tamamlandiginda bu
-          liste otomatik dolacak.
+          Ek sure taleplerine su anda ulasilamiyor. Lutfen biraz sonra tekrar deneyin.
         </div>
       ) : null}
 

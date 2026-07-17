@@ -87,14 +87,13 @@ export default async function UzatmaTalebiDetay({
       <div className="space-y-6">
         <PageHeader
           title="Ek Sure Talebi Detay"
-          description="Migration tamamlanana kadar bu kayit goruntulenemiyor."
+          description="Bu kayit su anda goruntulenemiyor."
         />
         <div
           className="rounded-xl border px-4 py-3 text-sm"
           style={{ borderColor: '#f59e0b', backgroundColor: '#fffbeb', color: '#92400e' }}
         >
-          Ek sure talebi tablosu bu ortamda henuz hazir degil. Migration sonrasi detay sayfasi
-          otomatik olarak calisacaktir.
+          Ek sure talebi bilgilerine su anda ulasilamiyor. Lutfen biraz sonra tekrar deneyin.
         </div>
       </div>
     )

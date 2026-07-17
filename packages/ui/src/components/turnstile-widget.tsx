@@ -151,7 +151,7 @@ export function TurnstileWidget({
           padding: 12,
         }}
       >
-        Turnstile anahtari tanimli degil. Gelistirme modunda otomatik bypass kullaniliyor.
+        İnsan doğrulaması bu ortamda kullanılmıyor.
       </div>
     ) : (
       <div

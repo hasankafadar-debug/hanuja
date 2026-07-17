@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-07-17
 # Durum: taslak v1
 
 # Audit Logging Plan
@@ -228,6 +228,44 @@ For every new high-impact action added to the platform:
 4. Ensure the service that performs the action writes the audit entry in the
    same transaction as the state mutation.
 5. Add a test asserting that the audit entry is created with the correct fields.
+
+---
+
+## Marketing Consent Trail (2026-07-17)
+
+Campaign email (`product_discount_favorited` / `product_discount_in_cart`) is
+consent-gated, distinct from the append-only admin audit log above but built on the
+same traceability principle: every consent state must be attributable and timestamped,
+never inferred.
+
+- `MarketingConsent` (`db/schema/schema.prisma`) records `emailConsentAt` /
+  `emailRevokedAt` and `smsConsentAt` / `smsRevokedAt` as explicit timestamp pairs, plus
+  `consentSource` (e.g. `signup`, `hesabim`) so the origin of consent is always known —
+  never a bare boolean flag with no history.
+- Revocation is a new timestamp on the existing row (`emailRevokedAt`), not a delete —
+  consistent with the append/traceability principle used for `AdminAuditLog` and
+  `SellerLedgerEntry` elsewhere in this repository.
+- Global opt-out is available without an authenticated session via a unique
+  `optOutToken`, exposed through `/api/marketing/unsubscribe` (GET link + POST
+  One-Click per RFC 8058) and rate-limited under the API rate limit tier.
+- Campaign email sending is gated at the point of dispatch: `product_discount_*` mail is
+  only sent to users with an active (non-revoked) `emailConsentAt`. This is a legal
+  requirement (KVKK / Turkish Electronic Commerce Law no. 6563 — commercial electronic
+  message consent), not just a UX preference, and must not be weakened to a soft
+  best-effort filter.
+- Store-follow discount notices (`store_discount_followed_seller`) remain governed by
+  the separate, pre-existing per-follow opt-out — they are **not** gated by
+  `MarketingConsent`. Do not conflate the two consent surfaces when reviewing or
+  extending campaign email logic.
+- The inbound Postmark reply-to-invoice (RET) flow can also revoke global marketing
+  consent when a customer replies asking to stop. This trusts the `From` header of the
+  inbound email, which is spoofable; the failure direction is fail-safe (consent can be
+  revoked in error, never granted in error), so the residual risk is accepted as low but
+  should be kept in mind in any future hardening pass.
+
+Cross-reference: `docs/06-engineering/database-schema.md` (`MarketingConsent`,
+`CampaignEmailDispatch` models), `docs/06-engineering/queue-jobs-plan.md`
+§"campaign-discount", `.claude/rules/12-production-readiness.md` §18.
 
 ---
 

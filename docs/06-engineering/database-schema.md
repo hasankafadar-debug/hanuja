@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-07-17
 # Durum: taslak v1
 
 # Database Schema — Hanuja Marketplace
@@ -116,6 +116,14 @@ Dispute states: `dispute_open` | `dispute_resolved`
 
 ### BlogPostStatus
 `draft` | `published` | `archived`
+
+### CampaignDispatchSource
+`favorite` | `cart` — which audience a `CampaignEmailDispatch` row belongs to.
+
+### NotificationType additions (2026-07-17)
+`product_discount_favorited` and `product_discount_in_cart` were added alongside the
+existing `store_discount_followed_seller`, driving the campaign-discount email flow (see
+`docs/06-engineering/queue-jobs-plan.md` §"campaign-discount").
 
 ---
 
@@ -237,6 +245,35 @@ User-scoped in-app notifications. `data` JSON carries action links or contextual
 
 ### Coupon / CouponUsage
 `CouponUsage` enforces per-user per-order uniqueness via a composite unique constraint. `usageCount` on `Coupon` is incremented atomically on successful application.
+
+### MarketingConsent
+One row per `User` (`userId @unique`). Records email and SMS marketing consent as
+separate timestamp pairs (`emailConsentAt`/`emailRevokedAt`, `smsConsentAt`/`smsRevokedAt`)
+even though the current signup checkbox is a single consent action that sets both
+channels' `*ConsentAt` at once — a deliberate business decision to keep the channels
+model-separable for future divergence. `consentSource` records where consent was given
+(e.g. `signup`, `hesabim`). `optOutToken` is a unique unguessable token used by the
+unsubscribe link (`/api/marketing/unsubscribe`) so opt-out does not require an
+authenticated session. Campaign email (`product_discount_favorited` /
+`product_discount_in_cart`) is only sent to users with an active (non-revoked)
+`emailConsentAt`. Store-follow discount notices are governed separately by a per-follow
+opt-out, not by this table.
+
+### CampaignEmailDispatch
+Dedupe and cooldown ledger for campaign discount email. `@@unique([userId,
+discountFingerprint, source])` prevents re-sending for the same discount campaign state;
+`discountFingerprint` is derived from `discountRuleId + startsAt|createdAt`, so editing a
+rule's `startsAt` (a materially new campaign) produces a new fingerprint and a new
+eligible send, while an unrelated field update (e.g. the `updatedAt`-only bug this model
+fixes) does not re-trigger email. The `(userId, productId, createdAt)` index supports the
+independent per-`(user, product)` 7-day cooldown scan
+(`CAMPAIGN_EMAIL_COOLDOWN_DAYS`) that blocks recreate-and-respam abuse regardless of
+fingerprint. `source` (`CampaignDispatchSource`: `favorite` | `cart`) distinguishes which
+audience triggered the row.
+
+### CartItem index addition
+`CartItem` carries `@@index([productId])` to support the campaign-discount job's
+cart-audience lookup (users with a given product in their cart) without a full table scan.
 
 ---
 

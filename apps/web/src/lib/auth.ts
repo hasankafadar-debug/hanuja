@@ -4,6 +4,8 @@ import { admin as adminPlugin } from 'better-auth/plugins'
 import { PrismaClient } from '@prisma/client'
 import { sendEmail } from '@hanuja/api/lib/mailer'
 import { emailVerificationTemplate } from '@hanuja/api/lib/email-templates/email-verification'
+import { passwordResetTemplate } from '@hanuja/api/lib/email-templates/password-reset'
+import { passwordChangedTemplate } from '@hanuja/api/lib/email-templates/password-changed'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -53,10 +55,7 @@ async function ensureDatabaseConnection(request: Request): Promise<Response | nu
     return Response.json(
       {
         code: 'DATABASE_UNAVAILABLE',
-        message:
-          process.env.NODE_ENV === 'development'
-            ? 'Veritabani baglantisi kurulamadi. PostgreSQL servisini ve migration durumunu kontrol edin.'
-            : 'Veritabani baglantisi kurulamadi.',
+        message: 'Giris hizmetine su anda ulasilamiyor. Lutfen biraz sonra tekrar deneyin.',
       },
       { status: 503 },
     )
@@ -67,7 +66,30 @@ const _auth = betterAuth({
   baseURL,
   secret: process.env.BETTER_AUTH_SECRET ?? 'change-me-in-production',
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
-  emailAndPassword: { enabled: true, requireEmailVerification: false, minPasswordLength: 8 },
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: false,
+    minPasswordLength: 8,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    sendResetPassword: async ({ user, url }) => {
+      const template = passwordResetTemplate({ resetUrl: url })
+      await sendEmail({
+        to: user.email,
+        subject: template.subject,
+        html: template.html,
+        text: template.text,
+      })
+    },
+    onPasswordReset: async ({ user }) => {
+      const template = passwordChangedTemplate({ changedAt: new Date() })
+      await sendEmail({
+        to: user.email,
+        subject: template.subject,
+        html: template.html,
+        text: template.text,
+      }).catch(console.error)
+    },
+  },
   emailVerification: {
     sendVerificationEmail: async ({ user, url }) => {
       const template = emailVerificationTemplate({

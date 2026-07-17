@@ -155,7 +155,7 @@ export function CategoryPageBody({
         ) : (
           <EmptyState
             icon={<Package className="h-6 w-6" />}
-            title="Bu kategoride yakında ürünler olacak"
+            title="Bu kategoride henüz yayınlanmış ürün bulunmuyor."
             description="Yeni ürünler eklendikçe burada görünecek."
           />
         )

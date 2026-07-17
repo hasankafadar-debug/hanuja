@@ -51,7 +51,7 @@ describe('media url helpers', () => {
     ).toBe(`http://localhost:3001${buildMediaProxyUrl(source)}`)
     expect(
       getManagedMediaShareUrlConfigError('https://pub-05520b87648e41d29f4d7539fef47aef.r2.dev'),
-    ).toContain('r2.dev')
+    ).toBe('Medya paylasim adresi kullanima hazir degil. Lutfen biraz sonra tekrar deneyin.')
   })
 
   it('resolves first-party media proxy urls back to the managed source url', () => {

@@ -22,7 +22,7 @@ export function assertPaymentMethodEnabled(
 ): void {
   if (paymentMethod === 'card' && !isCardPaymentsEnabled(env)) {
     throw new DomainError(
-      'Kartla ödeme geçici olarak kullanılamıyor. Lütfen Havale / EFT seçeneğini kullanın.',
+      'Kartla ödeme sunulmuyor. Lütfen Havale / EFT seçeneğini kullanın.',
       'CARD_PAYMENTS_DISABLED',
       503,
     )

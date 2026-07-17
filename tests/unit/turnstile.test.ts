@@ -38,6 +38,23 @@ describe('verifyTurnstileToken', () => {
     expect(result.message).toContain('hazir degil')
   })
 
+  it('fails closed in production when a Cloudflare test secret key is configured', async () => {
+    process.env.NODE_ENV = 'production'
+    process.env.TURNSTILE_SECRET_KEY = '1x0000000000000000000000000000000AA'
+
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await verifyTurnstileToken({
+      token: 'XXXX.DUMMY.TOKEN.XXXX',
+      action: 'checkout-submit',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('hazir degil')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('rejects a valid response when the action does not match', async () => {
     process.env.NODE_ENV = 'test'
     process.env.TURNSTILE_SECRET_KEY = 'secret'
@@ -50,6 +67,27 @@ describe('verifyTurnstileToken', () => {
           success: true,
           action: 'seller-onboarding',
         }),
+      }),
+    )
+
+    const result = await verifyTurnstileToken({
+      token: 'real-token',
+      action: 'checkout-submit',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('gecersiz')
+  })
+
+  it('rejects a response without the expected action', async () => {
+    process.env.NODE_ENV = 'test'
+    process.env.TURNSTILE_SECRET_KEY = 'secret'
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true }),
       }),
     )
 

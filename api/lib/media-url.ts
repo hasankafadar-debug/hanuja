@@ -113,20 +113,20 @@ function resolveShareUrlOptions(options?: string | ManagedMediaShareUrlOptions) 
 
 export function getManagedMediaShareUrlConfigError(publicBaseUrl = getConfiguredMediaBaseUrl()) {
   if (!publicBaseUrl) {
-    return 'Medya paylasim adresi hazir degil. R2_PUBLIC_URL ve R2_PUBLIC_HOSTNAME custom media domainine ayarlanmalidir.'
+    return 'Medya paylasim adresi kullanima hazir degil. Lutfen biraz sonra tekrar deneyin.'
   }
 
   const parsedTarget = parseAbsoluteUrl(publicBaseUrl)
   if (!parsedTarget) {
-    return 'Medya paylasim adresi gecersiz. R2_PUBLIC_URL tam ve gecerli bir https adresi olmalidir.'
+    return 'Medya paylasim adresi kullanima hazir degil. Lutfen biraz sonra tekrar deneyin.'
   }
 
   if (parsedTarget.protocol !== 'https:') {
-    return 'Medya paylasim adresi guvenli degil. R2_PUBLIC_URL https kullanmalidir.'
+    return 'Medya paylasim adresi kullanima hazir degil. Lutfen biraz sonra tekrar deneyin.'
   }
 
   if (isR2DevHostname(parsedTarget.hostname)) {
-    return 'Medya paylasim adresi henuz production domaine tasinmamis. R2_PUBLIC_URL ve R2_PUBLIC_HOSTNAME r2.dev yerine custom media domainini gostermelidir.'
+    return 'Medya paylasim adresi kullanima hazir degil. Lutfen biraz sonra tekrar deneyin.'
   }
 
   return null

@@ -136,17 +136,27 @@ Payout.netAmount    = formula above             (NOT reduced by eftDiscountAmoun
 The EFT discount cost is absorbed entirely by Hanuja. Changing this policy requires
 explicit approval and an update to `docs/01-business/payout-policy.md` section 12.
 
-### Commission base — KDV-inclusive
+### Commission base — KDV-inclusive, coupon-adjusted
 
-Commission is always calculated on `OrderLine.totalPrice`, which is the **KDV-inclusive**
-(VAT-inclusive) gross price snapshot at order creation.
+The commission base is the **KDV-inclusive** amount the customer actually paid for the line:
+the `OrderLine.totalPrice` gross snapshot minus any seller-coupon discount allocated to the
+line (`OrderLine.couponDiscountAmount`).
+
+The commission deduction is itself KDV-inclusive — the rate is grossed up by
+`commissionVatRate` (`PlatformSettings.commissionVatRate`, default `0.2000`):
 
 ```
-commissionAmount = OrderLine.totalPrice × commissionRate
+commissionBase   = OrderLine.totalPrice − OrderLine.couponDiscountAmount
+commissionAmount = roundMoney(commissionBase × commissionRate × (1 + commissionVatRate))
 ```
 
 Do not use a KDV-exclusive base. Do not reduce the commission base by EFT discount,
-coupon discount, or shipping. See `docs/01-business/commission-policy.md`.
+platform coupon, or shipping. Seller coupon discount **does** reduce the base (see
+Coupon and Discount Rules below). Final money amounts use `roundMoney`
+(`packages/security/src/money.ts`). See `docs/01-business/commission-policy.md`.
+
+This applies to new orders only (snapshot at order creation). Orders confirmed before
+2026-07-09 keep their original KDV-exclusive commission snapshot.
 
 ## Gross Amount vs Net Amount
 
@@ -328,15 +338,37 @@ Refund-linked adjustments must be visible in:
 
 ## Coupon and Discount Rules
 
-If coupons or campaign discounts affect seller payout:
+The cost owner depends on the discount type. This must be explicit in finance records.
 
-- the cost impact must be explicit
-- the system must know whether the discount is absorbed by platform, seller, or shared logic
-- finance records must show the impact clearly
+### Seller coupon — cost borne by the seller
 
-Do not silently reduce seller payout without a visible reference.
+A coupon with `Coupon.sellerId` set is valid only on that seller's products (applied to the
+seller subtotal at checkout). Its cost belongs to the seller:
 
-If coupon-sharing rules are still evolving, model them as configurable policy.
+```
+OrderLine.couponDiscountAmount = seller coupon distributed proportionally across the
+                                 seller's order lines
+Payout.couponShareAmount       = sum(OrderLine.couponDiscountAmount)
+OrderLine.netPayoutAmount      = totalPrice − couponDiscountAmount − commissionAmount
+```
+
+The seller coupon discount also reduces the commission base (see Commission base section).
+
+### Seller discount rule — cost borne by the seller
+
+`DiscountRule` lowers the sale price directly, so `OrderLine.totalPrice` is already the
+discounted price. No separate share allocation is performed; commission is naturally
+computed on the reduced price.
+
+### Platform coupon — cost borne by Hanuja
+
+A coupon with `Coupon.sellerId` null is platform-wide and absorbed by Hanuja. Line snapshots
+stay at full price; the platform coupon does NOT reduce the commission base or the seller
+payout — the same philosophy as the EFT channel discount.
+
+Do not silently reduce seller payout without a visible reference. Every coupon effect must
+be traceable to `OrderLine.couponDiscountAmount` / `Payout.couponShareAmount` or explicitly
+recorded as platform-absorbed.
 
 ## Cargo Charge Rules
 

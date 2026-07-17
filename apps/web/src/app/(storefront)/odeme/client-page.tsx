@@ -704,8 +704,8 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                   className="rounded-lg border p-3 text-sm"
                   style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
                 >
-                  Kartla ödeme yakında iyzico ile açılacaktır. Şimdilik yalnız Havale / EFT ile
-                  sipariş verebilirsiniz.
+                  Ödeme yöntemi Havale/EFT’dir. Sipariş sonrasında banka bilgileri
+                  gösterilecektir.
                 </div>
               )}
 

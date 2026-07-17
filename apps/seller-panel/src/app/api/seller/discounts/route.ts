@@ -2,8 +2,10 @@ import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { campaignDiscountQueue } from '@hanuja/api/lib/queue'
+import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { createDiscountService } from '@hanuja/api/services/discount.service'
-import { createStoreFollowService } from '@hanuja/api/services/store-follow.service'
+import { buildDiscountFingerprint } from '@hanuja/api/services/campaign-discount.service'
 import { auth } from '@/lib/auth'
 
 const createDiscountRuleSchema = z.object({
@@ -41,6 +43,11 @@ export async function POST(req: NextRequest) {
   const seller = await getSeller()
   if (!seller) return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
 
+  // Creating a rule can fan out a marketing email blast — rate-limit to blunt the
+  // recreate-to-respam vector (backs up the per-user/product cooldown in the service).
+  const rl = await checkUserRateLimit(seller.userId, 'seller:discounts:create', HIGH_RISK_RATE_LIMIT)
+  if (!rl.allowed) return rl.response!
+
   const body = await req.json().catch(() => ({}))
   const parsed = createDiscountRuleSchema.safeParse(body)
 
@@ -67,13 +74,19 @@ export async function POST(req: NextRequest) {
     const rule = await service.createRule(seller.id, createInput)
 
     if (rule.status === 'ACTIVE') {
-      await createStoreFollowService({ prisma }).notifyFollowersAboutDiscount({
-        sellerId: seller.id,
-        sellerName: seller.displayName,
-        sellerSlug: seller.slug,
-        discountRuleId: rule.id,
-        discountFingerprint: `${rule.id}:${rule.createdAt.toISOString()}`,
-      })
+      // Fire-and-forget: fan-out (store followers + favorite/cart audience) runs
+      // in the campaign-discount worker. Dispatch dedupe is by fingerprint.
+      void campaignDiscountQueue
+        .add('fan-out', {
+          discountRuleId: rule.id,
+          discountFingerprint: buildDiscountFingerprint(rule),
+          sellerId: seller.id,
+          sellerName: seller.displayName,
+          sellerSlug: seller.slug,
+        })
+        .catch((error) => {
+          console.error('[seller-discounts] fan-out enqueue failed:', error)
+        })
     }
 
     return NextResponse.json({ rule }, { status: 201 })

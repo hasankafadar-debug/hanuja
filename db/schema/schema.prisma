@@ -359,6 +359,13 @@ enum NotificationType {
   admin_customer_support_reply
   admin_fulfillment_risk
   store_discount_followed_seller
+  product_discount_favorited
+  product_discount_in_cart
+}
+
+enum CampaignDispatchSource {
+  favorite
+  cart
 }
 
 enum SupportTicketStatus {
@@ -458,6 +465,8 @@ model User {
   storeDiscountDispatches          StoreDiscountDispatch[]
   paidPayouts                      Payout[]                    @relation("PayoutPaidByAdmin")
   createdSellerInvoices            SellerInvoice[]             @relation("SellerInvoiceCreatedByAdmin")
+  marketingConsent                 MarketingConsent?
+  campaignEmailDispatches          CampaignEmailDispatch[]
 
   customerSupportTickets         CustomerSupportTicket[]  @relation("CustomerSupportTicketsAsCustomer")
   resolvedCustomerSupportTickets CustomerSupportTicket[]  @relation("CustomerSupportTicketsAsResolver")
@@ -938,6 +947,7 @@ model CartItem {
 
   @@unique([cartId, productId, variantId])
   @@index([cartId])
+  @@index([productId])
   @@map("cart_items")
 }
 
@@ -2021,6 +2031,49 @@ model StoreDiscountDispatch {
   @@unique([userId, sellerId, discountFingerprint])
   @@index([sellerId, createdAt])
   @@map("store_discount_dispatches")
+}
+
+// =============================================================================
+// MARKETING CONSENT + CAMPAIGN DISPATCH — favori/sepet indirim e-postaları
+// =============================================================================
+// Tek bir kayıt onayı (signup checkbox) hem email hem sms zaman damgasını
+// aynı anda set eder — iş kararı. Kanallar ileride ayrışabilir diye ayrı
+// tutulur. Rıza olmayan/geri çekilmiş kullanıcı kampanya e-postası alamaz.
+
+model MarketingConsent {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  emailConsentAt  DateTime?
+  emailRevokedAt  DateTime?
+  smsConsentAt    DateTime?
+  smsRevokedAt    DateTime?
+  consentSource   String
+  optOutToken     String    @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("marketing_consents")
+}
+
+model CampaignEmailDispatch {
+  id                  String                 @id @default(cuid())
+  userId              String
+  discountRuleId      String?
+  productId           String?
+  discountFingerprint String
+  source              CampaignDispatchSource
+  emailSentAt         DateTime?
+  createdAt           DateTime               @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, discountFingerprint, source])
+  @@index([discountRuleId])
+  // Per-user/product kampanya e-postası cooldown taraması (fingerprint'ten bağımsız).
+  @@index([userId, productId, createdAt])
+  @@map("campaign_email_dispatches")
 }
 
 // =============================================================================

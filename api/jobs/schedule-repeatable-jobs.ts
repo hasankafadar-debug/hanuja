@@ -28,6 +28,7 @@ import {
   fulfillmentRiskQueue,
   ibanActivationQueue,
   seoContentQueue,
+  campaignDiscountQueue,
 } from '../lib/queue'
 
 export async function scheduleRepeatableJobs(): Promise<void> {
@@ -100,9 +101,24 @@ export async function scheduleRepeatableJobs(): Promise<void> {
     },
   )
 
+  // ── Campaign discount activation scan — every 15 minutes ────────────────────
+  await campaignDiscountQueue.add(
+    'activation-scan',
+    {},
+    {
+      repeat: {
+        pattern: '*/15 * * * *', // Every 15 minutes
+        tz: 'UTC',
+      },
+      removeOnComplete: { count: 10 },
+      removeOnFail: { count: 20 },
+    },
+  )
+
   console.log('[scheduler] Repeatable jobs registered:')
   console.log('  - payout-maturity-daily         → 02:00 UTC daily')
   console.log('  - delivery-silent-confirm        → every 30 min')
   console.log('  - fulfillment-risk-daily         → 08:00 UTC daily')
   console.log('  - iban-activation-hourly         → every hour')
+  console.log('  - campaign-discount-activation   → every 15 min')
 }

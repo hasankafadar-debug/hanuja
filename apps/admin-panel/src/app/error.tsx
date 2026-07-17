@@ -12,7 +12,7 @@ function getFriendlyMessage(error: Error) {
     message.includes('column')
 
   if (isSchemaMismatch) {
-    return 'Admin panel veritabani semasi uygulama ile uyumlu gorunmuyor. Lutfen migration adimlarini uygulayip sayfayi tekrar yukleyin.'
+    return 'Admin paneline su anda ulasilamiyor. Lutfen biraz sonra tekrar deneyin.'
   }
 
   return 'Sayfa yuklenirken beklenmeyen bir hata meydana geldi. Lutfen tekrar deneyin.'

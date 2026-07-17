@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { authClient, signUp } from '@/lib/auth-client'
+import { csrfFetch } from '@/lib/csrf-fetch'
 import { TurnstileWidget } from '@hanuja/ui'
 
 type AuthClientError = {
@@ -28,7 +29,7 @@ function getSignupErrorMessage(authError: AuthClientError | null | undefined): s
     message.includes('connect') ||
     message.includes('prisma')
   ) {
-    return 'Sunucu veritabanına bağlanamıyor. Lokal geliştirmede PostgreSQL servisini ve migration adımlarını kontrol edin.'
+    return 'Kayıt hizmetine şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.'
   }
 
   if (authError?.message) {
@@ -61,6 +62,7 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
+  const [marketingConsent, setMarketingConsent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [turnstileToken, setTurnstileToken] = useState('')
@@ -115,6 +117,17 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
       }
 
       setVerificationEmail(email)
+
+      // Fire-and-forget marketing opt-in. Requires an active session; if signup
+      // gates on email verification without one, the write is skipped server-side
+      // (401) and simply retried later from account settings. Never blocks signup.
+      if (marketingConsent) {
+        void csrfFetch('/api/user/marketing-consent', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ consented: true }),
+        }).catch(() => {})
+      }
 
       const verificationResult = await sendVerificationEmail(email)
 
@@ -269,6 +282,19 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
         {error ? (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
         ) : null}
+
+        <div className="flex items-start gap-2">
+          <input
+            id="marketingConsent"
+            type="checkbox"
+            checked={marketingConsent}
+            onChange={(event) => setMarketingConsent(event.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 text-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+          />
+          <label htmlFor="marketingConsent" className="text-xs leading-relaxed text-neutral-500">
+            Kampanya, indirim ve fırsatlardan e-posta ve SMS ile haberdar olmak istiyorum.
+          </label>
+        </div>
 
         <p className="text-xs leading-relaxed text-neutral-400">
           Üye olarak{' '}

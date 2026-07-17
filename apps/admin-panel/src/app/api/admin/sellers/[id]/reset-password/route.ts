@@ -7,6 +7,7 @@ import { createAdminAuditLogRepository } from '@hanuja/api/repositories/admin-au
 import { UnauthorizedError, ForbiddenError, NotFoundError } from '@hanuja/api/lib/errors'
 import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { handleError, ok } from '@hanuja/api/lib/response'
+import { getSellerPanelUrl } from '@hanuja/api/lib/platform-info'
 
 const bodySchema = z.object({
   reason: z.string().min(3).optional(),
@@ -38,7 +39,7 @@ export async function POST(
     await auth.api.requestPasswordReset({
       body: {
         email: seller.user.email,
-        redirectTo: '/sifre-sifirla',
+        redirectTo: `${getSellerPanelUrl()}/sifre-sifirla`,
       },
     })
 

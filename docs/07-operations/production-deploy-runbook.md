@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-07-03
+# Son güncelleme: 2026-07-17
 # Durum: taslak v1
 
 # Production Deploy Runbook
@@ -67,7 +67,19 @@ Gerekli/opsiyonel değişkenlerin tek doğru kaynağı `tools/scripts/check-env.
 | `POSTMARK_INBOUND_WEBHOOK_PASS` | Postmark inbound webhook basic auth şifre |
 
 ### Opsiyonel
-`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `INVOICE_ALIASING_ENABLED`, `NEXT_PUBLIC_SITE_NAME`, `NEXT_PUBLIC_SITE_URL`, `AUTO_APPROVE_CLEAN_PRODUCTS` (bkz. `.claude/rules/12-production-readiness.md` §6 — varsayılan `false` kalmalı).
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `EMAIL_FROM_NOREPLY`, `EMAIL_FROM_FATURA`, `EMAIL_FROM_KAMPANYA`, `INVOICE_ALIASING_ENABLED`, `NEXT_PUBLIC_SITE_NAME`, `NEXT_PUBLIC_SITE_URL`, `AUTO_APPROVE_CLEAN_PRODUCTS` (bkz. `.claude/rules/12-production-readiness.md` §6 — varsayılan `false` kalmalı).
+
+`SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM` `check-env`'de `requiredInProd: true`'dur (opsiyonel listede olmaları yalnızca genel `required` bayrağı taşımadıkları anlamına gelir — production'da eksikse `check-env --env=prod` FAIL üretir). `EMAIL_FROM_*` üçlüsü gerçekten opsiyoneldir (boşsa `SMTP_FROM`'a düşer) ama her kategori için ayrı doğrulanmış SES kimliği kullanmak üzere production'da açıkça girilmesi önerilir.
+
+### SMTP / e-posta doğrulaması (Amazon SES)
+
+Production SMTP sağlayıcısı Amazon SES'tir (`eu-central-1`). Deploy öncesi:
+
+- [ ] `SMTP_HOST` = `email-smtp.eu-central-1.amazonaws.com`, `SMTP_PORT` = `587`, `SMTP_USER`/`SMTP_PASS` SES SMTP kimlik bilgileri (AWS access key değil, SES konsolundan üretilen SMTP-özel kimlik bilgileri) — bkz. `docs/06-engineering/integrations.md` §6.
+- [ ] `hanuja.com.tr` domain kimliği SES konsolunda **Verified** durumda; 3 DKIM CNAME kaydı ve `ses.hanuja.com.tr` MX/TXT (MAIL FROM subdomain) DNS'te doğrulanmış.
+- [ ] Kök domain (`hanuja.com.tr`) MX/SPF kayıtları **değiştirilmemiş** — bunlar Promail'e (kurumsal gelen kutusu `admin@hanuja.com.tr`) aittir ve SES bunlara dokunmadan `ses.hanuja.com.tr` alt domaininde çalışır.
+- [ ] SES gönderim durumu bilinir hale getirilmiş: hâlâ **sandbox** ise (bu doküman yazıldığı sırada durum budur — production erişimi talep edilmiş, henüz onaylanmamış), yalnızca SES'te doğrulanmış alıcı adreslerine teslimat yapılabileceği bilinmeli; smoke test (Bölüm 7) buna göre planlanmalı.
+- [ ] `EMAIL_FROM_NOREPLY`, `EMAIL_FROM_FATURA`, `EMAIL_FROM_KAMPANYA` girilmişse üçü de `hanuja.com.tr` altında ve doğrulanmış domain kimliği kapsamında.
 
 ### Doğrulama
 Tüm değişkenler Coolify panelinden her servise ayrı ayrı girilir — **hiçbir zaman repo'ya commit edilmez** (bkz. `.claude/rules/05-security-rules.md` §"Secret ve Credential Kuralları"). Servis bazlı hangi değişkenin hangi Coolify servisine gireceği için `docs/06-engineering/coolify-setup.md` tablolarını kullanın.
@@ -136,6 +148,13 @@ Sıra:
    pnpm db:migrate:deploy
    ```
    (bu, `pnpm --filter @hanuja/db exec prisma migrate deploy` çalıştırır — bkz. root `package.json`)
+
+   Bu adım, deploy zincirindeki en güncel migration olan
+   `20260717120000_campaign_discount_marketing_consent`'i de içerir (`MarketingConsent`,
+   `CampaignEmailDispatch`, `CartItem.productId` index, `NotificationType` eklemeleri —
+   bkz. `docs/06-engineering/database-schema.md`). **Additive**'dir, guard script
+   gerektirmez (adım 1 yalnızca `providerPaymentId` migration'ına özeldir); mevcut veriye
+   dokunmaz, yalnızca yeni tablo/kolon/index ekler.
 
 3. Migration başarısız olursa deploy **durur** — kısmi deploy yapılmaz (`docs/06-engineering/deployment-environments.md` §"Migration Strategy", `.claude/rules/11-testing-release-rules.md` "Strong release blockers" — bilinen kırık payment/payout/penalty davranışıyla release yapılmaz kuralının migration adımına uygulanması). Yeni app kodu migration tamamlanmadan hiçbir servise deploy edilmez.
 

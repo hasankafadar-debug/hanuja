@@ -12,6 +12,7 @@ export const QUEUE_NAMES = {
   PAYOUT_BATCH: 'payout-batch',
   IBAN_ACTIVATION: 'iban-activation',
   SEO_CONTENT: 'seo-content',
+  CAMPAIGN_DISCOUNT: 'campaign-discount',
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
@@ -55,3 +56,4 @@ export const payoutBatchQueue = createQueueProxy(QUEUE_NAMES.PAYOUT_BATCH)
 export const fulfillmentRiskQueue = createQueueProxy(QUEUE_NAMES.FULFILLMENT_RISK)
 export const ibanActivationQueue = createQueueProxy(QUEUE_NAMES.IBAN_ACTIVATION)
 export const seoContentQueue = createQueueProxy(QUEUE_NAMES.SEO_CONTENT)
+export const campaignDiscountQueue = createQueueProxy(QUEUE_NAMES.CAMPAIGN_DISCOUNT)

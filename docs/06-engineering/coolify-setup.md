@@ -57,13 +57,20 @@ Before configuring apps, ensure the following backing services are running in Co
 | `MEILISEARCH_URL` | `http://meilisearch:7700` (or external URL) |
 | `MEILISEARCH_ADMIN_KEY` | *(Meilisearch master key)* |
 | `MEILISEARCH_SEARCH_KEY` | *(Meilisearch search-only key)* |
-| `SMTP_HOST` | *(production SMTP host)* |
+| `SMTP_HOST` | `email-smtp.eu-central-1.amazonaws.com` (Amazon SES) |
 | `SMTP_PORT` | `587` |
-| `SMTP_USER` | *(SMTP username)* |
-| `SMTP_PASS` | *(SMTP password)* |
+| `SMTP_USER` | *(SES SMTP credential username)* |
+| `SMTP_PASS` | *(SES SMTP credential password)* |
 | `SMTP_FROM` | `Hanuja <noreply@hanuja.com.tr>` |
+| `EMAIL_FROM_NOREPLY` | `Hanuja <noreply@hanuja.com.tr>` — falls back to `SMTP_FROM` if unset |
+| `EMAIL_FROM_FATURA` | `Hanuja Fatura <fatura@hanuja.com.tr>` — falls back to `SMTP_FROM` if unset |
+| `EMAIL_FROM_KAMPANYA` | `Hanuja <kampanya@hanuja.com.tr>` — falls back to `SMTP_FROM` if unset |
 | `NEXT_PUBLIC_SITE_NAME` | `Hanuja` |
 | `NEXT_PUBLIC_SITE_URL` | `https://www.hanuja.com.tr` |
+
+SES setup detail (domain identity, DKIM, MAIL FROM subdomain, sandbox status) lives in
+`docs/06-engineering/integrations.md` §6 — do not duplicate it here. All `EMAIL_FROM_*`
+addresses must resolve to the verified `hanuja.com.tr` SES domain identity.
 
 ### Pre-deploy Command (run migrations)
 ```bash
@@ -148,6 +155,12 @@ Same as `web` except:
 | `SMTP_USER` | *(same as web)* |
 | `SMTP_PASS` | *(same as web)* |
 | `SMTP_FROM` | `Hanuja <noreply@hanuja.com.tr>` |
+| `EMAIL_FROM_NOREPLY` | *(same as web)* |
+| `EMAIL_FROM_FATURA` | *(same as web)* |
+| `EMAIL_FROM_KAMPANYA` | *(same as web)* |
+
+The worker sends campaign-discount emails (`api/jobs/campaign-discount.job.ts`), so it
+needs the full SMTP/`EMAIL_FROM_*` set even though it has no HTTP surface.
 
 The worker does **not** need Iyzico credentials (payment flows run in the web app's API routes, not in background jobs).
 

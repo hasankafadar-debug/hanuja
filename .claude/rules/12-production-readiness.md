@@ -125,6 +125,83 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   çalıştırılmalıdır. Sıra ve detaylar:
   `docs/07-operations/production-deploy-runbook.md` adım 4.
 
+### 17. Komisyon KDV + satıcı kupon payı (yeni — 2026-07-09)
+- Migration `coupon_line_share_and_commission_vat` deploy zincirinin parçasıdır (additive):
+  `OrderLine.couponDiscountAmount`, `Payout.couponShareAmount`,
+  `PlatformSettings.commissionVatRate` (default `0.2000`) alanlarını ekler.
+- Komisyon tabanı artık `OrderLine.totalPrice - OrderLine.couponDiscountAmount`; komisyon
+  kesintisi KDV-dahil hesaplanır: `roundMoney(taban × commissionRate × (1 + commissionVatRate))`.
+  Satıcı kuponu (`Coupon.sellerId` dolu) satıcının ilgili satırlarına oransal dağıtılır ve
+  hem komisyon tabanını hem net hakedişi düşürür. Platform kuponu (`sellerId = NULL`) ve EFT
+  indirimi davranışı değişmedi — platform absorbe eder, satır snapshot'ları tam fiyat.
+  Bkz. `docs/01-business/commission-policy.md`, `docs/01-business/payout-policy.md`,
+  `.claude/rules/07-marketplace-finance-rules.md`.
+- **Cutover:** yeni formüller yalnızca 2026-07-09 ve sonrası onaylanan siparişlerde
+  (sipariş anı snapshot) geçerlidir. Bu tarihten önceki siparişlerin komisyon snapshot'ları
+  KDV'siz oranla yazıldı ve öyle kalır; mutabakatta bu tarihi kayıtlar için
+  `commissionAmount = taban × commissionRate` (KDV çarpanı yok) beklenir. Bkz.
+  `docs/07-operations/reconciliation-process.md` §4.2 ve §11.
+- Satıcı panelinde kupon CRUD eklendi (kod, yüzde/sabit indirim, `maxUsageTotal`,
+  `expiresAt`, opsiyonel min sepet tutarı). Satıcı kuponu yalnızca o satıcının ürünlerinde
+  geçerlidir; checkout'ta ilgili satıcının subtotal'ına uygulanır.
+- Payout onarım script'i eklendi: `pnpm payout:repair`
+  (`tools/scripts/repair-missing-payouts.ts`) — `delivery_confirmed` durumundaki ama
+  `Payout` kaydı bulunmayan siparişleri tarar ve onarır. Aynı tarama artık
+  `payout-maturity` job'ına kalıcı bir sweep adımı olarak da eklendi (periyodik, idempotent).
+  Tetikleyici olay: sipariş #231655, 2026-05-08'de admin onayına rağmen payout kaydı
+  oluşmamıştı; bu script ve sweep bu sınıf hatayı kalıcı olarak kapatır.
+
+### 18. SES e-posta altyapısı + kampanya rıza kapısı (yeni — 2026-07-17)
+- Amazon SES (`eu-central-1`) production SMTP sağlayıcısı olarak devreye alındı: `hanuja.com.tr`
+  domain kimliği Easy DKIM (3 CNAME) + özel MAIL FROM alt domaini (`ses.hanuja.com.tr`, MX →
+  `feedback-smtp.eu-central-1.amazonses.com`, TXT SPF `include:amazonses.com`) ile doğrulandı.
+  Kök domain MX/SPF (Promail, `admin@hanuja.com.tr` kurumsal kutusu) **değiştirilmedi** — SES
+  bunlara dokunmadan alt domain üzerinden çalışır; DMARC (`p=none`, önceden mevcut) DKIM
+  hizalamasıyla geçer. Detay: `docs/06-engineering/integrations.md` §6.
+- **Sandbox durumu:** SES hesabı şu an sandbox modunda — yalnızca doğrulanmış alıcı adreslerine
+  teslimat yapılabilir, gönderim hacmi sınırlı. Production erişimi talep edildi, henüz
+  onaylanmadı. Kampanya e-postası (aşağıda) özellikle bu sınıra duyarlıdır; sandbox kalkmadan
+  geniş fan-out'a güvenilmemeli.
+- Mailer artık kategori bazlı gönderen adresi kullanıyor (`noreply` / `fatura` / `kampanya`,
+  `EMAIL_FROM_*` env, `SMTP_FROM`'a fallback). `invoice_uploaded` → `fatura` (Reply-To
+  `admin@hanuja.com.tr`); `store_discount_followed_seller` + yeni `product_discount_*`
+  bildirimleri → `kampanya`; geri kalan her şey → `noreply`.
+- **Kampanya rıza kapısı:** yeni `MarketingConsent` modeli (tek signup checkbox hem email hem
+  SMS zaman damgasını set eder, `optOutToken` ile oturumsuz global opt-out) ve
+  `CampaignEmailDispatch` (fingerprint + cooldown dedupe) eklendi. `product_discount_favorited`
+  / `product_discount_in_cart` e-postaları yalnızca aktif (geri çekilmemiş) rızası olan
+  kullanıcılara gider. **Not:** mağaza takip indirim bildirimleri (`store_discount_followed_seller`)
+  hâlâ eski per-follow opt-out ile yönetiliyor, `MarketingConsent`'e tabi DEĞİL — bu iki rıza
+  mekanizması karıştırılmamalı.
+- Migration `20260717120000_campaign_discount_marketing_consent` deploy zincirinin parçasıdır
+  (additive). Yeni `campaign-discount` BullMQ kuyruğu (`fan-out` + 15 dakikalık
+  `activation-scan`) worker'da çalışıyor olmalı — bkz.
+  `docs/06-engineering/queue-jobs-plan.md` §"campaign-discount".
+
+**Bilinen açık uçlar (takip gerektirir, blocking değil):**
+- Aşağıdaki transactional şablonlar henüz `escapeHtml` ile HTML-kaçışlı değil (yalnızca yeni
+  `productDiscountTemplate` satıcı-kontrollü alanları escape ediyor):
+  `orderConfirmationTemplate`, `shipmentNotificationTemplate`, `deliveryConfirmedTemplate`,
+  `invoiceUploadedTemplate`, `returnRequestTemplate`, `payoutProcessedTemplate`,
+  `penaltyAppliedTemplate`, ve bağımsız satıcı-onay/şifre şablon dosyaları. Bu şablonlardaki
+  alanların çoğu sistem/admin kaynaklı olsa da, satıcı/müşteri girdisi içeren alanlar (ör.
+  ürün adı, red gerekçesi) için escape kapsamı genişletilmeli.
+- **Signup rıza oturum boşluğu:** kayıt formundaki rıza checkbox'ı işaretlenip gönderilse bile,
+  kayıt sonrası aktif oturum oluşmazsa (ör. e-posta doğrulama akışı araya girerse) rıza niyeti
+  o anda kalıcı hale gelmeyebilir. Kullanıcı `hesabim/iletisim-tercihleri` sayfasından yeniden
+  rıza verebilir; bu bir veri kaybı değil, kullanıcı eylemi gerektiren bir boşluktur.
+- Satıcı panel indirim CRUD route'ları ve `/api/marketing/unsubscribe` için route-seviyesi test
+  kapsamı eksik — servis/domain seviyesi testler mevcut, route-seviyesi entegrasyon testi ayrı
+  bir iş.
+- `.env.example` dosyasına `EMAIL_FROM_NOREPLY` / `EMAIL_FROM_FATURA` / `EMAIL_FROM_KAMPANYA`
+  placeholder satırları elle eklenmelidir — bu dosya agent izin kısıtı nedeniyle bu çalışmada
+  güncellenemedi; `tools/scripts/check-env.ts` zaten bu değişkenleri tanıyor.
+  `docs/05-security/secrets-env-policy.md` da bu üç değişkeni `.env.example` referans tablosuna
+  eklemeyi bekliyor.
+- Postmark RET (fatura e-postasına yanıt) akışı artık global kampanya rızasını da geri
+  çekiyor; bu, `From` header'ı sahte/spoof edilebilir bir sinyale dayanıyor. Yön fail-safe'tir
+  (rıza yanlışlıkla geri çekilebilir ama yanlışlıkla açılamaz), risk düşük ama not edilmeli.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

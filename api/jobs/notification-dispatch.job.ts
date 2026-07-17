@@ -7,7 +7,8 @@ import { Worker, Job } from 'bullmq'
 import { redis } from '../lib/redis'
 import { QUEUE_NAMES } from '../lib/queue'
 import { prisma } from '../lib/prisma'
-import { sendEmail } from '../lib/mailer'
+import { sendEmail, type EmailFromCategory } from '../lib/mailer'
+import { PLATFORM_LEGAL_INFO } from '../lib/platform-info'
 import {
   orderConfirmationTemplate,
   shipmentNotificationTemplate,
@@ -17,6 +18,7 @@ import {
   payoutProcessedTemplate,
   penaltyAppliedTemplate,
   storeDiscountFollowedSellerTemplate,
+  productDiscountTemplate,
 } from '../lib/email-templates'
 
 type CanonicalNotificationType = (typeof NotificationTypeEnum)[keyof typeof NotificationTypeEnum]
@@ -43,7 +45,21 @@ const EMAIL_NOTIFICATION_TYPES = new Set<CanonicalNotificationType>([
   NotificationTypeEnum.penalty_applied,
   NotificationTypeEnum.invoice_uploaded,
   NotificationTypeEnum.store_discount_followed_seller,
+  NotificationTypeEnum.product_discount_favorited,
+  NotificationTypeEnum.product_discount_in_cart,
 ])
+
+/** Maps notification types to the from-address category used for their email. */
+const EMAIL_CATEGORY_BY_TYPE: Record<string, EmailFromCategory> = {
+  invoice_uploaded: 'fatura',
+  store_discount_followed_seller: 'kampanya',
+  product_discount_favorited: 'kampanya',
+  product_discount_in_cart: 'kampanya',
+}
+
+function resolveEmailFromCategory(type: CanonicalNotificationType): EmailFromCategory {
+  return EMAIL_CATEGORY_BY_TYPE[type] ?? 'noreply'
+}
 
 function normalizeNotificationType(type: string) {
   return type.trim().replace(/-/g, '_').toUpperCase()
@@ -143,6 +159,7 @@ async function buildEmailPayload(
       return invoiceUploadedTemplate({
         customerName: String(data['customerName'] ?? ''),
         orderNumber: String(data['orderNumber'] ?? ''),
+        orderUrl: String(data['orderUrl'] ?? ''),
       })
 
     case NotificationTypeEnum.store_discount_followed_seller:
@@ -150,6 +167,17 @@ async function buildEmailPayload(
         customerName: String(data['customerName'] ?? 'Değerli Müşterimiz'),
         sellerName: String(data['sellerName'] ?? 'Takip ettiğiniz mağaza'),
         storeUrl: String(data['storeUrl'] ?? ''),
+        unsubscribeUrl: String(data['unsubscribeUrl'] ?? ''),
+      })
+
+    case NotificationTypeEnum.product_discount_favorited:
+    case NotificationTypeEnum.product_discount_in_cart:
+      return productDiscountTemplate({
+        customerName: String(data['customerName'] ?? 'Değerli Müşterimiz'),
+        productName: String(data['productName'] ?? ''),
+        productUrl: String(data['productUrl'] ?? ''),
+        sellerName: String(data['sellerName'] ?? ''),
+        context: type === NotificationTypeEnum.product_discount_favorited ? 'favorite' : 'cart',
         unsubscribeUrl: String(data['unsubscribeUrl'] ?? ''),
       })
 
@@ -198,8 +226,28 @@ export async function processNotificationDispatch(job: Job<NotificationDispatchJ
   if (emailTo && EMAIL_NOTIFICATION_TYPES.has(canonicalType)) {
     const emailPayload = await buildEmailPayload(canonicalType, data)
     if (emailPayload) {
+      const fromCategory = resolveEmailFromCategory(canonicalType)
+      // Invoice emails should route replies to support unless the sender set one.
+      const resolvedReplyTo =
+        replyTo ?? (fromCategory === 'fatura' ? PLATFORM_LEGAL_INFO.supportEmail : undefined)
+      // Kampanya (marketing) emails carry a one-click List-Unsubscribe header when
+      // an unsubscribe URL is present, so inbox providers can offer native opt-out.
+      const unsubscribeUrl = String(data?.['unsubscribeUrl'] ?? '')
+      const listUnsubscribeHeaders =
+        fromCategory === 'kampanya' && unsubscribeUrl
+          ? {
+              'List-Unsubscribe': `<${unsubscribeUrl}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            }
+          : undefined
       try {
-        await sendEmail({ to: emailTo, ...emailPayload, ...(replyTo ? { replyTo } : {}) })
+        await sendEmail({
+          to: emailTo,
+          ...emailPayload,
+          fromCategory,
+          ...(resolvedReplyTo ? { replyTo: resolvedReplyTo } : {}),
+          ...(listUnsubscribeHeaders ? { headers: listUnsubscribeHeaders } : {}),
+        })
       } catch (err) {
         console.error(`[notification-dispatch] Email send failed for ${canonicalType}:`, err)
       }

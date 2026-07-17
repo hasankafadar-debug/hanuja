@@ -14,6 +14,25 @@ export interface EmailTemplate {
   text: string
 }
 
+/**
+ * Escape user/seller-controlled values before interpolating into an HTML email
+ * body. Prevents markup/script injection through fields like product or store
+ * names. Only for the HTML branch — the text branch stays raw.
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/** True only for absolute http(s) URLs — blocks javascript:/data: hrefs. */
+function isSafeHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim())
+}
+
 /** Shared wrapper for consistent email layout */
 function layout(title: string, body: string): string {
   return `<!DOCTYPE html>
@@ -193,24 +212,39 @@ export function deliveryConfirmedTemplate(params: {
   }
 }
 
-/** Return request confirmation — sent to customer */
+/** Invoice uploaded — sent to customer when seller invoice is added */
 export function invoiceUploadedTemplate(params: {
   customerName: string
   orderNumber: string
+  orderUrl?: string
 }): EmailTemplate {
+  const cta = params.orderUrl
+    ? `
+    <p style="margin:0 0 24px;">
+      <a
+        href="${params.orderUrl}"
+        style="display:inline-block;background:#135854;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;"
+      >
+        Siparişimi Görüntüle
+      </a>
+    </p>
+  `
+    : ''
+
   const body = `
     <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Faturanız Hazır</h2>
     <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${params.customerName},</p>
     <p style="margin:0 0 24px;font-size:15px;color:#555;">
       <strong>#${params.orderNumber}</strong> numaralı siparişiniz için satıcı faturası yüklendi.
-      Faturanızı sipariş detayınızdan veya Faturalarım sayfasından görüntüleyebilirsiniz.
+      Faturanızı hesabınıza giriş yaparak sipariş detayınızdan görüntüleyebilirsiniz.
     </p>
+    ${cta}
   `
 
   return {
     subject: `Faturanız Hazır — #${params.orderNumber}`,
     html: layout('Faturanız Hazır', body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişiniz için satıcı faturası yüklendi. Faturanızı hesabınızdan görüntüleyebilirsiniz.`,
+    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişiniz için satıcı faturası yüklendi. Faturanızı hesabınıza giriş yaparak sipariş detayınızdan görüntüleyebilirsiniz.${params.orderUrl ? ` Sipariş detayı: ${params.orderUrl}` : ''}`,
   }
 }
 
@@ -315,24 +349,37 @@ export function storeDiscountFollowedSellerTemplate(params: {
   storeUrl: string
   unsubscribeUrl: string
 }): EmailTemplate {
-  const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Takip Ettiğiniz Mağazada İndirim Var</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${params.customerName},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>${params.sellerName}</strong> mağazasında yeni bir indirim başladı.
-      Güncel ürünleri görmek için mağaza sayfasını ziyaret edebilirsiniz.
-    </p>
-    <p style="margin:0 0 24px;">
+  // Seller/customer-controlled fields — escape before HTML interpolation.
+  const customerNameHtml = escapeHtml(params.customerName)
+  const sellerNameHtml = escapeHtml(params.sellerName)
+
+  const storeCta = isSafeHttpUrl(params.storeUrl)
+    ? `
       <a
         href="${params.storeUrl}"
         style="display:inline-block;background:#135854;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;"
       >
         Mağazayı Gör
-      </a>
+      </a>`
+    : `<span style="display:inline-block;color:#135854;font-size:14px;font-weight:600;">Mağazayı Gör</span>`
+
+  const unsubscribeCta = isSafeHttpUrl(params.unsubscribeUrl)
+    ? `<a href="${params.unsubscribeUrl}" style="color:#135854;">buradan çıkış yapabilirsiniz</a>`
+    : 'buradan çıkış yapabilirsiniz'
+
+  const body = `
+    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Takip Ettiğiniz Mağazada İndirim Var</h2>
+    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${customerNameHtml},</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#555;">
+      <strong>${sellerNameHtml}</strong> mağazasında yeni bir indirim başladı.
+      Güncel ürünleri görmek için mağaza sayfasını ziyaret edebilirsiniz.
+    </p>
+    <p style="margin:0 0 24px;">
+      ${storeCta}
     </p>
     <p style="margin:0;font-size:13px;color:#777;">
       Bu mağaza için e-posta almak istemiyorsanız
-      <a href="${params.unsubscribeUrl}" style="color:#135854;">buradan çıkış yapabilirsiniz</a>.
+      ${unsubscribeCta}.
       Desteklenen posta kutularında bu e-postayı <strong>RET</strong> yazarak yanıtlamak da e-posta bildirimlerini kapatır.
     </p>
   `
@@ -344,6 +391,72 @@ export function storeDiscountFollowedSellerTemplate(params: {
   }
 }
 
+/**
+ * Product discount — sent to a customer who favorited or has-in-cart a product
+ * that just went on sale. `context` selects the copy variant.
+ */
+export function productDiscountTemplate(params: {
+  customerName: string
+  productName: string
+  productUrl: string
+  sellerName: string
+  context: 'favorite' | 'cart'
+  unsubscribeUrl: string
+}): EmailTemplate {
+  const isFavorite = params.context === 'favorite'
+  const heading = isFavorite
+    ? 'Favorinizdeki Ürün Şimdi İndirimde'
+    : 'Sepetinizdeki Ürün Şimdi İndirimde'
+
+  // Seller/customer-controlled fields — escape before HTML interpolation.
+  const customerNameHtml = escapeHtml(params.customerName)
+  const productNameHtml = escapeHtml(params.productName)
+  const sellerNameHtml = escapeHtml(params.sellerName)
+
+  const lead = isFavorite
+    ? `Favorilerinize eklediğiniz <strong>${productNameHtml}</strong> ürünü, <strong>${sellerNameHtml}</strong> mağazasında şimdi indirimde.`
+    : `Sepetinizdeki <strong>${productNameHtml}</strong> ürünü, <strong>${sellerNameHtml}</strong> mağazasında şimdi indirimde.`
+
+  const productCta = isSafeHttpUrl(params.productUrl)
+    ? `
+      <a
+        href="${params.productUrl}"
+        style="display:inline-block;background:#135854;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;"
+      >
+        Ürünü İncele
+      </a>`
+    : `<span style="display:inline-block;color:#135854;font-size:14px;font-weight:600;">Ürünü İncele</span>`
+
+  const unsubscribeCta = isSafeHttpUrl(params.unsubscribeUrl)
+    ? `<a href="${params.unsubscribeUrl}" style="color:#135854;">abonelikten çıkın</a>`
+    : 'abonelikten çıkın'
+
+  const body = `
+    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${heading}</h2>
+    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${customerNameHtml},</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#555;">${lead}</p>
+    <p style="margin:0 0 24px;">
+      ${productCta}
+    </p>
+    <p style="margin:0;font-size:13px;color:#777;">
+      Kampanya e-postalarını almak istemiyorsanız
+      ${unsubscribeCta}.
+    </p>
+  `
+
+  const textLead = isFavorite
+    ? `Favorilerinize eklediğiniz ${params.productName} ürünü, ${params.sellerName} mağazasında şimdi indirimde.`
+    : `Sepetinizdeki ${params.productName} ürünü, ${params.sellerName} mağazasında şimdi indirimde.`
+
+  return {
+    subject: heading,
+    html: layout(heading, body),
+    text: `Merhaba ${params.customerName}, ${textLead} Ürünü incele: ${params.productUrl} Abonelikten çıkış: ${params.unsubscribeUrl}`,
+  }
+}
+
 export { sellerApprovalTemplate } from './seller-approval'
 export { sellerPasswordResetTemplate } from './seller-password-reset'
 export { sellerDocumentsRequestedTemplate } from './seller-documents-requested'
+export { passwordResetTemplate } from './password-reset'
+export { passwordChangedTemplate } from './password-changed'

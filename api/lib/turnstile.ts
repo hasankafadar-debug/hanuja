@@ -12,6 +12,11 @@ interface TurnstileSiteVerifyResponse {
 
 const DEV_BYPASS_TOKEN = 'dev-turnstile-bypass'
 const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
+const TEST_SECRET_KEYS = new Set([
+  '1x0000000000000000000000000000000AA',
+  '2x0000000000000000000000000000000AA',
+  '3x0000000000000000000000000000000AA',
+])
 
 export async function verifyTurnstileToken(
   options: VerifyTurnstileTokenOptions,
@@ -36,8 +41,13 @@ export async function verifyTurnstileToken(
 
     return {
       success: false,
-      message: 'Gelistirme ortami icin Turnstile anahtari tanimli degil.',
+      message: 'Insan dogrulamasi su anda kullanilamiyor.',
     }
+  }
+
+  if (process.env.NODE_ENV === 'production' && TEST_SECRET_KEYS.has(secretKey)) {
+    console.error('[turnstile] Cloudflare test secret key is not allowed in production.')
+    return { success: false, message: 'Insan dogrulama servisi hazir degil.' }
   }
 
   try {
@@ -67,7 +77,7 @@ export async function verifyTurnstileToken(
       return { success: false, message: 'Lutfen insan dogrulamasini tamamlayin.' }
     }
 
-    if (options.action && payload.action && payload.action !== options.action) {
+    if (options.action && payload.action !== options.action) {
       return { success: false, message: 'Insan dogrulamasi gecersiz gorunuyor.' }
     }
 

@@ -117,9 +117,17 @@ export enum NotificationType {
   seller_support_reply = 'seller_support_reply',
   admin_support_new_ticket = 'admin_support_new_ticket',
   invoice_uploaded = 'invoice_uploaded',
+  store_discount_followed_seller = 'store_discount_followed_seller',
   product_review_pending_moderation = 'product_review_pending_moderation',
   product_review_approved = 'product_review_approved',
   product_review_rejected = 'product_review_rejected',
+  product_discount_favorited = 'product_discount_favorited',
+  product_discount_in_cart = 'product_discount_in_cart',
+}
+
+export enum CampaignDispatchSource {
+  favorite = 'favorite',
+  cart = 'cart',
 }
 
 // No-op PrismaClient — prevents accidental DB calls in unit tests

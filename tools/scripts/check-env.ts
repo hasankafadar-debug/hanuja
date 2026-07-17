@@ -48,8 +48,11 @@ const ENV_VARS: EnvVar[] = [
 
   // Auth
   { key: 'BETTER_AUTH_SECRET', required: true, sensitiveInProd: true, description: 'Better Auth signing secret (min 32 chars)', apps: ['all'] },
-  { key: 'BETTER_AUTH_URL', required: true, description: 'Auth base URL (web app URL)', apps: ['web'] },
-  { key: 'NEXT_PUBLIC_APP_URL', required: true, description: 'Public web app URL', apps: ['web'] },
+  { key: 'BETTER_AUTH_URL', required: true, description: 'Auth base URL', apps: ['web', 'seller-panel', 'admin-panel'] },
+  { key: 'NEXT_PUBLIC_APP_URL', required: true, description: 'Public app URL', apps: ['web', 'seller-panel', 'admin-panel'] },
+  { key: 'NEXT_PUBLIC_WEB_URL', required: false, requiredInProd: true, description: 'Storefront URL', apps: ['all'] },
+  { key: 'NEXT_PUBLIC_SELLER_PANEL_URL', required: false, requiredInProd: true, description: 'Public seller panel URL', apps: ['all'] },
+  { key: 'NEXT_PUBLIC_ADMIN_PANEL_URL', required: false, requiredInProd: true, description: 'Public admin panel URL', apps: ['all'] },
   { key: 'SELLER_PANEL_URL', required: true, description: 'Seller panel base URL', apps: ['all'] },
   { key: 'ADMIN_PANEL_URL', required: true, description: 'Admin panel base URL', apps: ['all'] },
 
@@ -62,7 +65,7 @@ const ENV_VARS: EnvVar[] = [
 
   // Turnstile
   { key: 'NEXT_PUBLIC_TURNSTILE_SITE_KEY', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Cloudflare Turnstile site key', apps: ['web', 'seller-panel', 'admin-panel'] },
-  { key: 'TURNSTILE_SECRET_KEY', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Cloudflare Turnstile secret key', apps: ['api', 'web'] },
+  { key: 'TURNSTILE_SECRET_KEY', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Cloudflare Turnstile secret key', apps: ['api', 'web', 'seller-panel', 'admin-panel'] },
 
   // Storage
   { key: 'R2_ACCOUNT_ID', required: true, description: 'Cloudflare R2 account ID', apps: ['api'] },
@@ -70,6 +73,7 @@ const ENV_VARS: EnvVar[] = [
   { key: 'R2_SECRET_ACCESS_KEY', required: true, sensitiveInProd: true, description: 'R2 secret access key', apps: ['api'] },
   { key: 'R2_BUCKET_NAME', required: true, description: 'R2 bucket name', apps: ['api'] },
   { key: 'R2_PUBLIC_URL', required: true, description: 'R2 public CDN URL', apps: ['api'] },
+  { key: 'R2_CDN_URL', required: false, description: 'R2 public CDN URL override', apps: ['api'] },
 
   // Search
   { key: 'MEILISEARCH_URL', required: true, description: 'Meilisearch server URL', apps: ['all'] },
@@ -77,11 +81,14 @@ const ENV_VARS: EnvVar[] = [
   { key: 'MEILISEARCH_SEARCH_KEY', required: true, description: 'Meilisearch public search key', apps: ['web'] },
 
   // Email
-  { key: 'SMTP_HOST', required: false, description: 'SMTP server hostname', apps: ['api'] },
-  { key: 'SMTP_PORT', required: false, description: 'SMTP port (587 recommended)', apps: ['api'] },
-  { key: 'SMTP_USER', required: false, description: 'SMTP authentication user', apps: ['api'] },
-  { key: 'SMTP_PASS', required: false, sensitiveInProd: true, description: 'SMTP password', apps: ['api'] },
-  { key: 'SMTP_FROM', required: false, description: 'From address for outgoing emails', apps: ['api'] },
+  { key: 'SMTP_HOST', required: false, requiredInProd: true, description: 'SMTP server hostname', apps: ['api'] },
+  { key: 'SMTP_PORT', required: false, requiredInProd: true, description: 'SMTP port (587 recommended)', apps: ['api'] },
+  { key: 'SMTP_USER', required: false, requiredInProd: true, description: 'SMTP authentication user', apps: ['api'] },
+  { key: 'SMTP_PASS', required: false, requiredInProd: true, sensitiveInProd: true, description: 'SMTP password', apps: ['api'] },
+  { key: 'SMTP_FROM', required: false, requiredInProd: true, description: 'From address for outgoing emails', apps: ['api'] },
+  { key: 'EMAIL_FROM_NOREPLY', required: false, description: 'From address for transactional mail; falls back to SMTP_FROM. Must be an SES-verified identity.', apps: ['api'] },
+  { key: 'EMAIL_FROM_FATURA', required: false, description: 'From address for invoice mail; falls back to SMTP_FROM. Must be an SES-verified identity.', apps: ['api'] },
+  { key: 'EMAIL_FROM_KAMPANYA', required: false, description: 'From address for campaign mail; falls back to SMTP_FROM. Must be an SES-verified identity.', apps: ['api'] },
   { key: 'INVOICE_ALIASING_ENABLED', required: false, requiredInProd: true, description: 'Invoice aliasing feature flag (true/false)', apps: ['all'] },
   { key: 'INBOUND_EMAIL_DOMAIN', required: false, requiredWhen: 'invoice-aliasing', description: 'Inbound invoice email domain, e.g. fatura.hanuja.com.tr', apps: ['api', 'web'] },
   { key: 'POSTMARK_INBOUND_WEBHOOK_USER', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Postmark inbound webhook basic auth user', apps: ['web'] },
@@ -90,6 +97,7 @@ const ENV_VARS: EnvVar[] = [
   // App metadata
   { key: 'NEXT_PUBLIC_SITE_NAME', required: false, description: 'Site display name', apps: ['web'] },
   { key: 'NEXT_PUBLIC_SITE_URL', required: false, description: 'Canonical site URL', apps: ['web'] },
+  { key: 'PREVIEW_DEPLOYMENT', required: false, requiredInProd: true, description: 'Preview deployment flag (must be false in production)', apps: ['web'] },
   { key: 'AUTO_APPROVE_CLEAN_PRODUCTS', required: false, description: 'Auto-publish clean products flag', apps: ['all'] },
 ]
 
@@ -104,6 +112,47 @@ const PLACEHOLDER_PATTERNS = [
   /sandbox.*api.*key/i,
   /dev-turnstile-bypass/i,
 ]
+
+const TURNSTILE_TEST_SITE_KEYS = new Set([
+  '1x00000000000000000000AA',
+  '2x00000000000000000000AB',
+  '1x00000000000000000000BB',
+  '2x00000000000000000000BB',
+  '3x00000000000000000000FF',
+])
+
+const TURNSTILE_TEST_SECRET_KEYS = new Set([
+  '1x0000000000000000000000000000000AA',
+  '2x0000000000000000000000000000000AA',
+  '3x0000000000000000000000000000000AA',
+])
+
+const PRODUCTION_URL_KEYS = new Set([
+  'BETTER_AUTH_URL',
+  'NEXT_PUBLIC_APP_URL',
+  'NEXT_PUBLIC_WEB_URL',
+  'NEXT_PUBLIC_SELLER_PANEL_URL',
+  'NEXT_PUBLIC_ADMIN_PANEL_URL',
+  'NEXT_PUBLIC_SITE_URL',
+  'SELLER_PANEL_URL',
+  'ADMIN_PANEL_URL',
+  'R2_PUBLIC_URL',
+  'R2_CDN_URL',
+])
+
+function isForbiddenProductionUrl(key: string, value: string): boolean {
+  if (!PRODUCTION_URL_KEYS.has(key)) return false
+
+  try {
+    const hostname = new URL(value).hostname.toLowerCase()
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.sslip.io')) {
+      return true
+    }
+    return (key === 'R2_PUBLIC_URL' || key === 'R2_CDN_URL') && hostname.endsWith('.r2.dev')
+  } catch {
+    return true
+  }
+}
 
 function isPlaceholder(value: string): boolean {
   return PLACEHOLDER_PATTERNS.some((p) => p.test(value))
@@ -158,10 +207,36 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
     }
 
     if (
-      (envVar.key === 'CARD_PAYMENTS_ENABLED' || envVar.key === 'INVOICE_ALIASING_ENABLED') &&
+      (envVar.key === 'CARD_PAYMENTS_ENABLED' ||
+        envVar.key === 'INVOICE_ALIASING_ENABLED' ||
+        envVar.key === 'PREVIEW_DEPLOYMENT') &&
       !/^(true|false)$/i.test(value.trim())
     ) {
       missing.push(`${envVar.key} must be exactly true or false.`)
+    }
+
+    if (isProd && isForbiddenProductionUrl(envVar.key, value.trim())) {
+      missing.push(`${envVar.key} must use a valid production domain (sslip.io, localhost and r2.dev are not allowed).`)
+    }
+
+    if (
+      isProd &&
+      envVar.key === 'NEXT_PUBLIC_TURNSTILE_SITE_KEY' &&
+      TURNSTILE_TEST_SITE_KEYS.has(value.trim())
+    ) {
+      missing.push('NEXT_PUBLIC_TURNSTILE_SITE_KEY must not use a Cloudflare test key in production.')
+    }
+
+    if (
+      isProd &&
+      envVar.key === 'TURNSTILE_SECRET_KEY' &&
+      TURNSTILE_TEST_SECRET_KEYS.has(value.trim())
+    ) {
+      missing.push('TURNSTILE_SECRET_KEY must not use a Cloudflare test key in production.')
+    }
+
+    if (isProd && envVar.key === 'PREVIEW_DEPLOYMENT' && value.trim().toLowerCase() !== 'false') {
+      missing.push('PREVIEW_DEPLOYMENT must be false in production.')
     }
 
     // Auth secret length check

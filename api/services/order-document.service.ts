@@ -8,6 +8,7 @@ import {
   uploadObject,
 } from '../lib/r2'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
+import { getWebBaseUrl } from '../lib/platform-info'
 
 interface OrderDocumentServiceDeps {
   prisma: PrismaClient
@@ -88,6 +89,10 @@ function isInvoiceAliasingEnabled() {
 
 function normalizeEmail(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? ''
+}
+
+function buildOrderUrl(orderId: string) {
+  return `${getWebBaseUrl()}/siparis/${orderId}`
 }
 
 function buildAliasEmail(localPart: string) {
@@ -402,6 +407,8 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
       },
       select: {
         id: true,
+        customerId: true,
+        customer: { select: { email: true, name: true } },
         sellerInvoices: {
           where: { sellerId: params.sellerId },
           select: { fileKey: true },
@@ -455,6 +462,26 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
       if (previousKey && previousKey !== uploaded.key) {
         await deleteObject(previousKey).catch(() => null)
       }
+
+      // Notify the customer their invoice is ready. A re-upload (replace) sends
+      // again on purpose so the customer knows the invoice changed. Enqueue
+      // failure must not fail the upload.
+      await enqueueNotification({
+        userId: order.customerId,
+        type: 'invoice_uploaded',
+        title: 'Faturanız hazır',
+        body: 'Siparişiniz için satıcı faturası yüklendi.',
+        data: {
+          orderId: params.orderId,
+          sellerId: params.sellerId,
+          customerName: order.customer.name ?? '',
+          orderNumber: params.orderId.slice(-8).toUpperCase(),
+          orderUrl: buildOrderUrl(params.orderId),
+        },
+        emailTo: order.customer.email,
+      }).catch((error) => {
+        console.error('[invoice-upload] customer notification failed:', error)
+      })
 
       return invoice
     } catch (error) {
@@ -616,6 +643,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
             sellerId: alias.sellerId,
             customerName: customer.customer.name ?? '',
             orderNumber: alias.orderId.slice(-8).toUpperCase(),
+            orderUrl: buildOrderUrl(alias.orderId),
           },
           emailTo: customer.customer.email,
         }).catch((error) => {

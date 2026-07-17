@@ -2,8 +2,10 @@ import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { campaignDiscountQueue } from '@hanuja/api/lib/queue'
+import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { createDiscountService } from '@hanuja/api/services/discount.service'
-import { createStoreFollowService } from '@hanuja/api/services/store-follow.service'
+import { buildDiscountFingerprint } from '@hanuja/api/services/campaign-discount.service'
 import { auth } from '@/lib/auth'
 
 const updateDiscountRuleSchema = z.object({
@@ -52,6 +54,11 @@ export async function PATCH(
   const seller = await getSeller()
   if (!seller) return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
 
+  // Activating a rule (status → ACTIVE) can fan out a marketing email blast —
+  // rate-limit to blunt repeated pause/activate respam (same tier as create).
+  const rl = await checkUserRateLimit(seller.userId, 'seller:discounts:update', HIGH_RISK_RATE_LIMIT)
+  if (!rl.allowed) return rl.response!
+
   const { id } = await params
   const body = await req.json().catch(() => ({}))
   const parsed = updateDiscountRuleSchema.safeParse(body)
@@ -66,6 +73,8 @@ export async function PATCH(
   try {
     const prisma = createPrismaForRoute()
     const service = createDiscountService({ prisma })
+    const existing = await service.getRule(seller.id, id)
+    const previousStatus = existing?.status ?? null
     const updateInput = {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.scope !== undefined ? { scope: parsed.data.scope } : {}),
@@ -83,14 +92,20 @@ export async function PATCH(
     }
     const rule = await service.updateRule(seller.id, id, updateInput)
 
-    if (rule?.status === 'ACTIVE') {
-      await createStoreFollowService({ prisma }).notifyFollowersAboutDiscount({
-        sellerId: seller.id,
-        sellerName: seller.displayName,
-        sellerSlug: seller.slug,
-        discountRuleId: rule.id,
-        discountFingerprint: `${rule.id}:${rule.updatedAt.toISOString()}`,
-      })
+    // Only fan out when the rule transitions INTO active — re-saving an already
+    // active rule must not re-notify. Fingerprint dedupe is the backstop.
+    if (rule?.status === 'ACTIVE' && previousStatus !== 'ACTIVE') {
+      void campaignDiscountQueue
+        .add('fan-out', {
+          discountRuleId: rule.id,
+          discountFingerprint: buildDiscountFingerprint(rule),
+          sellerId: seller.id,
+          sellerName: seller.displayName,
+          sellerSlug: seller.slug,
+        })
+        .catch((error) => {
+          console.error('[seller-discounts] fan-out enqueue failed:', error)
+        })
     }
 
     return NextResponse.json({ rule })

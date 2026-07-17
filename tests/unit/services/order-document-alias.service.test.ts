@@ -143,6 +143,93 @@ describe('order-document.service invoice aliasing', () => {
     )
   })
 
+  it('enqueues an invoice_uploaded notification with orderUrl on manual seller upload', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://www.hanuja.com.tr')
+    uploadObjectMock.mockResolvedValue({
+      key: 'documents/seller-1/manual.pdf',
+      publicUrl: 'https://cdn.example/documents/seller-1/manual.pdf',
+    })
+
+    const prisma = {
+      order: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'order-1',
+          customerId: 'customer-1',
+          customer: { email: 'customer@example.com', name: 'Ayşe Yılmaz' },
+          sellerInvoices: [],
+        }),
+      },
+      orderSellerInvoice: {
+        upsert: vi.fn().mockResolvedValue({
+          id: 'invoice-1',
+          orderId: 'order-1',
+          sellerId: 'seller-1',
+          fileName: 'fatura.pdf',
+        }),
+      },
+    } as never
+
+    const service = createOrderDocumentService({ prisma })
+    await service.uploadInvoiceForSeller({
+      orderId: 'order-1',
+      sellerId: 'seller-1',
+      fileName: 'fatura.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      body: new Uint8Array([1, 2, 3]),
+    })
+
+    expect(enqueueNotificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'customer-1',
+        type: 'invoice_uploaded',
+        emailTo: 'customer@example.com',
+        data: expect.objectContaining({
+          orderId: 'order-1',
+          sellerId: 'seller-1',
+          orderUrl: 'https://www.hanuja.com.tr/siparis/order-1',
+        }),
+      }),
+    )
+  })
+
+  it('does not fail the manual upload when the notification enqueue rejects', async () => {
+    uploadObjectMock.mockResolvedValue({
+      key: 'documents/seller-1/manual.pdf',
+      publicUrl: 'https://cdn.example/documents/seller-1/manual.pdf',
+    })
+    enqueueNotificationMock.mockRejectedValueOnce(new Error('queue down'))
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const prisma = {
+      order: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'order-1',
+          customerId: 'customer-1',
+          customer: { email: 'customer@example.com', name: 'Ayşe Yılmaz' },
+          sellerInvoices: [],
+        }),
+      },
+      orderSellerInvoice: {
+        upsert: vi.fn().mockResolvedValue({ id: 'invoice-1', orderId: 'order-1', sellerId: 'seller-1' }),
+      },
+    } as never
+
+    const service = createOrderDocumentService({ prisma })
+    const invoice = await service.uploadInvoiceForSeller({
+      orderId: 'order-1',
+      sellerId: 'seller-1',
+      fileName: 'fatura.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      body: new Uint8Array([1, 2, 3]),
+    })
+
+    expect(invoice).toMatchObject({ id: 'invoice-1' })
+    expect(deleteObjectMock).not.toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
   it('logs no_valid_attachment without changing invoice', async () => {
     const prisma = {
       inboundEmail: {

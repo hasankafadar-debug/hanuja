@@ -40,12 +40,12 @@ export function handleError(error: unknown): NextResponse {
     'code' in error &&
     ((error as { code?: string }).code === 'P2021' || (error as { code?: string }).code === 'P2022')
   ) {
+    console.error('[API Error] Database schema is not ready.', error)
     return NextResponse.json(
       {
         success: false,
         code: 'SCHEMA_OUT_OF_SYNC',
-        message:
-          'Veritabanı şeması uygulama ile uyumlu görünmüyor. Lütfen migration durumunu kontrol edip `pnpm db:migrate:deploy` çalıştırın.',
+        message: 'Bu hizmete şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.',
       },
       { status: 503 },
     )

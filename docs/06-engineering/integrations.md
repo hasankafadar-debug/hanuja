@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-07-17
 # Durum: taslak v1
 
 # Integrations
@@ -306,7 +306,120 @@ staging at a live carrier account that generates real shipment events or charges
 
 ---
 
-## 6. Cloudflare Turnstile — Human Verification
+## 6. Amazon SES — Transactional and Campaign Email
+
+### Purpose
+
+Amazon SES (region `eu-central-1`) is the production SMTP provider for all outbound
+Hanuja email: password reset, order/shipment/delivery notifications, invoice notices,
+return/dispute updates, payout/penalty notices, and the new marketing campaign emails
+(discount-on-favorite / discount-on-cart-item). SES is reached through the standard
+SMTP interface (`api/lib/mailer.ts`) — there is no SES SDK dependency, only SMTP
+credentials issued from the SES console.
+
+### Domain identity and DNS records
+
+SES verifies the `hanuja.com.tr` domain identity using **Easy DKIM** (3 CNAME records)
+plus a **custom MAIL FROM subdomain** so bounce/complaint traffic does not collide with
+the corporate inbox:
+
+| Record type | Host | Points to / value | Purpose |
+|---|---|---|---|
+| CNAME | `<selector1>._domainkey.hanuja.com.tr` | `<selector1>.dkim.amazonses.com` | Easy DKIM signing key 1 |
+| CNAME | `<selector2>._domainkey.hanuja.com.tr` | `<selector2>.dkim.amazonses.com` | Easy DKIM signing key 2 |
+| CNAME | `<selector3>._domainkey.hanuja.com.tr` | `<selector3>.dkim.amazonses.com` | Easy DKIM signing key 3 |
+| MX | `ses.hanuja.com.tr` | `feedback-smtp.eu-central-1.amazonses.com` (priority 10) | Custom MAIL FROM subdomain — bounce/complaint delivery |
+| TXT | `ses.hanuja.com.tr` | `v=spf1 include:amazonses.com ~all` | SPF for the MAIL FROM subdomain |
+
+Selector values are the exact ones shown in the SES console for the `hanuja.com.tr`
+identity; they are not fixed strings and must be copied from AWS at setup time.
+
+### Coexistence with Promail (root domain mail) — do not touch root records
+
+`hanuja.com.tr`'s root **MX and SPF** records belong to Promail and route the corporate
+inbox (`admin@hanuja.com.tr`). SES is added entirely on the `ses.hanuja.com.tr`
+subdomain and via DKIM CNAMEs — **root MX and root SPF are never modified** for SES.
+This is intentional and required: changing the root MX would break inbound corporate
+mail, and changing the root SPF would risk breaking Promail's outbound authentication.
+
+DMARC (`p=none`, pre-existing on the domain) passes for SES-sent mail via **DKIM
+alignment** (the DKIM `d=` domain matches `hanuja.com.tr`), independent of the SPF
+record used for the MAIL FROM subdomain. Do not raise DMARC enforcement (`p=quarantine`
+/ `p=reject`) without re-verifying both Promail and SES alignment first.
+
+### SMTP endpoint and credentials
+
+| Variable | Value |
+|---|---|
+| `SMTP_HOST` | `email-smtp.eu-central-1.amazonaws.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_USER` | SES SMTP username (per-credential, not the AWS access key) |
+| `SMTP_PASS` | SES SMTP password |
+
+These four variables are set identically across all four Coolify services (`web`,
+`seller-panel`, `admin-panel`, `worker`) — see `docs/06-engineering/coolify-setup.md`.
+
+### Sender categories and Reply-To
+
+`api/lib/mailer.ts` resolves the `From` address per `EmailFromCategory`, falling back to
+`SMTP_FROM` and then a hardcoded default if the category-specific variable is unset:
+
+| Category | Env var | Used for | Reply-To |
+|---|---|---|---|
+| `noreply` | `EMAIL_FROM_NOREPLY` | Default — password reset, order/shipment/delivery, return/dispute, payout/penalty notices | none |
+| `fatura` | `EMAIL_FROM_FATURA` | `invoice_uploaded` (seller invoice notice to customer) | `admin@hanuja.com.tr` |
+| `kampanya` | `EMAIL_FROM_KAMPANYA` | `store_discount_followed_seller`, `product_discount_favorited`, `product_discount_in_cart` | none |
+
+Every `EMAIL_FROM_*` address must be a verified SES identity (the domain identity
+`hanuja.com.tr` covers all addresses at that domain once verified — no separate
+per-address verification is needed as long as the domain identity is in `Verified`
+state).
+
+### Sandbox vs production status
+
+SES for this account is currently in the **sandbox** sending status: mail can only be
+delivered to verified recipient addresses, and sending is rate/volume limited. Production
+access has been requested from AWS. Until production access is granted:
+
+- Do not treat live customer-facing email delivery as fully functional in production —
+  verify recipient addresses manually for any real-world test.
+- Campaign email (item 6 below) is especially sensitive to sandbox limits since it targets
+  real customer addresses at scale; do not fan out broadly until sandbox is lifted.
+
+### Environment variables
+
+| Variable | Purpose |
+|---|---|
+| `SMTP_HOST` | `email-smtp.eu-central-1.amazonaws.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_USER` | SES SMTP credential username |
+| `SMTP_PASS` | SES SMTP credential password |
+| `SMTP_FROM` | Fallback `From` address if a category-specific `EMAIL_FROM_*` is unset |
+| `EMAIL_FROM_NOREPLY` | `noreply` category sender override |
+| `EMAIL_FROM_FATURA` | `fatura` category sender override |
+| `EMAIL_FROM_KAMPANYA` | `kampanya` category sender override |
+
+`SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM` are `requiredInProd` in
+`tools/scripts/check-env.ts`. `EMAIL_FROM_*` are optional (they fall back to `SMTP_FROM`)
+but should be set explicitly in production so each category uses a distinct verified
+identity.
+
+### Failure handling
+
+- If SMTP credentials are missing, `api/lib/mailer.ts` falls back to Nodemailer's
+  `jsonTransport` and logs the email to console instead of sending — this is a
+  development-only fallback and must never be relied on in production
+  (`SMTP_HOST`/`SMTP_USER`/`SMTP_PASS` are `requiredInProd`).
+- Bounce and complaint notifications route through the `ses.hanuja.com.tr` MAIL FROM
+  subdomain to SES's own feedback endpoint; they do not land in the Promail corporate
+  inbox.
+- SES throttling or sandbox rejection must not block the underlying business action
+  (e.g. invoice upload, order confirmation) — email send failures should be logged and
+  are not transactional with the state change they describe.
+
+---
+
+## 7. Cloudflare Turnstile — Human Verification
 
 ### Purpose
 
