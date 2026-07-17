@@ -252,21 +252,20 @@ async function SiteFooter() {
           <div className="flex items-center gap-3 flex-wrap">
             {cardPaymentsEnabled ? (
               <>
-                <img src="/payment/iyzico-ile-ode.svg" alt="iyzico ile Öde" width="104" height="32" className="h-8 w-auto rounded bg-white px-2" />
                 <PaymentBadge label="Troy" />
                 <PaymentBadge label="Amex" />
               </>
             ) : (
               <PaymentBadge label="Havale / EFT ile ödeme" />
             )}
-            {/* The supplied combined brand artwork is a fixed public asset and must remain unmodified. */}
+            {/* The combined brand artwork is a fixed transparent public asset. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/payment/visa-mastercard.jpg"
-              alt="Mastercard ve Visa"
-              width="116"
-              height="32"
-              className="h-8 w-[116px] shrink-0 rounded bg-white object-contain"
+              src="/payment/visa-mastercard.png"
+              alt="Visa ve Mastercard"
+              width="1875"
+              height="839"
+              className="h-[52px] w-auto shrink-0 object-contain"
             />
             <div
               className="flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold"
@@ -289,7 +288,7 @@ async function SiteFooter() {
           </div>
           <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
             {cardPaymentsEnabled
-              ? 'Kart ödemeleri iyzico altyapısı ile güvenle işlenir.'
+              ? 'Kart ödemeleri güvenli altyapı üzerinden işlenir.'
               : 'Siparişler güvenli Havale / EFT yöntemiyle alınır.'}
           </p>
         </div>
