@@ -14,7 +14,14 @@
  */
 import { betterFetch } from '@better-fetch/fetch'
 import { NextResponse, type NextRequest } from 'next/server'
-import { generateCsrfToken, getCsrfCookieOptions, getMirrorCsrfCookieOptions, CSRF_COOKIE_NAME, CSRF_MIRROR_COOKIE_NAME } from '@hanuja/security'
+import {
+  generateCsrfToken,
+  getCsrfCookieOptions,
+  getMirrorCsrfCookieOptions,
+  CSRF_COOKIE_NAME,
+  CSRF_MIRROR_COOKIE_NAME,
+} from '@hanuja/security'
+import { isPublicAdminPath } from './src/lib/admin-public-paths'
 
 function applySecurityHeaders(response: NextResponse): void {
   const csrfToken = generateCsrfToken()
@@ -39,19 +46,16 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Allow public paths
-  if (pathname.startsWith('/giris') || pathname.startsWith('/api')) {
+  if (isPublicAdminPath(pathname) || pathname === '/api' || pathname.startsWith('/api/')) {
     const res = NextResponse.next()
     applySecurityHeaders(res)
     return res
   }
 
-  const { data: session } = await betterFetch<Session>(
-    '/api/auth/get-session',
-    {
-      baseURL: request.nextUrl.origin,
-      headers: { cookie: request.headers.get('cookie') ?? '' },
-    },
-  )
+  const { data: session } = await betterFetch<Session>('/api/auth/get-session', {
+    baseURL: request.nextUrl.origin,
+    headers: { cookie: request.headers.get('cookie') ?? '' },
+  })
 
   if (!session?.user) {
     const res = NextResponse.redirect(new URL('/giris', request.url))
@@ -74,7 +78,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|giris|api).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/).*)'],
 }

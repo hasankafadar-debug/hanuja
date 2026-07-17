@@ -10,6 +10,7 @@ import { PrismaClient } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import {
   type CompanyType,
+  canSubmitSellerApplication,
   getTaxNumberError,
   isValidPhone,
   isValidTaxNumber,
@@ -44,6 +45,13 @@ export async function POST(request: NextRequest) {
 
     if (!session?.user) {
       return NextResponse.json({ message: 'Oturum acmaniz gerekiyor.' }, { status: 401 })
+    }
+
+    if (!canSubmitSellerApplication(session.user.role)) {
+      return NextResponse.json(
+        { message: 'Magaza basvurusu yalnizca musteri hesaplariyla yapilabilir.' },
+        { status: 403 },
+      )
     }
 
     if (!session.user.emailVerified) {

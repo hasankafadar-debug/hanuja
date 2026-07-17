@@ -17,3 +17,6 @@ const _client: any = createAuthClient({
 export const signIn = _client.signIn
 export const signOut = _client.signOut
 export const useSession = _client.useSession
+export const requestPasswordReset = _client.requestPasswordReset
+export const resetPassword = _client.resetPassword
+export const authClient = _client

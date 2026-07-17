@@ -73,15 +73,19 @@ For the worker service:
 
 ### Migration Strategy
 
-Migrations must run **before** deploying new app versions. In Coolify, set the pre-deploy command for the `web` service (or a dedicated migration service):
+Migrations must finish **before** new application processes start using the new
+schema. The production worker image contains the repository, pnpm, Prisma CLI,
+schema, and migration files; its startup command runs `pnpm db:migrate:deploy`
+before starting BullMQ. A failed migration exits the container non-zero, so the
+remaining services must not be deployed.
 
-```bash
-pnpm --filter @hanuja/db run migrate:deploy
-```
+Do not configure this as a `web` pre-deploy command. Coolify runs pre-deploy
+commands in the existing container, while the standalone `Dockerfile.web`
+runner intentionally contains neither pnpm nor Prisma migration files.
 
 ### Deploy Order
-1. Run database migrations (`migrate:deploy`)
-2. Deploy worker (updated job logic runs first)
+1. Deploy worker; its startup gate runs `migrate:deploy`, then starts updated job logic
+2. Confirm the migration output and worker/scheduler startup logs
 3. Deploy admin-panel
 4. Deploy seller-panel
 5. Deploy web (highest traffic — deploy last)

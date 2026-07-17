@@ -6,6 +6,7 @@ import { TurnstileWidget } from '@hanuja/ui'
 import { hasMatchingNormalizedTokens } from '@hanuja/security/turkish-normalize'
 import { authClient, useSession } from '@/lib/auth-client'
 import { csrfFetch } from '@/lib/csrf-fetch'
+import { ApplicationAccountGate } from './application-account-gate'
 import {
   type CompanyType,
   getTaxNumberFieldMeta,
@@ -78,16 +79,18 @@ export function OnboardingPageClient({ turnstileSiteKey }: OnboardingPageClientP
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: sessionData, isPending: sessionLoading } = useSession()
+  const verificationJustCompleted = searchParams.get('verified') === '1'
 
   const sessionUser = (sessionData?.user ?? null) as SessionUser | null
   const email = sessionUser?.email ?? ''
   const emailVerified = Boolean(sessionUser?.emailVerified)
 
   const [step, setStep] = useState(0)
+  const [verificationRefreshPending, setVerificationRefreshPending] = useState(
+    verificationJustCompleted,
+  )
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [resendLoading, setResendLoading] = useState(false)
-  const [resendMessage, setResendMessage] = useState<string | null>(null)
   const [turnstileToken, setTurnstileToken] = useState('')
   const [phone, setPhone] = useState('')
   const [magaza, setMagaza] = useState<StepMagaza>({
@@ -113,14 +116,57 @@ export function OnboardingPageClient({ turnstileSiteKey }: OnboardingPageClientP
     bankName: '',
   })
 
-  const verificationJustCompleted = searchParams.get('verified') === '1'
   const taxField = getTaxNumberFieldMeta(isletme.companyType)
+
+  useEffect(() => {
+    if (!verificationJustCompleted) return
+
+    let active = true
+
+    void authClient
+      .getSession({ query: { disableCookieCache: true } })
+      .then((result: { data?: { user?: unknown } | null }) => {
+        if (!active) return
+
+        if (result?.data?.user) {
+          window.location.replace('/basvuru')
+          return
+        }
+
+        setVerificationRefreshPending(false)
+      })
+      .catch(() => {
+        if (active) setVerificationRefreshPending(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [verificationJustCompleted])
 
   useEffect(() => {
     if (sessionUser?.phone && !phone) {
       setPhone(normalizePhone(sessionUser.phone))
     }
   }, [phone, sessionUser?.phone])
+
+  if (sessionLoading || verificationRefreshPending) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
+        <p role="status" className="text-sm text-neutral-500">Oturum bilgileri yükleniyor...</p>
+      </main>
+    )
+  }
+
+  if (!sessionUser || !emailVerified) {
+    return (
+      <ApplicationAccountGate
+        email={sessionUser?.email}
+        turnstileSiteKey={turnstileSiteKey}
+        verificationJustCompleted={verificationJustCompleted}
+      />
+    )
+  }
 
   function handleMagazaChange(field: keyof StepMagaza, value: string) {
     setMagaza((prev) => {
@@ -132,34 +178,6 @@ export function OnboardingPageClient({ turnstileSiteKey }: OnboardingPageClientP
 
       return next
     })
-  }
-
-  async function handleResendVerification() {
-    if (!email) {
-      setResendMessage('E-posta adresiniz okunamadi. Sayfayi yenileyip tekrar deneyin.')
-      return
-    }
-
-    setResendLoading(true)
-    setResendMessage(null)
-
-    try {
-      const result = await authClient.sendVerificationEmail({
-        email,
-        callbackURL: `${window.location.origin}/basvuru?verified=1`,
-      })
-
-      if (result?.error) {
-        setResendMessage(result.error.message ?? 'Doğrulama e-postası gönderilemedi.')
-        return
-      }
-
-      setResendMessage('Doğrulama e-postası tekrar gönderildi.')
-    } catch {
-      setResendMessage('Doğrulama e-postası gönderilemedi. Lütfen tekrar deneyin.')
-    } finally {
-      setResendLoading(false)
-    }
   }
 
   function goToBusinessStep() {
@@ -428,29 +446,9 @@ export function OnboardingPageClient({ turnstileSiteKey }: OnboardingPageClientP
                     </div>
                   </div>
 
-                  {emailVerified ? (
-                    <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                      E-posta adresiniz doğrulanmış durumda.
-                    </p>
-                  ) : (
-                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                      <p className="font-medium">Basvuru icin e-posta dogrulamasi zorunlu.</p>
-                      <p className="mt-1 text-xs text-amber-800">
-                        Devam etmeden once e-posta adresinizi dogrulayin. Gerekirse baglantiyi tekrar gonderebiliriz.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleResendVerification}
-                        disabled={resendLoading || sessionLoading || !email}
-                        className="mt-3 rounded-lg border border-amber-300 px-3 py-2 text-xs font-medium text-amber-900 transition hover:bg-amber-100 disabled:opacity-50"
-                      >
-                        {resendLoading ? 'Gönderiliyor...' : 'Doğrulama e-postasını tekrar gönder'}
-                      </button>
-                      {resendMessage ? (
-                        <p className="mt-2 text-xs text-amber-900">{resendMessage}</p>
-                      ) : null}
-                    </div>
-                  )}
+                  <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                    E-posta adresiniz doğrulanmış durumda.
+                  </p>
                 </div>
               </div>
 

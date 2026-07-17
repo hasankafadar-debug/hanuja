@@ -1,5 +1,21 @@
 export type CompanyType = 'individual' | 'sole_proprietorship' | 'limited' | 'joint_stock' | 'other'
 
+export type SellerApplicationState = 'form' | 'pending' | 'rejected' | 'panel' | 'ineligible'
+
+export function canSubmitSellerApplication(role: string): boolean {
+  return role === 'customer'
+}
+
+export function resolveSellerApplicationState(
+  role: string,
+  sellerStatus?: string | null,
+): SellerApplicationState {
+  if (sellerStatus === 'pending') return 'pending'
+  if (sellerStatus === 'rejected') return 'rejected'
+  if (sellerStatus === 'active' || sellerStatus === 'suspended') return 'panel'
+  return canSubmitSellerApplication(role) ? 'form' : 'ineligible'
+}
+
 export interface TaxNumberFieldMeta {
   helperText: string
   label: string

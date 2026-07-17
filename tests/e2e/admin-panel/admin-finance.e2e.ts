@@ -35,6 +35,18 @@ test.describe('auth', () => {
     await expect(page.getByRole('button', { name: /Giriş Yap|Giris Yap/i })).toBeVisible()
     await hydration.expectNone()
   })
+
+  test('şifre sıfırlama giriş noktaları oturumsuz erişime açık', async ({ page }) => {
+    await page.goto('/giris')
+    await page.getByRole('link', { name: /Şifremi unuttum/i }).click()
+
+    await expect(page).toHaveURL('/sifremi-unuttum')
+    await expect(page.getByRole('heading', { name: /Şifremi Unuttum/i })).toBeVisible()
+
+    await page.goto('/sifre-sifirla')
+    await expect(page).toHaveURL('/sifre-sifirla')
+    await expect(page.getByRole('heading', { name: /Geçersiz Bağlantı/i })).toBeVisible()
+  })
 })
 
 test.describe('admin dashboard: marketplace health overview', () => {

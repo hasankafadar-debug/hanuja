@@ -72,10 +72,11 @@ SES setup detail (domain identity, DKIM, MAIL FROM subdomain, sandbox status) li
 `docs/06-engineering/integrations.md` §6 — do not duplicate it here. All `EMAIL_FROM_*`
 addresses must resolve to the verified `hanuja.com.tr` SES domain identity.
 
-### Pre-deploy Command (run migrations)
-```bash
-pnpm --filter @hanuja/db run migrate:deploy
-```
+### Migration command
+
+Do not set a migration pre-deploy command on `web`. Its standalone production
+image does not contain pnpm, Prisma CLI, or the migration files. Migrations are
+applied by the worker startup gate described under Service 4.
 
 ---
 
@@ -129,6 +130,15 @@ Same as `web` except:
 ---
 
 ## Service 4: worker (BullMQ)
+
+### Startup migration gate
+
+`Dockerfile.worker` runs `pnpm db:migrate:deploy` before starting BullMQ. If the
+migration command fails, the worker process never starts and the deployment
+must stop before admin, seller-panel, or web is redeployed. In the deployment
+logs, confirm either the expected migration name was applied or there were no
+pending migrations, followed by the worker and repeatable scheduler startup
+messages.
 
 **Type**: Application  
 **Build pack**: Dockerfile  

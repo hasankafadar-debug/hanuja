@@ -163,7 +163,7 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
       <p className="mt-6 text-center text-sm text-neutral-500">
         Satıcı hesabın yok mu?{' '}
         <a href="/basvuru" className="font-medium text-neutral-900 hover:underline">
-          Mağaza başvurusu yap
+          Başvuruyu başlat
         </a>
       </p>
 

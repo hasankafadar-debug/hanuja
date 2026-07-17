@@ -8,7 +8,7 @@ Canonical URL: `https://www.hanuja.com.tr`. Alt alanlar: `satici`, `admin`, `med
 2. PostgreSQL, Redis, Meilisearch, ClamAV ve Coolify persistent private-document volume hazırlanır.
 3. Ayrı `hanuja-media-production` R2 bucket oluşturulur; `media.hanuja.com.tr` bağlanır. Dev bucket public kalıntıları kopyalanmaz.
 4. `restic` repository `rclone:gdrive:hanuja-production` olarak başlatılır. Anahtar yalnız çevrimdışı parola kasasında tutulur.
-5. Uygulamalar deploy edilir; DB restore ve `pnpm db:migrate:deploy` çalıştırılır.
+5. DB restore/yedek doğrulaması tamamlanır; worker deploy edilir ve başlangıç kapısındaki `pnpm db:migrate:deploy` başarılı olduktan sonra admin, seller-panel ve web deploy edilir.
 6. `pnpm launch:clean-data --dry-run`, sonra hedef gerçekten `hanuja_prod` ise `pnpm launch:clean-data --confirm=hanuja_prod` çalıştırılır.
 7. Temizlik sonrası yalnız hero, promo ve onaylı iki blog medyası production bucket'a kopyalanır; DB URL'leri `media.hanuja.com.tr` olarak güncellenir. Production bucket envanteri elle ikinci kez kontrol edilir.
 8. Post-clean DB/private-volume snapshot alınır. Anonim ve üç rol smoke testleri tamamlanır.

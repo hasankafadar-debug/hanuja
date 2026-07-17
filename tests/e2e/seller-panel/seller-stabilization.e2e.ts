@@ -20,6 +20,28 @@ async function loginAsSeller(page: Page) {
   await expect(page).toHaveURL(/dashboard/, { timeout: 15_000 })
 }
 
+test.describe('seller application entry', () => {
+  test('anonymous applicant reaches account creation without a login redirect loop', async ({
+    page,
+  }) => {
+    await mockTurnstile(page)
+    await page.context().clearCookies()
+
+    await page.goto('/basvuru')
+
+    await expect(page).toHaveURL(/\/basvuru(?:\?|$)/)
+    await expect(
+      page.getByRole('heading', { name: /Mağaza başvurusunu başlatın/i }),
+    ).toBeVisible()
+    await expect(page.getByLabel(/Ad Soyad/i)).toBeVisible()
+    await expect(page.getByLabel(/^E-posta$/i)).toBeVisible()
+    await expect(page.getByRole('link', { name: /Giriş yapın/i })).toHaveAttribute(
+      'href',
+      '/giris?callbackUrl=/basvuru',
+    )
+  })
+})
+
 test.describe('seller panel stabilization', () => {
   test('kargolar renders real content without blocking cold-load spinner', async ({ page }) => {
     await loginAsSeller(page)

@@ -130,7 +130,7 @@ Asla: sandbox anahtarlarını live ile karıştırmayın, local/staging'i live a
 
 ## 4. Migration Sırası
 
-`docs/06-engineering/deployment-environments.md` §"Migration Strategy"/"Deploy Order" kuralı: **migration'lar yeni app kodu canlıya çıkmadan ÖNCE çalışır.** Production'da sadece `prisma migrate deploy` kullanılır — asla `migrate dev` veya `migrate reset` değil.
+`docs/06-engineering/deployment-environments.md` §"Migration Strategy"/"Deploy Order" kuralı: **migration'lar yeni uygulama süreçleri yeni şemayı kullanmadan ÖNCE tamamlanır.** Production'da sadece `prisma migrate deploy` kullanılır — asla `migrate dev` veya `migrate reset` değil. `Dockerfile.worker` bu komutu BullMQ süreçlerini başlatmadan önce bir startup gate olarak çalıştırır.
 
 Sıra:
 
@@ -143,11 +143,11 @@ Sıra:
    - Çıktı `OK — duplicate providerPaymentId bulunamadı...` ve exit 0 ise → adım 2'ye geçin.
    - Çıktı FAIL ve exit 1 ise (duplicate bulundu VEYA DB'ye bağlanılamadı) → **DURDURUN**. Duplicate bulunduysa script ilgili `payment.id`/`orderId` listesini basar; bu kayıtlar elle mutabakat yapılmadan migration çalıştırılmaz. Bağlantı hatası varsa önce bağlantıyı düzeltin — script "bilmiyorum" durumunda fail-closed davranır, asla sessizce geçmez.
 
-2. Guard script temiz (exit 0) döndükten sonra:
+2. Guard script temiz (exit 0) döndükten sonra worker redeploy edilir. Worker'ın başlangıç komutu otomatik olarak şunu çalıştırır:
    ```bash
    pnpm db:migrate:deploy
    ```
-   (bu, `pnpm --filter @hanuja/db exec prisma migrate deploy` çalıştırır — bkz. root `package.json`)
+   (bu, `pnpm --filter @hanuja/db exec prisma migrate deploy` çalıştırır — bkz. root `package.json`). Web container terminalinden veya web pre-deploy komutundan çalıştırmayın; standalone web runner pnpm, Prisma CLI ve migration dosyalarını içermez.
 
    Bu adım, deploy zincirindeki en güncel migration olan
    `20260717120000_campaign_discount_marketing_consent`'i de içerir (`MarketingConsent`,
@@ -156,7 +156,7 @@ Sıra:
    gerektirmez (adım 1 yalnızca `providerPaymentId` migration'ına özeldir); mevcut veriye
    dokunmaz, yalnızca yeni tablo/kolon/index ekler.
 
-3. Migration başarısız olursa deploy **durur** — kısmi deploy yapılmaz (`docs/06-engineering/deployment-environments.md` §"Migration Strategy", `.claude/rules/11-testing-release-rules.md` "Strong release blockers" — bilinen kırık payment/payout/penalty davranışıyla release yapılmaz kuralının migration adımına uygulanması). Yeni app kodu migration tamamlanmadan hiçbir servise deploy edilmez.
+3. Worker loglarında migration başarısız olursa container non-zero çıkar ve BullMQ başlamaz. Deploy **durur**; admin, seller-panel ve web deploy edilmez. Başarı için yalnızca "1 migration" metnine değil, exit 0 sonucuna ve ardından worker/scheduler başlangıç loglarına bakılır.
 
 ---
 
@@ -173,8 +173,8 @@ Servis tanımları ve Dockerfile eşlemesi için `docs/06-engineering/deployment
 
 Önerilen deploy sırası (`docs/06-engineering/deployment-environments.md` §"Deploy Order" ile birebir):
 
-1. Migration (Bölüm 4 tamamlanmış olmalı)
-2. **worker** — güncel job mantığı önce ayakta olmalı (özellikle ceza birikimi/payout olgunlaşma job'ları için — bkz. Bölüm 6)
+1. **worker + migration gate** — Bölüm 4'teki migration tamamlanır, ardından güncel job mantığı ayağa kalkar
+2. Worker migration, worker registry ve scheduler logları doğrulanır
 3. **admin-panel**
 4. **seller-panel**
 5. **web** — en yüksek trafikli servis, en son deploy edilir

@@ -45,4 +45,6 @@ RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 worker
 USER worker
 
-CMD ["pnpm", "exec", "tsx", "api/jobs/worker-entrypoint.ts"]
+# Apply pending Prisma migrations before any BullMQ process can use the new
+# schema. `exec` keeps SIGTERM/SIGINT delivery correct for graceful shutdown.
+CMD ["sh", "-c", "pnpm db:migrate:deploy && exec pnpm exec tsx api/jobs/worker-entrypoint.ts"]

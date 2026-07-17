@@ -36,10 +36,17 @@ interface Session {
   }
 }
 
-const PUBLIC_PATHS = ['/giris', '/api', '/basvuru/tesekkur', '/sifremi-unuttum', '/sifre-olustur', '/sifre-sifirla']
+const PUBLIC_PATHS = [
+  '/giris',
+  '/basvuru',
+  '/basvuru/tesekkur',
+  '/sifremi-unuttum',
+  '/sifre-olustur',
+  '/sifre-sifirla',
+]
 
-function isPublic(pathname: string): boolean {
-  return PUBLIC_PATHS.some((p) => pathname.startsWith(p))
+export function isPublicPath(pathname: string): boolean {
+  return pathname === '/api' || pathname.startsWith('/api/') || PUBLIC_PATHS.includes(pathname)
 }
 
 export async function middleware(request: NextRequest) {
@@ -51,7 +58,7 @@ export async function middleware(request: NextRequest) {
     return res
   }
 
-  if (isPublic(pathname)) {
+  if (isPublicPath(pathname)) {
     const res = NextResponse.next()
     applySecurityHeaders(res)
     return res
