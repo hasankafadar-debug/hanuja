@@ -15,6 +15,11 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 const baseURL = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'
 
+// Google girişi env-kapılıdır: iki değişken de doluysa provider kaydedilir,
+// aksi halde /giris sayfası butonu zaten göstermez (bkz. giris/page.tsx).
+const googleClientId = process.env.GOOGLE_CLIENT_ID
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+
 function expandTrustedOriginVariants(urls: Array<string | undefined>): string[] {
   const origins = new Set<string>()
 
@@ -112,6 +117,9 @@ const _auth = betterAuth({
     updateAge: 60 * 60 * 24,
     cookieCache: { enabled: true, maxAge: 60 * 5 },
   },
+  ...(googleClientId && googleClientSecret
+    ? { socialProviders: { google: { clientId: googleClientId, clientSecret: googleClientSecret } } }
+    : {}),
   rateLimit: { enabled: true, window: 60, max: 60, customRules: { '/change-password': { window: 60, max: 5 } } },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
