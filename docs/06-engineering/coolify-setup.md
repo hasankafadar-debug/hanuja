@@ -20,6 +20,14 @@ Before configuring apps, ensure the following backing services are running in Co
 2. Grant access to the `hanuja` repository
 3. Set the default branch to `main`
 
+> **Fiili durum (2026-07-19):** Dört uygulama servisi de şu an `codex/release-2026-07-15`
+> branch'ini izliyor (Coolify UI'dan doğrulandı) — yukarıdaki `main` hedefi henüz devreye
+> alınmadı. Ayrıca her servisin Git Source ekranındaki **Commit SHA** alanı `HEAD` olmalı;
+> alana sabit bir SHA yazılırsa redeploy'lar branch ucunu değil o commit'i kurar
+> (2026-07-19 deploy'unda bu alanlar eski SHA'lara sabitlenmiş bulundu ve `HEAD`'e çekildi).
+> `main`'e geçiş yapılırsa bu not güncellenmeli ve dört serviste branch alanı birlikte
+> değiştirilmelidir.
+
 ---
 
 ## Service 1: web (Customer Storefront)
