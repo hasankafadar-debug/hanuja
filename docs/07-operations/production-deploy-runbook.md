@@ -69,17 +69,18 @@ Gerekli/opsiyonel değişkenlerin tek doğru kaynağı `tools/scripts/check-env.
 ### Opsiyonel
 `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `EMAIL_FROM_NOREPLY`, `EMAIL_FROM_FATURA`, `EMAIL_FROM_KAMPANYA`, `INVOICE_ALIASING_ENABLED`, `NEXT_PUBLIC_SITE_NAME`, `NEXT_PUBLIC_SITE_URL`, `AUTO_APPROVE_CLEAN_PRODUCTS` (bkz. `.claude/rules/12-production-readiness.md` §6 — varsayılan `false` kalmalı).
 
-`SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM` `check-env`'de `requiredInProd: true`'dur (opsiyonel listede olmaları yalnızca genel `required` bayrağı taşımadıkları anlamına gelir — production'da eksikse `check-env --env=prod` FAIL üretir). `EMAIL_FROM_*` üçlüsü gerçekten opsiyoneldir (boşsa `SMTP_FROM`'a düşer) ama her kategori için ayrı doğrulanmış SES kimliği kullanmak üzere production'da açıkça girilmesi önerilir.
+`SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM` `check-env`'de `requiredInProd: true`'dur (opsiyonel listede olmaları yalnızca genel `required` bayrağı taşımadıkları anlamına gelir — production'da eksikse `check-env --env=prod` FAIL üretir). `EMAIL_FROM_*` üçlüsü gerçekten opsiyoneldir (boşsa `SMTP_FROM`'a düşer) ama her kategori için ayrı gönderen adresi kullanmak üzere production'da açıkça girilmesi önerilir.
 
-### SMTP / e-posta doğrulaması (Amazon SES)
+### SMTP / e-posta doğrulaması (Resend)
 
-Production SMTP sağlayıcısı Amazon SES'tir (`eu-central-1`). Deploy öncesi:
+Production SMTP sağlayıcısı Resend'dir (SES'in yerini aldı — SES production erişimi hiç onaylanmadı). Deploy öncesi:
 
-- [ ] `SMTP_HOST` = `email-smtp.eu-central-1.amazonaws.com`, `SMTP_PORT` = `587`, `SMTP_USER`/`SMTP_PASS` SES SMTP kimlik bilgileri (AWS access key değil, SES konsolundan üretilen SMTP-özel kimlik bilgileri) — bkz. `docs/06-engineering/integrations.md` §6.
-- [ ] `hanuja.com.tr` domain kimliği SES konsolunda **Verified** durumda; 3 DKIM CNAME kaydı ve `ses.hanuja.com.tr` MX/TXT (MAIL FROM subdomain) DNS'te doğrulanmış.
-- [ ] Kök domain (`hanuja.com.tr`) MX/SPF kayıtları **değiştirilmemiş** — bunlar Promail'e (kurumsal gelen kutusu `admin@hanuja.com.tr`) aittir ve SES bunlara dokunmadan `ses.hanuja.com.tr` alt domaininde çalışır.
-- [ ] SES gönderim durumu bilinir hale getirilmiş: hâlâ **sandbox** ise (bu doküman yazıldığı sırada durum budur — production erişimi talep edilmiş, henüz onaylanmamış), yalnızca SES'te doğrulanmış alıcı adreslerine teslimat yapılabileceği bilinmeli; smoke test (Bölüm 7) buna göre planlanmalı.
-- [ ] `EMAIL_FROM_NOREPLY`, `EMAIL_FROM_FATURA`, `EMAIL_FROM_KAMPANYA` girilmişse üçü de `hanuja.com.tr` altında ve doğrulanmış domain kimliği kapsamında.
+- [ ] `SMTP_HOST` = `smtp.resend.com`, `SMTP_PORT` = `465`, `SMTP_USER` = `resend` (literal), `SMTP_PASS` = Resend API key (Sending yetkili) — bkz. `docs/06-engineering/integrations.md` §6.
+- [ ] `hanuja.com.tr` domaini Resend panelinde **Verified** durumda; `resend._domainkey` DKIM TXT kaydı ve `send.hanuja.com.tr` MX/TXT (return-path subdomain) DNS'te doğrulanmış.
+- [ ] Kök domain (`hanuja.com.tr`) MX/SPF kayıtları **değiştirilmemiş** — bunlar Promail'e (kurumsal gelen kutusu `admin@hanuja.com.tr`) aittir ve Resend bunlara dokunmadan `send.hanuja.com.tr` alt domaini + DKIM TXT üzerinden çalışır.
+- [ ] Resend plan kotası biliniyor: free tier 100 e-posta/gün, 3.000/ay — smoke test ve düşük transactional hacim için yeterli, kampanya fan-out'u için **yetersiz**. Geniş kampanya gönderimi öncesi ücretli plana geçilmeli.
+- [ ] `EMAIL_FROM_NOREPLY`, `EMAIL_FROM_FATURA`, `EMAIL_FROM_KAMPANYA` girilmişse üçü de `hanuja.com.tr` altında (doğrulanmış domain tüm adresleri kapsar).
+- [ ] Eski SES DNS kayıtları (3 DKIM CNAME + `ses.hanuja.com.tr` MX/TXT) ve SES SMTP kimlik bilgisi **bilinçli olarak yedekte tutulur** (iş kararı, 2026-07-18): AWS production erişimi onaylanırsa SES'e dönüş yalnızca Coolify env değişimidir. SES credential'ının AWS konsolundan rotasyonu (yenisini üret, eskisini sil) ilk uygun fırsatta önerilir.
 
 ### Doğrulama
 Tüm değişkenler Coolify panelinden her servise ayrı ayrı girilir — **hiçbir zaman repo'ya commit edilmez** (bkz. `.claude/rules/05-security-rules.md` §"Secret ve Credential Kuralları"). Servis bazlı hangi değişkenin hangi Coolify servisine gireceği için `docs/06-engineering/coolify-setup.md` tablolarını kullanın.

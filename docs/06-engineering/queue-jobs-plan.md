@@ -70,5 +70,5 @@ plus the existing store-follower discount notice. It runs two job types on one q
   is self-healing since the next scheduled run re-scans the same state-based query.
 
 Cross-reference: `docs/06-engineering/database-schema.md` (`MarketingConsent`,
-`CampaignEmailDispatch` models), `docs/06-engineering/integrations.md` §6 (SES sender
+`CampaignEmailDispatch` models), `docs/06-engineering/integrations.md` §6 (Resend sender
 categories), `docs/05-security/audit-logging-plan.md` (consent trail note).

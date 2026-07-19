@@ -57,10 +57,10 @@ Before configuring apps, ensure the following backing services are running in Co
 | `MEILISEARCH_URL` | `http://meilisearch:7700` (or external URL) |
 | `MEILISEARCH_ADMIN_KEY` | *(Meilisearch master key)* |
 | `MEILISEARCH_SEARCH_KEY` | *(Meilisearch search-only key)* |
-| `SMTP_HOST` | `email-smtp.eu-central-1.amazonaws.com` (Amazon SES) |
-| `SMTP_PORT` | `587` |
-| `SMTP_USER` | *(SES SMTP credential username)* |
-| `SMTP_PASS` | *(SES SMTP credential password)* |
+| `SMTP_HOST` | `smtp.resend.com` (Resend) |
+| `SMTP_PORT` | `465` |
+| `SMTP_USER` | `resend` *(literal string)* |
+| `SMTP_PASS` | *(Resend API key)* |
 | `SMTP_FROM` | `Hanuja <noreply@hanuja.com.tr>` |
 | `EMAIL_FROM_NOREPLY` | `Hanuja <noreply@hanuja.com.tr>` — falls back to `SMTP_FROM` if unset |
 | `EMAIL_FROM_FATURA` | `Hanuja Fatura <fatura@hanuja.com.tr>` — falls back to `SMTP_FROM` if unset |
@@ -68,9 +68,9 @@ Before configuring apps, ensure the following backing services are running in Co
 | `NEXT_PUBLIC_SITE_NAME` | `Hanuja` |
 | `NEXT_PUBLIC_SITE_URL` | `https://www.hanuja.com.tr` |
 
-SES setup detail (domain identity, DKIM, MAIL FROM subdomain, sandbox status) lives in
-`docs/06-engineering/integrations.md` §6 — do not duplicate it here. All `EMAIL_FROM_*`
-addresses must resolve to the verified `hanuja.com.tr` SES domain identity.
+Resend setup detail (domain verification, DKIM, return-path subdomain, plan/quota
+limits) lives in `docs/06-engineering/integrations.md` §6 — do not duplicate it here.
+All `EMAIL_FROM_*` addresses must be at the Resend-verified `hanuja.com.tr` domain.
 
 ### Migration command
 
@@ -161,7 +161,7 @@ messages.
 | `R2_SECRET_ACCESS_KEY` | *(same as web)* |
 | `R2_BUCKET_NAME` | `hanuja-media` |
 | `SMTP_HOST` | *(same as web)* |
-| `SMTP_PORT` | `587` |
+| `SMTP_PORT` | `465` |
 | `SMTP_USER` | *(same as web)* |
 | `SMTP_PASS` | *(same as web)* |
 | `SMTP_FROM` | `Hanuja <noreply@hanuja.com.tr>` |

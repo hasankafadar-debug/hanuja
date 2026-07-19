@@ -306,55 +306,60 @@ staging at a live carrier account that generates real shipment events or charges
 
 ---
 
-## 6. Amazon SES — Transactional and Campaign Email
+## 6. Resend — Transactional and Campaign Email
 
 ### Purpose
 
-Amazon SES (region `eu-central-1`) is the production SMTP provider for all outbound
-Hanuja email: password reset, order/shipment/delivery notifications, invoice notices,
-return/dispute updates, payout/penalty notices, and the new marketing campaign emails
-(discount-on-favorite / discount-on-cart-item). SES is reached through the standard
-SMTP interface (`api/lib/mailer.ts`) — there is no SES SDK dependency, only SMTP
-credentials issued from the SES console.
+Resend is the production SMTP provider for all outbound Hanuja email: password reset,
+order/shipment/delivery notifications, invoice notices, return/dispute updates,
+payout/penalty notices, and the marketing campaign emails (discount-on-favorite /
+discount-on-cart-item). Resend is reached through the standard SMTP interface
+(`api/lib/mailer.ts`) — there is no Resend SDK dependency, only the Resend SMTP
+endpoint with an API key as the password.
+
+> **Migration note (2026-07-18):** Resend replaces Amazon SES, whose production access
+> request was never approved (the account stayed in sandbox). No application code
+> changed — the mailer is provider-agnostic SMTP — only env values and DNS records
+> did. See "Legacy SES records" below.
 
 ### Domain identity and DNS records
 
-SES verifies the `hanuja.com.tr` domain identity using **Easy DKIM** (3 CNAME records)
-plus a **custom MAIL FROM subdomain** so bounce/complaint traffic does not collide with
-the corporate inbox:
+Resend verifies the `hanuja.com.tr` domain identity (region `eu-west-1`) using a
+**DKIM TXT record** plus a **return-path subdomain** (`send.hanuja.com.tr`) so
+bounce/complaint traffic does not collide with the corporate inbox:
 
 | Record type | Host | Points to / value | Purpose |
 |---|---|---|---|
-| CNAME | `<selector1>._domainkey.hanuja.com.tr` | `<selector1>.dkim.amazonses.com` | Easy DKIM signing key 1 |
-| CNAME | `<selector2>._domainkey.hanuja.com.tr` | `<selector2>.dkim.amazonses.com` | Easy DKIM signing key 2 |
-| CNAME | `<selector3>._domainkey.hanuja.com.tr` | `<selector3>.dkim.amazonses.com` | Easy DKIM signing key 3 |
-| MX | `ses.hanuja.com.tr` | `feedback-smtp.eu-central-1.amazonses.com` (priority 10) | Custom MAIL FROM subdomain — bounce/complaint delivery |
-| TXT | `ses.hanuja.com.tr` | `v=spf1 include:amazonses.com ~all` | SPF for the MAIL FROM subdomain |
+| TXT | `resend._domainkey.hanuja.com.tr` | DKIM public key shown in the Resend dashboard | DKIM signing |
+| MX | `send.hanuja.com.tr` | Resend feedback endpoint shown in the dashboard (priority 10) | Return-path subdomain — bounce/complaint delivery |
+| TXT | `send.hanuja.com.tr` | SPF value shown in the dashboard (`v=spf1 include:…`) | SPF for the return-path subdomain |
 
-Selector values are the exact ones shown in the SES console for the `hanuja.com.tr`
-identity; they are not fixed strings and must be copied from AWS at setup time.
+Record values are the exact ones shown in the Resend dashboard for the `hanuja.com.tr`
+domain; they are not fixed strings and must be copied from Resend at setup time.
 
 ### Coexistence with Promail (root domain mail) — do not touch root records
 
 `hanuja.com.tr`'s root **MX and SPF** records belong to Promail and route the corporate
-inbox (`admin@hanuja.com.tr`). SES is added entirely on the `ses.hanuja.com.tr`
-subdomain and via DKIM CNAMEs — **root MX and root SPF are never modified** for SES.
-This is intentional and required: changing the root MX would break inbound corporate
-mail, and changing the root SPF would risk breaking Promail's outbound authentication.
+inbox (`admin@hanuja.com.tr`). Resend is added entirely on the `send.hanuja.com.tr`
+subdomain and via the `resend._domainkey` DKIM TXT — **root MX and root SPF are never
+modified** for Resend. This is intentional and required: changing the root MX would
+break inbound corporate mail, and changing the root SPF would risk breaking Promail's
+outbound authentication.
 
-DMARC (`p=none`, pre-existing on the domain) passes for SES-sent mail via **DKIM
+DMARC (`p=none`, pre-existing on the domain) passes for Resend-sent mail via **DKIM
 alignment** (the DKIM `d=` domain matches `hanuja.com.tr`), independent of the SPF
-record used for the MAIL FROM subdomain. Do not raise DMARC enforcement (`p=quarantine`
-/ `p=reject`) without re-verifying both Promail and SES alignment first.
+record used for the return-path subdomain. Do not raise DMARC enforcement
+(`p=quarantine` / `p=reject`) without re-verifying both Promail and Resend alignment
+first.
 
 ### SMTP endpoint and credentials
 
 | Variable | Value |
 |---|---|
-| `SMTP_HOST` | `email-smtp.eu-central-1.amazonaws.com` |
-| `SMTP_PORT` | `587` |
-| `SMTP_USER` | SES SMTP username (per-credential, not the AWS access key) |
-| `SMTP_PASS` | SES SMTP password |
+| `SMTP_HOST` | `smtp.resend.com` |
+| `SMTP_PORT` | `465` (implicit TLS; `587` STARTTLS also supported) |
+| `SMTP_USER` | `resend` (literal string) |
+| `SMTP_PASS` | Resend API key (Sending access) |
 
 These four variables are set identically across all four Coolify services (`web`,
 `seller-panel`, `admin-panel`, `worker`) — see `docs/06-engineering/coolify-setup.md`.
@@ -370,30 +375,42 @@ These four variables are set identically across all four Coolify services (`web`
 | `fatura` | `EMAIL_FROM_FATURA` | `invoice_uploaded` (seller invoice notice to customer) | `admin@hanuja.com.tr` |
 | `kampanya` | `EMAIL_FROM_KAMPANYA` | `store_discount_followed_seller`, `product_discount_favorited`, `product_discount_in_cart` | none |
 
-Every `EMAIL_FROM_*` address must be a verified SES identity (the domain identity
-`hanuja.com.tr` covers all addresses at that domain once verified — no separate
-per-address verification is needed as long as the domain identity is in `Verified`
-state).
+Every `EMAIL_FROM_*` address must be at the Resend-verified domain (verifying the
+`hanuja.com.tr` domain covers all addresses at that domain — no separate per-address
+verification is needed as long as the domain status is `Verified`).
 
-### Sandbox vs production status
+### Plan and quota limits
 
-SES for this account is currently in the **sandbox** sending status: mail can only be
-delivered to verified recipient addresses, and sending is rate/volume limited. Production
-access has been requested from AWS. Until production access is granted:
+Resend has no sandbox / recipient-allowlist concept: once the domain is `Verified`,
+mail can be delivered to any recipient. Sending volume is limited by the Resend plan
+instead:
 
-- Do not treat live customer-facing email delivery as fully functional in production —
-  verify recipient addresses manually for any real-world test.
-- Campaign email (item 6 below) is especially sensitive to sandbox limits since it targets
-  real customer addresses at scale; do not fan out broadly until sandbox is lifted.
+- Free tier: 100 emails/day, 3,000 emails/month — enough for smoke tests and low
+  transactional volume, **not** enough for campaign fan-out.
+- Before enabling broad campaign sends (`campaign-discount` fan-out), upgrade to a
+  paid plan sized for the expected daily volume.
+- API/SMTP rate limits also apply (default ~2 requests/second); the notification
+  dispatch queue's retry/backoff absorbs transient throttling.
+
+### Legacy SES records — kept as a warm fallback (business decision, 2026-07-18)
+
+The previous provider's DNS records (3 Easy DKIM CNAMEs pointing at
+`*.dkim.amazonses.com` and the `ses.hanuja.com.tr` MX/TXT MAIL FROM subdomain) and the
+SES SMTP credential are **intentionally kept active** as a fallback: if AWS ever grants
+the pending SES production access, switching back is a pure env swap
+(`SMTP_HOST`/`PORT`/`USER`/`PASS` in Coolify) with no code or DNS change. The records
+are harmless alongside Resend's. Because the SES credential was handled during
+migration ops, rotating it in the AWS console (issue new SMTP credential, delete old)
+is recommended at the next convenient opportunity.
 
 ### Environment variables
 
 | Variable | Purpose |
 |---|---|
-| `SMTP_HOST` | `email-smtp.eu-central-1.amazonaws.com` |
-| `SMTP_PORT` | `587` |
-| `SMTP_USER` | SES SMTP credential username |
-| `SMTP_PASS` | SES SMTP credential password |
+| `SMTP_HOST` | `smtp.resend.com` |
+| `SMTP_PORT` | `465` |
+| `SMTP_USER` | `resend` (literal string) |
+| `SMTP_PASS` | Resend API key |
 | `SMTP_FROM` | Fallback `From` address if a category-specific `EMAIL_FROM_*` is unset |
 | `EMAIL_FROM_NOREPLY` | `noreply` category sender override |
 | `EMAIL_FROM_FATURA` | `fatura` category sender override |
@@ -401,8 +418,8 @@ access has been requested from AWS. Until production access is granted:
 
 `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM` are `requiredInProd` in
 `tools/scripts/check-env.ts`. `EMAIL_FROM_*` are optional (they fall back to `SMTP_FROM`)
-but should be set explicitly in production so each category uses a distinct verified
-identity.
+but should be set explicitly in production so each category uses a distinct sender
+address.
 
 ### Failure handling
 
@@ -410,10 +427,11 @@ identity.
   `jsonTransport` and logs the email to console instead of sending — this is a
   development-only fallback and must never be relied on in production
   (`SMTP_HOST`/`SMTP_USER`/`SMTP_PASS` are `requiredInProd`).
-- Bounce and complaint notifications route through the `ses.hanuja.com.tr` MAIL FROM
-  subdomain to SES's own feedback endpoint; they do not land in the Promail corporate
-  inbox.
-- SES throttling or sandbox rejection must not block the underlying business action
+- Bounces and complaints are collected by Resend via the `send.hanuja.com.tr`
+  return-path subdomain and surfaced in the Resend dashboard (Emails log and
+  suppression list); they do not land in the Promail corporate inbox. There is no
+  app-side bounce/complaint webhook yet — tracked as a deferred open item.
+- Provider throttling or a failed send must not block the underlying business action
   (e.g. invoice upload, order confirmation) — email send failures should be logged and
   are not transactional with the state change they describe.
 
