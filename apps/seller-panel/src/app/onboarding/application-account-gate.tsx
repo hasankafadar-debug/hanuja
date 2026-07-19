@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { TurnstileWidget } from '@hanuja/ui'
 import { authClient, signUp } from '@/lib/auth-client'
+import { getSellerPasswordErrors } from '@hanuja/security/password-policy'
 
 type AuthClientError = {
   message?: string | undefined
@@ -82,8 +83,9 @@ export function ApplicationAccountGate({
     event.preventDefault()
     setError(null)
 
-    if (password.length < 8) {
-      setError('Şifre en az 8 karakter olmalıdır.')
+    const passwordErrors = getSellerPasswordErrors(password)
+    if (passwordErrors.length > 0) {
+      setError(passwordErrors[0] ?? null)
       return
     }
 
@@ -254,6 +256,9 @@ export function ApplicationAccountGate({
             onChange={(event) => setPassword(event.target.value)}
             className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
           />
+          <p className="mt-1 text-xs text-neutral-400">
+            En az 8 karakter; en az 1 büyük harf, 1 küçük harf, 1 rakam ve 1 sembol içermeli.
+          </p>
         </Field>
         <Field label="Şifre Tekrar" id="seller-signup-password-confirm">
           <input

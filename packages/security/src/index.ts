@@ -116,6 +116,19 @@ export type { UserRole, Action } from './permission-matrix'
 // Server-only callers should import `roundMoney` from @hanuja/security/money.
 export { formatMoney } from './format-money'
 
+// Password policy (customer / seller)
+export {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  getCustomerPasswordErrors,
+  getSellerPasswordErrors,
+  isCustomerPasswordValid,
+  isSellerPasswordValid,
+  customerPasswordSchema,
+  sellerPasswordSchema,
+  evaluateAuthPasswordPolicy,
+} from './password-policy'
+
 // Audit logging
 export {
   buildAuditEntry,

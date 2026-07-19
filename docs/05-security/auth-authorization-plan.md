@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-07-19
 # Durum: taslak v1
 
 # Auth and Authorization Plan
@@ -22,6 +22,8 @@ Hanuja uses **Better Auth** for session management across all three apps. Better
 - the `auth.api.getSession({ headers })` server call used by API routes and server components
 
 The auth server is mounted at `/api/auth/[...all]` in `apps/web`. All three apps share the same auth backend by calling the auth session endpoint from their own domain using the request's forwarded cookie.
+
+Google OAuth ile giriş yalnızca müşteri storefront'unda (apps/web) mevcuttur; GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET env değişkenleriyle kapılıdır; Better Auth `socialProviders.google` kullanılır; satıcı/admin panellerinde sosyal giriş yoktur.
 
 ---
 
@@ -202,6 +204,25 @@ Every such action also calls an audit helper to create an `AdminAuditLog` record
 | Finance truth | Server-computed, never from client |
 
 No single layer is relied upon exclusively. Each layer provides independent protection.
+
+---
+
+## 9. Şifre Oluşturma Politikası
+
+Şifre güçlendirme kuralları role'e göre değişir ve şifre oluşturma noktalarında (kayıt, sıfırlama, değiştirme, satıcı ilk-şifre) uygulanır:
+
+- **Müşteri:** ≥8 karakter + ≥1 harf + ≥1 rakam
+- **Satıcı:** ≥8 karakter + ≥1 büyük harf + ≥1 küçük harf + ≥1 rakam + ≥1 sembol
+- **Admin:** min 8 karakter (kapsam dışı; bilinçli olarak sınırlandırılmaz)
+
+Kural detayları:
+
+- Türkçe harfler (ç, ğ, ı, ö, ş, ü vb.) Unicode ile harf sayılır.
+- Sembol = harf, rakam veya boşluk olmayan karakter.
+- Başı/sonu boşluk içeren şifreler reddedilir.
+- Kurallar **giriş akışlarında muaf**; mevcut zayıf şifreli hesaplar giriş yapabilir (kilitlenmez).
+- Zorlama katmanları (düzende sırayla): istemci form validasyonu → route zod şeması → Better Auth `hooks.before` (app-bazlı, web=müşteri kuralı, seller-panel=satıcı kuralı).
+- Kaynak modül: `packages/security/src/password-policy.ts` (Unicode-aware).
 
 ---
 

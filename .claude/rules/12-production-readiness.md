@@ -151,17 +151,13 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   Tetikleyici olay: sipariş #231655, 2026-05-08'de admin onayına rağmen payout kaydı
   oluşmamıştı; bu script ve sweep bu sınıf hatayı kalıcı olarak kapatır.
 
-### 18. SES e-posta altyapısı + kampanya rıza kapısı (yeni — 2026-07-17)
-- Amazon SES (`eu-central-1`) production SMTP sağlayıcısı olarak devreye alındı: `hanuja.com.tr`
-  domain kimliği Easy DKIM (3 CNAME) + özel MAIL FROM alt domaini (`ses.hanuja.com.tr`, MX →
-  `feedback-smtp.eu-central-1.amazonses.com`, TXT SPF `include:amazonses.com`) ile doğrulandı.
-  Kök domain MX/SPF (Promail, `admin@hanuja.com.tr` kurumsal kutusu) **değiştirilmedi** — SES
-  bunlara dokunmadan alt domain üzerinden çalışır; DMARC (`p=none`, önceden mevcut) DKIM
-  hizalamasıyla geçer. Detay: `docs/06-engineering/integrations.md` §6.
-- **Sandbox durumu:** SES hesabı şu an sandbox modunda — yalnızca doğrulanmış alıcı adreslerine
-  teslimat yapılabilir, gönderim hacmi sınırlı. Production erişimi talep edildi, henüz
-  onaylanmadı. Kampanya e-postası (aşağıda) özellikle bu sınıra duyarlıdır; sandbox kalkmadan
-  geniş fan-out'a güvenilmemeli.
+### 18. E-posta altyapısı + kampanya rıza kapısı (2026-07-17)
+- **Sağlayıcı güncellemesi (2026-07-18):** Amazon SES production erişimi onaylanmadığı
+  (hesap sandbox'ta kaldığı) için outbound SMTP sağlayıcısı **Resend** oldu — bkz. §19.
+  Kod değişmedi (`api/lib/mailer.ts` provider-agnostik SMTP); yalnızca env değerleri ve
+  DNS kayıtları değişti. Kök domain MX/SPF (Promail, `admin@hanuja.com.tr` kurumsal
+  kutusu) her iki sağlayıcıda da **değiştirilmedi**; DMARC (`p=none`) DKIM hizalamasıyla
+  geçer. Detay: `docs/06-engineering/integrations.md` §6.
 - Mailer artık kategori bazlı gönderen adresi kullanıyor (`noreply` / `fatura` / `kampanya`,
   `EMAIL_FROM_*` env, `SMTP_FROM`'a fallback). `invoice_uploaded` → `fatura` (Reply-To
   `admin@hanuja.com.tr`); `store_discount_followed_seller` + yeni `product_discount_*`
@@ -194,13 +190,59 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   kapsamı eksik — servis/domain seviyesi testler mevcut, route-seviyesi entegrasyon testi ayrı
   bir iş.
 - `.env.example` dosyasına `EMAIL_FROM_NOREPLY` / `EMAIL_FROM_FATURA` / `EMAIL_FROM_KAMPANYA`
-  placeholder satırları elle eklenmelidir — bu dosya agent izin kısıtı nedeniyle bu çalışmada
+  placeholder satırları elle eklenmelidir — bu dosya agent izin kısıtı nedeniyle
   güncellenemedi; `tools/scripts/check-env.ts` zaten bu değişkenleri tanıyor.
-  `docs/05-security/secrets-env-policy.md` da bu üç değişkeni `.env.example` referans tablosuna
-  eklemeyi bekliyor.
+  (`docs/05-security/secrets-env-policy.md` SMTP tablosuna bu üç değişken 2026-07-18'de
+  eklendi — o kısım kapandı.)
 - Postmark RET (fatura e-postasına yanıt) akışı artık global kampanya rızasını da geri
   çekiyor; bu, `From` header'ı sahte/spoof edilebilir bir sinyale dayanıyor. Yön fail-safe'tir
   (rıza yanlışlıkla geri çekilebilir ama yanlışlıkla açılamaz), risk düşük ama not edilmeli.
+
+### 19. Resend'e geçiş — outbound e-posta (yeni — 2026-07-18)
+- Outbound SMTP sağlayıcısı Amazon SES'ten **Resend**'e taşındı (SES production erişimi
+  hiç onaylanmadı, hesap sandbox'ta kaldı). Kod değişikliği yok — `api/lib/mailer.ts`
+  saf Nodemailer SMTP'dir; geçiş = Resend domain doğrulaması (DNS) + Coolify env
+  değişimi. Detay: `docs/06-engineering/integrations.md` §6,
+  `docs/07-operations/production-deploy-runbook.md` §"SMTP / e-posta doğrulaması".
+- **Cutover adımları (ops, sırayla):**
+  1. Resend panelinde `hanuja.com.tr` domaini eklenir (bölge `eu-west-1`); panelin verdiği
+     DNS kayıtları girilir: `resend._domainkey` TXT (DKIM) + `send.hanuja.com.tr` MX/TXT
+     (return-path). Kök MX/SPF (Promail) **DEĞİŞTİRİLMEZ**.
+  2. Domain **Verified** olunca Sending yetkili API key üretilir.
+  3. 4 Coolify servisinde (`web`, `seller-panel`, `admin-panel`, `worker`):
+     `SMTP_HOST=smtp.resend.com`, `SMTP_PORT=465`, `SMTP_USER=resend` (literal),
+     `SMTP_PASS=<Resend API key>`; `SMTP_FROM` / `EMAIL_FROM_*` aynı kalır. Redeploy.
+  4. Smoke test: şifre sıfırlama maili → teslimat + `DKIM=pass`; Resend dashboard
+     loglarında `Delivered` görülmeli.
+- **Kota:** free tier 100 e-posta/gün / 3.000 e-posta/ay — kampanya fan-out'u için
+  yetersizdir; geniş kampanya gönderimi öncesi ücretli plan şart (eski "SES sandbox"
+  uyarısının yerini bu kota uyarısı alır).
+- Bounce/complaint için app-side webhook yok — Resend dashboard suppression listesi
+  şimdilik yeterli; webhook + uygulama içi suppression ertelenen açık iştir.
+  Inbound e-posta (Postmark fatura aliasing + RET opt-out) bu geçişten etkilenmedi.
+- **SES yedekte kalır (iş kararı, 2026-07-18):** SES DNS kayıtları (3 DKIM CNAME +
+  `ses.hanuja.com.tr` MX/TXT) ve SMTP credential'ı silinmez — AWS production erişimi
+  ileride onaylanırsa SES'e dönüş yalnızca Coolify env değişimidir. SES credential'ının
+  AWS konsolunda rotasyonu (yenisi üretilip eskisinin silinmesi) ilk fırsatta önerilir.
+- Cutover 2026-07-18'de tamamlandı ve doğrulandı: 4 Coolify servisi Resend SMTP
+  değerleriyle redeploy edildi; smoke test (admin şifre sıfırlama →
+  `admin@hanuja.com.tr`) Resend dashboard'da `Delivered` olarak doğrulandı.
+
+## Operasyonel Not
+
+Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
+- gerçek backend entegrasyonu
+- gerçek domain kuralı
+- build-safe import davranışı
+- env bağımlılıklarının açık tanımı
+
+### 20. Şifre güç politikası + Google ile müşteri girişi (yeni — 2026-07-19)
+- Şifre kuralları: müşteri ≥8 karakter + ≥1 harf + ≥1 rakam; satıcı ≥8 karakter + büyük/küçük harf + rakam + sembol. Tüm şifre oluşturma noktalarında (kayıt, sıfırlama, değiştirme, ilk-şifre) istemci + route + Better Auth hooks.before katmanlarıyla zorlanır. Giriş akışları muaf — mevcut zayıf şifreli hesaplar giriş yapabilir. Admin akışları bilinçli olarak kapsam dışı (min 8).
+- Google girişi yalnızca apps/web'de ve env-gated: GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET ikisi de doluysa `/giris` sayfasında “Google ile giriş yap” butonu görünür. Coolify'da yalnızca web servisine girilir.
+- Google Cloud Console'da authorized redirect URI: `{BETTER_AUTH_URL}/api/auth/callback/google` (BETTER_AUTH_URL sürer; prod'da NEXT_PUBLIC_APP_URL ile aynı domain olmalı — teyit edilmeli).
+- Google ile kayıt olan kullanıcı için MarketingConsent OLUŞMAZ (signup checkbox akışı); kullanıcı `hesabim/iletisim-tercihleri`'nden sonradan rıza verebilir.
+- `.env.example`'a `GOOGLE_CLIENT_ID=` / `GOOGLE_CLIENT_SECRET=` placeholder satırları elle eklenmelidir (agent izin kısıtı — §18 emsali).
+- Ayrıca `/hesabim` layout'una sunucu tarafı oturum guard'ı eklendi (oturumsuz kullanıcı `/giris?callbackUrl=/hesabim`'a yönlenir).
 
 ## Operasyonel Not
 

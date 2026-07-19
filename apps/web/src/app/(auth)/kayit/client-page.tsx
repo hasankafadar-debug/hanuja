@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { authClient, signUp } from '@/lib/auth-client'
 import { csrfFetch } from '@/lib/csrf-fetch'
 import { TurnstileWidget } from '@hanuja/ui'
+import { getCustomerPasswordErrors } from '@hanuja/security/password-policy'
 
 type AuthClientError = {
   message?: string
@@ -83,8 +84,9 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
       return
     }
 
-    if (password.length < 8) {
-      setError('Şifre en az 8 karakter olmalıdır.')
+    const passwordErrors = getCustomerPasswordErrors(password)
+    if (passwordErrors.length > 0) {
+      setError(passwordErrors[0] ?? null)
       return
     }
 
@@ -255,7 +257,7 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
             onChange={(event) => setPassword(event.target.value)}
             className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
           />
-          <p className="mt-1 text-xs text-neutral-400">En az 8 karakter</p>
+          <p className="mt-1 text-xs text-neutral-400">En az 8 karakter, en az 1 harf ve 1 rakam içermeli.</p>
         </div>
 
         <div>

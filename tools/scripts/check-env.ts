@@ -55,6 +55,8 @@ const ENV_VARS: EnvVar[] = [
   { key: 'NEXT_PUBLIC_ADMIN_PANEL_URL', required: false, requiredInProd: true, description: 'Public admin panel URL', apps: ['all'] },
   { key: 'SELLER_PANEL_URL', required: true, description: 'Seller panel base URL', apps: ['all'] },
   { key: 'ADMIN_PANEL_URL', required: true, description: 'Admin panel base URL', apps: ['all'] },
+  { key: 'GOOGLE_CLIENT_ID', required: false, sensitiveInProd: true, description: 'Google OAuth client ID (musteri sosyal girisi, opsiyonel)', apps: ['web'] },
+  { key: 'GOOGLE_CLIENT_SECRET', required: false, sensitiveInProd: true, description: 'Google OAuth client secret (musteri sosyal girisi, opsiyonel)', apps: ['web'] },
 
   // Payment
   { key: 'CARD_PAYMENTS_ENABLED', required: false, requiredInProd: true, description: 'Card payment feature flag (true/false)', apps: ['all'] },
@@ -81,14 +83,14 @@ const ENV_VARS: EnvVar[] = [
   { key: 'MEILISEARCH_SEARCH_KEY', required: true, description: 'Meilisearch public search key', apps: ['web'] },
 
   // Email
-  { key: 'SMTP_HOST', required: false, requiredInProd: true, description: 'SMTP server hostname', apps: ['api'] },
-  { key: 'SMTP_PORT', required: false, requiredInProd: true, description: 'SMTP port (587 recommended)', apps: ['api'] },
-  { key: 'SMTP_USER', required: false, requiredInProd: true, description: 'SMTP authentication user', apps: ['api'] },
-  { key: 'SMTP_PASS', required: false, requiredInProd: true, sensitiveInProd: true, description: 'SMTP password', apps: ['api'] },
+  { key: 'SMTP_HOST', required: false, requiredInProd: true, description: 'SMTP server hostname (production: smtp.resend.com)', apps: ['api'] },
+  { key: 'SMTP_PORT', required: false, requiredInProd: true, description: 'SMTP port (465 for Resend implicit TLS; 587 STARTTLS also supported)', apps: ['api'] },
+  { key: 'SMTP_USER', required: false, requiredInProd: true, description: 'SMTP authentication user (literal "resend" for Resend SMTP)', apps: ['api'] },
+  { key: 'SMTP_PASS', required: false, requiredInProd: true, sensitiveInProd: true, description: 'SMTP password (Resend API key in production)', apps: ['api'] },
   { key: 'SMTP_FROM', required: false, requiredInProd: true, description: 'From address for outgoing emails', apps: ['api'] },
-  { key: 'EMAIL_FROM_NOREPLY', required: false, description: 'From address for transactional mail; falls back to SMTP_FROM. Must be an SES-verified identity.', apps: ['api'] },
-  { key: 'EMAIL_FROM_FATURA', required: false, description: 'From address for invoice mail; falls back to SMTP_FROM. Must be an SES-verified identity.', apps: ['api'] },
-  { key: 'EMAIL_FROM_KAMPANYA', required: false, description: 'From address for campaign mail; falls back to SMTP_FROM. Must be an SES-verified identity.', apps: ['api'] },
+  { key: 'EMAIL_FROM_NOREPLY', required: false, description: 'From address for transactional mail; falls back to SMTP_FROM. Must be an address on the Resend-verified domain.', apps: ['api'] },
+  { key: 'EMAIL_FROM_FATURA', required: false, description: 'From address for invoice mail; falls back to SMTP_FROM. Must be an address on the Resend-verified domain.', apps: ['api'] },
+  { key: 'EMAIL_FROM_KAMPANYA', required: false, description: 'From address for campaign mail; falls back to SMTP_FROM. Must be an address on the Resend-verified domain.', apps: ['api'] },
   { key: 'INVOICE_ALIASING_ENABLED', required: false, requiredInProd: true, description: 'Invoice aliasing feature flag (true/false)', apps: ['all'] },
   { key: 'INBOUND_EMAIL_DOMAIN', required: false, requiredWhen: 'invoice-aliasing', description: 'Inbound invoice email domain, e.g. fatura.hanuja.com.tr', apps: ['api', 'web'] },
   { key: 'POSTMARK_INBOUND_WEBHOOK_USER', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Postmark inbound webhook basic auth user', apps: ['web'] },

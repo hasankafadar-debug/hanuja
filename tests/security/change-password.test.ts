@@ -19,4 +19,20 @@ describe('change-password routes', () => {
       expect(source).toMatch(/session\.user\.role !== '(customer|seller|admin)'/)
     })
   }
+
+  it('web change-password route enforces the customer password policy', async () => {
+    const source = await readFile(
+      new URL('../../apps/web/src/app/api/user/change-password/route.ts', import.meta.url),
+      'utf8',
+    )
+    expect(source).toContain('customerPasswordSchema')
+  })
+
+  it('seller change-password route enforces the seller password policy', async () => {
+    const source = await readFile(
+      new URL('../../apps/seller-panel/src/app/api/seller/change-password/route.ts', import.meta.url),
+      'utf8',
+    )
+    expect(source).toContain('sellerPasswordSchema')
+  })
 })

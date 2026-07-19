@@ -5,8 +5,9 @@ import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { sendEmail } from '@hanuja/api/lib/mailer'
 import { passwordChangedTemplate } from '@hanuja/api/lib/email-templates/password-changed'
+import { customerPasswordSchema } from '@hanuja/security/password-policy'
 
-const schema = z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(8).max(128) })
+const schema = z.object({ currentPassword: z.string().min(1), newPassword: customerPasswordSchema })
 
 export async function POST(request: NextRequest) {
   const csrfError = checkCsrf(request)
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
   const limit = await checkUserRateLimit(session.user.id, 'customer:change-password', HIGH_RISK_RATE_LIMIT)
   if (!limit.allowed) return limit.response!
   const parsed = schema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) return NextResponse.json({ message: 'Yeni parola en az 8 karakter olmalıdır.' }, { status: 400 })
+  if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0]?.message ?? 'Geçersiz parola.' }, { status: 400 })
   try {
     await auth.api.changePassword({ headers: request.headers, body: { ...parsed.data, revokeOtherSessions: true } })
     const template = passwordChangedTemplate({ changedAt: new Date() })

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { getSellerPasswordErrors } from '@hanuja/security/password-policy'
 
 export default function SifreOlusturPage() {
   const router = useRouter()
@@ -13,6 +14,12 @@ export default function SifreOlusturPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    const passwordErrors = getSellerPasswordErrors(password)
+    if (passwordErrors.length > 0) {
+      setError(passwordErrors[0] ?? null)
+      return
+    }
 
     if (password !== confirmPassword) {
       setError('Şifreler eşleşmiyor.')
@@ -61,6 +68,9 @@ export default function SifreOlusturPage() {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
           />
+          <p className="mt-1 text-xs text-neutral-400">
+            En az 8 karakter; en az 1 büyük harf, 1 küçük harf, 1 rakam ve 1 sembol içermeli.
+          </p>
         </div>
 
         <div>

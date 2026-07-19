@@ -3,8 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { authClient } from '@/lib/auth-client'
-
-const MIN_PASSWORD_LENGTH = 8
+import { getCustomerPasswordErrors } from '@hanuja/security/password-policy'
 
 export function ResetPasswordPageClient() {
   const searchParams = useSearchParams()
@@ -20,8 +19,9 @@ export function ResetPasswordPageClient() {
     e.preventDefault()
     setError(null)
 
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      setError('Şifre en az 8 karakter olmalıdır.')
+    const passwordErrors = getCustomerPasswordErrors(password)
+    if (passwordErrors.length > 0) {
+      setError(passwordErrors[0] ?? null)
       return
     }
 
@@ -39,7 +39,14 @@ export function ResetPasswordPageClient() {
       })
 
       if (resetError) {
-        setError('Şifre sıfırlanamadı. Bağlantının süresi dolmuş veya geçersiz olabilir.')
+        const message = resetError.message?.toLowerCase() ?? ''
+        const isTokenRelated =
+          message.includes('token') || message.includes('expired') || message.includes('invalid')
+        setError(
+          !isTokenRelated && resetError.message
+            ? resetError.message
+            : 'Şifre sıfırlanamadı. Bağlantının süresi dolmuş veya geçersiz olabilir.',
+        )
         return
       }
 
@@ -99,13 +106,13 @@ export function ResetPasswordPageClient() {
             id="password"
             type="password"
             required
-            minLength={MIN_PASSWORD_LENGTH}
+            minLength={8}
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
           />
-          <p className="mt-1 text-xs text-neutral-400">En az 8 karakter.</p>
+          <p className="mt-1 text-xs text-neutral-400">En az 8 karakter, en az 1 harf ve 1 rakam içermeli.</p>
         </div>
 
         <div>
@@ -116,7 +123,7 @@ export function ResetPasswordPageClient() {
             id="confirm-password"
             type="password"
             required
-            minLength={MIN_PASSWORD_LENGTH}
+            minLength={8}
             autoComplete="new-password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}

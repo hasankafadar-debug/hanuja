@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./money": "./src/money.ts",
     "./format-money": "./src/format-money.ts",
-    "./turkish-normalize": "./src/turkish-normalize.ts"
+    "./turkish-normalize": "./src/turkish-normalize.ts",
+    "./password-policy": "./src/password-policy.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

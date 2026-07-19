@@ -81,6 +81,15 @@ Format: `redis://HOST:PORT` or `redis://:PASSWORD@HOST:PORT` for authenticated i
 
 `BETTER_AUTH_SECRET` must be a cryptographically random string of at least 32 bytes.
 
+### Google OAuth (müşteri sosyal girişi)
+
+| Variable | Sensitivity | Scope | Requirement |
+|----------|-------------|-------|-------------|
+| `GOOGLE_CLIENT_ID` | Medium | yalnızca web servisi | Opsiyonel — iki değişken de doluysa özellik aktif olur, aksi halde Google butonu görünmez |
+| `GOOGLE_CLIENT_SECRET` | Critical | yalnızca web servisi | Opsiyonel — iki değişken de doluysa özellik aktif olur, aksi halde Google butonu görünmez |
+
+Google Cloud Console'da authorized redirect URI `{BETTER_AUTH_URL}/api/auth/callback/google` olmalıdır (BETTER_AUTH_URL sürer; production'da NEXT_PUBLIC_APP_URL ile aynı domain olmalı).
+
 Generate with: `openssl rand -base64 32`
 
 Changing this value in production invalidates all existing sessions immediately.
@@ -141,16 +150,21 @@ Plan session invalidation before rotating this secret.
 
 | Variable | Service | Required In | Sensitivity |
 |----------|---------|-------------|-------------|
-| `SMTP_HOST` | Email delivery | Staging, Production | Low |
-| `SMTP_PORT` | SMTP port | Staging, Production | Low |
-| `SMTP_USER` | SMTP authentication username | Staging, Production | Medium |
-| `SMTP_PASS` | SMTP authentication password | Staging, Production | High |
-| `SMTP_FROM` | Sender address | Staging, Production | Low |
+| `SMTP_HOST` | Email delivery (production: `smtp.resend.com`) | Staging, Production | Low |
+| `SMTP_PORT` | SMTP port (production: `465`) | Staging, Production | Low |
+| `SMTP_USER` | SMTP authentication username (production: literal `resend`) | Staging, Production | Medium |
+| `SMTP_PASS` | SMTP authentication password (production: **Resend API key**) | Staging, Production | High |
+| `SMTP_FROM` | Fallback sender address | Staging, Production | Low |
+| `EMAIL_FROM_NOREPLY` | `noreply` category sender override (falls back to `SMTP_FROM`) | Optional | Low |
+| `EMAIL_FROM_FATURA` | `fatura` category sender override (falls back to `SMTP_FROM`) | Optional | Low |
+| `EMAIL_FROM_KAMPANYA` | `kampanya` category sender override (falls back to `SMTP_FROM`) | Optional | Low |
 
 - Local development may suppress email delivery or redirect to a local mail catcher
   (e.g., Mailpit or Mailhog).
 - Do not use production SMTP credentials in local dev.
-- `SMTP_PASS` must not appear in logs.
+- `SMTP_PASS` must not appear in logs. In production it is a Resend API key — if it
+  leaks, revoke it in the Resend dashboard and issue a new key (standard rotation
+  steps below apply).
 
 ### App Metadata
 

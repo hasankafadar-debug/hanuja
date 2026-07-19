@@ -5,12 +5,14 @@
  * Seller access is enforced by middleware (role === 'seller' required).
  */
 import { betterAuth } from 'better-auth'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
 import { admin as adminPlugin } from 'better-auth/plugins'
 import { PrismaClient } from '@prisma/client'
 import { sendEmail } from '@hanuja/api/lib/mailer'
 import { emailVerificationTemplate } from '@hanuja/api/lib/email-templates/email-verification'
 import { sellerPasswordResetTemplate } from '@hanuja/api/lib/email-templates/seller-password-reset'
+import { evaluateAuthPasswordPolicy } from '@hanuja/security/password-policy'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -55,6 +57,14 @@ const _auth = betterAuth({
     cookieCache: { enabled: true, maxAge: 60 * 5 },
   },
   rateLimit: { enabled: true, window: 60, max: 60, customRules: { '/change-password': { window: 60, max: 5 } } },
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      const message = evaluateAuthPasswordPolicy(ctx.path, ctx.body, 'seller')
+      if (message) {
+        throw new APIError('BAD_REQUEST', { message })
+      }
+    }),
+  },
   plugins: [adminPlugin({ defaultRole: 'customer', adminRoles: ['admin'] })],
   trustedOrigins: expandTrustedOriginVariants([
     baseURL,

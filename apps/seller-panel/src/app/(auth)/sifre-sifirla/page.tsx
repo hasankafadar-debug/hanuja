@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { authClient } from '@/lib/auth-client'
+import { getSellerPasswordErrors } from '@hanuja/security/password-policy'
 
 export default function SifreSifirlaPage() {
   const params = useSearchParams()
@@ -22,6 +23,12 @@ export default function SifreSifirlaPage() {
       return
     }
 
+    const passwordErrors = getSellerPasswordErrors(password)
+    if (passwordErrors.length > 0) {
+      setError(passwordErrors[0] ?? null)
+      return
+    }
+
     if (password !== confirmPassword) {
       setError('Şifreler eşleşmiyor.')
       return
@@ -35,7 +42,14 @@ export default function SifreSifirlaPage() {
       })
 
       if (resetError) {
-        setError('Şifre sıfırlanamadı. Lütfen bağlantıyı tekrar deneyin.')
+        const message = resetError.message?.toLowerCase() ?? ''
+        const isTokenRelated =
+          message.includes('token') || message.includes('expired') || message.includes('invalid')
+        setError(
+          !isTokenRelated && resetError.message
+            ? resetError.message
+            : 'Şifre sıfırlanamadı. Lütfen bağlantıyı tekrar deneyin.',
+        )
         return
       }
 
@@ -77,6 +91,9 @@ export default function SifreSifirlaPage() {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 transition"
           />
+          <p className="mt-1 text-xs text-neutral-400">
+            En az 8 karakter; en az 1 büyük harf, 1 küçük harf, 1 rakam ve 1 sembol içermeli.
+          </p>
         </div>
 
         <div>
