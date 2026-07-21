@@ -10,6 +10,7 @@ type SellerDocumentRecord = {
   id: string
   sellerId: string
   type: string
+  identityPart?: 'combined' | 'front' | 'back' | null
   status: 'pending' | 'approved' | 'rejected'
   fileKey: string
   fileUrl: string
@@ -84,6 +85,7 @@ function makeDocument(overrides: Partial<SellerDocumentRecord> = {}): SellerDocu
     id: 'doc-1',
     sellerId: 'seller-1',
     type: 'identity',
+    identityPart: 'combined',
     status: 'pending',
     fileKey: 'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
     fileUrl: 'private://seller-document',
@@ -145,12 +147,100 @@ describe('SellerDocumentService private KYC uploads', () => {
     expect(document).toMatchObject({
       id: 'doc-created',
       sellerId: 'seller-1',
+      identityPart: 'combined',
       fileUrl: 'private://seller-document',
       fileKey: 'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
       fileName: 'kimlik.pdf',
       sizeBytes: bytes.byteLength,
     })
     expect(docs.get('doc-created')?.fileUrl).not.toMatch(/^https?:/)
+  })
+
+  it('allows separate identity front and back slots', async () => {
+    const front = makeDocument({ id: 'doc-front', identityPart: 'front' })
+    const { prisma, docs } = createPrismaMock([front])
+    const service = createSellerDocumentService({ prisma: prisma as never, storage })
+
+    await service.uploadDocument({
+      sellerId: 'seller-1',
+      type: 'identity' as never,
+      identityPart: 'back' as never,
+      fileName: 'kimlik-arka.pdf',
+      mimeType: 'application/pdf',
+      bytes: pdfBytes(),
+    })
+
+    expect(docs.get('doc-created')).toMatchObject({ identityPart: 'back' })
+  })
+
+  it.each([
+    {
+      existingPart: 'front',
+      requestedPart: 'combined',
+    },
+    {
+      existingPart: 'combined',
+      requestedPart: 'front',
+    },
+    {
+      existingPart: 'back',
+      requestedPart: 'back',
+    },
+  ] as const)(
+    'rejects identity slot conflict: $existingPart then $requestedPart',
+    async ({ existingPart, requestedPart }) => {
+      const existing = makeDocument({ identityPart: existingPart })
+      const { prisma } = createPrismaMock([existing])
+      const service = createSellerDocumentService({ prisma: prisma as never, storage })
+
+      await expect(
+        service.uploadDocument({
+          sellerId: 'seller-1',
+          type: 'identity' as never,
+          identityPart: requestedPart as never,
+          fileName: 'kimlik.pdf',
+          mimeType: 'application/pdf',
+          bytes: pdfBytes(),
+        }),
+      ).rejects.toBeInstanceOf(ValidationError)
+
+      expect(storage.write).not.toHaveBeenCalled()
+    },
+  )
+
+  it('allows a rejected identity slot to be uploaded again', async () => {
+    const rejected = makeDocument({ status: 'rejected', identityPart: 'front' })
+    const { prisma, docs } = createPrismaMock([rejected])
+    const service = createSellerDocumentService({ prisma: prisma as never, storage })
+
+    await service.uploadDocument({
+      sellerId: 'seller-1',
+      type: 'identity' as never,
+      identityPart: 'front' as never,
+      fileName: 'kimlik-on-yeni.pdf',
+      mimeType: 'application/pdf',
+      bytes: pdfBytes(),
+    })
+
+    expect(docs.get('doc-created')).toMatchObject({ identityPart: 'front' })
+  })
+
+  it('rejects identity parts on non-identity document types', async () => {
+    const { prisma } = createPrismaMock()
+    const service = createSellerDocumentService({ prisma: prisma as never, storage })
+
+    await expect(
+      service.uploadDocument({
+        sellerId: 'seller-1',
+        type: 'tax_certificate' as never,
+        identityPart: 'front' as never,
+        fileName: 'vergi.pdf',
+        mimeType: 'application/pdf',
+        bytes: pdfBytes(),
+      }),
+    ).rejects.toBeInstanceOf(ValidationError)
+
+    expect(storage.write).not.toHaveBeenCalled()
   })
 
   it('marks legacy R2 records as unavailable and requiring reupload', async () => {

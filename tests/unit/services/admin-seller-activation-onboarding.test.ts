@@ -13,7 +13,11 @@ function createSeller(overrides: Record<string, unknown> = {}) {
     user: { email: 'seller@example.test' },
     profile: { id: 'profile-1' },
     bankDetails: [{ id: 'pending-bank' }],
-    documents: [{ type: 'identity' }, { type: 'tax_certificate' }, { type: 'signature_circular' }],
+    documents: [
+      { type: 'identity', identityPart: 'combined' },
+      { type: 'tax_certificate', identityPart: null },
+      { type: 'signature_circular', identityPart: null },
+    ],
     ...overrides,
   }
 }
@@ -85,6 +89,40 @@ describe('admin seller onboarding activation', () => {
     await expect(service.assertReady('seller-1')).rejects.toMatchObject({
       statusCode: 422,
       details: { missingDocumentTypes: ['tax_certificate'] },
+    })
+  })
+
+  it('accepts approved identity front and back as a complete identity document', async () => {
+    const prisma = createPrismaMock(
+      createSeller({
+        documents: [
+          { type: 'identity', identityPart: 'front' },
+          { type: 'identity', identityPart: 'back' },
+          { type: 'tax_certificate', identityPart: null },
+          { type: 'signature_circular', identityPart: null },
+        ],
+      }),
+    )
+    const service = createAdminSellerActivationService({ prisma: prisma as never })
+
+    await expect(service.assertReady('seller-1')).resolves.toMatchObject({ sellerId: 'seller-1' })
+  })
+
+  it('keeps identity missing until both separately uploaded faces are approved', async () => {
+    const prisma = createPrismaMock(
+      createSeller({
+        documents: [
+          { type: 'identity', identityPart: 'front' },
+          { type: 'tax_certificate', identityPart: null },
+          { type: 'signature_circular', identityPart: null },
+        ],
+      }),
+    )
+    const service = createAdminSellerActivationService({ prisma: prisma as never })
+
+    await expect(service.assertReady('seller-1')).rejects.toMatchObject({
+      statusCode: 422,
+      details: { missingDocumentTypes: ['identity'] },
     })
   })
 

@@ -7,7 +7,11 @@
  */
 import { NextResponse, type NextRequest } from 'next/server'
 import { headers } from 'next/headers'
-import { PrismaClient, type SellerDocumentType } from '@prisma/client'
+import {
+  PrismaClient,
+  type SellerDocumentIdentityPart,
+  type SellerDocumentType,
+} from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { createSellerDocumentService } from '@hanuja/api/services/seller-document.service'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
@@ -28,6 +32,7 @@ const VALID_TYPES: SellerDocumentType[] = [
   'bank_statement',
   'other',
 ]
+const VALID_IDENTITY_PARTS: SellerDocumentIdentityPart[] = ['combined', 'front', 'back']
 const MAX_MULTIPART_REQUEST_BYTES = 21 * 1024 * 1024
 
 async function readBoundedFormData(request: NextRequest): Promise<FormData> {
@@ -78,6 +83,7 @@ async function readBoundedFormData(request: NextRequest): Promise<FormData> {
 function toSellerDocumentResponse(document: {
   id: string
   type: SellerDocumentType
+  identityPart: SellerDocumentIdentityPart | null
   status: string
   fileName: string
   mimeType: string
@@ -93,6 +99,7 @@ function toSellerDocumentResponse(document: {
   return {
     id: document.id,
     type: document.type,
+    identityPart: document.identityPart,
     status: document.status,
     fileName: document.fileName,
     mimeType: document.mimeType,
@@ -127,7 +134,7 @@ async function authenticatedSeller() {
       requiredDocumentTypes: true,
       documents: {
         where: { status: { in: ['pending', 'approved'] } },
-        select: { type: true, fileKey: true },
+        select: { type: true, identityPart: true, fileKey: true },
       },
     },
   })
@@ -176,12 +183,29 @@ export async function POST(request: NextRequest) {
   }
 
   const type = formData.get('type')
+  const rawIdentityPart = formData.get('identityPart')
   const file = formData.get('file')
   if (typeof type !== 'string' || !VALID_TYPES.includes(type as SellerDocumentType)) {
     return NextResponse.json({ message: 'Geçersiz belge türü.' }, { status: 400 })
   }
   if (!isUploadedFile(file)) {
     return NextResponse.json({ message: 'Belge dosyası zorunludur.' }, { status: 400 })
+  }
+  const identityPart =
+    type === 'identity' && rawIdentityPart == null
+      ? 'combined'
+      : typeof rawIdentityPart === 'string' &&
+          VALID_IDENTITY_PARTS.includes(rawIdentityPart as SellerDocumentIdentityPart)
+        ? (rawIdentityPart as SellerDocumentIdentityPart)
+        : null
+  if (type === 'identity' && identityPart === null) {
+    return NextResponse.json({ message: 'Geçersiz kimlik parçası.' }, { status: 400 })
+  }
+  if (type !== 'identity' && rawIdentityPart != null) {
+    return NextResponse.json(
+      { message: 'Kimlik parçası yalnızca kimlik belgesi için seçilebilir.' },
+      { status: 400 },
+    )
   }
   if (file.size > 20 * 1024 * 1024) {
     return NextResponse.json({ message: 'Dosya boyutu 20 MB limitini aşıyor.' }, { status: 413 })
@@ -200,11 +224,20 @@ export async function POST(request: NextRequest) {
         { status: 403 },
       )
     }
-    if (
-      seller.documents.some(
-        (document) => document.type === type && isPrivateDocumentStorageKey(document.fileKey),
-      )
-    ) {
+    const occupiedDocuments = seller.documents.filter(
+      (document) => document.type === type && isPrivateDocumentStorageKey(document.fileKey),
+    )
+    const identitySlotOccupied =
+      type === 'identity' &&
+      occupiedDocuments.some((document) => {
+        const occupiedPart = document.identityPart ?? 'combined'
+        return (
+          identityPart === 'combined' ||
+          occupiedPart === 'combined' ||
+          occupiedPart === identityPart
+        )
+      })
+    if ((type !== 'identity' && occupiedDocuments.length > 0) || identitySlotOccupied) {
       return NextResponse.json(
         { message: 'Bu belge türü için incelenen veya onaylanan bir yüklemeniz zaten var.' },
         { status: 409 },
@@ -217,6 +250,7 @@ export async function POST(request: NextRequest) {
     const document = await service.uploadDocument({
       sellerId: seller.id,
       type: type as SellerDocumentType,
+      identityPart,
       fileName: file.name,
       mimeType: file.type,
       bytes: new Uint8Array(await file.arrayBuffer()),

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
+import { adminSignInSessionPolicy } from '@/lib/admin-session-policy'
 import { TurnstileWidget } from '@hanuja/ui'
 
 type AuthClientError = {
@@ -95,6 +96,7 @@ export function AdminLoginPageClient({ turnstileSiteKey }: AdminLoginPageClientP
         email,
         password,
         callbackURL: callbackUrl,
+        ...adminSignInSessionPolicy,
       })
 
       if (signInError) {

@@ -49,6 +49,12 @@ enum SellerDocumentStatus {
   rejected // Admin reddetti
 }
 
+enum SellerDocumentIdentityPart {
+  combined // Kimliğin iki yüzü tek dosyada / pasaport
+  front // Kimlik ön yüzü
+  back // Kimlik arka yüzü
+}
+
 enum BankDetailStatus {
   ACTIVE
   PENDING_ACTIVATION
@@ -665,25 +671,27 @@ model SellerBankDetailHistory {
 // Satıcı KYC belgeleri — kimlik, vergi, sicil, imza belgesi vb.
 // Her belge ayrı bir kayıt; aynı tipten birden fazla yükleme mümkün (son=geçerli).
 model SellerDocument {
-  id         String               @id @default(cuid())
-  sellerId   String
-  type       SellerDocumentType
-  status     SellerDocumentStatus @default(pending)
-  fileUrl    String // Erişim işareti; KYC belgeleri için herkese açık URL değildir
-  fileKey    String // Şifreli özel belge deposundaki anahtar
-  fileName   String // Orijinal dosya adı (yalnızca bilgi amaçlı)
-  mimeType   String // image/jpeg | image/png | application/pdf
-  sizeBytes  Int
-  adminNote  String? // Admin red/onay notu
-  reviewedBy String? // Admin kullanıcı ID
-  reviewedAt DateTime?
-  createdAt  DateTime             @default(now())
-  updatedAt  DateTime             @updatedAt
+  id           String                      @id @default(cuid())
+  sellerId     String
+  type         SellerDocumentType
+  identityPart SellerDocumentIdentityPart? // Yalnızca identity türünde kullanılır
+  status       SellerDocumentStatus        @default(pending)
+  fileUrl      String // Erişim işareti; KYC belgeleri için herkese açık URL değildir
+  fileKey      String // Şifreli özel belge deposundaki anahtar
+  fileName     String // Orijinal dosya adı (yalnızca bilgi amaçlı)
+  mimeType     String // image/jpeg | image/png | application/pdf
+  sizeBytes    Int
+  adminNote    String? // Admin red/onay notu
+  reviewedBy   String? // Admin kullanıcı ID
+  reviewedAt   DateTime?
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime                    @updatedAt
 
   seller Seller @relation(fields: [sellerId], references: [id])
 
   @@index([sellerId])
   @@index([sellerId, type])
+  @@index([sellerId, type, identityPart])
   @@index([status])
   @@map("seller_documents")
 }

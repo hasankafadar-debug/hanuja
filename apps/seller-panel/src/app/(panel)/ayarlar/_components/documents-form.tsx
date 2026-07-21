@@ -22,6 +22,7 @@ type DocType =
   | 'other'
 
 type DocStatus = 'pending' | 'approved' | 'rejected'
+type IdentityPart = 'combined' | 'front' | 'back'
 
 interface SellerDocument {
   id: string
@@ -33,6 +34,7 @@ interface SellerDocument {
   fileUrl: string
   adminNote: string | null
   createdAt: string
+  identityPart?: IdentityPart | null
   requiresReupload?: boolean
   fileAvailable?: boolean
 }
@@ -46,6 +48,12 @@ const TYPE_LABELS: Record<DocType, string> = {
   signature_circular: 'İmza Sirküleri',
   bank_statement: 'Banka Hesap Cüzdanı / IBAN Belgesi',
   other: 'Diğer Belge',
+}
+
+const IDENTITY_PART_LABELS: Record<IdentityPart, string> = {
+  combined: 'Tek dosya (ön ve arka birlikte)',
+  front: 'Ön yüz',
+  back: 'Arka yüz',
 }
 
 const STATUS_CONFIG: Record<DocStatus, { label: string; icon: React.ReactNode; color: string }> = {
@@ -76,6 +84,7 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
   const router = useRouter()
   const [documents, setDocuments] = useState<SellerDocument[]>(initialDocuments)
   const [selectedType, setSelectedType] = useState<DocType>('identity')
+  const [selectedIdentityPart, setSelectedIdentityPart] = useState<IdentityPart>('combined')
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadingType, setUploadingType] = useState<DocType | null>(null)
@@ -116,10 +125,14 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
       setError('Lütfen bir dosya seçin.')
       return
     }
-    await uploadDocument(selectedType, file)
+    await uploadDocument(selectedType, file, selectedIdentityPart)
   }
 
-  async function uploadDocument(type: DocType, fileToUpload: File) {
+  async function uploadDocument(
+    type: DocType,
+    fileToUpload: File,
+    identityPart: IdentityPart = 'combined',
+  ) {
     setUploading(true)
     setUploadingType(type)
     setError(null)
@@ -127,6 +140,7 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
     try {
       const formData = new FormData()
       formData.set('type', type)
+      if (type === 'identity') formData.set('identityPart', identityPart)
       formData.set('file', fileToUpload)
 
       const uploadRes = await csrfFetch('/api/seller/documents', {
@@ -152,7 +166,11 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
         ...previous.filter(
           (existing) =>
             existing.id !== document.id &&
-            !(existing.type === document.type && requiresReupload(existing)),
+            !(
+              existing.type === document.type &&
+              (document.type !== 'identity' || identityPartFor(existing) === identityPartFor(document)) &&
+              requiresReupload(existing)
+            ),
         ),
         document,
       ])
@@ -176,7 +194,11 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
     }
   }
 
-  async function handleRequestedFile(type: DocType, event: React.ChangeEvent<HTMLInputElement>) {
+  async function handleRequestedFile(
+    type: DocType,
+    identityPart: IdentityPart,
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
     const selectedFile = event.target.files?.[0]
     event.target.value = ''
     if (!selectedFile) return
@@ -186,7 +208,7 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
       setError(validationError)
       return
     }
-    await uploadDocument(type, selectedFile)
+    await uploadDocument(type, selectedFile, identityPart)
   }
 
   async function handleDelete(docId: string) {
@@ -220,10 +242,100 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
     documents
       .filter((document) => document.type === type)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+  const identityPartFor = (document: SellerDocument): IdentityPart => document.identityPart ?? 'combined'
+  const latestDocumentForSlot = (type: DocType, identityPart: IdentityPart = 'combined') =>
+    documents
+      .filter(
+        (document) =>
+          document.type === type && (type !== 'identity' || identityPartFor(document) === identityPart),
+      )
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
   const requiresReupload = (document: SellerDocument) =>
     document.requiresReupload ??
     (document.fileUrl !== 'private://seller-document' &&
       !document.fileUrl.startsWith('/api/seller/documents/'))
+  const identityMode = (() => {
+    const identityDocuments = documents.filter((document) => document.type === 'identity')
+    return identityDocuments.some((document) => identityPartFor(document) === 'combined')
+      ? 'combined'
+      : identityDocuments.length > 0
+        ? 'separate'
+        : null
+  })()
+
+  const renderRequestedSlot = (type: DocType, identityPart: IdentityPart = 'combined') => {
+    const document = latestDocumentForSlot(type, identityPart)
+    const status = document ? STATUS_CONFIG[document.status] : null
+    const legacyDocumentRequiresReupload = document ? requiresReupload(document) : false
+    const isBlockedByIdentityMode =
+      type === 'identity' &&
+      ((identityMode === 'combined' && identityPart !== 'combined') ||
+        (identityMode === 'separate' && identityPart === 'combined'))
+    const canUpload =
+      !isBlockedByIdentityMode &&
+      (!document || document.status === 'rejected' || legacyDocumentRequiresReupload)
+
+    return (
+      <div
+        key={`${type}-${identityPart}`}
+        className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0"
+      >
+        <FileText className="h-5 w-5 shrink-0" style={{ color: 'var(--color-muted-fg)' }} />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+            {type === 'identity' ? IDENTITY_PART_LABELS[identityPart] : TYPE_LABELS[type]}
+          </p>
+          {isBlockedByIdentityMode ? (
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              {identityMode === 'combined'
+                ? 'Tek dosya kimlik yüklendiği için ön ve arka yüz ayrı eklenemez.'
+                : 'Ön/arka yüz yüklemesi varken tek dosya eklenemez.'}
+            </p>
+          ) : document?.status === 'rejected' && document.adminNote ? (
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
+              Red gerekçesi: {document.adminNote}
+            </p>
+          ) : legacyDocumentRequiresReupload ? (
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
+              Bu eski belge güvenli depoya taşınmadı. Lütfen yeniden yükleyin.
+            </p>
+          ) : status ? (
+            <p className="mt-1 text-xs" style={{ color: status.color }}>{status.label}</p>
+          ) : (
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>Belge bekleniyor</p>
+          )}
+        </div>
+        {canUpload ? (
+          <label
+            className="cursor-pointer rounded-lg px-3 py-2 text-sm font-medium text-white transition-opacity disabled:opacity-50"
+            style={{
+              backgroundColor: 'var(--color-accent)',
+              opacity: uploadingType && uploadingType !== type ? 0.55 : 1,
+            }}
+          >
+            <input
+              type="file"
+              accept=".jpg,.jpeg,.png,.webp,.pdf"
+              className="sr-only"
+              disabled={uploadingType !== null}
+              onChange={(event) => { void handleRequestedFile(type, identityPart, event) }}
+            />
+            {uploadingType === type ? 'Yükleniyor…' : document ? 'Yeniden yükle' : 'Belge yükle'}
+          </label>
+        ) : null}
+        {document?.status === 'pending' ? (
+          <button
+            type="button"
+            onClick={() => { void handleDelete(document.id) }}
+            className="rounded-lg border px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-50"
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
+          >
+            Yüklemeyi sil
+          </button>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -250,6 +362,18 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
           ) : (
             <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
               {requestedTypes.map((type) => {
+                if (type === 'identity') {
+                  return (
+                    <div key={type} className="py-4 first:pt-0 last:pb-0">
+                      <p className="mb-2 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                        {TYPE_LABELS.identity}
+                      </p>
+                      {(['combined', 'front', 'back'] as IdentityPart[]).map((identityPart) =>
+                        renderRequestedSlot(type, identityPart),
+                      )}
+                    </div>
+                  )
+                }
                 const document = latestDocumentFor(type)
                 const status = document ? STATUS_CONFIG[document.status] : null
                 const legacyDocumentRequiresReupload = document ? requiresReupload(document) : false
@@ -302,7 +426,7 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
                           className="sr-only"
                           disabled={uploadingType !== null}
                           onChange={(event) => {
-                            void handleRequestedFile(type, event)
+                            void handleRequestedFile(type, 'combined', event)
                           }}
                         />
                         {uploadingType === type
@@ -362,6 +486,32 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
                 ))}
               </select>
             </div>
+
+            {selectedType === 'identity' ? (
+              <fieldset>
+                <legend className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-primary)' }}>
+                  Kimlik bölümü
+                </legend>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {(Object.entries(IDENTITY_PART_LABELS) as [IdentityPart, string][]).map(([value, label]) => (
+                    <label
+                      key={value}
+                      className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs"
+                      style={{ borderColor: selectedIdentityPart === value ? 'var(--color-accent)' : 'var(--color-border)' }}
+                    >
+                      <input
+                        type="radio"
+                        name="seller-document-identity-part"
+                        value={value}
+                        checked={selectedIdentityPart === value}
+                        onChange={() => setSelectedIdentityPart(value)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
 
             {/* Dosya seçimi */}
             <div>
@@ -515,6 +665,7 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
                         {TYPE_LABELS[doc.type]}
+                        {doc.type === 'identity' ? ` — ${IDENTITY_PART_LABELS[identityPartFor(doc)]}` : ''}
                       </p>
                       <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                         {doc.fileName} · {formatBytes(doc.sizeBytes)} ·{' '}

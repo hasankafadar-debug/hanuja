@@ -66,6 +66,35 @@ function formatDpi(dpi: number) {
   return Number.isInteger(dpi) ? String(dpi) : dpi.toFixed(2)
 }
 
+export function csrfHeadersForSameOrigin(apiPath: string): Headers {
+  const headers = new Headers()
+  if (typeof window === 'undefined') return headers
+
+  const target = new URL(apiPath, window.location.origin)
+  if (target.origin !== window.location.origin) return headers
+
+  const token = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith('hanuja-csrf-mirror='))
+    ?.split('=')[1]
+  if (token) headers.set('x-csrf-token', decodeURIComponent(token))
+  return headers
+}
+
+export async function uploadErrorMessage(response: Response, fallback: string): Promise<string> {
+  const contentType = response.headers.get('content-type') ?? ''
+  if (contentType.includes('application/json')) {
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: unknown; message?: unknown }
+      | null
+    if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message
+    if (typeof payload?.error === 'string' && payload.error.trim()) return payload.error
+  }
+
+  const text = await response.text().catch(() => '')
+  return text.trim() || fallback
+}
+
 export function FileUpload({
   apiPath = '/api/media',
   folder,
@@ -179,9 +208,11 @@ export function FileUpload({
         ),
       )
 
+      const urlHeaders = csrfHeadersForSameOrigin(apiPath)
+      urlHeaders.set('Content-Type', 'application/json')
       const urlRes = await fetch(apiPath, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: urlHeaders,
         body: JSON.stringify({
           folder,
           mimeType: file.type,
@@ -189,7 +220,9 @@ export function FileUpload({
         }),
       })
 
-      if (!urlRes.ok) throw new Error('Yükleme URL\'si alınamadı.')
+      if (!urlRes.ok) {
+        throw new Error(await uploadErrorMessage(urlRes, 'Yükleme URL’si alınamadı.'))
+      }
       const { data } = await urlRes.json()
       const { asset, uploadUrl } = data
 
@@ -208,7 +241,9 @@ export function FileUpload({
         throw new Error('Dosya depolama alanına yüklenemedi. R2 yapılandırmasını kontrol edin.')
       }
 
-      if (!uploadRes.ok) throw new Error('Dosya yüklenemedi.')
+      if (!uploadRes.ok) {
+        throw new Error(await uploadErrorMessage(uploadRes, 'Dosya depolama alanına yüklenemedi.'))
+      }
 
       setUploads((prev) =>
         prev.map((upload) =>
@@ -216,10 +251,17 @@ export function FileUpload({
         ),
       )
 
-      const confirmRes = await fetch(`${apiPath}/${asset.id}/confirm`, { method: 'POST' })
+      const confirmRes = await fetch(`${apiPath}/${asset.id}/confirm`, {
+        method: 'POST',
+        headers: csrfHeadersForSameOrigin(apiPath),
+      })
       const confirmPayload = await confirmRes.json().catch(() => ({}))
       if (!confirmRes.ok) {
-        throw new Error(confirmPayload.error ?? 'Yükleme doğrulanamadı.')
+        throw new Error(
+          (typeof confirmPayload.message === 'string' && confirmPayload.message) ||
+            (typeof confirmPayload.error === 'string' && confirmPayload.error) ||
+            'Yükleme doğrulanamadı.',
+        )
       }
       const confirmedAsset = confirmPayload.data
 

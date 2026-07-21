@@ -4,7 +4,11 @@
  * KYC bytes are accepted by the server and encrypted in the private local
  * document store. Product images and other public media keep using R2.
  */
-import type { PrismaClient, SellerDocumentType } from '@prisma/client'
+import type {
+  PrismaClient,
+  SellerDocumentIdentityPart,
+  SellerDocumentType,
+} from '@prisma/client'
 import { createSellerDocumentRepository } from '../repositories/seller-document.repository'
 import {
   createPrivateDocumentStorage,
@@ -21,6 +25,8 @@ export const DOCUMENT_ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
 ])
 export const DOCUMENT_MAX_SIZE_BYTES = 20 * 1024 * 1024
+
+export const IDENTITY_PARTS = new Set<SellerDocumentIdentityPart>(['combined', 'front', 'back'])
 
 export const LEGACY_DOCUMENT_REUPLOAD_MESSAGE =
   'Bu belge eski depolama sisteminde kaldığı için kullanılamıyor. Satıcıdan belgeyi yeniden yüklemesini isteyin.'
@@ -99,12 +105,44 @@ export function createSellerDocumentService(deps: {
   async function uploadDocument(opts: {
     sellerId: string
     type: SellerDocumentType
+    identityPart?: SellerDocumentIdentityPart | null
     fileName: string
     mimeType: string
     bytes: Uint8Array
   }) {
     validateUpload(opts)
+    const identityPart = opts.type === 'identity' ? (opts.identityPart ?? 'combined') : null
+    if (opts.type !== 'identity' && opts.identityPart != null) {
+      throw new ValidationError('Kimlik parçası yalnızca kimlik belgesi için seçilebilir.')
+    }
+    if (opts.type === 'identity' && !IDENTITY_PARTS.has(identityPart!)) {
+      throw new ValidationError('Geçersiz kimlik parçası.')
+    }
+
     const existingDocuments = await docRepo.findBySellerAndType(opts.sellerId, opts.type)
+    const occupiedDocuments = existingDocuments.filter(
+      (document) =>
+        (document.status === 'pending' || document.status === 'approved') &&
+        !isLegacySellerDocument(document),
+    )
+
+    if (opts.type === 'identity') {
+      const occupiedParts = new Set(
+        occupiedDocuments.map((document) => document.identityPart ?? 'combined'),
+      )
+      const slotOccupied =
+        identityPart === 'combined'
+          ? occupiedParts.size > 0
+          : occupiedParts.has('combined') || occupiedParts.has(identityPart!)
+      if (slotOccupied) {
+        throw new ValidationError(
+          identityPart === 'combined'
+            ? 'Kimlik için tek dosya veya ön/arka yüz yüklemelerinden biri zaten mevcut.'
+            : `Kimlik ${identityPart === 'front' ? 'ön' : 'arka'} yüzü için incelenen veya onaylanan bir yükleme zaten var.`,
+        )
+      }
+    }
+
     const legacyDocuments = existingDocuments.filter(isLegacySellerDocument)
     const stored = await storage().write(opts.bytes)
 
@@ -113,6 +151,7 @@ export function createSellerDocumentService(deps: {
       document = await docRepo.create({
         sellerId: opts.sellerId,
         type: opts.type,
+        identityPart,
         fileUrl: 'private://seller-document',
         fileKey: stored.key,
         fileName: opts.fileName.trim().slice(0, 255),

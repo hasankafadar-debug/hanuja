@@ -36,9 +36,10 @@ function pdfFile(name = 'kimlik.pdf'): File {
   })
 }
 
-function makeRequest(type: string, file: File = pdfFile()) {
+function makeRequest(type: string, file: File = pdfFile(), identityPart?: string) {
   const body = new FormData()
   body.set('type', type)
+  if (identityPart) body.set('identityPart', identityPart)
   body.set('file', file)
   return new NextRequest('http://seller.example/api/seller/documents', {
     method: 'POST',
@@ -48,7 +49,7 @@ function makeRequest(type: string, file: File = pdfFile()) {
 
 function setSeller(params: {
   requiredDocumentTypes: string[]
-  documents?: Array<{ type: string; fileKey?: string }>
+  documents?: Array<{ type: string; identityPart?: string | null; fileKey?: string }>
 }) {
   prismaMock.seller.findUnique.mockResolvedValue({
     id: 'seller-1',
@@ -68,6 +69,7 @@ describe('POST /api/seller/documents for pending applicants', () => {
       id: 'new-document',
       sellerId: 'seller-1',
       type: 'identity',
+      identityPart: 'combined',
       status: 'pending',
       fileUrl: 'private://seller-document',
       fileKey: 'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
@@ -98,6 +100,7 @@ describe('POST /api/seller/documents for pending applicants', () => {
         documents: [
           {
             type: 'identity',
+            identityPart: 'combined',
             fileKey: 'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
           },
         ],
@@ -120,6 +123,7 @@ describe('POST /api/seller/documents for pending applicants', () => {
     expect(uploadDocumentMock).toHaveBeenCalledWith({
       sellerId: 'seller-1',
       type: 'identity',
+      identityPart: 'combined',
       fileName: 'kimlik.pdf',
       mimeType: 'application/pdf',
       bytes: expect.any(Uint8Array),
@@ -132,6 +136,44 @@ describe('POST /api/seller/documents for pending applicants', () => {
         fileUrl: '/api/seller/documents/new-document/file',
       },
     })
+  })
+
+  it('allows identity front and back as separate occupied slots', async () => {
+    setSeller({
+      requiredDocumentTypes: ['identity'],
+      documents: [
+        {
+          type: 'identity',
+          identityPart: 'front',
+          fileKey: 'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
+        },
+      ],
+    })
+
+    const response = await POST(makeRequest('identity', pdfFile('kimlik-arka.pdf'), 'back'))
+
+    expect(response.status).toBe(201)
+    expect(uploadDocumentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'identity', identityPart: 'back' }),
+    )
+  })
+
+  it('rejects mixing a combined identity with separate face uploads', async () => {
+    setSeller({
+      requiredDocumentTypes: ['identity'],
+      documents: [
+        {
+          type: 'identity',
+          identityPart: 'front',
+          fileKey: 'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
+        },
+      ],
+    })
+
+    const response = await POST(makeRequest('identity', pdfFile(), 'combined'))
+
+    expect(response.status).toBe(409)
+    expect(uploadDocumentMock).not.toHaveBeenCalled()
   })
 
   it('allows a requested type when only a rejected predecessor exists', async () => {

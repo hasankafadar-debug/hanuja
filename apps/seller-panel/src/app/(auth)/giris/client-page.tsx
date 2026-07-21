@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
+import { sellerSignInSessionPolicy } from '@/lib/seller-session-policy'
 import { TurnstileWidget } from '@hanuja/ui'
 
 type AuthClientError = {
@@ -91,6 +92,7 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
         email,
         password,
         callbackURL: callbackUrl,
+        ...sellerSignInSessionPolicy,
       })
 
       if (authError) {

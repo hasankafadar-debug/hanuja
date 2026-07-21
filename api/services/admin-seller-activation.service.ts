@@ -58,7 +58,7 @@ async function readAndValidateActivation(
       },
       documents: {
         where: { status: 'approved' },
-        select: { type: true },
+        select: { type: true, identityPart: true },
       },
     },
   })
@@ -79,7 +79,19 @@ async function readAndValidateActivation(
     )
   }
 
-  const approvedDocumentTypes = new Set(seller.documents.map((document) => document.type))
+  const approvedIdentityParts = new Set(
+    seller.documents
+      .filter((document) => document.type === 'identity')
+      .map((document) => document.identityPart ?? 'combined'),
+  )
+  const identityIsComplete =
+    approvedIdentityParts.has('combined') ||
+    (approvedIdentityParts.has('front') && approvedIdentityParts.has('back'))
+  const approvedDocumentTypes = new Set(
+    seller.documents
+      .filter((document) => document.type !== 'identity' || identityIsComplete)
+      .map((document) => document.type),
+  )
   const missingDocumentTypes = requiredDocumentTypes.filter(
     (documentType) => !approvedDocumentTypes.has(documentType),
   )

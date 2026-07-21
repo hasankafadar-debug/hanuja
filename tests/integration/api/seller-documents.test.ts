@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 
 const { getSessionMock, storageReadMock, storageExistsMock, storageDeleteMock, storageWriteMock } =
   vi.hoisted(() => ({
@@ -216,6 +217,94 @@ describe('Seller document API routes', () => {
     expect(storageReadMock).toHaveBeenCalledWith(
       'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
     )
+  })
+
+  it('serves a private document inline to an authenticated admin', async () => {
+    const document = makeDocument({
+      fileName: 'kimlik ön yüz.png',
+      mimeType: 'image/png',
+    })
+    const { prisma } = createPrismaMock({ documents: [document] })
+    prismaMock = prisma
+    const fileBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47])
+    storageReadMock.mockResolvedValue(fileBytes)
+    getSessionMock.mockResolvedValue({
+      user: { id: 'admin-1', role: 'admin' },
+    })
+    const route =
+      await import('../../../apps/admin-panel/src/app/api/admin/documents/[id]/file/route.ts')
+
+    const response = await route.GET(
+      new NextRequest('http://localhost/api/admin/documents/doc-1/file'),
+      { params: Promise.resolve({ id: 'doc-1' }) },
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/png')
+    expect(response.headers.get('content-disposition')).toContain('inline')
+    expect(response.headers.get('cache-control')).toContain('no-store')
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(fileBytes)
+  })
+
+  it('uses attachment disposition for explicit admin document downloads', async () => {
+    const { prisma } = createPrismaMock({ documents: [makeDocument()] })
+    prismaMock = prisma
+    getSessionMock.mockResolvedValue({
+      user: { id: 'admin-1', role: 'admin' },
+    })
+    const route =
+      await import('../../../apps/admin-panel/src/app/api/admin/documents/[id]/file/route.ts')
+
+    const response = await route.GET(
+      new NextRequest('http://localhost/api/admin/documents/doc-1/file?download=1'),
+      { params: Promise.resolve({ id: 'doc-1' }) },
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-disposition')).toContain('attachment')
+  })
+
+  it('does not read or expose a private document to a non-admin session', async () => {
+    const route =
+      await import('../../../apps/admin-panel/src/app/api/admin/documents/[id]/file/route.ts')
+
+    const response = await route.GET(
+      new NextRequest('http://localhost/api/admin/documents/doc-1/file'),
+      { params: Promise.resolve({ id: 'doc-1' }) },
+    )
+
+    expect(response.status).toBe(403)
+    expect(response.headers.get('cache-control')).toContain('no-store')
+    expect(await response.json()).toEqual({ message: 'Yetkisiz erişim.' })
+    expect(storageReadMock).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic no-store response when private document reading fails', async () => {
+    const { prisma } = createPrismaMock({ documents: [makeDocument()] })
+    prismaMock = prisma
+    getSessionMock.mockResolvedValue({
+      user: { id: 'admin-1', role: 'admin' },
+    })
+    storageReadMock.mockRejectedValue(new Error('/var/lib/hanuja/private-documents/secret.bin'))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const route =
+      await import('../../../apps/admin-panel/src/app/api/admin/documents/[id]/file/route.ts')
+
+    const response = await route.GET(
+      new NextRequest('http://localhost/api/admin/documents/doc-1/file'),
+      { params: Promise.resolve({ id: 'doc-1' }) },
+    )
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('cache-control')).toContain('no-store')
+    expect(await response.json()).toEqual({ message: 'Belge şu anda görüntülenemiyor.' })
+    expect(consoleError).toHaveBeenCalledWith('Admin seller document read failed', {
+      documentId: 'doc-1',
+      errorName: 'Error',
+    })
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('/var/lib/hanuja')
+    consoleError.mockRestore()
   })
 
   it('returns 200 for admin rejection review requests with note', async () => {

@@ -3,12 +3,18 @@
  *
  * KYC belgelerinin CRUD'u. Approve/reject kararı service katmanında.
  */
-import type { PrismaClient, SellerDocumentType, SellerDocumentStatus } from '@prisma/client'
+import type {
+  PrismaClient,
+  SellerDocumentIdentityPart,
+  SellerDocumentType,
+  SellerDocumentStatus,
+} from '@prisma/client'
 
 export function createSellerDocumentRepository(prisma: PrismaClient) {
   async function create(data: {
     sellerId: string
     type: SellerDocumentType
+    identityPart: SellerDocumentIdentityPart | null
     fileUrl: string
     fileKey: string
     fileName: string

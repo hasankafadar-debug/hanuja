@@ -104,6 +104,10 @@ const _auth = betterAuth({
     updateAge: 60 * 60 * 24,
     cookieCache: { enabled: true, maxAge: 60 * 5 },
   },
+  // A new prefix immediately retires the old 30-day admin cookies. New admin
+  // sign-ins use rememberMe: false and therefore create browser-session-only
+  // cookies.
+  advanced: { cookiePrefix: 'hanuja-admin-session-v2' },
   rateLimit: { enabled: true, window: 60, max: 60, customRules: { '/change-password': { window: 60, max: 5 } } },
   plugins: [adminPlugin({ defaultRole: 'customer', adminRoles: ['admin'] })],
   trustedOrigins: expandTrustedOriginVariants([

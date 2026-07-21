@@ -15,7 +15,6 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
-  ExternalLink,
   FileText,
   ShieldAlert,
   XCircle,
@@ -29,6 +28,7 @@ import { createPlatformSettingsService } from '@hanuja/api/services/platform-set
 import { SellerAdminActions } from '@/components/seller-admin-actions'
 import { SellerCommissionSettings } from '@/components/seller-commission-settings'
 import { DocumentReviewActions } from '@/components/document-review-actions'
+import { DocumentFileActions } from '@/components/document-file-actions'
 import { SellerImportPermission } from '@/components/seller-import-permission'
 import { SellerStatusButtons } from '@/components/seller-status-buttons'
 import { SellerAccountStatement } from './seller-account-statement'
@@ -80,6 +80,12 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   signature_circular: 'İmza Sirküleri',
   bank_statement: 'Banka Hesap Belgesi',
   other: 'Diğer Belge',
+}
+
+const IDENTITY_PART_LABELS: Record<string, string> = {
+  combined: 'Tek dosya',
+  front: 'Ön yüz',
+  back: 'Arka yüz',
 }
 
 export default async function SellerDetailPage({ params, searchParams }: Props) {
@@ -563,12 +569,20 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <p
-                            className="text-sm font-medium"
-                            style={{ color: 'var(--color-primary)' }}
-                          >
-                            {DOCUMENT_TYPE_LABELS[document.type] ?? document.type}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p
+                              className="text-sm font-medium"
+                              style={{ color: 'var(--color-primary)' }}
+                            >
+                              {DOCUMENT_TYPE_LABELS[document.type] ?? document.type}
+                            </p>
+                            {document.type === 'identity' && document.identityPart && (
+                              <Badge variant="secondary">
+                                {IDENTITY_PART_LABELS[document.identityPart] ??
+                                  document.identityPart}
+                              </Badge>
+                            )}
+                          </div>
                           <span className="inline-flex items-center gap-1 text-xs">
                             {statusIcon} {statusLabel}
                           </span>
@@ -594,21 +608,15 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                         <span className="text-xs" style={{ color: 'var(--color-destructive)' }}>
                           Yeniden yüklenmeli
                         </span>
-                      ) : (
-                        <a
-                          href={`/api/admin/documents/${document.id}/file`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-shrink-0 rounded p-1.5 hover:bg-black/5"
-                          title="Belgeyi görüntüle"
-                        >
-                          <ExternalLink
-                            className="h-4 w-4"
-                            style={{ color: 'var(--color-muted-fg)' }}
-                          />
-                        </a>
-                      )}
+                      ) : null}
                     </div>
+                    {!requiresReupload && (
+                      <DocumentFileActions
+                        documentId={document.id}
+                        fileName={document.fileName}
+                        mimeType={document.mimeType}
+                      />
+                    )}
                     {document.status === 'pending' && (
                       <div className="pt-1">
                         <DocumentReviewActions documentId={document.id} />
