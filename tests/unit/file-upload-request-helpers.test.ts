@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   csrfHeadersForSameOrigin,
+  R2_UPLOAD_NETWORK_ERROR_MESSAGE,
+  sanitizeUploadError,
   uploadErrorMessage,
 } from '../../packages/ui/src/components/composite/file-upload'
 
@@ -34,5 +36,17 @@ describe('FileUpload request helpers', () => {
     await expect(uploadErrorMessage(response, 'Yükleme URL’si alınamadı.')).resolves.toBe(
       'Oturum doğrulaması başarısız.',
     )
+  })
+
+  it('redacts presigned upload URLs and credentials from direct-upload diagnostics', () => {
+    const error = new TypeError(
+      'Failed to fetch https://storage.example.test/object?X-Amz-Signature=secret-signature&token=secret-token',
+    )
+
+    expect(sanitizeUploadError(error)).toEqual({ name: 'TypeError', message: 'Failed to fetch [URL]' })
+    expect(sanitizeUploadError(new Error('credential: secret-value; token=another-secret')).message).toBe(
+      'credential=[REDACTED]; token=[REDACTED]',
+    )
+    expect(R2_UPLOAD_NETWORK_ERROR_MESSAGE).toContain('Ağ, CORS engeli veya sunucu yapılandırmasını')
   })
 })

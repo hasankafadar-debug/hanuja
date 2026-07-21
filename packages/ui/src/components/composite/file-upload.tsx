@@ -95,6 +95,30 @@ export async function uploadErrorMessage(response: Response, fallback: string): 
   return text.trim() || fallback
 }
 
+export const R2_UPLOAD_NETWORK_ERROR_MESSAGE =
+  'Tarayıcı depolama sunucusuna bağlanamadı. Ağ, CORS engeli veya sunucu yapılandırmasını kontrol edin.'
+
+function redactSensitiveUploadDetail(value: string): string {
+  return value
+    .replace(/https?:\/\/[^\s"']+/gi, '[URL]')
+    .replace(
+      /\b(x-amz-[\w-]+|signature|credential|token|secret)\s*[:=]\s*[^\s,&;]+/gi,
+      (_match, key: string) => `${key}=[REDACTED]`,
+    )
+}
+
+/** Returns only safe, compact diagnostics; presigned URLs and credentials must never reach the console. */
+export function sanitizeUploadError(error: unknown): { name: string; message: string } {
+  if (error instanceof Error) {
+    return {
+      name: redactSensitiveUploadDetail(error.name).slice(0, 120),
+      message: redactSensitiveUploadDetail(error.message).slice(0, 500),
+    }
+  }
+
+  return { name: 'UnknownError', message: 'Bilinmeyen yükleme hatası.' }
+}
+
 export function FileUpload({
   apiPath = '/api/media',
   folder,
@@ -237,8 +261,9 @@ export function FileUpload({
           headers: { 'Content-Type': file.type },
           body: file,
         })
-      } catch {
-        throw new Error('Dosya depolama alanına yüklenemedi. R2 yapılandırmasını kontrol edin.')
+      } catch (error) {
+        console.error('R2 direct upload request failed', sanitizeUploadError(error))
+        throw new Error(R2_UPLOAD_NETWORK_ERROR_MESSAGE)
       }
 
       if (!uploadRes.ok) {

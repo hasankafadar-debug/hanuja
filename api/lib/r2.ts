@@ -66,7 +66,7 @@ export function getSanitizedR2DebugContext() {
   }
 }
 
-function createR2Client() {
+export function createR2Client(purpose: 'server' | 'browser-presign' = 'server') {
   const { endpoint, accessKeyId, secretAccessKey } = getR2Config()
 
   return new S3Client({
@@ -76,6 +76,10 @@ function createR2Client() {
       accessKeyId,
       secretAccessKey,
     },
+    // AWS SDK >=3.729 adds CRC32 by default; R2 browser presigns must only add required checksums.
+    ...(purpose === 'browser-presign'
+      ? { requestChecksumCalculation: 'WHEN_REQUIRED' as const }
+      : {}),
   })
 }
 
@@ -125,6 +129,26 @@ export interface PresignedUploadResult {
   key: string
   publicUrl: string
   expiresIn: number
+}
+
+export async function presignR2PutObjectUrl(opts: {
+  client: S3Client
+  bucketName: string
+  key: string
+  mimeType: string
+  expiresIn: number
+}): Promise<string> {
+  const { client, bucketName, key, mimeType, expiresIn } = opts
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+    ContentType: mimeType,
+  })
+
+  return getSignedUrl(client, command, {
+    expiresIn,
+    signableHeaders: new Set(['content-type']),
+  })
 }
 
 function getBucketAccessStatusCode(error: unknown) {
@@ -224,7 +248,7 @@ export async function generatePresignedUploadUrl(opts: {
   await validateBucketAccess(folder)
 
   const { bucketName, cdnUrl } = getR2Config()
-  const r2 = createR2Client()
+  const r2 = createR2Client('browser-presign')
 
   const mimeExt: Record<string, string> = {
     'application/pdf': 'pdf',
@@ -237,13 +261,13 @@ export async function generatePresignedUploadUrl(opts: {
   const key = `${folder}/${ownerId}/${randomUUID()}.${ext}`
   const expiresIn = 300
 
-  const command = new PutObjectCommand({
-    Bucket: bucketName,
-    Key: key,
-    ContentType: mimeType,
+  const uploadUrl = await presignR2PutObjectUrl({
+    client: r2,
+    bucketName,
+    key,
+    mimeType,
+    expiresIn,
   })
-
-  const uploadUrl = await getSignedUrl(r2, command, { expiresIn })
   const publicUrl = `${cdnUrl}/${key}`
 
   return { uploadUrl, key, publicUrl, expiresIn }

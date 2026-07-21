@@ -8,9 +8,10 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env = { ...ORIGINAL_ENV }
+  vi.restoreAllMocks()
   vi.resetModules()
-  vi.unmock('@aws-sdk/client-s3')
-  vi.unmock('@aws-sdk/s3-request-presigner')
+  vi.doUnmock('@aws-sdk/client-s3')
+  vi.doUnmock('@aws-sdk/s3-request-presigner')
 })
 
 describe('r2 config guards', () => {
@@ -96,5 +97,94 @@ describe('r2 config guards', () => {
       code: 'MEDIA_BUCKET_UNREACHABLE',
       statusCode: 503,
     })
+  })
+
+  it('configures offline browser presigns without an automatic CRC32 checksum', async () => {
+    process.env.R2_ACCOUNT_ID = '1234567890abcdef'
+    process.env.R2_ACCESS_KEY_ID = 'dummy-access-key'
+    process.env.R2_SECRET_ACCESS_KEY = 'dummy-secret-key'
+    process.env.R2_BUCKET_NAME = 'test-bucket'
+    process.env.R2_CDN_URL = 'https://media.example.test'
+
+    const { createR2Client, presignR2PutObjectUrl } =
+      await import('../../api/lib/r2')
+
+    const uploadUrl = new URL(
+      await presignR2PutObjectUrl({
+        client: createR2Client('browser-presign'),
+        bucketName: 'test-bucket',
+        key: 'products/seller-1/example.jpg',
+        mimeType: 'image/jpeg',
+        expiresIn: 300,
+      }),
+    )
+
+    expect(uploadUrl.searchParams.has('x-amz-checksum-crc32')).toBe(false)
+    expect(uploadUrl.searchParams.has('x-amz-sdk-checksum-algorithm')).toBe(
+      false,
+    )
+    expect(uploadUrl.searchParams.get('X-Amz-Signature')).toBeTruthy()
+    expect(uploadUrl.searchParams.get('X-Amz-Expires')).toBe('300')
+    expect(uploadUrl.searchParams.get('X-Amz-SignedHeaders')).toBe(
+      'content-type;host',
+    )
+  })
+
+  it('leaves the server R2 client checksum configuration at the SDK default', async () => {
+    process.env.R2_ACCOUNT_ID = '1234567890abcdef'
+    process.env.R2_ACCESS_KEY_ID = 'dummy-access-key'
+    process.env.R2_SECRET_ACCESS_KEY = 'dummy-secret-key'
+    process.env.R2_BUCKET_NAME = 'test-bucket'
+    process.env.R2_CDN_URL = 'https://media.example.test'
+
+    const clientConfigs: Array<Record<string, unknown>> = []
+    vi.doMock('@aws-sdk/client-s3', () => {
+      class S3Client {
+        constructor(config: Record<string, unknown>) {
+          clientConfigs.push(config)
+        }
+
+        async send(_command: unknown) {
+          return {}
+        }
+      }
+
+      class DeleteObjectCommand {
+        constructor(_input: unknown) {}
+      }
+      class GetObjectCommand {
+        constructor(_input: unknown) {}
+      }
+      class HeadBucketCommand {
+        constructor(_input: unknown) {}
+      }
+      class HeadObjectCommand {
+        constructor(_input: unknown) {}
+      }
+      class PutObjectCommand {
+        constructor(_input: unknown) {}
+      }
+
+      return {
+        S3Client,
+        DeleteObjectCommand,
+        GetObjectCommand,
+        HeadBucketCommand,
+        HeadObjectCommand,
+        PutObjectCommand,
+      }
+    })
+
+    const { uploadObject } = await import('../../api/lib/r2')
+    await uploadObject({
+      folder: 'products',
+      mimeType: 'image/jpeg',
+      ownerId: 'seller-1',
+      body: new Uint8Array([1, 2, 3]),
+    })
+
+    expect(clientConfigs).toHaveLength(1)
+    expect(clientConfigs[0]).not.toHaveProperty('requestChecksumCalculation')
+    expect(clientConfigs[0]).not.toHaveProperty('responseChecksumValidation')
   })
 })

@@ -170,6 +170,23 @@ the API server never proxies binary data.
 They do not control the upload target. Upload requests always go to the S3-compatible R2
 endpoint derived from `R2_ACCOUNT_ID`, using `R2_BUCKET_NAME` plus the configured access key.
 
+### Browser upload compatibility
+
+The R2 bucket CORS policy must allow the panel origins to issue `PUT` requests to the
+S3-compatible endpoint. It must allow the upload `Content-Type` header and expose any response
+headers the browser flow needs. This is separate from the public custom domain: `R2_PUBLIC_URL`
+only serves already-uploaded media and cannot make browser uploads work.
+
+AWS SDK v3.729.0 and later can automatically calculate CRC32 request checksums. For a browser
+presigned `PutObject` URL this can sign the checksum of an empty body, causing the URL to include
+`x-amz-checksum-crc32=AAAAAA==`. The browser then uploads the real file, R2 rejects the checksum,
+and a missing error-response CORS header can misleadingly surface as a browser CORS/network error.
+
+The dedicated client that creates browser presigned uploads must therefore set
+`requestChecksumCalculation: 'WHEN_REQUIRED'`. Keep this setting scoped to that presign client;
+server-side upload and read clients retain their normal SDK checksum behavior. Do not change
+`responseChecksumValidation` for this issue.
+
 ### Public access
 
 The bucket is configured with a public custom domain (`R2_PUBLIC_URL`). Asset URLs stored
@@ -194,6 +211,9 @@ in the database use this public base. Next.js `<Image>` optimization is permitte
   not cause upload `404`, because uploads do not use `R2_PUBLIC_URL`.
 - R2 outages affect media display but do not affect order, payment, or payout logic.
 - File type and size must be validated server-side before issuing a presigned URL.
+- If the browser reports a CORS/network failure during the direct `PUT`, inspect the presigned URL
+  for `x-amz-checksum-crc32` before changing bucket CORS. With SDK v3.729.0+, the empty-body
+  checksum symptom above can be the actual cause even when preflight succeeds.
 
 ### Sandbox vs production
 

@@ -15,6 +15,7 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 - Deploy öncesi `pnpm check-env --env=prod` çalıştırılmalı.
 - `DATABASE_URL` ve `REDIS_URL` platform tarafından sağlanıyorsa final değerler doğrulanmalı.
 - `PLATFORM_BANK_NAME`, `PLATFORM_BANK_HOLDER` ve `PLATFORM_BANK_IBAN` boş bırakılırsa EFT sipariş e-postasında fallback mesajı gösterilir.
+- AWS SDK paketleri caret aralığında güncellendiğinde yeni varsayılan davranışlar production akışını değiştirebilir. R2 browser presign client'ı `requestChecksumCalculation: 'WHEN_REQUIRED'` ayarını açıkça sabitler; bu ayar sunucu taraflı R2 client'larına genellenmez.
 
 ### 2. Domain ve panel URL kararı
 - Storefront, seller panel ve admin panel için kullanılacak final domainler netleştirilmeli.
