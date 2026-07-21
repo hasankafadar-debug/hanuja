@@ -5,16 +5,23 @@ import { PrismaClient } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { createSellerBankService } from '@hanuja/api/services/seller-bank.service'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 const bankDetailSchema = z.object({
-  iban: z.string().trim().regex(/^TR\d{24}$/, 'Geçerli bir TR IBAN giriniz'),
+  iban: z
+    .string()
+    .trim()
+    .regex(/^TR\d{24}$/, 'Geçerli bir TR IBAN giriniz'),
   accountHolder: z.string().trim().min(2, 'Hesap sahibi adı zorunludur').max(100),
   bankName: z.string().trim().min(2, 'Banka adı zorunludur').max(80),
-  otpCode: z.string().trim().regex(/^\d{6}$/, '6 haneli doğrulama kodu giriniz'),
+  otpCode: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, '6 haneli doğrulama kodu giriniz'),
   reason: z.string().trim().max(200).optional(),
 })
 
@@ -23,6 +30,8 @@ function buildOtpIdentifier(sellerId: string, userId: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const csrfError = checkCsrf(req)
+  if (csrfError) return csrfError
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
@@ -37,10 +46,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
   }
 
+  if (seller.status !== 'active') {
+    return NextResponse.json(
+      { error: 'Banka bilgisi yalnızca aktif satıcı hesabında değiştirilebilir.' },
+      { status: 403 },
+    )
+  }
+
   const body = await req.json().catch(() => ({}))
   const parsed = bankDetailSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Geçersiz veri.' }, { status: 400 })
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? 'Geçersiz veri.' },
+      { status: 400 },
+    )
   }
 
   const verification = await prisma.verification.findFirst({
@@ -53,7 +72,10 @@ export async function POST(req: NextRequest) {
   })
 
   if (!verification) {
-    return NextResponse.json({ error: 'Doğrulama kodu geçersiz veya süresi dolmuş.' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'Doğrulama kodu geçersiz veya süresi dolmuş.' },
+      { status: 400 },
+    )
   }
 
   try {
@@ -74,7 +96,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Banka bilgisi değişiklik talebiniz alındı. Yeni IBAN 24 saat sonunda aktif olacaktır.',
+      message:
+        'Banka bilgisi değişiklik talebiniz alındı. Yeni IBAN 24 saat sonunda aktif olacaktır.',
     })
   } catch (error) {
     return NextResponse.json(

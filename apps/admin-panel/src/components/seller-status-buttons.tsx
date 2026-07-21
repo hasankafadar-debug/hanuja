@@ -9,18 +9,25 @@ interface SellerStatusButtonsProps {
   sellerId: string
   currentStatus: string
   displayName: string
+  activationDisabledReason?: string | null
 }
 
-export function SellerStatusButtons({ sellerId, currentStatus, displayName }: SellerStatusButtonsProps) {
+export function SellerStatusButtons({
+  sellerId,
+  currentStatus,
+  displayName,
+  activationDisabledReason,
+}: SellerStatusButtonsProps) {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   async function updateStatus(newStatus: 'active' | 'suspended' | 'rejected', confirmMsg: string) {
     if (!confirm(confirmMsg)) return
-    const reason = newStatus === 'suspended'
-      ? window.prompt('Askıya alma gerekçesini yazın:')?.trim()
-      : undefined
+    const reason =
+      newStatus === 'suspended'
+        ? window.prompt('Askıya alma gerekçesini yazın:')?.trim()
+        : undefined
     if (newStatus === 'suspended' && !reason) {
       alert('Askıya alma gerekçesi zorunludur.')
       return
@@ -97,26 +104,26 @@ export function SellerStatusButtons({ sellerId, currentStatus, displayName }: Se
       {currentStatus !== 'active' && (
         <Button
           size="sm"
-          disabled={busy}
-          onClick={() =>
-            updateStatus(
-              'active',
-              'Bu satıcıyı aktif hale getirmek istiyor musunuz?',
-            )
-          }
+          disabled={busy || !!activationDisabledReason}
+          title={activationDisabledReason ?? undefined}
+          onClick={() => updateStatus('active', 'Bu satıcıyı aktif hale getirmek istiyor musunuz?')}
         >
           {loading === 'active' ? '...' : 'Aktifleştir'}
         </Button>
       )}
-      <Button
-        variant="destructive"
-        size="sm"
-        disabled={busy}
-        onClick={deleteSeller}
-      >
+      {currentStatus !== 'active' && activationDisabledReason ? (
+        <p className="w-full max-w-sm text-xs" style={{ color: 'var(--color-warning)' }}>
+          {activationDisabledReason}
+        </p>
+      ) : null}
+      <Button variant="destructive" size="sm" disabled={busy} onClick={deleteSeller}>
         {loading === 'delete' ? '...' : 'Kalıcı Sil'}
       </Button>
-      {message ? <p className="w-full text-sm" role="status">{message}</p> : null}
+      {message ? (
+        <p className="w-full text-sm" role="status">
+          {message}
+        </p>
+      ) : null}
     </div>
   )
 }

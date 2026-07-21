@@ -1,6 +1,5 @@
 import { headers } from 'next/headers'
 import { type NextRequest } from 'next/server'
-import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { UnauthorizedError, ForbiddenError, NotFoundError } from '@hanuja/api/lib/errors'
@@ -12,24 +11,24 @@ import { sellerApprovalTemplate } from '@hanuja/api/lib/email-templates/seller-a
 import { sendEmail } from '@hanuja/api/lib/mailer'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { enqueueStoreSync } from '@hanuja/api/jobs/search-index-sync.job'
+import { createAdminSellerActivationService } from '@hanuja/api/services/admin-seller-activation.service'
 
-const bodySchema = z.object({
-  status: z.enum(['active', 'suspended', 'rejected']),
-  reason: z.string().optional(),
-}).superRefine((value, ctx) => {
-  if (value.status === 'suspended' && !value.reason?.trim()) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['reason'],
-      message: 'Askıya alma gerekçesi zorunludur.',
-    })
-  }
-})
+const bodySchema = z
+  .object({
+    status: z.enum(['active', 'suspended', 'rejected']),
+    reason: z.string().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.status === 'suspended' && !value.reason?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reason'],
+        message: 'Askıya alma gerekçesi zorunludur.',
+      })
+    }
+  })
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const csrfError = checkCsrf(req)
     if (csrfError) return csrfError
@@ -44,78 +43,47 @@ export async function POST(
     const prisma = createPrismaForRoute()
     const sellers = createSellerRepository(prisma)
     const auditLog = createAdminAuditLogRepository(prisma)
+    const activationService = createAdminSellerActivationService({ prisma })
 
     const seller = await prisma.seller.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        status: true,
         user: { select: { email: true } },
-        bankDetails: { where: { isActive: true }, take: 1 },
       },
     })
     if (!seller) throw new NotFoundError('Seller', id)
+
     const affectedProducts = await prisma.product.count({
       where: { sellerId: id, status: 'published' },
     })
+    const isInitialActivation =
+      status === 'active' && (seller.status === 'pending' || seller.status === 'rejected')
 
-    if (status === 'active' && seller.status !== 'suspended') {
-      const approvedDocs = await prisma.sellerDocument.findMany({
-        where: { sellerId: id, status: 'approved' },
-        select: { type: true },
+    if (isInitialActivation) {
+      await activationService.assertReady(id)
+
+      await activationService.activateInitial({
+        sellerId: id,
+        adminActorId: session.user.id,
       })
-
-      const approvedDocTypes = new Set(approvedDocs.map((doc) => doc.type))
-      const requiredDocTypes = ['identity', 'tax_certificate', 'bank_statement']
-
-      if (!requiredDocTypes.every((docType) => approvedDocTypes.has(docType as never))) {
-        return new Response(
-          JSON.stringify({
-            message: 'Satıcıyı aktifleştirmek için kimlik, vergi ve banka belgeleri onaylanmış olmalı.',
-          }),
-          { status: 422, headers: { 'Content-Type': 'application/json' } },
-        )
-      }
-
-      const tempPassword = randomBytes(9).toString('base64url')
-
-        await auth.api.admin.setUserPassword({
-          headers: await headers(),
-          body: { userId: seller.userId, newPassword: tempPassword },
-        })
-
-      await prisma.user.update({
-        where: { id: seller.userId },
-        data: { mustChangePassword: true },
-      })
-
-      const activeBankDetail = seller.bankDetails[0] ?? null
-
-      if (activeBankDetail && approvedDocTypes.has('bank_statement')) {
-        await prisma.sellerBankDetail.update({
-          where: { id: activeBankDetail.id },
-          data: {
-            isVerified: true,
-            isActive: true,
-            verifiedAt: new Date(),
-            activatedAt: new Date(),
-          },
-        })
-      }
-
-      await sellers.updateStatus(id, status)
 
       const template = sellerApprovalTemplate({
         email: seller.user.email,
         panelUrl: process.env.SELLER_PANEL_URL ?? 'http://localhost:3001',
-        tempPassword,
       })
-
       await sendEmail({
         to: seller.user.email,
         subject: template.subject,
         html: template.html,
         text: template.text,
+      }).catch((error) => {
+        console.error('[seller-status] Approval email failed after activation', error)
       })
     } else {
+      // Suspended seller reactivation intentionally keeps the existing lightweight
+      // status-only behavior; onboarding checks apply only to pending/rejected sellers.
       await sellers.updateStatus(id, status)
     }
 
@@ -123,18 +91,20 @@ export async function POST(
       status === 'suspended'
         ? ('seller_suspended' as const)
         : status === 'rejected'
-        ? ('seller_rejected' as const)
-        : ('seller_activated' as const)
+          ? ('seller_rejected' as const)
+          : ('seller_activated' as const)
 
-    await auditLog.createEntry({
-      actorId: session.user.id,
-      actionType,
-      targetType: 'seller',
-      targetId: id,
-      previousData: { status: seller.status },
-      newData: { status },
-      ...(reason !== undefined ? { reason: reason.trim() } : {}),
-    })
+    if (!isInitialActivation) {
+      await auditLog.createEntry({
+        actorId: session.user.id,
+        actionType,
+        targetType: 'seller',
+        targetId: id,
+        previousData: { status: seller.status },
+        newData: { status },
+        ...(reason !== undefined ? { reason: reason.trim() } : {}),
+      })
+    }
 
     await enqueueStoreSync({
       entityId: id,

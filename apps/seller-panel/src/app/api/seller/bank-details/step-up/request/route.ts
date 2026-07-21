@@ -1,10 +1,11 @@
 import { headers } from 'next/headers'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { randomInt } from 'crypto'
 import { PrismaClient } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { sendEmail } from '@hanuja/api/lib/mailer'
 import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -14,14 +15,20 @@ function buildOtpIdentifier(sellerId: string, userId: string) {
   return `seller-bank-detail:${sellerId}:${userId}`
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const csrfError = checkCsrf(req)
+  if (csrfError) return csrfError
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
   }
 
   // OTP e-posta bombardımanını ve deneme hızını sınırla
-  const rl = await checkUserRateLimit(session.user.id, 'bank-details:otp-request', HIGH_RISK_RATE_LIMIT)
+  const rl = await checkUserRateLimit(
+    session.user.id,
+    'bank-details:otp-request',
+    HIGH_RISK_RATE_LIMIT,
+  )
   if (!rl.allowed) return rl.response!
 
   const seller = await prisma.seller.findUnique({
@@ -30,6 +37,13 @@ export async function POST() {
   })
   if (!seller) {
     return NextResponse.json({ error: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
+  }
+
+  if (seller.status !== 'active') {
+    return NextResponse.json(
+      { error: 'Banka bilgisi yalnızca aktif satıcı hesabında değiştirilebilir.' },
+      { status: 403 },
+    )
   }
 
   const code = String(randomInt(100000, 999999))
@@ -51,5 +65,8 @@ export async function POST() {
     text: `Banka bilgisi değişikliği için doğrulama kodunuz: ${code}. Kod 10 dakika geçerlidir.`,
   })
 
-  return NextResponse.json({ success: true, message: 'Doğrulama kodu e-posta adresinize gönderildi.' })
+  return NextResponse.json({
+    success: true,
+    message: 'Doğrulama kodu e-posta adresinize gönderildi.',
+  })
 }

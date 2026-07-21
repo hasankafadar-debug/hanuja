@@ -13,14 +13,19 @@ import { headers } from 'next/headers'
 import { PrismaClient } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { createSellerDocumentService } from '@hanuja/api/services/seller-document.service'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
-interface RouteParams { params: Promise<{ id: string }> }
+interface RouteParams {
+  params: Promise<{ id: string }>
+}
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
+  const csrfError = checkCsrf(request)
+  if (csrfError) return csrfError
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json({ message: 'Yetkisiz erişim.' }, { status: 403 })

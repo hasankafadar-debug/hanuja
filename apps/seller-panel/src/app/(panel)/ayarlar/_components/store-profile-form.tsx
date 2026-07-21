@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, Input, Label, Textarea } from '@hanuja/ui'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface Props {
   storeName: string
@@ -16,6 +17,7 @@ interface Props {
   taxOffice: string
   taxNumber: string
   mersis: string
+  legalFieldsLocked?: boolean
 }
 
 export default function StoreProfileForm({
@@ -30,6 +32,7 @@ export default function StoreProfileForm({
   taxOffice,
   taxNumber,
   mersis,
+  legalFieldsLocked = false,
 }: Props) {
   const router = useRouter()
   const [name, setName] = useState(storeName)
@@ -54,21 +57,25 @@ export default function StoreProfileForm({
     setSaved(false)
 
     try {
-      const res = await fetch('/api/seller/profile', {
+      const res = await csrfFetch('/api/seller/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           storeName: name,
           bio: bioText,
           phone: phoneText,
-          companyName: companyNameText,
-          legalAddress: legalAddressText,
-          district: districtText,
-          city: cityText,
-          postalCode: postalCodeText,
-          taxOffice: taxOfficeText,
-          taxNumber: taxNumberText,
-          mersis: mersisText,
+          ...(legalFieldsLocked
+            ? {}
+            : {
+                companyName: companyNameText,
+                legalAddress: legalAddressText,
+                district: districtText,
+                city: cityText,
+                postalCode: postalCodeText,
+                taxOffice: taxOfficeText,
+                taxNumber: taxNumberText,
+                mersis: mersisText,
+              }),
         }),
       })
 
@@ -114,7 +121,7 @@ export default function StoreProfileForm({
           id="companyName"
           value={companyNameText}
           onChange={(e) => setCompanyNameText(e.target.value)}
-          disabled={loading}
+          disabled={loading || legalFieldsLocked}
         />
       </div>
       <div className="space-y-1.5">
@@ -123,7 +130,7 @@ export default function StoreProfileForm({
           id="taxOffice"
           value={taxOfficeText}
           onChange={(e) => setTaxOfficeText(e.target.value)}
-          disabled={loading}
+          disabled={loading || legalFieldsLocked}
         />
       </div>
       <div className="space-y-1.5">
@@ -132,7 +139,7 @@ export default function StoreProfileForm({
           id="taxNumber"
           value={taxNumberText}
           onChange={(e) => setTaxNumberText(e.target.value)}
-          disabled={loading}
+          disabled={loading || legalFieldsLocked}
         />
       </div>
       <div className="space-y-1.5">
@@ -141,7 +148,7 @@ export default function StoreProfileForm({
           id="mersis"
           value={mersisText}
           onChange={(e) => setMersisText(e.target.value)}
-          disabled={loading}
+          disabled={loading || legalFieldsLocked}
         />
       </div>
       <div className="space-y-1.5">
@@ -151,7 +158,7 @@ export default function StoreProfileForm({
           rows={3}
           value={legalAddressText}
           onChange={(e) => setLegalAddressText(e.target.value)}
-          disabled={loading}
+          disabled={loading || legalFieldsLocked}
         />
       </div>
       <div className="grid gap-5 sm:grid-cols-3">
@@ -161,7 +168,7 @@ export default function StoreProfileForm({
             id="district"
             value={districtText}
             onChange={(e) => setDistrictText(e.target.value)}
-            disabled={loading}
+            disabled={loading || legalFieldsLocked}
           />
         </div>
         <div className="space-y-1.5">
@@ -170,7 +177,7 @@ export default function StoreProfileForm({
             id="city"
             value={cityText}
             onChange={(e) => setCityText(e.target.value)}
-            disabled={loading}
+            disabled={loading || legalFieldsLocked}
           />
         </div>
         <div className="space-y-1.5">
@@ -179,7 +186,7 @@ export default function StoreProfileForm({
             id="postalCode"
             value={postalCodeText}
             onChange={(e) => setPostalCodeText(e.target.value)}
-            disabled={loading}
+            disabled={loading || legalFieldsLocked}
           />
         </div>
       </div>
@@ -194,11 +201,22 @@ export default function StoreProfileForm({
         />
       </div>
 
+      {legalFieldsLocked && (
+        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+          İşletme ve vergi bilgileri ilk belge yüklendikten sonra inceleme bütünlüğü için
+          kilitlenir.
+        </p>
+      )}
+
       {error && (
-        <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>{error}</p>
+        <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>
+          {error}
+        </p>
       )}
       {saved && (
-        <p className="text-sm" style={{ color: 'var(--color-success)' }}>✓ Kaydedildi.</p>
+        <p className="text-sm" style={{ color: 'var(--color-success)' }}>
+          ✓ Kaydedildi.
+        </p>
       )}
 
       <Button type="submit" disabled={loading}>

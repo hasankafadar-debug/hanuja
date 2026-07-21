@@ -24,7 +24,6 @@ describe('Hanuja contact email policy', () => {
       sellerApprovalTemplate({
         email: 'seller@example.com',
         panelUrl: 'https://satici.hanuja.com.tr',
-        tempPassword: 'temporary-password',
       }),
       sellerDocumentsRequestedTemplate({
         email: 'seller@example.com',

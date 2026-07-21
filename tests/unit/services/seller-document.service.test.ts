@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenError, ValidationError } from '../../../api/lib/errors'
 
-const {
-  generatePresignedUploadUrlMock,
-  deleteObjectMock,
-  objectExistsMock,
-} = vi.hoisted(() => ({
+const { generatePresignedUploadUrlMock, deleteObjectMock, objectExistsMock } = vi.hoisted(() => ({
   generatePresignedUploadUrlMock: vi.fn(),
   deleteObjectMock: vi.fn(),
   objectExistsMock: vi.fn(),
@@ -60,9 +56,7 @@ function createPrismaMock(initialDocuments: SellerDocumentRecord[] = []) {
         docs.set(created.id, created)
         return created
       }),
-      findUnique: vi.fn(
-        async ({ where }: { where: { id: string } }) => docs.get(where.id) ?? null,
-      ),
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => docs.get(where.id) ?? null),
       findMany: vi.fn(async ({ where }: { where?: { sellerId?: string } }) => {
         const all = [...docs.values()]
         return where?.sellerId ? all.filter((doc) => doc.sellerId === where.sellerId) : all
@@ -73,13 +67,7 @@ function createPrismaMock(initialDocuments: SellerDocumentRecord[] = []) {
         return current
       }),
       update: vi.fn(
-        async ({
-          where,
-          data,
-        }: {
-          where: { id: string }
-          data: Record<string, unknown>
-        }) => {
+        async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
           const current = docs.get(where.id)
           if (!current) {
             throw new Error(`Missing sellerDocument ${where.id}`)
@@ -193,7 +181,9 @@ describe('SellerDocumentService', () => {
     const { prisma } = createPrismaMock([makeDocument({ status: 'approved' })])
     const service = createSellerDocumentService({ prisma: prisma as never })
 
-    await expect(service.deleteDocument('doc-1', 'seller-1')).rejects.toBeInstanceOf(ValidationError)
+    await expect(service.deleteDocument('doc-1', 'seller-1')).rejects.toBeInstanceOf(
+      ValidationError,
+    )
   })
 
   it('removes orphan pending records when upload confirmation cannot verify the R2 object', async () => {
@@ -251,6 +241,23 @@ describe('SellerDocumentService', () => {
       targetId: 'doc-1',
     })
     expect(createdAuditLogs[0]).not.toHaveProperty('reason')
+  })
+
+  it('blocks approval when the uploaded object is missing from R2', async () => {
+    const { prisma, docs, createdAuditLogs } = createPrismaMock([makeDocument()])
+    const service = createSellerDocumentService({ prisma: prisma as never })
+    objectExistsMock.mockResolvedValue(false)
+
+    await expect(
+      service.reviewDocument({
+        documentId: 'doc-1',
+        adminId: 'admin-1',
+        decision: 'approved',
+      }),
+    ).rejects.toBeInstanceOf(ValidationError)
+
+    expect(docs.get('doc-1')?.status).toBe('pending')
+    expect(createdAuditLogs).toHaveLength(0)
   })
 
   it('creates an audit log with reason on rejection', async () => {

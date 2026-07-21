@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, Input, Label, Textarea } from '@hanuja/ui'
 import { ShieldAlert, Clock3 } from 'lucide-react'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface PendingRequest {
   id: string
@@ -68,7 +69,7 @@ export default function BankDetailsForm({
     setSuccess(null)
 
     try {
-      const res = await fetch('/api/seller/bank-details/step-up/request', { method: 'POST' })
+      const res = await csrfFetch('/api/seller/bank-details/step-up/request', { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.error ?? 'Doğrulama kodu gönderilemedi.')
@@ -90,7 +91,7 @@ export default function BankDetailsForm({
     setSuccess(null)
 
     try {
-      const res = await fetch('/api/seller/bank-details', {
+      const res = await csrfFetch('/api/seller/bank-details', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -129,7 +130,7 @@ export default function BankDetailsForm({
     setSuccess(null)
 
     try {
-      const res = await fetch('/api/seller/bank-details/cancel-pending', {
+      const res = await csrfFetch('/api/seller/bank-details/cancel-pending', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bankDetailId: pendingRequest.id }),
@@ -156,36 +157,47 @@ export default function BankDetailsForm({
       >
         <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" style={{ color: '#f59e0b' }} />
         <div>
-          <p className="text-sm font-semibold" style={{ color: '#92400e' }}>Güvenlik Bildirimi</p>
+          <p className="text-sm font-semibold" style={{ color: '#92400e' }}>
+            Güvenlik Bildirimi
+          </p>
           <p className="mt-0.5 text-xs" style={{ color: '#92400e' }}>
-            Banka bilgisi değişikliği e-posta doğrulaması gerektirir ve 24 saat sonra aktifleşir.
-            Bu sürede eski aktif IBAN kullanılmaya devam eder.
+            Banka bilgisi değişikliği e-posta doğrulaması gerektirir ve 24 saat sonra aktifleşir. Bu
+            sürede eski aktif IBAN kullanılmaya devam eder.
           </p>
         </div>
       </div>
 
       {currentIban && (
         <div
-          className="rounded-xl border p-4 space-y-1"
+          className="space-y-1 rounded-xl border p-4"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
         >
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-muted-fg)' }}>
+          <p
+            className="text-xs font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--color-muted-fg)' }}
+          >
             Aktif Banka Bilgisi
           </p>
-          <p className="text-sm font-mono" style={{ color: 'var(--color-primary)' }}>
+          <p className="font-mono text-sm" style={{ color: 'var(--color-primary)' }}>
             {currentIban}
           </p>
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
             {currentAccountHolder} · {currentBankName}
           </p>
-          <p className="text-xs" style={{ color: isVerified ? 'var(--color-success)' : 'var(--color-warning)' }}>
+          <p
+            className="text-xs"
+            style={{ color: isVerified ? 'var(--color-success)' : 'var(--color-warning)' }}
+          >
             {isVerified ? 'Doğrulanmış' : 'Doğrulama bekliyor'}
           </p>
         </div>
       )}
 
       {pendingRequest && (
-        <div className="rounded-xl border p-4 space-y-2" style={{ borderColor: 'var(--color-border)' }}>
+        <div
+          className="space-y-2 rounded-xl border p-4"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
@@ -259,7 +271,10 @@ export default function BankDetailsForm({
           />
         </div>
 
-        <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: 'var(--color-border)' }}>
+        <div
+          className="space-y-3 rounded-xl border p-4"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
             E-posta doğrulama kodu {userEmail} adresine gönderilir.
           </p>
@@ -282,10 +297,14 @@ export default function BankDetailsForm({
         </div>
 
         {error && (
-          <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>{error}</p>
+          <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>
+            {error}
+          </p>
         )}
         {success && (
-          <p className="text-sm" style={{ color: 'var(--color-success)' }}>{success}</p>
+          <p className="text-sm" style={{ color: 'var(--color-success)' }}>
+            {success}
+          </p>
         )}
 
         <Button type="submit" variant="outline" disabled={loading || otpCode.length !== 6}>
@@ -300,11 +319,15 @@ export default function BankDetailsForm({
           </p>
           <div className="mt-3 space-y-3">
             {history.map((entry) => (
-              <div key={entry.id} className="border-t pt-3 first:border-t-0 first:pt-0" style={{ borderColor: 'var(--color-border)' }}>
+              <div
+                key={entry.id}
+                className="border-t pt-3 first:border-t-0 first:pt-0"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
                 <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
                   {ACTION_LABELS[entry.action] ?? entry.action}
                 </p>
-                <p className="text-xs font-mono" style={{ color: 'var(--color-muted-fg)' }}>
+                <p className="font-mono text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                   {entry.previousIbanMasked ? `${entry.previousIbanMasked} → ` : ''}
                   {entry.ibanMasked}
                 </p>

@@ -24,7 +24,7 @@ export default async function BasvuruPage() {
   const applicationState = resolveSellerApplicationState(session.user.role, seller?.status)
 
   if (applicationState === 'pending') {
-    redirect('/basvuru/tesekkur')
+    redirect('/basvuru/belgeler')
   }
 
   if (applicationState === 'panel') {

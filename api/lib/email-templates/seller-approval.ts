@@ -1,10 +1,6 @@
 import { PLATFORM_LEGAL_INFO } from '../platform-info'
 
-export function sellerApprovalTemplate(input: {
-  email: string
-  panelUrl: string
-  tempPassword: string
-}) {
+export function sellerApprovalTemplate(input: { email: string; panelUrl: string }) {
   const subject = 'Satıcı hesabınız aktif edildi'
   const html = `<!DOCTYPE html>
 <html lang="tr">
@@ -14,16 +10,12 @@ export function sellerApprovalTemplate(input: {
     <p style="margin:0 0 16px;color:#444;">Merhaba ${input.email},</p>
     <p style="margin:0 0 16px;color:#444;">Başvurunuz onaylandı. Satıcı panelinize aşağıdaki bağlantıdan giriş yapabilirsiniz.</p>
     <p style="margin:0 0 24px;"><a href="${input.panelUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;">Satıcı paneline git</a></p>
-    <div style="background:#fafafa;border:1px solid #eee;border-radius:8px;padding:16px;margin:0 0 24px;">
-      <p style="margin:0 0 8px;color:#444;"><strong>Geçici şifre:</strong></p>
-      <p style="margin:0;font-family:monospace;font-size:18px;color:#111;">${input.tempPassword}</p>
-    </div>
-    <p style="margin:0;color:#666;font-size:13px;">İlk girişte şifrenizi değiştirmeniz istenecek.</p>
+    <p style="margin:0;color:#666;font-size:13px;">Başvuru sırasında kullandığınız hesap bilgilerinizle giriş yapabilirsiniz.</p>
     <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
     <p style="margin:0;color:#888;font-size:12px;">Destek: ${PLATFORM_LEGAL_INFO.supportEmail}</p>
   </div>
 </body>
 </html>`
-  const text = `Satıcı hesabınız aktif edildi. Panel: ${input.panelUrl}. Geçici şifre: ${input.tempPassword}`
+  const text = `Satıcı hesabınız aktif edildi. Başvuru sırasında kullandığınız hesap bilgilerinizle giriş yapabilirsiniz. Panel: ${input.panelUrl}`
   return { subject, html, text }
 }

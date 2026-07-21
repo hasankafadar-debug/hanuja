@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { PrismaClient } from '@prisma/client'
 import { createSellerService } from '@hanuja/api/services/seller.service'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -23,8 +24,18 @@ const profileSchema = z.object({
   taxOffice: z.string().max(120).optional(),
   taxNumber: z.string().max(20).optional(),
   mersis: z.string().max(30).optional(),
-  logoUrl: z.string().url('Geçerli bir URL girin').max(500).startsWith('https://', 'Yalnızca HTTPS URL kabul edilir').optional(),
-  bannerUrl: z.string().url('Geçerli bir URL girin').max(500).startsWith('https://', 'Yalnızca HTTPS URL kabul edilir').optional(),
+  logoUrl: z
+    .string()
+    .url('Geçerli bir URL girin')
+    .max(500)
+    .startsWith('https://', 'Yalnızca HTTPS URL kabul edilir')
+    .optional(),
+  bannerUrl: z
+    .string()
+    .url('Geçerli bir URL girin')
+    .max(500)
+    .startsWith('https://', 'Yalnızca HTTPS URL kabul edilir')
+    .optional(),
   bannerColor: hexColor.optional(),
   bannerHeadline: z.string().max(60, 'Banner başlığı en fazla 60 karakter olabilir').optional(),
   bannerTextColor: hexColor.optional(),
@@ -33,12 +44,16 @@ const profileSchema = z.object({
 
 /** PATCH /api/seller/profile — mağaza profili güncelle */
 export async function PATCH(req: NextRequest) {
+  const csrfError = checkCsrf(req)
+  if (csrfError) return csrfError
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
   }
 
-  const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
+  const seller = await prisma.seller.findUnique({
+    where: { userId: session.user.id },
+  })
   if (!seller) {
     return NextResponse.json({ error: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
   }
@@ -46,7 +61,10 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const parsed = profileSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'Geçersiz veri.' }, { status: 400 })
+    return NextResponse.json(
+      { error: parsed.error.errors[0]?.message ?? 'Geçersiz veri.' },
+      { status: 400 },
+    )
   }
 
   const {
@@ -68,6 +86,33 @@ export async function PATCH(req: NextRequest) {
     bannerTextColor,
     bannerHeadlineFontSize,
   } = parsed.data
+
+  const legalFieldsWereSubmitted = [
+    companyName,
+    legalAddress,
+    district,
+    city,
+    postalCode,
+    taxOffice,
+    taxNumber,
+    mersis,
+  ].some((value) => value !== undefined)
+
+  if (seller.status === 'pending' && legalFieldsWereSubmitted) {
+    const firstDocument = await prisma.sellerDocument.findFirst({
+      where: { sellerId: seller.id },
+      select: { id: true },
+    })
+
+    if (firstDocument) {
+      return NextResponse.json(
+        {
+          error: 'İlk belge yüklendikten sonra işletme ve vergi bilgileri değiştirilemez.',
+        },
+        { status: 409 },
+      )
+    }
+  }
   const svc = createSellerService({ prisma })
   await svc.updateProfile(seller.id, session.user.id, {
     ...(storeName !== undefined ? { storeName } : {}),

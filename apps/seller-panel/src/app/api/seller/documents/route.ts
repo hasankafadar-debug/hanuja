@@ -58,13 +58,26 @@ export async function POST(request: NextRequest) {
 
   const seller = await prisma.seller.findUnique({
     where: { userId: session.user.id },
-    select: { id: true },
+    select: {
+      id: true,
+      status: true,
+      requiredDocumentTypes: true,
+      documents: {
+        where: { status: { in: ['pending', 'approved'] } },
+        select: { type: true },
+      },
+    },
   })
   if (!seller) {
     return NextResponse.json({ message: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
   }
 
-  let body: { type: string; fileName: string; mimeType: string; sizeBytes: number }
+  let body: {
+    type: string
+    fileName: string
+    mimeType: string
+    sizeBytes: number
+  }
   try {
     body = await request.json()
   } catch {
@@ -77,7 +90,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Geçersiz belge türü.' }, { status: 400 })
   }
   if (!fileName || !mimeType || !sizeBytes) {
-    return NextResponse.json({ message: 'fileName, mimeType ve sizeBytes zorunludur.' }, { status: 400 })
+    return NextResponse.json(
+      { message: 'fileName, mimeType ve sizeBytes zorunludur.' },
+      { status: 400 },
+    )
+  }
+
+  // Pending applicants may only upload the document types explicitly requested by
+  // an administrator. A pending/approved upload already satisfies that slot;
+  // rejected documents intentionally do not, so the seller can resubmit them.
+  if (seller.status === 'pending') {
+    const requestedTypes = Array.isArray(seller.requiredDocumentTypes)
+      ? seller.requiredDocumentTypes.map(String)
+      : []
+
+    if (!requestedTypes.includes(type)) {
+      return NextResponse.json(
+        { message: 'Bu belge türü başvurunuz için talep edilmedi.' },
+        { status: 403 },
+      )
+    }
+
+    if (seller.documents.some((document) => document.type === type)) {
+      return NextResponse.json(
+        {
+          message: 'Bu belge türü için incelenen veya onaylanan bir yüklemeniz zaten var.',
+        },
+        { status: 409 },
+      )
+    }
   }
 
   try {

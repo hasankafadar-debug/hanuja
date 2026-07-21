@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface Props {
   documentId: string
@@ -23,7 +24,7 @@ export function DocumentReviewActions({ documentId }: Props) {
     setLoading(decision === 'approved' ? 'approve' : 'reject')
     setError(null)
     try {
-      const res = await fetch(`/api/admin/documents/${documentId}/review`, {
+      const res = await csrfFetch(`/api/admin/documents/${documentId}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision, note }),
@@ -51,9 +52,17 @@ export function DocumentReviewActions({ documentId }: Props) {
           placeholder="Red gerekçesi (zorunlu)…"
           rows={2}
           className="w-full rounded-lg border px-3 py-2 text-xs"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)', color: 'var(--color-primary)' }}
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-surface)',
+            color: 'var(--color-primary)',
+          }}
         />
-        {error && <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>{error}</p>}
+        {error && (
+          <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>
+            {error}
+          </p>
+        )}
         <div className="flex gap-2">
           <button
             type="button"
@@ -62,14 +71,25 @@ export function DocumentReviewActions({ documentId }: Props) {
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-destructive)', color: '#fff' }}
           >
-            {loading === 'reject' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+            {loading === 'reject' ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <XCircle className="h-3.5 w-3.5" />
+            )}
             Reddet
           </button>
           <button
             type="button"
-            onClick={() => { setShowRejectForm(false); setRejectNote('') }}
+            onClick={() => {
+              setShowRejectForm(false)
+              setRejectNote('')
+            }}
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
-            style={{ borderColor: 'var(--color-border)', border: '1px solid', color: 'var(--color-muted-fg)' }}
+            style={{
+              borderColor: 'var(--color-border)',
+              border: '1px solid',
+              color: 'var(--color-muted-fg)',
+            }}
           >
             İptal
           </button>
@@ -80,7 +100,11 @@ export function DocumentReviewActions({ documentId }: Props) {
 
   return (
     <div className="flex items-center gap-2">
-      {error && <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>{error}</p>}
+      {error && (
+        <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>
+          {error}
+        </p>
+      )}
       <button
         type="button"
         disabled={!!loading}
@@ -88,7 +112,11 @@ export function DocumentReviewActions({ documentId }: Props) {
         className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
         style={{ backgroundColor: 'var(--color-success)', color: '#fff' }}
       >
-        {loading === 'approve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+        {loading === 'approve' ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <CheckCircle2 className="h-3.5 w-3.5" />
+        )}
         Onayla
       </button>
       <button
@@ -96,7 +124,10 @@ export function DocumentReviewActions({ documentId }: Props) {
         disabled={!!loading}
         onClick={() => setShowRejectForm(true)}
         className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--color-destructive) 12%, transparent)', color: 'var(--color-destructive)' }}
+        style={{
+          backgroundColor: 'color-mix(in srgb, var(--color-destructive) 12%, transparent)',
+          color: 'var(--color-destructive)',
+        }}
       >
         <XCircle className="h-3.5 w-3.5" />
         Reddet

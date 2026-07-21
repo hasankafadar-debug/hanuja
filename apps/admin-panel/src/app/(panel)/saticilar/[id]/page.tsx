@@ -68,6 +68,15 @@ const STATUS_MAP: Record<
   rejected: { label: 'Reddedildi', variant: 'secondary' },
 }
 
+const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  identity: 'Kimlik Belgesi',
+  tax_certificate: 'Vergi Levhası',
+  trade_registry: 'Ticaret Sicil Gazetesi',
+  signature_circular: 'İmza Sirküleri',
+  bank_statement: 'Banka Hesap Belgesi',
+  other: 'Diğer Belge',
+}
+
 export default async function SellerDetailPage({ params, searchParams }: Props) {
   await getAdminSession()
 
@@ -76,7 +85,9 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
   const prisma = createPrismaForRoute()
 
   const now = new Date()
-  const defaultTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
+  const defaultTo = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999),
+  )
   const defaultFrom = new Date(defaultTo)
   defaultFrom.setUTCDate(defaultFrom.getUTCDate() - 29)
   defaultFrom.setUTCHours(0, 0, 0, 0)
@@ -89,7 +100,7 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
     where: { id },
     include: {
       profile: true,
-      bankDetails: { where: { isActive: true }, take: 1 },
+      bankDetails: { orderBy: { createdAt: 'desc' }, take: 10 },
       user: { select: { email: true } },
     },
   })
@@ -98,51 +109,61 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
 
   const service = createSellerFinanceService({ prisma })
 
-  const [platformSettings, orderAgg, productCount, payoutGroups, ledgerAgg, commissionAgg, kycDocuments, penalties, statement] =
-    await Promise.all([
-      createPlatformSettingsService({ prisma }).get(),
-      prisma.orderLine.aggregate({
-        where: { sellerId: id },
-        _count: { id: true },
-        _sum: { totalPrice: true },
-      }),
-      prisma.product.count({ where: { sellerId: id } }),
-      prisma.payout.groupBy({
-        by: ['status'],
-        where: { sellerId: id },
-        _sum: { netAmount: true },
-      }),
-      prisma.sellerLedgerEntry.aggregate({
-        where: { sellerId: id },
-        _sum: { amount: true },
-      }),
-      prisma.orderLine.aggregate({
-        where: { sellerId: id },
-        _sum: { commissionAmount: true },
-      }),
-      prisma.sellerDocument.findMany({
-        where: { sellerId: id },
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.penalty.findMany({
-        where: { sellerId: id },
-        include: { order: { select: { id: true } } },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-      }),
-      service.getStatement({
-        sellerId: seller.id,
-        from,
-        to,
-      }),
-    ])
+  const [
+    platformSettings,
+    orderAgg,
+    productCount,
+    payoutGroups,
+    ledgerAgg,
+    commissionAgg,
+    kycDocuments,
+    penalties,
+    statement,
+  ] = await Promise.all([
+    createPlatformSettingsService({ prisma }).get(),
+    prisma.orderLine.aggregate({
+      where: { sellerId: id },
+      _count: { id: true },
+      _sum: { totalPrice: true },
+    }),
+    prisma.product.count({ where: { sellerId: id } }),
+    prisma.payout.groupBy({
+      by: ['status'],
+      where: { sellerId: id },
+      _sum: { netAmount: true },
+    }),
+    prisma.sellerLedgerEntry.aggregate({
+      where: { sellerId: id },
+      _sum: { amount: true },
+    }),
+    prisma.orderLine.aggregate({
+      where: { sellerId: id },
+      _sum: { commissionAmount: true },
+    }),
+    prisma.sellerDocument.findMany({
+      where: { sellerId: id },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.penalty.findMany({
+      where: { sellerId: id },
+      include: { order: { select: { id: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }),
+    service.getStatement({
+      sellerId: seller.id,
+      from,
+      to,
+    }),
+  ])
 
   const payoutMap = new Map(
     payoutGroups.map((group) => [group.status, Number(group._sum.netAmount ?? 0)]),
   )
 
   const pendingPayout = (payoutMap.get('hold_active') ?? 0) + (payoutMap.get('payout_blocked') ?? 0)
-  const readyPayout = (payoutMap.get('payout_ready') ?? 0) + (payoutMap.get('payout_scheduled') ?? 0)
+  const readyPayout =
+    (payoutMap.get('payout_ready') ?? 0) + (payoutMap.get('payout_scheduled') ?? 0)
   const paidPayout = payoutMap.get('payout_paid') ?? 0
   const ledgerBalance = Number(ledgerAgg._sum.amount ?? 0)
   const commissionTotal = Number(commissionAgg._sum.commissionAmount ?? 0)
@@ -158,7 +179,34 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
       0,
     )
 
-  const activeBankDetail = seller.bankDetails[0] ?? null
+  const activeBankDetail =
+    seller.bankDetails.find((detail) => detail.isActive || detail.status === 'ACTIVE') ?? null
+  const pendingBankDetail =
+    seller.bankDetails.find((detail) => detail.status === 'PENDING_ACTIVATION') ?? null
+  const displayedBankDetail = activeBankDetail ?? pendingBankDetail
+  const requestedDocumentTypes = Array.isArray(seller.requiredDocumentTypes)
+    ? seller.requiredDocumentTypes.map(String)
+    : []
+  const approvedDocumentTypes = new Set(
+    kycDocuments
+      .filter((document) => document.status === 'approved')
+      .map((document) => document.type),
+  )
+  const missingDocumentTypes = requestedDocumentTypes.filter(
+    (documentType) => !approvedDocumentTypes.has(documentType as never),
+  )
+  const activationDisabledReason =
+    seller.status === 'pending' || seller.status === 'rejected'
+      ? requestedDocumentTypes.length === 0
+        ? 'Aktivasyondan önce belge talep edilmelidir.'
+        : missingDocumentTypes.length > 0
+          ? `Eksik onaylar: ${missingDocumentTypes.map((type) => DOCUMENT_TYPE_LABELS[type] ?? type).join(', ')}`
+          : !pendingBankDetail
+            ? 'Aktifleştirilecek bekleyen banka kaydı bulunamadı.'
+            : !seller.profile
+              ? 'Satıcı profili bulunamadı.'
+              : null
+      : null
   const statusInfo = STATUS_MAP[seller.status] ?? {
     label: seller.status,
     variant: 'secondary' as const,
@@ -189,6 +237,7 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
               sellerId={seller.id}
               currentStatus={seller.status}
               displayName={seller.displayName}
+              activationDisabledReason={activationDisabledReason}
             />
             <SellerAdminActions sellerId={seller.id} />
           </div>
@@ -273,9 +322,13 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                   value: `%${(effectiveCommissionRate.toNumber() * 100).toFixed(2)}`,
                 },
                 {
-                  label: 'Profil Doğrulama',
+                  label: 'Mağaza/KYC Doğrulaması',
                   value: seller.profile?.isVerified ? (
                     <Badge variant="success">Doğrulanmış</Badge>
+                  ) : seller.status === 'pending' ? (
+                    <Badge variant="warning">İnceleme bekliyor</Badge>
+                  ) : seller.status === 'active' ? (
+                    <Badge variant="destructive">Tutarsız doğrulama kaydı</Badge>
                   ) : (
                     <Badge variant="warning">Doğrulanmadı</Badge>
                   ),
@@ -300,21 +353,29 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
               <h3 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
                 Banka Bilgileri
               </h3>
-              {activeBankDetail ? (
-                <Badge variant={activeBankDetail.isVerified ? 'success' : 'warning'}>
-                  {activeBankDetail.isVerified ? 'Doğrulanmış' : 'Doğrulanmadı'}
+              {displayedBankDetail ? (
+                <Badge
+                  variant={
+                    displayedBankDetail.isVerified && displayedBankDetail.isActive
+                      ? 'success'
+                      : 'warning'
+                  }
+                >
+                  {displayedBankDetail.isVerified && displayedBankDetail.isActive
+                    ? 'Doğrulanmış ve aktif'
+                    : 'Başvuruda girildi — doğrulama bekliyor'}
                 </Badge>
               ) : (
                 <Badge variant="secondary">Banka Bilgisi Yok</Badge>
               )}
             </div>
-            {activeBankDetail ? (
+            {displayedBankDetail ? (
               <>
-                <p className="text-sm font-mono" style={{ color: 'var(--color-muted-fg)' }}>
-                  {maskIban(activeBankDetail.iban)}
+                <p className="font-mono text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                  {maskIban(displayedBankDetail.iban)}
                 </p>
                 <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                  {activeBankDetail.accountHolder} · {activeBankDetail.bankName}
+                  {displayedBankDetail.accountHolder} · {displayedBankDetail.bankName}
                 </p>
               </>
             ) : (
@@ -326,14 +387,17 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
               className="mt-2 flex items-center gap-1 text-xs"
               style={{ color: 'var(--color-muted-fg)' }}
             >
-              <ShieldAlert className="h-3.5 w-3.5" /> Tam IBAN yalnızca yetkili finans admin tarafından görülebilir.
+              <ShieldAlert className="h-3.5 w-3.5" /> Tam IBAN yalnızca yetkili finans admin
+              tarafından görülebilir.
             </p>
           </div>
 
           <SellerImportPermission
             sellerId={seller.id}
             importEnabled={seller.importEnabled}
-            importRequestedAt={seller.importRequestedAt ? seller.importRequestedAt.toISOString() : null}
+            importRequestedAt={
+              seller.importRequestedAt ? seller.importRequestedAt.toISOString() : null
+            }
           />
           <SellerCommissionSettings
             sellerId={seller.id}
@@ -353,6 +417,35 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
         </TabsContent>
 
         <TabsContent value="kyc" className="mt-5">
+          {requestedDocumentTypes.length > 0 && (
+            <div
+              className="mb-4 rounded-xl border p-4"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+              }}
+            >
+              <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                Talep edilen belgeler
+              </h3>
+              <div className="grid gap-2">
+                {requestedDocumentTypes.map((documentType) => {
+                  const approved = approvedDocumentTypes.has(documentType as never)
+                  const rejected = kycDocuments.some(
+                    (document) => document.type === documentType && document.status === 'rejected',
+                  )
+                  return (
+                    <div key={documentType} className="flex items-center justify-between text-sm">
+                      <span>{DOCUMENT_TYPE_LABELS[documentType] ?? documentType}</span>
+                      <Badge variant={approved ? 'success' : rejected ? 'destructive' : 'warning'}>
+                        {approved ? 'Onaylandı' : rejected ? 'Yeniden yüklenmeli' : 'Bekleniyor'}
+                      </Badge>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           {kycDocuments.length === 0 ? (
             <div
               className="rounded-xl border px-5 py-10 text-center"
@@ -361,7 +454,10 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                 backgroundColor: 'var(--color-surface)',
               }}
             >
-              <FileText className="mx-auto mb-2 h-8 w-8" style={{ color: 'var(--color-muted-fg)' }} />
+              <FileText
+                className="mx-auto mb-2 h-8 w-8"
+                style={{ color: 'var(--color-muted-fg)' }}
+              />
               <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
                 Bu satıcı henüz belge yüklemedi.
               </p>
@@ -385,15 +481,6 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                       ? 'Reddedildi'
                       : 'İnceleniyor'
 
-                const typeLabels: Record<string, string> = {
-                  identity: 'Kimlik Belgesi',
-                  tax_certificate: 'Vergi Levhası',
-                  trade_registry: 'Ticaret Sicil Gazetesi',
-                  signature_circular: 'İmza Sirküleri',
-                  bank_statement: 'Banka Hesap Cüzdanı',
-                  other: 'Diğer Belge',
-                }
-
                 return (
                   <div
                     key={document.id}
@@ -413,8 +500,11 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                            {typeLabels[document.type] ?? document.type}
+                          <p
+                            className="text-sm font-medium"
+                            style={{ color: 'var(--color-primary)' }}
+                          >
+                            {DOCUMENT_TYPE_LABELS[document.type] ?? document.type}
                           </p>
                           <span className="inline-flex items-center gap-1 text-xs">
                             {statusIcon} {statusLabel}
@@ -429,7 +519,10 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                           })}
                         </p>
                         {document.adminNote && (
-                          <p className="mt-1 text-xs italic" style={{ color: 'var(--color-muted-fg)' }}>
+                          <p
+                            className="mt-1 text-xs italic"
+                            style={{ color: 'var(--color-muted-fg)' }}
+                          >
                             Not: {document.adminNote}
                           </p>
                         )}
@@ -441,7 +534,10 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                         className="flex-shrink-0 rounded p-1.5 hover:bg-black/5"
                         title="Belgeyi görüntüle"
                       >
-                        <ExternalLink className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
+                        <ExternalLink
+                          className="h-4 w-4"
+                          style={{ color: 'var(--color-muted-fg)' }}
+                        />
                       </a>
                     </div>
                     {document.status === 'pending' && (

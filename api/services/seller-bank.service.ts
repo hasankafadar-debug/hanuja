@@ -4,11 +4,7 @@ import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.r
 import { createNotificationService } from './notification.service'
 import { sendEmail } from '../lib/mailer'
 
-function buildBankDetailEmail(params: {
-  subject: string
-  sellerName: string
-  body: string
-}) {
+function buildBankDetailEmail(params: { subject: string; sellerName: string; body: string }) {
   return {
     subject: params.subject,
     html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>${params.subject}</h2><p>Merhaba ${params.sellerName},</p><p>${params.body}</p></div>`,
@@ -47,12 +43,17 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
       throw new Error('Banka bilgisi değiştirme yetkiniz yok.')
     }
 
+    if (seller.status !== 'active') {
+      throw new Error('Banka bilgisi yalnızca aktif satıcı hesabında değiştirilebilir.')
+    }
+
     const limit = rateLimit(`seller-bank-change:${seller.id}`, HIGH_RISK_RATE_LIMIT)
     if (!limit.allowed) {
       throw new Error('Çok fazla deneme yaptınız. Lütfen daha sonra tekrar deneyin.')
     }
 
-    const active = seller.bankDetails.find((detail) => detail.status === 'ACTIVE' || detail.isActive) ?? null
+    const active =
+      seller.bankDetails.find((detail) => detail.status === 'ACTIVE' || detail.isActive) ?? null
     const recentChangeCount = await prisma.sellerBankDetailHistory.count({
       where: {
         sellerId: seller.id,
@@ -133,7 +134,12 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
       sellerName: seller.user.name ?? seller.displayName,
       body: `Yeni IBAN bilginiz ${maskIban(params.iban)} için güvenlik bekleme süresi başlatıldı. Bu işlem size ait değilse destek ekibimizle hemen iletişime geçin.`,
     })
-    await sendEmail({ to: seller.user.email, subject: email.subject, html: email.html, text: email.text })
+    await sendEmail({
+      to: seller.user.email,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+    })
 
     return created
   }
@@ -174,7 +180,11 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
     })
   }
 
-  async function approvePending(params: { bankDetailId: string; adminActorId: string; reason?: string | null }) {
+  async function approvePending(params: {
+    bankDetailId: string
+    adminActorId: string
+    reason?: string | null
+  }) {
     const detail = await prisma.sellerBankDetail.findUnique({
       where: { id: params.bankDetailId },
       include: { seller: { include: { user: true } } },
@@ -228,10 +238,19 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
       sellerName: detail.seller.user.name ?? detail.seller.displayName,
       body: `Yeni IBAN bilginiz ${maskIban(detail.iban)} için güvenlik onayı tamamlandı. Aktivasyon zamanı geldiğinde bu hesap kullanılacak.`,
     })
-    await sendEmail({ to: detail.seller.user.email, subject: email.subject, html: email.html, text: email.text })
+    await sendEmail({
+      to: detail.seller.user.email,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+    })
   }
 
-  async function blockPending(params: { bankDetailId: string; adminActorId: string; reason: string }) {
+  async function blockPending(params: {
+    bankDetailId: string
+    adminActorId: string
+    reason: string
+  }) {
     const detail = await prisma.sellerBankDetail.findUnique({
       where: { id: params.bankDetailId },
       include: { seller: { include: { user: true } } },
@@ -287,6 +306,7 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
     const pending = await prisma.sellerBankDetail.findMany({
       where: {
         status: 'PENDING_ACTIVATION',
+        isVerified: true,
         activatesAt: { lte: new Date() },
         blockedAt: null,
       },
@@ -295,24 +315,36 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
       },
     })
 
-    for (const detail of pending) {
-      await prisma.$transaction(async (tx) => {
-        await tx.sellerBankDetail.updateMany({
-          where: { sellerId: detail.sellerId, isActive: true },
-          data: {
-            isActive: false,
-            status: 'SUPERSEDED',
-          },
-        })
+    let activatedCount = 0
 
-        await tx.sellerBankDetail.update({
-          where: { id: detail.id },
+    for (const detail of pending) {
+      const activated = await prisma.$transaction(async (tx) => {
+        const activation = await tx.sellerBankDetail.updateMany({
+          where: {
+            id: detail.id,
+            status: 'PENDING_ACTIVATION',
+            isVerified: true,
+            activatesAt: { lte: new Date() },
+            blockedAt: null,
+          },
           data: {
             isActive: true,
             status: 'ACTIVE',
-            isVerified: true,
-            verifiedAt: detail.verifiedAt ?? new Date(),
             activatedAt: new Date(),
+          },
+        })
+
+        if (activation.count !== 1) return false
+
+        await tx.sellerBankDetail.updateMany({
+          where: {
+            sellerId: detail.sellerId,
+            id: { not: detail.id },
+            isActive: true,
+          },
+          data: {
+            isActive: false,
+            status: 'SUPERSEDED',
           },
         })
 
@@ -327,7 +359,12 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
             actorRole: 'system',
           },
         })
+
+        return true
       })
+
+      if (!activated) continue
+      activatedCount += 1
 
       await notifications.send({
         userId: detail.seller.user.id,
@@ -338,7 +375,7 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
       })
     }
 
-    return pending.length
+    return activatedCount
   }
 
   return {

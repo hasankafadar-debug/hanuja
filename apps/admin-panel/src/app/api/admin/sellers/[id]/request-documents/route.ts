@@ -6,11 +6,18 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createAdminAuditLogRepository } from '@hanuja/api/repositories/admin-audit-log.repository'
 import { UnauthorizedError, ForbiddenError, NotFoundError } from '@hanuja/api/lib/errors'
 import { handleError, ok } from '@hanuja/api/lib/response'
-import { signJWT } from 'better-auth/crypto'
 import { sellerDocumentsRequestedTemplate } from '@hanuja/api/lib/email-templates/seller-documents-requested'
 import { sendEmail } from '@hanuja/api/lib/mailer'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
-const DOC_TYPES = ['identity', 'tax_certificate', 'trade_registry', 'signature_circular', 'bank_statement', 'other'] as const
+const DOC_TYPES = [
+  'identity',
+  'tax_certificate',
+  'trade_registry',
+  'signature_circular',
+  'bank_statement',
+  'other',
+] as const
 
 const bodySchema = z.object({
   requiredDocTypes: z.array(z.enum(DOC_TYPES)).min(1),
@@ -26,11 +33,10 @@ const LABELS: Record<(typeof DOC_TYPES)[number], string> = {
   other: 'Diğer',
 }
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const csrfError = checkCsrf(req)
+    if (csrfError) return csrfError
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     if (session.user.role !== 'admin') throw new ForbiddenError()
@@ -52,15 +58,6 @@ export async function POST(
     if (!seller) throw new NotFoundError('Seller', id)
 
     const panelUrl = `${process.env.SELLER_PANEL_URL ?? 'http://localhost:3001'}/basvuru/belgeler`
-    const token = await signJWT(
-      {
-        sellerId: seller.id,
-        requiredDocTypes: body.requiredDocTypes,
-        issuedBy: session.user.id,
-      },
-      process.env.BETTER_AUTH_SECRET ?? 'change-me-in-production',
-      60 * 60,
-    )
 
     await prisma.seller.update({
       where: { id: seller.id },
@@ -76,13 +73,16 @@ export async function POST(
       targetType: 'seller',
       targetId: seller.id,
       previousData: { documentsRequestedAt: seller.documentsRequestedAt },
-      newData: { documentsRequestedAt: new Date().toISOString(), requiredDocTypes: body.requiredDocTypes },
+      newData: {
+        documentsRequestedAt: new Date().toISOString(),
+        requiredDocTypes: body.requiredDocTypes,
+      },
       ...(body.note ? { note: body.note } : {}),
     })
 
     const template = sellerDocumentsRequestedTemplate({
       email: seller.user.email,
-      panelUrl: `${panelUrl}?token=${encodeURIComponent(token)}`,
+      panelUrl,
       ...(body.note ? { note: body.note } : {}),
       requiredDocTypes: body.requiredDocTypes.map((docType) => LABELS[docType]),
     })

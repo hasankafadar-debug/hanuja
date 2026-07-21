@@ -147,6 +147,12 @@ export function createSellerDocumentService(deps: { prisma: PrismaClient }) {
       throw new ValidationError('Ret kararında gerekçe zorunludur.')
     }
 
+    if (decision === 'approved' && !(await objectExists(doc.fileKey))) {
+      throw new ValidationError(
+        'Belge dosyası depolamada doğrulanamadı. Satıcıdan belgeyi yeniden yüklemesini isteyin.',
+      )
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.sellerDocument.update({
         where: { id: documentId },

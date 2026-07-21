@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@hanuja/ui'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 const DOC_TYPES = [
   { value: 'identity', label: 'Kimlik Belgesi' },
@@ -17,13 +18,17 @@ export function SellerAdminActions({ sellerId }: { sellerId: string }) {
   const router = useRouter()
   const [loading, setLoading] = useState<'documents' | 'reset' | null>(null)
   const [open, setOpen] = useState(false)
-  const [selected, setSelected] = useState<string[]>(['identity', 'tax_certificate', 'bank_statement'])
+  const [selected, setSelected] = useState<string[]>([
+    'identity',
+    'tax_certificate',
+    'bank_statement',
+  ])
   const [note, setNote] = useState('')
 
   async function requestDocuments() {
     setLoading('documents')
     try {
-      const res = await fetch(`/api/admin/sellers/${sellerId}/request-documents`, {
+      const res = await csrfFetch(`/api/admin/sellers/${sellerId}/request-documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requiredDocTypes: selected, note: note || undefined }),
@@ -41,10 +46,11 @@ export function SellerAdminActions({ sellerId }: { sellerId: string }) {
   }
 
   async function resetPassword() {
-    if (!confirm('Bu satıcının şifresi sıfırlansın mı? E-posta ile sıfırlama bağlantısı gidecek.')) return
+    if (!confirm('Bu satıcının şifresi sıfırlansın mı? E-posta ile sıfırlama bağlantısı gidecek.'))
+      return
     setLoading('reset')
     try {
-      const res = await fetch(`/api/admin/sellers/${sellerId}/reset-password`, {
+      const res = await csrfFetch(`/api/admin/sellers/${sellerId}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: 'Admin reset' }),
@@ -81,7 +87,9 @@ export function SellerAdminActions({ sellerId }: { sellerId: string }) {
                     checked={selected.includes(doc.value)}
                     onChange={(e) =>
                       setSelected((prev) =>
-                        e.target.checked ? [...new Set([...prev, doc.value])] : prev.filter((item) => item !== doc.value),
+                        e.target.checked
+                          ? [...new Set([...prev, doc.value])]
+                          : prev.filter((item) => item !== doc.value),
                       )
                     }
                   />
@@ -97,10 +105,19 @@ export function SellerAdminActions({ sellerId }: { sellerId: string }) {
               className="mt-4 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900"
             />
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={loading !== null}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setOpen(false)}
+                disabled={loading !== null}
+              >
                 Vazgeç
               </Button>
-              <Button size="sm" onClick={requestDocuments} disabled={selected.length === 0 || loading !== null}>
+              <Button
+                size="sm"
+                onClick={requestDocuments}
+                disabled={selected.length === 0 || loading !== null}
+              >
                 Gönder
               </Button>
             </div>
