@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Hanuja production backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+Unit=hanuja-production-backup.service
+
+[Install]
+WantedBy=timers.target

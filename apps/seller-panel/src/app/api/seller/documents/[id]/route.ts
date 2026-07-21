@@ -1,7 +1,7 @@
 /**
  * DELETE /api/seller/documents/[id]
  *
- * Pending durumdaki belgeleri siler (R2 + DB).
+ * Pending durumdaki belgeleri özel şifreli depodan ve DB'den siler.
  * Approved/rejected belgeler silinemez.
  */
 import { NextResponse, type NextRequest } from 'next/server'

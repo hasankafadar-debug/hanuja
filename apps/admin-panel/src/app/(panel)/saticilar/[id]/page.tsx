@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { isPrivateDocumentStorageKey } from '@hanuja/api/lib/private-document-storage'
 import { maskIban, formatMoney } from '@hanuja/security'
 import { createSellerFinanceService } from '@hanuja/api/services/seller-finance.service'
 import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
@@ -48,6 +49,10 @@ function formatDateInput(date: Date) {
   const month = `${date.getUTCMonth() + 1}`.padStart(2, '0')
   const day = `${date.getUTCDate()}`.padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function displayApplicationValue(value: string | null | undefined) {
+  return value?.trim() || 'Girilmemiş'
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -216,6 +221,19 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
   const exportHref = `/api/admin/sellers/${seller.id}/statement?from=${fromInput}&to=${toInput}&format=xlsx`
   const effectiveCommissionRate =
     seller.commissionRateOverride ?? platformSettings.defaultSellerCommissionRate
+  const applicationContactDetails = [
+    { label: 'E-posta', value: seller.user.email },
+    { label: 'Telefon', value: seller.profile?.phone },
+    { label: 'Mağaza adı', value: seller.displayName },
+    { label: 'Şirket / Ticari unvan', value: seller.profile?.companyName },
+    { label: 'Açık yasal adres', value: seller.profile?.legalAddress, fullWidth: true },
+    { label: 'İl', value: seller.profile?.city },
+    { label: 'İlçe', value: seller.profile?.district },
+    { label: 'Posta kodu', value: seller.profile?.postalCode },
+    { label: 'Vergi dairesi', value: seller.profile?.taxOffice },
+    { label: 'Vergi numarası', value: seller.profile?.taxNumber },
+    { label: 'MERSİS numarası', value: seller.profile?.mersis },
+  ]
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -277,6 +295,50 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
           </div>
         ))}
       </div>
+
+      <section
+        className="rounded-xl border p-5"
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-surface)',
+        }}
+        aria-labelledby="application-contact-heading"
+      >
+        <div className="mb-4">
+          <h2
+            id="application-contact-heading"
+            className="font-semibold"
+            style={{ color: 'var(--color-primary)' }}
+          >
+            İletişim ve Başvuru Bilgileri
+          </h2>
+          <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            Satıcının başvuru sırasında bildirdiği iletişim ve yasal bilgiler.
+          </p>
+        </div>
+        <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+          {applicationContactDetails.map(({ label, value, fullWidth }) => {
+            const displayValue = displayApplicationValue(value)
+            const isMissing = displayValue === 'Girilmemiş'
+
+            return (
+              <div key={label} className={fullWidth ? 'sm:col-span-2' : undefined}>
+                <dt className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                  {label}
+                </dt>
+                <dd
+                  className={`mt-1 break-words text-sm ${isMissing ? 'italic' : 'font-medium'}`}
+                  style={{
+                    color: isMissing ? 'var(--color-muted-fg)' : 'var(--color-primary)',
+                  }}
+                >
+                  {displayValue}
+                </dd>
+              </div>
+            )
+          })}
+        </dl>
+      </section>
 
       <Tabs defaultValue="profile">
         <TabsList>
@@ -465,6 +527,7 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
           ) : (
             <div className="space-y-3">
               {kycDocuments.map((document) => {
+                const requiresReupload = !isPrivateDocumentStorageKey(document.fileKey)
                 const statusIcon =
                   document.status === 'approved' ? (
                     <CheckCircle2 className="h-4 w-4" style={{ color: 'var(--color-success)' }} />
@@ -527,18 +590,24 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                           </p>
                         )}
                       </div>
-                      <a
-                        href={document.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-shrink-0 rounded p-1.5 hover:bg-black/5"
-                        title="Belgeyi görüntüle"
-                      >
-                        <ExternalLink
-                          className="h-4 w-4"
-                          style={{ color: 'var(--color-muted-fg)' }}
-                        />
-                      </a>
+                      {requiresReupload ? (
+                        <span className="text-xs" style={{ color: 'var(--color-destructive)' }}>
+                          Yeniden yüklenmeli
+                        </span>
+                      ) : (
+                        <a
+                          href={`/api/admin/documents/${document.id}/file`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-shrink-0 rounded p-1.5 hover:bg-black/5"
+                          title="Belgeyi görüntüle"
+                        >
+                          <ExternalLink
+                            className="h-4 w-4"
+                            style={{ color: 'var(--color-muted-fg)' }}
+                          />
+                        </a>
+                      )}
                     </div>
                     {document.status === 'pending' && (
                       <div className="pt-1">

@@ -108,6 +108,23 @@ Same as `web` except:
 
 All other variables (`DATABASE_URL`, `REDIS_URL`, `BETTER_AUTH_SECRET`, R2, Iyzico, Meilisearch, SMTP) are identical to the web service — use the same values.
 
+### Private KYC document storage
+
+Seller KYC uploads are separate from public media. Configure the following in **both**
+`seller-panel` and `admin-panel` before deployment:
+
+| Setting | Value |
+|---|---|
+| Persistent Storage host path | `/var/lib/hanuja/private-documents` |
+| Persistent Storage container path | `/var/lib/hanuja/private-documents` |
+| `PRIVATE_DOCUMENT_ROOT` | `/var/lib/hanuja/private-documents` |
+| `PRIVATE_DOCUMENT_ENCRYPTION_KEY` | Same 32-byte base64 secret in both applications |
+
+Create the host directory with owner `1001:1001` and mode `0700` before first deploy. The
+application encrypts every KYC file with AES-256-GCM before it is written. The path and encryption
+key do not belong in worker, web, R2, or a public URL. The host directory is included in the Restic
+Google Drive backup described in `docs/07-operations/production-launch-checklist.md`.
+
 R2 note:
 - `seller-panel` and `web` must use the same `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`,
   `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`.

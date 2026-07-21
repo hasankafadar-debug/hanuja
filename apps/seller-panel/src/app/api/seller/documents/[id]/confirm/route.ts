@@ -1,9 +1,8 @@
 /**
  * POST /api/seller/documents/[id]/confirm
  *
- * R2 upload tamamlandıktan sonra çağrılır.
- * Belge durumunu pending (admin inceleme kuyruğu) olarak işaretler.
- * (Başlangıçta da pending ama bu çağrı dosyanın gerçekten R2'ye ulaştığını teyit eder.)
+ * Eski iki aşamalı istemciler için geçiş uyumluluğu sağlar.
+ * Yeni doğrudan yükleme akışında belge, POST isteği tamamlandığında özel depoya yazılmıştır.
  */
 import { NextResponse, type NextRequest } from 'next/server'
 import { headers } from 'next/headers'

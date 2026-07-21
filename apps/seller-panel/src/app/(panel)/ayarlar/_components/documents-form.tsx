@@ -5,10 +5,8 @@
  *
  * Upload flow:
  *  1. Kullanıcı belge türü seçer ve dosyayı seçer.
- *  2. POST /api/seller/documents → presigned URL alınır.
- *  3. Dosya doğrudan R2'ye PUT edilir.
- *  4. POST /api/seller/documents/[id]/confirm çağrılır.
- *  5. Liste yenilenir.
+ *  2. POST /api/seller/documents → dosya FormData olarak uygulama API'sine gönderilir.
+ *  3. API özel belge deposuna atomik olarak kaydeder ve bekleyen belge kaydını döner.
  */
 import { useState, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -35,7 +33,11 @@ interface SellerDocument {
   fileUrl: string
   adminNote: string | null
   createdAt: string
+  requiresReupload?: boolean
+  fileAvailable?: boolean
 }
+
+type UploadResponse = SellerDocument | { document: SellerDocument }
 
 const TYPE_LABELS: Record<DocType, string> = {
   identity: 'Kimlik Belgesi (TC Kimlik / Pasaport)',
@@ -122,61 +124,52 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
     setUploadingType(type)
     setError(null)
     setSuccess(null)
-    let initiatedDocumentId: string | null = null
-
     try {
-      const initRes = await csrfFetch('/api/seller/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type,
-          fileName: fileToUpload.name,
-          mimeType: fileToUpload.type,
-          sizeBytes: fileToUpload.size,
-        }),
-      })
-      const initData = await initRes.json()
-      if (!initRes.ok) throw new Error(initData.message ?? 'Yükleme başlatılamadı.')
+      const formData = new FormData()
+      formData.set('type', type)
+      formData.set('file', fileToUpload)
 
-      const { documentId, uploadUrl } = initData as {
-        documentId: string
-        uploadUrl: string
-      }
-      initiatedDocumentId = documentId
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': fileToUpload.type },
-        body: fileToUpload,
-      })
-      if (!uploadRes.ok) throw new Error("Dosya R2'ye yüklenemedi. Lütfen tekrar deneyin.")
-
-      const confirmRes = await csrfFetch(`/api/seller/documents/${documentId}/confirm`, {
+      const uploadRes = await csrfFetch('/api/seller/documents', {
         method: 'POST',
+        body: formData,
       })
-      if (!confirmRes.ok) {
-        const d = await confirmRes.json()
-        throw new Error(d.message ?? 'Yükleme doğrulanamadı.')
+      const uploadData = (await uploadRes.json().catch(() => null)) as
+        | (UploadResponse & { message?: string })
+        | null
+      if (!uploadRes.ok) {
+        throw new Error(uploadData?.message ?? 'Belge yüklenemedi. Lütfen tekrar deneyin.')
       }
-      initiatedDocumentId = null
+
+      const document =
+        uploadData && 'document' in uploadData
+          ? uploadData.document
+          : (uploadData as SellerDocument | null)
+      if (!document?.id) {
+        throw new Error('Belge kaydedilemedi. Lütfen tekrar deneyin.')
+      }
+
+      setDocuments((previous) => [
+        ...previous.filter(
+          (existing) =>
+            existing.id !== document.id &&
+            !(existing.type === document.type && requiresReupload(existing)),
+        ),
+        document,
+      ])
 
       setSuccess('Belge başarıyla yüklendi. Admin incelemesi bekleniyor.')
       setFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
 
-      // Listeyi yenile
+      // Sunucu bileşenlerindeki başvuru durumunu yenile. Yerel liste, API yanıtıyla günceldir.
       startTransition(() => router.refresh())
-      const listRes = await fetch('/api/seller/documents')
-      if (listRes.ok) {
-        const { documents: updated } = await listRes.json()
-        setDocuments(updated)
-      }
     } catch (err) {
-      if (initiatedDocumentId) {
-        await csrfFetch(`/api/seller/documents/${initiatedDocumentId}`, {
-          method: 'DELETE',
-        }).catch(() => null)
-      }
-      setError(err instanceof Error ? err.message : 'Bilinmeyen hata.')
+      const message = err instanceof Error ? err.message : ''
+      setError(
+        message === 'Failed to fetch' || !message
+          ? 'Belge yüklenirken bağlantı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.'
+          : message,
+      )
     } finally {
       setUploading(false)
       setUploadingType(null)
@@ -227,6 +220,10 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
     documents
       .filter((document) => document.type === type)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+  const requiresReupload = (document: SellerDocument) =>
+    document.requiresReupload ??
+    (document.fileUrl !== 'private://seller-document' &&
+      !document.fileUrl.startsWith('/api/seller/documents/'))
 
   return (
     <div className="space-y-6">
@@ -255,7 +252,9 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
               {requestedTypes.map((type) => {
                 const document = latestDocumentFor(type)
                 const status = document ? STATUS_CONFIG[document.status] : null
-                const canUpload = !document || document.status === 'rejected'
+                const legacyDocumentRequiresReupload = document ? requiresReupload(document) : false
+                const canUpload =
+                  !document || document.status === 'rejected' || legacyDocumentRequiresReupload
                 return (
                   <div
                     key={type}
@@ -272,6 +271,11 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
                       {document?.status === 'rejected' && document.adminNote ? (
                         <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
                           Red gerekçesi: {document.adminNote}
+                        </p>
+                      ) : null}
+                      {legacyDocumentRequiresReupload ? (
+                        <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
+                          Bu eski belge güvenli depoya taşınmadı. Lütfen yeniden yükleyin.
                         </p>
                       ) : null}
                       {status ? (
@@ -491,7 +495,10 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
           ) : (
             <div className="space-y-2">
               {documents.map((doc) => {
-                const statusCfg = STATUS_CONFIG[doc.status]
+                const legacyDocumentRequiresReupload = requiresReupload(doc)
+                const statusCfg = legacyDocumentRequiresReupload
+                  ? STATUS_CONFIG.rejected
+                  : STATUS_CONFIG[doc.status]
                 return (
                   <div
                     key={doc.id}
@@ -529,6 +536,18 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
                           <span className="font-medium">Red gerekçesi:</span> {doc.adminNote}
                         </p>
                       )}
+                      {legacyDocumentRequiresReupload && (
+                        <p
+                          className="mt-1 rounded px-2 py-1 text-xs"
+                          style={{
+                            backgroundColor:
+                              'color-mix(in srgb, var(--color-destructive) 10%, transparent)',
+                            color: 'var(--color-destructive)',
+                          }}
+                        >
+                          Bu eski belge güvenli depoya taşınmadı. Lütfen yeniden yükleyin.
+                        </p>
+                      )}
                     </div>
                     <div className="flex flex-shrink-0 items-center gap-2">
                       <span
@@ -541,18 +560,20 @@ export default function DocumentsForm({ initialDocuments, requestedTypes }: Prop
                         {statusCfg.icon}
                         {statusCfg.label}
                       </span>
-                      <a
-                        href={doc.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rounded p-1.5 transition-colors hover:bg-black/5"
-                        title="Belgeyi görüntüle"
-                      >
-                        <ExternalLink
-                          className="h-4 w-4"
-                          style={{ color: 'var(--color-muted-fg)' }}
-                        />
-                      </a>
+                      {!legacyDocumentRequiresReupload && (
+                        <a
+                          href={`/api/seller/documents/${doc.id}/file`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded p-1.5 transition-colors hover:bg-black/5"
+                          title="Belgeyi görüntüle"
+                        >
+                          <ExternalLink
+                            className="h-4 w-4"
+                            style={{ color: 'var(--color-muted-fg)' }}
+                          />
+                        </a>
+                      )}
                       {doc.status === 'pending' && (
                         <button
                           type="button"

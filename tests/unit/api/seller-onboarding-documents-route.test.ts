@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { prismaMock, requestUploadUrlMock, getSessionMock } = vi.hoisted(() => ({
+const { prismaMock, uploadDocumentMock, getSessionMock } = vi.hoisted(() => ({
   prismaMock: {
     seller: { findUnique: vi.fn() },
   },
-  requestUploadUrlMock: vi.fn(),
+  uploadDocumentMock: vi.fn(),
   getSessionMock: vi.fn(),
 }))
 
@@ -24,28 +24,31 @@ vi.mock('@/lib/auth', () => ({
 vi.mock('@hanuja/api/lib/csrf-check', () => ({ checkCsrf: vi.fn(() => null) }))
 vi.mock('@hanuja/api/services/seller-document.service', () => ({
   createSellerDocumentService: vi.fn(() => ({
-    requestUploadUrl: requestUploadUrlMock,
+    uploadDocument: uploadDocumentMock,
   })),
 }))
 
 import { POST } from '../../../apps/seller-panel/src/app/api/seller/documents/route'
 
-function makeRequest(type: string) {
+function pdfFile(name = 'kimlik.pdf'): File {
+  return new File([Buffer.from('%PDF-1.7\nprivate document')], name, {
+    type: 'application/pdf',
+  })
+}
+
+function makeRequest(type: string, file: File = pdfFile()) {
+  const body = new FormData()
+  body.set('type', type)
+  body.set('file', file)
   return new NextRequest('http://seller.example/api/seller/documents', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      type,
-      fileName: `${type}.pdf`,
-      mimeType: 'application/pdf',
-      sizeBytes: 1024,
-    }),
+    body,
   })
 }
 
 function setSeller(params: {
   requiredDocumentTypes: string[]
-  documents?: Array<{ type: string }>
+  documents?: Array<{ type: string; fileKey?: string }>
 }) {
   prismaMock.seller.findUnique.mockResolvedValue({
     id: 'seller-1',
@@ -58,13 +61,21 @@ function setSeller(params: {
 describe('POST /api/seller/documents for pending applicants', () => {
   beforeEach(() => {
     prismaMock.seller.findUnique.mockReset()
-    requestUploadUrlMock.mockReset()
+    uploadDocumentMock.mockReset()
     getSessionMock.mockReset()
     getSessionMock.mockResolvedValue({ user: { id: 'user-1', role: 'seller' } })
-    requestUploadUrlMock.mockResolvedValue({
-      document: { id: 'new-document' },
-      uploadUrl: 'https://upload.example/presigned',
-      expiresIn: 300,
+    uploadDocumentMock.mockResolvedValue({
+      id: 'new-document',
+      sellerId: 'seller-1',
+      type: 'identity',
+      status: 'pending',
+      fileUrl: 'private://seller-document',
+      fileKey: 'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
+      fileName: 'kimlik.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 25,
+      adminNote: null,
+      createdAt: new Date('2026-07-21T10:00:00.000Z'),
     })
   })
 
@@ -76,31 +87,77 @@ describe('POST /api/seller/documents for pending applicants', () => {
     const response = await POST(makeRequest('trade_registry'))
 
     expect(response.status).toBe(403)
-    expect(requestUploadUrlMock).not.toHaveBeenCalled()
+    expect(uploadDocumentMock).not.toHaveBeenCalled()
   })
 
   it.each(['pending', 'approved'])(
     'rejects a duplicate type when a %s document already occupies the requested slot',
     async () => {
-      setSeller({ requiredDocumentTypes: ['identity'], documents: [{ type: 'identity' }] })
+      setSeller({
+        requiredDocumentTypes: ['identity'],
+        documents: [
+          {
+            type: 'identity',
+            fileKey: 'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
+          },
+        ],
+      })
 
       const response = await POST(makeRequest('identity'))
 
       expect(response.status).toBe(409)
-      expect(requestUploadUrlMock).not.toHaveBeenCalled()
+      expect(uploadDocumentMock).not.toHaveBeenCalled()
     },
   )
 
-  it('allows the requested type when only a rejected predecessor exists', async () => {
-    // The route query intentionally returns only pending/approved documents. A
-    // rejected predecessor is therefore represented by an empty active slot.
+  it('accepts multipart bytes server-side and returns an authenticated download URL', async () => {
+    setSeller({ requiredDocumentTypes: ['identity'], documents: [] })
+    const file = pdfFile()
+
+    const response = await POST(makeRequest('identity', file))
+
+    expect(response.status).toBe(201)
+    expect(uploadDocumentMock).toHaveBeenCalledWith({
+      sellerId: 'seller-1',
+      type: 'identity',
+      fileName: 'kimlik.pdf',
+      mimeType: 'application/pdf',
+      bytes: expect.any(Uint8Array),
+    })
+    const uploadedBytes = uploadDocumentMock.mock.calls[0]?.[0].bytes as Uint8Array
+    expect(Buffer.from(uploadedBytes).subarray(0, 5).toString('ascii')).toBe('%PDF-')
+    await expect(response.json()).resolves.toMatchObject({
+      document: {
+        id: 'new-document',
+        fileUrl: '/api/seller/documents/new-document/file',
+      },
+    })
+  })
+
+  it('allows a requested type when only a rejected predecessor exists', async () => {
+    // The route query intentionally excludes rejected documents so the seller can resubmit.
     setSeller({ requiredDocumentTypes: ['identity'], documents: [] })
 
     const response = await POST(makeRequest('identity'))
 
     expect(response.status).toBe(201)
-    expect(requestUploadUrlMock).toHaveBeenCalledWith(
+    expect(uploadDocumentMock).toHaveBeenCalledWith(
       expect.objectContaining({ sellerId: 'seller-1', type: 'identity' }),
     )
+  })
+
+  it('requires a multipart file before invoking the storage service', async () => {
+    setSeller({ requiredDocumentTypes: ['identity'], documents: [] })
+    const body = new FormData()
+    body.set('type', 'identity')
+    const request = new NextRequest('http://seller.example/api/seller/documents', {
+      method: 'POST',
+      body,
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(400)
+    expect(uploadDocumentMock).not.toHaveBeenCalled()
   })
 })

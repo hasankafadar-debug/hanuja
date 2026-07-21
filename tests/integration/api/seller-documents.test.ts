@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getSessionMock, objectExistsMock } = vi.hoisted(() => ({
-  getSessionMock: vi.fn(),
-  objectExistsMock: vi.fn(),
-}))
+const { getSessionMock, storageReadMock, storageExistsMock, storageDeleteMock, storageWriteMock } =
+  vi.hoisted(() => ({
+    getSessionMock: vi.fn(),
+    storageReadMock: vi.fn(),
+    storageExistsMock: vi.fn(),
+    storageDeleteMock: vi.fn(),
+    storageWriteMock: vi.fn(),
+  }))
 
 let prismaMock: Record<string, unknown>
 
@@ -27,17 +31,14 @@ vi.mock('@prisma/client', () => ({
   },
 }))
 
-vi.mock('../../../api/lib/r2', () => ({
-  generatePresignedUploadUrl: vi.fn(),
-  deleteObject: vi.fn(),
-  objectExists: objectExistsMock,
-  DOCUMENT_ALLOWED_MIME_TYPES: new Set([
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'application/pdf',
-  ]),
-  DOCUMENT_MAX_SIZE_BYTES: 20 * 1024 * 1024,
+vi.mock('../../../api/lib/private-document-storage', () => ({
+  createPrivateDocumentStorage: vi.fn(() => ({
+    write: storageWriteMock,
+    read: storageReadMock,
+    exists: storageExistsMock,
+    delete: storageDeleteMock,
+  })),
+  isPrivateDocumentStorageKey: (fileKey: string) => fileKey.startsWith('private/v1/'),
 }))
 
 type SellerDocumentRecord = {
@@ -63,8 +64,8 @@ function makeDocument(overrides: Partial<SellerDocumentRecord> = {}): SellerDocu
     sellerId: 'seller-1',
     type: 'identity',
     status: 'pending',
-    fileKey: 'documents/seller-1/doc-1.pdf',
-    fileUrl: 'https://cdn.example/doc-1.pdf',
+    fileKey: 'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
+    fileUrl: 'private://seller-document',
     fileName: 'kimlik.pdf',
     mimeType: 'application/pdf',
     sizeBytes: 1024,
@@ -87,17 +88,9 @@ function createPrismaMock(opts?: {
       findUnique: vi.fn(async () => seller),
     },
     sellerDocument: {
-      findUnique: vi.fn(
-        async ({ where }: { where: { id: string } }) => docs.get(where.id) ?? null,
-      ),
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => docs.get(where.id) ?? null),
       update: vi.fn(
-        async ({
-          where,
-          data,
-        }: {
-          where: { id: string }
-          data: Record<string, unknown>
-        }) => {
+        async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
           const current = docs.get(where.id)
           if (!current) throw new Error(`Missing sellerDocument ${where.id}`)
           const updated = { ...current, ...data } as SellerDocumentRecord
@@ -138,7 +131,13 @@ beforeEach(() => {
       role: 'seller',
     },
   })
-  objectExistsMock.mockResolvedValue(true)
+  storageReadMock.mockResolvedValue(Buffer.from('%PDF-1.7\nprivate document'))
+  storageExistsMock.mockResolvedValue(true)
+  storageDeleteMock.mockResolvedValue(undefined)
+  storageWriteMock.mockResolvedValue({
+    key: 'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
+    encryptedSizeBytes: 128,
+  })
 })
 
 describe('Seller document API routes', () => {
@@ -147,7 +146,8 @@ describe('Seller document API routes', () => {
       documents: [makeDocument()],
     })
     prismaMock = prisma
-    const route = await import('../../../apps/seller-panel/src/app/api/seller/documents/[id]/confirm/route.ts')
+    const route =
+      await import('../../../apps/seller-panel/src/app/api/seller/documents/[id]/confirm/route.ts')
 
     const response = await route.POST({} as never, {
       params: Promise.resolve({ id: 'doc-1' }),
@@ -155,17 +155,20 @@ describe('Seller document API routes', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ success: true })
-    expect(objectExistsMock).toHaveBeenCalledWith('documents/seller-1/doc-1.pdf')
+    expect(storageExistsMock).toHaveBeenCalledWith(
+      'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
+    )
     expect(docs.get('doc-1')?.updatedAt).toBeInstanceOf(Date)
   })
 
-  it('returns 422 and cleans up the orphan record when seller upload confirmation cannot verify the file in R2', async () => {
+  it('returns 422 and cleans up the orphan record when upload confirmation cannot find the private file', async () => {
     const { prisma, docs } = createPrismaMock({
       documents: [makeDocument()],
     })
     prismaMock = prisma
-    objectExistsMock.mockResolvedValue(false)
-    const route = await import('../../../apps/seller-panel/src/app/api/seller/documents/[id]/confirm/route.ts')
+    storageExistsMock.mockResolvedValue(false)
+    const route =
+      await import('../../../apps/seller-panel/src/app/api/seller/documents/[id]/confirm/route.ts')
 
     const response = await route.POST({} as never, {
       params: Promise.resolve({ id: 'doc-1' }),
@@ -189,7 +192,8 @@ describe('Seller document API routes', () => {
         role: 'admin',
       },
     })
-    const route = await import('../../../apps/admin-panel/src/app/api/admin/documents/[id]/review/route.ts')
+    const route =
+      await import('../../../apps/admin-panel/src/app/api/admin/documents/[id]/review/route.ts')
 
     const response = await route.POST(
       new Request('http://localhost/api/admin/documents/doc-1/review', {
@@ -209,6 +213,9 @@ describe('Seller document API routes', () => {
     expect(createdAuditLogs[0]).toMatchObject({
       actionType: 'seller_document_approved',
     })
+    expect(storageReadMock).toHaveBeenCalledWith(
+      'private/v1/ab/abcdefab-1234-4567-89ab-abcdefabcdef.bin',
+    )
   })
 
   it('returns 200 for admin rejection review requests with note', async () => {
@@ -222,7 +229,8 @@ describe('Seller document API routes', () => {
         role: 'admin',
       },
     })
-    const route = await import('../../../apps/admin-panel/src/app/api/admin/documents/[id]/review/route.ts')
+    const route =
+      await import('../../../apps/admin-panel/src/app/api/admin/documents/[id]/review/route.ts')
 
     const response = await route.POST(
       new Request('http://localhost/api/admin/documents/doc-1/review', {
@@ -255,7 +263,8 @@ describe('Seller document API routes', () => {
         role: 'admin',
       },
     })
-    const route = await import('../../../apps/admin-panel/src/app/api/admin/documents/[id]/review/route.ts')
+    const route =
+      await import('../../../apps/admin-panel/src/app/api/admin/documents/[id]/review/route.ts')
 
     const response = await route.POST(
       new Request('http://localhost/api/admin/documents/doc-1/review', {

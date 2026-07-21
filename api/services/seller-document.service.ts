@@ -1,27 +1,29 @@
 /**
- * Seller document service — KYC belge yönetimi.
+ * Seller KYC document service.
  *
- * Flow:
- *  1. Satıcı /api/seller/documents POST → presigned upload URL alır, pending SellerDocument oluşur.
- *  2. Satıcı dosyayı doğrudan R2'ye PUT eder (presigned URL ile).
- *  3. Satıcı /api/seller/documents/[id]/confirm POST → belge "pending review" durumuna geçer.
- *  4. Admin /api/admin/documents/[id]/review POST → approve veya reject yapar, audit log yazılır.
- *
- * Güvenlik:
- *  - Satıcı yalnızca kendi belgelerini yönetebilir.
- *  - Silme yalnızca pending belgeler için izinlidir.
- *  - R2 dosyası da silinir.
+ * KYC bytes are accepted by the server and encrypted in the private local
+ * document store. Product images and other public media keep using R2.
  */
 import type { PrismaClient, SellerDocumentType } from '@prisma/client'
 import { createSellerDocumentRepository } from '../repositories/seller-document.repository'
 import {
-  generatePresignedUploadUrl,
-  deleteObject,
-  objectExists,
-  DOCUMENT_ALLOWED_MIME_TYPES,
-  DOCUMENT_MAX_SIZE_BYTES,
-} from '../lib/r2'
+  createPrivateDocumentStorage,
+  isPrivateDocumentStorageKey,
+  type PrivateDocumentStorage,
+} from '../lib/private-document-storage'
+import { deleteObject } from '../lib/r2'
 import { NotFoundError, ValidationError, ForbiddenError } from '../lib/errors'
+
+export const DOCUMENT_ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+])
+export const DOCUMENT_MAX_SIZE_BYTES = 20 * 1024 * 1024
+
+export const LEGACY_DOCUMENT_REUPLOAD_MESSAGE =
+  'Bu belge eski depolama sisteminde kaldığı için kullanılamıyor. Satıcıdan belgeyi yeniden yüklemesini isteyin.'
 
 export const DOCUMENT_TYPE_LABELS: Record<SellerDocumentType, string> = {
   identity: 'Kimlik Belgesi (TC Kimlik / Pasaport)',
@@ -32,63 +34,156 @@ export const DOCUMENT_TYPE_LABELS: Record<SellerDocumentType, string> = {
   other: 'Diğer Belge',
 }
 
-export function createSellerDocumentService(deps: { prisma: PrismaClient }) {
+function hasExpectedFileSignature(bytes: Uint8Array, mimeType: string): boolean {
+  if (mimeType === 'application/pdf') {
+    return Buffer.from(bytes.subarray(0, 5)).equals(Buffer.from('%PDF-', 'ascii'))
+  }
+  if (mimeType === 'image/jpeg') {
+    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+  }
+  if (mimeType === 'image/png') {
+    return Buffer.from(bytes.subarray(0, 8)).equals(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    )
+  }
+  if (mimeType === 'image/webp') {
+    return (
+      bytes.length >= 12 &&
+      Buffer.from(bytes.subarray(0, 4)).equals(Buffer.from('RIFF', 'ascii')) &&
+      Buffer.from(bytes.subarray(8, 12)).equals(Buffer.from('WEBP', 'ascii'))
+    )
+  }
+  return false
+}
+
+function validateUpload(file: { fileName: string; mimeType: string; bytes: Uint8Array }): void {
+  if (!file.fileName.trim()) throw new ValidationError('Dosya adı zorunludur.')
+  if (!DOCUMENT_ALLOWED_MIME_TYPES.has(file.mimeType)) {
+    throw new ValidationError(
+      'Desteklenmeyen dosya türü. Lütfen JPEG, PNG, WEBP veya PDF yükleyin.',
+    )
+  }
+  if (file.bytes.byteLength === 0) throw new ValidationError('Boş dosya yüklenemez.')
+  if (file.bytes.byteLength > DOCUMENT_MAX_SIZE_BYTES) {
+    throw new ValidationError('Dosya boyutu 20 MB limitini aşıyor.')
+  }
+  if (!hasExpectedFileSignature(file.bytes, file.mimeType)) {
+    throw new ValidationError('Dosyanın içeriği bildirilen dosya türüyle eşleşmiyor.')
+  }
+}
+
+export function isLegacySellerDocument(document: { fileKey: string }): boolean {
+  return !isPrivateDocumentStorageKey(document.fileKey)
+}
+
+function withStorageState<T extends { fileKey: string }>(document: T) {
+  const requiresReupload = isLegacySellerDocument(document)
+  return {
+    ...document,
+    requiresReupload,
+    fileAvailable: !requiresReupload,
+  }
+}
+
+export function createSellerDocumentService(deps: {
+  prisma: PrismaClient
+  storage?: PrivateDocumentStorage
+  deleteLegacyObject?: (fileKey: string) => Promise<void>
+}) {
   const { prisma } = deps
+  let resolvedStorage = deps.storage
+  const storage = () => (resolvedStorage ??= createPrivateDocumentStorage())
+  const removeLegacyObject = deps.deleteLegacyObject ?? deleteObject
   const docRepo = createSellerDocumentRepository(prisma)
 
-  /**
-   * Satıcının belge yüklemesi için presigned URL üretir ve pending kayıt oluşturur.
-   * Upload tamamlandıktan sonra confirm endpoint'i çağrılmalıdır.
-   */
-  async function requestUploadUrl(opts: {
+  async function uploadDocument(opts: {
     sellerId: string
     type: SellerDocumentType
     fileName: string
     mimeType: string
-    sizeBytes: number
+    bytes: Uint8Array
   }) {
-    const { sellerId, type, fileName, mimeType, sizeBytes } = opts
+    validateUpload(opts)
+    const existingDocuments = await docRepo.findBySellerAndType(opts.sellerId, opts.type)
+    const legacyDocuments = existingDocuments.filter(isLegacySellerDocument)
+    const stored = await storage().write(opts.bytes)
 
-    if (!DOCUMENT_ALLOWED_MIME_TYPES.has(mimeType)) {
-      throw new ValidationError(
-        'Desteklenmeyen dosya türü. Lütfen JPEG, PNG, WEBP veya PDF yükleyin.',
-      )
+    let document: Awaited<ReturnType<typeof docRepo.create>>
+    try {
+      document = await docRepo.create({
+        sellerId: opts.sellerId,
+        type: opts.type,
+        fileUrl: 'private://seller-document',
+        fileKey: stored.key,
+        fileName: opts.fileName.trim().slice(0, 255),
+        mimeType: opts.mimeType,
+        sizeBytes: opts.bytes.byteLength,
+      })
+    } catch (error) {
+      await storage()
+        .delete(stored.key)
+        .catch(() => undefined)
+      throw error
     }
 
-    if (sizeBytes > DOCUMENT_MAX_SIZE_BYTES) {
-      throw new ValidationError('Dosya boyutu 20 MB limitini aşıyor.')
+    // A legacy R2 object is only removed after the replacement is both encrypted
+    // and referenced by a committed database row. If R2 deletion fails before
+    // any legacy object is removed, roll the replacement back so the seller can
+    // retry without accumulating duplicate active records.
+    let removedLegacyObject = false
+    for (const legacyDocument of legacyDocuments) {
+      try {
+        await removeLegacyObject(legacyDocument.fileKey)
+        removedLegacyObject = true
+      } catch (error) {
+        if (!removedLegacyObject) {
+          try {
+            await docRepo.deleteById(document.id)
+            await storage().delete(stored.key)
+          } catch (rollbackError) {
+            console.error('Seller KYC replacement rollback failed', {
+              documentId: document.id,
+              error: rollbackError,
+            })
+          }
+          throw new ValidationError(
+            'Eski belge güvenli şekilde kaldırılamadı. Lütfen yüklemeyi tekrar deneyin.',
+          )
+        }
+
+        // At least one old copy is already gone, so rolling the valid private
+        // replacement back would create data loss. Keep it authoritative and
+        // surface the remaining stale legacy row as requiresReupload.
+        console.error('Legacy seller KYC object cleanup incomplete', {
+          legacyDocumentId: legacyDocument.id,
+          replacementDocumentId: document.id,
+          error,
+        })
+        break
+      }
+
+      try {
+        await docRepo.deleteById(legacyDocument.id)
+      } catch (error) {
+        // The replacement remains authoritative: deleting its private bytes here
+        // would leave the seller without the only usable KYC copy. The stale row
+        // stays fail-closed and will be retried by a later replacement/cleanup.
+        console.error('Legacy seller KYC database cleanup failed', {
+          legacyDocumentId: legacyDocument.id,
+          replacementDocumentId: document.id,
+          error,
+        })
+      }
     }
 
-    const { uploadUrl, key, publicUrl, expiresIn } = await generatePresignedUploadUrl({
-      folder: 'documents',
-      mimeType,
-      ownerId: sellerId,
-    })
-
-    const document = await docRepo.create({
-      sellerId,
-      type,
-      fileUrl: publicUrl,
-      fileKey: key,
-      fileName,
-      mimeType,
-      sizeBytes,
-    })
-
-    return { document, uploadUrl, expiresIn }
+    return withStorageState(document)
   }
 
-  /**
-   * Satıcının belgelerini listeler.
-   */
   async function listDocuments(sellerId: string) {
-    return docRepo.findBySeller(sellerId)
+    const documents = await docRepo.findBySeller(sellerId)
+    return documents.map(withStorageState)
   }
 
-  /**
-   * Belgeyi siler. Yalnızca pending durumdaki belgeler satıcı tarafından silinebilir.
-   * Approved/rejected belgeler admin tarafından silinebilir (veya hiç silinmez).
-   */
   async function deleteDocument(documentId: string, sellerId: string) {
     const doc = await docRepo.findById(documentId)
     if (!doc) throw new NotFoundError('SellerDocument', documentId)
@@ -97,14 +192,19 @@ export function createSellerDocumentService(deps: { prisma: PrismaClient }) {
       throw new ValidationError('Yalnızca beklemedeki belgeler silinebilir.')
     }
 
+    // Delete the bytes first. If that fails, keep the database record so the
+    // operation can be retried without losing the only pointer to the file.
+    if (isLegacySellerDocument(doc)) {
+      await removeLegacyObject(doc.fileKey)
+    } else {
+      await storage().delete(doc.fileKey)
+    }
     await docRepo.deleteById(documentId)
-    // R2'den sil — hata olursa loglayıp devam et (orphan key kabul edilebilir)
-    await deleteObject(doc.fileKey).catch(() => null)
   }
 
   /**
-   * Satıcı upload tamamlandıktan sonra belge kaydını doğrular.
-   * pending durumu korunur; bu durum "upload doğrulandı, admin incelemesinde" anlamına gelir.
+   * Compatibility endpoint for clients deployed during the old two-step flow.
+   * New direct uploads are already complete when the database record is created.
    */
   async function confirmUpload(documentId: string, sellerId: string) {
     const doc = await docRepo.findById(documentId)
@@ -113,9 +213,9 @@ export function createSellerDocumentService(deps: { prisma: PrismaClient }) {
     if (doc.status !== 'pending') {
       throw new ValidationError(`Belge zaten incelendi: ${doc.status}`)
     }
+    if (isLegacySellerDocument(doc)) throw new ValidationError(LEGACY_DOCUMENT_REUPLOAD_MESSAGE)
 
-    const exists = await objectExists(doc.fileKey)
-    if (!exists) {
+    if (!(await storage().exists(doc.fileKey))) {
       await docRepo.deleteById(documentId)
       throw new ValidationError('Dosya yüklemesi doğrulanamadı. Lütfen tekrar deneyin.')
     }
@@ -126,9 +226,25 @@ export function createSellerDocumentService(deps: { prisma: PrismaClient }) {
     })
   }
 
-  /**
-   * Admin: belgeyi onaylar veya reddeder.
-   */
+  async function readDocumentFile(documentId: string) {
+    const document = await docRepo.findById(documentId)
+    if (!document) throw new NotFoundError('SellerDocument', documentId)
+    if (isLegacySellerDocument(document)) {
+      throw new ValidationError(LEGACY_DOCUMENT_REUPLOAD_MESSAGE)
+    }
+    const bytes = await storage().read(document.fileKey)
+    return { document, bytes }
+  }
+
+  async function documentFileExists(documentId: string): Promise<boolean> {
+    const document = await docRepo.findById(documentId)
+    if (!document) throw new NotFoundError('SellerDocument', documentId)
+    if (isLegacySellerDocument(document)) {
+      throw new ValidationError(LEGACY_DOCUMENT_REUPLOAD_MESSAGE)
+    }
+    return storage().exists(document.fileKey)
+  }
+
   async function reviewDocument(opts: {
     documentId: string
     adminId: string
@@ -146,11 +262,18 @@ export function createSellerDocumentService(deps: { prisma: PrismaClient }) {
     if (decision === 'rejected' && !normalizedNote) {
       throw new ValidationError('Ret kararında gerekçe zorunludur.')
     }
+    if (decision === 'approved' && isLegacySellerDocument(doc)) {
+      throw new ValidationError(LEGACY_DOCUMENT_REUPLOAD_MESSAGE)
+    }
 
-    if (decision === 'approved' && !(await objectExists(doc.fileKey))) {
-      throw new ValidationError(
-        'Belge dosyası depolamada doğrulanamadı. Satıcıdan belgeyi yeniden yüklemesini isteyin.',
-      )
+    if (decision === 'approved') {
+      try {
+        await storage().read(doc.fileKey)
+      } catch {
+        throw new ValidationError(
+          'Belge dosyası özel depoda doğrulanamadı. Satıcıdan belgeyi yeniden yüklemesini isteyin.',
+        )
+      }
     }
 
     await prisma.$transaction(async (tx) => {
@@ -179,25 +302,23 @@ export function createSellerDocumentService(deps: { prisma: PrismaClient }) {
     })
   }
 
-  /**
-   * Admin: belirli satıcının tüm belgelerini listeler.
-   */
   async function listDocumentsBySeller(sellerId: string) {
-    return docRepo.findBySeller(sellerId)
+    const documents = await docRepo.findBySeller(sellerId)
+    return documents.map(withStorageState)
   }
 
-  /**
-   * Admin: inceleme bekleyen tüm belgeler.
-   */
   async function listPendingDocuments() {
-    return docRepo.listPending()
+    const documents = await docRepo.listPending()
+    return documents.map(withStorageState)
   }
 
   return {
-    requestUploadUrl,
+    uploadDocument,
     listDocuments,
     deleteDocument,
     confirmUpload,
+    readDocumentFile,
+    documentFileExists,
     reviewDocument,
     listDocumentsBySeller,
     listPendingDocuments,

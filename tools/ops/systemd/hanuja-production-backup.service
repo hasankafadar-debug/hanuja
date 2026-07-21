@@ -1,0 +1,18 @@
+[Unit]
+Description=Hanuja production PostgreSQL and private KYC document backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+EnvironmentFile=/etc/hanuja/backup-production.env
+ExecStart=/usr/local/sbin/hanuja-backup-production
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+[Install]
+WantedBy=multi-user.target

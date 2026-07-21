@@ -669,8 +669,8 @@ model SellerDocument {
   sellerId   String
   type       SellerDocumentType
   status     SellerDocumentStatus @default(pending)
-  fileUrl    String // R2 CDN public URL
-  fileKey    String // R2 storage key — delete için gerekli
+  fileUrl    String // Erişim işareti; KYC belgeleri için herkese açık URL değildir
+  fileKey    String // Şifreli özel belge deposundaki anahtar
   fileName   String // Orijinal dosya adı (yalnızca bilgi amaçlı)
   mimeType   String // image/jpeg | image/png | application/pdf
   sizeBytes  Int
