@@ -60,8 +60,8 @@ Before configuring apps, ensure the following backing services are running in Co
 | `R2_ACCESS_KEY_ID` | *(R2 API token access key)* |
 | `R2_SECRET_ACCESS_KEY` | *(R2 API token secret)* |
 | `R2_BUCKET_NAME` | `hanuja-media` |
-| `R2_PUBLIC_URL` | `https://media.hanuja.com.tr` |
-| `R2_PUBLIC_HOSTNAME` | `media.hanuja.com.tr` |
+| `R2_PUBLIC_URL` | `https://media.hanuja.tr` |
+| `R2_PUBLIC_HOSTNAME` | `media.hanuja.tr` |
 | `MEILISEARCH_URL` | `http://meilisearch:7700` (or external URL) |
 | `MEILISEARCH_ADMIN_KEY` | *(Meilisearch master key)* |
 | `MEILISEARCH_SEARCH_KEY` | *(Meilisearch search-only key)* |
@@ -131,6 +131,9 @@ R2 note:
 - `BETTER_AUTH_URL` may differ per service; R2 variables should not.
 - `R2_PUBLIC_URL` may point to a custom media domain, but the signed upload host is still
   expected to be `*.r2.cloudflarestorage.com`.
+- Remove `R2_CDN_URL` from Coolify when it is not needed. If it is retained, it must use the
+  same origin as `R2_PUBLIC_URL` (`https://media.hanuja.tr`); otherwise it shadows the current
+  public URL in runtime media delivery.
 
 ---
 
@@ -222,7 +225,12 @@ Then set the same value in all four services.
 | `hanuja.com.tr`, `hanuja.tr`, `www.hanuja.tr` | tek adımlı 301 → canonical |
 | `satici.hanuja.com.tr` | seller-panel |
 | `admin.hanuja.com.tr` | admin-panel |
-| `media.hanuja.com.tr` | Cloudflare R2 production bucket custom domain |
+| `media.hanuja.tr` | Cloudflare R2 production bucket custom domain |
+
+Only the `hanuja.tr` DNS zone is managed in Cloudflare for this media hostname. Do not change
+the `hanuja.com.tr` DNS zone or its mail records as part of this migration. The legacy
+`media.hanuja.com.tr` hostname remains recognized by the application for existing asset URLs
+until a separate retirement decision is made.
 
 Configure HTTPS certificates via Let's Encrypt in Coolify's domain settings for each service.
 
@@ -259,7 +267,7 @@ Or trigger via admin panel search settings page.
 - [ ] `IYZICO_BASE_URL` points to `https://api.iyzipay.com` (live, not sandbox)
 - [ ] `DATABASE_URL` points to production PostgreSQL
 - [ ] `REDIS_URL` points to production Redis
-- [ ] `R2_PUBLIC_HOSTNAME` set to `media.hanuja.com.tr`
+- [ ] `R2_PUBLIC_HOSTNAME` set to `media.hanuja.tr`
 - [ ] `seller-panel` R2 env values exactly match `web`
 - [ ] `R2_BUCKET_NAME` exists in the Cloudflare account referenced by `R2_ACCOUNT_ID`
 - [ ] The configured R2 access key can read bucket metadata and upload objects

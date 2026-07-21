@@ -170,6 +170,11 @@ the API server never proxies binary data.
 They do not control the upload target. Upload requests always go to the S3-compatible R2
 endpoint derived from `R2_ACCOUNT_ID`, using `R2_BUCKET_NAME` plus the configured access key.
 
+Production uses `https://media.hanuja.tr` as the current R2 public host. The legacy
+`https://media.hanuja.com.tr` host remains recognized by the API and shared UI media helpers for
+asset URLs already stored in the database, so this migration does not require a database URL
+backfill.
+
 ### Browser upload compatibility
 
 The R2 bucket CORS policy must allow the panel origins to issue `PUT` requests to the
@@ -192,6 +197,8 @@ server-side upload and read clients retain their normal SDK checksum behavior. D
 The bucket is configured with a public custom domain (`R2_PUBLIC_URL`). Asset URLs stored
 in the database use this public base. Next.js `<Image>` optimization is permitted only for
 `R2_PUBLIC_HOSTNAME`.
+
+There is no image sitemap in this project, and this hostname migration does not add one.
 
 ### Authorization
 

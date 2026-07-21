@@ -2,6 +2,7 @@ import {
   DEFAULT_CDN_HOSTNAME,
   DEFAULT_MEDIA_HOSTNAME,
   LEGACY_CDN_HOSTNAME,
+  LEGACY_MEDIA_HOSTNAME,
 } from './platform-info'
 
 function trimTrailingSlash(value: string) {
@@ -40,12 +41,17 @@ export function isR2DevHostname(hostname: string) {
   return normalizeHostname(hostname).endsWith('.r2.dev')
 }
 
+export function isLegacyMediaHostname(hostname: string) {
+  return normalizeHostname(hostname) === LEGACY_MEDIA_HOSTNAME
+}
+
 export function isManagedMediaHostname(hostname: string) {
   const normalized = normalizeHostname(hostname)
   const configuredHost = getConfiguredMediaHostname()
 
   return (
     normalized === DEFAULT_MEDIA_HOSTNAME ||
+    normalized === LEGACY_MEDIA_HOSTNAME ||
     normalized === DEFAULT_CDN_HOSTNAME ||
     normalized === LEGACY_CDN_HOSTNAME ||
     normalized === configuredHost ||
@@ -189,6 +195,11 @@ export function normalizeMediaDisplayUrl(sourceUrl: string, proxyPath = '/api/me
 
   const parsed = parseAbsoluteUrl(sourceUrl)
   if (!parsed) return sourceUrl
+
+  if (isLegacyMediaHostname(parsed.hostname)) {
+    const publicBaseUrl = getConfiguredMediaBaseUrl() || `https://${DEFAULT_MEDIA_HOSTNAME}`
+    return normalizeManagedMediaUrl(sourceUrl, publicBaseUrl)
+  }
 
   return isLegacyManagedMediaHostname(parsed.hostname)
     ? buildMediaProxyUrl(sourceUrl, proxyPath)

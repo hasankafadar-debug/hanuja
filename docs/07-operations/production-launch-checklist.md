@@ -6,11 +6,11 @@ Canonical URL: `https://www.hanuja.com.tr`. Alt alanlar: `satici`, `admin`, `med
 
 1. VDS SSH anahtarları, firewall, otomatik güvenlik güncellemeleri ve root login politikası tamamlanır.
 2. PostgreSQL, Redis, Meilisearch, ClamAV ve Coolify persistent private-document volume hazırlanır.
-3. Ayrı `hanuja-media-production` R2 bucket oluşturulur; `media.hanuja.com.tr` bağlanır. Dev bucket public kalıntıları kopyalanmaz.
+3. Mevcut `hanuja-media` R2 bucket'ının envanteri ve yalnız bu bucket'a kapsamlı token yetkisi doğrulanır; yeni bucket oluşturulmaz veya bucket'lar arasında medya kopyalanmaz. `media.hanuja.tr` bu bucket'a bağlıdır. Cloudflare DNS işlemleri yalnız `hanuja.tr` zone'unda yapılır; `hanuja.com.tr` DNS ve mail kayıtları değiştirilmez.
 4. `restic` repository `rclone:gdrive:hanuja-production` olarak başlatılır. Anahtar yalnız çevrimdışı parola kasasında tutulur.
 5. DB restore/yedek doğrulaması tamamlanır; worker deploy edilir ve başlangıç kapısındaki `pnpm db:migrate:deploy` başarılı olduktan sonra admin, seller-panel ve web deploy edilir.
 6. `pnpm launch:clean-data --dry-run`, sonra hedef gerçekten `hanuja_prod` ise `pnpm launch:clean-data --confirm=hanuja_prod` çalıştırılır.
-7. Temizlik sonrası yalnız hero, promo ve onaylı iki blog medyası production bucket'a kopyalanır; DB URL'leri `media.hanuja.com.tr` olarak güncellenir. Production bucket envanteri elle ikinci kez kontrol edilir.
+7. Temizlik sonrası mevcut `hanuja-media` bucket envanterinde beklenen hero, promo ve onaylı iki blog medyası elle doğrulanır; kopyalama yapılmaz. Yeni URL'ler `media.hanuja.tr` kullanır; eski `media.hanuja.com.tr` URL'leri runtime uyumluluğuyla çalıştığı için DB URL backfill'i yapılmaz.
 8. Post-clean DB/private-volume snapshot alınır. Anonim ve üç rol smoke testleri tamamlanır.
 9. DNS öncesi Turnstile hostname allowlist, Better Auth trusted origins, Postmark inbound/outbound, R2 CORS ve iyzico callback adresleri doğrulanır.
 10. Apex `hanuja.com.tr`, `hanuja.tr` ve `www.hanuja.tr`, Traefik/Coolify seviyesinde tek adımlı 301 ile `https://www.hanuja.com.tr` adresine gider.

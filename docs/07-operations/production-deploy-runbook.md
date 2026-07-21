@@ -19,7 +19,9 @@ Bu adım otomatikleştirilemez; bu doküman sadece hatırlatma listesi sağlar. 
 
 - [ ] VDS/sunucu tedarik edilmiş (öneri: 8GB+ RAM, 4 vCPU+ — dört Next.js servisi + worker + Postgres + Redis + Meilisearch aynı makinede/ağda çalışacaksa bu asgari düzeydir; büyüme planına göre artırın)
 - [ ] Coolify sunucuya kurulmuş ve erişilebilir
-- [ ] Domain/DNS kayıtları `docs/06-engineering/coolify-setup.md` tablosuna göre ayarlanmış (`www.hanuja.com.tr`, `satici.hanuja.com.tr`, `admin.hanuja.com.tr`, `media.hanuja.com.tr`)
+- [ ] Domain/DNS kayıtları `docs/06-engineering/coolify-setup.md` tablosuna göre ayarlanmış (`www.hanuja.com.tr`, `satici.hanuja.com.tr`, `admin.hanuja.com.tr`, `media.hanuja.tr`)
+- [ ] R2 public env değerleri `https://media.hanuja.tr` / `media.hanuja.tr` olarak ayarlanmış; eski `media.hanuja.com.tr` URL'leri runtime uyumluluğuyla çalıştığı için DB backfill yapılmamış.
+- [ ] Cloudflare'da yalnız `hanuja.tr` DNS işlemleri yapılmış; `hanuja.com.tr` DNS ve mail kayıtları değiştirilmemiş.
 - [ ] Coolify'da her servis için Let's Encrypt üzerinden SSL/HTTPS sertifikası provision edilmiş
 - [ ] PostgreSQL 16 servisi Coolify üzerinde (veya yönetilen ayrı bir servis olarak) provision edilmiş — CLAUDE.md §"Redis ve PostgreSQL ayrı yönetilen servisler olmalı" kuralına göre uygulama container'ının İÇİNDE DEĞİL
 - [ ] Redis 7 servisi ayrı yönetilen servis olarak provision edilmiş
@@ -68,6 +70,10 @@ Gerekli/opsiyonel değişkenlerin tek doğru kaynağı `tools/scripts/check-env.
 
 ### Opsiyonel
 `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `EMAIL_FROM_NOREPLY`, `EMAIL_FROM_FATURA`, `EMAIL_FROM_KAMPANYA`, `INVOICE_ALIASING_ENABLED`, `NEXT_PUBLIC_SITE_NAME`, `NEXT_PUBLIC_SITE_URL`, `AUTO_APPROVE_CLEAN_PRODUCTS` (bkz. `.claude/rules/12-production-readiness.md` §6 — varsayılan `false` kalmalı).
+
+`R2_CDN_URL`, `R2_PUBLIC_URL` değerini runtime'da gölgeler. Coolify'dan kaldırılması önerilir;
+tutulacaksa origin'i `R2_PUBLIC_URL` ile aynı, yani `https://media.hanuja.tr`, olmalıdır.
+`pnpm check-env --env=prod` iki değişken birlikte tanımlandığında bu origin uyumunu doğrular.
 
 `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM` `check-env`'de `requiredInProd: true`'dur (opsiyonel listede olmaları yalnızca genel `required` bayrağı taşımadıkları anlamına gelir — production'da eksikse `check-env --env=prod` FAIL üretir). `EMAIL_FROM_*` üçlüsü gerçekten opsiyoneldir (boşsa `SMTP_FROM`'a düşer) ama her kategori için ayrı gönderen adresi kullanmak üzere production'da açıkça girilmesi önerilir.
 

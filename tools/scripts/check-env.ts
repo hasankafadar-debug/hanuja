@@ -160,6 +160,14 @@ function isPlaceholder(value: string): boolean {
   return PLACEHOLDER_PATTERNS.some((p) => p.test(value))
 }
 
+function haveSameOrigin(left: string, right: string): boolean {
+  try {
+    return new URL(left).origin === new URL(right).origin
+  } catch {
+    return false
+  }
+}
+
 function isEnabledFlag(key: 'CARD_PAYMENTS_ENABLED' | 'INVOICE_ALIASING_ENABLED'): boolean {
   return process.env[key]?.trim().toLowerCase() === 'true'
 }
@@ -249,6 +257,13 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
     if (isProd && envVar.key === 'TURNSTILE_SECRET_KEY' && value === 'dev-turnstile-bypass') {
       missing.push('TURNSTILE_SECRET_KEY must not use the development bypass token in production.')
     }
+  }
+
+  const r2PublicUrl = process.env.R2_PUBLIC_URL?.trim()
+  const r2CdnUrl = process.env.R2_CDN_URL?.trim()
+  const checksR2Urls = vars.some((envVar) => envVar.key === 'R2_PUBLIC_URL')
+  if (checksR2Urls && r2PublicUrl && r2CdnUrl && !haveSameOrigin(r2PublicUrl, r2CdnUrl)) {
+    missing.push('R2_CDN_URL must use the same origin as R2_PUBLIC_URL when both are set.')
   }
 
   return { missing, warnings }

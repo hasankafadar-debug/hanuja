@@ -61,9 +61,9 @@ jobs:
           R2_ACCOUNT_ID: ci-r2-account
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || 'ci-r2-key' }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || 'ci-r2-secret' }}
-          R2_BUCKET_NAME: hanuja-media-production
-          R2_PUBLIC_URL: https://media.hanuja.com.tr
-          R2_PUBLIC_HOSTNAME: media.hanuja.com.tr
+          R2_BUCKET_NAME: hanuja-media
+          R2_PUBLIC_URL: https://media.hanuja.tr
+          R2_PUBLIC_HOSTNAME: media.hanuja.tr
           MEILISEARCH_URL: http://localhost:7700
           MEILISEARCH_ADMIN_KEY: ${{ secrets.MEILISEARCH_ADMIN_KEY || 'ci-meili-key' }}
           MEILISEARCH_SEARCH_KEY: ci-meili-search-key
@@ -88,8 +88,8 @@ jobs:
           R2_ACCOUNT_ID: ci-r2-account
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || 'ci-r2-key' }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || 'ci-r2-secret' }}
-          R2_BUCKET_NAME: hanuja-media-production
-          R2_PUBLIC_URL: https://media.hanuja.com.tr
+          R2_BUCKET_NAME: hanuja-media
+          R2_PUBLIC_URL: https://media.hanuja.tr
           MEILISEARCH_URL: http://localhost:7700
           MEILISEARCH_ADMIN_KEY: ${{ secrets.MEILISEARCH_ADMIN_KEY || 'ci-meili-key' }}
           MEILISEARCH_SEARCH_KEY: ci-meili-search-key

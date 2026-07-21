@@ -7,6 +7,8 @@ import { createBlogService } from '@hanuja/api/services/blog.service'
 import { NotFoundError } from '@hanuja/api/lib/errors'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { sanitizeBlogHtml } from '@hanuja/api/lib/sanitize-blog-html'
+import { getConfiguredMediaBaseUrl, normalizeManagedMediaUrl } from '@hanuja/api/lib/media-url'
+import { DEFAULT_MEDIA_HOSTNAME } from '@hanuja/api/lib/platform-info'
 import { buildArticleStructuredData, buildBlogPostMetadata, JsonLd } from '@hanuja/seo'
 import { Breadcrumb, isManagedMediaProxyUrl, normalizeMediaDisplayUrl } from '@hanuja/ui'
 
@@ -35,16 +37,22 @@ function formatDate(date: Date | null) {
   })
 }
 
+function normalizeBlogSocialImageUrl(sourceUrl: string) {
+  const publicBaseUrl = getConfiguredMediaBaseUrl() || `https://${DEFAULT_MEDIA_HOSTNAME}`
+  return normalizeManagedMediaUrl(sourceUrl, publicBaseUrl)
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const post = await getBlogPost(slug)
   if (!post) return { title: 'Blog yazisi bulunamadi' }
+  const coverUrl = post.coverUrl ? normalizeBlogSocialImageUrl(post.coverUrl) : null
 
   return buildBlogPostMetadata({
     title: post.title,
     slug,
     ...(post.summary ? { excerpt: post.summary } : {}),
-    ...(post.coverUrl ? { imageUrl: post.coverUrl } : {}),
+    ...(coverUrl ? { imageUrl: coverUrl } : {}),
   })
 }
 
@@ -61,13 +69,14 @@ export default async function BlogPostPage({ params }: Props) {
   ]
 
   const coverUrl = post.coverUrl ? normalizeMediaDisplayUrl(post.coverUrl) : null
+  const socialCoverUrl = post.coverUrl ? normalizeBlogSocialImageUrl(post.coverUrl) : null
   const sanitizedBody = sanitizeBlogHtml(post.body)
   const articleJsonLd = buildArticleStructuredData({
     title: post.title,
     slug,
     excerpt: post.summary ?? `${post.title} - Hanuja Blog.`,
     publishedAt: post.publishedAt?.toISOString() ?? new Date().toISOString(),
-    ...(post.coverUrl ? { imageUrl: post.coverUrl } : {}),
+    ...(socialCoverUrl ? { imageUrl: socialCoverUrl } : {}),
   })
 
   const wordCount = sanitizedBody.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length

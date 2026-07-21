@@ -4,6 +4,8 @@ const remoteImageHostnames = Array.from(
   new Set(
     [
       'cdn.hanuja.com.tr',
+      'media.hanuja.tr',
+      // Legacy compatibility for media URLs already stored in the database.
       'media.hanuja.com.tr',
       'cdn.hanuja.com',
       'images.unsplash.com',

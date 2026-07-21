@@ -1,7 +1,8 @@
 export const DEFAULT_WEB_URL = 'https://www.hanuja.com.tr'
 export const DEFAULT_SELLER_PANEL_URL = 'https://satici.hanuja.com.tr'
 export const DEFAULT_ADMIN_PANEL_URL = 'https://admin.hanuja.com.tr'
-export const DEFAULT_MEDIA_HOSTNAME = 'media.hanuja.com.tr'
+export const DEFAULT_MEDIA_HOSTNAME = 'media.hanuja.tr'
+export const LEGACY_MEDIA_HOSTNAME = 'media.hanuja.com.tr'
 export const DEFAULT_CDN_HOSTNAME = 'cdn.hanuja.com.tr'
 export const LEGACY_CDN_HOSTNAME = 'cdn.hanuja.com'
 

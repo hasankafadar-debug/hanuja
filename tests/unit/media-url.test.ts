@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildManagedMediaShareUrl,
   buildMediaProxyUrl,
@@ -6,37 +6,92 @@ import {
   extractManagedMediaKey,
   getManagedMediaShareUrlConfigError,
   normalizeManagedMediaUrl,
-  normalizeMediaDisplayUrl,
+  normalizeMediaDisplayUrl as normalizeApiMediaDisplayUrl,
   resolveManagedMediaSourceUrl,
 } from '../../api/lib/media-url'
-import { isManagedMediaProxyUrl } from '../../packages/ui/src/lib/media-url'
+import {
+  isManagedMediaProxyUrl,
+  normalizeMediaDisplayUrl as normalizeUiMediaDisplayUrl,
+} from '../../packages/ui/src/lib/media-url'
 
 describe('media url helpers', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('proxies legacy r2.dev urls through the app route', () => {
     const source = 'https://pub-05520b87648e41d29f4d7539fef47aef.r2.dev/products/test/image.jpg'
 
-    expect(normalizeMediaDisplayUrl(source)).toBe(buildMediaProxyUrl(source))
+    expect(normalizeApiMediaDisplayUrl(source)).toBe(buildMediaProxyUrl(source))
   })
 
-  it('keeps the custom media domain direct', () => {
-    const source = 'https://media.hanuja.com.tr/products/test/image.jpg'
+  it('rewrites the legacy media hostname to the configured current media base', () => {
+    const source = 'https://media.hanuja.com.tr/products/test/image.jpg?width=800#preview'
 
-    expect(normalizeMediaDisplayUrl(source)).toBe(source)
+    expect(normalizeManagedMediaUrl(source, 'https://media.hanuja.tr')).toBe(
+      'https://media.hanuja.tr/products/test/image.jpg?width=800#preview',
+    )
+  })
+
+  it('rewrites the legacy media hostname directly in API and UI display urls', () => {
+    const source = 'https://media.hanuja.com.tr/products/test/image.jpg?width=800#preview'
+    vi.stubEnv('R2_PUBLIC_URL', '')
+
+    expect(normalizeApiMediaDisplayUrl(source)).toBe(
+      'https://media.hanuja.tr/products/test/image.jpg?width=800#preview',
+    )
+    expect(normalizeUiMediaDisplayUrl(source)).toBe(
+      'https://media.hanuja.tr/products/test/image.jpg?width=800#preview',
+    )
+  })
+
+  it('rewrites the legacy media hostname to the API configured public base', () => {
+    const source = 'https://media.hanuja.com.tr/products/test/image.jpg?width=800#preview'
+    vi.stubEnv('R2_PUBLIC_URL', 'https://assets.example.com')
+
+    expect(normalizeApiMediaDisplayUrl(source)).toBe(
+      'https://assets.example.com/products/test/image.jpg?width=800#preview',
+    )
+  })
+
+  it('rewrites the legacy media hostname to an explicitly configured UI public base', () => {
+    const source = 'https://media.hanuja.com.tr/products/test/image.jpg?width=800#preview'
+
+    expect(
+      normalizeUiMediaDisplayUrl(source, '/api/media/fetch', 'https://assets.example.com'),
+    ).toBe('https://assets.example.com/products/test/image.jpg?width=800#preview')
+  })
+
+  it('keeps the current media hostname direct in API and UI display urls', () => {
+    const source = 'https://media.hanuja.tr/products/test/image.jpg'
+
+    expect(normalizeApiMediaDisplayUrl(source)).toBe(source)
+    expect(normalizeUiMediaDisplayUrl(source)).toBe(source)
+  })
+
+  it('keeps cdn and r2.dev display urls on the proxy path', () => {
+    const cdnSource = 'https://cdn.hanuja.com.tr/products/test/image.jpg'
+    const r2Source = 'https://pub-05520b87648e41d29f4d7539fef47aef.r2.dev/products/test/image.jpg'
+
+    expect(normalizeApiMediaDisplayUrl(cdnSource)).toBe(buildMediaProxyUrl(cdnSource))
+    expect(normalizeUiMediaDisplayUrl(cdnSource)).toBe(buildMediaProxyUrl(cdnSource))
+    expect(normalizeApiMediaDisplayUrl(r2Source)).toBe(buildMediaProxyUrl(r2Source))
+    expect(normalizeUiMediaDisplayUrl(r2Source)).toBe(buildMediaProxyUrl(r2Source))
   })
 
   it('rewrites managed hosts to the configured public base', () => {
     const source = 'https://cdn.hanuja.com.tr/products/test/image.jpg'
 
-    expect(normalizeManagedMediaUrl(source, 'https://media.hanuja.com.tr')).toBe(
-      'https://media.hanuja.com.tr/products/test/image.jpg',
+    expect(normalizeManagedMediaUrl(source, 'https://media.hanuja.tr')).toBe(
+      'https://media.hanuja.tr/products/test/image.jpg',
     )
   })
 
   it('builds share urls from the configured custom media domain', () => {
     const source = 'https://pub-05520b87648e41d29f4d7539fef47aef.r2.dev/products/test/image.jpg'
 
-    expect(buildManagedMediaShareUrl(source, 'https://media.hanuja.com.tr')).toBe(
-      'https://media.hanuja.com.tr/products/test/image.jpg',
+    expect(buildManagedMediaShareUrl(source, 'https://media.hanuja.tr')).toBe(
+      'https://media.hanuja.tr/products/test/image.jpg',
     )
   })
 
@@ -72,7 +127,7 @@ describe('media url helpers', () => {
     const proxied = buildMediaProxyUrl('https://cdn.hanuja.com.tr/products/test/image.jpg')
 
     expect(isManagedMediaProxyUrl(proxied)).toBe(true)
-    expect(isManagedMediaProxyUrl('https://media.hanuja.com.tr/products/test/image.jpg')).toBe(
+    expect(isManagedMediaProxyUrl('https://media.hanuja.tr/products/test/image.jpg')).toBe(
       false,
     )
   })

@@ -2,7 +2,14 @@ import type { NextConfig } from 'next'
 
 const remoteImageHostnames = Array.from(
   new Set(
-    ['cdn.hanuja.com.tr', 'media.hanuja.com.tr', 'cdn.hanuja.com', process.env.R2_PUBLIC_HOSTNAME].filter(
+    [
+      'cdn.hanuja.com.tr',
+      'media.hanuja.tr',
+      // Legacy compatibility for media URLs already stored in the database.
+      'media.hanuja.com.tr',
+      'cdn.hanuja.com',
+      process.env.R2_PUBLIC_HOSTNAME,
+    ].filter(
       (hostname): hostname is string => Boolean(hostname),
     ),
   ),

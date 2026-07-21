@@ -114,6 +114,8 @@ R2 checklist:
   point to the same environment-specific bucket.
 - `R2_PUBLIC_URL` and `R2_PUBLIC_HOSTNAME` affect media delivery only; upload `PUT`
   requests still target `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`.
+- In production, set them to `https://media.hanuja.tr` and `media.hanuja.tr`. Runtime support
+  for `media.hanuja.com.tr` keeps existing database URLs working, so no DB backfill is needed.
 - Local and staging should use a separate bucket from production.
 
 Turnstile note:

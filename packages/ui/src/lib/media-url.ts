@@ -1,7 +1,9 @@
 type Variants = Record<string, string>
-const DEFAULT_MEDIA_HOSTNAME = 'media.hanuja.com.tr'
+const DEFAULT_MEDIA_HOSTNAME = 'media.hanuja.tr'
+const LEGACY_MEDIA_HOSTNAME = 'media.hanuja.com.tr'
 const DEFAULT_CDN_HOSTNAME = 'cdn.hanuja.com.tr'
 const LEGACY_CDN_HOSTNAME = 'cdn.hanuja.com'
+const DEFAULT_MEDIA_BASE_URL = `https://${DEFAULT_MEDIA_HOSTNAME}`
 
 function normalizeHostname(hostname: string) {
   return hostname.trim().toLowerCase()
@@ -16,12 +18,32 @@ function isLegacyManagedMediaHostname(hostname: string) {
   )
 }
 
-export function normalizeMediaDisplayUrl(sourceUrl: string, proxyPath = '/api/media/fetch') {
+function normalizeLegacyMediaUrl(sourceUrl: string, publicBaseUrl: string) {
+  try {
+    const source = new URL(sourceUrl)
+    const target = new URL(publicBaseUrl)
+    target.pathname = source.pathname
+    target.search = source.search
+    target.hash = source.hash
+    return target.toString()
+  } catch {
+    return sourceUrl
+  }
+}
+
+export function normalizeMediaDisplayUrl(
+  sourceUrl: string,
+  proxyPath = '/api/media/fetch',
+  publicBaseUrl = DEFAULT_MEDIA_BASE_URL,
+) {
   if (!sourceUrl || sourceUrl.startsWith('/')) return sourceUrl
 
   try {
     const parsed = new URL(sourceUrl)
     if (normalizeHostname(parsed.hostname) === DEFAULT_MEDIA_HOSTNAME) return sourceUrl
+    if (normalizeHostname(parsed.hostname) === LEGACY_MEDIA_HOSTNAME) {
+      return normalizeLegacyMediaUrl(sourceUrl, publicBaseUrl)
+    }
     return isLegacyManagedMediaHostname(parsed.hostname)
       ? `${proxyPath}?src=${encodeURIComponent(sourceUrl)}`
       : sourceUrl

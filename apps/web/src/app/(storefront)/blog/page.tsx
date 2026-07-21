@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { CalendarDays } from 'lucide-react'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createBlogService } from '@hanuja/api/services/blog.service'
+import { isManagedMediaProxyUrl, normalizeMediaDisplayUrl } from '@hanuja/ui'
 import { BlogPagination } from './_components/blog-pagination'
 
 export const dynamic = 'force-dynamic'
@@ -45,8 +46,19 @@ export default async function BlogListPage({
     )
   }
 
-  const featured = currentPage === 1 ? posts[0] ?? null : null
-  const listPosts = currentPage === 1 ? posts.slice(1) : posts
+  const featuredPost = currentPage === 1 ? posts[0] ?? null : null
+  const featured = featuredPost
+    ? {
+        ...featuredPost,
+        coverUrl: featuredPost.coverUrl
+          ? normalizeMediaDisplayUrl(featuredPost.coverUrl)
+          : null,
+      }
+    : null
+  const listPosts = (currentPage === 1 ? posts.slice(1) : posts).map((post) => ({
+    ...post,
+    coverUrl: post.coverUrl ? normalizeMediaDisplayUrl(post.coverUrl) : null,
+  }))
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -81,6 +93,7 @@ export default async function BlogListPage({
                 priority
                 sizes="(max-width: 768px) 100vw, 80vw"
                 className="object-cover rounded-2xl"
+                unoptimized={isManagedMediaProxyUrl(featured.coverUrl)}
               />
             )}
             <div
@@ -128,6 +141,7 @@ export default async function BlogListPage({
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     className="object-cover"
+                    unoptimized={isManagedMediaProxyUrl(post.coverUrl)}
                   />
                 </div>
               )}
