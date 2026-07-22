@@ -6,7 +6,6 @@ import { ArrowLeft } from 'lucide-react'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { buildCategoryOptions } from '../_lib/category-options'
 import ProductEditForm from './_components/product-edit-form'
 
 export const dynamic = 'force-dynamic'
@@ -71,9 +70,11 @@ export default async function EditProductPage({ params }: Props) {
     p.compareAtPrice && typeof p.compareAtPrice === 'object'
       ? p.compareAtPrice.toNumber()
       : (p.compareAtPrice ?? null)
-  const categories = buildCategoryOptions(
-    allCategories as unknown as Array<{ id: string; slug: string; name: string; parentId: string | null }>,
-  )
+  const categories = allCategories.map((category) => ({
+    id: category.id,
+    name: category.name,
+    parentId: category.parentId,
+  }))
   const existingImages = (p.images ?? []).map((img) => ({
     id: img.id,
     url: normalizeMediaDisplayUrl(img.url),

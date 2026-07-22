@@ -5,7 +5,6 @@ import { ArrowLeft } from 'lucide-react'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { buildCategoryOptions } from '../_lib/category-options'
 import NewProductForm from './_components/new-product-form'
 
 export const dynamic = 'force-dynamic'
@@ -18,8 +17,11 @@ export default async function NewProductPage() {
   const svc = createCatalogService({ prisma: createPrismaForRoute() })
   const allCategories = await svc.listAllCategories()
 
-  type CategoryRow = { id: string; slug: string; name: string; parentId: string | null }
-  const categories = buildCategoryOptions(allCategories as unknown as CategoryRow[])
+  const categories = allCategories.map((category) => ({
+    id: category.id,
+    name: category.name,
+    parentId: category.parentId,
+  }))
 
   return (
     <div className="space-y-6 max-w-2xl">

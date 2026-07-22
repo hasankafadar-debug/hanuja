@@ -48,7 +48,9 @@ Source of truth: `.claude/rules/09-seller-panel-rules.md`, `CLAUDE.md` sections 
    - Material and production details
    - Dimensions and technical data
    - Price and stock quantity
-   - Category assignment
+   - Category assignment — selected level by level (`Ev`/`Ofis` → subcategory → …) and only a
+     **leaf** category can be chosen; the form cannot be submitted while an intermediate level is
+     still the deepest selection
    - Product images (uploaded to Cloudflare R2)
 3. Seller saves as draft. Draft is not visible to customers or in search.
 4. Seller submits the product for review.
@@ -186,5 +188,9 @@ Source of truth: `.claude/rules/09-seller-panel-rules.md`, `CLAUDE.md` sections 
 - Seller can only import products into their own account. Ownership is enforced server-side.
 - Barcodes must be globally unique across all sellers. Conflicting barcodes are rejected row by row.
 - Category must be within the selected scope. Out-of-scope category slugs are rejected.
+- Only leaf categories are offered in the template and accepted on import. A product can never be
+  attached to an intermediate category — the rule is enforced in the domain layer
+  (`api/domain/category-selection.ts`), so it applies to the form, the XLSX import and the Hipicon
+  URL import alike.
 - Images must be hosted on the platform CDN. External image URLs are rejected.
 - Hipicon URL import is available from the seller panel at `/urunler/ice-aktar` and is scoped to the authenticated seller.

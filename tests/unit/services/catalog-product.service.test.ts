@@ -33,7 +33,8 @@ describe('catalog.service product creation', () => {
         findUnique: vi.fn().mockResolvedValue({ id: 'seller-1', status: 'active' }),
       },
       category: {
-        findUnique: vi.fn().mockResolvedValue({ id: 'cat-1', slug: 'mobilya' }),
+        // findById() always includes children; the leaf-category rule reads them.
+        findUnique: vi.fn().mockResolvedValue({ id: 'cat-1', slug: 'mobilya', children: [] }),
       },
       product: {
         findUnique: vi
@@ -82,7 +83,8 @@ describe('catalog.service product creation', () => {
         findUnique: vi.fn().mockResolvedValue({ id: 'seller-1', status: 'active' }),
       },
       category: {
-        findUnique: vi.fn().mockResolvedValue({ id: 'cat-1', slug: 'mobilya' }),
+        // findById() always includes children; the leaf-category rule reads them.
+        findUnique: vi.fn().mockResolvedValue({ id: 'cat-1', slug: 'mobilya', children: [] }),
       },
       product: {
         findUnique: vi.fn().mockResolvedValue(null),

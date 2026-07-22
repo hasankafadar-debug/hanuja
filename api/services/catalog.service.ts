@@ -19,6 +19,7 @@ import type { EffectivePriceResult } from './discount.service'
 import { createContentScannerService } from './content-scanner.service'
 import { buildSlugWithSuffix, isValidSlug, normalizeSlug } from '../domain/slug'
 import { computeCustomerVisibleCategoryIds } from '../domain/category-visibility'
+import { assertLeafCategory } from '../domain/category-selection'
 import { buildPublicProductWhere } from '../domain/product-visibility'
 import {
   selectCampaignDiscountShowcase,
@@ -442,6 +443,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
 
       const category = await categories.findById(params.categoryId)
       if (!category) throw new NotFoundError('Category', params.categoryId)
+      assertLeafCategory(category)
 
       if (
         params.compareAtPrice &&
@@ -521,6 +523,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       if (nextCategoryId) {
         const category = await categories.findById(nextCategoryId)
         if (!category) throw new NotFoundError('Category', nextCategoryId)
+        assertLeafCategory(category)
       }
 
       const nextPrice = params.price ?? product.price

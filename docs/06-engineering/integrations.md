@@ -192,6 +192,14 @@ The dedicated client that creates browser presigned uploads must therefore set
 server-side upload and read clients retain their normal SDK checksum behavior. Do not change
 `responseChecksumValidation` for this issue.
 
+The R2 API token must not use **Client IP Address Filtering**. A presigned URL is redeemed by the
+seller's browser, so the upload request reaches R2 from that client's IP address, never from the
+application server. An IP-restricted token still passes the server-side `HeadBucket` validation and
+still produces a valid presigned URL, so the configuration looks correct right up to the point where
+the browser `PUT` fails with `403 Forbidden` — which Chrome then reports as a CORS error, because R2
+omits CORS headers on error responses. When browser uploads return `403`, check the token's IP filter
+before changing bucket CORS or any other setting.
+
 ### Public access
 
 The bucket is configured with a public custom domain (`R2_PUBLIC_URL`). Asset URLs stored

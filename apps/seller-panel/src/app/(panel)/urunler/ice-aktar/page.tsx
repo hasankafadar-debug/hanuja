@@ -29,8 +29,16 @@ export default async function SellerImportPage() {
   const { seller } = await getSellerFromSession()
   const prisma = createPrismaForRoute()
   const catalogSvc = createCatalogService({ prisma })
-  const allCategories = await catalogSvc.listAllCategories()
-  const categories = buildCategoryOptions(allCategories as CategoryRow[])
+  const allCategories = (await catalogSvc.listAllCategories()) as CategoryRow[]
+  // Products may only be attached to leaf categories (api/domain/category-selection.ts),
+  // so the import suggestion list must not offer intermediate ones — the commit would
+  // reject them (`too_shallow`).
+  // Options are built from the full tree so labels keep their "Ev / Mobilya / Sehpa" path,
+  // then filtered down to leaves.
+  const parentIds = new Set(allCategories.map((category) => category.parentId).filter(Boolean))
+  const categories = buildCategoryOptions(allCategories).filter(
+    (option) => !parentIds.has(option.id),
+  )
 
   return (
     <div className="max-w-6xl space-y-6">

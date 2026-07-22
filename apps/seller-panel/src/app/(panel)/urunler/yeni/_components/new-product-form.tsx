@@ -16,11 +16,8 @@ import {
 import { FileUpload, type UploadedAsset } from '@hanuja/ui'
 import { Plus, Trash2 } from 'lucide-react'
 import { sortAttributeOptions } from '@/lib/attribute-option-sort'
-
-interface Category {
-  id: string
-  name: string
-}
+import CategoryPicker from '../../_components/category-picker'
+import type { CategoryNode } from '../../_lib/category-tree'
 
 interface AttributeOption {
   id: string
@@ -30,7 +27,7 @@ interface AttributeOption {
 }
 
 interface Props {
-  categories: Category[]
+  categories: CategoryNode[]
 }
 
 interface VariantFormRow {
@@ -222,21 +219,12 @@ export default function NewProductForm({ categories }: Props) {
         <Input id="name" placeholder="Masif Mese Orta Sehpa" value={name} onChange={(e) => setName(e.target.value)} required disabled={loading} />
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="category">Kategori *</Label>
-        <Select onValueChange={setCategoryId} value={categoryId}>
-          <SelectTrigger id="category" aria-label="Kategori" disabled={loading}>
-            <SelectValue placeholder="Kategori secin" />
-          </SelectTrigger>
-          <SelectContent>
-            {categories.map((category) => (
-              <SelectItem key={category.id} value={category.id}>
-                {category.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <CategoryPicker
+        categories={categories}
+        value={categoryId}
+        onChange={setCategoryId}
+        disabled={loading}
+      />
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">

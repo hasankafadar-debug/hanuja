@@ -328,8 +328,33 @@ Seller panel must support controlled product management.
 - prohibited or invalid content must be blockable
 - moderation status should be visible where relevant
 - hidden/unlisted/rejected states should be understandable
+- a product may only be attached to a **leaf category** (see below)
 
 Seller should not be able to bypass mandatory product quality or moderation rules.
+
+### Kategori seçimi: yalnız yaprak kategori
+
+Ürün yalnızca **yaprak kategoriye** bağlanabilir — yani aktif alt kategorisi olmayan kategoriye.
+Ara kategoriler (`Ev`, `Ev > Mobilya`) yalnızca gruplama ve navigasyon içindir; ürün taşımazlar.
+Yalnız pasif alt kategorisi olan bir kategori yaprak sayılır (emekliye ayrılmış dallar satıcıyı
+engellememelidir).
+
+Kural tek kaynaktan, domain katmanında uygulanır (`api/domain/category-selection.ts` →
+`assertLeafCategory`) ve `catalog.service.ts` içindeki `createProduct` / `updateProductForSeller`
+üzerinden **tüm** ürün oluşturma yollarını kapsar: satıcı ürün formu, toplu (Excel) yükleme ve
+Hipicon URL importu. Route katmanında ayrıca doğrulama yapılmaz.
+
+Satıcı arayüzü buna uygun olmalıdır:
+
+- Ürün ekleme/düzenleme formunda kategori **kademeli** seçilir (seviye başına bir liste: önce
+  `Ev`/`Ofis`, sonra alt kategori, sonra onun altı). Yaprağa inilmeden kategori seçilmiş sayılmaz ve
+  form gönderilemez.
+- Toplu yükleme şablonu ve Hipicon import önizlemesi yalnız yaprak kategorileri önerir — aksi halde
+  satıcıya sunucunun reddedeceği bir seçenek gösterilmiş olur.
+- Hipicon kategori eşleşmesi yaprağa inmiyorsa `too_shallow` ile reddedilir.
+
+Bu kural değişirse `api/domain/category-selection.ts`, seller panel kategori seçici, toplu yükleme
+şablonu ve import çözümleyicisi birlikte gözden geçirilmelidir.
 
 Hipicon mağaza URL importu satıcı panelde `/urunler/ice-aktar` altında kalır ve yalnızca oturumdaki aktif satıcının kendi kataloğuna ürün ekleyebilir.
 

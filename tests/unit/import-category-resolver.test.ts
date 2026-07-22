@@ -80,19 +80,30 @@ describe('resolveImportCategory', () => {
     })
   })
 
-  it('2-level path matches → matched at depth 2', () => {
+  it('2-level path matches a non-leaf category → rejected:too_shallow', () => {
+    // "Mobilya" has active children (Sehpa Modelleri, Kanepe) in our tree, so a
+    // product cannot be attached to it directly — only leaf categories qualify.
     const result = resolveImportCategory({
       hipiconPath: ['Ev', 'Mobilya'],
       categories,
     })
-    expect(result).toEqual({ kind: 'matched', categoryId: 'cat-mobilya' })
+    expect(result).toEqual({ kind: 'rejected', reason: 'too_shallow' })
   })
 
-  it('Turkish char normalization: "EV" root matches "Ev"', () => {
+  it('Turkish char normalization: "EV" root matches "Ev", but non-leaf match still rejected', () => {
     const result = resolveImportCategory({
       hipiconPath: ['EV', 'Mobilya'],
       categories,
     })
-    expect(result).toEqual({ kind: 'matched', categoryId: 'cat-mobilya' })
+    expect(result).toEqual({ kind: 'rejected', reason: 'too_shallow' })
+  })
+
+  it('full path matches a leaf category with only inactive-equivalent (no) children → matched', () => {
+    // Sanity check: leaf matching still works when the tree has no deeper level.
+    const result = resolveImportCategory({
+      hipiconPath: ['Banyo', 'Aksesuar'],
+      categories,
+    })
+    expect(result).toEqual({ kind: 'matched', categoryId: 'cat-aksesuar' })
   })
 })

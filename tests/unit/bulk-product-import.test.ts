@@ -207,10 +207,10 @@ describe('bulk template areas', () => {
     ])
 
     expect(areas.map((area) => area.slug)).toEqual(['ev', 'ofis'])
-    expect(areas[0]?.categories.map((category) => category.slug)).toEqual([
-      'ev-mobilya',
-      'ev-mobilya-sehpa',
-    ])
+    // Only leaf categories are offered: products may not be attached to an
+    // intermediate category, so `ev-mobilya` (parent of `ev-mobilya-sehpa`)
+    // must not appear in the template.
+    expect(areas[0]?.categories.map((category) => category.slug)).toEqual(['ev-mobilya-sehpa'])
     expect(areas[1]?.categories.map((category) => category.slug)).toEqual(['ofis-mobilya'])
   })
 })

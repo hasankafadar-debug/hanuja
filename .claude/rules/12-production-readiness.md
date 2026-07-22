@@ -245,6 +245,17 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - `.env.example`'a `GOOGLE_CLIENT_ID=` / `GOOGLE_CLIENT_SECRET=` placeholder satırları elle eklenmelidir (agent izin kısıtı — §18 emsali).
 - Ayrıca `/hesabim` layout'una sunucu tarafı oturum guard'ı eklendi (oturumsuz kullanıcı `/giris?callbackUrl=/hesabim`'a yönlenir).
 
+### 21. Medya host geçişi: `media.hanuja.tr` (yeni — 2026-07-22)
+- Ürün görseli yükleme üst üste binmiş üç sorunla kırıktı; üçü de çözüldü. Sıra: (1) AWS SDK ≥3.729'un presigned PutObject URL'ine boş gövde CRC32 checksum'ı yazması (commit `5099260`), (2) R2 API token'ındaki Client IP filtresi, (3) `media.hanuja.com.tr`'nin DNS'te hiç var olmaması (commit `a0611d2` + DNS geçişi).
+- **Medya alan adı artık `media.hanuja.tr`.** `R2_PUBLIC_URL=https://media.hanuja.tr`, `R2_PUBLIC_HOSTNAME=media.hanuja.tr`; 4 Coolify servisinde de aynı. `R2_PUBLIC_HOSTNAME` build-time okunduğu için değişiminde restart değil **redeploy** gerekir.
+- **Yalnız `hanuja.tr` Cloudflare'e taşındı** (NS: `matt`/`brianna.ns.cloudflare.com`). `hanuja.com.tr` DNS ve e-posta kayıtlarına (ProMail MX/SPF, Resend DKIM, `send.` return-path, SES yedeği, DMARC) dokunulmadı ve bu bilinçli bir karardır. Ana domaini taşımak ayrı, planlı bir iş olarak ele alınmalı.
+- Cloudflare'de bulut durumu: `media.hanuja.tr` **turuncu** (R2 custom domain, zorunlu); `hanuja.tr` ve `www.hanuja.tr` **gri** kalmalı — turuncuya alınırsa TLS'i Cloudflare sonlandırır ve Coolify'ın Let's Encrypt sertifikasıyla çakışıp 308 yönlendirmeyi bozar.
+- Legacy `media.hanuja.com.tr` kod tarafında tanınmaya devam ediyor (`LEGACY_MEDIA_HOSTNAME`, `api/lib/media-url.ts`, `packages/ui/src/lib/media-url.ts`), bu yüzden **DB URL backfill'i gerekmedi**. `DEFAULT_MEDIA_HOSTNAME` ileride yine değişirse eski host mutlaka legacy listede kalmalı; aksi halde eski kayıtlar sessizce "yönetilmeyen" sayılır.
+- **`hanuja.tr` domain yenilemesi artık iş kritik:** ürün görselleri oradan servis ediliyor, süresi dolarsa tüm katalog görselleri kırılır. Otomatik yenileme açık tutulmalı.
+- R2 API token'ında **Client IP filtresi kullanılmamalı** — presigned URL tarayıcı IP'sinden kullanılır; filtreli token sunucu `HeadBucket`'ını geçer ama tarayıcı PUT'u `403` alır ve bu Chrome'da sahte CORS hatası olarak görünür. Ayrıntı: `docs/06-engineering/integrations.md` §3.
+- `R2_SOURCE_BUCKET_NAME` artık hiçbir yerde kullanılmıyor: `a0611d2` değişkeni `.env.example`'dan çıkardı, `c938691` de tek tüketicisi olan `tools/scripts/copy-production-media.ts` script'ini ve `package.json` komutunu sildi. Ek işlem gerekmiyor.
+- Açık takip işi: başarısız yükleme denemelerinden kalan `pending` durumundaki `MediaAsset` kayıtları temizlenmiyor; periyodik sweep yok (blocking değil).
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

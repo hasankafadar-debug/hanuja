@@ -314,23 +314,18 @@ describe('bulk template category scope resolution', () => {
     { id: 'ev-sehpa', slug: 'ev-mobilya-sehpa', name: 'Sehpa', parentId: 'ev-mobilya', isActive: true },
   ])
 
+  // `ev-mobilya` is an intermediate category (parent of `ev-mobilya-sehpa`), so it is
+  // excluded from the reference rows entirely: products may only be attached to leaves.
   it('keeps only rows inside the selected shared category scope', () => {
     const scoped = filterBulkCategoryReferenceRows(referenceRows, 'mobilya')
 
-    expect(scoped.map((row) => row.realSlug).sort()).toEqual([
-      'ev-mobilya',
-      'ev-mobilya-sehpa',
-      'ofis-mobilya',
-    ])
+    expect(scoped.map((row) => row.realSlug).sort()).toEqual(['ev-mobilya-sehpa', 'ofis-mobilya'])
   })
 
   it('keeps only rows inside the selected Ev/Ofis subtree scope', () => {
     const scoped = filterBulkCategoryReferenceRowsByScope(referenceRows, 'ev', 'ev-mobilya')
 
-    expect(scoped.map((row) => row.realSlug).sort()).toEqual([
-      'ev-mobilya',
-      'ev-mobilya-sehpa',
-    ])
+    expect(scoped.map((row) => row.realSlug).sort()).toEqual(['ev-mobilya-sehpa'])
   })
 
   it('rejects invalid root/category combinations by failing resolution', () => {

@@ -83,7 +83,16 @@ export function resolveImportCategory(args: {
 
   if (matchDepth === 0) return { kind: 'rejected', reason: 'root_missing' }
   if (matchDepth === 1 && path.length > 1) return { kind: 'rejected', reason: 'too_shallow' }
-  if (matchDepth === path.length) return { kind: 'matched', categoryId: currentParentId! }
+  if (matchDepth === path.length) {
+    // Business rule: a product may only be assigned to a LEAF category
+    // (api/domain/category-selection.ts). If the fully-matched category still
+    // has active children in our tree, the Hipicon path stopped one (or more)
+    // levels above our leaf level — treat it the same as an under-specified
+    // path rather than silently attaching the product to a non-leaf category.
+    const matchedHasActiveChildren = (childrenOf.get(currentParentId) ?? []).length > 0
+    if (matchedHasActiveChildren) return { kind: 'rejected', reason: 'too_shallow' }
+    return { kind: 'matched', categoryId: currentParentId! }
+  }
 
   const remaining = path.length - matchDepth
   if (matchDepth >= 2 && remaining === 1) {

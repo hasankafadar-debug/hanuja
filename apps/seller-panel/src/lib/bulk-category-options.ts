@@ -96,10 +96,19 @@ export function normalizeCategorySlugValue(value: string) {
 
 export function buildBulkCategoryReferenceRows(categories: BulkCategoryNode[]): BulkCategoryReferenceRow[] {
   const categoryMap = new Map(categories.map((category) => [category.id, category]))
+  // Products may only be attached to leaf categories (api/domain/category-selection.ts),
+  // so the bulk template must not offer intermediate ones — otherwise the seller fills in
+  // a path the upload will reject.
+  const parentsOfActiveCategories = new Set(
+    categories
+      .filter((category) => category.isActive !== false && category.parentId)
+      .map((category) => category.parentId as string),
+  )
   const rows: BulkCategoryReferenceRow[] = []
 
   for (const category of categories) {
     if (category.isActive === false || !category.parentId) continue
+    if (parentsOfActiveCategories.has(category.id)) continue
 
     const path = buildCategoryPath(category.id, categoryMap)
     if (path.length < 2) continue
