@@ -213,6 +213,41 @@ describe('bulk template areas', () => {
     expect(areas[0]?.categories.map((category) => category.slug)).toEqual(['ev-mobilya-sehpa'])
     expect(areas[1]?.categories.map((category) => category.slug)).toEqual(['ofis-mobilya'])
   })
+
+  it('keeps intermediate categories in the cascading scope tree', () => {
+    const areas = buildBulkTemplateAreas([
+      { id: 'root-ev', slug: 'ev', name: 'Ev', parentId: null, isActive: true },
+      { id: 'root-ofis', slug: 'ofis', name: 'Ofis', parentId: null, isActive: true },
+      { id: 'ev-mobilya', slug: 'ev-mobilya', name: 'Mobilya', parentId: 'root-ev', isActive: true },
+      { id: 'ev-sehpa', slug: 'ev-mobilya-sehpa', name: 'Sehpa', parentId: 'ev-mobilya', isActive: true },
+      { id: 'ofis-mobilya', slug: 'ofis-mobilya', name: 'Mobilya', parentId: 'root-ofis', isActive: true },
+    ])
+
+    // Scope is not the product's category: scoping to `Mobilya` must stay
+    // possible so one template can cover every furniture leaf.
+    expect(areas[0]?.scopeNodes).toEqual([
+      { id: 'ev-mobilya', name: 'Mobilya', parentId: null },
+      { id: 'ev-mobilya-sehpa', name: 'Sehpa', parentId: 'ev-mobilya' },
+    ])
+    // Each area only exposes its own branch.
+    expect(areas[1]?.scopeNodes).toEqual([
+      { id: 'ofis-mobilya', name: 'Mobilya', parentId: null },
+    ])
+  })
+
+  it('omits inactive categories from the scope tree', () => {
+    const areas = buildBulkTemplateAreas([
+      { id: 'root-ev', slug: 'ev', name: 'Ev', parentId: null, isActive: true },
+      { id: 'ev-mobilya', slug: 'ev-mobilya', name: 'Mobilya', parentId: 'root-ev', isActive: true },
+      { id: 'ev-sehpa', slug: 'ev-mobilya-sehpa', name: 'Sehpa', parentId: 'ev-mobilya', isActive: true },
+      { id: 'ev-eski', slug: 'ev-eski', name: 'Emekli Dal', parentId: 'root-ev', isActive: false },
+    ])
+
+    expect(areas[0]?.scopeNodes.map((node) => node.id)).toEqual([
+      'ev-mobilya',
+      'ev-mobilya-sehpa',
+    ])
+  })
 })
 
 describe('bulk product group key', () => {

@@ -29,10 +29,24 @@ export interface BulkTemplateScopedCategoryOption {
   label: string
 }
 
+/**
+ * A node of the template *scope* tree. Scope is not the product's category: it
+ * only narrows which categories the generated sheet offers, so intermediate
+ * categories stay selectable here (picking `Mobilya` yields a template covering
+ * every furniture leaf). `id`/`parentId` carry slugs so the value can be sent
+ * straight to the template endpoint as `scopeCategorySlug`.
+ */
+export interface BulkScopeNode {
+  id: string
+  name: string
+  parentId: string | null
+}
+
 export interface BulkTemplateAreaOption {
   slug: BulkTemplateAreaSlug
   label: string
   categories: BulkTemplateScopedCategoryOption[]
+  scopeNodes: BulkScopeNode[]
 }
 
 const CATEGORY_PATH_SEPARATOR = ' > '
@@ -92,6 +106,40 @@ export function looksLikeCategorySlug(value: string) {
 
 export function normalizeCategorySlugValue(value: string) {
   return normalizeToken(value)
+}
+
+/**
+ * Builds the cascading scope tree for one template area. Unlike the reference
+ * rows below, this keeps intermediate categories: a seller scoping to `Mobilya`
+ * gets a template covering all of its leaves, which is how multi-category bulk
+ * uploads stay possible.
+ */
+export function buildBulkScopeNodes(
+  categories: BulkCategoryNode[],
+  areaSlug: string,
+): BulkScopeNode[] {
+  const categoryMap = new Map(categories.map((category) => [category.id, category]))
+  const normalizedArea = normalizeRootCategoryValue(areaSlug)
+  const nodes: BulkScopeNode[] = []
+
+  for (const category of categories) {
+    if (category.isActive === false || !category.parentId) continue
+
+    const path = buildCategoryPath(category.id, categoryMap)
+    const root = path[0]
+    if (!root || path.length < 2) continue
+    if (normalizeRootCategoryValue(root.slug) !== normalizedArea) continue
+
+    const parent = categoryMap.get(category.parentId)
+    nodes.push({
+      id: category.slug,
+      name: category.name,
+      // Direct children of the area root open the first level, so they carry no parent.
+      parentId: parent?.parentId ? parent.slug : null,
+    })
+  }
+
+  return nodes
 }
 
 export function buildBulkCategoryReferenceRows(categories: BulkCategoryNode[]): BulkCategoryReferenceRow[] {
@@ -214,6 +262,7 @@ export function buildBulkTemplateAreas(
           slug: row.realSlug,
           label: row.displayPath,
         })),
+        scopeNodes: buildBulkScopeNodes(categories, areaSlug),
       },
     ]
   })

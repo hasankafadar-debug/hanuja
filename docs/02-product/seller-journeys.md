@@ -175,7 +175,9 @@ Source of truth: `.claude/rules/09-seller-panel-rules.md`, `CLAUDE.md` sections 
 ### Steps
 
 1. Seller opens `/urunler/toplu-yukle` in the seller panel.
-2. Seller selects the root area (Ev or Ofis) and a scoped category to generate the correct template.
+2. Seller selects the root area (Ev or Ofis), then narrows the scope level by level. Stopping at an
+   intermediate level is allowed and intentional: the generated template then covers every leaf under
+   that branch, so one file can carry products from several categories.
 3. Seller downloads the XLSX template for the selected scope.
 4. Seller fills the template with product data (name, category, price, stock, barcode, images, variants).
 5. Seller uploads the completed XLSX file.
@@ -188,9 +190,9 @@ Source of truth: `.claude/rules/09-seller-panel-rules.md`, `CLAUDE.md` sections 
 - Seller can only import products into their own account. Ownership is enforced server-side.
 - Barcodes must be globally unique across all sellers. Conflicting barcodes are rejected row by row.
 - Category must be within the selected scope. Out-of-scope category slugs are rejected.
-- Only leaf categories are offered in the template and accepted on import. A product can never be
-  attached to an intermediate category — the rule is enforced in the domain layer
+- Only leaf categories are offered as the sheet's `Kategori*` values and accepted on import. A product
+  can never be attached to an intermediate category — the rule is enforced in the domain layer
   (`api/domain/category-selection.ts`), so it applies to the form, the XLSX import and the Hipicon
-  URL import alike.
+  URL import alike. Template *scope* is a separate concern and may be an intermediate category.
 - Images must be hosted on the platform CDN. External image URLs are rejected.
 - Hipicon URL import is available from the seller panel at `/urunler/ice-aktar` and is scoped to the authenticated seller.

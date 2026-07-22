@@ -9,16 +9,25 @@ import {
   normalizeBulkProductRow,
   type BulkProductImportRow,
 } from '@/lib/bulk-product-import'
+import { buildChildrenMap } from '../../_lib/category-tree'
 
 interface TemplateCategory {
   slug: string
   label: string
 }
 
+/** Scope tree node; `id`/`parentId` are category slugs (see buildBulkScopeNodes). */
+interface TemplateScopeNode {
+  id: string
+  name: string
+  parentId: string | null
+}
+
 interface TemplateArea {
   slug: 'ev' | 'ofis'
   label: string
   categories: TemplateCategory[]
+  scopeNodes: TemplateScopeNode[]
 }
 
 interface ImportError {
@@ -50,6 +59,8 @@ const REQUIRED_BULK_PRODUCT_HEADERS = [
 export function BulkImportForm({ areas }: BulkImportFormProps) {
   const [rootCategorySlug, setRootCategorySlug] = useState<'ev' | 'ofis' | ''>('')
   const [scopeCategorySlug, setScopeCategorySlug] = useState('')
+  // Chosen scope slug per cascade level; the last entry is the active scope.
+  const [scopePath, setScopePath] = useState<string[]>([])
   const [fileName, setFileName] = useState<string | null>(null)
   const [rows, setRows] = useState<BulkProductImportRow[]>([])
   const [previewErrors, setPreviewErrors] = useState<ImportError[]>([])
@@ -62,10 +73,49 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
     () => areas.find((area) => area.slug === rootCategorySlug) ?? null,
     [areas, rootCategorySlug],
   )
-  const selectedCategory = useMemo(
-    () => selectedArea?.categories.find((category) => category.slug === scopeCategorySlug) ?? null,
-    [selectedArea, scopeCategorySlug],
+  const scopeNodes = useMemo(() => selectedArea?.scopeNodes ?? [], [selectedArea])
+  const scopeChildrenMap = useMemo(() => buildChildrenMap(scopeNodes), [scopeNodes])
+  const scopeNameById = useMemo(
+    () => new Map(scopeNodes.map((node) => [node.id, node.name])),
+    [scopeNodes],
   )
+
+  // One select per level: the levels already chosen, plus the next open one.
+  const scopeLevels = useMemo(() => {
+    const levels: TemplateScopeNode[][] = []
+    let parentId: string | null = null
+
+    for (const selectedId of scopePath) {
+      const options = scopeChildrenMap.get(parentId) ?? []
+      if (options.length === 0) break
+      levels.push(options)
+      parentId = selectedId
+    }
+
+    const nextOptions = scopeChildrenMap.get(parentId) ?? []
+    if (nextOptions.length > 0) levels.push(nextOptions)
+
+    return levels
+  }, [scopeChildrenMap, scopePath])
+
+  const scopeBreadcrumb = scopePath
+    .map((slug) => scopeNameById.get(slug))
+    .filter((name): name is string => Boolean(name))
+    .join(' / ')
+
+  function handleScopeLevelChange(levelIndex: number, categorySlug: string) {
+    if (!categorySlug) {
+      const truncated = scopePath.slice(0, levelIndex)
+      setScopePath(truncated)
+      // Any level is a valid scope, so falling back one level keeps a usable selection.
+      setScopeCategorySlug(truncated[truncated.length - 1] ?? '')
+      return
+    }
+
+    const nextPath = [...scopePath.slice(0, levelIndex), categorySlug]
+    setScopePath(nextPath)
+    setScopeCategorySlug(categorySlug)
+  }
   const templateHref =
     rootCategorySlug && scopeCategorySlug
       ? `/api/seller/products/bulk/template?rootCategorySlug=${encodeURIComponent(rootCategorySlug)}&scopeCategorySlug=${encodeURIComponent(scopeCategorySlug)}`
@@ -224,6 +274,7 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
                   const nextValue = event.target.value as 'ev' | 'ofis' | ''
                   setRootCategorySlug(nextValue)
                   setScopeCategorySlug('')
+                  setScopePath([])
                 }}
                 className="w-full rounded-md border px-3 py-2 text-sm"
                 style={{
@@ -244,27 +295,47 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
               <label htmlFor="bulk-import-category" className="text-sm font-medium">
                 Kategori*
               </label>
-              <select
-                id="bulk-import-category"
-                aria-label="Kategori"
-                value={scopeCategorySlug}
-                onChange={(event) => setScopeCategorySlug(event.target.value)}
-                disabled={!selectedArea}
-                className="w-full rounded-md border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                style={{
-                  borderColor: 'var(--color-border)',
-                  backgroundColor: 'var(--color-surface)',
-                }}
-              >
-                <option value="">
-                  {selectedArea ? '-- Kategori secin --' : '-- Once alan secin --'}
-                </option>
-                {(selectedArea?.categories ?? []).map((category) => (
-                  <option key={category.slug} value={category.slug}>
-                    {category.label}
-                  </option>
-                ))}
-              </select>
+              {!selectedArea ? (
+                <select
+                  id="bulk-import-category"
+                  aria-label="Kategori"
+                  value=""
+                  disabled
+                  className="w-full rounded-md border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    backgroundColor: 'var(--color-surface)',
+                  }}
+                >
+                  <option value="">-- Once alan secin --</option>
+                </select>
+              ) : (
+                <div className="space-y-2">
+                  {scopeLevels.map((options, levelIndex) => (
+                    <select
+                      key={levelIndex}
+                      id={levelIndex === 0 ? 'bulk-import-category' : `bulk-import-category-${levelIndex}`}
+                      aria-label={levelIndex === 0 ? 'Kategori' : 'Alt kategori'}
+                      value={scopePath[levelIndex] ?? ''}
+                      onChange={(event) => handleScopeLevelChange(levelIndex, event.target.value)}
+                      className="w-full rounded-md border px-3 py-2 text-sm"
+                      style={{
+                        borderColor: 'var(--color-border)',
+                        backgroundColor: 'var(--color-surface)',
+                      }}
+                    >
+                      <option value="">
+                        {levelIndex === 0 ? '-- Kategori secin --' : '-- Alt kategori (istege bagli) --'}
+                      </option>
+                      {options.map((node) => (
+                        <option key={node.id} value={node.id}>
+                          {node.name}
+                        </option>
+                      ))}
+                    </select>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -272,16 +343,18 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
             <Button type="button" onClick={handleDownloadTemplate} disabled={!templateHref}>
               Sablonu indir
             </Button>
-            {selectedArea && selectedCategory && (
+            {selectedArea && scopeBreadcrumb && (
               <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                Secilen kapsam: {selectedArea.label} / {selectedCategory.label}
+                Secilen kapsam: {selectedArea.label} / {scopeBreadcrumb}
               </p>
             )}
           </div>
 
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
             Indirdiginiz sablonda yalnizca secilen kapsama uygun kategori listesi yer alir.
-            Excel icindeki <strong>Kategori*</strong> alani bu listeden secilmelidir.
+            Excel icindeki <strong>Kategori*</strong> alani bu listeden secilmelidir. Ust seviyede
+            durursaniz sablon o dalin tum alt kategorilerini icerir; boylece tek dosyada birden fazla
+            kategoriye urun yukleyebilirsiniz.
           </p>
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
             <strong>Uyari:</strong> Excel icindeki <strong>Urun Rengi*</strong> ve <strong>Materyal*</strong>{' '}
