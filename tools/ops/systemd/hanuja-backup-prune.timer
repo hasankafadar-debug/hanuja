@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly Hanuja Restic retention and prune
+
+[Timer]
+OnCalendar=Sun *-*-* 06:15:00
+Persistent=true
+RandomizedDelaySec=300
+Unit=hanuja-backup@prune.service
+
+[Install]
+WantedBy=timers.target

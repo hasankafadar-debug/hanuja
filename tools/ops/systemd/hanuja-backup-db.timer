@@ -1,0 +1,12 @@
+[Unit]
+Description=Hourly Hanuja database backup at minute 20
+
+[Timer]
+OnCalendar=*-*-* *:20:00
+Persistent=true
+RandomizedDelaySec=120
+AccuracySec=1s
+Unit=hanuja-backup@db.service
+
+[Install]
+WantedBy=timers.target

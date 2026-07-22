@@ -5,7 +5,6 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { UnauthorizedError } from '@hanuja/api/lib/errors'
 import { handleError } from '@hanuja/api/lib/response'
 import { createBinaryFileResponse } from '@hanuja/api/lib/file-response'
-import { readObject } from '@hanuja/api/lib/r2'
 import { createOrderDocumentService } from '@hanuja/api/services/order-document.service'
 
 interface Context {
@@ -21,11 +20,11 @@ export async function GET(req: NextRequest, ctx: Context) {
     const download = new URL(req.url).searchParams.get('download') === '1'
     const service = createOrderDocumentService({ prisma: createPrismaForRoute() })
     const invoice = await service.getInvoiceForCustomer(id, session.user.id, sellerId)
-    const file = await readObject(invoice.fileKey)
+    const file = await service.readInvoiceFile(invoice.fileKey)
 
     return createBinaryFileResponse({
       body: file.body,
-      contentType: invoice.mimeType || file.contentType,
+      contentType: invoice.mimeType || file.contentType || 'application/octet-stream',
       fileName: invoice.fileName,
       disposition: download ? 'attachment' : 'inline',
       sizeBytes: invoice.sizeBytes || file.sizeBytes,

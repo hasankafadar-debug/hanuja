@@ -1,0 +1,12 @@
+[Unit]
+Description=Hanuja full backup every six hours at minute 40
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:40:00
+Persistent=true
+RandomizedDelaySec=120
+AccuracySec=1s
+Unit=hanuja-backup@full.service
+
+[Install]
+WantedBy=timers.target

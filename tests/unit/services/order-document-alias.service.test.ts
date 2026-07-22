@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { uploadObjectMock, deleteObjectMock, enqueueNotificationMock } = vi.hoisted(() => ({
-  uploadObjectMock: vi.fn(),
+const { deleteObjectMock, readObjectMock, enqueueNotificationMock } = vi.hoisted(() => ({
   deleteObjectMock: vi.fn(),
+  readObjectMock: vi.fn(),
   enqueueNotificationMock: vi.fn(),
 }))
 
 vi.mock('../../../api/lib/r2', () => ({
   DOCUMENT_ALLOWED_MIME_TYPES: new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']),
   DOCUMENT_MAX_SIZE_BYTES: 20 * 1024 * 1024,
-  uploadObject: uploadObjectMock,
   deleteObject: deleteObjectMock,
+  readObject: readObjectMock,
 }))
 
 vi.mock('../../../api/jobs/notification-dispatch.job', () => ({
@@ -23,9 +23,9 @@ describe('order-document.service invoice aliasing', () => {
   beforeEach(() => {
     vi.stubEnv('INVOICE_ALIASING_ENABLED', 'true')
     vi.stubEnv('INBOUND_EMAIL_DOMAIN', 'fatura.hanuja.tr')
-    uploadObjectMock.mockReset()
     deleteObjectMock.mockReset()
     deleteObjectMock.mockResolvedValue(undefined)
+    readObjectMock.mockReset()
     enqueueNotificationMock.mockReset()
     enqueueNotificationMock.mockResolvedValue(undefined)
   })
@@ -55,10 +55,7 @@ describe('order-document.service invoice aliasing', () => {
   })
 
   it('processes a known Postmark alias with a PDF attachment', async () => {
-    uploadObjectMock.mockResolvedValue({
-      key: 'documents/seller-1/new.pdf',
-      publicUrl: 'https://cdn.example/documents/seller-1/new.pdf',
-    })
+    const storage = { write: vi.fn().mockResolvedValue({ key: 'private/v1/aa/new.bin' }), read: vi.fn(), exists: vi.fn(), delete: vi.fn() }
 
     const prisma: any = {
       inboundEmail: {
@@ -96,7 +93,7 @@ describe('order-document.service invoice aliasing', () => {
       $transaction: vi.fn((callback) => callback(prisma)),
     }
 
-    const service = createOrderDocumentService({ prisma })
+    const service = createOrderDocumentService({ prisma, storage })
     const result = await service.ingestPostmarkInboundEmail({
       MessageID: 'pm-1',
       From: 'efatura@example.com',
@@ -118,18 +115,14 @@ describe('order-document.service invoice aliasing', () => {
     })
 
     expect(result.status).toBe('processed')
-    expect(uploadObjectMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        folder: 'documents',
-        mimeType: 'application/pdf',
-        ownerId: 'seller-1',
-      }),
-    )
+    expect(storage.write).toHaveBeenCalledWith(expect.any(Uint8Array))
     expect(prisma.orderSellerInvoice.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
           source: 'inbound_email',
           inboundEmailId: 'inbound-1',
+          fileKey: 'private/v1/aa/new.bin',
+          fileUrl: 'private://seller-invoice',
         }),
       }),
     )
@@ -145,10 +138,7 @@ describe('order-document.service invoice aliasing', () => {
 
   it('enqueues an invoice_uploaded notification with orderUrl on manual seller upload', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://www.hanuja.com.tr')
-    uploadObjectMock.mockResolvedValue({
-      key: 'documents/seller-1/manual.pdf',
-      publicUrl: 'https://cdn.example/documents/seller-1/manual.pdf',
-    })
+    const storage = { write: vi.fn().mockResolvedValue({ key: 'private/v1/aa/manual.bin' }), read: vi.fn(), exists: vi.fn(), delete: vi.fn() }
 
     const prisma = {
       order: {
@@ -169,7 +159,7 @@ describe('order-document.service invoice aliasing', () => {
       },
     } as never
 
-    const service = createOrderDocumentService({ prisma })
+    const service = createOrderDocumentService({ prisma, storage })
     await service.uploadInvoiceForSeller({
       orderId: 'order-1',
       sellerId: 'seller-1',
@@ -194,10 +184,7 @@ describe('order-document.service invoice aliasing', () => {
   })
 
   it('does not fail the manual upload when the notification enqueue rejects', async () => {
-    uploadObjectMock.mockResolvedValue({
-      key: 'documents/seller-1/manual.pdf',
-      publicUrl: 'https://cdn.example/documents/seller-1/manual.pdf',
-    })
+    const storage = { write: vi.fn().mockResolvedValue({ key: 'private/v1/aa/manual.bin' }), read: vi.fn(), exists: vi.fn(), delete: vi.fn() }
     enqueueNotificationMock.mockRejectedValueOnce(new Error('queue down'))
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
@@ -215,7 +202,7 @@ describe('order-document.service invoice aliasing', () => {
       },
     } as never
 
-    const service = createOrderDocumentService({ prisma })
+    const service = createOrderDocumentService({ prisma, storage })
     const invoice = await service.uploadInvoiceForSeller({
       orderId: 'order-1',
       sellerId: 'seller-1',
@@ -231,6 +218,7 @@ describe('order-document.service invoice aliasing', () => {
   })
 
   it('logs no_valid_attachment without changing invoice', async () => {
+    const storage = { write: vi.fn(), read: vi.fn(), exists: vi.fn(), delete: vi.fn() }
     const prisma = {
       inboundEmail: {
         findUnique: vi.fn().mockResolvedValue(null),
@@ -247,7 +235,7 @@ describe('order-document.service invoice aliasing', () => {
       },
     } as never
 
-    const service = createOrderDocumentService({ prisma })
+    const service = createOrderDocumentService({ prisma, storage })
     const result = await service.ingestPostmarkInboundEmail({
       MessageID: 'pm-2',
       ToFull: [{ Email: 'pfabc@fatura.hanuja.tr' }],
@@ -255,10 +243,11 @@ describe('order-document.service invoice aliasing', () => {
     })
 
     expect(result.status).toBe('no_valid_attachment')
-    expect(uploadObjectMock).not.toHaveBeenCalled()
+    expect(storage.write).not.toHaveBeenCalled()
   })
 
   it('logs unknown aliases and does not upload attachments', async () => {
+    const storage = { write: vi.fn(), read: vi.fn(), exists: vi.fn(), delete: vi.fn() }
     const prisma = {
       inboundEmail: {
         findUnique: vi.fn().mockResolvedValue(null),
@@ -269,7 +258,7 @@ describe('order-document.service invoice aliasing', () => {
       },
     } as never
 
-    const service = createOrderDocumentService({ prisma })
+    const service = createOrderDocumentService({ prisma, storage })
     const result = await service.ingestPostmarkInboundEmail({
       MessageID: 'pm-unknown',
       ToFull: [{ Email: 'missing@fatura.hanuja.tr' }],
@@ -283,6 +272,6 @@ describe('order-document.service invoice aliasing', () => {
     })
 
     expect(result.status).toBe('unknown_alias')
-    expect(uploadObjectMock).not.toHaveBeenCalled()
+    expect(storage.write).not.toHaveBeenCalled()
   })
 })

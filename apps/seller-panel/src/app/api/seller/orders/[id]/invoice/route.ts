@@ -9,7 +9,6 @@ import {
 } from '@hanuja/api/lib/errors'
 import { created, handleError } from '@hanuja/api/lib/response'
 import { createBinaryFileResponse } from '@hanuja/api/lib/file-response'
-import { readObject } from '@hanuja/api/lib/r2'
 import { createOrderDocumentService } from '@hanuja/api/services/order-document.service'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
@@ -42,11 +41,11 @@ export async function GET(req: NextRequest, ctx: Context) {
     const download = new URL(req.url).searchParams.get('download') === '1'
     const service = createOrderDocumentService({ prisma })
     const invoice = await service.getInvoiceForSeller(id, sellerId)
-    const file = await readObject(invoice.fileKey)
+    const file = await service.readInvoiceFile(invoice.fileKey)
 
     return createBinaryFileResponse({
       body: file.body,
-      contentType: invoice.mimeType || file.contentType,
+      contentType: invoice.mimeType || file.contentType || 'application/octet-stream',
       fileName: invoice.fileName,
       disposition: download ? 'attachment' : 'inline',
       sizeBytes: invoice.sizeBytes || file.sizeBytes,

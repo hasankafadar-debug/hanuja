@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Hanuja Restic metadata check
+
+[Timer]
+OnCalendar=*-*-* 03:10:00
+Persistent=true
+RandomizedDelaySec=300
+Unit=hanuja-backup@check-daily.service
+
+[Install]
+WantedBy=timers.target

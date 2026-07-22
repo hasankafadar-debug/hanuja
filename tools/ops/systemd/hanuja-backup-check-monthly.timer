@@ -1,0 +1,11 @@
+[Unit]
+Description=Monthly Hanuja Restic full data check
+
+[Timer]
+OnCalendar=*-*-01 05:30:00
+Persistent=true
+RandomizedDelaySec=300
+Unit=hanuja-backup@check-monthly.service
+
+[Install]
+WantedBy=timers.target

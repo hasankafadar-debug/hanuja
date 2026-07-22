@@ -5,13 +5,19 @@ import {
   deleteObject,
   DOCUMENT_ALLOWED_MIME_TYPES,
   DOCUMENT_MAX_SIZE_BYTES,
-  uploadObject,
+  readObject,
 } from '../lib/r2'
+import {
+  createPrivateDocumentStorage,
+  isPrivateDocumentStorageKey,
+  type PrivateDocumentStorage,
+} from '../lib/private-document-storage'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
 import { getWebBaseUrl } from '../lib/platform-info'
 
 interface OrderDocumentServiceDeps {
   prisma: PrismaClient
+  storage?: PrivateDocumentStorage
 }
 
 const SELLER_HIDDEN_ORDER_STATUSES = [
@@ -134,7 +140,24 @@ function selectInvoiceAttachment(payload: PostmarkInboundPayload) {
   )
 }
 
-export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps) {
+export function createOrderDocumentService({ prisma, storage: providedStorage }: OrderDocumentServiceDeps) {
+  let resolvedStorage = providedStorage
+  const storage = () => (resolvedStorage ??= createPrivateDocumentStorage())
+
+  async function deleteInvoiceFile(fileKey: string) {
+    if (isPrivateDocumentStorageKey(fileKey)) {
+      await storage().delete(fileKey)
+      return
+    }
+    await deleteObject(fileKey)
+  }
+
+  async function readInvoiceFile(fileKey: string) {
+    if (!isPrivateDocumentStorageKey(fileKey)) return readObject(fileKey)
+    const body = await storage().read(fileKey)
+    return { body, contentType: undefined, sizeBytes: body.byteLength }
+  }
+
   async function createInvoiceAlias(orderId: string, sellerId: string) {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const localPart = makeAliasLocalPart()
@@ -419,12 +442,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
 
     if (!order) throw new NotFoundError('Sipariş', params.orderId)
 
-    const uploaded = await uploadObject({
-      folder: 'documents',
-      mimeType: params.mimeType,
-      ownerId: params.sellerId,
-      body: params.body,
-    })
+    const uploaded = await storage().write(params.body)
 
     const previousKey = order.sellerInvoices[0]?.fileKey ?? null
 
@@ -439,7 +457,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
         create: {
           orderId: params.orderId,
           sellerId: params.sellerId,
-          fileUrl: uploaded.publicUrl,
+          fileUrl: 'private://seller-invoice',
           fileKey: uploaded.key,
           fileName: params.fileName,
           mimeType: params.mimeType,
@@ -448,7 +466,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
           uploadedAt: new Date(),
         },
         update: {
-          fileUrl: uploaded.publicUrl,
+          fileUrl: 'private://seller-invoice',
           fileKey: uploaded.key,
           fileName: params.fileName,
           mimeType: params.mimeType,
@@ -460,7 +478,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
       })
 
       if (previousKey && previousKey !== uploaded.key) {
-        await deleteObject(previousKey).catch(() => null)
+        await deleteInvoiceFile(previousKey).catch(() => null)
       }
 
       // Notify the customer their invoice is ready. A re-upload (replace) sends
@@ -485,7 +503,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
 
       return invoice
     } catch (error) {
-      await deleteObject(uploaded.key).catch(() => null)
+      await deleteInvoiceFile(uploaded.key).catch(() => null)
       throw error
     }
   }
@@ -557,12 +575,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
       select: { fileKey: true },
     })
 
-    const uploaded = await uploadObject({
-      folder: 'documents',
-      mimeType,
-      ownerId: alias.sellerId,
-      body,
-    })
+    const uploaded = await storage().write(body)
 
     try {
       const { inboundEmail, invoice } = await prisma.$transaction(async (tx) => {
@@ -594,7 +607,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
             orderId: alias.orderId,
             sellerId: alias.sellerId,
             inboundEmailId: inboundEmail.id,
-            fileUrl: uploaded.publicUrl,
+            fileUrl: 'private://seller-invoice',
             fileKey: uploaded.key,
             fileName,
             mimeType,
@@ -604,7 +617,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
           },
           update: {
             inboundEmailId: inboundEmail.id,
-            fileUrl: uploaded.publicUrl,
+            fileUrl: 'private://seller-invoice',
             fileKey: uploaded.key,
             fileName,
             mimeType,
@@ -624,7 +637,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
       })
 
       if (previous?.fileKey && previous.fileKey !== uploaded.key) {
-        await deleteObject(previous.fileKey).catch(() => null)
+        await deleteInvoiceFile(previous.fileKey).catch(() => null)
       }
 
       const customer = await prisma.order.findUnique({
@@ -653,7 +666,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
 
       return { status: 'processed' as const, inboundEmail, invoice }
     } catch (error) {
-      await deleteObject(uploaded.key).catch(() => null)
+      await deleteInvoiceFile(uploaded.key).catch(() => null)
       throw error
     }
   }
@@ -671,6 +684,7 @@ export function createOrderDocumentService({ prisma }: OrderDocumentServiceDeps)
     getInvoiceForCustomer,
     getInvoiceForSeller,
     getInvoiceForAdmin,
+    readInvoiceFile,
     uploadInvoiceForSeller,
     ingestPostmarkInboundEmail,
   }

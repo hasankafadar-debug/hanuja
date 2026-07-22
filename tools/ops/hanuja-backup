@@ -1,0 +1,372 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+readonly CONFIG=/etc/hanuja-backup/backup.env
+readonly STATE_ROOT=/var/lib/hanuja-backup
+readonly LOG_ROOT=/var/log/hanuja-backup
+readonly LOCK_FILE=/run/lock/hanuja-backup.lock
+readonly RESTIC_RCLONE_ARGS='serve restic --stdio --b2-hard-delete --tpslimit 2 --tpslimit-burst 1 --drive-pacer-min-sleep 500ms'
+
+[[ -r "$CONFIG" ]] || { echo "Missing $CONFIG" >&2; exit 2; }
+# shellcheck source=/dev/null
+source "$CONFIG"
+export RESTIC_REPOSITORY RESTIC_PASSWORD_FILE RCLONE_CONFIG RESTIC_CACHE_DIR
+
+mkdir -p "$STATE_ROOT" "$LOG_ROOT" "$RESTIC_CACHE_DIR" /run/lock
+exec 9>"$LOCK_FILE"
+flock -w 1800 9 || { echo "Backup lock wait exceeded 30 minutes" >&2; exit 75; }
+
+mode="${1:-}"
+stage=''
+completed=0
+started_at="$(date --iso-8601=seconds)"
+
+log() { printf '%s %s\n' "$(date --iso-8601=seconds)" "$*"; }
+
+find_container() {
+  local prefix="$1" exact="${2:-}"
+  if [[ -n "$exact" ]] && docker ps --format '{{.Names}}' | grep -Fxq "$exact"; then
+    printf '%s\n' "$exact"
+    return
+  fi
+  docker ps --format '{{.Names}}' | grep -E "^${prefix}(-|$)" | head -1
+}
+
+container_env() {
+  local container="$1" key="$2"
+  docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$container" |
+    sed -n "s/^${key}=//p" | head -1
+}
+
+send_alert() {
+  local subject="$1" body="$2" backend
+  if [[ -r /etc/hanuja-backup/smtp.json ]]; then
+    export HJ_SMTP_CONFIG=/etc/hanuja-backup/smtp.json
+  else
+    backend="$(find_container d8fkdrtn8qgjp1bcvmj9pkex || true)"
+    [[ -n "$backend" ]] || { log "Alert not sent: backend container missing"; return 0; }
+    export HJ_SMTP_HOST="$(container_env "$backend" SMTP_HOST)"
+    export HJ_SMTP_PORT="$(container_env "$backend" SMTP_PORT)"
+    export HJ_SMTP_USER="$(container_env "$backend" SMTP_USER)"
+    export HJ_SMTP_PASS="$(container_env "$backend" SMTP_PASS)"
+    export HJ_SMTP_FROM="$(container_env "$backend" SMTP_FROM)"
+  fi
+  export HJ_MAIL_TO="$BACKUP_RECIPIENT" HJ_MAIL_SUBJECT="$subject" HJ_MAIL_BODY="$body"
+  if [[ -z "${HJ_SMTP_CONFIG:-}" && ( -z "$HJ_SMTP_HOST" || -z "$HJ_SMTP_PORT" || -z "$HJ_SMTP_USER" || -z "$HJ_SMTP_PASS" ) ]]; then
+    log "Alert not sent: SMTP configuration incomplete"
+    return 1
+  else
+    python3 - <<'PY'
+import json, os, smtplib, ssl
+from email.message import EmailMessage
+
+msg = EmailMessage()
+msg["Subject"] = os.environ["HJ_MAIL_SUBJECT"]
+msg["To"] = os.environ["HJ_MAIL_TO"]
+msg.set_content(os.environ["HJ_MAIL_BODY"])
+if os.environ.get("HJ_SMTP_CONFIG"):
+    with open(os.environ["HJ_SMTP_CONFIG"], "r", encoding="utf-8") as handle:
+        smtp = json.load(handle)
+    host, port = smtp["host"], int(smtp["port"])
+    user, password = smtp["user"], smtp["password"]
+    from_address = smtp["from"]
+else:
+    host, port = os.environ["HJ_SMTP_HOST"], int(os.environ["HJ_SMTP_PORT"])
+    user, password = os.environ["HJ_SMTP_USER"], os.environ["HJ_SMTP_PASS"]
+    from_address = os.environ.get("HJ_SMTP_FROM") or user
+msg["From"] = from_address
+if port == 465:
+    client = smtplib.SMTP_SSL(host, port, timeout=30, context=ssl.create_default_context())
+else:
+    client = smtplib.SMTP(host, port, timeout=30)
+    client.ehlo()
+    client.starttls(context=ssl.create_default_context())
+with client:
+    client.login(user, password)
+    client.send_message(msg)
+PY
+  fi
+  unset HJ_SMTP_CONFIG HJ_SMTP_HOST HJ_SMTP_PORT HJ_SMTP_USER HJ_SMTP_PASS HJ_SMTP_FROM HJ_MAIL_TO HJ_MAIL_SUBJECT HJ_MAIL_BODY
+}
+
+on_exit() {
+  local rc=$? line="${BASH_LINENO[0]:-unknown}"
+  if (( rc != 0 )) && [[ "$mode" != notify-test ]]; then
+    send_alert "Hanuja backup FAILED: $mode" "Host: $(hostname)\nMode: $mode\nStarted: $started_at\nFailed: $(date --iso-8601=seconds)\nExit: $rc\nLine: $line\nReview: journalctl -u hanuja-backup@$mode.service" || true
+  fi
+  exit "$rc"
+}
+trap on_exit EXIT
+
+restic_cmd() {
+  restic -o "rclone.args=$RESTIC_RCLONE_ARGS" "$@"
+}
+
+unlock_stale_restic_locks() {
+  case "$mode" in
+    check-daily|check-weekly|check-monthly|prune)
+      log "Removing stale Restic locks before repository maintenance"
+      restic_cmd unlock
+      ;;
+  esac
+}
+
+new_stage() {
+  find "$STATE_ROOT" -mindepth 1 -maxdepth 1 -type d -name 'run-*' -mmin +1440 -exec rm -rf -- {} +
+  stage="$STATE_ROOT/run-$(date +%Y%m%dT%H%M%S)-$mode"
+  mkdir -p "$stage"/{db,manifest,private}
+}
+
+db_dump_one() {
+  local label="$1" container="$2" out
+  out="$stage/db/$label"
+  mkdir -p "$out"
+  log "Dumping PostgreSQL: $label"
+  docker exec "$container" sh -lc 'exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' >"$out/database.dump"
+  docker exec "$container" sh -lc 'exec pg_dumpall -U "$POSTGRES_USER" --globals-only' >"$out/globals.sql"
+  docker exec -i "$container" pg_restore --list <"$out/database.dump" >"$out/restore-list.txt"
+  [[ -s "$out/database.dump" && -s "$out/restore-list.txt" ]]
+  (cd "$out" && sha256sum database.dump globals.sql restore-list.txt >SHA256SUMS)
+  docker exec "$container" sh -lc '
+    set -e
+    psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
+      "SELECT format('\''SELECT %L, count(*) FROM %I.%I;'\'', schemaname || '\''.'\'' || tablename, schemaname, tablename) FROM pg_tables WHERE schemaname NOT IN ('\''pg_catalog'\'', '\''information_schema'\'') ORDER BY schemaname, tablename" |
+      psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -AtF "|"
+  ' >"$out/table-row-counts.txt"
+  docker exec "$container" sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -AtF "|" -c "select table_schema,table_name,column_name,data_type from information_schema.columns where table_schema not in ('\''pg_catalog'\'','\''information_schema'\'') order by 1,2,ordinal_position"' >"$out/schema-columns.txt"
+}
+
+dump_databases() {
+  local app_pg coolify_pg
+  app_pg="$(find_container gioxjxsuwry0o9qvpt9xqr22 gioxjxsuwry0o9qvpt9xqr22)"
+  coolify_pg="$(find_container coolify-db coolify-db)"
+  [[ -n "$app_pg" && -n "$coolify_pg" ]] || { log "PostgreSQL container missing"; return 1; }
+  db_dump_one hanuja-postgres16 "$app_pg"
+  db_dump_one coolify-postgres15 "$coolify_pg"
+}
+
+collect_r2() {
+  local backend account access secret bucket endpoint remote_count local_count local_bytes app_pg r2_sql
+  backend="$(find_container d8fkdrtn8qgjp1bcvmj9pkex)"
+  app_pg="$(find_container gioxjxsuwry0o9qvpt9xqr22 gioxjxsuwry0o9qvpt9xqr22)"
+  account="$(container_env "$backend" R2_ACCOUNT_ID)"
+  access="$(container_env "$backend" R2_ACCESS_KEY_ID)"
+  secret="$(container_env "$backend" R2_SECRET_ACCESS_KEY)"
+  bucket="$(container_env "$backend" R2_BUCKET_NAME)"
+  [[ -n "$account" && -n "$access" && -n "$secret" && -n "$bucket" ]]
+  endpoint="https://${account}.r2.cloudflarestorage.com"
+  export RCLONE_CONFIG_HANUJA_R2_TYPE=s3 RCLONE_CONFIG_HANUJA_R2_PROVIDER=Cloudflare
+  export RCLONE_CONFIG_HANUJA_R2_ACCESS_KEY_ID="$access" RCLONE_CONFIG_HANUJA_R2_SECRET_ACCESS_KEY="$secret"
+  export RCLONE_CONFIG_HANUJA_R2_ENDPOINT="$endpoint"
+  mkdir -p "$stage/r2"
+  log "Copying R2 media (pass 1)"
+  rclone sync "hanuja_r2:${bucket}" "$stage/r2" --fast-list --transfers 4 --checkers 8
+  log "Copying R2 media (pass 2 and compare)"
+  rclone copy "hanuja_r2:${bucket}" "$stage/r2" --fast-list --transfers 4 --checkers 8
+  rclone check "hanuja_r2:${bucket}" "$stage/r2" --one-way --download --checkers 8
+  remote_count="$(rclone size "hanuja_r2:${bucket}" --json | jq -r .count)"
+  local_count="$(find "$stage/r2" -type f | wc -l)"
+  local_bytes="$(find "$stage/r2" -type f -printf '%s\n' | awk '{s+=$1} END{print s+0}')"
+  [[ "$remote_count" == "$local_count" ]]
+  printf 'bucket=%s\nobjects=%s\nbytes=%s\n' "$bucket" "$local_count" "$local_bytes" >"$stage/manifest/r2-inventory.txt"
+  read -r -d '' r2_sql <<'SQL' || true
+select "fileKey" from order_seller_invoices
+  where "fileKey" is not null and "fileKey" not like 'private/v1/%'
+union select "fileKey" from seller_documents
+  where "fileKey" is not null and "fileKey" not like 'private/v1/%'
+union select "imageObjectKey" from seo_content_generations where "imageObjectKey" is not null
+order by 1
+SQL
+  docker exec -e "HANUJA_BACKUP_SQL=$r2_sql" "$app_pg" sh -lc \
+    'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$HANUJA_BACKUP_SQL"' \
+    >"$stage/manifest/r2-db-references.txt"
+  while IFS= read -r key; do
+    key="${key#/}"
+    [[ -z "$key" || -f "$stage/r2/$key" ]] || { log "R2 object referenced by DB is missing: $key"; return 1; }
+  done <"$stage/manifest/r2-db-references.txt"
+  unset RCLONE_CONFIG_HANUJA_R2_TYPE RCLONE_CONFIG_HANUJA_R2_PROVIDER RCLONE_CONFIG_HANUJA_R2_ACCESS_KEY_ID RCLONE_CONFIG_HANUJA_R2_SECRET_ACCESS_KEY RCLONE_CONFIG_HANUJA_R2_ENDPOINT
+}
+
+collect_redis() {
+  local label container status
+  mkdir -p "$stage/redis"
+  for label in app coolify; do
+    if [[ "$label" == app ]]; then container="$(find_container djvwwhxgtevfiw2g7yt5ihx4 djvwwhxgtevfiw2g7yt5ihx4)"; else container="$(find_container coolify-redis coolify-redis)"; fi
+    log "Creating Redis RDB: $label"
+    docker exec "$container" sh -lc 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli BGSAVE >/dev/null'
+    for _ in $(seq 1 120); do
+      status="$(docker exec "$container" sh -lc 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli --raw INFO persistence | sed -n "s/^rdb_bgsave_in_progress://p" | tr -d "\r"')"
+      [[ "$status" == 0 ]] && break
+      sleep 1
+    done
+    [[ "$status" == 0 ]]
+    docker cp "$container:/data/dump.rdb" "$stage/redis/$label-dump.rdb" >/dev/null
+    [[ -s "$stage/redis/$label-dump.rdb" ]]
+    (cd "$stage/redis" && sha256sum "$label-dump.rdb" >>SHA256SUMS)
+  done
+}
+
+collect_meili() {
+  local container key ip response task status
+  container="$(find_container meilisearch-t8iziz8ar70aim90gdkxypft meilisearch-t8iziz8ar70aim90gdkxypft)"
+  key="$(container_env "$container" MEILI_MASTER_KEY)"
+  ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' "$container" | sed '/^$/d' | head -1)"
+  [[ -n "$container" && -n "$key" && -n "$ip" ]]
+  log "Creating Meilisearch snapshot"
+  response="$(printf 'header = "Authorization: Bearer %s"\n' "$key" | curl -fsS -K - -X POST "http://$ip:7700/snapshots")"
+  task="$(jq -r '.taskUid // empty' <<<"$response")"
+  [[ -n "$task" ]]
+  status='enqueued'
+  for _ in $(seq 1 180); do
+    response="$(printf 'header = "Authorization: Bearer %s"\n' "$key" | curl -fsS -K - "http://$ip:7700/tasks/$task")"
+    status="$(jq -r .status <<<"$response")"
+    [[ "$status" == succeeded ]] && break
+    [[ "$status" == failed || "$status" == canceled ]] && return 1
+    sleep 1
+  done
+  [[ "$status" == succeeded ]]
+  mkdir -p "$stage/meilisearch"
+  docker cp "$container:/meili_data/snapshots/." "$stage/meilisearch/" >/dev/null
+  find "$stage/meilisearch" -type f -name '*.snapshot' -print -quit | grep -q .
+  (cd "$stage/meilisearch" && find . -type f ! -name SHA256SUMS -exec sha256sum {} + >SHA256SUMS)
+}
+
+private_document_path() {
+  local source="$1" key="$2"
+  if [[ "$key" =~ ^private/v1/([0-9a-f]{2})/([0-9a-f-]{36}\.bin)$ ]]; then
+    printf '%s/%s/%s\n' "$source" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+    return
+  fi
+  return 1
+}
+
+collect_private_documents() {
+  local source=/var/lib/hanuja/private-documents app_pg key path file_count byte_count private_sql
+  app_pg="$(find_container gioxjxsuwry0o9qvpt9xqr22 gioxjxsuwry0o9qvpt9xqr22)"
+  [[ -n "$app_pg" ]] || { log "Application PostgreSQL container missing"; return 1; }
+  [[ -d "$source" ]] || { log "Private document directory missing: $source"; return 1; }
+
+  read -r -d '' private_sql <<'SQL' || true
+select "fileKey" from seller_documents where "fileKey" like 'private/v1/%'
+union select "fileKey" from order_seller_invoices where "fileKey" like 'private/v1/%'
+order by 1
+SQL
+  # KYC and invoice bytes never live in R2. Verify every private DB pointer
+  # against the encrypted VDS volume before archiving it; missing data fails closed.
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    path="$(private_document_path "$source" "$key")" || {
+      log "Invalid private document storage key in database"
+      return 1
+    }
+    [[ -f "$path" ]] || {
+      log "Private document referenced by DB is missing from encrypted VDS storage"
+      return 1
+    }
+  done < <(docker exec -e "HANUJA_BACKUP_SQL=$private_sql" "$app_pg" sh -lc \
+    'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$HANUJA_BACKUP_SQL"')
+
+  log "Collecting encrypted private seller documents and invoices"
+  tar --xattrs --acls --numeric-owner -cpf "$stage/private/private-documents.tar" -C "$(dirname "$source")" "$(basename "$source")"
+  file_count="$(find "$source" -type f | wc -l)"
+  byte_count="$(find "$source" -type f -printf '%s\n' | awk '{s+=$1} END{print s+0}')"
+  printf 'files=%s\nbytes=%s\nsource=%s\n' "$file_count" "$byte_count" "$source" >"$stage/manifest/private-documents-inventory.txt"
+  [[ -s "$stage/private/private-documents.tar" ]]
+}
+
+collect_host() {
+  log "Collecting Coolify and host recovery configuration"
+  tar --xattrs --acls -cpf "$stage/private/data-coolify.tar" -C / data/coolify
+  tar --ignore-failed-read --xattrs --acls -cpf "$stage/private/host-config.tar" -C / \
+    etc/ssh etc/ufw etc/docker etc/fail2ban root/.ssh var/spool/cron 2>/dev/null || true
+  dpkg-query -W -f='${binary:Package}|${Version}\n' >"$stage/manifest/packages.txt"
+  uname -a >"$stage/manifest/uname.txt"
+  hostnamectl >"$stage/manifest/hostnamectl.txt"
+  ufw status verbose >"$stage/manifest/firewall.txt" 2>&1 || true
+  docker version --format '{{json .}}' >"$stage/manifest/docker-version.json"
+  docker ps --no-trunc --format '{{.Names}}|{{.Image}}|{{.ID}}|{{.Status}}|{{.Networks}}' >"$stage/manifest/containers.txt"
+  while IFS= read -r image; do
+    docker image inspect -f '{{.Id}}|{{json .RepoDigests}}' "$image"
+  done < <(docker ps --format '{{.Image}}' | sort -u) >"$stage/manifest/image-digests.txt"
+}
+
+write_manifest() {
+  cat >"$stage/manifest/backup.txt" <<EOF
+format_version=1
+backup_type=$mode
+hostname=$(hostname)
+started_at=$started_at
+created_at=$(date --iso-8601=seconds)
+timezone=$(timedatectl show -p Timezone --value)
+EOF
+}
+
+seal_manifest() {
+  if grep -RIEq '(^|[^A-Za-z])(R2_SECRET_ACCESS_KEY|SMTP_PASS|MEILI_MASTER_KEY|POSTGRES_PASSWORD|REDIS_PASSWORD)=' "$stage/manifest"; then
+    log "Secret-like assignment found in manifest"
+    return 1
+  fi
+  (cd "$stage" && find . -type f ! -path './manifest/SHA256SUMS' -exec sha256sum {} + >manifest/SHA256SUMS)
+}
+
+upload_stage() {
+  local tag="$1" result latest
+  result="/tmp/hanuja-restic-$mode-$$.json"
+  log "Uploading encrypted Restic snapshot: $tag"
+  restic_cmd backup "$stage" --host "$(hostname)" --tag "$tag" --json >"$result"
+  jq -e 'select(.message_type=="summary") | .snapshot_id' "$result" >/dev/null
+  latest="$(restic_cmd snapshots --latest 1 --json --tag "$tag" | jq -r '.[0].short_id // empty')"
+  [[ -n "$latest" ]]
+  restic_cmd ls "$latest" >/dev/null
+  log "Restic snapshot verified: $latest"
+  rm -f "$result"
+}
+
+run_backup() {
+  new_stage
+  dump_databases
+  if [[ "$mode" == full ]]; then
+    collect_r2
+    collect_meili
+    collect_redis
+    collect_host
+    collect_private_documents
+  fi
+  write_manifest
+  seal_manifest
+  if [[ "$mode" == db ]]; then
+    upload_stage db-hourly
+  else
+    upload_stage full-6h
+  fi
+  rm -rf -- "$stage"
+  stage=''
+  completed=1
+}
+
+unlock_stale_restic_locks
+
+case "$mode" in
+  db|full) run_backup ;;
+  check-daily) log "Running Restic metadata check"; restic_cmd check ; completed=1 ;;
+  check-weekly) log "Running Restic 25% data check"; restic_cmd check --read-data-subset=25% ; completed=1 ;;
+  check-monthly) log "Running Restic full data check"; restic_cmd check --read-data ; completed=1 ;;
+  prune)
+    log "Checking repository before retention/prune"
+    restic_cmd check
+    restic_cmd forget --tag db-hourly --keep-within 7d --keep-daily 30 --keep-weekly 12 --keep-monthly 12
+    restic_cmd forget --tag full-6h --keep-within 7d --keep-daily 30 --keep-weekly 12 --keep-monthly 12
+    restic_cmd prune
+    completed=1
+    ;;
+  notify-test)
+    send_alert "Hanuja backup alert test" "Hanuja yedekleme hata bildirimi testi baÅarÄ±lÄ±dÄ±r. Host: $(hostname). Time: $(date --iso-8601=seconds)"
+    completed=1
+    ;;
+  *) echo "Usage: $0 {db|full|check-daily|check-weekly|check-monthly|prune|notify-test}" >&2; exit 2 ;;
+esac
+
+(( completed == 1 ))
+trap - EXIT
+exit 0
