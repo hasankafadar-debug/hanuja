@@ -28,7 +28,6 @@
     "ledger:backfill": "tsx tools/scripts/backfill-seller-ledger.ts",
     "payout:repair": "tsx tools/scripts/repair-missing-payouts.ts",
     "launch:clean-data": "tsx tools/scripts/pre-launch-data-clean.ts",
-    "launch:copy-production-media": "tsx tools/scripts/copy-production-media.ts",
     "worker": "tsx api/worker.ts",
     "worker:dev": "tsx --watch api/worker.ts",
     "release-check": "pnpm db:migrate:status && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm check-env --env=prod"
