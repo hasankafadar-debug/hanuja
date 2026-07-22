@@ -6,6 +6,7 @@ import { checkUserRateLimit, SENSITIVE_RATE_LIMIT } from '@hanuja/api/lib/rate-l
 import { createProductImportService, type CommitSelection } from '@hanuja/api/services/product-import/import.service'
 import type { ScrapedProduct } from '@hanuja/api/services/product-import/adapters/import-adapter'
 import { normalizeImportBarcode } from '@hanuja/api/services/product-import/barcode'
+import { isBarcodeConflict } from '@hanuja/api/domain/barcode-registry'
 
 function isScrapedProduct(value: unknown): value is ScrapedProduct {
   if (!value || typeof value !== 'object') return false
@@ -29,6 +30,7 @@ interface RawSelection {
   colorOptionId?: string | null
   materialOptionId?: string | null
   barcode?: string | null
+  modelCode?: string | null
   fulfillmentDays?: number | null
   stockQuantity?: number | null
 }
@@ -57,8 +59,9 @@ function isRawSelection(value: unknown): value is RawSelection {
   const hasColorOptionId = typeof c.colorOptionId === 'string' && c.colorOptionId.trim().length > 0
   const hasMaterialOptionId =
     typeof c.materialOptionId === 'string' && c.materialOptionId.trim().length > 0
+  const hasModelCode = typeof c.modelCode === 'string' && c.modelCode.trim().length > 0 && c.modelCode.trim().length <= 120
 
-  return (hasCategoryId || hasAutoCreate) && hasValidStock && hasValidFulfillmentDays && hasColorOptionId && hasMaterialOptionId
+  return (hasCategoryId || hasAutoCreate) && hasValidStock && hasValidFulfillmentDays && hasColorOptionId && hasMaterialOptionId && hasModelCode
 }
 
 const SAFE_LEAF_NAME_RE = /^[^./\\<>:"|?*\x00-\x1f]{1,80}$/
@@ -202,6 +205,7 @@ export async function POST(req: NextRequest) {
         stockQuantity: raw.stockQuantity ?? 0,
         barcode:
           typeof raw.barcode === 'string' ? raw.barcode.trim() || null : (raw.barcode ?? null),
+        modelCode: raw.modelCode!.trim(),
       }
     }
     return {
@@ -217,6 +221,7 @@ export async function POST(req: NextRequest) {
       stockQuantity: raw.stockQuantity ?? 0,
       barcode:
         typeof raw.barcode === 'string' ? raw.barcode.trim() || null : (raw.barcode ?? null),
+      modelCode: raw.modelCode!.trim(),
     }
   })
 
@@ -243,12 +248,16 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     console.error('[import/commit] error:', error)
+    const barcodeConflict = isBarcodeConflict(error)
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : 'Ürünler içe aktarılamadı.',
+        error: barcodeConflict
+          ? 'Bu barkod başka bir ürün veya varyantta kullanılmıştır.'
+          : error instanceof Error
+            ? error.message
+            : 'Ürünler içe aktarılamadı.',
       },
-      { status: 400 },
+      { status: barcodeConflict ? 409 : 400 },
     )
   }
 }

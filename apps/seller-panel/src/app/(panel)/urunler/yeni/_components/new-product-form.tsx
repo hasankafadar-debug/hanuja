@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Button,
@@ -16,6 +16,7 @@ import {
 import { FileUpload, type UploadedAsset } from '@hanuja/ui'
 import { Plus, Trash2 } from 'lucide-react'
 import { sortAttributeOptions } from '@/lib/attribute-option-sort'
+import { useBarcodeAvailability, type BarcodeAvailabilityStatus } from '@/lib/use-barcode-availability'
 import CategoryPicker from '../../_components/category-picker'
 import type { CategoryNode } from '../../_lib/category-tree'
 
@@ -56,6 +57,21 @@ function createVariantRow(): VariantFormRow {
   }
 }
 
+function BarcodeStatusHint({ status, message, hidden = false }: { status: BarcodeAvailabilityStatus; message: string | null; hidden?: boolean }) {
+  if (hidden || status === 'idle') return null
+  const color = status === 'available'
+    ? 'var(--color-success)'
+    : status === 'checking'
+      ? 'var(--color-muted-fg)'
+      : 'var(--color-destructive)'
+  const fallback = status === 'available'
+    ? 'Barkod kullanilabilir.'
+    : status === 'in_use'
+      ? 'Bu barkod baska bir urun veya varyantta kullanilmistir.'
+      : 'Barkod kontrol ediliyor...'
+  return <p className="text-xs" style={{ color }}>{message ?? fallback}</p>
+}
+
 export default function NewProductForm({ categories }: Props) {
   const router = useRouter()
   const [name, setName] = useState('')
@@ -71,6 +87,7 @@ export default function NewProductForm({ categories }: Props) {
   const [stock, setStock] = useState('')
   const [barcode, setBarcode] = useState('')
   const [sku, setSku] = useState('')
+  const [modelCode, setModelCode] = useState('')
   const [shortDescription, setShortDescription] = useState('')
   const [description, setDescription] = useState('')
   const [story, setStory] = useState('')
@@ -93,6 +110,19 @@ export default function NewProductForm({ categories }: Props) {
   }, [])
 
   const hasVariants = variants.length > 0
+  const barcodeCheckItems = useMemo(
+    () => [
+      ...(!hasVariants ? [{ key: 'product', barcode }] : []),
+      ...variants.map((variant) => ({ key: variant.localId, barcode: variant.barcode })),
+    ],
+    [barcode, hasVariants, variants],
+  )
+  const { getResult: getBarcodeResult } = useBarcodeAvailability(barcodeCheckItems)
+  const requiredBarcodeKeys = hasVariants ? variants.map((variant) => variant.localId) : ['product']
+  const hasBarcodeCheckIssue = requiredBarcodeKeys.some((key) => {
+    const status = getBarcodeResult(key).status
+    return status === 'checking' || status === 'invalid' || status === 'duplicate_in_request' || status === 'in_use' || status === 'error'
+  })
   const totalVariantStock = variants.reduce((sum, variant) => sum + Number(variant.stockQuantity || 0), 0)
   const variantsValid = variants.every(
     (variant) =>
@@ -108,6 +138,8 @@ export default function NewProductForm({ categories }: Props) {
     !materialOptionId ||
     Number(fulfillmentDays) < 1 ||
     pendingImageUploads > 0 ||
+    !modelCode.trim() ||
+    hasBarcodeCheckIssue ||
     (!hasVariants && barcode.trim().length !== 13) ||
     (hasVariants && !variantsValid)
   const missingSubmitReason = !categoryId
@@ -120,6 +152,10 @@ export default function NewProductForm({ categories }: Props) {
           ? 'Urunu gondermek icin sevk suresi girin.'
           : pendingImageUploads > 0
             ? 'Gorsel yuklemeleri tamamlanmadan urun gonderilemez.'
+            : !modelCode.trim()
+              ? 'Urunu gondermek icin Model Kodu girin.'
+              : hasBarcodeCheckIssue
+                ? 'Barkod kontrolleri tamamlanmadan urun gonderilemez.'
             : hasVariants && !variantsValid
               ? 'Varyasyonlu urunlerde her satir icin 13 haneli barkod, fiyat ve stok girin.'
               : !hasVariants && barcode.trim().length !== 13
@@ -166,6 +202,7 @@ export default function NewProductForm({ categories }: Props) {
           stockQuantity: parseInt(stock || '0', 10),
           barcode: hasVariants ? null : barcode.trim(),
           sku: sku.trim() || undefined,
+          modelCode: modelCode.trim(),
           shortDescription,
           description,
           story,
@@ -316,10 +353,21 @@ export default function NewProductForm({ categories }: Props) {
               Varyasyonlu urunde barkod varyasyon satirlarindan okunur.
             </p>
           ) : null}
+          <BarcodeStatusHint status={getBarcodeResult('product').status} message={getBarcodeResult('product').message} hidden={hasVariants} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="modelCode">Model Kodu *</Label>
+          <Input id="modelCode" placeholder="SEHPA-001" value={modelCode} onChange={(e) => setModelCode(e.target.value)} required disabled={loading} />
+          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            Ayni Model Kodu, ayni modelin renk veya materyal seceneklerini urun detayinda birlikte gosterir.
+          </p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="sku">SKU</Label>
           <Input id="sku" placeholder="SEHPA-001" value={sku} onChange={(e) => setSku(e.target.value)} disabled={loading} />
+          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            Saticinin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde kullanilmaz.
+          </p>
         </div>
       </div>
 
@@ -328,7 +376,7 @@ export default function NewProductForm({ categories }: Props) {
           <div>
             <Label>Varyasyonlar</Label>
             <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Beden, olcu veya ek ozellik varsa her varyasyonu ayri barkodla girin. Farkli renk veya materyal kardeslerini baglamak icin SKU alanini ayni girin.
+              Beden, olcu veya ek ozellik varsa her varyasyonu ayri barkodla girin. Farkli renk veya materyal kardeslerini baglamak icin ayni Model Kodunu kullanin.
             </p>
           </div>
           <Button type="button" variant="outline" onClick={() => setVariants((current) => [...current, createVariantRow()])} disabled={loading}>
@@ -349,6 +397,7 @@ export default function NewProductForm({ categories }: Props) {
               <Input placeholder="Ek Ozellik Adi" value={variant.customOptionName} onChange={(e) => updateVariant(variant.localId, { customOptionName: e.target.value })} disabled={loading} />
               <Input placeholder="Ek Ozellik Degeri" value={variant.customOptionValue} onChange={(e) => updateVariant(variant.localId, { customOptionValue: e.target.value })} disabled={loading} />
               <Input inputMode="numeric" pattern="\d{13}" placeholder="Barkod (13 hane)" value={variant.barcode} onChange={(e) => updateVariant(variant.localId, { barcode: e.target.value.replace(/\D/g, '').slice(0, 13) })} required disabled={loading} />
+              <BarcodeStatusHint status={getBarcodeResult(variant.localId).status} message={getBarcodeResult(variant.localId).message} />
               <Input type="number" min="0" step="0.01" placeholder="Fiyat" value={variant.price} onChange={(e) => updateVariant(variant.localId, { price: e.target.value })} required disabled={loading} />
               <Input type="number" min="0" step="1" placeholder="Stok" value={variant.stockQuantity} onChange={(e) => updateVariant(variant.localId, { stockQuantity: e.target.value })} required disabled={loading} />
             </div>

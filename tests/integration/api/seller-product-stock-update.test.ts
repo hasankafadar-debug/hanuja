@@ -42,6 +42,7 @@ function createPrismaMock() {
       update: vi.fn().mockResolvedValue({ id: "product-1", stockQuantity: 13 }),
     },
     productVariant: {
+      findMany: vi.fn().mockResolvedValue([]),
       findFirst: vi
         .fn()
         .mockResolvedValue({
@@ -63,6 +64,10 @@ function createPrismaMock() {
         stockQuantity: 8,
       }),
       create: vi.fn(),
+    },
+    barcodeRegistry: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      create: vi.fn().mockResolvedValue({}),
     },
     productAttributeValue: {
       deleteMany: vi.fn(),

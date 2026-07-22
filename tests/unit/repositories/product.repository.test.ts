@@ -20,4 +20,22 @@ describe("product.repository seller listing", () => {
       }),
     )
   })
+
+  it("keeps seller search scoped while matching Model Kodu", async () => {
+    const findMany = vi.fn().mockResolvedValue([])
+    const repository = createProductRepository({ product: { findMany } } as never)
+
+    await repository.listBySeller({ sellerId: "seller-1", query: "model-42" })
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          sellerId: "seller-1",
+          OR: expect.arrayContaining([
+            { modelCode: { contains: "model-42", mode: "insensitive" } },
+          ]),
+        }),
+      }),
+    )
+  })
 })

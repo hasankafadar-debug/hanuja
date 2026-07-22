@@ -765,6 +765,7 @@ model Product {
   fulfillmentDays  Int           @default(20)
   stockQuantity    Int           @default(0)
   sku              String?
+  modelCode        String        @default(dbgenerated("'LEGACY-' || gen_random_uuid()::text")) @db.VarChar(120)
   barcode          String?       @unique @db.VarChar(13)
   weight           Decimal?      @db.Decimal(8, 3) // kg
   // Boyutlar (cm)
@@ -793,12 +794,14 @@ model Product {
   reviews              ProductReview[]
   favoritedBy          FavoriteProduct[]
   analyticsEvents      ProductAnalyticsEvent[]
+  barcodeReservation   BarcodeRegistry?        @relation("ProductBarcodeRegistry")
 
   @@index([sellerId, status])
   @@index([barcode])
   @@index([categoryId, status])
   @@index([slug])
   @@index([sellerId, sku])
+  @@index([sellerId, categoryId, modelCode])
   @@map("products")
 }
 
@@ -917,10 +920,23 @@ model ProductVariant {
   updatedAt     DateTime @updatedAt
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  barcodeReservation BarcodeRegistry? @relation("VariantBarcodeRegistry")
 
   @@index([productId])
   @@index([barcode])
   @@map("product_variants")
+}
+
+model BarcodeRegistry {
+  barcode   String  @id @db.VarChar(13)
+  productId String? @unique
+  variantId String? @unique
+  createdAt DateTime @default(now())
+
+  product Product? @relation("ProductBarcodeRegistry", fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation("VariantBarcodeRegistry", fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@map("barcode_registry")
 }
 
 // =============================================================================

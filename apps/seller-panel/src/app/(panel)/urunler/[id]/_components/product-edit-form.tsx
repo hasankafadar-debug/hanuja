@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Button,
@@ -17,6 +17,7 @@ import {
 import { FileUpload, type UploadedAsset } from '@hanuja/ui'
 import { Plus, Star, Trash2 } from 'lucide-react'
 import { sortAttributeOptions } from '@/lib/attribute-option-sort'
+import { useBarcodeAvailability, type BarcodeAvailabilityStatus } from '@/lib/use-barcode-availability'
 import CategoryPicker from '../../_components/category-picker'
 import type { CategoryNode } from '../../_lib/category-tree'
 
@@ -57,6 +58,7 @@ interface Props {
   initialCompareAtPrice?: number | null
   initialStock: number
   initialSku?: string
+  initialModelCode?: string
   initialBarcode?: string
   initialStatus: string
   initialVariants?: VariantFormRow[]
@@ -80,6 +82,13 @@ function createVariantRow(): VariantFormRow {
   }
 }
 
+function BarcodeStatusHint({ status, message, hidden = false }: { status: BarcodeAvailabilityStatus; message: string | null; hidden?: boolean }) {
+  if (hidden || status === 'idle') return null
+  const color = status === 'available' ? 'var(--color-success)' : status === 'checking' ? 'var(--color-muted-fg)' : 'var(--color-destructive)'
+  const fallback = status === 'available' ? 'Barkod kullanilabilir.' : status === 'in_use' ? 'Bu barkod baska bir urun veya varyantta kullanilmistir.' : 'Barkod kontrol ediliyor...'
+  return <p className="text-xs" style={{ color }}>{message ?? fallback}</p>
+}
+
 export default function ProductEditForm({
   productId,
   initialName,
@@ -93,6 +102,7 @@ export default function ProductEditForm({
   initialCompareAtPrice = null,
   initialStock,
   initialSku = '',
+  initialModelCode = '',
   initialBarcode = '',
   initialStatus,
   initialVariants = [],
@@ -119,6 +129,7 @@ export default function ProductEditForm({
   )
   const [stock, setStock] = useState(initialStock)
   const [sku, setSku] = useState(initialSku)
+  const [modelCode, setModelCode] = useState(initialModelCode)
   const [barcode, setBarcode] = useState(initialBarcode)
   const [images, setImages] = useState<UploadedAsset[]>(existingImages)
   const [pendingImageUploads, setPendingImageUploads] = useState(0)
@@ -139,6 +150,19 @@ export default function ProductEditForm({
   }, [])
 
   const hasVariants = variants.length > 0
+  const barcodeCheckItems = useMemo(
+    () => [
+      ...(!hasVariants ? [{ key: 'product', barcode }] : []),
+      ...variants.map((variant) => ({ key: variant.localId, barcode: variant.barcode })),
+    ],
+    [barcode, hasVariants, variants],
+  )
+  const { getResult: getBarcodeResult } = useBarcodeAvailability(barcodeCheckItems, productId)
+  const requiredBarcodeKeys = hasVariants ? variants.map((variant) => variant.localId) : ['product']
+  const hasBarcodeCheckIssue = requiredBarcodeKeys.some((key) => {
+    const status = getBarcodeResult(key).status
+    return status === 'checking' || status === 'invalid' || status === 'duplicate_in_request' || status === 'in_use' || status === 'error'
+  })
   const totalVariantStock = variants.reduce((sum, variant) => sum + Number(variant.stockQuantity || 0), 0)
   const variantsValid = variants.every(
     (variant) =>
@@ -151,8 +175,10 @@ export default function ProductEditForm({
     Boolean(categoryId) &&
     Boolean(colorOptionId) &&
     Boolean(materialOptionId) &&
+    Boolean(modelCode.trim()) &&
     fulfillmentDays >= 1 &&
     pendingImageUploads === 0 &&
+    !hasBarcodeCheckIssue &&
     (!hasVariants ? barcode.trim().length === 13 : variantsValid)
 
   async function attachNewImages(mediaAssetIds: string[]) {
@@ -211,6 +237,7 @@ export default function ProductEditForm({
           compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
           stockQuantity: stock,
           sku: sku.trim() || null,
+          modelCode: modelCode.trim(),
           barcode: hasVariants ? null : barcode.trim(),
           variants: variants.map((variant) => ({
             ...(variant.dbId ? { id: variant.dbId } : {}),
@@ -379,11 +406,23 @@ export default function ProductEditForm({
             disabled={loading || hasVariants}
           />
           {hasVariants ? <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Barkod varyasyon satirlarindan okunur.</p> : null}
+          <BarcodeStatusHint status={getBarcodeResult('product').status} message={getBarcodeResult('product').message} hidden={hasVariants} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="modelCode">Model Kodu *</Label>
+          <Input id="modelCode" value={modelCode} onChange={(e) => setModelCode(e.target.value)} required disabled={loading} />
+          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            Ayni Model Kodu, ayni modelin renk veya materyal seceneklerini urun detayinda birlikte gosterir.
+          </p>
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="sku">SKU</Label>
           <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} disabled={loading} />
+          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            Saticinin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde kullanilmaz.
+          </p>
         </div>
       </div>
 
@@ -391,7 +430,7 @@ export default function ProductEditForm({
         <div className="flex items-center justify-between gap-3">
           <div>
             <Label>Varyasyonlar</Label>
-            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Beden, olcu veya ek ozellik varsa her varyasyonu ayri barkodla girin. Farkli renk veya materyal kardeslerini baglamak icin SKU alanini ayni girin.</p>
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Beden, olcu veya ek ozellik varsa her varyasyonu ayri barkodla girin. Farkli renk veya materyal kardeslerini baglamak icin ayni Model Kodunu kullanin.</p>
           </div>
           <Button type="button" variant="outline" onClick={() => setVariants((current) => [...current, createVariantRow()])} disabled={loading}>
             <Plus className="h-4 w-4" /> Varyasyon Ekle
@@ -411,6 +450,7 @@ export default function ProductEditForm({
               <Input placeholder="Ek Ozellik Adi" value={variant.customOptionName} onChange={(e) => updateVariant(variant.localId, { customOptionName: e.target.value })} disabled={loading} />
               <Input placeholder="Ek Ozellik Degeri" value={variant.customOptionValue} onChange={(e) => updateVariant(variant.localId, { customOptionValue: e.target.value })} disabled={loading} />
               <Input inputMode="numeric" pattern="\d{13}" placeholder="Barkod (13 hane)" value={variant.barcode} onChange={(e) => updateVariant(variant.localId, { barcode: e.target.value.replace(/\D/g, '').slice(0, 13) })} required disabled={loading} />
+              <BarcodeStatusHint status={getBarcodeResult(variant.localId).status} message={getBarcodeResult(variant.localId).message} />
               <Input type="number" min="0" step="0.01" placeholder="Fiyat" value={variant.price} onChange={(e) => updateVariant(variant.localId, { price: e.target.value })} required disabled={loading} />
               <Input type="number" min="0" step="1" placeholder="Stok" value={variant.stockQuantity} onChange={(e) => updateVariant(variant.localId, { stockQuantity: e.target.value })} required disabled={loading} />
             </div>

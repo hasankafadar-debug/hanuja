@@ -9,6 +9,7 @@ import { ProductModerationActions } from '@/components/product-moderation-action
 type ProductRow = {
   id: string
   name: string
+  modelCode: string
   status: 'pending_review' | 'published' | 'rejected' | 'draft' | 'unlisted'
   createdAt: string | Date
   sellerName: string
@@ -128,6 +129,9 @@ export function ModerationTableClient({ rows }: { rows: ProductRow[] }) {
                 <Link href={`/urunler/${product.id}`} className="hover:underline">
                   {product.name}
                 </Link>
+                <p className="mt-0.5 text-xs font-normal" style={{ color: 'var(--color-muted-fg)' }}>
+                  Model Kodu: {product.modelCode}
+                </p>
               </td>
               <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
                 {product.sellerName}

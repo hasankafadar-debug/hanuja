@@ -58,7 +58,7 @@ export default async function SellerImportPage() {
       </div>
 
       {seller.importEnabled ? (
-        <ImportForm categories={categories} sellerNumber={seller.sellerNumber} />
+        <ImportForm categories={categories} />
       ) : seller.importRequestedAt ? (
         <ImportPermissionPending requestedAt={seller.importRequestedAt} />
       ) : (

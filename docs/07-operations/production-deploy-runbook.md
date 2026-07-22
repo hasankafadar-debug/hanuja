@@ -13,6 +13,10 @@ Bu doküman, ilk canlıya çıkış için **sıralı adımları** ve özellikle 
 
 ---
 
+## Barkod kaydı migration'ı
+
+`BarcodeRegistry` migration'ından önce production worker ortamında `pnpm check-barcode-registry-ready` çalıştırın. Komut ürün barkodu ile varyant barkodunun çapraz çakıştığı kayıtları listeler ve çıkış kodu 1 ile durur. Herhangi bir çakışma varsa migration veya deploy yapmayın; sahipliği iş kuralıyla netleştirip barkodu elle düzeltin. Guard temiz çıktıktan sonra sıra: guard → worker migration/deploy → admin-panel → seller-panel → web.
+
 ## 1. Sunucu ve Coolify Kurulumu (manuel, ops sorumluluğu)
 
 Bu adım otomatikleştirilemez; bu doküman sadece hatırlatma listesi sağlar. Detaylar için `docs/06-engineering/coolify-setup.md`.

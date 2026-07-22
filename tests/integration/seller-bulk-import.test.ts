@@ -44,7 +44,10 @@ import {
   filterBulkCategoryReferenceRowsByScope,
   resolveBulkCategoryRealSlug,
 } from '../../apps/seller-panel/src/lib/bulk-category-options'
-import { normalizeBulkProductRow } from '../../apps/seller-panel/src/lib/bulk-product-import'
+import {
+  buildBulkProductGroupKey,
+  normalizeBulkProductRow,
+} from '../../apps/seller-panel/src/lib/bulk-product-import'
 
 type MockCategory = {
   id: string
@@ -243,6 +246,7 @@ describe('cross-seller barcode uniqueness', () => {
 
 describe('normalizeBulkProductRow - barcode format', () => {
   const validBase = {
+    'Model Kodu*': 'SEHPA-001',
     'Urun Adi*': 'Test Urun',
     'Kategori Slug*': 'mobilya-sehpa',
     'Urun Rengi*': 'Ceviz',
@@ -288,6 +292,7 @@ describe('normalizeBulkProductRow - barcode format', () => {
   it('accepts rows from the new template without rootCategorySlug column', () => {
     const result = normalizeBulkProductRow(
       {
+        'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Test Urun',
         'Kategori*': 'Mobilya / Sehpa',
         'Urun Rengi*': 'Ceviz',
@@ -302,6 +307,30 @@ describe('normalizeBulkProductRow - barcode format', () => {
 
     expect(result.errors).toHaveLength(0)
     expect(result.data?.rootCategorySlug).toBeUndefined()
+  })
+
+  it('accepts the legacy Urun Grup Kodu heading as Model Kodu', () => {
+    const { 'Model Kodu*': _modelCode, ...legacyBase } = validBase
+    const result = normalizeBulkProductRow({ ...legacyBase, 'Urun Grup Kodu': 'legacy-001' }, 2)
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.data?.modelCode).toBe('legacy-001')
+  })
+
+  it('rejects fulfillment days above the documented 90-day limit', () => {
+    const result = normalizeBulkProductRow(
+      { ...validBase, 'Sevk Suresi (is gunu)*': 91 },
+      2,
+    )
+
+    expect(result.errors.some((error) => error.includes('90'))).toBe(true)
+  })
+
+  it('keeps the same model code in different categories as separate import groups', () => {
+    const first = normalizeBulkProductRow(validBase, 2).data!
+    const second = normalizeBulkProductRow({ ...validBase, 'Kategori Slug*': 'ev-mobilya-koltuk' }, 3).data!
+
+    expect(buildBulkProductGroupKey(first)).not.toBe(buildBulkProductGroupKey(second))
   })
 })
 

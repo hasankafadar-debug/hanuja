@@ -25,6 +25,7 @@ const STATUS_MAP: Record<
 interface ProductRow {
   id: string
   name: string
+  modelCode: string
   status: string
   price: { toNumber(): number } | number
   stockQuantity: number | null
@@ -180,6 +181,9 @@ export default function ProductsTableClient({ initialRows }: { initialRows: Prod
                         </div>
                         <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
                           {product.name}
+                        </span>
+                        <span className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                          Model Kodu: {product.modelCode}
                         </span>
                       </div>
                     </td>

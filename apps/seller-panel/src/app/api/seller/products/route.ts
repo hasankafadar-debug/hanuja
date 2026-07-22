@@ -6,6 +6,8 @@ import { auth } from '@/lib/auth'
 import { PrismaClient } from '@prisma/client'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { ConflictError, ValidationError } from '@hanuja/api/lib/errors'
+import { isBarcodeConflict, syncVariantBarcodeReservation } from '@hanuja/api/domain/barcode-registry'
+import { requireModelCode } from '@hanuja/api/domain/model-code'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -35,6 +37,7 @@ const createProductSchema = z.object({
   careInstructions: z.string().max(5000).optional(),
   compareAtPrice: z.number().positive('Liste fiyati 0dan buyuk olmali').optional(),
   sku: z.string().max(120).optional(),
+  modelCode: z.string().min(1, 'Model Kodu zorunludur').max(120),
   weight: z.number().positive('Agirlik 0dan buyuk olmali').optional(),
   colorOptionId: z.string().min(1, 'Renk secimi zorunludur'),
   materialOptionId: z.string().min(1, 'Materyal secimi zorunludur'),
@@ -79,7 +82,7 @@ async function assertVariantBarcodesAvailable(params: {
   if (uniqueBarcodes.length === 0) return
 
   const [productBarcode, variantBarcode] = await Promise.all([
-    prisma.product.findFirst({ where: { barcode: { in: uniqueBarcodes } }, select: { barcode: true } }),
+    prisma.barcodeRegistry.findFirst({ where: { barcode: { in: uniqueBarcodes } }, select: { barcode: true } }),
     prisma.productVariant.findFirst({ where: { barcode: { in: uniqueBarcodes } }, select: { barcode: true } }),
   ])
 
@@ -143,21 +146,25 @@ export async function POST(req: NextRequest) {
             ? variants.reduce((sum, variant) => sum + variant.stockQuantity, 0)
             : parsed.data.stockQuantity,
         sku: parsed.data.sku?.trim() || null,
+        modelCode: requireModelCode(parsed.data.modelCode),
         barcode: variants.length > 0 ? null : parsed.data.barcode?.trim() || null,
         weight: parsed.data.weight !== undefined ? new Decimal(parsed.data.weight) : null,
       })
 
       if (variants.length > 0) {
-        await tx.productVariant.createMany({
-          data: variants.map((variant) => ({
+        for (const variant of variants) {
+          const createdVariant = await tx.productVariant.create({
+            data: {
             productId: created.id,
             name: variant.name,
             options: variant.options,
             barcode: variant.barcode,
             price: variant.price,
             stockQuantity: variant.stockQuantity,
-          })),
-        })
+            },
+          })
+          await syncVariantBarcodeReservation(tx, createdVariant.id, variant.barcode)
+        }
       }
 
       await tx.productAttributeValue.createMany({
@@ -178,6 +185,9 @@ export async function POST(req: NextRequest) {
     }
     if (error instanceof ValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+    if (isBarcodeConflict(error)) {
+      return NextResponse.json({ error: 'Bu barkod başka bir ürün veya varyantta kullanılmıştır.' }, { status: 409 })
     }
     throw error
   }

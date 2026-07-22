@@ -49,12 +49,12 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const [existingProduct, existingVariant] = await Promise.all([
-    prisma.product.findFirst({ where: { barcode: normalized }, select: { id: true } }),
-    prisma.productVariant.findFirst({ where: { barcode: normalized }, select: { id: true } }),
-  ])
+  const existing = await prisma.barcodeRegistry.findUnique({
+    where: { barcode: normalized },
+    select: { barcode: true },
+  })
 
-  const inUse = Boolean(existingProduct || existingVariant)
+  const inUse = Boolean(existing)
 
   return NextResponse.json({
     input,

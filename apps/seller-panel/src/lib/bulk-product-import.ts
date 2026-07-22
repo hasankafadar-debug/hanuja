@@ -35,30 +35,32 @@ const optionalString = z
 const barcodeSchema = z.string().regex(/^\d{13}$/, 'Barkod 13 haneli rakam olmali')
 
 export const BULK_PRODUCT_COLUMN_CONFIG = [
-  { key: 'productGroupCode', label: 'Urun Grup Kodu' },
-  { key: 'name', label: 'Urun Adi*' },
-  { key: 'categorySlug', label: 'Kategori*' },
-  { key: 'productColor', label: 'Urun Rengi*' },
-  { key: 'productMaterial', label: 'Materyal*' },
-  { key: 'price', label: 'Fiyat*' },
-  { key: 'fulfillmentDays', label: 'Sevk Suresi (is gunu)*' },
-  { key: 'stockQuantity', label: 'Stok*' },
-  { key: 'barcode', label: 'Barkod (13 hane)*' },
-  { key: 'variantColor', label: 'Varyant Rengi' },
-  { key: 'variantMaterial', label: 'Varyant Materyali' },
-  { key: 'variantSize', label: 'Beden' },
-  { key: 'variantCustomOptionName', label: 'Ek Ozellik Adi' },
-  { key: 'variantCustomOptionValue', label: 'Ek Ozellik Degeri' },
-  { key: 'sku', label: 'SKU' },
-  { key: 'shortDescription', label: 'Kisa Aciklama' },
-  { key: 'description', label: 'Aciklama' },
-  { key: 'story', label: 'Hikaye' },
-  { key: 'careInstructions', label: 'Bakim Notu' },
-  { key: 'compareAtPrice', label: 'Liste Fiyati (ustu cizili)' },
-  { key: 'weight', label: 'Agirlik (kg)' },
+  { key: 'modelCode', label: 'Model Kodu*', required: true, helpText: 'Ayni satici ve ayni kategoride ayni Model Kodu verilen urunler, ayni modelin renk/materyal secenekleri kabul edilir ve urun detayinda birlikte gosterilir.' },
+  { key: 'name', label: 'Urun Adi*', required: true, helpText: 'Urun adini en az 3, en fazla 200 karakter olarak girin.' },
+  { key: 'categorySlug', label: 'Kategori*', required: true, helpText: 'Sablonda secilen kategori kapsami icinden bir kategori girin.' },
+  { key: 'productColor', label: 'Urun Rengi*', required: true, helpText: 'Urunun renk secenegini girin.' },
+  { key: 'productMaterial', label: 'Materyal*', required: true, helpText: 'Urunun ana materyalini girin.' },
+  { key: 'price', label: 'Fiyat*', required: true, helpText: 'Satis fiyatini TL olarak sifirdan buyuk girin.' },
+  { key: 'fulfillmentDays', label: 'Sevk Suresi (is gunu)*', required: true, helpText: 'Sevk suresini 1 ile 90 is gunu arasinda bir tam sayi olarak girin.' },
+  { key: 'stockQuantity', label: 'Stok*', required: true, helpText: 'Stok adedini sifir veya daha buyuk bir tam sayi olarak girin.' },
+  { key: 'barcode', label: 'Barkod (13 hane)*', required: true, helpText: 'Her urun veya varyant icin sistem genelinde benzersiz 13 haneli barkod girin.' },
+  { key: 'variantColor', label: 'Varyant Rengi', required: false, helpText: 'Ayni urun icindeki varyasyon icin renk girin. Bos birakabilirsiniz.' },
+  { key: 'variantMaterial', label: 'Varyant Materyali', required: false, helpText: 'Ayni urun icindeki varyasyon icin materyal girin. Bos birakabilirsiniz.' },
+  { key: 'variantSize', label: 'Beden', required: false, helpText: 'Beden veya olcu varyasyonunu girin. Bos birakabilirsiniz.' },
+  { key: 'variantCustomOptionName', label: 'Ek Ozellik Adi', required: false, helpText: 'Varyasyon icin ek ozellik adini girin; deger girildiyse bu alan da doldurulmalidir.' },
+  { key: 'variantCustomOptionValue', label: 'Ek Ozellik Degeri', required: false, helpText: 'Ek ozelligin secilen degerini girin; ad girildiyse bu alan da doldurulmalidir.' },
+  { key: 'sku', label: 'SKU', required: false, helpText: 'Saticinin urunu kendi sisteminde tanimak icin belirledigi istege bagli koddur; varyant iliskilendirmesinde kullanilmaz.' },
+  { key: 'shortDescription', label: 'Kisa Aciklama', required: false, helpText: 'Kisa urun aciklamasini en fazla 500 karakter olarak girin.' },
+  { key: 'description', label: 'Aciklama', required: false, helpText: 'Urun aciklamasini en fazla 5000 karakter olarak girin.' },
+  { key: 'story', label: 'Hikaye', required: false, helpText: 'Urun hikayesini en fazla 5000 karakter olarak girin.' },
+  { key: 'careInstructions', label: 'Bakim Notu', required: false, helpText: 'Bakim bilgisini en fazla 5000 karakter olarak girin.' },
+  { key: 'compareAtPrice', label: 'Liste Fiyati (ustu cizili)', required: false, helpText: 'Varsa satis fiyatindan yuksek liste fiyatini TL olarak girin.' },
+  { key: 'weight', label: 'Agirlik (kg)', required: false, helpText: 'Varsa urun agirligini kilogram olarak sifirdan buyuk girin.' },
   ...Array.from({ length: BULK_PRODUCT_IMAGE_COLUMN_COUNT }, (_, index) => ({
     key: `image${index + 1}` as const,
     label: `Gorsel ${index + 1}`,
+    required: false,
+    helpText: 'Bu alana ilgili gorselinizin medya kutuphanesindeki baglantisini girebilirsiniz. Her gorsel icin ayri bir Gorsel sutununa baglanti girin.\n\nIsterseniz gorselleri urun olusturulduktan sonra Urun Duzenle bolumunden ekleyebilirsiniz.',
   })),
 ] as const
 
@@ -66,12 +68,7 @@ export type BulkProductColumnKey = (typeof BULK_PRODUCT_COLUMN_CONFIG)[number]['
 type BulkImportMappedColumnKey = BulkProductColumnKey | 'rootCategorySlug'
 
 export const BULK_PRODUCT_HEADERS = BULK_PRODUCT_COLUMN_CONFIG.map((column) => column.key)
-export const BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG = BULK_PRODUCT_COLUMN_CONFIG.filter(
-  (
-    column,
-  ): column is Exclude<(typeof BULK_PRODUCT_COLUMN_CONFIG)[number], { key: 'productGroupCode' }> =>
-    column.key !== 'productGroupCode',
-)
+export const BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG = BULK_PRODUCT_COLUMN_CONFIG
 export const BULK_PRODUCT_TEMPLATE_HEADERS = BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.map((column) => column.label)
 
 const TURKISH_TO_INTERNAL_HEADER_MAP = new Map<string, BulkImportMappedColumnKey>(
@@ -85,6 +82,9 @@ const TURKISH_TO_INTERNAL_HEADER_MAP = new Map<string, BulkImportMappedColumnKey
   }),
 )
 
+// Legacy exports used this heading before Model Kodu was introduced.
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Urun Grup Kodu'), 'modelCode')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Ürün Grup Kodu'), 'modelCode')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Eski Fiyat'), 'compareAtPrice')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Urun Rengi'), 'productColor')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Urun Rengi*'), 'productColor')
@@ -100,7 +100,7 @@ TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Kategori*'), 'categorySlu
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Kategori'), 'categorySlug')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Kategori Slug*'), 'categorySlug')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Kategori Slug'), 'categorySlug')
-TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Ürün Grup Kodu'), 'productGroupCode')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Ürün Grup Kodu'), 'modelCode')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Ürün Adı*'), 'name')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Kısa Açıklama'), 'shortDescription')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Açıklama'), 'description')
@@ -119,7 +119,7 @@ TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Görsel 7'), 'image7')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Görsel 8'), 'image8')
 
 export const BULK_PRODUCT_TEMPLATE_SAMPLE_ROW: Record<BulkProductColumnKey, string | number> = {
-  productGroupCode: 'SEHPA-001',
+  modelCode: 'SEHPA-001',
   name: 'Dogal Mese Yan Sehpa',
   categorySlug: 'Mobilya / Sehpa Modelleri',
   productColor: 'Ceviz',
@@ -151,14 +151,14 @@ export const BULK_PRODUCT_TEMPLATE_SAMPLE_ROW: Record<BulkProductColumnKey, stri
 }
 
 const bulkProductRowSchema = z.object({
-  productGroupCode: optionalString.pipe(z.string().max(120).optional()),
+  modelCode: z.string().trim().min(1, 'Model Kodu zorunludur').max(120),
   name: z.string().trim().min(3, 'Urun adi en az 3 karakter olmali').max(200),
   rootCategorySlug: optionalString.pipe(z.string().max(120).optional()),
   categorySlug: z.string().trim().min(1, 'Kategori zorunludur'),
   productColor: z.string().trim().min(1, 'Urun rengi zorunludur').max(80),
   productMaterial: z.string().trim().min(1, 'Materyal zorunludur').max(80),
   price: z.number().positive('Fiyat 0dan buyuk olmali'),
-  fulfillmentDays: z.number().int('Sevk suresi tam sayi olmali').min(1, 'Sevk suresi en az 1 is gunu olmali'),
+  fulfillmentDays: z.number().int('Sevk suresi tam sayi olmali').min(1, 'Sevk suresi en az 1 is gunu olmali').max(90, 'Sevk suresi en fazla 90 is gunu olmali'),
   stockQuantity: z.number().int('Stok tam sayi olmali').min(0, 'Stok negatif olamaz'),
   barcode: barcodeSchema,
   variantColor: optionalString.pipe(z.string().max(80).optional()),
@@ -201,6 +201,20 @@ export interface BulkProductImportRow
   hasVariant: boolean
 }
 
+/**
+ * Converts preview rows back to the wire format accepted by the bulk API.
+ * Image URLs are intentionally expanded into image1..image8 so a second
+ * server-side normalization pass cannot discard them.
+ */
+export function serializeBulkProductImportRowsForApi(rows: BulkProductImportRow[]) {
+  return rows.map(({ imageUrls, ...row }) => ({
+    ...row,
+    ...Object.fromEntries(
+      BULK_PRODUCT_IMAGE_KEYS.map((key, index) => [key, imageUrls[index] ?? '']),
+    ),
+  }))
+}
+
 export interface BulkProductRowResult {
   rowNumber: number
   raw: Record<string, unknown>
@@ -208,30 +222,10 @@ export interface BulkProductRowResult {
   errors: string[]
 }
 
-function normalizeFingerprintValue(value: string | number | undefined) {
-  if (value === undefined) return ''
-  return String(value).trim()
-}
-
 export function buildBulkProductGroupKey(row: BulkProductImportRow) {
-  const sku = row.sku?.trim()
-  if (sku) return `sku:${sku.toLowerCase()}`
-
-  const fingerprint = JSON.stringify({
-    name: normalizeFingerprintValue(row.name).toLowerCase(),
-    categorySlug: normalizeFingerprintValue(row.categorySlug).toLowerCase(),
-    productColor: normalizeFingerprintValue(row.productColor).toLowerCase(),
-    productMaterial: normalizeFingerprintValue(row.productMaterial).toLowerCase(),
-    shortDescription: normalizeFingerprintValue(row.shortDescription),
-    description: normalizeFingerprintValue(row.description),
-    story: normalizeFingerprintValue(row.story),
-    careInstructions: normalizeFingerprintValue(row.careInstructions),
-    compareAtPrice: normalizeFingerprintValue(row.compareAtPrice),
-    weight: normalizeFingerprintValue(row.weight),
-    imageUrls: row.imageUrls.map((url) => url.trim()),
-  })
-
-  return `fingerprint:${fingerprint}`
+  const category = row.categorySlug.normalize('NFKC').trim().replace(/\s+/g, ' ').toUpperCase()
+  const modelCode = row.modelCode.normalize('NFKC').trim().replace(/\s+/g, ' ').toUpperCase()
+  return `model:${category}::${modelCode}`
 }
 
 function normalizeHeaderKey(value: string) {
@@ -276,7 +270,9 @@ function mapRawRowToInternalKeys(raw: Record<string, unknown>) {
 
 export function getMissingBulkProductHeaders(headers: string[]) {
   const normalizedHeaders = new Set(headers.map((header) => normalizeHeaderKey(header)))
-  const requiredKeys = ['name', 'productColor', 'productMaterial', 'price', 'fulfillmentDays', 'stockQuantity', 'barcode']
+  const requiredKeys = BULK_PRODUCT_COLUMN_CONFIG
+    .filter((column) => 'required' in column && column.required)
+    .map((column) => column.key)
   const missing = BULK_PRODUCT_COLUMN_CONFIG
     .filter((column) =>
       requiredKeys.includes(column.key) &&
@@ -305,7 +301,7 @@ export function normalizeBulkProductRow(
 ): BulkProductRowResult {
   const mapped = mapRawRowToInternalKeys(raw)
   const prepared = {
-    productGroupCode: mapped.productGroupCode,
+    modelCode: String(mapped.modelCode ?? '').trim(),
     name: String(mapped.name ?? '').trim(),
     rootCategorySlug: mapped.rootCategorySlug
       ? normalizeRootCategoryValue(String(mapped.rootCategorySlug))
@@ -389,7 +385,7 @@ export function normalizeBulkProductRow(
     rowNumber,
     raw,
     data: {
-      productGroupCode: parsed.data.productGroupCode,
+      modelCode: parsed.data.modelCode,
       name: parsed.data.name,
       rootCategorySlug: parsed.data.rootCategorySlug,
       categorySlug: parsed.data.categorySlug,

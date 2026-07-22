@@ -45,6 +45,7 @@ describe('catalog.service product creation', () => {
         create: productCreateMock,
         update: vi.fn(),
       },
+      barcodeRegistry: { findFirst: vi.fn().mockResolvedValue(null), deleteMany: vi.fn(), create: vi.fn() },
     } as never
 
     const service = createCatalogService({ prisma })
@@ -58,6 +59,7 @@ describe('catalog.service product creation', () => {
       stockQuantity: 4,
       barcode: '8691234567890',
       sku: 'SKU-01',
+      modelCode: 'MODEL-01',
     })
 
     expect(productCreateMock).toHaveBeenCalledWith(
@@ -65,6 +67,7 @@ describe('catalog.service product creation', () => {
         data: expect.objectContaining({
           slug: 'ayni-isimli-urun-2',
           sku: 'SKU-01',
+          modelCode: 'MODEL-01',
         }),
       }),
     )
@@ -88,10 +91,11 @@ describe('catalog.service product creation', () => {
       },
       product: {
         findUnique: vi.fn().mockResolvedValue(null),
-        findFirst: barcodeLookupMock,
+        findFirst: vi.fn().mockResolvedValue(null),
         create: productCreateMock,
         update: vi.fn(),
       },
+      barcodeRegistry: { findFirst: barcodeLookupMock, deleteMany: vi.fn(), create: vi.fn() },
     } as never
 
     const service = createCatalogService({ prisma })
@@ -105,6 +109,7 @@ describe('catalog.service product creation', () => {
       stockQuantity: 2,
       barcode: '8691234567891',
       sku: 'SKU-TEKRAR',
+      modelCode: 'MODEL-TEKRAR',
     })
 
     expect(barcodeLookupMock).toHaveBeenCalledWith(

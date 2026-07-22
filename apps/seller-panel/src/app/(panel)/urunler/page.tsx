@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Button, EmptyState, PageHeader } from '@hanuja/ui'
+import { Button, EmptyState, Input, PageHeader } from '@hanuja/ui'
 import { Download, Plus, Package } from 'lucide-react'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
@@ -11,15 +11,23 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = { title: 'Urunlerim' }
 
-export default async function ProductsPage() {
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string | string[] }>
+}) {
   const { seller } = await getSellerFromSession()
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const rawQuery = resolvedSearchParams?.q
+  const query = (Array.isArray(rawQuery) ? rawQuery[0] : rawQuery)?.trim() ?? ''
 
   const svc = createCatalogService({ prisma: createPrismaForRoute() })
-  const products = await svc.listBySeller(seller.id, undefined, 0, 50)
+  const products = await svc.listBySeller(seller.id, undefined, 0, 50, query)
 
   const rows = products.map((p) => ({
     id: p.id,
     name: p.name,
+    modelCode: p.modelCode,
     status: p.status,
     price: typeof (p.price as unknown as { toNumber?: () => number }).toNumber === 'function'
       ? (p.price as unknown as { toNumber: () => number }).toNumber()
@@ -73,6 +81,17 @@ export default async function ProductsPage() {
       <div className="rounded-xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
         Fiyat ve Stok sutunlarindaki hucrelere tiklayarak hizlica guncelleme yapabilirsiniz.
       </div>
+
+      <form className="flex max-w-xl gap-2" action="/urunler" method="get">
+        <Input
+          name="q"
+          defaultValue={query}
+          placeholder="Urun adi, SKU, Model Kodu veya barkod ara"
+          aria-label="Urun ara"
+        />
+        <Button type="submit" variant="outline">Ara</Button>
+        {query ? <Button asChild type="button" variant="ghost"><Link href="/urunler">Temizle</Link></Button> : null}
+      </form>
 
       {rows.length === 0 ? (
         <EmptyState

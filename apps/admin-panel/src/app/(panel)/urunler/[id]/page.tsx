@@ -146,6 +146,7 @@ export default async function AdminProductDetailPage({
               <MetaRow label="Kategori" value={product.category?.name ?? '—'} />
               <MetaRow label="Fiyat" value={formatMoney(product.price.toNumber())} />
               <MetaRow label="Stok" value={String(product.stockQuantity)} />
+              <MetaRow label="Model Kodu" value={product.modelCode} />
               <MetaRow label="SKU" value={product.sku ?? '—'} />
               <MetaRow label="Barkod" value={product.barcode ?? '—'} />
             </dl>

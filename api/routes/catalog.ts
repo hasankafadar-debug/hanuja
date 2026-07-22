@@ -8,9 +8,17 @@ import { createCatalogService } from '../services/catalog.service'
 import { createPrismaForRoute } from '../lib/prisma'
 import { Decimal } from '@prisma/client/runtime/client'
 import { ValidationError } from '../lib/errors'
+import { requireModelCode } from '../domain/model-code'
 
 function getCatalogService() {
   return createCatalogService({ prisma: createPrismaForRoute() })
+}
+
+// Storefront server rendering may use modelCode to join siblings, but the
+// seller's internal grouping value must never be part of the public JSON API.
+function withoutModelCode<T extends { modelCode?: unknown }>(product: T) {
+  const { modelCode: _modelCode, ...publicProduct } = product
+  return publicProduct
 }
 
 const createProductSchema = z.object({
@@ -19,6 +27,7 @@ const createProductSchema = z.object({
   description: z.string().min(10),
   price: z.number().positive(),
   stock: z.number().int().min(0),
+  modelCode: z.string().min(1).max(120),
   slugOverride: z.string().optional(),
 })
 
@@ -27,7 +36,7 @@ export async function getProductBySlug(slug: string) {
   try {
     const svc = getCatalogService()
     const product = await svc.getProductBySlug(slug)
-    return ok(product)
+    return ok(withoutModelCode(product))
   } catch (err) {
     return handleError(err)
   }
@@ -42,7 +51,7 @@ export async function listProducts(req: NextRequest) {
     const take = Number(url.searchParams.get('take') ?? '20')
     const svc = getCatalogService()
     const products = await svc.listPublished({ ...(categoryId !== undefined ? { categoryId } : {}), skip, take })
-    return ok(products)
+    return ok(products.map(withoutModelCode))
   } catch (err) {
     return handleError(err)
   }
@@ -67,16 +76,20 @@ export async function createProduct(req: NextRequest, sellerId: string) {
   try {
     const body = await req.json()
     const data = createProductSchema.parse(body)
-    const svc = getCatalogService()
-    const product = await svc.createProduct({
-      sellerId,
-      categoryId: data.categoryId,
-      name: data.name,
-      description: data.description,
-      price: new Decimal(data.price),
-      fulfillmentDays: 20,
-      stockQuantity: data.stock,
-      ...(data.slugOverride !== undefined ? { slugOverride: data.slugOverride } : {}),
+    const prisma = createPrismaForRoute()
+    const product = await prisma.$transaction(async (tx) => {
+      const svc = createCatalogService({ prisma: tx as unknown as import('@prisma/client').PrismaClient })
+      return svc.createProduct({
+        sellerId,
+        categoryId: data.categoryId,
+        name: data.name,
+        description: data.description,
+        price: new Decimal(data.price),
+        fulfillmentDays: 20,
+        stockQuantity: data.stock,
+        modelCode: requireModelCode(data.modelCode),
+        ...(data.slugOverride !== undefined ? { slugOverride: data.slugOverride } : {}),
+      })
     })
     return created(product)
   } catch (err) {

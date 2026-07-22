@@ -70,6 +70,7 @@ interface ItemSelectionState {
   categoryId: string
   colorOptionId: string
   materialOptionId: string
+  modelCode: string
   barcode: string
   barcodeStatus: BarcodeStatus
   barcodeNormalized: string | null
@@ -79,7 +80,6 @@ interface ItemSelectionState {
 
 interface ImportFormProps {
   categories: ImportCategoryOption[]
-  sellerNumber: number
 }
 
 // Sayfa ömrü boyunca önizleme state'ini koru — sayfa değişince/yenileyince kaybolmasın
@@ -156,6 +156,7 @@ function normalizePersistedSelection(value: unknown): ItemSelectionState | null 
     categoryId: typeof candidate.categoryId === 'string' ? candidate.categoryId : '',
     colorOptionId: typeof candidate.colorOptionId === 'string' ? candidate.colorOptionId : '',
     materialOptionId: typeof candidate.materialOptionId === 'string' ? candidate.materialOptionId : '',
+    modelCode: typeof candidate.modelCode === 'string' ? candidate.modelCode : '',
     barcode: typeof candidate.barcode === 'string' ? candidate.barcode : '',
     barcodeStatus: isBarcodeStatus(candidate.barcodeStatus) ? candidate.barcodeStatus : 'idle',
     barcodeNormalized:
@@ -199,6 +200,7 @@ function createEmptySelectionState(): ItemSelectionState {
     categoryId: '',
     colorOptionId: '',
     materialOptionId: '',
+    modelCode: '',
     barcode: '',
     barcodeStatus: 'idle',
     barcodeNormalized: null,
@@ -371,7 +373,7 @@ function BarcodeCell({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
+export function ImportForm({ categories }: ImportFormProps) {
   const [url, setUrl] = useState('')
   const [preview, setPreview] = useState<PreviewPayload | null>(null)
   const [selections, setSelections] = useState<Record<string, ItemSelectionState>>({})
@@ -449,6 +451,15 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     }).length
   }, [importedByExternalId, preview, selections])
 
+  const missingModelCodeCount = useMemo(() => {
+    if (!preview) return 0
+    return preview.items.filter((item) => {
+      if (importedByExternalId[item.externalId]) return false
+      const selection = selections[item.externalId]
+      return selection?.selected === true && !selection.modelCode.trim()
+    }).length
+  }, [importedByExternalId, preview, selections])
+
   const missingColorCount = useMemo(() => {
     if (!preview) return 0
     return preview.items.filter((item) => {
@@ -503,6 +514,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
             categoryId: resolvedId,
             colorOptionId: item.detectedColorOptionId ?? '',
             materialOptionId: item.detectedMaterialOptionId ?? '',
+            modelCode: item.sku?.trim() ?? '',
             barcode: item.proposedBarcode ?? '',
             barcodeStatus: 'idle' as BarcodeStatus,
             barcodeNormalized: null,
@@ -688,6 +700,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
           },
           colorOptionId: s.colorOptionId.trim(),
           materialOptionId: s.materialOptionId.trim(),
+          modelCode: s.modelCode.trim(),
           barcode: s.barcode.trim() || null,
           fulfillmentDays: s.fulfillmentDays,
           stockQuantity: s.stockQuantity,
@@ -700,6 +713,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
         categoryId: s.categoryId.trim(),
         colorOptionId: s.colorOptionId.trim(),
         materialOptionId: s.materialOptionId.trim(),
+        modelCode: s.modelCode.trim(),
         barcode: s.barcode.trim() || null,
         fulfillmentDays: s.fulfillmentDays,
         stockQuantity: s.stockQuantity,
@@ -774,6 +788,10 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
       setCommitError('Seçili ürünlerin tamamında renk ve materyal zorunludur.')
       return
     }
+    if (commitSelections.some((s) => !s.modelCode)) {
+      setCommitError('Seçili ürünlerin tamamında Model Kodu zorunludur.')
+      return
+    }
 
     startCommitTransition(async () => {
       setCommitError(null)
@@ -834,6 +852,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
     isBusy ||
     selectedCount === 0 ||
     missingCategoryCount > 0 ||
+    missingModelCodeCount > 0 ||
     missingBarcodeCount > 0 ||
     missingFulfillmentCount > 0 ||
     missingColorCount > 0 ||
@@ -944,6 +963,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                   { label: 'Eklenen ürün', value: importedCount },
                   { label: 'Seçilen ürün', value: selectedCount },
                   { label: 'Kategori bekleyen', value: missingCategoryCount },
+                  { label: 'Model Kodu bekleyen', value: missingModelCodeCount },
                   { label: 'Sevk süresi bekleyen', value: missingFulfillmentCount },
                 ].map((stat) => (
                   <div
@@ -1040,6 +1060,11 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                     {missingBarcodeCount} seçili üründe barkod eksik veya geçersiz.
                   </p>
                 ) : null}
+                {missingModelCodeCount > 0 ? (
+                  <p style={{ color: 'var(--color-destructive)' }}>
+                    {missingModelCodeCount} seçili üründe Model Kodu zorunludur.
+                  </p>
+                ) : null}
                 {missingFulfillmentCount > 0 ? (
                   <p style={{ color: 'var(--color-destructive)' }}>
                     {missingFulfillmentCount} seçili üründe sevk süresi eksik veya geçersiz.
@@ -1065,6 +1090,7 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                       {[
                         'Seç',
                         'Ürün',
+                        'Model Kodu',
                         'Barkod',
                         'Stok',
                         'Sevk',
@@ -1169,6 +1195,29 @@ export function ImportForm({ categories, sellerNumber }: ImportFormProps) {
                                 <ProductDetail item={item} />
                               </div>
                             </div>
+                          </td>
+
+                          {/* Model code */}
+                          <td
+                            className="border-b px-3 py-3 align-top"
+                            style={{ borderColor: 'var(--color-border)' }}
+                          >
+                            <Input
+                              value={s.modelCode}
+                              onChange={(event) =>
+                                updateItemSelection(item.externalId, (current) => ({
+                                  ...current,
+                                  modelCode: event.target.value,
+                                }))
+                              }
+                              disabled={!s.selected || isBusy || Boolean(importedProduct)}
+                              placeholder="Model Kodu"
+                              className="min-w-[140px] text-xs"
+                              aria-label={`${item.name} Model Kodu`}
+                            />
+                            <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                              Kaynak SKU'dan önerildi; aynı modelin renk/materyal kardeşlerinde aynı kodu kullanın.
+                            </p>
                           </td>
 
                           {/* Barcode */}

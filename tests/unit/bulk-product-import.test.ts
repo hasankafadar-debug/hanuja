@@ -5,18 +5,40 @@ import {
   resolveBulkCategoryRealSlug,
 } from '@/lib/bulk-category-options'
 import {
+  BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG,
   BULK_PRODUCT_TEMPLATE_HEADERS,
   MAX_BULK_IMPORT_ROWS,
   buildBulkProductGroupKey,
   getMissingBulkProductHeaders,
   normalizeBulkProductRow,
+  serializeBulkProductImportRowsForApi,
 } from '@/lib/bulk-product-import'
 import { sortAttributeOptions } from '@/lib/attribute-option-sort'
+import { createBulkValidationError } from '@/lib/bulk-validation-error'
+import {
+  BULK_IMPORT_TRANSACTION_MAX_WAIT_MS,
+  BULK_IMPORT_TRANSACTION_TIMEOUT_MS,
+} from '@/lib/bulk-import-transaction'
 
 describe('bulk product import row validator', () => {
+  it('keeps validate and commit row errors in the stable API shape', () => {
+    expect(createBulkValidationError(7, 'barcode', 'barcode_in_use', 'Kullanımda')).toEqual({
+      rowNumber: 7,
+      field: 'barcode',
+      code: 'barcode_in_use',
+      message: 'Kullanımda',
+    })
+  })
+
+  it('allows a 500-row all-or-nothing import enough bounded transaction time', () => {
+    expect(BULK_IMPORT_TRANSACTION_MAX_WAIT_MS).toBe(10_000)
+    expect(BULK_IMPORT_TRANSACTION_TIMEOUT_MS).toBe(120_000)
+  })
+
   it('normalizes a valid row with barcode and image urls', () => {
     const result = normalizeBulkProductRow(
       {
+        'Model Kodu*': 'SEHPA-001',
         name: 'Masif Mese Sehpa',
         'Ana Kategori*': 'Ev',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
@@ -56,6 +78,7 @@ describe('bulk product import row validator', () => {
   it('reports row validation errors for missing barcode and invalid values', () => {
     const result = normalizeBulkProductRow(
       {
+        'Model Kodu*': '',
         name: 'ab',
         'Ana Kategori*': '',
         'Kategori*': '',
@@ -73,6 +96,7 @@ describe('bulk product import row validator', () => {
   it('accepts rows from the new template without Ana Kategori', () => {
     const result = normalizeBulkProductRow(
       {
+        'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
         'Urun Rengi*': 'Ceviz',
@@ -92,6 +116,7 @@ describe('bulk product import row validator', () => {
   it('continues to accept legacy rootCategorySlug values from old-format files', () => {
     const result = normalizeBulkProductRow(
       {
+        'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
         'Ana Kategori*': 'Ev',
         'Kategori*': 'Mobilya',
@@ -112,6 +137,7 @@ describe('bulk product import row validator', () => {
   it('continues to accept legacy Kategori Slug headers', () => {
     const result = normalizeBulkProductRow(
       {
+        'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
         'Kategori Slug*': 'EV-MOBILYA',
         'Urun Rengi*': 'Ceviz',
@@ -133,6 +159,7 @@ describe('bulk product import row validator', () => {
     const missing = getMissingBulkProductHeaders(['Urun Adi*', 'Kategori Slug*'])
 
     expect(missing).toContain('Urun Rengi*')
+    expect(missing).toContain('Model Kodu*')
     expect(missing).toContain('Materyal*')
     expect(missing).toContain('Fiyat*')
     expect(missing).toContain('Stok*')
@@ -147,9 +174,15 @@ describe('bulk product import row validator', () => {
     expect(BULK_PRODUCT_TEMPLATE_HEADERS).not.toContain('Ana Kategori*')
   })
 
+  it('exports Model Kodu and help text for every template column', () => {
+    expect(BULK_PRODUCT_TEMPLATE_HEADERS).toContain('Model Kodu*')
+    expect(BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.every((column) => 'helpText' in column && Boolean(column.helpText))).toBe(true)
+  })
+
   it('keeps legacy Renk header mapped to variant color', () => {
     const result = normalizeBulkProductRow(
       {
+        'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
         'Urun Rengi*': 'Ceviz',
@@ -166,6 +199,39 @@ describe('bulk product import row validator', () => {
     expect(result.errors).toHaveLength(0)
     expect(result.data?.productColor).toBe('Ceviz')
     expect(result.data?.variantColor).toBe('Siyah')
+  })
+
+  it('preserves preview image URLs when serializing rows for server revalidation', () => {
+    const parsed = normalizeBulkProductRow(
+      {
+        'Model Kodu*': 'SEHPA-001',
+        'Urun Adi*': 'Ornek Urun',
+        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Urun Rengi*': 'Ceviz',
+        'Materyal*': 'Masif Ahsap',
+        'Fiyat*': '1200',
+        'Sevk Suresi (is gunu)*': '7',
+        'Stok*': '4',
+        'Barkod (13 hane)*': '8691234567890',
+        'Gorsel 1': 'https://media.hanuja.com.tr/products/a.jpg',
+        'Gorsel 2': 'https://media.hanuja.com.tr/products/b.jpg',
+      },
+      2,
+    )
+
+    expect(parsed.data).toBeDefined()
+    const [serialized] = serializeBulkProductImportRowsForApi([parsed.data!])
+    expect(serialized).toMatchObject({
+      image1: 'https://media.hanuja.com.tr/products/a.jpg',
+      image2: 'https://media.hanuja.com.tr/products/b.jpg',
+    })
+    expect(serialized).not.toHaveProperty('imageUrls')
+
+    const revalidated = normalizeBulkProductRow(serialized, 2)
+    expect(revalidated.data?.imageUrls).toEqual([
+      'https://media.hanuja.com.tr/products/a.jpg',
+      'https://media.hanuja.com.tr/products/b.jpg',
+    ])
   })
 })
 
@@ -251,7 +317,7 @@ describe('bulk template areas', () => {
 })
 
 describe('bulk product group key', () => {
-  it('ignores product group code when SKU is missing', () => {
+  it('accepts the legacy product group code as the required Model Kodu', () => {
     const row = normalizeBulkProductRow(
       {
         'Urun Grup Kodu': 'TAKIM-01',
@@ -269,12 +335,13 @@ describe('bulk product group key', () => {
     )
 
     expect(row.data).toBeDefined()
-    expect(buildBulkProductGroupKey(row.data!).startsWith('fingerprint:')).toBe(true)
+    expect(buildBulkProductGroupKey(row.data!)).toContain('MODEL:'.toLowerCase())
   })
 
-  it('falls back to sku when product group code is missing', () => {
+  it('does not use SKU to form product family groups', () => {
     const row = normalizeBulkProductRow(
       {
+        'Model Kodu*': 'MODEL-01',
         'Urun Adi*': 'Ayni Isimli Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
         'Urun Rengi*': 'Ceviz',
@@ -290,12 +357,13 @@ describe('bulk product group key', () => {
     )
 
     expect(row.data).toBeDefined()
-    expect(buildBulkProductGroupKey(row.data!)).toBe('sku:sku-01')
+    expect(buildBulkProductGroupKey(row.data!)).toContain('MODEL-01')
   })
 
-  it('builds a stable fingerprint when neither group code nor sku exists', () => {
+  it('uses normalized model code and category for product family groups', () => {
     const first = normalizeBulkProductRow(
       {
+        'Model Kodu*': 'model  01',
         'Urun Adi*': 'Ayni Isimli Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
         'Urun Rengi*': 'Ceviz',
@@ -311,6 +379,7 @@ describe('bulk product group key', () => {
     )
     const second = normalizeBulkProductRow(
       {
+        'Model Kodu*': 'MODEL 01',
         'Urun Adi*': 'Ayni Isimli Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri',
         'Urun Rengi*': 'Siyah',
@@ -327,6 +396,6 @@ describe('bulk product group key', () => {
 
     expect(first.data).toBeDefined()
     expect(second.data).toBeDefined()
-    expect(buildBulkProductGroupKey(first.data!)).not.toBe(buildBulkProductGroupKey(second.data!))
+    expect(buildBulkProductGroupKey(first.data!)).toBe(buildBulkProductGroupKey(second.data!))
   })
 })

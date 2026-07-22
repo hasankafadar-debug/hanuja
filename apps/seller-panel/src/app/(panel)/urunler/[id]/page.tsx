@@ -55,6 +55,7 @@ export default async function EditProductPage({ params }: Props) {
     compareAtPrice: { toNumber(): number } | number | null
     stockQuantity: number | null
     sku: string | null
+    modelCode: string | null
     barcode: string | null
     status: string
     images?: ProductImage[]
@@ -123,6 +124,7 @@ export default async function EditProductPage({ params }: Props) {
         initialCompareAtPrice={compareAtPrice}
         initialStock={p.stockQuantity ?? 0}
         initialSku={p.sku ?? ''}
+        initialModelCode={p.modelCode ?? ''}
         initialBarcode={p.barcode ?? ''}
         initialStatus={p.status}
         initialVariants={initialVariants}

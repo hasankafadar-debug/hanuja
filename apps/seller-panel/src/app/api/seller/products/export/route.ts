@@ -123,6 +123,7 @@ export async function GET() {
       : ''
     baseRow.productColor = getAttributeValue(product.attributeValues, 'color')
     baseRow.productMaterial = getAttributeValue(product.attributeValues, 'material')
+    baseRow.modelCode = product.modelCode ?? ''
     baseRow.sku = product.sku ?? ''
     baseRow.shortDescription = product.shortDescription ?? ''
     baseRow.description = product.description ?? ''
@@ -139,7 +140,6 @@ export async function GET() {
     if (product.variants.length === 0) {
       const row: ExportRow = {
         ...baseRow,
-        productGroupCode: '',
         price: decimalToNumber(product.price) ?? '',
         stockQuantity: product.stockQuantity,
         barcode: product.barcode ?? '',
@@ -153,7 +153,6 @@ export async function GET() {
 
       return {
         ...baseRow,
-        productGroupCode: product.sku?.trim() || product.id,
         price: decimalToNumber(variant.price ?? product.price) ?? '',
         stockQuantity: variant.stockQuantity,
         barcode: variant.barcode,
@@ -174,6 +173,16 @@ export async function GET() {
   worksheet['!cols'] = BULK_PRODUCT_TEMPLATE_HEADERS.map((header) => ({
     wch: Math.max(header.length + 2, 18),
   }))
+  BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.forEach((column, index) => {
+    const cell = worksheet[XLSX.utils.encode_cell({ r: 0, c: index })]
+    if (!cell) return
+    cell.c = [{
+      a: 'Hanuja',
+      t: ('helpText' in column && column.helpText)
+        ? column.helpText
+        : `${column.label} alanini urun bilgilerinize uygun olarak girin.`,
+    }]
+  })
 
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Urunler')

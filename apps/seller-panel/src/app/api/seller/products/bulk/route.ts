@@ -20,7 +20,15 @@ import {
   type BulkProductImportRow,
 } from '@/lib/bulk-product-import'
 import { sortAttributeOptions } from '@/lib/attribute-option-sort'
+import { createBulkValidationError, type BulkValidationError } from '@/lib/bulk-validation-error'
+import {
+  BULK_IMPORT_TRANSACTION_MAX_WAIT_MS,
+  BULK_IMPORT_TRANSACTION_TIMEOUT_MS,
+} from '@/lib/bulk-import-transaction'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
+import { isBarcodeConflict, syncVariantBarcodeReservation } from '@hanuja/api/domain/barcode-registry'
+import { requireModelCode } from '@hanuja/api/domain/model-code'
+import { enqueueProductSync } from '@hanuja/api/jobs/search-index-sync.job'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -77,23 +85,6 @@ function normalizeAttributeValue(value: string) {
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase()
-}
-
-function buildSkuRequirementKey(row: BulkProductImportRow) {
-  const legacyGroupCode = row.productGroupCode?.trim()
-  if (legacyGroupCode) {
-    return `legacy:${normalizeAttributeValue(legacyGroupCode)}`
-  }
-
-  return JSON.stringify({
-    name: normalizeAttributeValue(row.name),
-    categorySlug: normalizeAttributeValue(row.categorySlug),
-    shortDescription: normalizeAttributeValue(row.shortDescription ?? ''),
-    description: normalizeAttributeValue(row.description ?? ''),
-    story: normalizeAttributeValue(row.story ?? ''),
-    careInstructions: normalizeAttributeValue(row.careInstructions ?? ''),
-    imageUrls: row.imageUrls.map((url) => url.trim().toLowerCase()),
-  })
 }
 
 function getCategoryAttributeOptions(params: {
@@ -225,7 +216,7 @@ function resolveCategorySlug(params: {
   return null
 }
 
-export async function POST(req: NextRequest) {
+async function handleBulkProducts(req: NextRequest, validateOnly = false) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
@@ -276,7 +267,7 @@ export async function POST(req: NextRequest) {
     normalizeBulkProductRow(row as Record<string, unknown>, index + 2),
   )
   const validationErrors = normalizedRows.flatMap((row) =>
-    row.errors.map((message) => ({ rowNumber: row.rowNumber, message })),
+    row.errors.map((message) => createBulkValidationError(row.rowNumber, 'row', 'invalid_row', message)),
   )
 
   if (validationErrors.length > 0) {
@@ -367,7 +358,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const resolutionErrors: Array<{ rowNumber: number; message: string }> = []
+  const resolutionErrors: BulkValidationError[] = []
   const resolvedEntries = validEntries.flatMap((entry) => {
     const resolvedCategorySlug = resolveCategorySlug({
       row: entry.data,
@@ -383,7 +374,7 @@ export async function POST(req: NextRequest) {
           ? `Kategori secilen kapsamda bulunamadi: ${entry.data.categorySlug}`
           : `Kategori cozumlenemedi: ${entry.data.categorySlug}. Sablon indirirken alan ve kategori secimini yapin.`
 
-      resolutionErrors.push({ rowNumber: entry.rowNumber, message })
+      resolutionErrors.push(createBulkValidationError(entry.rowNumber, 'categorySlug', 'category_unresolved', message))
       return []
     }
 
@@ -397,7 +388,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const attributeErrors: Array<{ rowNumber: number; message: string }> = []
+  const attributeErrors: BulkValidationError[] = []
   const resolvedEntriesWithAttributes: Array<{
     rowNumber: number
     data: ResolvedBulkProductImportRow
@@ -418,16 +409,20 @@ export async function POST(req: NextRequest) {
     })
 
     if (!productColorOption) {
-      attributeErrors.push({
-        rowNumber: entry.rowNumber,
-        message: `Renk secilen kategori icin gecersiz: ${entry.data.productColor}`,
-      })
+      attributeErrors.push(createBulkValidationError(
+        entry.rowNumber,
+        'productColor',
+        'invalid_color',
+        `Renk secilen kategori icin gecersiz: ${entry.data.productColor}`,
+      ))
     }
     if (!productMaterialOption) {
-      attributeErrors.push({
-        rowNumber: entry.rowNumber,
-        message: `Materyal secilen kategori icin gecersiz: ${entry.data.productMaterial}`,
-      })
+      attributeErrors.push(createBulkValidationError(
+        entry.rowNumber,
+        'productMaterial',
+        'invalid_material',
+        `Materyal secilen kategori icin gecersiz: ${entry.data.productMaterial}`,
+      ))
     }
 
     if (!productColorOption || !productMaterialOption) return []
@@ -451,47 +446,13 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const skuValidationErrors: Array<{ rowNumber: number; message: string }> = []
-  const skuRequirementGroups = new Map<string, Array<{ rowNumber: number; data: ResolvedBulkProductImportRow }>>()
-
-  for (const entry of resolvedEntriesWithAttributes) {
-    const key = buildSkuRequirementKey(entry.data)
-    const group = skuRequirementGroups.get(key) ?? []
-    group.push(entry)
-    skuRequirementGroups.set(key, group)
-  }
-
-  for (const group of skuRequirementGroups.values()) {
-    const groupHasLinkingIntent =
-      group.length > 1 ||
-      group.some((entry) => entry.data.hasVariant || hasDetailVariant(entry.data))
-
-    if (!groupHasLinkingIntent) continue
-
-    for (const entry of group) {
-      if (!entry.data.sku?.trim()) {
-        skuValidationErrors.push({
-          rowNumber: entry.rowNumber,
-          message: 'Varyantli urunleri baglamak icin lutfen SKU alanini ayni girin.',
-        })
-      }
-    }
-  }
-
-  if (skuValidationErrors.length > 0) {
-    return NextResponse.json(
-      { error: 'SKU alani eksik satirlar var.', errors: skuValidationErrors },
-      { status: 400 },
-    )
-  }
-
   const validRows = resolvedEntriesWithAttributes.map((entry) => entry.data)
 
-  const duplicateErrors: Array<{ rowNumber: number; message: string }> = []
+  const duplicateErrors: BulkValidationError[] = []
   const seenBarcodes = new Set<string>()
   for (const entry of resolvedEntriesWithAttributes) {
     if (seenBarcodes.has(entry.data.barcode)) {
-      duplicateErrors.push({ rowNumber: entry.rowNumber, message: `Ayni barkod tekrar ediyor: ${entry.data.barcode}` })
+      duplicateErrors.push(createBulkValidationError(entry.rowNumber, 'barcode', 'duplicate_in_file', `Ayni barkod tekrar ediyor: ${entry.data.barcode}`))
     }
     seenBarcodes.add(entry.data.barcode)
   }
@@ -505,35 +466,26 @@ export async function POST(req: NextRequest) {
 
   const allBarcodes = validRows.map((row) => row.barcode)
 
-  const [existingProductBarcodes, existingVariantBarcodes] = await Promise.all([
-    prisma.product.findMany({
-      where: { barcode: { in: allBarcodes } },
-      select: { barcode: true },
-    }),
-    prisma.productVariant.findMany({
-      where: { barcode: { in: allBarcodes } },
-      select: { barcode: true },
-    }),
-  ])
+  const existingReservations = await prisma.barcodeRegistry.findMany({
+    where: { barcode: { in: allBarcodes } },
+    select: { barcode: true },
+  })
+  const existingBarcodeSet = new Set(existingReservations.map((item) => item.barcode))
 
-  const existingProductBarcodeSet = new Set(existingProductBarcodes.map((item) => item.barcode).filter(Boolean) as string[])
-  const existingVariantBarcodeSet = new Set(existingVariantBarcodes.map((item) => item.barcode))
-
-  const errors: Array<{ rowNumber: number; message: string }> = []
-  let imported = 0
-
-  const skuGroups = new Map<string, Array<{ rowNumber: number; data: ResolvedBulkProductImportRow }>>()
+  const errors: BulkValidationError[] = []
+  const modelGroups = new Map<string, Array<{ rowNumber: number; data: ResolvedBulkProductImportRow }>>()
   for (const entry of resolvedEntriesWithAttributes) {
-    const key = entry.data.sku?.trim() ? buildBulkProductGroupKey(entry.data) : `row:${entry.rowNumber}`
-    const group = skuGroups.get(key) ?? []
+    const key = buildBulkProductGroupKey(entry.data)
+    const group = modelGroups.get(key) ?? []
     group.push(entry)
-    skuGroups.set(key, group)
+    modelGroups.set(key, group)
   }
 
-  for (const skuGroup of skuGroups.values()) {
+  const importGroups: Array<Array<{ rowNumber: number; data: ResolvedBulkProductImportRow }>> = []
+  for (const modelGroup of modelGroups.values()) {
     const visualGroups = new Map<string, Array<{ rowNumber: number; data: ResolvedBulkProductImportRow }>>()
 
-    for (const entry of skuGroup) {
+    for (const entry of modelGroup) {
       const visualKey = buildVisualVariantKey(entry.data)
       const group = visualGroups.get(visualKey) ?? []
       group.push(entry)
@@ -545,30 +497,54 @@ export async function POST(req: NextRequest) {
       if (!first) continue
 
       const data = first.data
-      const usesVariants = group.length > 1 || group.some((entry) => hasDetailVariant(entry.data))
-
       if (allowedCategorySlugs && !allowedCategorySlugs.has(data.categorySlug)) {
-        errors.push({ rowNumber: first.rowNumber, message: `Bu kategori secilen sablon kapsaminda degil: ${data.categorySlug}` })
+        errors.push(createBulkValidationError(first.rowNumber, 'categorySlug', 'category_out_of_scope', `Bu kategori secilen sablon kapsaminda degil: ${data.categorySlug}`))
         continue
       }
 
       const categoryId = categoryMap.get(data.categorySlug)
       if (!categoryId) {
-        errors.push({ rowNumber: first.rowNumber, message: `Kategori bulunamadi: ${data.categorySlug}` })
+        errors.push(createBulkValidationError(first.rowNumber, 'categorySlug', 'category_not_found', `Kategori bulunamadi: ${data.categorySlug}`))
         continue
       }
 
       const groupBarcodes = group.map((entry) => entry.data.barcode)
-      const conflictingBarcode = groupBarcodes.find(
-        (barcode) => existingProductBarcodeSet.has(barcode) || existingVariantBarcodeSet.has(barcode),
-      )
-      if (conflictingBarcode) {
-        errors.push({ rowNumber: first.rowNumber, message: `Barkod zaten kullaniliyor: ${conflictingBarcode}` })
+      const distinctSkus = new Set(group.map((entry) => entry.data.sku?.trim()).filter(Boolean))
+      if (distinctSkus.size > 1) {
+        for (const entry of group) {
+          errors.push(createBulkValidationError(entry.rowNumber, 'sku', 'inconsistent_sku', 'Aynı ürünün varyant satırlarında SKU değeri aynı olmalıdır.'))
+        }
         continue
       }
+      const conflictingBarcode = groupBarcodes.find(
+        (barcode) => existingBarcodeSet.has(barcode),
+      )
+      if (conflictingBarcode) {
+        errors.push(createBulkValidationError(first.rowNumber, 'barcode', 'barcode_in_use', `Barkod zaten kullaniliyor: ${conflictingBarcode}`))
+        continue
+      }
+      importGroups.push(group)
+    }
+  }
 
-      try {
-        await prisma.$transaction(async (tx) => {
+  if (errors.length > 0) {
+    return NextResponse.json({ error: 'Bazı satırlar doğrulanamadı.', imported: 0, failed: errors.length, errors }, { status: 400 })
+  }
+
+  if (validateOnly) {
+    return NextResponse.json({ valid: true, errors: [] })
+  }
+
+  const publishedProductIds: string[] = []
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const group of importGroups) {
+          const first = group[0]
+          if (!first) continue
+          const data = first.data
+          const categoryId = categoryMap.get(data.categorySlug)
+          if (!categoryId) throw new Error(`Kategori bulunamadi: ${data.categorySlug}`)
+          const usesVariants = group.length > 1 || group.some((entry) => hasDetailVariant(entry.data))
           const catalogService = createCatalogService({ prisma: tx as unknown as PrismaClient })
           const product = await catalogService.createProduct({
             sellerId: seller.id,
@@ -585,21 +561,27 @@ export async function POST(req: NextRequest) {
               ? group.reduce((sum, entry) => sum + entry.data.stockQuantity, 0)
               : data.stockQuantity,
             sku: data.sku ?? null,
+            modelCode: requireModelCode(data.modelCode),
             barcode: usesVariants ? null : data.barcode,
             weight: data.weight !== undefined ? new Decimal(data.weight) : null,
+            deferVisibilitySync: true,
           })
+          if (product.status === 'published') publishedProductIds.push(product.id)
 
           if (usesVariants) {
-            await tx.productVariant.createMany({
-              data: group.map((entry) => ({
+            for (const entry of group) {
+              const variant = await tx.productVariant.create({
+                data: {
                 productId: product.id,
                 name: variantName(entry.data),
                 options: variantOptions(entry.data),
                 barcode: entry.data.barcode,
                 price: new Decimal(entry.data.price),
                 stockQuantity: entry.data.stockQuantity,
-              })),
-            })
+                },
+              })
+              await syncVariantBarcodeReservation(tx, variant.id, entry.data.barcode)
+            }
           }
 
           await tx.productAttributeValue.createMany({
@@ -620,21 +602,35 @@ export async function POST(req: NextRequest) {
               })),
             })
           }
-        })
-
-        imported += 1
-        for (const barcode of groupBarcodes) {
-          if (usesVariants) existingVariantBarcodeSet.add(barcode)
-          else existingProductBarcodeSet.add(barcode)
-        }
-      } catch (error) {
-        errors.push({
-          rowNumber: first.rowNumber,
-          message: error instanceof Error ? error.message : 'Satir ice aktarilamadi.',
-        })
       }
-    }
+    }, {
+      isolationLevel: 'Serializable',
+      maxWait: BULK_IMPORT_TRANSACTION_MAX_WAIT_MS,
+      timeout: BULK_IMPORT_TRANSACTION_TIMEOUT_MS,
+    })
+  } catch (error) {
+    const message = isBarcodeConflict(error)
+      ? 'Bu barkod başka bir ürün veya varyantta kullanılmıştır.'
+      : 'İçe aktarma tamamlanamadı. Lütfen tekrar deneyin.'
+    return NextResponse.json({
+      error: message,
+      imported: 0,
+      failed: importGroups.length,
+      errors: [createBulkValidationError(0, 'row', 'commit_failed', message)],
+    }, { status: 409 })
   }
 
-  return NextResponse.json({ imported, failed: errors.length, errors })
+  await Promise.all(
+    publishedProductIds.map((id) =>
+      enqueueProductSync({ operation: 'upsert', entityId: id }).catch((error) =>
+        console.error('[bulk-product-import] Search sync enqueue failed:', error),
+      ),
+    ),
+  )
+
+  return NextResponse.json({ imported: importGroups.length, failed: 0, errors: [] })
+}
+
+export async function POST(req: NextRequest) {
+  return handleBulkProducts(req, req.headers.get('x-hanuja-bulk-validate') === '1')
 }

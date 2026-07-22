@@ -27,6 +27,8 @@ import {
 } from '../domain/homepage-showcase'
 import { enqueueCategorySync, enqueueProductSync } from '../jobs/search-index-sync.job'
 import { deleteObject } from '../lib/r2'
+import { requireModelCode } from '../domain/model-code'
+import { syncProductBarcodeReservation } from '../domain/barcode-registry'
 
 interface CatalogServiceDeps {
   prisma: PrismaClient
@@ -253,10 +255,15 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
     const normalizedBarcode = params.barcode?.trim() || null
 
     if (normalizedBarcode) {
-      const existingBarcode = await products.findByBarcodeExcluding(
-        normalizedBarcode,
-        params.excludeProductId,
-      )
+      const existingBarcode = await prisma.barcodeRegistry.findFirst({
+        where: {
+          barcode: normalizedBarcode,
+          ...(params.excludeProductId
+            ? { NOT: { OR: [{ productId: params.excludeProductId }, { variant: { productId: params.excludeProductId } }] } }
+            : {}),
+        },
+        select: { barcode: true },
+      })
       if (existingBarcode) {
         throw new ConflictError('Bu barkod başka bir ürüne kayıtlı')
       }
@@ -398,12 +405,13 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return products.countPublished(params)
     },
 
-    listBySeller(sellerId: string, status?: ProductStatus, skip?: number, take?: number) {
+    listBySeller(sellerId: string, status?: ProductStatus, skip?: number, take?: number, query?: string) {
       return products.listBySeller({
         sellerId,
         ...(status !== undefined ? { status } : {}),
         ...(skip !== undefined ? { skip } : {}),
         ...(take !== undefined ? { take } : {}),
+        ...(query?.trim() ? { query: query.trim() } : {}),
       })
     },
 
@@ -434,9 +442,11 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       fulfillmentDays: number
       stockQuantity: number
       sku?: string | null
+      modelCode: string
       barcode?: string | null
       weight?: DecimalLike | null
       slugOverride?: string
+      deferVisibilitySync?: boolean
     }) {
       const seller = await sellers.findActiveById(params.sellerId)
       if (!seller) throw new ForbiddenError('Satıcı hesabı aktif değil')
@@ -484,6 +494,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         fulfillmentDays: params.fulfillmentDays,
         stockQuantity: params.stockQuantity,
         sku: params.sku ?? null,
+        modelCode: requireModelCode(params.modelCode),
         barcode: params.barcode ?? null,
         weight: params.weight ?? null,
         status: moderation.status,
@@ -491,7 +502,11 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         publishedAt: moderation.status === 'published' ? new Date() : null,
       })
 
-      await syncProductVisibility(product.id, 'draft', product.status)
+      await syncProductBarcodeReservation(prisma, product.id, params.barcode ?? null)
+
+      if (!params.deferVisibilitySync) {
+        await syncProductVisibility(product.id, 'draft', product.status)
+      }
 
       return product
     },
@@ -510,6 +525,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       fulfillmentDays?: number
       stockQuantity?: number
       sku?: string | null
+      modelCode?: string | null
       barcode?: string | null
       weight?: DecimalLike | null
     }) {
@@ -594,6 +610,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
           ...(params.fulfillmentDays !== undefined ? { fulfillmentDays: params.fulfillmentDays } : {}),
           ...(params.stockQuantity !== undefined ? { stockQuantity: params.stockQuantity } : {}),
           ...(params.sku !== undefined ? { sku: params.sku } : {}),
+          ...(params.modelCode !== undefined ? { modelCode: requireModelCode(params.modelCode) } : {}),
           ...(params.barcode !== undefined ? { barcode: params.barcode } : {}),
           ...(params.weight !== undefined ? { weight: params.weight } : {}),
           ...(moderation
@@ -607,6 +624,10 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
             : {}),
         },
       })
+
+      if (params.barcode !== undefined) {
+        await syncProductBarcodeReservation(prisma, params.productId, params.barcode)
+      }
 
       if (moderation) {
         await syncProductVisibility(updated.id, product.status, updated.status)

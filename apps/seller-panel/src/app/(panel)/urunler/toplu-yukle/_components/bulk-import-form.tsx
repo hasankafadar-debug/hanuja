@@ -7,6 +7,7 @@ import {
   MAX_BULK_IMPORT_ROWS,
   getMissingBulkProductHeaders,
   normalizeBulkProductRow,
+  serializeBulkProductImportRowsForApi,
   type BulkProductImportRow,
 } from '@/lib/bulk-product-import'
 import { buildChildrenMap } from '../../_lib/category-tree'
@@ -33,6 +34,8 @@ interface TemplateArea {
 interface ImportError {
   rowNumber: number
   message: string
+  field?: string
+  code?: string
 }
 
 interface ImportResult {
@@ -45,7 +48,10 @@ interface BulkImportFormProps {
   areas: TemplateArea[]
 }
 
+type PreviewRow = BulkProductImportRow & { rowNumber: number }
+
 const REQUIRED_BULK_PRODUCT_HEADERS = [
+  'Model Kodu*',
   'Urun Adi*',
   'Kategori*',
   'Urun Rengi*',
@@ -62,11 +68,12 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
   // Chosen scope slug per cascade level; the last entry is the active scope.
   const [scopePath, setScopePath] = useState<string[]>([])
   const [fileName, setFileName] = useState<string | null>(null)
-  const [rows, setRows] = useState<BulkProductImportRow[]>([])
+  const [rows, setRows] = useState<PreviewRow[]>([])
   const [previewErrors, setPreviewErrors] = useState<ImportError[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [isValidating, setIsValidating] = useState(false)
 
   const previewRows = useMemo(() => rows.slice(0, 8), [rows])
   const selectedArea = useMemo(
@@ -140,14 +147,14 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
       const firstSheetName = workbook.SheetNames[0]
       if (!firstSheetName) {
         setRows([])
-        setPreviewErrors([{ rowNumber: 0, message: 'Calisma sayfasi bulunamadi.' }])
+        setPreviewErrors([{ rowNumber: 0, field: 'file', code: 'worksheet_missing', message: 'Calisma sayfasi bulunamadi.' }])
         return
       }
 
       const worksheet = workbook.Sheets[firstSheetName]
       if (!worksheet) {
         setRows([])
-        setPreviewErrors([{ rowNumber: 0, message: 'Calisma sayfasi bulunamadi.' }])
+        setPreviewErrors([{ rowNumber: 0, field: 'file', code: 'worksheet_missing', message: 'Calisma sayfasi bulunamadi.' }])
         return
       }
 
@@ -166,6 +173,8 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
         setPreviewErrors([
           {
             rowNumber: 0,
+            field: 'headers',
+            code: 'missing_headers',
             message: `Eksik sutunlar: ${missingHeaders.join(', ')}`,
           },
         ])
@@ -177,6 +186,8 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
         setPreviewErrors([
           {
             rowNumber: 0,
+            field: 'rows',
+            code: 'too_many_rows',
             message: `Bir seferde en fazla ${MAX_BULK_IMPORT_ROWS} satir yukleyebilirsiniz.`,
           },
         ])
@@ -184,17 +195,45 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
       }
 
       const parsedRows = rawRows.map((row, index) => normalizeBulkProductRow(row, index + 2))
-      setRows(parsedRows.flatMap((row) => (row.data ? [row.data] : [])))
-      setPreviewErrors(
+      const localErrors =
         parsedRows.flatMap((row) =>
-          row.errors.map((message) => ({ rowNumber: row.rowNumber, message })),
-        ),
-      )
+          row.errors.map((message) => ({ rowNumber: row.rowNumber, field: 'row', code: 'invalid_row', message })),
+        )
+      const validRows = parsedRows.flatMap((row) => (row.data ? [{ ...row.data, rowNumber: row.rowNumber }] : []))
+      setRows(validRows)
+      setPreviewErrors(localErrors)
+
+      if (localErrors.length > 0 || validRows.length === 0 || !rootCategorySlug || !scopeCategorySlug) return
+
+      setIsValidating(true)
+      try {
+        const apiRows = serializeBulkProductImportRowsForApi(validRows).map((row, index) => ({
+          ...row,
+          rowNumber: validRows[index]?.rowNumber,
+        }))
+        const response = await fetch('/api/seller/products/bulk/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: apiRows, rootCategorySlug, scopeCategorySlug }),
+        })
+        const payload = (await response.json().catch(() => ({}))) as { errors?: ImportError[]; error?: string }
+        if (!response.ok) {
+          setPreviewErrors(payload.errors?.length ? payload.errors : [{ rowNumber: 0, field: 'file', code: 'validation_failed', message: payload.error ?? 'Dosya dogrulanamadi.' }])
+          return
+        }
+        setPreviewErrors(payload.errors ?? [])
+      } catch {
+        setPreviewErrors([{ rowNumber: 0, field: 'file', code: 'validation_unavailable', message: 'Dosya dogrulama servisine baglanilamadi.' }])
+      } finally {
+        setIsValidating(false)
+      }
     } catch (error) {
       setRows([])
       setPreviewErrors([
         {
           rowNumber: 0,
+          field: 'file',
+          code: 'file_unreadable',
           message: error instanceof Error ? error.message : 'Dosya okunamadi.',
         },
       ])
@@ -214,11 +253,15 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
       setResult(null)
 
       try {
+        const apiRows = serializeBulkProductImportRowsForApi(rows).map((row, index) => ({
+          ...row,
+          rowNumber: rows[index]?.rowNumber,
+        }))
         const response = await fetch('/api/seller/products/bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            rows,
+            rows: apiRows,
             rootCategorySlug,
             scopeCategorySlug,
           }),
@@ -408,7 +451,7 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
               Ayni urun adi kullanilabilir. Varyasyonlu veya varyasyonsuz urunlerde isimler ayni olabilir.
             </p>
             <p style={{ color: 'var(--color-warning, #b45309)' }}>
-              Varyantli urunleri baglamak icin lutfen <strong>SKU</strong> alanini ayni girin.
+              Renk veya materyal kardeslerini baglamak icin ayni <strong>Model Kodu</strong> kullanin. SKU yalnizca kendi sisteminizdeki istege bagli urun kodunuzdur.
             </p>
             <p style={{ color: 'var(--color-warning, #b45309)' }}>
               Yalnizca barkod benzersiz olmalidir. Barkod baska bir saticinin mevcut urun veya varyasyon kaydinda kullaniliyorsa ilgili satir reddedilir ve barkod degistirilmelidir.
@@ -445,6 +488,7 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
             disabled={
               isPending ||
               rows.length === 0 ||
+              isValidating ||
               previewErrors.length > 0 ||
               !rootCategorySlug ||
               !scopeCategorySlug
@@ -477,7 +521,9 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
           <CardTitle>Onizleme</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {previewRows.length === 0 ? (
+          {isValidating ? (
+            <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>Dosya ve barkodlar kontrol ediliyor...</p>
+          ) : previewRows.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
               Onizleme icin bir XLSX dosyasi secin.
             </p>
@@ -499,7 +545,7 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
                 </thead>
                 <tbody>
                   {previewRows.map((row, index) => (
-                    <tr key={`${row.name}-${index}`}>
+                    <tr key={`${row.name}-${index}`} style={previewErrors.some((error) => error.rowNumber === row.rowNumber) ? { backgroundColor: 'color-mix(in srgb, var(--color-destructive) 10%, transparent)' } : undefined}>
                       <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
                         {row.name}
                       </td>

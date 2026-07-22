@@ -47,11 +47,8 @@ function createMockPrisma() {
         },
       ]),
     },
-    product: {
-      findFirst: vi.fn().mockResolvedValue(null),
-    },
-    productVariant: {
-      findFirst: vi.fn().mockResolvedValue(null),
+    barcodeRegistry: {
+      findUnique: vi.fn().mockResolvedValue(null),
     },
     productImage: {
       createMany: vi.fn(),
@@ -93,6 +90,7 @@ describe("product import service commit", () => {
         categoryId: "category-1",
         colorOptionId: "color-1",
         materialOptionId: "material-1",
+        modelCode: "MSSY12",
         stockQuantity: 0,
       }],
     });
@@ -109,13 +107,14 @@ describe("product import service commit", () => {
         categoryId: "category-1",
         barcode: expect.stringMatching(/^15\d{11}$/),
         sku: "MSSY12",
+        modelCode: "MSSY12",
       }),
     );
   });
 
   it("retries barcode allocation when the first generated barcode collides with an existing record", async () => {
     const prisma = createMockPrisma();
-    prisma.product.findFirst
+    prisma.barcodeRegistry.findUnique
       .mockResolvedValueOnce({ id: "existing-product" })
       .mockResolvedValueOnce(null);
     const service = createProductImportService({ prisma: prisma as never });
@@ -139,6 +138,7 @@ describe("product import service commit", () => {
         categoryId: "category-1",
         colorOptionId: "color-1",
         materialOptionId: "material-1",
+        modelCode: "HIPICON-2",
         stockQuantity: 0,
       }],
     });
@@ -156,6 +156,6 @@ describe("product import service commit", () => {
     expect(createPayload?.barcode).toBeDefined();
     expect(createPayload?.barcode).not.toBe("1212345678901");
     expect(createPayload?.barcode).toMatch(/^120\d{10}$/);
-    expect(prisma.product.findFirst).toHaveBeenCalledTimes(2);
+    expect(prisma.barcodeRegistry.findUnique).toHaveBeenCalledTimes(2);
   });
 });

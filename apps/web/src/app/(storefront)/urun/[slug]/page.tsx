@@ -46,12 +46,13 @@ async function getProduct(slug: string) {
   }
 }
 
-async function getVisualSiblings(params: { sellerId: string; sku: string }) {
+async function getVisualSiblings(params: { sellerId: string; categoryId: string; modelCode: string }) {
   const prisma = createPrismaForRoute()
   return prisma.product.findMany({
     where: {
       sellerId: params.sellerId,
-      sku: params.sku,
+      categoryId: params.categoryId,
+      modelCode: params.modelCode,
       status: 'published',
       seller: { is: { status: 'active' } },
     },
@@ -113,7 +114,7 @@ export default async function ProductDetailPage({ params }: Props) {
       : null
 
   const seller = product.seller as { displayName: string; slug: string } | null
-  const category = product.category as { name: string; slug: string } | null
+  const category = product.category as { id: string; name: string; slug: string } | null
   const images = (product.images ?? []) as Array<{ url: string; altText?: string | null }>
   const variants = ((product.variants ?? []) as Array<{
     id: string
@@ -155,8 +156,8 @@ export default async function ProductDetailPage({ params }: Props) {
     (product.attributeValues as Array<{ option?: { type?: string; label?: string } }> | undefined)?.find(
       (attribute) => attribute.option?.type === 'material',
     )?.option?.label ?? null
-  const visualSiblings = product.sku?.trim()
-    ? await getVisualSiblings({ sellerId: product.sellerId, sku: product.sku.trim() })
+  const visualSiblings = product.modelCode?.trim() && category?.id
+    ? await getVisualSiblings({ sellerId: product.sellerId, categoryId: category.id, modelCode: product.modelCode.trim() })
     : []
   const story = product.story?.trim()
   const careInstructions = product.careInstructions?.trim()

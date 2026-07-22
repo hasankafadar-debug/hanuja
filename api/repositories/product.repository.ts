@@ -78,13 +78,26 @@ export function createProductRepository(prisma: PrismaClient) {
     listBySeller(params: {
       sellerId: string
       status?: ProductStatus
+      query?: string
       skip?: number
       take?: number
     }) {
+      const query = params.query?.trim()
       return prisma.product.findMany({
         where: {
           sellerId: params.sellerId,
           ...(params.status !== undefined ? { status: params.status } : {}),
+          ...(query
+            ? {
+                OR: [
+                  { name: { contains: query, mode: 'insensitive' } },
+                  { sku: { contains: query, mode: 'insensitive' } },
+                  { modelCode: { contains: query, mode: 'insensitive' } },
+                  { barcode: { contains: query, mode: 'insensitive' } },
+                  { variants: { some: { barcode: { contains: query, mode: 'insensitive' } } } },
+                ],
+              }
+            : {}),
         },
         include: {
           images: publishedImageInclude,
@@ -254,6 +267,7 @@ export function createProductRepository(prisma: PrismaClient) {
       fulfillmentDays: number
       stockQuantity: number
       sku?: string | null
+      modelCode: string
       barcode?: string | null
       weight?: import('@prisma/client/runtime/client').Decimal | null
       status?: ProductStatus
@@ -348,6 +362,7 @@ export function createProductRepository(prisma: PrismaClient) {
                 { seller: { is: { displayName: { contains: normalizedQuery, mode: 'insensitive' } } } },
                 { category: { is: { name: { contains: normalizedQuery, mode: 'insensitive' } } } },
                 { sku: { contains: normalizedQuery, mode: 'insensitive' } },
+                { modelCode: { contains: normalizedQuery, mode: 'insensitive' } },
                 { barcode: { contains: normalizedQuery, mode: 'insensitive' } },
               ],
             }

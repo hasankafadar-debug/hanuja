@@ -210,6 +210,14 @@ export async function GET(req: NextRequest) {
   headerRow.font = { bold: true }
   headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E2D4' } }
 
+  BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.forEach((column, index) => {
+    const cell = sheet.getCell(1, index + 1)
+    const helpText = ('helpText' in column && column.helpText)
+      ? column.helpText
+      : `${column.label} alanini urun bilgilerinize uygun olarak girin.`
+    cell.note = helpText
+  })
+
   sheet.columns = BULK_PRODUCT_TEMPLATE_HEADERS.map((header) => ({ width: Math.max(header.length + 2, 18) }))
 
   const refSheet = workbook.addWorksheet('Gecerli Kategoriler')
@@ -306,6 +314,20 @@ export async function GET(req: NextRequest) {
       error: 'Liste fiyati satis fiyatindan buyuk olmalidir.',
       formulae: [`OR(LEN(${compareAtCol}${rowNum})=0,${compareAtCol}${rowNum}>${priceCol}${rowNum})`],
     }
+
+    BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.forEach((column, index) => {
+      const cell = sheet.getCell(rowNum, index + 1)
+      const helpText = ('helpText' in column && column.helpText)
+        ? column.helpText
+        : `${column.label} alanini urun bilgilerinize uygun olarak girin.`
+      const validation = cell.dataValidation ?? {}
+      cell.dataValidation = {
+        ...validation,
+        showInputMessage: true,
+        promptTitle: column.label,
+        prompt: helpText,
+      }
+    })
   }
 
   const filename = usesScopedSelection

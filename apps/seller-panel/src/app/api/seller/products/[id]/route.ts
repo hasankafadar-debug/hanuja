@@ -7,6 +7,12 @@ import { z } from 'zod'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { ConflictError, ValidationError } from '@hanuja/api/lib/errors'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import {
+  isBarcodeConflict,
+  prepareVariantBarcodeReplacement,
+  syncVariantBarcodeReservation,
+} from '@hanuja/api/domain/barcode-registry'
+import { requireModelCode } from '@hanuja/api/domain/model-code'
 
 const variantSchema = z.object({
   id: z.string().cuid().optional(), // Mevcut varyantlarda DB ID — upsert için kullanılır
@@ -32,6 +38,7 @@ const updateProductSchema = z.object({
   fulfillmentDays: z.number().int().min(1, 'Sevk suresi en az 1 is gunu olmali').max(90, 'Sevk suresi en fazla 90 is gunu olabilir').optional(),
   stockQuantity: z.number().int().min(0).optional(),
   sku: z.string().max(120).nullable().optional(),
+  modelCode: z.string().min(1, 'Model Kodu zorunludur').max(120).optional(),
   barcode: z.string().regex(/^\d{13}$/, 'Barkod 13 haneli rakam olmali').nullable().optional(),
   weight: z.number().positive().nullable().optional(),
   colorOptionId: z.string().min(1).optional(),
@@ -134,6 +141,30 @@ export async function PATCH(
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      if (variants !== undefined) {
+        const incomingIds = variants.filter((variant) => variant.id).map((variant) => variant.id as string)
+        if (incomingIds.length > 0) {
+          const ownedVariantCount = await tx.productVariant.count({
+            where: { productId: id, id: { in: incomingIds } },
+          })
+          if (ownedVariantCount !== incomingIds.length) {
+            throw new ValidationError('Varyasyonlardan biri bu urune ait degil.')
+          }
+        }
+
+        const finalBarcodes = [
+          ...variants.map((variant) => variant.barcode),
+          ...(variants.length === 0 && parsed.data.barcode?.trim() ? [parsed.data.barcode.trim()] : []),
+        ]
+        await prepareVariantBarcodeReplacement(tx, id, finalBarcodes)
+        await tx.productVariant.deleteMany({
+          where: {
+            productId: id,
+            ...(variants.length > 0 ? { id: { notIn: incomingIds } } : {}),
+          },
+        })
+      }
+
       const service = createCatalogService({ prisma: tx as unknown as PrismaClient })
       const saved = await service.updateProductForSeller({
         productId: id,
@@ -163,6 +194,7 @@ export async function PATCH(
             ? { stockQuantity: Math.floor(parsed.data.stockQuantity) }
             : {}),
         ...(parsed.data.sku !== undefined ? { sku: parsed.data.sku?.trim() || null } : {}),
+        ...(parsed.data.modelCode !== undefined ? { modelCode: requireModelCode(parsed.data.modelCode) } : {}),
         ...(variants
           ? { barcode: variants.length > 0 ? null : parsed.data.barcode?.trim() || null }
           : parsed.data.barcode !== undefined
@@ -174,22 +206,9 @@ export async function PATCH(
       })
 
       if (variants !== undefined) {
-        // Gelen ID'leri koru (upsert), listede olmayan eski varyantları sil
-        const incomingIds = variants.filter((v) => v.id).map((v) => v.id as string)
-        if (incomingIds.length > 0) {
-          const ownedVariantCount = await tx.productVariant.count({
-            where: { productId: id, id: { in: incomingIds } },
-          })
-          if (ownedVariantCount !== incomingIds.length) {
-            throw new ValidationError('Varyasyonlardan biri bu urune ait degil.')
-          }
-        }
-        await tx.productVariant.deleteMany({
-          where: { productId: id, id: { notIn: incomingIds } },
-        })
         for (const variant of variants) {
           if (variant.id) {
-            await tx.productVariant.update({
+            const updatedVariant = await tx.productVariant.update({
               where: { id: variant.id },
               data: {
                 name: variant.name,
@@ -199,8 +218,9 @@ export async function PATCH(
                 stockQuantity: variant.stockQuantity,
               },
             })
+            await syncVariantBarcodeReservation(tx, updatedVariant.id, variant.barcode)
           } else {
-            await tx.productVariant.create({
+            const createdVariant = await tx.productVariant.create({
               data: {
                 productId: id,
                 name: variant.name,
@@ -210,6 +230,7 @@ export async function PATCH(
                 stockQuantity: variant.stockQuantity,
               },
             })
+            await syncVariantBarcodeReservation(tx, createdVariant.id, variant.barcode)
           }
         }
       }
@@ -258,6 +279,9 @@ export async function PATCH(
     }
     if (error instanceof Error && error.message.startsWith('Product')) {
       return NextResponse.json({ error: 'Urun bulunamadi.' }, { status: 404 })
+    }
+    if (isBarcodeConflict(error)) {
+      return NextResponse.json({ error: 'Bu barkod başka bir ürün veya varyantta kullanılmıştır.' }, { status: 409 })
     }
     throw error
   }

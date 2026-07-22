@@ -7,6 +7,8 @@ import { HipiconAdapter } from './adapters/hipicon.adapter'
 import type { ImportAdapter, ScrapedProduct } from './adapters/import-adapter'
 import { resolveImportCategory, type CategoryNode } from './category-resolver'
 import { normalizeSlug, buildSlugWithSuffix } from '../../domain/slug'
+import { requireModelCode } from '../../domain/model-code'
+import { syncVariantBarcodeReservation } from '../../domain/barcode-registry'
 
 const adapters: ImportAdapter[] = [new HipiconAdapter()]
 const MAX_BARCODE_ATTEMPTS = 50
@@ -37,6 +39,7 @@ export type CommitSelection =
       colorOptionId: string
       materialOptionId: string
       barcode?: string | null
+      modelCode: string
       fulfillmentDays: number
       stockQuantity: number
     }
@@ -46,6 +49,7 @@ export type CommitSelection =
       colorOptionId: string
       materialOptionId: string
       barcode?: string | null
+      modelCode: string
       fulfillmentDays: number
       stockQuantity: number
     }
@@ -299,11 +303,11 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
 
     async function isBarcodeAvailable(barcode: string) {
       if (usedBarcodes.has(barcode)) return false
-      const [existingProduct, existingVariant] = await Promise.all([
-        prisma.product.findFirst({ where: { barcode }, select: { id: true } }),
-        prisma.productVariant.findFirst({ where: { barcode }, select: { id: true } }),
-      ])
-      return !existingProduct && !existingVariant
+      const existing = await prisma.barcodeRegistry.findUnique({
+        where: { barcode },
+        select: { barcode: true },
+      })
+      return !existing
     }
 
     async function allocateBarcode(raw: string | null | undefined, seed: string) {
@@ -417,6 +421,7 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
       stockQuantity: number
       colorOptionId: string
       materialOptionId: string
+      modelCode: string
       productBarcode: string | null
       variantBarcodes: string[]
     }> = []
@@ -444,6 +449,7 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
         stockQuantity: selection.stockQuantity,
         colorOptionId: selection.colorOptionId,
         materialOptionId: selection.materialOptionId,
+        modelCode: requireModelCode(selection.modelCode),
         productBarcode:
           variants.length > 0
             ? null
@@ -483,6 +489,7 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
           stockQuantity: importItem.stockQuantity,
           barcode: importItem.productBarcode,
           sku: item.sku ?? null,
+          modelCode: importItem.modelCode,
         })
 
         await tx.productAttributeValue.createMany({
@@ -494,8 +501,9 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
         })
 
         if (item.variants && item.variants.length > 0) {
-          await tx.productVariant.createMany({
-            data: item.variants.map((variant, index) => ({
+          for (const [index, variant] of item.variants.entries()) {
+            const createdVariant = await tx.productVariant.create({
+              data: {
               productId: createdProduct.id,
               name: variant.name,
               options: {},
@@ -507,8 +515,10 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
                 }),
               price: new Decimal(variant.price ?? item.price),
               stockQuantity: variant.stockQuantity ?? importItem.stockQuantity,
-            })),
-          })
+              },
+            })
+            await syncVariantBarcodeReservation(tx, createdVariant.id, createdVariant.barcode)
+          }
         }
 
         return createdProduct

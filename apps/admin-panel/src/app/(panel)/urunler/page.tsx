@@ -81,6 +81,7 @@ export default async function ProductModerationPage({
         rows={result.rows.map((product) => ({
           id: product.id,
           name: product.name,
+          modelCode: product.modelCode,
           status: product.status,
           createdAt: product.createdAt,
           sellerName: product.seller?.displayName ?? '—',

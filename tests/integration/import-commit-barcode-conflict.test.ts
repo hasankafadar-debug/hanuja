@@ -31,13 +31,10 @@ describe('import commit — barcode override conflict', () => {
     const materialOption = { id: 'material-1', type: 'material', label: 'Ahşap', slug: 'ahsap', sortOrder: 0 }
 
     const mockPrisma = {
-      product: {
-        findFirst: vi.fn().mockImplementation(({ where }: { where: { barcode: string } }) =>
-          where.barcode === conflictBarcode ? { id: 'existing-product' } : null,
+      barcodeRegistry: {
+        findUnique: vi.fn().mockImplementation(({ where }: { where: { barcode: string } }) =>
+          where.barcode === conflictBarcode ? { barcode: conflictBarcode } : null,
         ),
-      },
-      productVariant: {
-        findFirst: vi.fn().mockResolvedValue(null),
       },
       productAttributeOption: {
         findMany: vi.fn().mockResolvedValue([colorOption, materialOption]),
@@ -79,6 +76,7 @@ describe('import commit — barcode override conflict', () => {
             colorOptionId: 'color-1',
             materialOptionId: 'material-1',
             barcode: conflictBarcode,
+            modelCode: 'TEST-MODEL-1',
             fulfillmentDays: 7,
             stockQuantity: 5,
           },
