@@ -7,6 +7,7 @@ readonly STATE_ROOT=/var/lib/hanuja-backup
 readonly LOG_ROOT=/var/log/hanuja-backup
 readonly LOCK_FILE=/run/lock/hanuja-backup.lock
 readonly RESTIC_RCLONE_ARGS='serve restic --stdio --b2-hard-delete --tpslimit 2 --tpslimit-burst 1 --drive-pacer-min-sleep 500ms'
+readonly RESTIC_RCLONE_TIMEOUT='5m'
 
 [[ -r "$CONFIG" ]] || { echo "Missing $CONFIG" >&2; exit 2; }
 # shellcheck source=/dev/null
@@ -100,7 +101,7 @@ on_exit() {
 trap on_exit EXIT
 
 restic_cmd() {
-  restic -o "rclone.args=$RESTIC_RCLONE_ARGS" "$@"
+  restic -o "rclone.args=$RESTIC_RCLONE_ARGS" -o "rclone.timeout=$RESTIC_RCLONE_TIMEOUT" "$@"
 }
 
 unlock_stale_restic_locks() {
