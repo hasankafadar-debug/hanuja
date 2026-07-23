@@ -99,13 +99,13 @@ describe("product import service commit", () => {
       {
         id: "product-1",
         name: "Barkodsuz Urun",
-        barcode: expect.stringMatching(/^15\d{11}$/),
+        barcode: expect.stringMatching(/^8\d{12}$/),
       },
     ]);
     expect(mocks.createProduct).toHaveBeenCalledWith(
       expect.objectContaining({
         categoryId: "category-1",
-        barcode: expect.stringMatching(/^15\d{11}$/),
+        barcode: expect.stringMatching(/^8\d{12}$/),
         sku: "MSSY12",
         modelCode: "MSSY12",
       }),
@@ -155,7 +155,8 @@ describe("product import service commit", () => {
       | undefined;
     expect(createPayload?.barcode).toBeDefined();
     expect(createPayload?.barcode).not.toBe("1212345678901");
-    expect(createPayload?.barcode).toMatch(/^120\d{10}$/);
+    // A non-13-digit source barcode is discarded; an "8"-prefixed EAN-13 is generated.
+    expect(createPayload?.barcode).toMatch(/^8\d{12}$/);
     expect(prisma.barcodeRegistry.findUnique).toHaveBeenCalledTimes(2);
   });
 });

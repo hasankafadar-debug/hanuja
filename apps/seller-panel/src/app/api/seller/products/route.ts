@@ -7,6 +7,7 @@ import { PrismaClient } from '@prisma/client'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { ConflictError, ValidationError } from '@hanuja/api/lib/errors'
 import { isBarcodeConflict, syncVariantBarcodeReservation } from '@hanuja/api/domain/barcode-registry'
+import { generateUniqueProductBarcode } from '@hanuja/api/domain/barcode-generate'
 import { requireModelCode } from '@hanuja/api/domain/model-code'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
@@ -19,7 +20,12 @@ const variantSchema = z.object({
   size: z.string().trim().max(80).optional(),
   customOptionName: z.string().trim().max(80).optional(),
   customOptionValue: z.string().trim().max(120).optional(),
-  barcode: z.string().regex(/^\d{13}$/, 'Varyasyon barkodu 13 haneli rakam olmali'),
+  // Optional: blank barcodes are auto-generated ("8"-prefixed EAN-13) at creation.
+  barcode: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || /^\d{13}$/.test(value), 'Varyasyon barkodu 13 haneli rakam olmali')
+    .optional(),
   price: z.number().positive('Varyasyon fiyati 0dan buyuk olmali'),
   stockQuantity: z.number().int().min(0, 'Varyasyon stoku negatif olamaz'),
 })
@@ -30,7 +36,12 @@ const createProductSchema = z.object({
   price: z.number().positive('Fiyat 0dan buyuk olmali'),
   fulfillmentDays: z.number().int().min(1, 'Sevk suresi en az 1 is gunu olmali').max(90, 'Sevk suresi en fazla 90 is gunu olabilir'),
   stockQuantity: z.number().int().min(0, 'Stok negatif olamaz'),
-  barcode: z.string().regex(/^\d{13}$/, 'Barkod 13 haneli rakam olmali').nullable().optional(),
+  barcode: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || /^\d{13}$/.test(value), 'Barkod 13 haneli rakam olmali')
+    .nullable()
+    .optional(),
   shortDescription: z.string().max(500).optional(),
   description: z.string().max(5000).optional().default(''),
   story: z.string().max(5000).optional(),
@@ -42,10 +53,6 @@ const createProductSchema = z.object({
   colorOptionId: z.string().min(1, 'Renk secimi zorunludur'),
   materialOptionId: z.string().min(1, 'Materyal secimi zorunludur'),
   variants: z.array(variantSchema).max(100).optional().default([]),
-}).superRefine((data, ctx) => {
-  if (data.variants.length === 0 && !data.barcode?.trim()) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['barcode'], message: 'Barkod 13 haneli rakam olmali' })
-  }
 })
 
 type VariantInput = z.infer<typeof variantSchema>
@@ -58,9 +65,11 @@ function normalizeVariant(input: VariantInput) {
   }
 
   return {
-    name: Object.entries(options).map(([key, value]) => `${key}: ${value}`).join(' / ') || input.barcode,
+    // Barcode may be blank (auto-generated later); the final name falls back to
+    // the resolved barcode at creation time.
+    name: Object.entries(options).map(([key, value]) => `${key}: ${value}`).join(' / '),
     options,
-    barcode: input.barcode.trim(),
+    barcode: input.barcode?.trim() ?? '',
     price: new Decimal(input.price),
     stockQuantity: input.stockQuantity,
   }
@@ -70,8 +79,10 @@ async function assertVariantBarcodesAvailable(params: {
   barcodes: string[]
   productBarcode?: string | null
 }) {
-  const uniqueBarcodes = Array.from(new Set(params.barcodes))
-  if (uniqueBarcodes.length !== params.barcodes.length) {
+  // Only seller-entered barcodes are checked; blanks are auto-generated later.
+  const enteredBarcodes = params.barcodes.map((barcode) => barcode.trim()).filter(Boolean)
+  const uniqueBarcodes = Array.from(new Set(enteredBarcodes))
+  if (uniqueBarcodes.length !== enteredBarcodes.length) {
     throw new ConflictError('Ayni varyasyon barkodu birden fazla kez girilemez.')
   }
 
@@ -127,6 +138,12 @@ export async function POST(req: NextRequest) {
       productBarcode: parsed.data.barcode?.trim() || null,
     })
 
+    // Seeded with entered variant barcodes so generated ones cannot collide
+    // with a still-pending entered barcode in the same request.
+    const usedBarcodes = new Set<string>(
+      variants.map((variant) => variant.barcode).filter(Boolean),
+    )
+
     const product = await prisma.$transaction(async (tx) => {
       const svc = createCatalogService({ prisma: tx as unknown as PrismaClient })
       const created = await svc.createProduct({
@@ -148,22 +165,26 @@ export async function POST(req: NextRequest) {
         sku: parsed.data.sku?.trim() || null,
         modelCode: requireModelCode(parsed.data.modelCode),
         barcode: variants.length > 0 ? null : parsed.data.barcode?.trim() || null,
+        autoGenerateBarcodeWhenMissing: variants.length === 0,
         weight: parsed.data.weight !== undefined ? new Decimal(parsed.data.weight) : null,
       })
 
       if (variants.length > 0) {
         for (const variant of variants) {
+          const variantBarcode =
+            variant.barcode ||
+            (await generateUniqueProductBarcode(tx as unknown as PrismaClient, { used: usedBarcodes }))
           const createdVariant = await tx.productVariant.create({
             data: {
             productId: created.id,
-            name: variant.name,
+            name: variant.name || variantBarcode,
             options: variant.options,
-            barcode: variant.barcode,
+            barcode: variantBarcode,
             price: variant.price,
             stockQuantity: variant.stockQuantity,
             },
           })
-          await syncVariantBarcodeReservation(tx, createdVariant.id, variant.barcode)
+          await syncVariantBarcodeReservation(tx, createdVariant.id, variantBarcode)
         }
       }
 

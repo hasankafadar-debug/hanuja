@@ -19,6 +19,7 @@ import { Plus, Star, Trash2 } from 'lucide-react'
 import { sortAttributeOptions } from '@/lib/attribute-option-sort'
 import { useBarcodeAvailability, type BarcodeAvailabilityStatus } from '@/lib/use-barcode-availability'
 import CategoryPicker from '../../_components/category-picker'
+import { CategorySupportHint } from '../../_components/category-support-hint'
 import type { CategoryNode } from '../../_lib/category-tree'
 
 interface AttributeOption {
@@ -166,7 +167,6 @@ export default function ProductEditForm({
   const totalVariantStock = variants.reduce((sum, variant) => sum + Number(variant.stockQuantity || 0), 0)
   const variantsValid = variants.every(
     (variant) =>
-      variant.barcode.trim().length === 13 &&
       Number(variant.price) > 0 &&
       Number.isInteger(Number(variant.stockQuantity)) &&
       Number(variant.stockQuantity) >= 0,
@@ -179,7 +179,7 @@ export default function ProductEditForm({
     fulfillmentDays >= 1 &&
     pendingImageUploads === 0 &&
     !hasBarcodeCheckIssue &&
-    (!hasVariants ? barcode.trim().length === 13 : variantsValid)
+    (hasVariants ? variantsValid : true)
 
   async function attachNewImages(mediaAssetIds: string[]) {
     const response = await fetch(`/api/seller/products/${productId}/images`, {
@@ -329,6 +329,7 @@ export default function ProductEditForm({
         onChange={setCategoryId}
         disabled={loading}
       />
+      <CategorySupportHint />
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
@@ -395,17 +396,21 @@ export default function ProductEditForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="barcode">Barkod (13 hane) *</Label>
+          <Label htmlFor="barcode">Barkod (13 hane)</Label>
           <Input
             id="barcode"
             inputMode="numeric"
             pattern="\d{13}"
+            placeholder="Bos birakilirsa otomatik uretilir"
             value={barcode}
             onChange={(e) => setBarcode(e.target.value.replace(/\D/g, '').slice(0, 13))}
-            required={!hasVariants}
             disabled={loading || hasVariants}
           />
-          {hasVariants ? <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Barkod varyasyon satirlarindan okunur.</p> : null}
+          {hasVariants ? (
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Barkod varyasyon satirlarindan okunur.</p>
+          ) : (
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Istege baglidir. Bos birakirsaniz 8 ile baslayan benzersiz 13 haneli barkod otomatik uretilir.</p>
+          )}
           <BarcodeStatusHint status={getBarcodeResult('product').status} message={getBarcodeResult('product').message} hidden={hasVariants} />
         </div>
 
@@ -449,7 +454,7 @@ export default function ProductEditForm({
               <Input placeholder="Beden" value={variant.size} onChange={(e) => updateVariant(variant.localId, { size: e.target.value })} disabled={loading} />
               <Input placeholder="Ek Ozellik Adi" value={variant.customOptionName} onChange={(e) => updateVariant(variant.localId, { customOptionName: e.target.value })} disabled={loading} />
               <Input placeholder="Ek Ozellik Degeri" value={variant.customOptionValue} onChange={(e) => updateVariant(variant.localId, { customOptionValue: e.target.value })} disabled={loading} />
-              <Input inputMode="numeric" pattern="\d{13}" placeholder="Barkod (13 hane)" value={variant.barcode} onChange={(e) => updateVariant(variant.localId, { barcode: e.target.value.replace(/\D/g, '').slice(0, 13) })} required disabled={loading} />
+              <Input inputMode="numeric" pattern="\d{13}" placeholder="Barkod (bos = otomatik)" value={variant.barcode} onChange={(e) => updateVariant(variant.localId, { barcode: e.target.value.replace(/\D/g, '').slice(0, 13) })} disabled={loading} />
               <BarcodeStatusHint status={getBarcodeResult(variant.localId).status} message={getBarcodeResult(variant.localId).message} />
               <Input type="number" min="0" step="0.01" placeholder="Fiyat" value={variant.price} onChange={(e) => updateVariant(variant.localId, { price: e.target.value })} required disabled={loading} />
               <Input type="number" min="0" step="1" placeholder="Stok" value={variant.stockQuantity} onChange={(e) => updateVariant(variant.localId, { stockQuantity: e.target.value })} required disabled={loading} />

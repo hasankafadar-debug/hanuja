@@ -22,6 +22,32 @@ import { isLocalDatabaseUrl } from './seed-guard'
 
 const prisma = new PrismaClient()
 
+async function upsertCategory(params: {
+  slug: string
+  name: string
+  parentId: string
+  sortOrder: number
+  description?: string
+}) {
+  return prisma.category.upsert({
+    where: { slug: params.slug },
+    update: {
+      name: params.name,
+      parentId: params.parentId,
+      sortOrder: params.sortOrder,
+      isActive: true,
+      ...(params.description !== undefined ? { description: params.description } : {}),
+    },
+    create: {
+      slug: params.slug,
+      name: params.name,
+      parentId: params.parentId,
+      sortOrder: params.sortOrder,
+      ...(params.description !== undefined ? { description: params.description } : {}),
+    },
+  })
+}
+
 async function ensureUser(params: {
   id: string
   email: string
@@ -454,6 +480,8 @@ async function main() {
   await prisma.category.upsert({ where: { slug: 'ev-mobilya-berjer' }, update: {}, create: { slug: 'ev-mobilya-berjer', name: 'Berjer', parentId: catEvMobilya.id, sortOrder: 2 } })
   await prisma.category.upsert({ where: { slug: 'ev-mobilya-sandalye-tabure' }, update: {}, create: { slug: 'ev-mobilya-sandalye-tabure', name: 'Sandalye & Tabure', parentId: catEvMobilya.id, sortOrder: 3 } })
   const catLeafDresuarKonsol = await prisma.category.upsert({ where: { slug: 'ev-mobilya-dresuar-konsol' }, update: {}, create: { slug: 'ev-mobilya-dresuar-konsol', name: 'Dresuar & Konsol', parentId: catEvMobilya.id, sortOrder: 4 } })
+  await upsertCategory({ slug: 'ev-mobilya-dresuar-konsol-dresuar', name: 'Dresuar', parentId: catLeafDresuarKonsol.id, sortOrder: 1 })
+  const catLeafKonsol = await upsertCategory({ slug: 'ev-mobilya-dresuar-konsol-konsol', name: 'Konsol', parentId: catLeafDresuarKonsol.id, sortOrder: 2 })
   await prisma.category.upsert({ where: { slug: 'ev-mobilya-vitrin-bufe' }, update: {}, create: { slug: 'ev-mobilya-vitrin-bufe', name: 'Vitrin & Büfe', parentId: catEvMobilya.id, sortOrder: 5 } })
   await prisma.category.upsert({ where: { slug: 'ev-mobilya-dolap' }, update: {}, create: { slug: 'ev-mobilya-dolap', name: 'Dolap', parentId: catEvMobilya.id, sortOrder: 6 } })
   await prisma.category.upsert({ where: { slug: 'ev-mobilya-bank' }, update: {}, create: { slug: 'ev-mobilya-bank', name: 'Bank', parentId: catEvMobilya.id, sortOrder: 7 } })
@@ -461,15 +489,23 @@ async function main() {
   await prisma.category.upsert({ where: { slug: 'ev-mobilya-sifonyer-komodin' }, update: {}, create: { slug: 'ev-mobilya-sifonyer-komodin', name: 'Şifonyer & Komodin', parentId: catEvMobilya.id, sortOrder: 9 } })
   await prisma.category.upsert({ where: { slug: 'ev-mobilya-puf' }, update: {}, create: { slug: 'ev-mobilya-puf', name: 'Puf', parentId: catEvMobilya.id, sortOrder: 10 } })
   const catLeafSehpaModelleri = await prisma.category.upsert({ where: { slug: 'ev-mobilya-sehpa-modelleri' }, update: {}, create: { slug: 'ev-mobilya-sehpa-modelleri', name: 'Sehpa Modelleri', parentId: catEvMobilya.id, sortOrder: 11 } })
+  const catLeafOrtaSehpa = await upsertCategory({ slug: 'ev-mobilya-sehpa-modelleri-orta-sehpa', name: 'Orta Sehpa', parentId: catLeafSehpaModelleri.id, sortOrder: 1 })
+  await upsertCategory({ slug: 'ev-mobilya-sehpa-modelleri-yan-sehpa', name: 'Yan Sehpa', parentId: catLeafSehpaModelleri.id, sortOrder: 2 })
+  await upsertCategory({ slug: 'ev-mobilya-sehpa-modelleri-zigon-sehpa', name: 'Zigon Sehpa', parentId: catLeafSehpaModelleri.id, sortOrder: 3 })
   await prisma.category.upsert({ where: { slug: 'ev-mobilya-masa' }, update: {}, create: { slug: 'ev-mobilya-masa', name: 'Masa', parentId: catEvMobilya.id, sortOrder: 12 } })
   await prisma.category.upsert({ where: { slug: 'ev-mobilya-asillik' }, update: {}, create: { slug: 'ev-mobilya-asillik', name: 'Askılık', parentId: catEvMobilya.id, sortOrder: 13 } })
   const catLeafBahceMobilya = await prisma.category.upsert({ where: { slug: 'ev-mobilya-bahce-mobilyasi' }, update: {}, create: { slug: 'ev-mobilya-bahce-mobilyasi', name: 'Bahçe Mobilyaları', parentId: catEvMobilya.id, sortOrder: 14 } })
+  const catLeafBahceOturmaGrubu = await upsertCategory({ slug: 'ev-mobilya-bahce-mobilyasi-oturma-grubu', name: 'Bahçe Oturma Grubu', parentId: catLeafBahceMobilya.id, sortOrder: 1 })
+  await upsertCategory({ slug: 'ev-mobilya-bahce-mobilyasi-masa-sandalye', name: 'Bahçe Masa & Sandalye', parentId: catLeafBahceMobilya.id, sortOrder: 2 })
+  await upsertCategory({ slug: 'ev-mobilya-bahce-mobilyasi-dis-mekan-sehpa', name: 'Dış Mekan Sehpa', parentId: catLeafBahceMobilya.id, sortOrder: 3 })
   const catLeafKitaplik = await prisma.category.upsert({ where: { slug: 'ev-mobilya-kitaplik' }, update: {}, create: { slug: 'ev-mobilya-kitaplik', name: 'Kitaplık', parentId: catEvMobilya.id, sortOrder: 15 } })
 
   // ── EV AYDINLATMA — YAPRAK KATEGORİLER ─────────
 
   await prisma.category.upsert({ where: { slug: 'ev-aydinlatma-yer' }, update: {}, create: { slug: 'ev-aydinlatma-yer', name: 'Yer Lambası', parentId: catEvAydinlatma.id, sortOrder: 1 } })
   const catLeafTavanSarkit = await prisma.category.upsert({ where: { slug: 'ev-aydinlatma-tavan-sarkit' }, update: {}, create: { slug: 'ev-aydinlatma-tavan-sarkit', name: 'Tavan & Sarkıt', parentId: catEvAydinlatma.id, sortOrder: 2 } })
+  await upsertCategory({ slug: 'ev-aydinlatma-tavan-sarkit-tavan-aydinlatma', name: 'Tavan Aydınlatma', parentId: catLeafTavanSarkit.id, sortOrder: 1 })
+  const catLeafSarkitAydinlatma = await upsertCategory({ slug: 'ev-aydinlatma-tavan-sarkit-sarkit', name: 'Sarkıt Aydınlatma', parentId: catLeafTavanSarkit.id, sortOrder: 2 })
   await prisma.category.upsert({ where: { slug: 'ev-aydinlatma-masa-lambasi' }, update: {}, create: { slug: 'ev-aydinlatma-masa-lambasi', name: 'Masa Lambaları', parentId: catEvAydinlatma.id, sortOrder: 3 } })
   await prisma.category.upsert({ where: { slug: 'ev-aydinlatma-dekoratif' }, update: {}, create: { slug: 'ev-aydinlatma-dekoratif', name: 'Dekoratif', parentId: catEvAydinlatma.id, sortOrder: 4 } })
   await prisma.category.upsert({ where: { slug: 'ev-aydinlatma-duvar' }, update: {}, create: { slug: 'ev-aydinlatma-duvar', name: 'Duvar', parentId: catEvAydinlatma.id, sortOrder: 5 } })
@@ -495,6 +531,9 @@ async function main() {
   await prisma.category.upsert({ where: { slug: 'ev-mutfak-bardak-fincan-kupa' }, update: {}, create: { slug: 'ev-mutfak-bardak-fincan-kupa', name: 'Bardak & Fincan & Kupa', parentId: catEvMutfak.id, sortOrder: 1 } })
   await prisma.category.upsert({ where: { slug: 'ev-mutfak-sunum-aksesuar' }, update: {}, create: { slug: 'ev-mutfak-sunum-aksesuar', name: 'Sunum Aksesuarları', parentId: catEvMutfak.id, sortOrder: 2 } })
   const catLeafTabakKase = await prisma.category.upsert({ where: { slug: 'ev-mutfak-tabak-kase' }, update: {}, create: { slug: 'ev-mutfak-tabak-kase', name: 'Tabak & Kase', parentId: catEvMutfak.id, sortOrder: 3 } })
+  await upsertCategory({ slug: 'ev-mutfak-tabak-kase-tabak', name: 'Tabak', parentId: catLeafTabakKase.id, sortOrder: 1 })
+  await upsertCategory({ slug: 'ev-mutfak-tabak-kase-kase', name: 'Kase', parentId: catLeafTabakKase.id, sortOrder: 2 })
+  const catLeafSofraSeti = await upsertCategory({ slug: 'ev-mutfak-tabak-kase-sofra-seti', name: 'Sofra Seti', parentId: catLeafTabakKase.id, sortOrder: 3 })
   await prisma.category.upsert({ where: { slug: 'ev-mutfak-pisirim-hazirlama' }, update: {}, create: { slug: 'ev-mutfak-pisirim-hazirlama', name: 'Pişirme & Hazırlama', parentId: catEvMutfak.id, sortOrder: 4 } })
   await prisma.category.upsert({ where: { slug: 'ev-mutfak-saklama-duzenleme' }, update: {}, create: { slug: 'ev-mutfak-saklama-duzenleme', name: 'Saklama & Düzenleme', parentId: catEvMutfak.id, sortOrder: 5 } })
   await prisma.category.upsert({ where: { slug: 'ev-mutfak-sofra-tekstili' }, update: {}, create: { slug: 'ev-mutfak-sofra-tekstili', name: 'Sofra Tekstili', parentId: catEvMutfak.id, sortOrder: 6 } })
@@ -510,6 +549,8 @@ async function main() {
   await prisma.category.upsert({ where: { slug: 'ev-dekorasyon-saksi-bitki' }, update: {}, create: { slug: 'ev-dekorasyon-saksi-bitki', name: 'Saksı & Bitki', parentId: catEvDekorasyon.id, sortOrder: 6 } })
   await prisma.category.upsert({ where: { slug: 'ev-dekorasyon-kulplar' }, update: {}, create: { slug: 'ev-dekorasyon-kulplar', name: 'Kulplar', parentId: catEvDekorasyon.id, sortOrder: 7 } })
   const catLeafMumMumluk = await prisma.category.upsert({ where: { slug: 'ev-dekorasyon-mum-mumluk' }, update: {}, create: { slug: 'ev-dekorasyon-mum-mumluk', name: 'Mum & Mumluk', parentId: catEvDekorasyon.id, sortOrder: 8 } })
+  await upsertCategory({ slug: 'ev-dekorasyon-mum-mumluk-mum', name: 'Mum', parentId: catLeafMumMumluk.id, sortOrder: 1 })
+  const catLeafMumluk = await upsertCategory({ slug: 'ev-dekorasyon-mum-mumluk-mumluk', name: 'Mumluk', parentId: catLeafMumMumluk.id, sortOrder: 2 })
   await prisma.category.upsert({ where: { slug: 'ev-dekorasyon-somine-barbeku' }, update: {}, create: { slug: 'ev-dekorasyon-somine-barbeku', name: 'Şömine & Barbekü', parentId: catEvDekorasyon.id, sortOrder: 9 } })
 
   // ── EV TEKSTİL — YAPRAK KATEGORİLER ─────────────
@@ -557,7 +598,7 @@ async function main() {
     create: {
       id: 'prod_sehpa_01',
       sellerId: sellerAtelier.id,
-      categoryId: catLeafSehpaModelleri.id,
+      categoryId: catLeafOrtaSehpa.id,
       slug: 'masif-mese-orta-sehpa-dogal',
       name: 'Masif Meşe Orta Sehpa — Doğal',
       description: 'El yapımı masif meşe sehpa. Hafif mat lake ile işlenmiş, ahşabın doğal damarları ön plana çıkarılmıştır. Her parça benzersizdir; ahşabın renk ve desen farklılıkları ürünün özgünlüğünü oluşturur.\n\nBoyutlar: 90 × 50 × 40 cm (G × D × Y)\nMalzeme: Masif meşe, mat lake\nAyaklar: Siyah mat toz boya metal\nBakım: Nemli bez ile silinebilir, aşındırıcı temizleyicilerden kaçının.',
@@ -588,7 +629,7 @@ async function main() {
     create: {
       id: 'prod_konsol_01',
       sellerId: sellerAtelier.id,
-      categoryId: catLeafDresuarKonsol.id,
+      categoryId: catLeafKonsol.id,
       slug: 'rattan-konsol-aynali-dogal',
       name: 'Rattan Konsol — Aynalı',
       description: 'Doğal rattan ve meşe kombinasyonundan üretilmiş konsol masası. Üst kısmında pirinç çerçeveli dikdörtgen ayna ile tasarlanmıştır. Giriş, yatak odası veya oturma odası için ideal.\n\nBoyutlar: 100 × 35 × 80 cm\nMalzeme: Doğal rattan, masif meşe, pirinç\nAyna: 60 × 40 cm, pirinç çerçeveli',
@@ -649,7 +690,7 @@ async function main() {
     create: {
       id: 'prod_mumluk_01',
       sellerId: sellerAtelier.id,
-      categoryId: catLeafMumMumluk.id,
+      categoryId: catLeafMumluk.id,
       slug: 'pirinc-mumluk-seti-3lu-altin',
       name: 'Pirinç Mumluk Seti — 3\'lü Altın',
       description: 'Döküm pirinç, elle işlenmiş üç farklı boy mumluk seti. Altın rengi vernik kaplama, zaman içinde patine edinebilir; bu durum ürünün doğal karakterini yansıtır.\n\nBoyutlar: S (Ø5×8 cm), M (Ø6×12 cm), L (Ø7×18 cm)\nMalzeme: Döküm pirinç, altın rengi vernik\nTej mumu fitil çapı: 2,2 cm (standart)\n\nNot: Standart tablo mumlukları ile uyumludur.',
@@ -771,7 +812,7 @@ async function main() {
     create: {
       id: 'prod_sarkit_01',
       sellerId: sellerWoodform.id,
-      categoryId: catLeafTavanSarkit.id,
+      categoryId: catLeafSarkitAydinlatma.id,
       slug: 'ahsap-kure-sarkit-lamba-mese',
       name: 'Ahşap Küre Sarkıt Lamba — Meşe',
       description: 'CNC tornalı masif meşe küre içinde gizlenmiş Edison ampullü sarkıt lamba. Tekstil örgü kablo, tavan rozeti ve ampul dahildir.\n\nÇap: 20 cm\nKablo boyu: Ayarlanabilir, maks. 120 cm\nDuy: E27\nAmpul: 4W LED Edison (dahil)\nMalzeme: Masif meşe, tekstil kablo\n\nElektrik Sertifikası: CE uyumlu',
@@ -797,7 +838,7 @@ async function main() {
     create: {
       id: 'prod_bahce_01',
       sellerId: sellerWoodform.id,
-      categoryId: catLeafBahceMobilya.id,
+      categoryId: catLeafBahceOturmaGrubu.id,
       slug: 'tik-bahce-oturma-grubu-2li',
       name: 'Tik Bahçe Oturma Grubu — 2\'li Koltuk Set',
       description: 'A-grade tik ağacından üretilmiş 2\'li bahçe koltuk takımı. Tik, doğal yağ içeriği sayesinde dış mekanda ekstra bakım gerektirmez.\n\nSet içeriği: 2× koltuk\nKoltuk boyutları: 65×70×85 cm (G×D×Y)\nOturma yüksekliği: 42 cm\nMalzeme: A-grade tik, paslanmaz çelik vida\nMindersiz olarak satılır; Sunbrella minderler ayrıca edinilebilir.',
@@ -842,7 +883,7 @@ async function main() {
     create: {
       id: 'prod_sofra_01',
       sellerId: sellerAtelier.id,
-      categoryId: catLeafTabakKase.id,
+      categoryId: catLeafSofraSeti.id,
       slug: 'bambu-sofra-takimi-6-kisilik-inceleme',
       name: 'Bambu Sofra Takımı — 6 Kişilik',
       description: 'Organik bambu, 6 kişilik sofra seti.',

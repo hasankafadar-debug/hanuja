@@ -11,6 +11,7 @@ import {
   type BulkProductImportRow,
 } from '@/lib/bulk-product-import'
 import { buildChildrenMap } from '../../_lib/category-tree'
+import { CategorySupportHint } from '../../_components/category-support-hint'
 
 interface TemplateCategory {
   slug: string
@@ -59,8 +60,12 @@ const REQUIRED_BULK_PRODUCT_HEADERS = [
   'Fiyat*',
   'Sevk Suresi (is gunu)*',
   'Stok*',
-  'Barkod (13 hane)*',
 ]
+
+function getDownloadFileName(contentDisposition: string | null) {
+  const match = contentDisposition?.match(/filename="?([^"]+)"?/)
+  return match?.[1] ?? 'toplu-urun-sablonu.xlsx'
+}
 
 export function BulkImportForm({ areas }: BulkImportFormProps) {
   const [rootCategorySlug, setRootCategorySlug] = useState<'ev' | 'ofis' | ''>('')
@@ -71,9 +76,11 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
   const [rows, setRows] = useState<PreviewRow[]>([])
   const [previewErrors, setPreviewErrors] = useState<ImportError[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [templateError, setTemplateError] = useState<string | null>(null)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [isPending, startTransition] = useTransition()
   const [isValidating, setIsValidating] = useState(false)
+  const [isTemplateDownloading, setIsTemplateDownloading] = useState(false)
 
   const previewRows = useMemo(() => rows.slice(0, 8), [rows])
   const selectedArea = useMemo(
@@ -110,23 +117,62 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
     .filter((name): name is string => Boolean(name))
     .join(' / ')
 
+  // Products may only attach to a leaf category, so only a leaf is a valid
+  // template scope. A slug with no children in the scope tree is a leaf.
+  function isScopeLeaf(slug: string) {
+    return (scopeChildrenMap.get(slug) ?? []).length === 0
+  }
+
   function handleScopeLevelChange(levelIndex: number, categorySlug: string) {
+    setTemplateError(null)
     if (!categorySlug) {
       const truncated = scopePath.slice(0, levelIndex)
       setScopePath(truncated)
-      // Any level is a valid scope, so falling back one level keeps a usable selection.
-      setScopeCategorySlug(truncated[truncated.length - 1] ?? '')
+      // Falling back to an intermediate level clears the scope until a leaf is chosen.
+      const terminal = truncated[truncated.length - 1] ?? ''
+      setScopeCategorySlug(terminal && isScopeLeaf(terminal) ? terminal : '')
       return
     }
 
     const nextPath = [...scopePath.slice(0, levelIndex), categorySlug]
     setScopePath(nextPath)
-    setScopeCategorySlug(categorySlug)
+    setScopeCategorySlug(isScopeLeaf(categorySlug) ? categorySlug : '')
   }
   const templateHref =
     rootCategorySlug && scopeCategorySlug
       ? `/api/seller/products/bulk/template?rootCategorySlug=${encodeURIComponent(rootCategorySlug)}&scopeCategorySlug=${encodeURIComponent(scopeCategorySlug)}`
       : null
+
+  async function handleDownloadTemplate() {
+    if (!templateHref || isTemplateDownloading) return
+
+    setTemplateError(null)
+    setIsTemplateDownloading(true)
+
+    try {
+      const response = await fetch(templateHref)
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: string }
+        setTemplateError(payload.error ?? payload.message ?? 'Sablon indirilemedi.')
+        return
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = getDownloadFileName(response.headers.get('Content-Disposition'))
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch {
+      setTemplateError('Sablon indirilemedi.')
+    } finally {
+      setIsTemplateDownloading(false)
+    }
+  }
 
   async function handleFileChange(file: File | null) {
     setSubmitError(null)
@@ -240,11 +286,6 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
     }
   }
 
-  function handleDownloadTemplate() {
-    if (!templateHref) return
-    window.location.assign(templateHref)
-  }
-
   function handleSubmit() {
     if (rows.length === 0 || previewErrors.length > 0) return
 
@@ -318,6 +359,7 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
                   setRootCategorySlug(nextValue)
                   setScopeCategorySlug('')
                   setScopePath([])
+                  setTemplateError(null)
                 }}
                 className="w-full rounded-md border px-3 py-2 text-sm"
                 style={{
@@ -368,7 +410,7 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
                       }}
                     >
                       <option value="">
-                        {levelIndex === 0 ? '-- Kategori secin --' : '-- Alt kategori (istege bagli) --'}
+                        {levelIndex === 0 ? '-- Kategori secin --' : '-- Alt kategori secin --'}
                       </option>
                       {options.map((node) => (
                         <option key={node.id} value={node.id}>
@@ -383,8 +425,12 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="button" onClick={handleDownloadTemplate} disabled={!templateHref}>
-              Sablonu indir
+            <Button
+              type="button"
+              onClick={() => void handleDownloadTemplate()}
+              disabled={!templateHref || isTemplateDownloading}
+            >
+              {isTemplateDownloading ? 'Sablon hazirlaniyor...' : 'Sablonu indir'}
             </Button>
             {selectedArea && scopeBreadcrumb && (
               <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
@@ -392,13 +438,20 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
               </p>
             )}
           </div>
+          {templateError ? (
+            <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>
+              {templateError}
+            </p>
+          ) : null}
 
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Indirdiginiz sablonda yalnizca secilen kapsama uygun kategori listesi yer alir.
-            Excel icindeki <strong>Kategori*</strong> alani bu listeden secilmelidir. Ust seviyede
-            durursaniz sablon o dalin tum alt kategorilerini icerir; boylece tek dosyada birden fazla
-            kategoriye urun yukleyebilirsiniz.
+            Kategoriyi en alt (son) kategoriye kadar secmelisiniz. Sablon yalnizca sectiginiz son
+            kategoriyi icerir ve Excel icindeki <strong>Kategori*</strong> alani bu kategoriye
+            sabitlenir. Alt kategorisi olan bir kategoride durursaniz sablon indirilemez.
           </p>
+
+          <CategorySupportHint />
+
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
             <strong>Uyari:</strong> Excel icindeki <strong>Urun Rengi*</strong> ve <strong>Materyal*</strong>{' '}
             secimleri kategoriye baglidir. Bu listeler ancak ayni satirda once <strong>Kategori*</strong>{' '}
@@ -454,7 +507,7 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
               Renk veya materyal kardeslerini baglamak icin ayni <strong>Model Kodu</strong> kullanin. SKU yalnizca kendi sisteminizdeki istege bagli urun kodunuzdur.
             </p>
             <p style={{ color: 'var(--color-warning, #b45309)' }}>
-              Yalnizca barkod benzersiz olmalidir. Barkod baska bir saticinin mevcut urun veya varyasyon kaydinda kullaniliyorsa ilgili satir reddedilir ve barkod degistirilmelidir.
+              Barkod alani istege baglidir. Bos birakirsaniz sistem 8 ile baslayan benzersiz 13 haneli bir barkod otomatik uretir. Kendiniz girerseniz sistem genelinde benzersiz olmalidir; baska bir urun veya varyasyonda kullaniliyorsa ilgili satir reddedilir ve barkod degistirilmelidir.
             </p>
           </div>
 

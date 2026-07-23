@@ -18,6 +18,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { sortAttributeOptions } from '@/lib/attribute-option-sort'
 import { useBarcodeAvailability, type BarcodeAvailabilityStatus } from '@/lib/use-barcode-availability'
 import CategoryPicker from '../../_components/category-picker'
+import { CategorySupportHint } from '../../_components/category-support-hint'
 import type { CategoryNode } from '../../_lib/category-tree'
 
 interface AttributeOption {
@@ -126,7 +127,6 @@ export default function NewProductForm({ categories }: Props) {
   const totalVariantStock = variants.reduce((sum, variant) => sum + Number(variant.stockQuantity || 0), 0)
   const variantsValid = variants.every(
     (variant) =>
-      variant.barcode.trim().length === 13 &&
       Number(variant.price) > 0 &&
       Number.isInteger(Number(variant.stockQuantity)) &&
       Number(variant.stockQuantity) >= 0,
@@ -140,7 +140,6 @@ export default function NewProductForm({ categories }: Props) {
     pendingImageUploads > 0 ||
     !modelCode.trim() ||
     hasBarcodeCheckIssue ||
-    (!hasVariants && barcode.trim().length !== 13) ||
     (hasVariants && !variantsValid)
   const missingSubmitReason = !categoryId
     ? 'Urunu gondermek icin kategori secin.'
@@ -157,9 +156,7 @@ export default function NewProductForm({ categories }: Props) {
               : hasBarcodeCheckIssue
                 ? 'Barkod kontrolleri tamamlanmadan urun gonderilemez.'
             : hasVariants && !variantsValid
-              ? 'Varyasyonlu urunlerde her satir icin 13 haneli barkod, fiyat ve stok girin.'
-              : !hasVariants && barcode.trim().length !== 13
-                ? 'Urunu gondermek icin 13 haneli barkod girin.'
+              ? 'Varyasyonlu urunlerde her satir icin fiyat ve stok girin.'
                 : null
 
   async function attachProductImages(productId: string, mediaAssetIds: string[]) {
@@ -262,6 +259,7 @@ export default function NewProductForm({ categories }: Props) {
         onChange={setCategoryId}
         disabled={loading}
       />
+      <CategorySupportHint />
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
@@ -337,22 +335,25 @@ export default function NewProductForm({ categories }: Props) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label htmlFor="barcode">Barkod (13 hane) *</Label>
+          <Label htmlFor="barcode">Barkod (13 hane)</Label>
           <Input
             id="barcode"
             inputMode="numeric"
             pattern="\d{13}"
-            placeholder="8691234567890"
+            placeholder="Bos birakilirsa otomatik uretilir"
             value={barcode}
             onChange={(e) => setBarcode(e.target.value.replace(/\D/g, '').slice(0, 13))}
-            required={!hasVariants}
             disabled={loading || hasVariants}
           />
           {hasVariants ? (
             <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
               Varyasyonlu urunde barkod varyasyon satirlarindan okunur.
             </p>
-          ) : null}
+          ) : (
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Istege baglidir. Bos birakirsaniz 8 ile baslayan benzersiz 13 haneli barkod otomatik uretilir.
+            </p>
+          )}
           <BarcodeStatusHint status={getBarcodeResult('product').status} message={getBarcodeResult('product').message} hidden={hasVariants} />
         </div>
         <div className="space-y-1.5">
@@ -396,7 +397,7 @@ export default function NewProductForm({ categories }: Props) {
               <Input placeholder="Beden" value={variant.size} onChange={(e) => updateVariant(variant.localId, { size: e.target.value })} disabled={loading} />
               <Input placeholder="Ek Ozellik Adi" value={variant.customOptionName} onChange={(e) => updateVariant(variant.localId, { customOptionName: e.target.value })} disabled={loading} />
               <Input placeholder="Ek Ozellik Degeri" value={variant.customOptionValue} onChange={(e) => updateVariant(variant.localId, { customOptionValue: e.target.value })} disabled={loading} />
-              <Input inputMode="numeric" pattern="\d{13}" placeholder="Barkod (13 hane)" value={variant.barcode} onChange={(e) => updateVariant(variant.localId, { barcode: e.target.value.replace(/\D/g, '').slice(0, 13) })} required disabled={loading} />
+              <Input inputMode="numeric" pattern="\d{13}" placeholder="Barkod (bos = otomatik)" value={variant.barcode} onChange={(e) => updateVariant(variant.localId, { barcode: e.target.value.replace(/\D/g, '').slice(0, 13) })} disabled={loading} />
               <BarcodeStatusHint status={getBarcodeResult(variant.localId).status} message={getBarcodeResult(variant.localId).message} />
               <Input type="number" min="0" step="0.01" placeholder="Fiyat" value={variant.price} onChange={(e) => updateVariant(variant.localId, { price: e.target.value })} required disabled={loading} />
               <Input type="number" min="0" step="1" placeholder="Stok" value={variant.stockQuantity} onChange={(e) => updateVariant(variant.localId, { stockQuantity: e.target.value })} required disabled={loading} />

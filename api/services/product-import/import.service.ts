@@ -2,16 +2,15 @@ import type { PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { createCatalogService } from '../catalog.service'
 import { createMediaService } from '../media.service'
-import { generateImportBarcode } from './barcode'
 import { HipiconAdapter } from './adapters/hipicon.adapter'
 import type { ImportAdapter, ScrapedProduct } from './adapters/import-adapter'
 import { resolveImportCategory, type CategoryNode } from './category-resolver'
 import { normalizeSlug, buildSlugWithSuffix } from '../../domain/slug'
 import { requireModelCode } from '../../domain/model-code'
 import { syncVariantBarcodeReservation } from '../../domain/barcode-registry'
+import { generateUniqueProductBarcode } from '../../domain/barcode-generate'
 
 const adapters: ImportAdapter[] = [new HipiconAdapter()]
-const MAX_BARCODE_ATTEMPTS = 50
 
 type AttributeOption = {
   id: string
@@ -126,7 +125,7 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
     return adapter
   }
 
-  async function preview(url: string, sellerNumber: number) {
+  async function preview(url: string, _sellerNumber: number) {
     const adapter = resolveAdapter(url)
     const result = await adapter.fetchProducts(url)
 
@@ -184,12 +183,11 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
         continue
       }
 
-      const proposedBarcode = generateImportBarcode({
-        raw: item.barcode,
-        sellerNumber,
-        seed: `${sellerNumber}:${item.externalId}:product:${item.name}`,
-        attempt: 0,
-      })
+      // Barcode is optional: only propose a scraped, full 13-digit barcode.
+      // A blank proposal means the seller can leave it empty and the commit
+      // will auto-generate an "8"-prefixed EAN-13.
+      const scrapedDigits = item.barcode?.replace(/\D/g, '') ?? ''
+      const proposedBarcode = scrapedDigits.length === 13 ? scrapedDigits : ''
 
       const detectedCategoryId =
         decision.kind === 'matched' ? decision.categoryId : decision.parentId
@@ -310,27 +308,20 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
       return !existing
     }
 
-    async function allocateBarcode(raw: string | null | undefined, seed: string) {
-      for (let attempt = 0; attempt < MAX_BARCODE_ATTEMPTS; attempt += 1) {
-        const barcode = generateImportBarcode({
-          raw,
-          sellerNumber: params.sellerNumber,
-          seed,
-          attempt,
-        })
-        if (await isBarcodeAvailable(barcode)) {
-          usedBarcodes.add(barcode)
-          return barcode
-        }
+    async function allocateBarcode(raw: string | null | undefined) {
+      // Keep a scraped/entered full 13-digit barcode when it is still free;
+      // otherwise auto-generate an "8"-prefixed EAN-13.
+      const digits = raw?.replace(/\D/g, '') ?? ''
+      if (digits.length === 13 && (await isBarcodeAvailable(digits))) {
+        usedBarcodes.add(digits)
+        return digits
       }
-
-      throw new Error('Secilen urunler icin benzersiz barkod uretilemedi. Lutfen tekrar deneyin.')
+      return generateUniqueProductBarcode(prisma, { used: usedBarcodes })
     }
 
     async function allocateBarcodeWithOverride(
       override: string | null | undefined,
       fallbackRaw: string | null | undefined,
-      seed: string,
     ) {
       if (override?.trim()) {
         // Caller provided an explicit barcode — no fallback allowed; fail loudly on conflict
@@ -341,7 +332,7 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
         usedBarcodes.add(override.trim())
         return override.trim()
       }
-      return allocateBarcode(fallbackRaw, seed)
+      return allocateBarcode(fallbackRaw)
     }
 
     // --- Resolve auto-create categories (deduplicated, one transaction) ---
@@ -429,7 +420,6 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
     for (const { item, selection } of selectedItems) {
       const variants = item.variants ?? []
       const overrideBarcode = 'barcode' in selection ? selection.barcode?.trim() || null : null
-      const productSeed = `${params.sellerId}:${item.externalId}:product:${item.name}`
       const categoryId = resolveCategoryId(selection)
       validateAttributeSelection({
         categoryId,
@@ -453,16 +443,11 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
         productBarcode:
           variants.length > 0
             ? null
-            : await allocateBarcodeWithOverride(overrideBarcode, item.barcode, productSeed),
+            : await allocateBarcodeWithOverride(overrideBarcode, item.barcode),
         variantBarcodes:
           variants.length > 0
             ? await Promise.all(
-                variants.map((variant, index) =>
-                  allocateBarcode(
-                    variant.barcode ?? item.barcode,
-                    `${params.sellerId}:${item.externalId}:variant:${index}:${variant.name}`,
-                  ),
-                ),
+                variants.map((variant) => allocateBarcode(variant.barcode ?? item.barcode)),
               )
             : [],
       })
@@ -502,17 +487,15 @@ export function createProductImportService({ prisma }: { prisma: PrismaClient })
 
         if (item.variants && item.variants.length > 0) {
           for (const [index, variant] of item.variants.entries()) {
+            const variantBarcode =
+              importItem.variantBarcodes[index] ??
+              (await generateUniqueProductBarcode(tx as unknown as PrismaClient))
             const createdVariant = await tx.productVariant.create({
               data: {
               productId: createdProduct.id,
               name: variant.name,
               options: {},
-              barcode:
-                importItem.variantBarcodes[index] ??
-                generateImportBarcode({
-                  sellerNumber: params.sellerNumber,
-                  seed: `${params.sellerId}:${item.externalId}:variant:${index}:${variant.name}`,
-                }),
+              barcode: variantBarcode,
               price: new Decimal(variant.price ?? item.price),
               stockQuantity: variant.stockQuantity ?? importItem.stockQuantity,
               },

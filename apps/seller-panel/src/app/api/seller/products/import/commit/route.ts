@@ -162,19 +162,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Validate barcode for non-variant products
-  const itemVariantMap = new Map(items.map((item) => [item.externalId, (item.variants?.length ?? 0) > 0]))
-
+  // Barcode is optional. Only validate the format of a seller-entered barcode;
+  // blank cells are auto-generated ("8"-prefixed EAN-13) at commit time.
   for (const raw of rawSelections) {
-    const hasVariants = itemVariantMap.get(raw.externalId) ?? false
-    if (!hasVariants) {
-      const barcodeVal = raw.barcode?.trim() || ''
-      if (!barcodeVal) {
-        return NextResponse.json(
-          { error: `Barkod zorunludur: ${raw.externalId}` },
-          { status: 400 },
-        )
-      }
+    const barcodeVal = raw.barcode?.trim() || ''
+    if (barcodeVal) {
       const normalized = normalizeImportBarcode(barcodeVal, seller.sellerNumber)
       if (!normalized) {
         return NextResponse.json(

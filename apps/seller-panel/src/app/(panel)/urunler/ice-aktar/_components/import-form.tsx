@@ -17,6 +17,7 @@ import {
   findSuggestedCategoryId,
   type ImportCategoryOption,
 } from '@/lib/import-category-match'
+import { CategorySupportHint } from '../../_components/category-support-hint'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -352,7 +353,7 @@ function BarcodeCell({
         value={state.barcode}
         onChange={(e) => onBarcodeChange(externalId, e.target.value)}
         disabled={!state.selected || isBusy}
-        placeholder="13 haneli EAN"
+        placeholder="Boş = otomatik üretilir"
         className="font-mono text-xs"
         id={`barcode-${externalId}`}
         autoComplete="off"
@@ -435,6 +436,8 @@ export function ImportForm({ categories }: ImportFormProps) {
     }).length
   }, [importedByExternalId, preview, selections])
 
+  // Barcode is optional: only an entered barcode that is invalid or already in
+  // use blocks commit. Blank barcodes are auto-generated ("8"-prefixed) on save.
   const missingBarcodeCount = useMemo(() => {
     if (!preview) return 0
     return preview.items.filter((item) => {
@@ -443,11 +446,8 @@ export function ImportForm({ categories }: ImportFormProps) {
       if (hasVariants) return false
       const s = selections[item.externalId]
       if (!s?.selected) return false
-      return (
-        !s.barcode.trim() ||
-        s.barcodeStatus === 'in_use' ||
-        s.barcodeStatus === 'invalid'
-      )
+      if (!s.barcode.trim()) return false
+      return s.barcodeStatus === 'in_use' || s.barcodeStatus === 'invalid'
     }).length
   }, [importedByExternalId, preview, selections])
 
@@ -1057,7 +1057,7 @@ export function ImportForm({ categories }: ImportFormProps) {
                 ) : null}
                 {missingBarcodeCount > 0 ? (
                   <p style={{ color: 'var(--color-destructive)' }}>
-                    {missingBarcodeCount} seçili üründe barkod eksik veya geçersiz.
+                    {missingBarcodeCount} seçili üründe girilen barkod geçersiz veya kullanımda. Boş bırakabilir ya da düzeltebilirsiniz.
                   </p>
                 ) : null}
                 {missingModelCodeCount > 0 ? (
@@ -1081,6 +1081,8 @@ export function ImportForm({ categories }: ImportFormProps) {
                   </p>
                 ) : null}
               </div>
+
+              <CategorySupportHint />
 
               {/* Table */}
               <div className="overflow-x-auto">

@@ -41,7 +41,7 @@ describe('bulk product import row validator', () => {
         'Model Kodu*': 'SEHPA-001',
         name: 'Masif Mese Sehpa',
         'Ana Kategori*': 'Ev',
-        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
         'Urun Rengi*': 'Ceviz',
         'Materyal*': 'Masif Ahsap',
         price: '1890',
@@ -63,7 +63,7 @@ describe('bulk product import row validator', () => {
 
     expect(result.errors).toHaveLength(0)
     expect(result.data?.rootCategorySlug).toBe('ev')
-    expect(result.data?.categorySlug).toBe('Mobilya / Sehpa Modelleri')
+    expect(result.data?.categorySlug).toBe('Mobilya / Sehpa Modelleri / Orta Sehpa')
     expect(result.data?.productColor).toBe('Ceviz')
     expect(result.data?.productMaterial).toBe('Masif Ahsap')
     expect(result.data?.price).toBe(1890)
@@ -98,7 +98,7 @@ describe('bulk product import row validator', () => {
       {
         'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
-        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
         'Urun Rengi*': 'Ceviz',
         'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
@@ -163,7 +163,29 @@ describe('bulk product import row validator', () => {
     expect(missing).toContain('Materyal*')
     expect(missing).toContain('Fiyat*')
     expect(missing).toContain('Stok*')
-    expect(missing).toContain('Barkod (13 hane)*')
+    // Barcode is optional: a blank cell is auto-generated at commit time.
+    expect(missing).not.toContain('Barkod (13 hane)')
+    expect(missing).not.toContain('Barkod (13 hane)*')
+  })
+
+  it('accepts a row with a blank barcode (auto-generated at commit)', () => {
+    const result = normalizeBulkProductRow(
+      {
+        'Model Kodu*': 'SEHPA-001',
+        'Urun Adi*': 'Ornek Urun',
+        'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
+        'Urun Rengi*': 'Ceviz',
+        'Materyal*': 'Masif Ahsap',
+        'Fiyat*': '1200',
+        'Sevk Suresi (is gunu)*': '7',
+        'Stok*': '4',
+        'Barkod (13 hane)': '',
+      },
+      2,
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.data?.barcode).toBe('')
   })
 
   it('keeps upload limit capped at 500 rows', () => {
@@ -184,7 +206,7 @@ describe('bulk product import row validator', () => {
       {
         'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
-        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
         'Urun Rengi*': 'Ceviz',
         'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
@@ -206,7 +228,7 @@ describe('bulk product import row validator', () => {
       {
         'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
-        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
         'Urun Rengi*': 'Ceviz',
         'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
@@ -322,7 +344,7 @@ describe('bulk product group key', () => {
       {
         'Urun Grup Kodu': 'TAKIM-01',
         'Urun Adi*': 'Ayni Isimli Urun',
-        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
         'Urun Rengi*': 'Ceviz',
         'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
@@ -343,7 +365,7 @@ describe('bulk product group key', () => {
       {
         'Model Kodu*': 'MODEL-01',
         'Urun Adi*': 'Ayni Isimli Urun',
-        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
         'Urun Rengi*': 'Ceviz',
         'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
@@ -365,7 +387,7 @@ describe('bulk product group key', () => {
       {
         'Model Kodu*': 'model  01',
         'Urun Adi*': 'Ayni Isimli Urun',
-        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
         'Urun Rengi*': 'Ceviz',
         'Materyal*': 'Masif Ahsap',
         'Fiyat*': '1200',
@@ -381,7 +403,7 @@ describe('bulk product group key', () => {
       {
         'Model Kodu*': 'MODEL 01',
         'Urun Adi*': 'Ayni Isimli Urun',
-        'Kategori*': 'Mobilya / Sehpa Modelleri',
+        'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
         'Urun Rengi*': 'Siyah',
         'Materyal*': 'Metal',
         'Fiyat*': '1250',

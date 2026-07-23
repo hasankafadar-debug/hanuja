@@ -159,13 +159,15 @@ export async function GET(req: NextRequest) {
       )
 
   if (usesScopedSelection) {
+    // Only leaf categories have a reference row, so a missing row means the
+    // seller stopped on an intermediate category and must drill down further.
     const scopeRow = findBulkCategoryReferenceRowBySlug(referenceRows, scopeCategorySlug)
     const matchesRoot =
       scopeRow && normalizeRootCategoryValue(scopeRow.rootSlug) === normalizeRootCategoryValue(rootCategorySlug)
 
     if (!matchesRoot || scopedReferenceRows.length === 0) {
       return NextResponse.json(
-        { error: 'Secilen Ev/Ofis ve kategori eslesmesi bulunamadi.' },
+        { error: 'En alt kategoriyi seçmelisiniz.' },
         { status: 400 },
       )
     }

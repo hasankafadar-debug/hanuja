@@ -32,7 +32,11 @@ const optionalString = z
   .transform((value) => value || undefined)
   .optional()
 
-const barcodeSchema = z.string().regex(/^\d{13}$/, 'Barkod 13 haneli rakam olmali')
+// Optional: blank cells are auto-generated ("8"-prefixed EAN-13) at commit time.
+const barcodeSchema = z
+  .string()
+  .trim()
+  .refine((value) => value === '' || /^\d{13}$/.test(value), 'Barkod 13 haneli rakam olmali')
 
 export const BULK_PRODUCT_COLUMN_CONFIG = [
   { key: 'modelCode', label: 'Model Kodu*', required: true, helpText: 'Ayni satici ve ayni kategoride ayni Model Kodu verilen urunler, ayni modelin renk/materyal secenekleri kabul edilir ve urun detayinda birlikte gosterilir.' },
@@ -43,7 +47,7 @@ export const BULK_PRODUCT_COLUMN_CONFIG = [
   { key: 'price', label: 'Fiyat*', required: true, helpText: 'Satis fiyatini TL olarak sifirdan buyuk girin.' },
   { key: 'fulfillmentDays', label: 'Sevk Suresi (is gunu)*', required: true, helpText: 'Sevk suresini 1 ile 90 is gunu arasinda bir tam sayi olarak girin.' },
   { key: 'stockQuantity', label: 'Stok*', required: true, helpText: 'Stok adedini sifir veya daha buyuk bir tam sayi olarak girin.' },
-  { key: 'barcode', label: 'Barkod (13 hane)*', required: true, helpText: 'Her urun veya varyant icin sistem genelinde benzersiz 13 haneli barkod girin.' },
+  { key: 'barcode', label: 'Barkod (13 hane)', required: false, helpText: 'Istege baglidir. Bos birakirsaniz 8 ile baslayan benzersiz 13 haneli barkod otomatik uretilir. Kendiniz girecekseniz sistem genelinde benzersiz olmalidir.' },
   { key: 'variantColor', label: 'Varyant Rengi', required: false, helpText: 'Ayni urun icindeki varyasyon icin renk girin. Bos birakabilirsiniz.' },
   { key: 'variantMaterial', label: 'Varyant Materyali', required: false, helpText: 'Ayni urun icindeki varyasyon icin materyal girin. Bos birakabilirsiniz.' },
   { key: 'variantSize', label: 'Beden', required: false, helpText: 'Beden veya olcu varyasyonunu girin. Bos birakabilirsiniz.' },
@@ -120,8 +124,8 @@ TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Görsel 8'), 'image8')
 
 export const BULK_PRODUCT_TEMPLATE_SAMPLE_ROW: Record<BulkProductColumnKey, string | number> = {
   modelCode: 'SEHPA-001',
-  name: 'Dogal Mese Yan Sehpa',
-  categorySlug: 'Mobilya / Sehpa Modelleri',
+  name: 'Dogal Mese Orta Sehpa',
+  categorySlug: 'Mobilya / Sehpa Modelleri / Orta Sehpa',
   productColor: 'Ceviz',
   productMaterial: 'Masif Ahsap',
   price: 3490,

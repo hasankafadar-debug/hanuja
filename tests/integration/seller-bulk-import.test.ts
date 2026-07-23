@@ -42,6 +42,7 @@ import {
   buildBulkCategoryReferenceRows,
   filterBulkCategoryReferenceRows,
   filterBulkCategoryReferenceRowsByScope,
+  findBulkCategoryReferenceRowBySlug,
   resolveBulkCategoryRealSlug,
 } from '../../apps/seller-panel/src/lib/bulk-category-options'
 import {
@@ -367,5 +368,23 @@ describe('bulk template category scope resolution', () => {
     const resolved = resolveBulkCategoryRealSlug(referenceRows, 'Ev', 'Mobilya / Sehpa')
 
     expect(resolved).toBe('ev-mobilya-sehpa')
+  })
+
+  // The template/upload routes reject a non-leaf scope with "En alt kategoriyi
+  // seçmelisiniz". They detect it via findBulkCategoryReferenceRowBySlug, which
+  // only has a row for leaf categories.
+  it('has no reference row for an intermediate (non-leaf) scope slug', () => {
+    expect(findBulkCategoryReferenceRowBySlug(referenceRows, 'ev-mobilya')).toBeNull()
+  })
+
+  it('resolves a reference row for a leaf scope slug', () => {
+    const leafRow = findBulkCategoryReferenceRowBySlug(referenceRows, 'ev-mobilya-sehpa')
+    expect(leafRow?.realSlug).toBe('ev-mobilya-sehpa')
+    // A leaf scope narrows the template to exactly that one category.
+    expect(
+      filterBulkCategoryReferenceRowsByScope(referenceRows, 'ev', 'ev-mobilya-sehpa').map(
+        (row) => row.realSlug,
+      ),
+    ).toEqual(['ev-mobilya-sehpa'])
   })
 })

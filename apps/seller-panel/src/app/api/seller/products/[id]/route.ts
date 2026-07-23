@@ -12,6 +12,7 @@ import {
   prepareVariantBarcodeReplacement,
   syncVariantBarcodeReservation,
 } from '@hanuja/api/domain/barcode-registry'
+import { generateUniqueProductBarcode } from '@hanuja/api/domain/barcode-generate'
 import { requireModelCode } from '@hanuja/api/domain/model-code'
 
 const variantSchema = z.object({
@@ -21,7 +22,12 @@ const variantSchema = z.object({
   size: z.string().trim().max(80).optional(),
   customOptionName: z.string().trim().max(80).optional(),
   customOptionValue: z.string().trim().max(120).optional(),
-  barcode: z.string().regex(/^\d{13}$/, 'Varyasyon barkodu 13 haneli rakam olmali'),
+  // Optional: blank barcodes are auto-generated ("8"-prefixed EAN-13) on save.
+  barcode: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || /^\d{13}$/.test(value), 'Varyasyon barkodu 13 haneli rakam olmali')
+    .optional(),
   price: z.number().positive('Varyasyon fiyati 0dan buyuk olmali'),
   stockQuantity: z.number().int().min(0, 'Varyasyon stoku negatif olamaz'),
 })
@@ -39,7 +45,12 @@ const updateProductSchema = z.object({
   stockQuantity: z.number().int().min(0).optional(),
   sku: z.string().max(120).nullable().optional(),
   modelCode: z.string().min(1, 'Model Kodu zorunludur').max(120).optional(),
-  barcode: z.string().regex(/^\d{13}$/, 'Barkod 13 haneli rakam olmali').nullable().optional(),
+  barcode: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || /^\d{13}$/.test(value), 'Barkod 13 haneli rakam olmali')
+    .nullable()
+    .optional(),
   weight: z.number().positive().nullable().optional(),
   colorOptionId: z.string().min(1).optional(),
   materialOptionId: z.string().min(1).optional(),
@@ -47,9 +58,6 @@ const updateProductSchema = z.object({
 }).superRefine((data, ctx) => {
   if (data.variants && data.variants.length > 0 && data.barcode?.trim()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['barcode'], message: 'Varyasyonlu urunde ana barkod bos birakilmali.' })
-  }
-  if (data.variants && data.variants.length === 0 && data.barcode !== undefined && !data.barcode?.trim()) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['barcode'], message: 'Varyasyonsuz urunde barkod zorunludur.' })
   }
 })
 
@@ -64,9 +72,11 @@ function normalizeVariant(input: VariantInput) {
 
   return {
     id: input.id,
-    name: Object.entries(options).map(([key, value]) => `${key}: ${value}`).join(' / ') || input.barcode,
+    // Barcode may be blank (auto-generated on save); name falls back to the
+    // resolved barcode at write time.
+    name: Object.entries(options).map(([key, value]) => `${key}: ${value}`).join(' / '),
     options,
-    barcode: input.barcode.trim(),
+    barcode: input.barcode?.trim() ?? '',
     price: new Decimal(input.price),
     stockQuantity: input.stockQuantity,
   }
@@ -83,8 +93,10 @@ async function assertVariantBarcodesAvailable(params: {
   barcodes: string[]
   productBarcode?: string | null
 }) {
-  const uniqueBarcodes = Array.from(new Set(params.barcodes))
-  if (uniqueBarcodes.length !== params.barcodes.length) {
+  // Only seller-entered barcodes are checked; blanks are auto-generated later.
+  const enteredBarcodes = params.barcodes.map((barcode) => barcode.trim()).filter(Boolean)
+  const uniqueBarcodes = Array.from(new Set(enteredBarcodes))
+  if (uniqueBarcodes.length !== enteredBarcodes.length) {
     throw new ConflictError('Ayni varyasyon barkodu birden fazla kez girilemez.')
   }
 
@@ -140,6 +152,13 @@ export async function PATCH(
       })
     }
 
+    // Seeded with entered barcodes so auto-generated ones cannot collide with a
+    // still-pending entered barcode in the same request.
+    const usedBarcodes = new Set<string>([
+      ...(variants?.map((variant) => variant.barcode).filter(Boolean) ?? []),
+      ...(parsed.data.barcode?.trim() ? [parsed.data.barcode.trim()] : []),
+    ])
+
     const updated = await prisma.$transaction(async (tx) => {
       if (variants !== undefined) {
         const incomingIds = variants.filter((variant) => variant.id).map((variant) => variant.id as string)
@@ -152,8 +171,10 @@ export async function PATCH(
           }
         }
 
+        // Only entered barcodes matter here; temporary barcodes are "9"-prefixed
+        // and generated ones are "8"-prefixed, so blanks never collide.
         const finalBarcodes = [
-          ...variants.map((variant) => variant.barcode),
+          ...variants.map((variant) => variant.barcode).filter(Boolean),
           ...(variants.length === 0 && parsed.data.barcode?.trim() ? [parsed.data.barcode.trim()] : []),
         ]
         await prepareVariantBarcodeReplacement(tx, id, finalBarcodes)
@@ -163,6 +184,31 @@ export async function PATCH(
             ...(variants.length > 0 ? { id: { notIn: incomingIds } } : {}),
           },
         })
+      }
+
+      // Resolve the main product barcode. A variantless product must keep a
+      // barcode: if the field is provided but blank, auto-generate one; a
+      // variant product always has a null main barcode.
+      let resolvedMainBarcode: string | null | undefined
+      if (variants !== undefined) {
+        if (variants.length > 0) {
+          resolvedMainBarcode = null
+        } else {
+          resolvedMainBarcode =
+            parsed.data.barcode?.trim() ||
+            (await generateUniqueProductBarcode(tx as unknown as PrismaClient, { used: usedBarcodes }))
+        }
+      } else if (parsed.data.barcode !== undefined) {
+        const entered = parsed.data.barcode?.trim()
+        if (entered) {
+          resolvedMainBarcode = entered
+        } else {
+          const variantCount = await tx.productVariant.count({ where: { productId: id } })
+          resolvedMainBarcode =
+            variantCount === 0
+              ? await generateUniqueProductBarcode(tx as unknown as PrismaClient, { used: usedBarcodes })
+              : null
+        }
       }
 
       const service = createCatalogService({ prisma: tx as unknown as PrismaClient })
@@ -195,11 +241,7 @@ export async function PATCH(
             : {}),
         ...(parsed.data.sku !== undefined ? { sku: parsed.data.sku?.trim() || null } : {}),
         ...(parsed.data.modelCode !== undefined ? { modelCode: requireModelCode(parsed.data.modelCode) } : {}),
-        ...(variants
-          ? { barcode: variants.length > 0 ? null : parsed.data.barcode?.trim() || null }
-          : parsed.data.barcode !== undefined
-            ? { barcode: parsed.data.barcode?.trim() || null }
-            : {}),
+        ...(resolvedMainBarcode !== undefined ? { barcode: resolvedMainBarcode } : {}),
         ...(parsed.data.weight !== undefined
           ? { weight: parsed.data.weight !== null ? new Decimal(parsed.data.weight) : null }
           : {}),
@@ -207,30 +249,33 @@ export async function PATCH(
 
       if (variants !== undefined) {
         for (const variant of variants) {
+          const variantBarcode =
+            variant.barcode ||
+            (await generateUniqueProductBarcode(tx as unknown as PrismaClient, { used: usedBarcodes }))
           if (variant.id) {
             const updatedVariant = await tx.productVariant.update({
               where: { id: variant.id },
               data: {
-                name: variant.name,
+                name: variant.name || variantBarcode,
                 options: variant.options,
-                barcode: variant.barcode,
+                barcode: variantBarcode,
                 price: variant.price,
                 stockQuantity: variant.stockQuantity,
               },
             })
-            await syncVariantBarcodeReservation(tx, updatedVariant.id, variant.barcode)
+            await syncVariantBarcodeReservation(tx, updatedVariant.id, variantBarcode)
           } else {
             const createdVariant = await tx.productVariant.create({
               data: {
                 productId: id,
-                name: variant.name,
+                name: variant.name || variantBarcode,
                 options: variant.options,
-                barcode: variant.barcode,
+                barcode: variantBarcode,
                 price: variant.price,
                 stockQuantity: variant.stockQuantity,
               },
             })
-            await syncVariantBarcodeReservation(tx, createdVariant.id, variant.barcode)
+            await syncVariantBarcodeReservation(tx, createdVariant.id, variantBarcode)
           }
         }
       }

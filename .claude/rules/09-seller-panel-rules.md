@@ -349,12 +349,22 @@ Satıcı arayüzü buna uygun olmalıdır:
 - Ürün ekleme/düzenleme formunda kategori **kademeli** seçilir (seviye başına bir liste: önce
   `Ev`/`Ofis`, sonra alt kategori, sonra onun altı). Yaprağa inilmeden kategori seçilmiş sayılmaz ve
   form gönderilemez.
-- Toplu yükleme şablonu ve Hipicon import önizlemesi yalnız yaprak kategorileri önerir — aksi halde
-  satıcıya sunucunun reddedeceği bir seçenek gösterilmiş olur.
-- Hipicon kategori eşleşmesi yaprağa inmiyorsa `too_shallow` ile reddedilir.
+- **Toplu (Excel) yüklemede kapsam yaprağa kadar zorunludur.** Satıcı kademeli seçimi son (yaprak)
+  kategoriye indirmeden şablon indirilemez ve dosya yüklenemez; ara kategoride durulursa indir/yükle
+  butonları pasif kalır. İndirilen şablon yalnızca seçilen **tek** yaprak kategoriyi içerir (eski
+  "üst seviyede durup tüm alt dalları tek dosyaya alma" davranışı kaldırıldı). Sunucu, ara kategoriyle
+  gelen şablon/yükleme isteğini `En alt kategoriyi seçmelisiniz.` hatasıyla reddeder
+  (`bulk/template` ve `bulk` route'ları `findBulkCategoryReferenceRowBySlug` ile yaprak doğrular).
+- Hipicon import önizlemesi yalnız yaprak kategorileri önerir; kategori eşleşmesi yaprağa inmiyorsa
+  `too_shallow` ile reddedilir.
+- Satıcılar kendileri kategori oluşturamaz. Toplu yükleme, tekli ürün ekleme/düzenleme ve URL
+  import kategori alanlarında, aranan alt kategori yoksa satıcıyı `/destek`'e yönlendiren bir mesaj
+  gösterilir (paylaşılan `CategorySupportHint` bileşeni). Yeni kategori talepleri mevcut destek
+  bileti sistemi üzerinden yönetilir; ayrı bir kategori talep modülü yoktur.
 
 Bu kural değişirse `api/domain/category-selection.ts`, seller panel kategori seçici, toplu yükleme
-şablonu ve import çözümleyicisi birlikte gözden geçirilmelidir.
+formu/şablonu (`bulk-import-form.tsx`, `bulk/{template,route}.ts`), import çözümleyicisi ve
+`CategorySupportHint` birlikte gözden geçirilmelidir.
 
 Hipicon mağaza URL importu satıcı panelde `/urunler/ice-aktar` altında kalır ve yalnızca oturumdaki aktif satıcının kendi kataloğuna ürün ekleyebilir.
 

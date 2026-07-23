@@ -29,6 +29,7 @@ import { enqueueCategorySync, enqueueProductSync } from '../jobs/search-index-sy
 import { deleteObject } from '../lib/r2'
 import { requireModelCode } from '../domain/model-code'
 import { syncProductBarcodeReservation } from '../domain/barcode-registry'
+import { generateUniqueProductBarcode } from '../domain/barcode-generate'
 
 interface CatalogServiceDeps {
   prisma: PrismaClient
@@ -444,6 +445,8 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       sku?: string | null
       modelCode: string
       barcode?: string | null
+      /** When true and no barcode is supplied, an "8"-prefixed EAN-13 is generated. */
+      autoGenerateBarcodeWhenMissing?: boolean
       weight?: DecimalLike | null
       slugOverride?: string
       deferVisibilitySync?: boolean
@@ -468,8 +471,15 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
 
       const slug = await resolveUniqueProductSlug(params.slugOverride ?? params.name)
 
+      const effectiveBarcode =
+        params.barcode?.trim()
+          ? params.barcode.trim()
+          : params.autoGenerateBarcodeWhenMissing
+            ? await generateUniqueProductBarcode(prisma)
+            : null
+
       await ensureUniqueIdentifiers({
-        barcode: params.barcode ?? null,
+        barcode: effectiveBarcode,
       })
 
       const moderation = getModerationDecision({
@@ -495,14 +505,14 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         stockQuantity: params.stockQuantity,
         sku: params.sku ?? null,
         modelCode: requireModelCode(params.modelCode),
-        barcode: params.barcode ?? null,
+        barcode: effectiveBarcode,
         weight: params.weight ?? null,
         status: moderation.status,
         moderationFindings: moderation.moderationFindings,
         publishedAt: moderation.status === 'published' ? new Date() : null,
       })
 
-      await syncProductBarcodeReservation(prisma, product.id, params.barcode ?? null)
+      await syncProductBarcodeReservation(prisma, product.id, effectiveBarcode)
 
       if (!params.deferVisibilitySync) {
         await syncProductVisibility(product.id, 'draft', product.status)

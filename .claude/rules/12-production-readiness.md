@@ -256,6 +256,33 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - `R2_SOURCE_BUCKET_NAME` artık hiçbir yerde kullanılmıyor: `a0611d2` değişkeni `.env.example`'dan çıkardı, `c938691` de tek tüketicisi olan `tools/scripts/copy-production-media.ts` script'ini ve `package.json` komutunu sildi. Ek işlem gerekmiyor.
 - Açık takip işi: başarısız yükleme denemelerinden kalan `pending` durumundaki `MediaAsset` kayıtları temizlenmiyor; periyodik sweep yok (blocking değil).
 
+### 22. Zorunlu yaprak kategori (toplu yükleme) + opsiyonel otomatik barkod (yeni — 2026-07-23)
+- **Toplu (Excel) yükleme artık yaprağa kadar zorunlu.** Kademeli kategori seçimi son kategoriye
+  inmeden şablon indirilemez/dosya yüklenemez; ara kategoride durulursa butonlar pasif. Şablon yalnız
+  seçilen tek yaprağı içerir (eski "üst seviyede durup tüm alt dalları tek dosyaya alma" davranışı
+  kaldırıldı — commit `208a5a0`'in broad-scope davranışı geri alındı). Sunucu ara kategoriyi
+  `En alt kategoriyi seçmelisiniz.` ile reddeder (`bulk/template` + `bulk` route'ları). Tekli form ve
+  Hipicon import zaten yaprak zorunluydu; değişmedi.
+- **Destek yönlendirmesi:** paylaşılan `CategorySupportHint` bileşeni toplu yükleme, tekli
+  ekleme/düzenleme ve URL import kategori alanlarında görünür; "Admin Destek" metni `/destek`'e link.
+  Satıcılar kendileri kategori oluşturamaz; talep destek bileti sistemi üzerinden.
+- **Barkod artık opsiyonel (tüm yükleme yolları).** Satıcı barkodu boş bırakırsa sistem "8" ile
+  başlayan, kontrol haneli **geçerli EAN-13** üretir (`api/domain/barcode-generate.ts` →
+  `generateUniqueProductBarcode`; benzersizlik `barcodeRegistry` + DB unique + trigger ile). Ana
+  ürün üretimi `catalog.service.createProduct`'ta merkezî (`autoGenerateBarcodeWhenMissing`);
+  varyant barkodları da opsiyonel + otomatik "8" üretimi. Girilen barkodun benzersizlik kontrolü
+  (realtime endpoint + registry) korunur.
+- İçe aktarma barkod üretimi eski **satıcı-numarası önekli** üretimden **"8" önekli** üretime
+  birleştirildi (`generateImportBarcode` artık kullanılmıyor). Önizleme yalnız scrape edilen tam
+  13 haneli barkodu önerir; aksi halde boş bırakılır ve commit'te "8" üretilir.
+- **Taksonomi iyileştirmesi:** aşırı genel kalan bazı yapraklar ara kategoriye çevrildi ve alt
+  yapraklara ayrıldı (`20260723193000_refine_general_category_leaves`). Örnekler: `Sehpa Modelleri`
+  → `Orta Sehpa` / `Yan Sehpa` / `Zigon Sehpa`, `Dresuar & Konsol` → `Dresuar` / `Konsol`,
+  `Tavan & Sarkıt` → `Tavan Aydınlatma` / `Sarkıt Aydınlatma`, `Tabak & Kase` → `Tabak` / `Kase`
+  / `Sofra Seti`, `Mum & Mumluk` → `Mum` / `Mumluk`, `Bahçe Mobilyaları` → daha somut bahçe
+  mobilyası yaprakları. Migration mevcut ürünleri isim/slug ipuçlarına göre yeni yapraklara taşır;
+  canlıda ürün yoksa taşıma kısmı no-op kalır.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

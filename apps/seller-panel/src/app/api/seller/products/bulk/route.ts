@@ -27,6 +27,7 @@ import {
 } from '@/lib/bulk-import-transaction'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { isBarcodeConflict, syncVariantBarcodeReservation } from '@hanuja/api/domain/barcode-registry'
+import { generateUniqueProductBarcode } from '@hanuja/api/domain/barcode-generate'
 import { requireModelCode } from '@hanuja/api/domain/model-code'
 import { enqueueProductSync } from '@hanuja/api/jobs/search-index-sync.job'
 
@@ -330,8 +331,10 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
       normalizeRootCategoryValue(scopeRow.rootSlug) === normalizeRootCategoryValue(rootCategorySlug)
 
     if (!matchesRoot) {
+      // Only leaf categories have a reference row; a missing row means an
+      // intermediate category was selected.
       return NextResponse.json(
-        { error: 'Secilen Ev/Ofis ve kategori eslesmesi bulunamadi.' },
+        { error: 'En alt kategoriyi seçmelisiniz.' },
         { status: 400 },
       )
     }
@@ -448,13 +451,17 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
 
   const validRows = resolvedEntriesWithAttributes.map((entry) => entry.data)
 
+  // Barcode is optional: only seller-entered barcodes are de-duplicated and
+  // checked. Blank cells are auto-generated ("8"-prefixed) at commit time.
   const duplicateErrors: BulkValidationError[] = []
   const seenBarcodes = new Set<string>()
   for (const entry of resolvedEntriesWithAttributes) {
-    if (seenBarcodes.has(entry.data.barcode)) {
-      duplicateErrors.push(createBulkValidationError(entry.rowNumber, 'barcode', 'duplicate_in_file', `Ayni barkod tekrar ediyor: ${entry.data.barcode}`))
+    const barcode = entry.data.barcode?.trim()
+    if (!barcode) continue
+    if (seenBarcodes.has(barcode)) {
+      duplicateErrors.push(createBulkValidationError(entry.rowNumber, 'barcode', 'duplicate_in_file', `Ayni barkod tekrar ediyor: ${barcode}`))
     }
-    seenBarcodes.add(entry.data.barcode)
+    seenBarcodes.add(barcode)
   }
 
   if (duplicateErrors.length > 0) {
@@ -464,7 +471,7 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
     )
   }
 
-  const allBarcodes = validRows.map((row) => row.barcode)
+  const allBarcodes = validRows.map((row) => row.barcode?.trim()).filter((barcode): barcode is string => Boolean(barcode))
 
   const existingReservations = await prisma.barcodeRegistry.findMany({
     where: { barcode: { in: allBarcodes } },
@@ -517,7 +524,7 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
         continue
       }
       const conflictingBarcode = groupBarcodes.find(
-        (barcode) => existingBarcodeSet.has(barcode),
+        (barcode) => barcode?.trim() && existingBarcodeSet.has(barcode.trim()),
       )
       if (conflictingBarcode) {
         errors.push(createBulkValidationError(first.rowNumber, 'barcode', 'barcode_in_use', `Barkod zaten kullaniliyor: ${conflictingBarcode}`))
@@ -536,6 +543,9 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
   }
 
   const publishedProductIds: string[] = []
+  // Seeded with seller-entered barcodes so auto-generated ones cannot collide
+  // with a still-pending entered barcode inside the same import.
+  const usedBarcodes = new Set<string>(allBarcodes)
   try {
     await prisma.$transaction(async (tx) => {
       for (const group of importGroups) {
@@ -562,7 +572,8 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
               : data.stockQuantity,
             sku: data.sku ?? null,
             modelCode: requireModelCode(data.modelCode),
-            barcode: usesVariants ? null : data.barcode,
+            barcode: usesVariants ? null : data.barcode?.trim() || null,
+            autoGenerateBarcodeWhenMissing: !usesVariants,
             weight: data.weight !== undefined ? new Decimal(data.weight) : null,
             deferVisibilitySync: true,
           })
@@ -570,17 +581,20 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
 
           if (usesVariants) {
             for (const entry of group) {
+              const variantBarcode =
+                entry.data.barcode?.trim() ||
+                (await generateUniqueProductBarcode(tx as unknown as PrismaClient, { used: usedBarcodes }))
               const variant = await tx.productVariant.create({
                 data: {
                 productId: product.id,
-                name: variantName(entry.data),
+                name: variantName(entry.data) || variantBarcode,
                 options: variantOptions(entry.data),
-                barcode: entry.data.barcode,
+                barcode: variantBarcode,
                 price: new Decimal(entry.data.price),
                 stockQuantity: entry.data.stockQuantity,
                 },
               })
-              await syncVariantBarcodeReservation(tx, variant.id, entry.data.barcode)
+              await syncVariantBarcodeReservation(tx, variant.id, variantBarcode)
             }
           }
 

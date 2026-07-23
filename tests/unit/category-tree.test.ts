@@ -15,6 +15,9 @@ const categories: CategoryNode[] = [
   { id: 'ev-aydinlatma', name: 'Aydınlatma', parentId: 'ev' },
   { id: 'ofis-mobilya', name: 'Mobilya', parentId: 'ofis' },
   { id: 'ev-mobilya-sehpa', name: 'Sehpa Modelleri', parentId: 'ev-mobilya' },
+  { id: 'ev-mobilya-sehpa-orta', name: 'Orta Sehpa', parentId: 'ev-mobilya-sehpa' },
+  { id: 'ev-mobilya-sehpa-yan', name: 'Yan Sehpa', parentId: 'ev-mobilya-sehpa' },
+  { id: 'ev-mobilya-sehpa-zigon', name: 'Zigon Sehpa', parentId: 'ev-mobilya-sehpa' },
   { id: 'ev-mobilya-konsol', name: 'Konsol', parentId: 'ev-mobilya' },
 ]
 
@@ -39,16 +42,17 @@ describe('buildChildrenMap', () => {
   })
 
   it('returns no entry for a leaf category', () => {
-    expect(buildChildrenMap(categories).get('ev-mobilya-sehpa')).toBeUndefined()
+    expect(buildChildrenMap(categories).get('ev-mobilya-sehpa-orta')).toBeUndefined()
   })
 })
 
 describe('getAncestorPath', () => {
   it('returns the chain from the root down to the given category', () => {
-    expect(getAncestorPath('ev-mobilya-sehpa', categories)).toEqual([
+    expect(getAncestorPath('ev-mobilya-sehpa-orta', categories)).toEqual([
       'ev',
       'ev-mobilya',
       'ev-mobilya-sehpa',
+      'ev-mobilya-sehpa-orta',
     ])
   })
 
@@ -73,12 +77,13 @@ describe('getAncestorPath', () => {
 
 describe('isLeafCategory', () => {
   it('treats categories without children as leaves', () => {
-    expect(isLeafCategory('ev-mobilya-sehpa', categories)).toBe(true)
+    expect(isLeafCategory('ev-mobilya-sehpa-orta', categories)).toBe(true)
     expect(isLeafCategory('ev-aydinlatma', categories)).toBe(true)
   })
 
   it('rejects root and intermediate categories', () => {
     expect(isLeafCategory('ev', categories)).toBe(false)
     expect(isLeafCategory('ev-mobilya', categories)).toBe(false)
+    expect(isLeafCategory('ev-mobilya-sehpa', categories)).toBe(false)
   })
 })
