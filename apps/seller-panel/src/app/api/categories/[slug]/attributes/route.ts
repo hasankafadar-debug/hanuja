@@ -18,7 +18,7 @@ export async function GET(
       attributeOptions: {
         select: {
           option: {
-            select: { id: true, type: true, slug: true, label: true, hexColor: true },
+            select: { id: true, type: true, slug: true, label: true, hexColor: true, sortOrder: true },
           },
         },
       },
@@ -37,8 +37,8 @@ export async function GET(
   if (colorOptions.length === 0 && materialOptions.length === 0) {
     const allOptions = await prisma.productAttributeOption.findMany({
       where: { isActive: true },
-      select: { id: true, type: true, slug: true, label: true, hexColor: true },
-      orderBy: { label: 'asc' },
+      select: { id: true, type: true, slug: true, label: true, hexColor: true, sortOrder: true },
+      orderBy: { sortOrder: 'asc' },
     })
     return NextResponse.json({
       colorOptions: sortAttributeOptions(allOptions.filter((o) => o.type === 'color')),

@@ -13,6 +13,8 @@ interface Props {
   compareAtPrice?: number | null
   fulfillmentDays?: number | null
   stock: number
+  // Ürün ölçüleri satırı (ör. "En: 100 cm · Boy: 30 cm"); ölçü yoksa null.
+  dimensionText?: string | null
   variants?: Array<{
     id: string
     name: string
@@ -38,6 +40,7 @@ export default function AddToCartButton({
   compareAtPrice = null,
   fulfillmentDays = null,
   stock,
+  dimensionText = null,
   variants = [],
 }: Props) {
   const router = useRouter()
@@ -272,6 +275,11 @@ export default function AddToCartButton({
             {fulfillmentText ? (
               <span className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
                 {fulfillmentText}
+              </span>
+            ) : null}
+            {dimensionText ? (
+              <span className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                {dimensionText}
               </span>
             ) : null}
           </div>

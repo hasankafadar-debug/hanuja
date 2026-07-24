@@ -50,7 +50,13 @@ const createProductSchema = z.object({
   sku: z.string().max(120).optional(),
   modelCode: z.string().min(1, 'Model Kodu zorunludur').max(120),
   weight: z.number().positive('Agirlik 0dan buyuk olmali').optional(),
+  // Boyutlar (cm) — opsiyonel: En → dimensionWidth, Boy → dimensionLength, Yukseklik → dimensionHeight.
+  dimensionLength: z.number().positive('Boy 0dan buyuk olmali').optional(),
+  dimensionWidth: z.number().positive('En 0dan buyuk olmali').optional(),
+  dimensionHeight: z.number().positive('Yukseklik 0dan buyuk olmali').optional(),
   colorOptionId: z.string().min(1, 'Renk secimi zorunludur'),
+  // Renk 2 (opsiyonel): ürün iki renkliyse ikinci renk. Renk 1'den farklı olmalı.
+  secondColorOptionId: z.string().min(1).optional(),
   materialOptionId: z.string().min(1, 'Materyal secimi zorunludur'),
   variants: z.array(variantSchema).max(100).optional().default([]),
 })
@@ -131,6 +137,16 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  if (
+    parsed.data.secondColorOptionId !== undefined &&
+    parsed.data.secondColorOptionId === parsed.data.colorOptionId
+  ) {
+    return NextResponse.json(
+      { error: 'Ikinci renk birinci renkten farkli olmalidir.' },
+      { status: 400 },
+    )
+  }
+
   try {
     const variants = parsed.data.variants.map(normalizeVariant)
     await assertVariantBarcodesAvailable({
@@ -167,6 +183,12 @@ export async function POST(req: NextRequest) {
         barcode: variants.length > 0 ? null : parsed.data.barcode?.trim() || null,
         autoGenerateBarcodeWhenMissing: variants.length === 0,
         weight: parsed.data.weight !== undefined ? new Decimal(parsed.data.weight) : null,
+        dimensionLength:
+          parsed.data.dimensionLength !== undefined ? new Decimal(parsed.data.dimensionLength) : null,
+        dimensionWidth:
+          parsed.data.dimensionWidth !== undefined ? new Decimal(parsed.data.dimensionWidth) : null,
+        dimensionHeight:
+          parsed.data.dimensionHeight !== undefined ? new Decimal(parsed.data.dimensionHeight) : null,
       })
 
       if (variants.length > 0) {
@@ -190,8 +212,12 @@ export async function POST(req: NextRequest) {
 
       await tx.productAttributeValue.createMany({
         data: [
-          { productId: created.id, optionId: parsed.data.colorOptionId },
-          { productId: created.id, optionId: parsed.data.materialOptionId },
+          // Renk 1 → sortOrder 0, Renk 2 (varsa) → sortOrder 1, materyal → 0.
+          { productId: created.id, optionId: parsed.data.colorOptionId, sortOrder: 0 },
+          ...(parsed.data.secondColorOptionId
+            ? [{ productId: created.id, optionId: parsed.data.secondColorOptionId, sortOrder: 1 }]
+            : []),
+          { productId: created.id, optionId: parsed.data.materialOptionId, sortOrder: 0 },
         ],
         skipDuplicates: true,
       })

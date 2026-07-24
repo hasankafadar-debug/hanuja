@@ -15,8 +15,8 @@ export async function GET(req: NextRequest) {
   const prisma = createPrismaForRoute()
   const options = await prisma.productAttributeOption.findMany({
     where: { type, isActive: true },
-    select: { id: true, slug: true, label: true, hexColor: true },
-    orderBy: { label: 'asc' },
+    select: { id: true, slug: true, label: true, hexColor: true, sortOrder: true },
+    orderBy: { sortOrder: 'asc' },
   })
 
   return NextResponse.json({ options: sortAttributeOptions(options.map((option) => ({ ...option, type }))) })

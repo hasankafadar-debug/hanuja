@@ -17,6 +17,7 @@
     "db:migrate:status": "pnpm --filter @hanuja/db exec prisma migrate status",
     "db:seed": "pnpm --filter @hanuja/db exec tsx seeds/seed.ts",
     "db:seed:categories": "pnpm --filter @hanuja/db exec tsx seeds/categories-hipicon.ts",
+  "attributes:seed": "tsx tools/scripts/seed-attribute-options.ts",
     "db:studio": "pnpm --filter @hanuja/db exec prisma studio",
     "new-client": "tsx tools/generators/new-client.ts",
     "validate-brand": "tsx tools/validators/validate-brand.ts",

@@ -27,6 +27,7 @@ interface AttributeOption {
   slug: string
   label: string
   hexColor: string | null
+  sortOrder?: number
 }
 
 interface VariantFormRow {
@@ -66,7 +67,11 @@ interface Props {
   existingImages?: ExistingImage[]
   categories: CategoryNode[]
   initialColorOptionId?: string
+  initialSecondColorOptionId?: string
   initialMaterialOptionId?: string
+  initialDimensionWidth?: number | null
+  initialDimensionLength?: number | null
+  initialDimensionHeight?: number | null
 }
 
 function createVariantRow(): VariantFormRow {
@@ -110,7 +115,11 @@ export default function ProductEditForm({
   existingImages = [],
   categories,
   initialColorOptionId = '',
+  initialSecondColorOptionId = '',
   initialMaterialOptionId = '',
+  initialDimensionWidth = null,
+  initialDimensionLength = null,
+  initialDimensionHeight = null,
 }: Props) {
   const router = useRouter()
   const [name, setName] = useState(initialName)
@@ -120,7 +129,14 @@ export default function ProductEditForm({
   const [careInstructions, setCareInstructions] = useState(initialCareInstructions)
   const [categoryId, setCategoryId] = useState(initialCategoryId)
   const [colorOptionId, setColorOptionId] = useState(initialColorOptionId)
+  // Renk adedi mevcut ikinci renkten türetilir; 2 → Renk 1 + Renk 2.
+  const [colorCount, setColorCount] = useState<1 | 2>(initialSecondColorOptionId ? 2 : 1)
+  const [secondColorOptionId, setSecondColorOptionId] = useState(initialSecondColorOptionId)
   const [materialOptionId, setMaterialOptionId] = useState(initialMaterialOptionId)
+  // Boyutlar (cm) — opsiyonel. En → dimensionWidth, Boy → dimensionLength, Yükseklik → dimensionHeight.
+  const [dimWidth, setDimWidth] = useState(initialDimensionWidth != null ? String(initialDimensionWidth) : '')
+  const [dimLength, setDimLength] = useState(initialDimensionLength != null ? String(initialDimensionLength) : '')
+  const [dimHeight, setDimHeight] = useState(initialDimensionHeight != null ? String(initialDimensionHeight) : '')
   const [colorOptions, setColorOptions] = useState<AttributeOption[]>([])
   const [materialOptions, setMaterialOptions] = useState<AttributeOption[]>([])
   const [price, setPrice] = useState(initialPrice)
@@ -174,6 +190,7 @@ export default function ProductEditForm({
   const canSubmit =
     Boolean(categoryId) &&
     Boolean(colorOptionId) &&
+    (colorCount === 2 ? Boolean(secondColorOptionId) : true) &&
     Boolean(materialOptionId) &&
     Boolean(modelCode.trim()) &&
     fulfillmentDays >= 1 &&
@@ -231,6 +248,8 @@ export default function ProductEditForm({
           careInstructions,
           categoryId,
           colorOptionId: colorOptionId || undefined,
+          // colorCount 1 → null (ikinci rengi kaldır); 2 → seçilen ikinci renk.
+          secondColorOptionId: colorCount === 2 ? secondColorOptionId || null : null,
           materialOptionId: materialOptionId || undefined,
           price,
           fulfillmentDays,
@@ -239,6 +258,10 @@ export default function ProductEditForm({
           sku: sku.trim() || null,
           modelCode: modelCode.trim(),
           barcode: hasVariants ? null : barcode.trim(),
+          // Boş → null (temizle); dolu → sayı.
+          dimensionWidth: dimWidth.trim() ? Number(dimWidth) : null,
+          dimensionLength: dimLength.trim() ? Number(dimLength) : null,
+          dimensionHeight: dimHeight.trim() ? Number(dimHeight) : null,
           variants: variants.map((variant) => ({
             ...(variant.dbId ? { id: variant.dbId } : {}),
             size: variant.size.trim() || undefined,
@@ -344,9 +367,47 @@ export default function ProductEditForm({
           <Input id="fulfillmentDays" type="number" min={1} step={1} value={fulfillmentDays} onChange={(e) => setFulfillmentDays(Number(e.target.value))} required disabled={loading} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="edit-color">Renk *</Label>
+          <Label htmlFor="edit-material">Materyal *</Label>
+          <Select onValueChange={setMaterialOptionId} value={materialOptionId} disabled={loading}>
+            <SelectTrigger id="edit-material" aria-label="Materyal">
+              <SelectValue placeholder="Materyal secin" />
+            </SelectTrigger>
+            <SelectContent>
+              {materialOptions.map((opt) => (
+                <SelectItem key={opt.id} value={opt.id}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-colorCount">Renk Adedi *</Label>
+          <Select
+            value={String(colorCount)}
+            onValueChange={(value) => {
+              const next = value === '2' ? 2 : 1
+              setColorCount(next)
+              if (next === 1) setSecondColorOptionId('')
+            }}
+            disabled={loading}
+          >
+            <SelectTrigger id="edit-colorCount" aria-label="Renk Adedi">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Tek renk</SelectItem>
+              <SelectItem value="2">Iki renk</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-color">{colorCount === 2 ? 'Renk 1 *' : 'Renk *'}</Label>
           <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading}>
-            <SelectTrigger id="edit-color" aria-label="Renk">
+            <SelectTrigger id="edit-color" aria-label={colorCount === 2 ? 'Renk 1' : 'Renk'}>
               <SelectValue placeholder="Renk secin" />
             </SelectTrigger>
             <SelectContent>
@@ -363,23 +424,44 @@ export default function ProductEditForm({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-material">Materyal *</Label>
-          <Select onValueChange={setMaterialOptionId} value={materialOptionId} disabled={loading}>
-            <SelectTrigger id="edit-material" aria-label="Materyal">
-              <SelectValue placeholder="Materyal secin" />
-            </SelectTrigger>
-            <SelectContent>
-              {materialOptions.map((opt) => (
-                <SelectItem key={opt.id} value={opt.id}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {colorCount === 1 ? (
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Ikiden fazla renk varsa &quot;Mix&quot; secebilirsiniz.
+            </p>
+          ) : null}
         </div>
       </div>
+
+      {colorCount === 2 ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-secondColor">Renk 2 *</Label>
+            <Select onValueChange={setSecondColorOptionId} value={secondColorOptionId} disabled={loading}>
+              <SelectTrigger id="edit-secondColor" aria-label="Renk 2">
+                <SelectValue placeholder="Ikinci rengi secin" />
+              </SelectTrigger>
+              <SelectContent>
+                {colorOptions
+                  .filter((opt) => opt.id !== colorOptionId)
+                  .map((opt) => (
+                    <SelectItem key={opt.id} value={opt.id}>
+                      {opt.hexColor && (
+                        <span
+                          className="mr-2 inline-block h-3 w-3 rounded-full border"
+                          style={{ backgroundColor: opt.hexColor, borderColor: 'var(--color-border)' }}
+                        />
+                      )}
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Magazada &quot;Renk: Renk1 - Renk2&quot; olarak gosterilir.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
@@ -429,6 +511,18 @@ export default function ProductEditForm({
             Saticinin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde kullanilmaz.
           </p>
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Olculer (cm) — istege bagli</Label>
+        <div className="grid grid-cols-3 gap-4">
+          <Input aria-label="En (cm)" type="number" min="0" step="0.1" placeholder="En" value={dimWidth} onChange={(e) => setDimWidth(e.target.value)} disabled={loading} />
+          <Input aria-label="Boy (cm)" type="number" min="0" step="0.1" placeholder="Boy" value={dimLength} onChange={(e) => setDimLength(e.target.value)} disabled={loading} />
+          <Input aria-label="Yukseklik (cm)" type="number" min="0" step="0.1" placeholder="Yukseklik" value={dimHeight} onChange={(e) => setDimHeight(e.target.value)} disabled={loading} />
+        </div>
+        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+          Girilirse urun sayfasinda gosterilir. Bos birakabilirsiniz.
+        </p>
       </div>
 
       <div className="space-y-3">

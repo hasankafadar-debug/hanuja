@@ -283,6 +283,32 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   mobilyası yaprakları. Migration mevcut ürünleri isim/slug ipuçlarına göre yeni yapraklara taşır;
   canlıda ürün yoksa taşıma kısmı no-op kalır.
 
+### 23. Geniş renk paleti + iki-renk + ürün ölçüleri (yeni — 2026-07-24)
+- **Renk paleti genişletildi + küratörlü sıralandı.** `db/seeds/attribute-options.ts` `COLORS` aile-gruplu
+  sıraya göre yeniden düzenlendi ve 10 yeni renk eklendi: Naturel, Şampanya, Eskitme, Buz Mavisi, Mint Yeşil,
+  Eskitme Altın, Rose Altın, Eskitme Gümüş, Pirinç, **Mix** (çok renkli; hex'siz). Metalik finish aileleri
+  bitişik (Altın → Eskitme Altın → Rose Altın; Gümüş → Eskitme Gümüş; Bakır → Pirinç). Sıra artık
+  `ProductAttributeOption.sortOrder`'dan gelir — `sortAttributeOptions` (`attribute-option-sort.ts`) ve iki
+  attribute-option API'si (`/api/attribute-options`, `/api/categories/[slug]/attributes`) `sortOrder` seçip
+  ona göre sıralar (alfabetik değil). Tek geniş ortak palet: `CategoryAttributeOption` seed'lenmediğinden
+  yeni renkler tüm kategorilerde otomatik görünür.
+- **Prod deploy adımı (reference data):** yeni renkler otomatik migration ile GİTMEZ. Deploy sonrası tek
+  seferlik `pnpm attributes:seed` (`tools/scripts/seed-attribute-options.ts`) çalıştırılmalı — idempotent
+  upsert (`type_slug`), mevcut ürün-renk bağlarını etkilemez, yalnız seçenek listesi + sortOrder günceller.
+  Tam `pnpm db:seed` prod'da KULLANILMAZ (test verisi üretir).
+- **Migration:** `20260724120000_product_attribute_value_sort_order` deploy zincirinin parçasıdır (additive):
+  `ProductAttributeValue.sortOrder Int @default(0)` — tek üründe Renk 1 (0) / Renk 2 (1) sırası için.
+- **İki renk (tekli form + Excel):** tekli formda "Renk Adedi" (1/2); Excel'de `Renk 1*` (zorunlu) + `Renk 2`
+  (opsiyonel) sütunları. Excel'de eski `Urun Rengi*` başlığı geriye dönük kabul edilir
+  (`getMissingBulkProductHeaders` legacy alias). Mağazada "Renk: Renk1 - Renk2". URL importu kapsam dışı
+  (tek renk yazar).
+- **Ürün ölçüleri (En/Boy/Yükseklik):** DB kolonları (`dimension*`) zaten vardı; artık tekli form + Excel'den
+  yazılır (opsiyonel) ve girilirse ürün sayfasında stok/sevk satırının yanında gösterilir. Migration gerekmez.
+  Eşleme: En → `dimensionWidth`, Boy → `dimensionLength`, Yükseklik → `dimensionHeight`.
+- **Bilinen açık uç (blocking değil):** iki-renk ve ölçüler için route-seviyesi entegrasyon testi eklenmedi;
+  parse/sıralama/validation unit testleriyle (`tests/unit/bulk-product-import.test.ts`) ve typecheck ile
+  kapsandı. URL importuna ölçü + ikinci renk (elle) eklenmesi ayrı bir iştir.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

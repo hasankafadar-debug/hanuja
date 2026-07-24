@@ -42,7 +42,8 @@ export const BULK_PRODUCT_COLUMN_CONFIG = [
   { key: 'modelCode', label: 'Model Kodu*', required: true, helpText: 'Ayni satici ve ayni kategoride ayni Model Kodu verilen urunler, ayni modelin renk/materyal secenekleri kabul edilir ve urun detayinda birlikte gosterilir.' },
   { key: 'name', label: 'Urun Adi*', required: true, helpText: 'Urun adini en az 3, en fazla 200 karakter olarak girin.' },
   { key: 'categorySlug', label: 'Kategori*', required: true, helpText: 'Sablonda secilen kategori kapsami icinden bir kategori girin.' },
-  { key: 'productColor', label: 'Urun Rengi*', required: true, helpText: 'Urunun renk secenegini girin.' },
+  { key: 'productColor', label: 'Renk 1*', required: true, helpText: 'Urunun ana renk secenegini girin. Ikiden fazla renk varsa Mix secin.' },
+  { key: 'secondColor', label: 'Renk 2', required: false, helpText: 'Urun iki renkli ise ikinci rengi buradan secin. Ikiden fazla renk varsa Renk 1 sutununda Mix secenegini kullanin.' },
   { key: 'productMaterial', label: 'Materyal*', required: true, helpText: 'Urunun ana materyalini girin.' },
   { key: 'price', label: 'Fiyat*', required: true, helpText: 'Satis fiyatini TL olarak sifirdan buyuk girin.' },
   { key: 'fulfillmentDays', label: 'Sevk Suresi (is gunu)*', required: true, helpText: 'Sevk suresini 1 ile 90 is gunu arasinda bir tam sayi olarak girin.' },
@@ -60,6 +61,9 @@ export const BULK_PRODUCT_COLUMN_CONFIG = [
   { key: 'careInstructions', label: 'Bakim Notu', required: false, helpText: 'Bakim bilgisini en fazla 5000 karakter olarak girin.' },
   { key: 'compareAtPrice', label: 'Liste Fiyati (ustu cizili)', required: false, helpText: 'Varsa satis fiyatindan yuksek liste fiyatini TL olarak girin.' },
   { key: 'weight', label: 'Agirlik (kg)', required: false, helpText: 'Varsa urun agirligini kilogram olarak sifirdan buyuk girin.' },
+  { key: 'dimensionWidth', label: 'En (cm)', required: false, helpText: 'Istege bagli. Urun enini santimetre olarak girin. Girilirse urun sayfasinda gosterilir.' },
+  { key: 'dimensionLength', label: 'Boy (cm)', required: false, helpText: 'Istege bagli. Urun boyunu santimetre olarak girin. Girilirse urun sayfasinda gosterilir.' },
+  { key: 'dimensionHeight', label: 'Yukseklik (cm)', required: false, helpText: 'Istege bagli. Urun yuksekligini santimetre olarak girin. Girilirse urun sayfasinda gosterilir.' },
   ...Array.from({ length: BULK_PRODUCT_IMAGE_COLUMN_COUNT }, (_, index) => ({
     key: `image${index + 1}` as const,
     label: `Gorsel ${index + 1}`,
@@ -94,6 +98,10 @@ TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Urun Rengi'), 'productCol
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Urun Rengi*'), 'productColor')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Urun Renk'), 'productColor')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Urun Renk*'), 'productColor')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Renk 1'), 'productColor')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Renk 1*'), 'productColor')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Renk 2'), 'secondColor')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Ikincil Renk'), 'secondColor')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Materyal'), 'productMaterial')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Materyal*'), 'productMaterial')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Renk'), 'variantColor')
@@ -127,6 +135,7 @@ export const BULK_PRODUCT_TEMPLATE_SAMPLE_ROW: Record<BulkProductColumnKey, stri
   name: 'Dogal Mese Orta Sehpa',
   categorySlug: 'Mobilya / Sehpa Modelleri / Orta Sehpa',
   productColor: 'Ceviz',
+  secondColor: '',
   productMaterial: 'Masif Ahsap',
   price: 3490,
   fulfillmentDays: 7,
@@ -144,6 +153,9 @@ export const BULK_PRODUCT_TEMPLATE_SAMPLE_ROW: Record<BulkProductColumnKey, stri
   careInstructions: 'Nemli bezle silin, direkt gunesten uzak tutun.',
   compareAtPrice: 3890,
   weight: 7.2,
+  dimensionWidth: 100,
+  dimensionLength: 30,
+  dimensionHeight: 45,
   image1: 'https://cdn.hanuja.example/products/sehpa-1.jpg',
   image2: 'https://cdn.hanuja.example/products/sehpa-2.jpg',
   image3: '',
@@ -160,6 +172,7 @@ const bulkProductRowSchema = z.object({
   rootCategorySlug: optionalString.pipe(z.string().max(120).optional()),
   categorySlug: z.string().trim().min(1, 'Kategori zorunludur'),
   productColor: z.string().trim().min(1, 'Urun rengi zorunludur').max(80),
+  secondColor: optionalString.pipe(z.string().max(80).optional()),
   productMaterial: z.string().trim().min(1, 'Materyal zorunludur').max(80),
   price: z.number().positive('Fiyat 0dan buyuk olmali'),
   fulfillmentDays: z.number().int('Sevk suresi tam sayi olmali').min(1, 'Sevk suresi en az 1 is gunu olmali').max(90, 'Sevk suresi en fazla 90 is gunu olmali'),
@@ -177,6 +190,9 @@ const bulkProductRowSchema = z.object({
   careInstructions: optionalString.pipe(z.string().max(5000).optional()),
   compareAtPrice: z.number().positive('Liste fiyati 0dan buyuk olmali').optional(),
   weight: z.number().positive('Agirlik 0dan buyuk olmali').optional(),
+  dimensionLength: z.number().positive('Boy 0dan buyuk olmali').optional(),
+  dimensionWidth: z.number().positive('En 0dan buyuk olmali').optional(),
+  dimensionHeight: z.number().positive('Yukseklik 0dan buyuk olmali').optional(),
   image1: optionalString.pipe(z.string().url('Gorsel 1 gecerli bir URL olmali').optional()),
   image2: optionalString.pipe(z.string().url('Gorsel 2 gecerli bir URL olmali').optional()),
   image3: optionalString.pipe(z.string().url('Gorsel 3 gecerli bir URL olmali').optional()),
@@ -296,6 +312,20 @@ export function getMissingBulkProductHeaders(headers: string[]) {
     missing.push('Kategori*')
   }
 
+  // Renk 1 kolonu 'Urun Rengi*'ndan 'Renk 1*'e yeniden adlandirildi. Eski indirilmis
+  // sablonlar hala 'Urun Rengi*' basligiyla gelir; bunlari da gecerli say (parse
+  // TURKISH_TO_INTERNAL_HEADER_MAP ile zaten productColor'a esler).
+  const hasProductColorHeader =
+    normalizedHeaders.has(normalizeHeaderKey('Renk 1*')) ||
+    normalizedHeaders.has(normalizeHeaderKey('Renk 1')) ||
+    normalizedHeaders.has(normalizeHeaderKey('productColor')) ||
+    normalizedHeaders.has(normalizeHeaderKey('Urun Rengi*')) ||
+    normalizedHeaders.has(normalizeHeaderKey('Urun Rengi'))
+  if (hasProductColorHeader) {
+    const idx = missing.findIndex((label) => normalizeHeaderKey(label) === normalizeHeaderKey('Renk 1*'))
+    if (idx !== -1) missing.splice(idx, 1)
+  }
+
   return missing
 }
 
@@ -312,6 +342,7 @@ export function normalizeBulkProductRow(
       : undefined,
     categorySlug: normalizeCategoryValue(mapped.categorySlug),
     productColor: mapped.productColor,
+    secondColor: mapped.secondColor,
     productMaterial: mapped.productMaterial,
     price: parseOptionalNumber(mapped.price),
     fulfillmentDays: parseOptionalNumber(mapped.fulfillmentDays),
@@ -329,6 +360,9 @@ export function normalizeBulkProductRow(
     careInstructions: mapped.careInstructions,
     compareAtPrice: parseOptionalNumber(mapped.compareAtPrice),
     weight: parseOptionalNumber(mapped.weight),
+    dimensionLength: parseOptionalNumber(mapped.dimensionLength),
+    dimensionWidth: parseOptionalNumber(mapped.dimensionWidth),
+    dimensionHeight: parseOptionalNumber(mapped.dimensionHeight),
     image1: mapped.image1,
     image2: mapped.image2,
     image3: mapped.image3,
@@ -394,6 +428,7 @@ export function normalizeBulkProductRow(
       rootCategorySlug: parsed.data.rootCategorySlug,
       categorySlug: parsed.data.categorySlug,
       productColor: parsed.data.productColor,
+      secondColor: parsed.data.secondColor,
       productMaterial: parsed.data.productMaterial,
       price: parsed.data.price,
       fulfillmentDays: parsed.data.fulfillmentDays,
@@ -411,6 +446,9 @@ export function normalizeBulkProductRow(
       careInstructions: parsed.data.careInstructions,
       compareAtPrice: parsed.data.compareAtPrice,
       weight: parsed.data.weight,
+      dimensionLength: parsed.data.dimensionLength,
+      dimensionWidth: parsed.data.dimensionWidth,
+      dimensionHeight: parsed.data.dimensionHeight,
       imageUrls,
       hasVariant,
     },

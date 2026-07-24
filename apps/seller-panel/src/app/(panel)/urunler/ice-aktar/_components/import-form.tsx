@@ -34,6 +34,7 @@ interface AttributeOption {
   slug: string
   label: string
   hexColor?: string | null
+  sortOrder?: number
 }
 
 interface EnrichedScrapedProduct extends ScrapedProduct {

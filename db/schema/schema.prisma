@@ -2283,6 +2283,10 @@ model CategoryAttributeOption {
 model ProductAttributeValue {
   productId String
   optionId  String
+  // Tek üründe birden çok renk için görüntü sırası: Renk 1 → 0, Renk 2 → 1.
+  // Materyal tek olduğundan 0'da kalır. (Palet/dropdown sırası ayrı kolondur:
+  // ProductAttributeOption.sortOrder — karıştırılmamalı.)
+  sortOrder Int    @default(0)
 
   product Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
   option  ProductAttributeOption @relation(fields: [optionId], references: [id], onDelete: Cascade)

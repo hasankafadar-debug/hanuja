@@ -62,10 +62,12 @@ async function getVisualSiblings(params: { sellerId: string; categoryId: string;
       name: true,
       attributeValues: {
         select: {
+          sortOrder: true,
           option: {
             select: { type: true, label: true, hexColor: true },
           },
         },
+        orderBy: { sortOrder: 'asc' },
       },
     },
     orderBy: [{ createdAt: 'asc' }, { name: 'asc' }],
@@ -73,10 +75,16 @@ async function getVisualSiblings(params: { sellerId: string; categoryId: string;
 }
 
 function getAttributeLabel(
-  attributeValues: Array<{ option?: { type?: string; label?: string; hexColor?: string | null } }> | undefined,
+  attributeValues:
+    | Array<{ sortOrder?: number; option?: { type?: string; label?: string; hexColor?: string | null } }>
+    | undefined,
   type: 'color' | 'material',
 ) {
-  return attributeValues?.find((attribute) => attribute.option?.type === type)?.option ?? null
+  // Birden çok renkte birincil (en düşük sortOrder) değer alınır — swatch eşlemesi için.
+  const matches = (attributeValues ?? [])
+    .filter((attribute) => attribute.option?.type === type)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  return matches[0]?.option ?? null
 }
 
 function buildVisualOptionLabel(
@@ -148,14 +156,28 @@ export default async function ProductDetailPage({ params }: Props) {
 
   const price = Number(product.price)
   const compareAtPrice = product.compareAtPrice ? Number(product.compareAtPrice) : null
+  // Tek üründe birden çok renk sortOrder'a göre sıralanıp " - " ile birleştirilir
+  // (Renk 1 → 0, Renk 2 → 1) → mağazada "Renk: Siyah - Beyaz".
   const colorValue =
-    (product.attributeValues as Array<{ option?: { type?: string; label?: string } }> | undefined)?.find(
-      (attribute) => attribute.option?.type === 'color',
-    )?.option?.label ?? null
+    ((product.attributeValues as
+      | Array<{ sortOrder?: number; option?: { type?: string; label?: string } }>
+      | undefined) ?? [])
+      .filter((attribute) => attribute.option?.type === 'color')
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map((attribute) => attribute.option?.label)
+      .filter((label): label is string => Boolean(label))
+      .join(' - ') || null
   const materialValue =
     (product.attributeValues as Array<{ option?: { type?: string; label?: string } }> | undefined)?.find(
       (attribute) => attribute.option?.type === 'material',
     )?.option?.label ?? null
+  // Ölçüler (cm) — yalnız girilenler gösterilir; hiçbiri yoksa satır render edilmez.
+  const dimensionParts = [
+    product.dimensionWidth != null ? `En: ${Number(product.dimensionWidth)} cm` : null,
+    product.dimensionLength != null ? `Boy: ${Number(product.dimensionLength)} cm` : null,
+    product.dimensionHeight != null ? `Yükseklik: ${Number(product.dimensionHeight)} cm` : null,
+  ].filter((part): part is string => part !== null)
+  const dimensionText = dimensionParts.length > 0 ? dimensionParts.join(' · ') : null
   const visualSiblings = product.modelCode?.trim() && category?.id
     ? await getVisualSiblings({ sellerId: product.sellerId, categoryId: category.id, modelCode: product.modelCode.trim() })
     : []
@@ -212,8 +234,8 @@ export default async function ProductDetailPage({ params }: Props) {
                 <p>
                   <Link
                     href={`/magaza/${seller.slug}`}
-                    className="hover:underline"
-                    style={{ color: 'var(--color-accent)' }}
+                    className="font-medium hover:underline"
+                    style={{ color: 'var(--color-muted-fg)' }}
                   >
                     {seller.displayName}
                   </Link>
@@ -262,6 +284,11 @@ export default async function ProductDetailPage({ params }: Props) {
                   {materialValue ? <span><strong>Materyal:</strong> {materialValue}</span> : null}
                 </div>
               )}
+              {dimensionText ? (
+                <div className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                  {dimensionText}
+                </div>
+              ) : null}
 
               <Separator />
 
@@ -289,6 +316,7 @@ export default async function ProductDetailPage({ params }: Props) {
             compareAtPrice={compareAtPrice}
             fulfillmentDays={typeof product.fulfillmentDays === 'number' ? product.fulfillmentDays : null}
             stock={product.stockQuantity}
+            dimensionText={dimensionText}
             variants={variants}
           />
 

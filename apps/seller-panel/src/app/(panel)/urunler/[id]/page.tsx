@@ -29,6 +29,7 @@ export default async function EditProductPage({ params }: Props) {
     prisma.productAttributeValue.findMany({
       where: { productId: id },
       include: { option: { select: { id: true, type: true } } },
+      orderBy: { sortOrder: 'asc' },
     }),
   ])
 
@@ -58,13 +59,24 @@ export default async function EditProductPage({ params }: Props) {
     modelCode: string | null
     barcode: string | null
     status: string
+    dimensionWidth: { toNumber(): number } | number | null
+    dimensionLength: { toNumber(): number } | number | null
+    dimensionHeight: { toNumber(): number } | number | null
     images?: ProductImage[]
     variants?: ProductVariant[]
   }
 
   const p = product as unknown as ProductData
-  const initialColorOptionId = attributeValues.find((av) => av.option.type === 'color')?.optionId ?? ''
+  // Renk değerleri sortOrder'a göre sıralı: [0] = Renk 1, [1] = Renk 2.
+  const colorValues = attributeValues.filter((av) => av.option.type === 'color')
+  const initialColorOptionId = colorValues[0]?.optionId ?? ''
+  const initialSecondColorOptionId = colorValues[1]?.optionId ?? ''
   const initialMaterialOptionId = attributeValues.find((av) => av.option.type === 'material')?.optionId ?? ''
+  const toNumberOrNull = (value: { toNumber(): number } | number | null) =>
+    value == null ? null : typeof value === 'object' ? value.toNumber() : Number(value)
+  const initialDimensionWidth = toNumberOrNull(p.dimensionWidth)
+  const initialDimensionLength = toNumberOrNull(p.dimensionLength)
+  const initialDimensionHeight = toNumberOrNull(p.dimensionHeight)
 
   const price = typeof p.price === 'object' ? p.price.toNumber() : Number(p.price)
   const compareAtPrice =
@@ -131,7 +143,11 @@ export default async function EditProductPage({ params }: Props) {
         existingImages={existingImages}
         categories={categories}
         initialColorOptionId={initialColorOptionId}
+        initialSecondColorOptionId={initialSecondColorOptionId}
         initialMaterialOptionId={initialMaterialOptionId}
+        initialDimensionWidth={initialDimensionWidth}
+        initialDimensionLength={initialDimensionLength}
+        initialDimensionHeight={initialDimensionHeight}
       />
     </div>
   )

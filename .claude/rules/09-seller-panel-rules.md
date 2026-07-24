@@ -368,6 +368,31 @@ formu/şablonu (`bulk-import-form.tsx`, `bulk/{template,route}.ts`), import çö
 
 Hipicon mağaza URL importu satıcı panelde `/urunler/ice-aktar` altında kalır ve yalnızca oturumdaki aktif satıcının kendi kataloğuna ürün ekleyebilir.
 
+### Renk seçimi: tek/çift renk + Mix
+
+Renk seçenekleri DB-seed'li `ProductAttributeOption` tablosundan gelir (tek geniş ortak palet;
+kategoriye özel kısıt yoktur). Palet **küratörlü sırada** gösterilir — sıra `ProductAttributeOption.sortOrder`
+ile gelir (`sortAttributeOptions` bunu birincil anahtar kullanır), alfabetik değildir.
+
+- **Tekli ürün formu:** "Renk Adedi" seçici (1/2). Adet 2 ise **Renk 1** ve **Renk 2** ayrı seçilir;
+  Renk 2 zorunludur ve Renk 1'den farklı olmalıdır. 2'den fazla renk için satıcı adedi 1 tutup **Mix**
+  seçer. Mağazada iki renk `"Renk: Renk1 - Renk2"` olarak gösterilir.
+- **Toplu (Excel) yükleme:** `Renk 1` (zorunlu) ve `Renk 2` (opsiyonel) sütunları. Renk 2 boş olabilir
+  (ürün tek renkli olabilir). Renk 2 sütun notu: "Ürün iki renkli ise ikinci rengi buradan seçin; ikiden
+  fazla renk varsa Renk 1'de Mix seçin". Eski `Urun Rengi*` başlıklı şablonlar geriye dönük kabul edilir.
+- **Depolama:** iki renk `ProductAttributeValue` join'inde `sortOrder` ile ayrılır (Renk 1 → 0, Renk 2 → 1).
+
+Bu kural değişirse tekli form (`new-product-form.tsx` / `product-edit-form.tsx`), toplu yükleme
+(`bulk-product-import.ts`, `bulk/{template,route}.ts`), create/edit route'ları ve storefront ürün sayfası
+birlikte gözden geçirilmelidir. (URL importu bu turda kapsam dışı — tek renk yazar.)
+
+### Ürün ölçüleri (En / Boy / Yükseklik)
+
+Ölçüler opsiyoneldir ve her yükleme yolunda (tekli form + Excel) girilebilir. Eşleme:
+**En → `dimensionWidth`, Boy → `dimensionLength`, Yükseklik → `dimensionHeight`** (cm). Girilirse ürün
+detay sayfasında stok/sevk satırının yanında ayrı etiketlerle gösterilir ("En: 100 cm · Boy: 30 cm ·
+Yükseklik: 45 cm"); girilmezse hiç gösterilmez (satıcı kısa açıklamaya yazmış olabilir). Zorunlu değildir.
+
 ## Pricing and Inventory Rules
 
 Seller pricing and inventory actions affect catalog quality and fulfillment reliability.

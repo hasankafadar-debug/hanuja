@@ -55,7 +55,7 @@ const REQUIRED_BULK_PRODUCT_HEADERS = [
   'Model Kodu*',
   'Urun Adi*',
   'Kategori*',
-  'Urun Rengi*',
+  'Renk 1*',
   'Materyal*',
   'Fiyat*',
   'Sevk Suresi (is gunu)*',
@@ -606,7 +606,7 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
                         {row.categorySlug}
                       </td>
                       <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
-                        {row.productColor}
+                        {row.secondColor ? `${row.productColor} - ${row.secondColor}` : row.productColor}
                       </td>
                       <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
                         {row.productMaterial}

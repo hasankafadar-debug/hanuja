@@ -52,12 +52,21 @@ const updateProductSchema = z.object({
     .nullable()
     .optional(),
   weight: z.number().positive().nullable().optional(),
+  // Boyutlar (cm) — opsiyonel; null = temizle. En → dimensionWidth, Boy → dimensionLength, Yukseklik → dimensionHeight.
+  dimensionLength: z.number().positive().nullable().optional(),
+  dimensionWidth: z.number().positive().nullable().optional(),
+  dimensionHeight: z.number().positive().nullable().optional(),
   colorOptionId: z.string().min(1).optional(),
+  // Renk 2 (opsiyonel): null/boş = ikinci rengi kaldır. Renk 1'den farklı olmalı.
+  secondColorOptionId: z.string().min(1).nullable().optional(),
   materialOptionId: z.string().min(1).optional(),
   variants: z.array(variantSchema).max(100).optional(),
 }).superRefine((data, ctx) => {
   if (data.variants && data.variants.length > 0 && data.barcode?.trim()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['barcode'], message: 'Varyasyonlu urunde ana barkod bos birakilmali.' })
+  }
+  if (data.secondColorOptionId && data.colorOptionId && data.secondColorOptionId === data.colorOptionId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['secondColorOptionId'], message: 'Ikinci renk birinci renkten farkli olmalidir.' })
   }
 })
 
@@ -245,6 +254,15 @@ export async function PATCH(
         ...(parsed.data.weight !== undefined
           ? { weight: parsed.data.weight !== null ? new Decimal(parsed.data.weight) : null }
           : {}),
+        ...(parsed.data.dimensionLength !== undefined
+          ? { dimensionLength: parsed.data.dimensionLength !== null ? new Decimal(parsed.data.dimensionLength) : null }
+          : {}),
+        ...(parsed.data.dimensionWidth !== undefined
+          ? { dimensionWidth: parsed.data.dimensionWidth !== null ? new Decimal(parsed.data.dimensionWidth) : null }
+          : {}),
+        ...(parsed.data.dimensionHeight !== undefined
+          ? { dimensionHeight: parsed.data.dimensionHeight !== null ? new Decimal(parsed.data.dimensionHeight) : null }
+          : {}),
       })
 
       if (variants !== undefined) {
@@ -280,8 +298,10 @@ export async function PATCH(
         }
       }
 
-      // Update attribute values when provided
-      const { colorOptionId, materialOptionId } = parsed.data
+      // Update attribute values when provided. Renk 1 → sortOrder 0, Renk 2 (varsa)
+      // → sortOrder 1. secondColorOptionId null/boş ise ikinci renk kaldırılır
+      // (tüm renk değerleri silinip yalnız Renk 1 yazılır).
+      const { colorOptionId, secondColorOptionId, materialOptionId } = parsed.data
       if (colorOptionId) {
         await tx.productAttributeValue.deleteMany({
           where: {
@@ -289,8 +309,14 @@ export async function PATCH(
             option: { type: 'color' },
           },
         })
-        await tx.productAttributeValue.create({
-          data: { productId: id, optionId: colorOptionId },
+        await tx.productAttributeValue.createMany({
+          data: [
+            { productId: id, optionId: colorOptionId, sortOrder: 0 },
+            ...(secondColorOptionId
+              ? [{ productId: id, optionId: secondColorOptionId, sortOrder: 1 }]
+              : []),
+          ],
+          skipDuplicates: true,
         })
       }
       if (materialOptionId) {
@@ -301,7 +327,7 @@ export async function PATCH(
           },
         })
         await tx.productAttributeValue.create({
-          data: { productId: id, optionId: materialOptionId },
+          data: { productId: id, optionId: materialOptionId, sortOrder: 0 },
         })
       }
 

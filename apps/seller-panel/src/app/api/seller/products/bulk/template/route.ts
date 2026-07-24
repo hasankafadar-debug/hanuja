@@ -22,6 +22,8 @@ const CATEGORY_COL_INDEX =
   BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.findIndex((column) => column.key === 'categorySlug') + 1
 const PRODUCT_COLOR_COL_INDEX =
   BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.findIndex((column) => column.key === 'productColor') + 1
+const PRODUCT_SECOND_COLOR_COL_INDEX =
+  BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.findIndex((column) => column.key === 'secondColor') + 1
 const PRODUCT_MATERIAL_COL_INDEX =
   BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.findIndex((column) => column.key === 'productMaterial') + 1
 const PRICE_COL_INDEX = BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.findIndex((column) => column.key === 'price') + 1
@@ -280,6 +282,24 @@ export async function GET(req: NextRequest) {
       errorStyle: 'stop',
       errorTitle: 'Gecersiz Renk',
       error: 'Lutfen secilen kategori icin gecerli bir urun rengi secin.',
+      formulae: [
+        buildOptionValidationFormula({
+          sheetName: 'Gecerli Renkler',
+          firstColumn: 'A',
+          lastColumn: lastOptionCol,
+          categoryCell,
+        }),
+      ],
+    }
+
+    // Renk 2 (opsiyonel): Renk 1 ile ayni kategori-bagimli renk listesi, bos birakilabilir.
+    sheet.getCell(rowNum, PRODUCT_SECOND_COLOR_COL_INDEX).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      showErrorMessage: true,
+      errorStyle: 'stop',
+      errorTitle: 'Gecersiz Renk',
+      error: 'Lutfen secilen kategori icin gecerli bir ikinci renk secin veya bos birakin.',
       formulae: [
         buildOptionValidationFormula({
           sheetName: 'Gecerli Renkler',

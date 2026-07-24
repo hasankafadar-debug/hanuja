@@ -270,6 +270,10 @@ export function createProductRepository(prisma: PrismaClient) {
       modelCode: string
       barcode?: string | null
       weight?: import('@prisma/client/runtime/client').Decimal | null
+      // Boyutlar (cm) — opsiyonel: En → dimensionWidth, Boy → dimensionLength, Yükseklik → dimensionHeight.
+      dimensionLength?: import('@prisma/client/runtime/client').Decimal | null
+      dimensionWidth?: import('@prisma/client/runtime/client').Decimal | null
+      dimensionHeight?: import('@prisma/client/runtime/client').Decimal | null
       status?: ProductStatus
       moderationFindings?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput
       publishedAt?: Date | null

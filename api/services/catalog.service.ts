@@ -448,6 +448,10 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       /** When true and no barcode is supplied, an "8"-prefixed EAN-13 is generated. */
       autoGenerateBarcodeWhenMissing?: boolean
       weight?: DecimalLike | null
+      // Boyutlar (cm) — opsiyonel: En → dimensionWidth, Boy → dimensionLength, Yükseklik → dimensionHeight.
+      dimensionLength?: DecimalLike | null
+      dimensionWidth?: DecimalLike | null
+      dimensionHeight?: DecimalLike | null
       slugOverride?: string
       deferVisibilitySync?: boolean
     }) {
@@ -507,6 +511,9 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         modelCode: requireModelCode(params.modelCode),
         barcode: effectiveBarcode,
         weight: params.weight ?? null,
+        dimensionLength: params.dimensionLength ?? null,
+        dimensionWidth: params.dimensionWidth ?? null,
+        dimensionHeight: params.dimensionHeight ?? null,
         status: moderation.status,
         moderationFindings: moderation.moderationFindings,
         publishedAt: moderation.status === 'published' ? new Date() : null,
@@ -538,6 +545,10 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       modelCode?: string | null
       barcode?: string | null
       weight?: DecimalLike | null
+      // Boyutlar (cm) — opsiyonel: En → dimensionWidth, Boy → dimensionLength, Yükseklik → dimensionHeight.
+      dimensionLength?: DecimalLike | null
+      dimensionWidth?: DecimalLike | null
+      dimensionHeight?: DecimalLike | null
     }) {
       const seller = await sellers.findActiveById(params.sellerId)
       if (!seller) throw new ForbiddenError('Satıcı hesabı aktif değil')
@@ -623,6 +634,9 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
           ...(params.modelCode !== undefined ? { modelCode: requireModelCode(params.modelCode) } : {}),
           ...(params.barcode !== undefined ? { barcode: params.barcode } : {}),
           ...(params.weight !== undefined ? { weight: params.weight } : {}),
+          ...(params.dimensionLength !== undefined ? { dimensionLength: params.dimensionLength } : {}),
+          ...(params.dimensionWidth !== undefined ? { dimensionWidth: params.dimensionWidth } : {}),
+          ...(params.dimensionHeight !== undefined ? { dimensionHeight: params.dimensionHeight } : {}),
           ...(moderation
             ? {
                 status: nextStatus,

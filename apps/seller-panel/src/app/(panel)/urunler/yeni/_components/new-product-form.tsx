@@ -26,6 +26,7 @@ interface AttributeOption {
   slug: string
   label: string
   hexColor: string | null
+  sortOrder?: number
 }
 
 interface Props {
@@ -78,6 +79,10 @@ export default function NewProductForm({ categories }: Props) {
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [colorOptionId, setColorOptionId] = useState('')
+  // Renk adedi: 1 → tek renk; 2 → Renk 1 + Renk 2 ayrı seçilir. 2'den fazla renk
+  // için satıcı adedi 1 tutup "Mix" seçebilir.
+  const [colorCount, setColorCount] = useState<1 | 2>(1)
+  const [secondColorOptionId, setSecondColorOptionId] = useState('')
   const [materialOptionId, setMaterialOptionId] = useState('')
   const [colorOptions, setColorOptions] = useState<AttributeOption[]>([])
   const [materialOptions, setMaterialOptions] = useState<AttributeOption[]>([])
@@ -89,6 +94,10 @@ export default function NewProductForm({ categories }: Props) {
   const [barcode, setBarcode] = useState('')
   const [sku, setSku] = useState('')
   const [modelCode, setModelCode] = useState('')
+  // Boyutlar (cm) — opsiyonel. En → dimensionWidth, Boy → dimensionLength, Yükseklik → dimensionHeight.
+  const [dimWidth, setDimWidth] = useState('')
+  const [dimLength, setDimLength] = useState('')
+  const [dimHeight, setDimHeight] = useState('')
   const [shortDescription, setShortDescription] = useState('')
   const [description, setDescription] = useState('')
   const [story, setStory] = useState('')
@@ -131,10 +140,12 @@ export default function NewProductForm({ categories }: Props) {
       Number.isInteger(Number(variant.stockQuantity)) &&
       Number(variant.stockQuantity) >= 0,
   )
+  const secondColorMissing = colorCount === 2 && !secondColorOptionId
   const submitDisabled =
     loading ||
     !categoryId ||
     !colorOptionId ||
+    secondColorMissing ||
     !materialOptionId ||
     Number(fulfillmentDays) < 1 ||
     pendingImageUploads > 0 ||
@@ -145,7 +156,9 @@ export default function NewProductForm({ categories }: Props) {
     ? 'Urunu gondermek icin kategori secin.'
     : !colorOptionId
       ? 'Urunu gondermek icin renk secin.'
-      : !materialOptionId
+      : secondColorMissing
+        ? 'Renk adedi 2 secildiginde ikinci rengi de secin.'
+        : !materialOptionId
         ? 'Urunu gondermek icin materyal secin.'
         : Number(fulfillmentDays) < 1
           ? 'Urunu gondermek icin sevk suresi girin.'
@@ -192,6 +205,8 @@ export default function NewProductForm({ categories }: Props) {
           name,
           categoryId,
           colorOptionId,
+          secondColorOptionId:
+            colorCount === 2 && secondColorOptionId ? secondColorOptionId : undefined,
           materialOptionId,
           price: parseFloat(price),
           fulfillmentDays: parseInt(fulfillmentDays, 10),
@@ -200,6 +215,9 @@ export default function NewProductForm({ categories }: Props) {
           barcode: hasVariants ? null : barcode.trim(),
           sku: sku.trim() || undefined,
           modelCode: modelCode.trim(),
+          dimensionWidth: dimWidth.trim() ? parseFloat(dimWidth) : undefined,
+          dimensionLength: dimLength.trim() ? parseFloat(dimLength) : undefined,
+          dimensionHeight: dimHeight.trim() ? parseFloat(dimHeight) : undefined,
           shortDescription,
           description,
           story,
@@ -263,23 +281,22 @@ export default function NewProductForm({ categories }: Props) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label htmlFor="color">Renk *</Label>
-          <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading}>
-            <SelectTrigger id="color" aria-label="Renk">
-              <SelectValue placeholder="Renk secin" />
+          <Label htmlFor="colorCount">Renk Adedi *</Label>
+          <Select
+            value={String(colorCount)}
+            onValueChange={(value) => {
+              const next = value === '2' ? 2 : 1
+              setColorCount(next)
+              if (next === 1) setSecondColorOptionId('')
+            }}
+            disabled={loading}
+          >
+            <SelectTrigger id="colorCount" aria-label="Renk Adedi">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {colorOptions.map((opt) => (
-                <SelectItem key={opt.id} value={opt.id}>
-                  {opt.hexColor && (
-                    <span
-                      className="mr-2 inline-block h-3 w-3 rounded-full border"
-                      style={{ backgroundColor: opt.hexColor, borderColor: 'var(--color-border)' }}
-                    />
-                  )}
-                  {opt.label}
-                </SelectItem>
-              ))}
+              <SelectItem value="1">Tek renk</SelectItem>
+              <SelectItem value="2">Iki renk</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -298,6 +315,63 @@ export default function NewProductForm({ categories }: Props) {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="color">{colorCount === 2 ? 'Renk 1 *' : 'Renk *'}</Label>
+          <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading}>
+            <SelectTrigger id="color" aria-label={colorCount === 2 ? 'Renk 1' : 'Renk'}>
+              <SelectValue placeholder="Renk secin" />
+            </SelectTrigger>
+            <SelectContent>
+              {colorOptions.map((opt) => (
+                <SelectItem key={opt.id} value={opt.id}>
+                  {opt.hexColor && (
+                    <span
+                      className="mr-2 inline-block h-3 w-3 rounded-full border"
+                      style={{ backgroundColor: opt.hexColor, borderColor: 'var(--color-border)' }}
+                    />
+                  )}
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {colorCount === 1 ? (
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Ikiden fazla renk varsa &quot;Mix&quot; secebilirsiniz.
+            </p>
+          ) : null}
+        </div>
+        {colorCount === 2 ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="secondColor">Renk 2 *</Label>
+            <Select onValueChange={setSecondColorOptionId} value={secondColorOptionId} disabled={loading}>
+              <SelectTrigger id="secondColor" aria-label="Renk 2">
+                <SelectValue placeholder="Ikinci rengi secin" />
+              </SelectTrigger>
+              <SelectContent>
+                {colorOptions
+                  .filter((opt) => opt.id !== colorOptionId)
+                  .map((opt) => (
+                    <SelectItem key={opt.id} value={opt.id}>
+                      {opt.hexColor && (
+                        <span
+                          className="mr-2 inline-block h-3 w-3 rounded-full border"
+                          style={{ backgroundColor: opt.hexColor, borderColor: 'var(--color-border)' }}
+                        />
+                      )}
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Magazada &quot;Renk: Renk1 - Renk2&quot; olarak gosterilir.
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -370,6 +444,45 @@ export default function NewProductForm({ categories }: Props) {
             Saticinin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde kullanilmaz.
           </p>
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Olculer (cm) — istege bagli</Label>
+        <div className="grid grid-cols-3 gap-4">
+          <Input
+            aria-label="En (cm)"
+            type="number"
+            min="0"
+            step="0.1"
+            placeholder="En"
+            value={dimWidth}
+            onChange={(e) => setDimWidth(e.target.value)}
+            disabled={loading}
+          />
+          <Input
+            aria-label="Boy (cm)"
+            type="number"
+            min="0"
+            step="0.1"
+            placeholder="Boy"
+            value={dimLength}
+            onChange={(e) => setDimLength(e.target.value)}
+            disabled={loading}
+          />
+          <Input
+            aria-label="Yukseklik (cm)"
+            type="number"
+            min="0"
+            step="0.1"
+            placeholder="Yukseklik"
+            value={dimHeight}
+            onChange={(e) => setDimHeight(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+          Girilirse urun sayfasinda gosterilir. Bos birakabilirsiniz.
+        </p>
       </div>
 
       <div className="space-y-3">

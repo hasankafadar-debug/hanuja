@@ -45,6 +45,8 @@ type AttributeOption = {
 
 type ResolvedBulkProductImportRow = BulkProductImportRow & {
   productColorOptionId: string
+  // Renk 2 (opsiyonel): girildiyse çözümlenmiş option id, yoksa null.
+  productSecondColorOptionId: string | null
   productMaterialOptionId: string
 }
 
@@ -410,6 +412,17 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
       optionsByCategorySlug: attributeOptionsByCategorySlug,
       fallbackOptions: fallbackAttributeOptions,
     })
+    // Renk 2 opsiyonel: yalnız doluysa çözümle. Doluysa ve çözülemezse hata.
+    const secondColorRaw = entry.data.secondColor?.trim()
+    const productSecondColorOption = secondColorRaw
+      ? resolveAttributeOption({
+          categorySlug: entry.data.categorySlug,
+          type: 'color',
+          value: secondColorRaw,
+          optionsByCategorySlug: attributeOptionsByCategorySlug,
+          fallbackOptions: fallbackAttributeOptions,
+        })
+      : null
 
     if (!productColorOption) {
       attributeErrors.push(createBulkValidationError(
@@ -417,6 +430,26 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
         'productColor',
         'invalid_color',
         `Renk secilen kategori icin gecersiz: ${entry.data.productColor}`,
+      ))
+    }
+    if (secondColorRaw && !productSecondColorOption) {
+      attributeErrors.push(createBulkValidationError(
+        entry.rowNumber,
+        'secondColor',
+        'invalid_second_color',
+        `Renk 2 secilen kategori icin gecersiz: ${secondColorRaw}`,
+      ))
+    }
+    if (
+      productSecondColorOption &&
+      productColorOption &&
+      productSecondColorOption.id === productColorOption.id
+    ) {
+      attributeErrors.push(createBulkValidationError(
+        entry.rowNumber,
+        'secondColor',
+        'duplicate_second_color',
+        'Renk 2, Renk 1 ile ayni olamaz.',
       ))
     }
     if (!productMaterialOption) {
@@ -429,6 +462,8 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
     }
 
     if (!productColorOption || !productMaterialOption) return []
+    if (secondColorRaw && !productSecondColorOption) return []
+    if (productSecondColorOption && productSecondColorOption.id === productColorOption.id) return []
 
     return [
       {
@@ -436,6 +471,7 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
         data: {
           ...entry.data,
           productColorOptionId: productColorOption.id,
+          productSecondColorOptionId: productSecondColorOption?.id ?? null,
           productMaterialOptionId: productMaterialOption.id,
         },
       },
@@ -575,6 +611,9 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
             barcode: usesVariants ? null : data.barcode?.trim() || null,
             autoGenerateBarcodeWhenMissing: !usesVariants,
             weight: data.weight !== undefined ? new Decimal(data.weight) : null,
+            dimensionLength: data.dimensionLength !== undefined ? new Decimal(data.dimensionLength) : null,
+            dimensionWidth: data.dimensionWidth !== undefined ? new Decimal(data.dimensionWidth) : null,
+            dimensionHeight: data.dimensionHeight !== undefined ? new Decimal(data.dimensionHeight) : null,
             deferVisibilitySync: true,
           })
           if (product.status === 'published') publishedProductIds.push(product.id)
@@ -600,8 +639,12 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
 
           await tx.productAttributeValue.createMany({
             data: [
-              { productId: product.id, optionId: data.productColorOptionId },
-              { productId: product.id, optionId: data.productMaterialOptionId },
+              // Renk 1 → sortOrder 0, Renk 2 (varsa) → 1, materyal → 0.
+              { productId: product.id, optionId: data.productColorOptionId, sortOrder: 0 },
+              ...(data.productSecondColorOptionId
+                ? [{ productId: product.id, optionId: data.productSecondColorOptionId, sortOrder: 1 }]
+                : []),
+              { productId: product.id, optionId: data.productMaterialOptionId, sortOrder: 0 },
             ],
             skipDuplicates: true,
           })

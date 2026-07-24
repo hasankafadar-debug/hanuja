@@ -158,7 +158,7 @@ describe('bulk product import row validator', () => {
   it('detects missing required template headers', () => {
     const missing = getMissingBulkProductHeaders(['Urun Adi*', 'Kategori Slug*'])
 
-    expect(missing).toContain('Urun Rengi*')
+    expect(missing).toContain('Renk 1*')
     expect(missing).toContain('Model Kodu*')
     expect(missing).toContain('Materyal*')
     expect(missing).toContain('Fiyat*')
@@ -166,6 +166,91 @@ describe('bulk product import row validator', () => {
     // Barcode is optional: a blank cell is auto-generated at commit time.
     expect(missing).not.toContain('Barkod (13 hane)')
     expect(missing).not.toContain('Barkod (13 hane)*')
+    // Renk 2 is optional — never required.
+    expect(missing).not.toContain('Renk 2')
+  })
+
+  it('accepts the legacy "Urun Rengi*" header for the renamed Renk 1 column', () => {
+    // Old downloaded templates still carry "Urun Rengi*"; it must satisfy the
+    // Renk 1 requirement so those files keep importing.
+    const missing = getMissingBulkProductHeaders([
+      'Model Kodu*',
+      'Urun Adi*',
+      'Kategori*',
+      'Urun Rengi*',
+      'Materyal*',
+      'Fiyat*',
+      'Sevk Suresi (is gunu)*',
+      'Stok*',
+    ])
+
+    expect(missing).toHaveLength(0)
+  })
+
+  it('accepts the new "Renk 1*" header for the color requirement', () => {
+    const missing = getMissingBulkProductHeaders([
+      'Model Kodu*',
+      'Urun Adi*',
+      'Kategori*',
+      'Renk 1*',
+      'Materyal*',
+      'Fiyat*',
+      'Sevk Suresi (is gunu)*',
+      'Stok*',
+    ])
+
+    expect(missing).toHaveLength(0)
+  })
+
+  it('parses optional Renk 2 and dimension columns', () => {
+    const result = normalizeBulkProductRow(
+      {
+        'Model Kodu*': 'SEHPA-001',
+        'Urun Adi*': 'Iki Renkli Sehpa',
+        'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
+        'Renk 1*': 'Siyah',
+        'Renk 2': 'Beyaz',
+        'Materyal*': 'Masif Ahsap',
+        'Fiyat*': '1890',
+        'Sevk Suresi (is gunu)*': '7',
+        'Stok*': '6',
+        'En (cm)': '100',
+        'Boy (cm)': '30',
+        'Yukseklik (cm)': '45',
+      },
+      2,
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.data?.productColor).toBe('Siyah')
+    expect(result.data?.secondColor).toBe('Beyaz')
+    expect(result.data?.dimensionWidth).toBe(100)
+    expect(result.data?.dimensionLength).toBe(30)
+    expect(result.data?.dimensionHeight).toBe(45)
+  })
+
+  it('leaves Renk 2 and dimensions undefined when the columns are blank', () => {
+    const result = normalizeBulkProductRow(
+      {
+        'Model Kodu*': 'SEHPA-001',
+        'Urun Adi*': 'Tek Renkli Sehpa',
+        'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
+        'Renk 1*': 'Ceviz',
+        'Renk 2': '',
+        'Materyal*': 'Masif Ahsap',
+        'Fiyat*': '1200',
+        'Sevk Suresi (is gunu)*': '7',
+        'Stok*': '4',
+        'En (cm)': '',
+      },
+      2,
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.data?.secondColor).toBeUndefined()
+    expect(result.data?.dimensionWidth).toBeUndefined()
+    expect(result.data?.dimensionLength).toBeUndefined()
+    expect(result.data?.dimensionHeight).toBeUndefined()
   })
 
   it('accepts a row with a blank barcode (auto-generated at commit)', () => {
@@ -267,6 +352,28 @@ describe('attribute option sorting', () => {
     ]).map((option) => option.label)
 
     expect(sorted).toEqual(['Kırmızı', 'Açık Kırmızı', 'Koyu Kırmızı', 'Mavi'])
+  })
+
+  it('honors the curated sortOrder over alphabetical label order', () => {
+    // Alphabetical (tr) would be Altın, Antrasit, Beyaz — curated sortOrder flips it.
+    const sorted = sortAttributeOptions([
+      { type: 'color', label: 'Altın', sortOrder: 30 },
+      { type: 'color', label: 'Antrasit', sortOrder: 7 },
+      { type: 'color', label: 'Beyaz', sortOrder: 0 },
+    ]).map((option) => option.label)
+
+    expect(sorted).toEqual(['Beyaz', 'Antrasit', 'Altın'])
+  })
+
+  it('keeps metallic finish families adjacent via sortOrder', () => {
+    const sorted = sortAttributeOptions([
+      { type: 'color', label: 'Rose Altın', sortOrder: 32 },
+      { type: 'color', label: 'Altın', sortOrder: 30 },
+      { type: 'color', label: 'Eskitme Altın', sortOrder: 31 },
+      { type: 'color', label: 'Mix', sortOrder: 37 },
+    ]).map((option) => option.label)
+
+    expect(sorted).toEqual(['Altın', 'Eskitme Altın', 'Rose Altın', 'Mix'])
   })
 })
 

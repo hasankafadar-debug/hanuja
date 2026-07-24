@@ -1,6 +1,9 @@
 export type SortableAttributeOption = {
   label: string
   type?: 'color' | 'material' | string
+  // Küratörlü palet sırası (ProductAttributeOption.sortOrder). Tanımlıysa birincil
+  // sıralama anahtarıdır; eşitse/tanımsızsa label + ton mantığına düşülür.
+  sortOrder?: number
 }
 
 function normalizeForSort(value: string) {
@@ -35,6 +38,12 @@ function colorSortParts(label: string) {
 }
 
 export function compareAttributeOptions<T extends SortableAttributeOption>(a: T, b: T) {
+  // Küratörlü sıra birincildir: seed sortOrder = palet index'i. Tanımsız olan sona
+  // düşer ve label ile çözülür.
+  const aOrder = a.sortOrder ?? Number.MAX_SAFE_INTEGER
+  const bOrder = b.sortOrder ?? Number.MAX_SAFE_INTEGER
+  if (aOrder !== bOrder) return aOrder - bOrder
+
   if (a.type === 'color' || b.type === 'color') {
     const aParts = colorSortParts(a.label)
     const bParts = colorSortParts(b.label)
