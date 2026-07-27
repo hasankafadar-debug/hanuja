@@ -56,16 +56,17 @@ const updateProductSchema = z.object({
   dimensionLength: z.number().positive().nullable().optional(),
   dimensionWidth: z.number().positive().nullable().optional(),
   dimensionHeight: z.number().positive().nullable().optional(),
-  colorOptionId: z.string().min(1).optional(),
+  colorOptionId: z.string().min(1).nullable().optional(),
   // Renk 2 (opsiyonel): null/boş = ikinci rengi kaldır. Renk 1'den farklı olmalı.
   secondColorOptionId: z.string().min(1).nullable().optional(),
-  materialOptionId: z.string().min(1).optional(),
+  materialOptionId: z.string().min(1).nullable().optional(),
   variants: z.array(variantSchema).max(100).optional(),
 }).superRefine((data, ctx) => {
   if (data.variants && data.variants.length > 0 && data.barcode?.trim()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['barcode'], message: 'Varyasyonlu urunde ana barkod bos birakilmali.' })
   }
-  if (data.secondColorOptionId && data.colorOptionId && data.secondColorOptionId === data.colorOptionId) {
+  if (data.secondColorOptionId && !data.colorOptionId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['secondColorOptionId'], message: 'Ikinci renk icin birinci renk secilmelidir.' })
+  if (data.secondColorOptionId && data.secondColorOptionId === data.colorOptionId) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['secondColorOptionId'], message: 'Ikinci renk birinci renkten farkli olmalidir.' })
   }
 })
@@ -302,14 +303,14 @@ export async function PATCH(
       // → sortOrder 1. secondColorOptionId null/boş ise ikinci renk kaldırılır
       // (tüm renk değerleri silinip yalnız Renk 1 yazılır).
       const { colorOptionId, secondColorOptionId, materialOptionId } = parsed.data
-      if (colorOptionId) {
+      if (colorOptionId !== undefined) {
         await tx.productAttributeValue.deleteMany({
           where: {
             productId: id,
             option: { type: 'color' },
           },
         })
-        await tx.productAttributeValue.createMany({
+        if (colorOptionId) await tx.productAttributeValue.createMany({
           data: [
             { productId: id, optionId: colorOptionId, sortOrder: 0 },
             ...(secondColorOptionId
@@ -319,14 +320,14 @@ export async function PATCH(
           skipDuplicates: true,
         })
       }
-      if (materialOptionId) {
+      if (materialOptionId !== undefined) {
         await tx.productAttributeValue.deleteMany({
           where: {
             productId: id,
             option: { type: 'material' },
           },
         })
-        await tx.productAttributeValue.create({
+        if (materialOptionId) await tx.productAttributeValue.create({
           data: { productId: id, optionId: materialOptionId, sortOrder: 0 },
         })
       }

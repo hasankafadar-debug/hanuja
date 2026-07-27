@@ -13,6 +13,7 @@ import { RETURN_WINDOW_DAYS } from '@hanuja/api/domain/penalty-calculator'
 import { getPlatformBankInfo } from '@hanuja/api/lib/platform-info'
 import { formatOrderDisplayNumber, formatOrderNumber } from '@hanuja/api/lib/order-number'
 import { createPlatformBankAccountService } from '@hanuja/api/services/platform-bank-account.service'
+import { getCustomerOrderStatusLabel } from '@/lib/customer-order-status'
 import { SupportSection } from './destek/_components/support-section'
 import { CancelOrderButton } from './_components/cancel-order-button'
 import ExtensionRequestDecision from './_components/extension-request-decision'
@@ -41,10 +42,6 @@ function isSchemaOutOfSyncError(error: unknown) {
     'code' in error &&
     ((error as { code?: string }).code === 'P2021' || (error as { code?: string }).code === 'P2022')
   )
-}
-
-function getCustomerOrderStatusLabel(status: string) {
-  return status === 'delivery_confirmed' ? 'Tamamlanan Sipariş' : undefined
 }
 
 function isWithinReturnWindow(deliveryConfirmedAt: Date | string | null | undefined) {
@@ -533,7 +530,7 @@ export default async function OrderDetailPage({ params }: Props) {
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
           <h2 className="mb-3 flex items-center gap-2 font-semibold" style={{ color: 'var(--color-primary)' }}>
-            <FileText className="h-4 w-4" /> Satıcı Faturaları
+            <FileText className="h-4 w-4" /> Tasarımcı Faturaları
           </h2>
           <div className="space-y-3">
             {sellerInvoices.map((invoice) => {
@@ -584,4 +581,3 @@ export default async function OrderDetailPage({ params }: Props) {
     </div>
   )
 }
-

@@ -341,8 +341,8 @@ engellememelidir).
 
 Kural tek kaynaktan, domain katmanında uygulanır (`api/domain/category-selection.ts` →
 `assertLeafCategory`) ve `catalog.service.ts` içindeki `createProduct` / `updateProductForSeller`
-üzerinden **tüm** ürün oluşturma yollarını kapsar: satıcı ürün formu, toplu (Excel) yükleme ve
-Hipicon URL importu. Route katmanında ayrıca doğrulama yapılmaz.
+üzerinden **tüm** ürün oluşturma yollarını kapsar: satıcı ürün formu ve toplu (Excel) yükleme.
+Route katmanında ayrıca doğrulama yapılmaz.
 
 Satıcı arayüzü buna uygun olmalıdır:
 
@@ -355,18 +355,14 @@ Satıcı arayüzü buna uygun olmalıdır:
   "üst seviyede durup tüm alt dalları tek dosyaya alma" davranışı kaldırıldı). Sunucu, ara kategoriyle
   gelen şablon/yükleme isteğini `En alt kategoriyi seçmelisiniz.` hatasıyla reddeder
   (`bulk/template` ve `bulk` route'ları `findBulkCategoryReferenceRowBySlug` ile yaprak doğrular).
-- Hipicon import önizlemesi yalnız yaprak kategorileri önerir; kategori eşleşmesi yaprağa inmiyorsa
-  `too_shallow` ile reddedilir.
-- Satıcılar kendileri kategori oluşturamaz. Toplu yükleme, tekli ürün ekleme/düzenleme ve URL
-  import kategori alanlarında, aranan alt kategori yoksa satıcıyı `/destek`'e yönlendiren bir mesaj
+- Satıcılar kendileri kategori oluşturamaz. Toplu yükleme ve tekli ürün ekleme/düzenleme kategori
+  alanlarında, aranan alt kategori yoksa satıcıyı `/destek`'e yönlendiren bir mesaj
   gösterilir (paylaşılan `CategorySupportHint` bileşeni). Yeni kategori talepleri mevcut destek
   bileti sistemi üzerinden yönetilir; ayrı bir kategori talep modülü yoktur.
 
 Bu kural değişirse `api/domain/category-selection.ts`, seller panel kategori seçici, toplu yükleme
-formu/şablonu (`bulk-import-form.tsx`, `bulk/{template,route}.ts`), import çözümleyicisi ve
-`CategorySupportHint` birlikte gözden geçirilmelidir.
-
-Hipicon mağaza URL importu satıcı panelde `/urunler/ice-aktar` altında kalır ve yalnızca oturumdaki aktif satıcının kendi kataloğuna ürün ekleyebilir.
+formu/şablonu (`bulk-import-form.tsx`, `bulk/{template,route}.ts`) ve `CategorySupportHint`
+birlikte gözden geçirilmelidir.
 
 ### Renk seçimi: tek/çift renk + Mix
 
@@ -384,7 +380,7 @@ ile gelir (`sortAttributeOptions` bunu birincil anahtar kullanır), alfabetik de
 
 Bu kural değişirse tekli form (`new-product-form.tsx` / `product-edit-form.tsx`), toplu yükleme
 (`bulk-product-import.ts`, `bulk/{template,route}.ts`), create/edit route'ları ve storefront ürün sayfası
-birlikte gözden geçirilmelidir. (URL importu bu turda kapsam dışı — tek renk yazar.)
+birlikte gözden geçirilmelidir.
 
 ### Ürün ölçüleri (En / Boy / Yükseklik)
 

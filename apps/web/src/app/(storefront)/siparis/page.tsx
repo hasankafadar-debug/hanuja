@@ -9,6 +9,7 @@ import { auth } from '@/lib/auth'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { getCustomerOrderStatusLabel } from '@/lib/customer-order-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,10 +26,6 @@ async function getOrders(customerId: string) {
   } catch {
     return []
   }
-}
-
-function getCustomerOrderStatusLabel(status: string) {
-  return status === 'delivery_confirmed' ? 'Tamamlanan Sipariş' : undefined
 }
 
 export default async function OrdersPage() {

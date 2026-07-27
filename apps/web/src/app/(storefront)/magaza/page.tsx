@@ -33,7 +33,7 @@ export default async function StoresPage() {
             Mağazalar
           </h1>
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Aktif satıcı mağazalarını buradan keşfedebilirsiniz.
+            Aktif tasarımcı mağazalarını buradan keşfedebilirsiniz.
           </p>
         </div>
       </div>

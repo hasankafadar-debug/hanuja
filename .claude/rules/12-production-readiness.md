@@ -40,20 +40,6 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 - Sadece submit yolunda çalışır; mevcut katalog için backfill ayrıdır ve otomatik değildir.
 - `.env.example` ve `tools/scripts/check-env.ts` flag'i bilir; production değeri Coolify env ekranından yönetilir.
 
-### 7. Satıcı panel URL ile ürün içe aktarma
-- Hipicon mağaza URL importu satıcı panelde `/urunler/ice-aktar` rotasındadır.
-- Önizleme `POST /api/seller/products/import/preview`, kalıcı kayıt `POST /api/seller/products/import/commit` ile yapılır.
-- Commit yalnızca oturumdaki aktif satıcının hesabına ürün yazar; admin adına veya başka satıcı adına import yolu yoktur.
-- Excel/XLSX `Toplu Yükle` akışı ayrı kalır ve URL importundan bağımsızdır.
-- Unit test `tests/unit/import-category-match.test.ts` seller-panel helper kopyasına yönlendirilmiştir.
-- Hipicon adapter `shortDescription`, `stockQuantity` ve `categoryPath` alanlarını çeker; `shortDescription` bilinmiyorsa `description`'ın ilk cümlesi kullanılır, stok bilinmiyorsa `0` yazılır.
-- Önizleme `proposedBarcode` (seller-prefix'li, 13 haneli) döndürür; satıcı barkodu manuel düzenleyebilir.
-- Barkod gerçek zamanlı `POST /api/seller/products/barcode/check` ile doğrulanır; çakışırsa "Bu barkod zaten kullanımda" uyarısı gösterilir, commit engellenir.
-- Varyantsız ürünlerde barkod commit'te zorunludur; variant'lı ürünlerde ana ürün barkodu yazılmaz, variant barkodları seller-prefix'li otomatik üretilir.
-- Hipicon kategori yolu bizim kategori ağacıyla en az 2 seviye eşleşmiyorsa ürün önizlemeden filtrelenir, `rejected` listesinde gösterilir.
-- Tam eşleşme yoksa ama 2+ seviye eşleşip 1 yaprak eksikse, commit anında o yaprak `Category.createdViaImportBy = sellerId` ile otomatik açılır.
-- Tek yapraktan derin auto-create yapılmaz (`too_divergent` → reddedilir).
-
 ### 8. Müşteri PII satıcı görünürlüğü
 - Satıcıya dönen sipariş payload'ları (detay, queue listesi, CSV export) müşteri e-postasını içermez; ad `maskCustomerName` ile "Ahmet Y." formatında gösterilir.
 - Kalıcı email aliasing altyapısı (Faz 4) ayrı epic; geldiğinde aynı select noktasına alias alanı eklenir.
@@ -78,10 +64,6 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 - `packages/security/src/money.ts` 3. ondalık kuralını uygular (≤5 truncate, ≥6 yukarı yuvarla). Fixture testleri: `tests/unit/round-money.test.ts` + sınır davranışı için `tests/unit/rounding-parity.test.ts`.
 - Birleştirme tamamlandı: `payout-calculator.ts`, `penalty-calculator.ts` ve `seller-invoice.service.ts` nihai para tutarlarında artık `roundMoney` kullanır (`toDecimalPlaces(2)` kaldırıldı; oran/etiket değerleri — ör. günlük ceza oranı `toDecimalPlaces(4)` — para tutarı olmadığı için değişmedi).
 - Cutover notu: birleştirme öncesi persist edilmiş payout/ceza/fatura kayıtları eski yuvarlamayla yazıldı; mutabakatta tarihi kayıtlar için ±0,01 TL tolerans uygulanır (bkz. `docs/07-operations/reconciliation-process.md`).
-
-### 13. Variant stoğu içe aktarma
-- URL importu varyantsız ürünler için per-product `stockQuantity` input'u sağlar.
-- Variant'lı ürünlerde stoğun hangi variant'a yazılacağı henüz seçilemez — ana ürün düzeyinde yazılır. Variant-bazlı stok girişi ayrı bir epic.
 
 ### 14. Kupon seller-scope + sipariÅŸ numarasÄ± sequence operasyonu (yeni â€” 2026-05-14)
 - `Coupon.sellerId` migration'Ä± deploy zincirinin parÃ§asÄ±dÄ±r; `sellerId = NULL` kuponlar platform-wide kalÄ±r, dolu olan kuponlar yalnÄ±zca ilgili satÄ±cÄ± subtotal'una uygulanÄ±r.
@@ -261,10 +243,10 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   inmeden şablon indirilemez/dosya yüklenemez; ara kategoride durulursa butonlar pasif. Şablon yalnız
   seçilen tek yaprağı içerir (eski "üst seviyede durup tüm alt dalları tek dosyaya alma" davranışı
   kaldırıldı — commit `208a5a0`'in broad-scope davranışı geri alındı). Sunucu ara kategoriyi
-  `En alt kategoriyi seçmelisiniz.` ile reddeder (`bulk/template` + `bulk` route'ları). Tekli form ve
-  Hipicon import zaten yaprak zorunluydu; değişmedi.
-- **Destek yönlendirmesi:** paylaşılan `CategorySupportHint` bileşeni toplu yükleme, tekli
-  ekleme/düzenleme ve URL import kategori alanlarında görünür; "Admin Destek" metni `/destek`'e link.
+  `En alt kategoriyi seçmelisiniz.` ile reddeder (`bulk/template` + `bulk` route'ları). Tekli form da
+  aynı yaprak kategori kuralını uygular.
+- **Destek yönlendirmesi:** paylaşılan `CategorySupportHint` bileşeni toplu yükleme ve tekli
+  ekleme/düzenleme kategori alanlarında görünür; "Admin Destek" metni `/destek`'e link.
   Satıcılar kendileri kategori oluşturamaz; talep destek bileti sistemi üzerinden.
 - **Barkod artık opsiyonel (tüm yükleme yolları).** Satıcı barkodu boş bırakırsa sistem "8" ile
   başlayan, kontrol haneli **geçerli EAN-13** üretir (`api/domain/barcode-generate.ts` →
@@ -272,9 +254,6 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   ürün üretimi `catalog.service.createProduct`'ta merkezî (`autoGenerateBarcodeWhenMissing`);
   varyant barkodları da opsiyonel + otomatik "8" üretimi. Girilen barkodun benzersizlik kontrolü
   (realtime endpoint + registry) korunur.
-- İçe aktarma barkod üretimi eski **satıcı-numarası önekli** üretimden **"8" önekli** üretime
-  birleştirildi (`generateImportBarcode` artık kullanılmıyor). Önizleme yalnız scrape edilen tam
-  13 haneli barkodu önerir; aksi halde boş bırakılır ve commit'te "8" üretilir.
 - **Taksonomi iyileştirmesi:** aşırı genel kalan bazı yapraklar ara kategoriye çevrildi ve alt
   yapraklara ayrıldı (`20260723193000_refine_general_category_leaves`). Örnekler: `Sehpa Modelleri`
   → `Orta Sehpa` / `Yan Sehpa` / `Zigon Sehpa`, `Dresuar & Konsol` → `Dresuar` / `Konsol`,
@@ -300,14 +279,13 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   `ProductAttributeValue.sortOrder Int @default(0)` — tek üründe Renk 1 (0) / Renk 2 (1) sırası için.
 - **İki renk (tekli form + Excel):** tekli formda "Renk Adedi" (1/2); Excel'de `Renk 1*` (zorunlu) + `Renk 2`
   (opsiyonel) sütunları. Excel'de eski `Urun Rengi*` başlığı geriye dönük kabul edilir
-  (`getMissingBulkProductHeaders` legacy alias). Mağazada "Renk: Renk1 - Renk2". URL importu kapsam dışı
-  (tek renk yazar).
+  (`getMissingBulkProductHeaders` legacy alias). Mağazada "Renk: Renk1 - Renk2".
 - **Ürün ölçüleri (En/Boy/Yükseklik):** DB kolonları (`dimension*`) zaten vardı; artık tekli form + Excel'den
   yazılır (opsiyonel) ve girilirse ürün sayfasında stok/sevk satırının yanında gösterilir. Migration gerekmez.
   Eşleme: En → `dimensionWidth`, Boy → `dimensionLength`, Yükseklik → `dimensionHeight`.
 - **Bilinen açık uç (blocking değil):** iki-renk ve ölçüler için route-seviyesi entegrasyon testi eklenmedi;
   parse/sıralama/validation unit testleriyle (`tests/unit/bulk-product-import.test.ts`) ve typecheck ile
-  kapsandı. URL importuna ölçü + ikinci renk (elle) eklenmesi ayrı bir iştir.
+  kapsandı.
 
 ## Operasyonel Not
 

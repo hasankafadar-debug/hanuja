@@ -18,8 +18,6 @@ interface AdminListControlsProps {
   statusOptions?: Option[]
   invoiceValue?: string
   invoiceOptions?: Option[]
-  importValue?: string
-  importOptions?: Option[]
   sellerValue?: string
   sellerPlaceholder?: string
   fromValue?: string
@@ -40,8 +38,6 @@ export function AdminListControls({
   statusOptions = [],
   invoiceValue = '',
   invoiceOptions = [],
-  importValue = '',
-  importOptions = [],
   sellerValue = '',
   sellerPlaceholder = 'Satici ara',
   fromValue = '',
@@ -88,19 +84,12 @@ export function AdminListControls({
         value: invoiceOptions.find((option) => option.value === invoiceValue)?.label ?? invoiceValue,
       })
     }
-    if (importValue) {
-      chips.push({
-        key: 'import',
-        label: 'Hipicon izni',
-        value: importOptions.find((option) => option.value === importValue)?.label ?? importValue,
-      })
-    }
     if (sellerValue) chips.push({ key: 'seller', label: 'Satici', value: sellerValue })
     if (fromValue) chips.push({ key: 'from', label: 'Baslangic', value: fromValue })
     if (toValue) chips.push({ key: 'to', label: 'Bitis', value: toValue })
     if (pageSize !== 20) chips.push({ key: 'pageSize', label: 'Sayfa boyutu', value: String(pageSize) })
     return chips
-  }, [barcodeValue, fromValue, importOptions, importValue, invoiceOptions, invoiceValue, pageSize, sellerValue, statusOptions, statusValue, toValue])
+  }, [barcodeValue, fromValue, invoiceOptions, invoiceValue, pageSize, sellerValue, statusOptions, statusValue, toValue])
 
   function updateParams(updates: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams.toString())
@@ -124,7 +113,7 @@ export function AdminListControls({
 
   function resetFilters() {
     const next = new URLSearchParams(searchParams.toString())
-    for (const key of ['q', 'barcode', 'status', 'invoice', 'import', 'seller', 'from', 'to', 'page']) {
+    for (const key of ['q', 'barcode', 'status', 'invoice', 'seller', 'from', 'to', 'page']) {
       next.delete(key)
     }
     if (pageSize === 20) {
@@ -180,24 +169,6 @@ export function AdminListControls({
         </Select>
       )}
 
-      {importOptions.length > 0 && (
-        <Select
-          value={importValue || '__all__'}
-          onValueChange={(value) => updateParams({ import: value === '__all__' ? null : value, page: '1' })}
-        >
-          <SelectTrigger className="h-9 w-[180px]">
-            <SelectValue placeholder="Hipicon izni" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Tum izinler</SelectItem>
-            {importOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
 
       {showSellerFilter && (
         <Input

@@ -27,12 +27,6 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: 'Reddedildi' },
 ]
 
-const IMPORT_PERMISSION_OPTIONS = [
-  { value: 'pending', label: 'İstek bekliyor' },
-  { value: 'active', label: 'İzin aktif' },
-  { value: 'none', label: 'İstek yok' },
-]
-
 export default async function SellersPage({
   searchParams,
 }: {
@@ -42,16 +36,10 @@ export default async function SellersPage({
 
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const params = parseAdminListParams(resolvedSearchParams, { pageSize: 20 })
-  const importPermission =
-    params.importPermission === 'pending' || params.importPermission === 'active' || params.importPermission === 'none'
-      ? params.importPermission
-      : undefined
-
   const prisma = createPrismaForRoute()
   const repo = createSellerRepository(prisma)
   const result = await repo.listForAdmin({
     ...(params.status[0] ? { status: params.status[0] as 'active' | 'pending' | 'suspended' | 'rejected' } : {}),
-    ...(importPermission ? { importPermission } : {}),
     ...(params.q ? { query: params.q } : {}),
     ...buildDateRange(params),
     ...getPagination(params),
@@ -95,8 +83,6 @@ export default async function SellersPage({
         searchPlaceholder="Satıcı, şehir veya e-posta ara"
         statusValue={getPrimaryStatusValue(params.status)}
         statusOptions={STATUS_OPTIONS}
-        importValue={params.importPermission}
-        importOptions={IMPORT_PERMISSION_OPTIONS}
         fromValue={params.from}
         toValue={params.to}
         pageSize={params.pageSize}
@@ -114,7 +100,7 @@ export default async function SellersPage({
           <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Satıcı', 'Şehir', 'Ürün', 'Bekleyen Hakediş', 'Bakiye', 'Durum', 'Hipicon', ''].map((heading) => (
+                {['Satıcı', 'Şehir', 'Ürün', 'Bekleyen Hakediş', 'Bakiye', 'Durum', ''].map((heading) => (
                   <th
                     key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
@@ -169,17 +155,6 @@ export default async function SellersPage({
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={status.variant}>{status.label}</Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      {seller.importEnabled ? (
-                        <Badge variant="success">İzin Aktif - 1 Kullanım</Badge>
-                      ) : seller.importRequestedAt ? (
-                        <Badge variant="warning">İstek Bekliyor</Badge>
-                      ) : (
-                        <span className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                          â€”
-                        </span>
-                      )}
                     </td>
                     <td className="px-4 py-3">
                       <Link

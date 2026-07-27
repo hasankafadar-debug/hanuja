@@ -277,11 +277,11 @@ export async function GET(req: NextRequest) {
 
     sheet.getCell(rowNum, PRODUCT_COLOR_COL_INDEX).dataValidation = {
       type: 'list',
-      allowBlank: false,
+      allowBlank: true,
       showErrorMessage: true,
       errorStyle: 'stop',
       errorTitle: 'Gecersiz Renk',
-      error: 'Lutfen secilen kategori icin gecerli bir urun rengi secin.',
+      error: 'Lutfen secilen kategori icin gecerli bir urun rengi secin veya bos birakin.',
       formulae: [
         buildOptionValidationFormula({
           sheetName: 'Gecerli Renkler',
@@ -312,11 +312,11 @@ export async function GET(req: NextRequest) {
 
     sheet.getCell(rowNum, PRODUCT_MATERIAL_COL_INDEX).dataValidation = {
       type: 'list',
-      allowBlank: false,
+      allowBlank: true,
       showErrorMessage: true,
       errorStyle: 'stop',
       errorTitle: 'Gecersiz Materyal',
-      error: 'Lutfen secilen kategori icin gecerli bir materyal secin.',
+      error: 'Lutfen secilen kategori icin gecerli bir materyal secin veya bos birakin.',
       formulae: [
         buildOptionValidationFormula({
           sheetName: 'Gecerli Materyaller',

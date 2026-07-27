@@ -29,7 +29,6 @@ import { SellerAdminActions } from '@/components/seller-admin-actions'
 import { SellerCommissionSettings } from '@/components/seller-commission-settings'
 import { DocumentReviewActions } from '@/components/document-review-actions'
 import { DocumentFileActions } from '@/components/document-file-actions'
-import { SellerImportPermission } from '@/components/seller-import-permission'
 import { SellerStatusButtons } from '@/components/seller-status-buttons'
 import { SellerAccountStatement } from './seller-account-statement'
 
@@ -460,13 +459,6 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
             </p>
           </div>
 
-          <SellerImportPermission
-            sellerId={seller.id}
-            importEnabled={seller.importEnabled}
-            importRequestedAt={
-              seller.importRequestedAt ? seller.importRequestedAt.toISOString() : null
-            }
-          />
           <SellerCommissionSettings
             sellerId={seller.id}
             defaultRate={platformSettings.defaultSellerCommissionRate.toString()}

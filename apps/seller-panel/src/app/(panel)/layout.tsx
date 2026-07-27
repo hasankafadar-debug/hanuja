@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { NotificationBell, SidebarNav, type NavSection } from '@hanuja/ui'
 import {
   BarChart3,
-  Download,
   Images,
   LayoutDashboard,
   LifeBuoy,
@@ -40,7 +39,6 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Katalog',
     items: [
       { label: 'Ürünlerim', href: '/urunler', icon: <Package className="h-4 w-4" /> },
-      { label: 'İçe Aktar', href: '/urunler/ice-aktar', icon: <Download className="h-4 w-4" /> },
       { label: 'Toplu Yükle', href: '/urunler/toplu-yukle', icon: <Upload className="h-4 w-4" /> },
       { label: 'Toplu Güncelle', href: '/urunler/toplu-guncelle', icon: <RefreshCcw className="h-4 w-4" /> },
       { label: 'Medya Havuzu', href: '/medya', icon: <Images className="h-4 w-4" /> },

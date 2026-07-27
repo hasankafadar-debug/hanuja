@@ -42,7 +42,6 @@ export interface AdminDashboardStats {
   sellers: {
     totalActive: number
     pendingApproval: number
-    pendingImportPermissions: number
   }
   extensions: {
     pending: number
@@ -93,7 +92,6 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       pendingExtensionRequests,
       activeSellers,
       pendingSellers,
-      pendingImportPermissions,
 
       // Customer support ticket counts
       customerSupportNewTickets,
@@ -176,9 +174,6 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
         }),
       prisma.seller.count({ where: { status: 'active' } }),
       prisma.seller.count({ where: { status: 'pending' } }),
-      prisma.seller.count({
-        where: { importEnabled: false, importRequestedAt: { not: null } },
-      }),
 
       // Customer support ticket breakdown
       prisma.customerSupportTicket.count({
@@ -242,7 +237,6 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       sellers: {
         totalActive: activeSellers,
         pendingApproval: pendingSellers,
-        pendingImportPermissions,
       },
       extensions: {
         pending: pendingExtensionRequests,

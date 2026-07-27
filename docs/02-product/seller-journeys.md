@@ -192,7 +192,6 @@ Source of truth: `.claude/rules/09-seller-panel-rules.md`, `CLAUDE.md` sections 
 - Category must be within the selected scope. Out-of-scope category slugs are rejected.
 - Only leaf categories are offered as the sheet's `Kategori*` values and accepted on import. A product
   can never be attached to an intermediate category — the rule is enforced in the domain layer
-  (`api/domain/category-selection.ts`), so it applies to the form, the XLSX import and the Hipicon
-  URL import alike. Template *scope* is a separate concern and may be an intermediate category.
+  (`api/domain/category-selection.ts`). Template *scope* is a separate concern and may be an
+  intermediate category.
 - Images must be hosted on the platform CDN. External image URLs are rejected.
-- Hipicon URL import is available from the seller panel at `/urunler/ice-aktar` and is scoped to the authenticated seller.

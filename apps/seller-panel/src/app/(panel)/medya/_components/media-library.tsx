@@ -376,7 +376,7 @@ export function MediaLibrary() {
         <EmptyState
           icon={<ImageIcon className="h-10 w-10" />}
           title="Henuz medya yok"
-          description="Toplu yukleme veya import icin kullanacaginiz gorseller burada listelenecek."
+          description="Toplu yukleme veya urun ekleme icin kullanacaginiz gorseller burada listelenecek."
         />
       ) : (
         <>

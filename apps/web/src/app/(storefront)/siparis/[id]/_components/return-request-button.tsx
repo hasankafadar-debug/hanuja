@@ -62,7 +62,7 @@ export default function ReturnRequestButton({ orderId }: ReturnRequestButtonProp
 
       toast({
         title: 'İade talebi alındı',
-        description: 'Satıcı iade kargo bilgilerini iletene kadar bekleyin.',
+        description: 'Tasarımcı iade kargo bilgilerini iletene kadar bekleyin.',
         variant: 'success',
       })
       router.refresh()

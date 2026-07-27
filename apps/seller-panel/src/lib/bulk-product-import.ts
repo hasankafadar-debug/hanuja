@@ -42,9 +42,9 @@ export const BULK_PRODUCT_COLUMN_CONFIG = [
   { key: 'modelCode', label: 'Model Kodu*', required: true, helpText: 'Ayni satici ve ayni kategoride ayni Model Kodu verilen urunler, ayni modelin renk/materyal secenekleri kabul edilir ve urun detayinda birlikte gosterilir.' },
   { key: 'name', label: 'Urun Adi*', required: true, helpText: 'Urun adini en az 3, en fazla 200 karakter olarak girin.' },
   { key: 'categorySlug', label: 'Kategori*', required: true, helpText: 'Sablonda secilen kategori kapsami icinden bir kategori girin.' },
-  { key: 'productColor', label: 'Renk 1*', required: true, helpText: 'Urunun ana renk secenegini girin. Ikiden fazla renk varsa Mix secin.' },
+  { key: 'productColor', label: 'Renk 1', required: false, helpText: 'Istege baglidir. Urunun ana renk secenegini girin. Ikiden fazla renk varsa Mix secin.' },
   { key: 'secondColor', label: 'Renk 2', required: false, helpText: 'Urun iki renkli ise ikinci rengi buradan secin. Ikiden fazla renk varsa Renk 1 sutununda Mix secenegini kullanin.' },
-  { key: 'productMaterial', label: 'Materyal*', required: true, helpText: 'Urunun ana materyalini girin.' },
+  { key: 'productMaterial', label: 'Materyal', required: false, helpText: 'Istege baglidir. Urunun ana materyalini girin.' },
   { key: 'price', label: 'Fiyat*', required: true, helpText: 'Satis fiyatini TL olarak sifirdan buyuk girin.' },
   { key: 'fulfillmentDays', label: 'Sevk Suresi (is gunu)*', required: true, helpText: 'Sevk suresini 1 ile 90 is gunu arasinda bir tam sayi olarak girin.' },
   { key: 'stockQuantity', label: 'Stok*', required: true, helpText: 'Stok adedini sifir veya daha buyuk bir tam sayi olarak girin.' },
@@ -171,9 +171,9 @@ const bulkProductRowSchema = z.object({
   name: z.string().trim().min(3, 'Urun adi en az 3 karakter olmali').max(200),
   rootCategorySlug: optionalString.pipe(z.string().max(120).optional()),
   categorySlug: z.string().trim().min(1, 'Kategori zorunludur'),
-  productColor: z.string().trim().min(1, 'Urun rengi zorunludur').max(80),
+  productColor: optionalString.pipe(z.string().max(80).optional()),
   secondColor: optionalString.pipe(z.string().max(80).optional()),
-  productMaterial: z.string().trim().min(1, 'Materyal zorunludur').max(80),
+  productMaterial: optionalString.pipe(z.string().max(80).optional()),
   price: z.number().positive('Fiyat 0dan buyuk olmali'),
   fulfillmentDays: z.number().int('Sevk suresi tam sayi olmali').min(1, 'Sevk suresi en az 1 is gunu olmali').max(90, 'Sevk suresi en fazla 90 is gunu olmali'),
   stockQuantity: z.number().int('Stok tam sayi olmali').min(0, 'Stok negatif olamaz'),
@@ -201,6 +201,9 @@ const bulkProductRowSchema = z.object({
   image6: optionalString.pipe(z.string().url('Gorsel 6 gecerli bir URL olmali').optional()),
   image7: optionalString.pipe(z.string().url('Gorsel 7 gecerli bir URL olmali').optional()),
   image8: optionalString.pipe(z.string().url('Gorsel 8 gecerli bir URL olmali').optional()),
+}).superRefine((data, ctx) => {
+  if (data.secondColor && !data.productColor) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['secondColor'], message: 'Renk 2 icin Renk 1 secilmelidir.' })
+  if (data.secondColor && data.productColor && data.secondColor === data.productColor) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['secondColor'], message: 'Renk 2, Renk 1 ile ayni olamaz.' })
 })
 
 type ParsedBulkProductRow = z.infer<typeof bulkProductRowSchema>

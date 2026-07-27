@@ -158,9 +158,7 @@ describe('bulk product import row validator', () => {
   it('detects missing required template headers', () => {
     const missing = getMissingBulkProductHeaders(['Urun Adi*', 'Kategori Slug*'])
 
-    expect(missing).toContain('Renk 1*')
     expect(missing).toContain('Model Kodu*')
-    expect(missing).toContain('Materyal*')
     expect(missing).toContain('Fiyat*')
     expect(missing).toContain('Stok*')
     // Barcode is optional: a blank cell is auto-generated at commit time.
@@ -168,6 +166,8 @@ describe('bulk product import row validator', () => {
     expect(missing).not.toContain('Barkod (13 hane)*')
     // Renk 2 is optional — never required.
     expect(missing).not.toContain('Renk 2')
+    expect(missing).not.toContain('Renk 1')
+    expect(missing).not.toContain('Materyal')
   })
 
   it('accepts the legacy "Urun Rengi*" header for the renamed Renk 1 column', () => {

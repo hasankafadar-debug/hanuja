@@ -54,11 +54,14 @@ const createProductSchema = z.object({
   dimensionLength: z.number().positive('Boy 0dan buyuk olmali').optional(),
   dimensionWidth: z.number().positive('En 0dan buyuk olmali').optional(),
   dimensionHeight: z.number().positive('Yukseklik 0dan buyuk olmali').optional(),
-  colorOptionId: z.string().min(1, 'Renk secimi zorunludur'),
+  colorOptionId: z.string().min(1).nullable().optional(),
   // Renk 2 (opsiyonel): ürün iki renkliyse ikinci renk. Renk 1'den farklı olmalı.
   secondColorOptionId: z.string().min(1).optional(),
-  materialOptionId: z.string().min(1, 'Materyal secimi zorunludur'),
+  materialOptionId: z.string().min(1).nullable().optional(),
   variants: z.array(variantSchema).max(100).optional().default([]),
+}).superRefine((data, ctx) => {
+  if (data.secondColorOptionId && !data.colorOptionId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['secondColorOptionId'], message: 'Ikinci renk icin birinci renk secilmelidir.' })
+  if (data.secondColorOptionId && data.secondColorOptionId === data.colorOptionId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['secondColorOptionId'], message: 'Ikinci renk birinci renkten farkli olmalidir.' })
 })
 
 type VariantInput = z.infer<typeof variantSchema>
@@ -210,17 +213,17 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      await tx.productAttributeValue.createMany({
-        data: [
+      const attributeValues = [
           // Renk 1 → sortOrder 0, Renk 2 (varsa) → sortOrder 1, materyal → 0.
-          { productId: created.id, optionId: parsed.data.colorOptionId, sortOrder: 0 },
+          ...(parsed.data.colorOptionId ? [{ productId: created.id, optionId: parsed.data.colorOptionId, sortOrder: 0 }] : []),
           ...(parsed.data.secondColorOptionId
             ? [{ productId: created.id, optionId: parsed.data.secondColorOptionId, sortOrder: 1 }]
             : []),
-          { productId: created.id, optionId: parsed.data.materialOptionId, sortOrder: 0 },
-        ],
-        skipDuplicates: true,
-      })
+          ...(parsed.data.materialOptionId ? [{ productId: created.id, optionId: parsed.data.materialOptionId, sortOrder: 0 }] : []),
+      ]
+      if (attributeValues.length > 0) {
+        await tx.productAttributeValue.createMany({ data: attributeValues, skipDuplicates: true })
+      }
 
       return created
     })

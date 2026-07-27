@@ -81,7 +81,7 @@ export default function NewProductForm({ categories }: Props) {
   const [colorOptionId, setColorOptionId] = useState('')
   // Renk adedi: 1 → tek renk; 2 → Renk 1 + Renk 2 ayrı seçilir. 2'den fazla renk
   // için satıcı adedi 1 tutup "Mix" seçebilir.
-  const [colorCount, setColorCount] = useState<1 | 2>(1)
+  const [colorCount, setColorCount] = useState<0 | 1 | 2>(0)
   const [secondColorOptionId, setSecondColorOptionId] = useState('')
   const [materialOptionId, setMaterialOptionId] = useState('')
   const [colorOptions, setColorOptions] = useState<AttributeOption[]>([])
@@ -140,13 +140,13 @@ export default function NewProductForm({ categories }: Props) {
       Number.isInteger(Number(variant.stockQuantity)) &&
       Number(variant.stockQuantity) >= 0,
   )
+  const primaryColorMissing = colorCount > 0 && !colorOptionId
   const secondColorMissing = colorCount === 2 && !secondColorOptionId
   const submitDisabled =
     loading ||
     !categoryId ||
-    !colorOptionId ||
+    primaryColorMissing ||
     secondColorMissing ||
-    !materialOptionId ||
     Number(fulfillmentDays) < 1 ||
     pendingImageUploads > 0 ||
     !modelCode.trim() ||
@@ -154,12 +154,10 @@ export default function NewProductForm({ categories }: Props) {
     (hasVariants && !variantsValid)
   const missingSubmitReason = !categoryId
     ? 'Urunu gondermek icin kategori secin.'
-    : !colorOptionId
-      ? 'Urunu gondermek icin renk secin.'
-      : secondColorMissing
+    : primaryColorMissing
+        ? 'Renk bilgisi secildiginde Renk 1 secin.'
+        : secondColorMissing
         ? 'Renk adedi 2 secildiginde ikinci rengi de secin.'
-        : !materialOptionId
-        ? 'Urunu gondermek icin materyal secin.'
         : Number(fulfillmentDays) < 1
           ? 'Urunu gondermek icin sevk suresi girin.'
           : pendingImageUploads > 0
@@ -204,10 +202,10 @@ export default function NewProductForm({ categories }: Props) {
         body: JSON.stringify({
           name,
           categoryId,
-          colorOptionId,
+          colorOptionId: colorCount > 0 ? colorOptionId : undefined,
           secondColorOptionId:
             colorCount === 2 && secondColorOptionId ? secondColorOptionId : undefined,
-          materialOptionId,
+          materialOptionId: materialOptionId || undefined,
           price: parseFloat(price),
           fulfillmentDays: parseInt(fulfillmentDays, 10),
           compareAtPrice: compareAtPrice ? parseFloat(compareAtPrice) : undefined,
@@ -281,13 +279,14 @@ export default function NewProductForm({ categories }: Props) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label htmlFor="colorCount">Renk Adedi *</Label>
+          <Label htmlFor="colorCount">Renk Bilgisi</Label>
           <Select
             value={String(colorCount)}
             onValueChange={(value) => {
-              const next = value === '2' ? 2 : 1
+              const next: 0 | 1 | 2 = value === '2' ? 2 : value === '1' ? 1 : 0
               setColorCount(next)
-              if (next === 1) setSecondColorOptionId('')
+              if (next < 2) setSecondColorOptionId('')
+              if (next === 0) setColorOptionId('')
             }}
             disabled={loading}
           >
@@ -295,18 +294,20 @@ export default function NewProductForm({ categories }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="0">Renk belirtmeyecegim</SelectItem>
               <SelectItem value="1">Tek renk</SelectItem>
               <SelectItem value="2">Iki renk</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="material">Materyal *</Label>
-          <Select onValueChange={setMaterialOptionId} value={materialOptionId} disabled={loading}>
+          <Label htmlFor="material">Materyal</Label>
+          <Select onValueChange={(value) => setMaterialOptionId(value === '__none__' ? '' : value)} value={materialOptionId} disabled={loading}>
             <SelectTrigger id="material" aria-label="Materyal">
               <SelectValue placeholder="Materyal secin" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="__none__">Belirtilmedi</SelectItem>
               {materialOptions.map((opt) => (
                 <SelectItem key={opt.id} value={opt.id}>
                   {opt.label}
@@ -319,8 +320,8 @@ export default function NewProductForm({ categories }: Props) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label htmlFor="color">{colorCount === 2 ? 'Renk 1 *' : 'Renk *'}</Label>
-          <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading}>
+          <Label htmlFor="color">{colorCount === 2 ? 'Renk 1' : 'Renk'}</Label>
+          <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading || colorCount === 0}>
             <SelectTrigger id="color" aria-label={colorCount === 2 ? 'Renk 1' : 'Renk'}>
               <SelectValue placeholder="Renk secin" />
             </SelectTrigger>

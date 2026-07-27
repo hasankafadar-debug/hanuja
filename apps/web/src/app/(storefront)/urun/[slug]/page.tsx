@@ -181,6 +181,9 @@ export default async function ProductDetailPage({ params }: Props) {
   const visualSiblings = product.modelCode?.trim() && category?.id
     ? await getVisualSiblings({ sellerId: product.sellerId, categoryId: category.id, modelCode: product.modelCode.trim() })
     : []
+  const hasVisualSiblingColor = visualSiblings.some((sibling) => Boolean(getAttributeLabel(sibling.attributeValues, 'color')))
+  const hasVisualSiblingMaterial = visualSiblings.some((sibling) => Boolean(getAttributeLabel(sibling.attributeValues, 'material')))
+  const visualSiblingTitle = hasVisualSiblingColor && hasVisualSiblingMaterial ? 'Renk / Materyal' : hasVisualSiblingColor ? 'Renk' : hasVisualSiblingMaterial ? 'Materyal' : 'Seçenekler'
   const story = product.story?.trim()
   const careInstructions = product.careInstructions?.trim()
   const hasSpecs = Boolean(category) || typeof product.stockQuantity === 'number'
@@ -323,7 +326,7 @@ export default async function ProductDetailPage({ params }: Props) {
           {visualSiblings.length > 1 ? (
             <div className="space-y-2">
               <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                Renk / Materyal
+                {visualSiblingTitle}
               </p>
               <div className="flex flex-wrap gap-2">
                 {visualSiblings.map((sibling) => {

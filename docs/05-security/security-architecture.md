@@ -90,8 +90,8 @@ as the in-memory fallback: when `REDIS_URL` is unset (local dev) or Redis errors
 runtime, the limiter fails open to the per-instance memory window and logs the error —
 availability is preferred over strictness for this layer.
 
-Coverage: `SENSITIVE_RATE_LIMIT` on payment initiation, checkout, returns, product
-import (preview/commit) and media upload-URL issuance; `HIGH_RISK_RATE_LIMIT` on seller
+Coverage: `SENSITIVE_RATE_LIMIT` on payment initiation, checkout, returns, product bulk upload
+and media upload-URL issuance; `HIGH_RISK_RATE_LIMIT` on seller
 bank-detail changes and OTP requests, first-password, and admin seller password reset;
 `API_RATE_LIMIT` on barcode availability checks, review submission, dispute/support
 message creation and Turnstile verification endpoints. Better Auth's built-in rate

@@ -10,7 +10,6 @@ import {
   Clock,
   AlertTriangle,
   Store,
-  KeyRound,
   LifeBuoy,
   BadgeAlert,
   PackageSearch,
@@ -103,14 +102,6 @@ export default async function AdminDashboardPage() {
       urgent: false,
     })
   }
-  if (stats.sellers.pendingImportPermissions > 0) {
-    urgentItems.push({
-      type: 'Hipicon Import Izni',
-      description: `${stats.sellers.pendingImportPermissions} satici import izni bekliyor`,
-      href: '/saticilar?import=pending',
-      urgent: false,
-    })
-  }
 
   const statCards = [
     {
@@ -160,12 +151,6 @@ export default async function AdminDashboardPage() {
       title: 'Aktif Satıcı',
       value: String(stats.sellers.totalActive),
       icon: <Store className="h-5 w-5" />,
-    },
-    {
-      href: '/saticilar?import=pending',
-      title: 'Hipicon Izin Bekleyen',
-      value: String(stats.sellers.pendingImportPermissions),
-      icon: <KeyRound className="h-5 w-5" />,
     },
     {
       href: '/musteri-destek?status=waiting_for_admin',

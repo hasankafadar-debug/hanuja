@@ -55,15 +55,15 @@ export default function ExtensionRequestDecision({
       style={{ borderColor: '#facc15', backgroundColor: '#fefce8' }}
     >
       <h2 className="mb-2 text-lg font-semibold" style={{ color: '#854d0e' }}>
-        Satıcı ek süre talep ediyor
+        Tasarımcı ek süre talep ediyor
       </h2>
       <p className="mb-4 text-sm" style={{ color: '#713f12' }}>
-        Satıcı {requestedDays} iş günü ek süre istiyor. Onayınızı bekliyoruz.
+        Tasarımcı {requestedDays} iş günü ek süre istiyor. Onayınızı bekliyoruz.
       </p>
 
       <div className="mb-3 rounded-md bg-white p-3 text-sm" style={{ borderColor: '#fde047' }}>
         <p className="mb-1 text-xs font-medium" style={{ color: '#92400e' }}>
-          Satıcı gerekçesi:
+          Tasarımcı gerekçesi:
         </p>
         <p style={{ color: '#1f2937' }}>{sellerReason}</p>
       </div>

@@ -16,12 +16,12 @@ import { csrfFetch } from '@/lib/csrf-fetch'
 import { ReturnPhotoPicker } from './return-photo-picker'
 
 const STATUS_LABELS: Record<string, string> = {
-  requested: 'Iade Talep Edildi - Satici kargo bilgisi bekleniyor',
+  requested: 'Iade Talep Edildi - Tasarımcı kargo bilgisi bekleniyor',
   under_review: 'Inceleniyor',
   approved: 'Iade Onaylandi - Urunu kargoya verin',
-  in_transit: 'Iade Kargoda - Satici onayi bekleniyor',
-  received: 'Satici Teslim Aldi',
-  rejected: 'Satici Reddetti - Uyusmazlik Incelemesinde',
+  in_transit: 'Iade Kargoda - Tasarımcı onayı bekleniyor',
+  received: 'Tasarımcı Teslim Aldı',
+  rejected: 'Tasarımcı Reddetti - Uyuşmazlık İncelemesinde',
   refund_completed: 'Iade Tamamlandi',
 }
 
@@ -57,7 +57,7 @@ interface ReturnDetail {
 
 const ROLE_LABEL: Record<string, string> = {
   customer: 'Siz',
-  seller: 'Satici',
+  seller: 'Tasarımcı',
   admin: 'Hanuja',
 }
 
@@ -257,7 +257,7 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
           }}
         >
           <p className="font-medium" style={{ color: 'var(--color-destructive, #dc2626)' }}>
-            Satici iadeyi reddetti
+            Tasarımcı iadeyi reddetti
           </p>
           <p className="mt-1" style={{ color: 'var(--color-primary)' }}>
             {data.sellerRejectReason}
@@ -320,7 +320,7 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
 
       <div className="space-y-3">
         <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-          Satici ile Yazisma
+          Tasarımcı ile Yazışma
         </p>
         {data.messages.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>

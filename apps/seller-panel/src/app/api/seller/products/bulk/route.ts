@@ -44,10 +44,10 @@ type AttributeOption = {
 }
 
 type ResolvedBulkProductImportRow = BulkProductImportRow & {
-  productColorOptionId: string
+  productColorOptionId: string | null
   // Renk 2 (opsiyonel): girildiyse çözümlenmiş option id, yoksa null.
   productSecondColorOptionId: string | null
-  productMaterialOptionId: string
+  productMaterialOptionId: string | null
 }
 
 function variantName(row: BulkProductImportRow) {
@@ -81,8 +81,8 @@ function buildVisualVariantKey(row: ResolvedBulkProductImportRow) {
   ].join('::')
 }
 
-function normalizeAttributeValue(value: string) {
-  return value
+function normalizeAttributeValue(value: string | undefined) {
+  return (value ?? '')
     .normalize('NFKD')
     .replace(/[^\w\s/-]/g, '')
     .replace(/\s+/g, ' ')
@@ -398,20 +398,22 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
     rowNumber: number
     data: ResolvedBulkProductImportRow
   }> = resolvedEntries.flatMap((entry) => {
-    const productColorOption = resolveAttributeOption({
+    const productColorRaw = entry.data.productColor?.trim()
+    const productColorOption = productColorRaw ? resolveAttributeOption({
       categorySlug: entry.data.categorySlug,
       type: 'color',
-      value: entry.data.productColor,
+      value: productColorRaw,
       optionsByCategorySlug: attributeOptionsByCategorySlug,
       fallbackOptions: fallbackAttributeOptions,
-    })
-    const productMaterialOption = resolveAttributeOption({
+    }) : null
+    const productMaterialRaw = entry.data.productMaterial?.trim()
+    const productMaterialOption = productMaterialRaw ? resolveAttributeOption({
       categorySlug: entry.data.categorySlug,
       type: 'material',
-      value: entry.data.productMaterial,
+      value: productMaterialRaw,
       optionsByCategorySlug: attributeOptionsByCategorySlug,
       fallbackOptions: fallbackAttributeOptions,
-    })
+    }) : null
     // Renk 2 opsiyonel: yalnız doluysa çözümle. Doluysa ve çözülemezse hata.
     const secondColorRaw = entry.data.secondColor?.trim()
     const productSecondColorOption = secondColorRaw
@@ -424,7 +426,7 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
         })
       : null
 
-    if (!productColorOption) {
+    if (productColorRaw && !productColorOption) {
       attributeErrors.push(createBulkValidationError(
         entry.rowNumber,
         'productColor',
@@ -452,7 +454,7 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
         'Renk 2, Renk 1 ile ayni olamaz.',
       ))
     }
-    if (!productMaterialOption) {
+    if (productMaterialRaw && !productMaterialOption) {
       attributeErrors.push(createBulkValidationError(
         entry.rowNumber,
         'productMaterial',
@@ -461,18 +463,20 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
       ))
     }
 
-    if (!productColorOption || !productMaterialOption) return []
+    if (productColorRaw && !productColorOption) return []
+    if (productMaterialRaw && !productMaterialOption) return []
+    if (secondColorRaw && !productColorOption) return []
     if (secondColorRaw && !productSecondColorOption) return []
-    if (productSecondColorOption && productSecondColorOption.id === productColorOption.id) return []
+    if (productSecondColorOption && productSecondColorOption.id === productColorOption?.id) return []
 
     return [
       {
         rowNumber: entry.rowNumber,
         data: {
           ...entry.data,
-          productColorOptionId: productColorOption.id,
+          productColorOptionId: productColorOption?.id ?? null,
           productSecondColorOptionId: productSecondColorOption?.id ?? null,
-          productMaterialOptionId: productMaterialOption.id,
+          productMaterialOptionId: productMaterialOption?.id ?? null,
         },
       },
     ]
@@ -637,17 +641,17 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
             }
           }
 
-          await tx.productAttributeValue.createMany({
-            data: [
+          const attributeValues = [
               // Renk 1 → sortOrder 0, Renk 2 (varsa) → 1, materyal → 0.
-              { productId: product.id, optionId: data.productColorOptionId, sortOrder: 0 },
+              ...(data.productColorOptionId ? [{ productId: product.id, optionId: data.productColorOptionId, sortOrder: 0 }] : []),
               ...(data.productSecondColorOptionId
                 ? [{ productId: product.id, optionId: data.productSecondColorOptionId, sortOrder: 1 }]
                 : []),
-              { productId: product.id, optionId: data.productMaterialOptionId, sortOrder: 0 },
-            ],
-            skipDuplicates: true,
-          })
+              ...(data.productMaterialOptionId ? [{ productId: product.id, optionId: data.productMaterialOptionId, sortOrder: 0 }] : []),
+          ]
+          if (attributeValues.length > 0) {
+            await tx.productAttributeValue.createMany({ data: attributeValues, skipDuplicates: true })
+          }
 
           if (data.imageUrls.length > 0) {
             await tx.productImage.createMany({

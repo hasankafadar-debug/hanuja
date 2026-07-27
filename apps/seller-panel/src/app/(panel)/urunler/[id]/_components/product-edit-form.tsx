@@ -130,7 +130,7 @@ export default function ProductEditForm({
   const [categoryId, setCategoryId] = useState(initialCategoryId)
   const [colorOptionId, setColorOptionId] = useState(initialColorOptionId)
   // Renk adedi mevcut ikinci renkten türetilir; 2 → Renk 1 + Renk 2.
-  const [colorCount, setColorCount] = useState<1 | 2>(initialSecondColorOptionId ? 2 : 1)
+  const [colorCount, setColorCount] = useState<0 | 1 | 2>(initialColorOptionId ? (initialSecondColorOptionId ? 2 : 1) : 0)
   const [secondColorOptionId, setSecondColorOptionId] = useState(initialSecondColorOptionId)
   const [materialOptionId, setMaterialOptionId] = useState(initialMaterialOptionId)
   // Boyutlar (cm) — opsiyonel. En → dimensionWidth, Boy → dimensionLength, Yükseklik → dimensionHeight.
@@ -189,9 +189,8 @@ export default function ProductEditForm({
   )
   const canSubmit =
     Boolean(categoryId) &&
-    Boolean(colorOptionId) &&
+    (colorCount === 0 || Boolean(colorOptionId)) &&
     (colorCount === 2 ? Boolean(secondColorOptionId) : true) &&
-    Boolean(materialOptionId) &&
     Boolean(modelCode.trim()) &&
     fulfillmentDays >= 1 &&
     pendingImageUploads === 0 &&
@@ -247,10 +246,10 @@ export default function ProductEditForm({
           story,
           careInstructions,
           categoryId,
-          colorOptionId: colorOptionId || undefined,
+          colorOptionId: colorCount > 0 ? colorOptionId || null : null,
           // colorCount 1 → null (ikinci rengi kaldır); 2 → seçilen ikinci renk.
           secondColorOptionId: colorCount === 2 ? secondColorOptionId || null : null,
-          materialOptionId: materialOptionId || undefined,
+          materialOptionId: materialOptionId || null,
           price,
           fulfillmentDays,
           compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
@@ -367,12 +366,13 @@ export default function ProductEditForm({
           <Input id="fulfillmentDays" type="number" min={1} step={1} value={fulfillmentDays} onChange={(e) => setFulfillmentDays(Number(e.target.value))} required disabled={loading} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="edit-material">Materyal *</Label>
-          <Select onValueChange={setMaterialOptionId} value={materialOptionId} disabled={loading}>
+          <Label htmlFor="edit-material">Materyal</Label>
+          <Select onValueChange={(value) => setMaterialOptionId(value === '__none__' ? '' : value)} value={materialOptionId} disabled={loading}>
             <SelectTrigger id="edit-material" aria-label="Materyal">
               <SelectValue placeholder="Materyal secin" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="__none__">Belirtilmedi</SelectItem>
               {materialOptions.map((opt) => (
                 <SelectItem key={opt.id} value={opt.id}>
                   {opt.label}
@@ -385,13 +385,14 @@ export default function ProductEditForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="edit-colorCount">Renk Adedi *</Label>
+          <Label htmlFor="edit-colorCount">Renk Bilgisi</Label>
           <Select
             value={String(colorCount)}
             onValueChange={(value) => {
-              const next = value === '2' ? 2 : 1
+              const next: 0 | 1 | 2 = value === '2' ? 2 : value === '1' ? 1 : 0
               setColorCount(next)
-              if (next === 1) setSecondColorOptionId('')
+              if (next < 2) setSecondColorOptionId('')
+              if (next === 0) setColorOptionId('')
             }}
             disabled={loading}
           >
@@ -399,14 +400,15 @@ export default function ProductEditForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="0">Renk belirtmeyecegim</SelectItem>
               <SelectItem value="1">Tek renk</SelectItem>
               <SelectItem value="2">Iki renk</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="edit-color">{colorCount === 2 ? 'Renk 1 *' : 'Renk *'}</Label>
-          <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading}>
+          <Label htmlFor="edit-color">{colorCount === 2 ? 'Renk 1' : 'Renk'}</Label>
+          <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading || colorCount === 0}>
             <SelectTrigger id="edit-color" aria-label={colorCount === 2 ? 'Renk 1' : 'Renk'}>
               <SelectValue placeholder="Renk secin" />
             </SelectTrigger>
