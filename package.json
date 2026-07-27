@@ -17,7 +17,8 @@
     "db:migrate:status": "pnpm --filter @hanuja/db exec prisma migrate status",
     "db:seed": "pnpm --filter @hanuja/db exec tsx seeds/seed.ts",
     "db:seed:categories": "pnpm --filter @hanuja/db exec tsx seeds/categories-hipicon.ts",
-  "attributes:seed": "tsx tools/scripts/seed-attribute-options.ts",
+    "catalog-import": "tsx tools/catalog-import/cli.ts",
+    "attributes:seed": "tsx tools/scripts/seed-attribute-options.ts",
     "db:studio": "pnpm --filter @hanuja/db exec prisma studio",
     "new-client": "tsx tools/generators/new-client.ts",
     "validate-brand": "tsx tools/validators/validate-brand.ts",
@@ -36,7 +37,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",
-    "@aws-sdk/s3-request-presigner": "^3.600.0"
+    "@aws-sdk/s3-request-presigner": "^3.600.0",
+    "exceljs": "^4.4.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.45.0",

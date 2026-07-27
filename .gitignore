@@ -36,3 +36,4 @@ playwright-report/
 tests/playwright-report/
 .playwright-cli/
 .codex/
+.tmp/

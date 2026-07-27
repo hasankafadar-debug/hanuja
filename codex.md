@@ -4,9 +4,18 @@ Follow this playbook whenever a user provides a scraped product Excel file and a
 
 ## Agent roles
 
-- Codex Sol writes the implementation plan.
-- Codex Terra writes code and operational scripts.
-- Luna performs research. If Luna is unavailable, the agent performing the research must state that substitution.
+- Codex Sol (`gpt-5.6-sol`, medium) is used only for new architecture or complex security implementation plans.
+- Codex Terra (`gpt-5.6-terra`, low or medium) writes CLI code, tests, and runs routine operations.
+- Luna is an external research model used only for new source behavior, legal/robots questions, or external-format research. If no Luna tool/model is available, the main agent performs that research and explicitly states the substitution.
+- A routine no-code import uses the main agent or a single Terra agent. Do not open Sol or Luna subtasks for it.
+
+## CLI workflow and low-usage mode
+
+- Use `pnpm catalog-import discover`, `normalize`, `dry-run`, `apply`, and `verify` from `tools/catalog-import`; never recreate a general-purpose UI/API/import service.
+- `discover` and `normalize` are local-only. They must never load Prisma, R2, or environment-throwing modules. Source Excel files are never modified.
+- Use profile-only changes for new source layouts and run targeted catalog-import tests. Mapping ambiguity, missing required fields, ambiguous categories, invalid stock/model codes, or true variants are blocking and require user direction.
+- In low-usage mode, keep stdout to counters plus audit/manifest paths. Keep row, URL, error, and media detail in `.tmp` JSON files. Run no repo-wide build or deployment for this operational CLI; there is no app deployment.
+- Always dry-run before apply. Apply requires an unexpired manifest, unchanged normalized hash, exact active store recheck, and `--confirm-store <slug>`. Verify uses DB/R2 checks plus at most three CDN HEAD samples; it never mass-redownloads images.
 
 ## Default decisions
 

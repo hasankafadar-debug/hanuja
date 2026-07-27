@@ -1,0 +1,14 @@
+{
+  "name": "hipicon",
+  "imageHeaderAliases": ["image urls", "fotoğraflar", "fotograflar"],
+  "imageHeaderRegex": "^(gorsel|görsel|image|resim|fotoğraf|fotograf)(\\s+\\d+)?$",
+  "categoryRules": [
+    { "contains": "orta sehpa", "path": ["Ev", "Mobilya", "Sehpa Modelleri", "Orta Sehpa"] },
+    { "contains": "yan sehpa", "path": ["Ev", "Mobilya", "Sehpa Modelleri", "Yan Sehpa"] },
+    { "contains": "dresuar", "path": ["Ev", "Mobilya", "Dresuar & Konsol", "Dresuar"] },
+    { "contains": "kitaplık", "path": ["Ev", "Mobilya", "Kitaplık"] },
+    { "contains": "vitrin", "path": ["Ev", "Mobilya", "Vitrin & Büfe"] },
+    { "contains": "büfe", "path": ["Ev", "Mobilya", "Vitrin & Büfe"] },
+    { "contains": "ayna", "path": ["Ev", "Ev Dekorasyon", "Ayna"] }
+  ]
+}
