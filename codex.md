@@ -17,6 +17,19 @@ Follow this playbook whenever a user provides a scraped product Excel file and a
 - In low-usage mode, keep stdout to counters plus audit/manifest paths. Keep row, URL, error, and media detail in `.tmp` JSON files. Run no repo-wide build or deployment for this operational CLI; there is no app deployment.
 - Always dry-run before apply. Apply requires an unexpired manifest, unchanged normalized hash, exact active store recheck, and `--confirm-store <slug>`. Verify uses DB/R2 checks plus at most three CDN HEAD samples; it never mass-redownloads images.
 
+## Production terminal access
+
+- Prefer PowerShell/SSH and compact command output over browser automation for production inspection and catalog-import operations.
+- The Windows SSH identity is local-only at `C:\Users\Hasan\.ssh\hanuja_prod_ed25519`. Never read, print, copy, edit, upload, or commit the private key or its contents.
+- Open an interactive VDS shell with:
+  `ssh -o IdentitiesOnly=yes -i "C:\Users\Hasan\.ssh\hanuja_prod_ed25519" -p 22666 root@77.245.158.7`
+- For a non-interactive connectivity check or a bounded remote command, add `-o BatchMode=yes -o ConnectTimeout=10` and pass only the explicitly required command. Do not print the remote environment or secrets.
+- The existing command below opens only a local port tunnel; `-N` deliberately prevents a shell:
+  `ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -L 18000:127.0.0.1:8000 -o IdentitiesOnly=yes -i "C:\Users\Hasan\.ssh\hanuja_prod_ed25519" -p 22666 root@77.245.158.7`
+- That tunnel exposes the VDS service on remote port `8000` at local `127.0.0.1:18000`. It is not a PostgreSQL or R2 connection and is not sufficient by itself for catalog import.
+- Before running an import on the VDS, locate the deployed repository/container and its approved runtime configuration with read-only checks. Do not guess paths, expose environment values, copy production secrets to the repository, or bypass `dry-run → apply → verify`.
+- Routine Excel imports do not require a Coolify deployment. Use SSH/terminal for the operation; use browser automation only when a terminal/API check cannot verify a necessary user-facing result.
+
 ## Default decisions
 
 - Inspect the source workbook without modifying it. Deliver a cleaned workbook only when the user explicitly asks for one.
