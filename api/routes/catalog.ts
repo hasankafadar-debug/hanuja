@@ -1,7 +1,7 @@
 /**
  * Catalog route handlers — products and categories.
  */
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { ok, created, handleError } from '../lib/response'
 import { createCatalogService } from '../services/catalog.service'
@@ -50,7 +50,11 @@ export async function listProducts(req: NextRequest) {
     const skip = Number(url.searchParams.get('skip') ?? '0')
     const take = Number(url.searchParams.get('take') ?? '20')
     const svc = getCatalogService()
-    const products = await svc.listPublished({ ...(categoryId !== undefined ? { categoryId } : {}), skip, take })
+    const products = await svc.listPublished({
+      ...(categoryId !== undefined ? { categoryId } : {}),
+      skip,
+      take,
+    })
     return ok(products.map(withoutModelCode))
   } catch (err) {
     return handleError(err)
@@ -78,7 +82,9 @@ export async function createProduct(req: NextRequest, sellerId: string) {
     const data = createProductSchema.parse(body)
     const prisma = createPrismaForRoute()
     const product = await prisma.$transaction(async (tx) => {
-      const svc = createCatalogService({ prisma: tx as unknown as import('@prisma/client').PrismaClient })
+      const svc = createCatalogService({
+        prisma: tx as unknown as import('@prisma/client').PrismaClient,
+      })
       return svc.createProduct({
         sellerId,
         categoryId: data.categoryId,
@@ -101,7 +107,8 @@ export async function createProduct(req: NextRequest, sellerId: string) {
 export async function listProductsForAdmin(req: NextRequest) {
   try {
     const url = new URL(req.url)
-    const status = url.searchParams.getAll('status')
+    const status = url.searchParams
+      .getAll('status')
       .flatMap((value) => value.split(','))
       .map((value) => value.trim())
       .filter(Boolean) as import('@prisma/client').ProductStatus[]
@@ -140,6 +147,35 @@ export async function approveProduct(productId: string, adminActorId: string) {
   }
 }
 
+/**
+ * Upper bound on ids accepted by one bulk approve request. Matches the admin
+ * product list's maximum page size, so "select all on this page" always fits.
+ */
+const BULK_APPROVE_MAX_IDS = 100
+
+const bulkApproveSchema = z.object({
+  ids: z.array(z.string().cuid()).min(1).max(BULK_APPROVE_MAX_IDS),
+})
+
+// POST /api/admin/products/bulk-approve
+export async function bulkApproveProducts(req: NextRequest, adminActorId: string) {
+  try {
+    const body = await req.json().catch(() => null)
+    const parsed = bulkApproveSchema.safeParse(body)
+    if (!parsed.success) {
+      throw new ValidationError(
+        `Gecersiz toplu onay istegi. En az 1, en fazla ${BULK_APPROVE_MAX_IDS} urun secilebilir.`,
+      )
+    }
+
+    const svc = getCatalogService()
+    const result = await svc.bulkPublishProducts(parsed.data.ids, adminActorId)
+    return NextResponse.json(result)
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
 // POST /api/admin/products/:id/reject
 export async function rejectProduct(req: NextRequest, productId: string) {
   try {
@@ -153,11 +189,7 @@ export async function rejectProduct(req: NextRequest, productId: string) {
   }
 }
 
-export async function updateAdminProduct(
-  productId: string,
-  body: { status?: 'unlisted' },
-  adminActorId: string,
-) {
+export async function updateAdminProduct(productId: string, body: { status?: 'unlisted' }, adminActorId: string) {
   try {
     const svc = getCatalogService()
 

@@ -57,7 +57,12 @@ export default async function AdminDashboardPage() {
       ? `${(n / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 })}K TL`
       : `${n.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL`
 
-  const urgentItems: Array<{ type: string; description: string; href: string; urgent: boolean }> = []
+  const urgentItems: Array<{
+    type: string
+    description: string
+    href: string
+    urgent: boolean
+  }> = []
   if (stats.payments.pendingEftApprovals > 0) {
     urgentItems.push({
       type: 'EFT Onayi',
@@ -103,101 +108,124 @@ export default async function AdminDashboardPage() {
     })
   }
 
+  // `attention` marks a card green when there is something to act on. It is
+  // computed from the raw counters, never from `value` — those are already
+  // formatted strings ("12,5K TL", "1 yeni, 0 yanit") and cannot be compared.
+  //
+  // "Aktif Satıcı" is deliberately never highlighted: it is an inventory count
+  // that is above zero in normal operation, so flagging it would drown out the
+  // cards that genuinely need attention.
   const statCards = [
     {
       href: null,
       title: 'Bugunku Tahsilat',
       value: fmt(stats.payments.collectedToday),
+      attention: stats.payments.collectedToday > 0,
       icon: <TrendingUp className="h-5 w-5" />,
     },
     {
       href: '/odemeler?method=eft&status=pending',
       title: 'EFT Onay Bekleyen',
       value: String(stats.payments.pendingEftApprovals),
+      attention: stats.payments.pendingEftApprovals > 0,
       icon: <CreditCard className="h-5 w-5" />,
     },
     {
       href: '/hakedisler?status=payout_ready',
       title: 'Hakedis - Vadesi Dolan',
       value: fmt(stats.payouts.payoutReadyTotal),
+      attention: stats.payouts.payoutReadyTotal > 0,
       icon: <Wallet className="h-5 w-5" />,
     },
     {
       href: '/uyusmazliklar?status=open',
       title: 'Acik Uyusmazlik',
       value: String(stats.orders.openDisputes),
+      attention: stats.orders.openDisputes > 0,
       icon: <AlertOctagon className="h-5 w-5" />,
     },
     {
       href: '/siparisler?status=seller_queue_ready,seller_reviewing',
       title: 'Satıcı Kuyruğunda',
       value: String(stats.orders.pendingSellerAction),
+      attention: stats.orders.pendingSellerAction > 0,
       icon: <ShoppingBag className="h-5 w-5" />,
     },
     {
       href: '/siparisler',
       title: 'Geciken Siparis',
       value: String(stats.orders.delayedOrders),
+      attention: stats.orders.delayedOrders > 0,
       icon: <Clock className="h-5 w-5" />,
     },
     {
       href: null,
       title: 'Bloke Hakedis',
       value: fmt(stats.payouts.blockedPayoutTotal),
+      attention: stats.payouts.blockedPayoutTotal > 0,
       icon: <Wallet className="h-5 w-5" />,
     },
     {
       href: '/saticilar?status=active',
       title: 'Aktif Satıcı',
       value: String(stats.sellers.totalActive),
+      attention: false,
       icon: <Store className="h-5 w-5" />,
     },
     {
       href: '/musteri-destek?status=waiting_for_admin',
       title: 'Musteri Destek',
       value: `${stats.customerSupport.newTickets} yeni, ${stats.customerSupport.customerReplied} yanit`,
+      attention: stats.customerSupport.newTickets + stats.customerSupport.customerReplied > 0,
       icon: <LifeBuoy className="h-5 w-5" />,
     },
     {
       href: '/teslim-onayi',
       title: 'Teslim Onayi',
       value: String(stats.orders.pendingDeliveryConfirmation),
+      attention: stats.orders.pendingDeliveryConfirmation > 0,
       icon: <BadgeAlert className="h-5 w-5" />,
     },
     {
       href: '/urunler',
       title: 'Urun Moderasyon',
       value: String(stats.moderation.pendingProducts),
+      attention: stats.moderation.pendingProducts > 0,
       icon: <PackageSearch className="h-5 w-5" />,
     },
     {
       href: '/cezalar?tab=unbilled',
       title: 'Yeni Cezalar',
       value: String(stats.penalties.newCount),
+      attention: stats.penalties.newCount > 0,
       icon: <AlertTriangle className="h-5 w-5" />,
     },
     {
       href: '/komisyonlar',
       title: 'Komisyon Faturasi',
       value: String(stats.invoices.pendingCommission),
+      attention: stats.invoices.pendingCommission > 0,
       icon: <FileWarning className="h-5 w-5" />,
     },
     {
       href: '/uzatma-talepleri',
       title: 'Ek Sure Talebi',
       value: String(stats.extensions.pending),
+      attention: stats.extensions.pending > 0,
       icon: <RefreshCcw className="h-5 w-5" />,
     },
     {
       href: '/iadeler',
       title: 'Iade Talepleri',
       value: String(stats.orders.openReturns),
+      attention: stats.orders.openReturns > 0,
       icon: <RefreshCcw className="h-5 w-5" />,
     },
     {
       href: '/destek',
       title: 'Satıcı Destek',
       value: String(stats.customerSupport.sellerPending),
+      attention: stats.customerSupport.sellerPending > 0,
       icon: <LifeBuoy className="h-5 w-5" />,
     },
   ] as const
@@ -216,6 +244,7 @@ export default async function AdminDashboardPage() {
               title={card.title}
               value={card.value}
               icon={card.icon}
+              tone={card.attention ? 'attention' : 'default'}
               {...(card.href ? { className: 'transition-shadow hover:shadow-sm' } : {})}
             />
           )
@@ -231,11 +260,16 @@ export default async function AdminDashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
-          <h2 className="mb-3 font-semibold" style={{ color: 'var(--color-primary)' }}>Acil Kuyruk</h2>
+          <h2 className="mb-3 font-semibold" style={{ color: 'var(--color-primary)' }}>
+            Acil Kuyruk
+          </h2>
           {urgentItems.length === 0 ? (
             <div
               className="rounded-xl border p-6 text-center text-sm"
-              style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
+              style={{
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-muted-fg)',
+              }}
             >
               Acil bekleyen madde yok.
             </div>
@@ -252,12 +286,16 @@ export default async function AdminDashboardPage() {
                   >
                     <AlertTriangle
                       className="mt-0.5 h-4 w-4 shrink-0"
-                      style={{ color: item.urgent ? 'var(--color-destructive)' : 'var(--color-warning)' }}
+                      style={{
+                        color: item.urgent ? 'var(--color-destructive)' : 'var(--color-warning)',
+                      }}
                     />
                     <div>
                       <p
                         className="text-xs font-semibold uppercase tracking-wide"
-                        style={{ color: item.urgent ? 'var(--color-destructive)' : 'var(--color-warning)' }}
+                        style={{
+                          color: item.urgent ? 'var(--color-destructive)' : 'var(--color-warning)',
+                        }}
                       >
                         {item.type}
                       </p>
@@ -274,14 +312,19 @@ export default async function AdminDashboardPage() {
 
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Son Siparisler</h2>
+            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+              Son Siparisler
+            </h2>
             <Link href="/siparisler" className="text-sm hover:underline" style={{ color: 'var(--color-accent)' }}>
               Tumu →
             </Link>
           </div>
           <div
             className="overflow-hidden rounded-xl border"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+            }}
           >
             {rows.length === 0 ? (
               <p className="p-6 text-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
@@ -305,9 +348,7 @@ export default async function AdminDashboardPage() {
                 <tbody>
                   {rows.map((order) => {
                     const amount =
-                      typeof order.totalAmount === 'number'
-                        ? order.totalAmount
-                        : order.totalAmount.toNumber()
+                      typeof order.totalAmount === 'number' ? order.totalAmount : order.totalAmount.toNumber()
                     const sellerName = order.lines[0]?.seller?.profile?.storeName ?? '-'
 
                     return (
@@ -329,7 +370,10 @@ export default async function AdminDashboardPage() {
                           {sellerName}
                         </td>
                         <td className="px-3 py-2.5 font-medium" style={{ color: 'var(--color-primary)' }}>
-                          {amount.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL
+                          {amount.toLocaleString('tr-TR', {
+                            maximumFractionDigits: 0,
+                          })}{' '}
+                          TL
                         </td>
                         <td className="px-3 py-2.5">
                           <StatusBadge status={order.status as never} />

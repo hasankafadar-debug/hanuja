@@ -11,6 +11,7 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 ## Kalan Gerçek Açıklar
 
 ### 1. Production ortam değişkenleri
+
 - Coolify / production ortamında ödeme, R2, Meilisearch, SMTP, EFT banka bilgileri ve panel URL değişkenleri eksiksiz girilmeli.
 - Deploy öncesi `pnpm check-env --env=prod` çalıştırılmalı.
 - `DATABASE_URL` ve `REDIS_URL` platform tarafından sağlanıyorsa final değerler doğrulanmalı.
@@ -18,59 +19,71 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 - AWS SDK paketleri caret aralığında güncellendiğinde yeni varsayılan davranışlar production akışını değiştirebilir. R2 browser presign client'ı `requestChecksumCalculation: 'WHEN_REQUIRED'` ayarını açıkça sabitler; bu ayar sunucu taraflı R2 client'larına genellenmez.
 
 ### 2. Domain ve panel URL kararı
+
 - Storefront, seller panel ve admin panel için kullanılacak final domainler netleştirilmeli.
 - `NEXT_PUBLIC_APP_URL`, `SELLER_PANEL_URL`, `ADMIN_PANEL_URL` ve auth callback URL'leri bu karara göre hizalanmalı.
 
 ### 3. Shipping sabitlerinin tek kaynakta tutulması
+
 - Ücretsiz kargo eşiği ve sabit kargo ücreti tek domain modülünden tüketilmeli.
 - UI önizlemesi ile backend finans hesabı arasında literal drift oluşmasına izin verilmez.
 
 ### 4. Build / deploy gate doğrulaması
+
 - CI `pnpm build` adımı production-benzeri placeholder env ile yeşil olmalı.
 - Build sırasında import edilen servis yardımcıları top-level env throw ile derlemeyi kırmamalı.
 - DB bağımlı sayfalar build-time prerender zorunluluğu taşımamalı.
 
 ### 5. iyzipay teknik borcu
+
 - `iyzipay` CommonJS paketidir; build warning geri dönerse ayrıca not düşülmeli.
 - Öncelikli yaklaşım warning'i config ile kapatmaktır; warning kalırsa kabul edilen teknik borç olarak açıkça belgelenmelidir.
 
 ### 6. Ürün moderasyon feature flag (`AUTO_APPROVE_CLEAN_PRODUCTS`)
+
 - Varsayılan **kapalı** (`false`). Tüm satıcı ürünleri `pending_review` ile gelir; içerik tarama bulgu üretmediğinde bile admin onayı gerekir.
 - Flag açıldığında bulgu çıkmayan ürünler doğrudan `published` olur. Açma kararı operasyon ekibinindir; rollout kriteri belirlenmeden açılmamalı.
 - Sadece submit yolunda çalışır; mevcut katalog için backfill ayrıdır ve otomatik değildir.
 - `.env.example` ve `tools/scripts/check-env.ts` flag'i bilir; production değeri Coolify env ekranından yönetilir.
 
 ### 8. Müşteri PII satıcı görünürlüğü
+
 - Satıcıya dönen sipariş payload'ları (detay, queue listesi, CSV export) müşteri e-postasını içermez; ad `maskCustomerName` ile "Ahmet Y." formatında gösterilir.
 - Kalıcı email aliasing altyapısı (Faz 4) ayrı epic; geldiğinde aynı select noktasına alias alanı eklenir.
 - Müşteri teslimat telefonu (`address.phone`) kargo/teslimat operasyonu satıcıya ait olduğu için satıcı sipariş payload'larında HAM görünür (iş sahibi kararı, 2026-07-03). E-posta gizli kalır, ad `maskCustomerName` ile maskelenir. `api/repositories/order.repository.ts` içindeki `sellerVisibleAddressSelect` bu kararı üstte kod içi yorumla belgeler; `tests/security/seller-cannot-see-customer-email.test.ts` müşteri e-postasının seçilmediğini doğrular ve telefonun izinli-ham durumunu ayrı bir testte belgeler.
 
 ### 9. Geç sevkiyat günlük ceza birikimi (yeni — 2026-05-09)
+
 - `fulfillment-risk` BullMQ worker artık günlük %1 ceza birikimini idempotent şekilde işler ve 20. günde `cancelled_due_to_20day_breach` auto-cancel + refund tetikler.
 - Eski `fulfillment_20day_breach` reason'ı yeni kayıt üretmez; mevcut kayıtlar audit için korunur.
 - Production cutover sırasında worker çalışıyor olmalı; aksi halde ceza birikimi durur.
 
 ### 10. Admin payout transfer modal & seller invoice akışları
+
 - `Öde` modal'ı `Payout.markPaid` çağrısında `transferDate`, `transferReference`, `transferBankName`, `transferNote`, `paidByAdminId`, `ibanSnapshot`, `accountHolderSnapshot` snapshot'ı yazar.
 - `SellerInvoice` (commission/penalty) yalnızca admin tarafından oluşturulabilir; `invoiceNumber` global unique. Production'a açılmadan önce ilk admin kullanıcılarının `createdByAdminId` foreign-key kısıtını doğru taşıdığı kontrol edilmeli.
 - TODO: `SellerInvoice` create flow şu an ledger entry yazmıyor; commission/ceza fatura kaydının `seller_ledger_entry` `commission_invoice_issued` / `penalty_invoice_issued` türünde tek bir entry üretmesi finance reporting için arzu edilir. Bu eksik şu an blocking değil ama reconciliation raporlarında "fatura kesildi mi?" sorgusu sadece `seller_invoices` tablosunu okumalıdır.
 
 ### 11. Sepet/Checkout finans breakdown (yeni — 2026-05-09)
+
 - Sepette `netSubtotal` + oran-bazlı `taxBreakdown`; checkout'ta ek `eftDiscount` satırı (yalnızca `paymentMethod = eft` ve `eftDiscountRate > 0`).
 - EFT indirimi platform-absorbe: `Order.eftDiscountAmount` müşteri toplamından düşer fakat satıcı `Payout.grossAmount`/`netAmount`'unu etkilemez. Bu yaklaşımı değiştirmek isteyen herhangi bir politika kararı önce finance docs'ta güncellenmeli.
 - Order persistence: `netSubtotal`, `taxBreakdownJson`, `eftDiscountAmount`, `eftDiscountRateSnapshot` snapshot olarak yazılır; admin sipariş detayı bu snapshot'lardan render eder.
 
 ### 12. Para yuvarlama (`roundMoney`) — birleştirildi (2026-07-03)
+
 - `packages/security/src/money.ts` 3. ondalık kuralını uygular (≤5 truncate, ≥6 yukarı yuvarla). Fixture testleri: `tests/unit/round-money.test.ts` + sınır davranışı için `tests/unit/rounding-parity.test.ts`.
 - Birleştirme tamamlandı: `payout-calculator.ts`, `penalty-calculator.ts` ve `seller-invoice.service.ts` nihai para tutarlarında artık `roundMoney` kullanır (`toDecimalPlaces(2)` kaldırıldı; oran/etiket değerleri — ör. günlük ceza oranı `toDecimalPlaces(4)` — para tutarı olmadığı için değişmedi).
 - Cutover notu: birleştirme öncesi persist edilmiş payout/ceza/fatura kayıtları eski yuvarlamayla yazıldı; mutabakatta tarihi kayıtlar için ±0,01 TL tolerans uygulanır (bkz. `docs/07-operations/reconciliation-process.md`).
 
 ### 14. Kupon seller-scope + sipariÅŸ numarasÄ± sequence operasyonu (yeni â€” 2026-05-14)
+
 - `Coupon.sellerId` migration'Ä± deploy zincirinin parÃ§asÄ±dÄ±r; `sellerId = NULL` kuponlar platform-wide kalÄ±r, dolu olan kuponlar yalnÄ±zca ilgili satÄ±cÄ± subtotal'una uygulanÄ±r.
 - `orders_publicNumber_seq` 2026 cohort için `26050000` seviyesine bump edilmiştir; ilk yeni sipariş `26050001` (8 hane, yıl prefix `26`).
 - 2027 yılbaşı operasyon görevi: `ALTER SEQUENCE "orders_publicNumber_seq" RESTART WITH 27050000;` çalıştırılmalı ve ilk yeni siparişte smoke test yapılmalıdır.
 
 ### 15. Satıcı odaklı iade + uyuşmazlık eskalasyonu (yeni — 2026-05-15)
+
 - Migration `20260515140000_seller_driven_return_flow` deploy zincirinin parçasıdır
   (additive; `return_requests` yeni alanlar, `return_requests.disputeId` FK/unique,
   `media_assets.returnMessageId` FK). Deploy öncesi `prisma migrate deploy` + client generate.
@@ -93,6 +106,7 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   ilk etapta kapalı — sıkılaştırma ayrı temizlik işi.
 
 ### 16. Ödeme bağlama doğrulaması + providerPaymentId unique (yeni — 2026-07-03)
+
 - `confirmCardPayment` artık tutar eşitliği (`paidPrice == Order.totalAmount`) ve
   providerRef tekrar kullanımını fail-closed doğrular; callback `conversationId` echo
   ve `fraudStatus=-1` kontrolü yapar. Bkz `docs/05-security/payment-security.md` §7.
@@ -109,6 +123,7 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   `docs/07-operations/production-deploy-runbook.md` adım 4.
 
 ### 17. Komisyon KDV + satıcı kupon payı (yeni — 2026-07-09)
+
 - Migration `coupon_line_share_and_commission_vat` deploy zincirinin parçasıdır (additive):
   `OrderLine.couponDiscountAmount`, `Payout.couponShareAmount`,
   `PlatformSettings.commissionVatRate` (default `0.2000`) alanlarını ekler.
@@ -135,6 +150,7 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   oluşmamıştı; bu script ve sweep bu sınıf hatayı kalıcı olarak kapatır.
 
 ### 18. E-posta altyapısı + kampanya rıza kapısı (2026-07-17)
+
 - **Sağlayıcı güncellemesi (2026-07-18):** Amazon SES production erişimi onaylanmadığı
   (hesap sandbox'ta kaldığı) için outbound SMTP sağlayıcısı **Resend** oldu — bkz. §19.
   Kod değişmedi (`api/lib/mailer.ts` provider-agnostik SMTP); yalnızca env değerleri ve
@@ -158,6 +174,7 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   `docs/06-engineering/queue-jobs-plan.md` §"campaign-discount".
 
 **Bilinen açık uçlar (takip gerektirir, blocking değil):**
+
 - Aşağıdaki transactional şablonlar henüz `escapeHtml` ile HTML-kaçışlı değil (yalnızca yeni
   `productDiscountTemplate` satıcı-kontrollü alanları escape ediyor):
   `orderConfirmationTemplate`, `shipmentNotificationTemplate`, `deliveryConfirmedTemplate`,
@@ -182,6 +199,7 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   (rıza yanlışlıkla geri çekilebilir ama yanlışlıkla açılamaz), risk düşük ama not edilmeli.
 
 ### 19. Resend'e geçiş — outbound e-posta (yeni — 2026-07-18)
+
 - Outbound SMTP sağlayıcısı Amazon SES'ten **Resend**'e taşındı (SES production erişimi
   hiç onaylanmadı, hesap sandbox'ta kaldı). Kod değişikliği yok — `api/lib/mailer.ts`
   saf Nodemailer SMTP'dir; geçiş = Resend domain doğrulaması (DNS) + Coolify env
@@ -214,12 +232,14 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
+
 - gerçek backend entegrasyonu
 - gerçek domain kuralı
 - build-safe import davranışı
 - env bağımlılıklarının açık tanımı
 
 ### 20. Şifre güç politikası + Google ile müşteri girişi (yeni — 2026-07-19)
+
 - Şifre kuralları: müşteri ≥8 karakter + ≥1 harf + ≥1 rakam; satıcı ≥8 karakter + büyük/küçük harf + rakam + sembol. Tüm şifre oluşturma noktalarında (kayıt, sıfırlama, değiştirme, ilk-şifre) istemci + route + Better Auth hooks.before katmanlarıyla zorlanır. Giriş akışları muaf — mevcut zayıf şifreli hesaplar giriş yapabilir. Admin akışları bilinçli olarak kapsam dışı (min 8).
 - Google girişi yalnızca apps/web'de ve env-gated: GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET ikisi de doluysa `/giris` sayfasında “Google ile giriş yap” butonu görünür. Coolify'da yalnızca web servisine girilir.
 - Google Cloud Console'da authorized redirect URI: `{BETTER_AUTH_URL}/api/auth/callback/google` (BETTER_AUTH_URL sürer; prod'da NEXT_PUBLIC_APP_URL ile aynı domain olmalı — teyit edilmeli).
@@ -228,6 +248,7 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - Ayrıca `/hesabim` layout'una sunucu tarafı oturum guard'ı eklendi (oturumsuz kullanıcı `/giris?callbackUrl=/hesabim`'a yönlenir).
 
 ### 21. Medya host geçişi: `media.hanuja.tr` (yeni — 2026-07-22)
+
 - Ürün görseli yükleme üst üste binmiş üç sorunla kırıktı; üçü de çözüldü. Sıra: (1) AWS SDK ≥3.729'un presigned PutObject URL'ine boş gövde CRC32 checksum'ı yazması (commit `5099260`), (2) R2 API token'ındaki Client IP filtresi, (3) `media.hanuja.com.tr`'nin DNS'te hiç var olmaması (commit `a0611d2` + DNS geçişi).
 - **Medya alan adı artık `media.hanuja.tr`.** `R2_PUBLIC_URL=https://media.hanuja.tr`, `R2_PUBLIC_HOSTNAME=media.hanuja.tr`; 4 Coolify servisinde de aynı. `R2_PUBLIC_HOSTNAME` build-time okunduğu için değişiminde restart değil **redeploy** gerekir.
 - **Yalnız `hanuja.tr` Cloudflare'e taşındı** (NS: `matt`/`brianna.ns.cloudflare.com`). `hanuja.com.tr` DNS ve e-posta kayıtlarına (ProMail MX/SPF, Resend DKIM, `send.` return-path, SES yedeği, DMARC) dokunulmadı ve bu bilinçli bir karardır. Ana domaini taşımak ayrı, planlı bir iş olarak ele alınmalı.
@@ -239,6 +260,7 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - Açık takip işi: başarısız yükleme denemelerinden kalan `pending` durumundaki `MediaAsset` kayıtları temizlenmiyor; periyodik sweep yok (blocking değil).
 
 ### 22. Zorunlu yaprak kategori (toplu yükleme) + opsiyonel otomatik barkod (yeni — 2026-07-23)
+
 - **Toplu (Excel) yükleme artık yaprağa kadar zorunlu.** Kademeli kategori seçimi son kategoriye
   inmeden şablon indirilemez/dosya yüklenemez; ara kategoride durulursa butonlar pasif. Şablon yalnız
   seçilen tek yaprağı içerir (eski "üst seviyede durup tüm alt dalları tek dosyaya alma" davranışı
@@ -263,6 +285,7 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   canlıda ürün yoksa taşıma kısmı no-op kalır.
 
 ### 23. Geniş renk paleti + iki-renk + ürün ölçüleri (yeni — 2026-07-24)
+
 - **Renk paleti genişletildi + küratörlü sıralandı.** `db/seeds/attribute-options.ts` `COLORS` aile-gruplu
   sıraya göre yeniden düzenlendi ve 10 yeni renk eklendi: Naturel, Şampanya, Eskitme, Buz Mavisi, Mint Yeşil,
   Eskitme Altın, Rose Altın, Eskitme Gümüş, Pirinç, **Mix** (çok renkli; hex'siz). Metalik finish aileleri
@@ -287,9 +310,45 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   parse/sıralama/validation unit testleriyle (`tests/unit/bulk-product-import.test.ts`) ve typecheck ile
   kapsandı.
 
+### 24. Toplu ürün onayı CSRF hatası + kontrol paneli aksiyon vurgusu (yeni — 2026-07-27)
+
+- **Hata:** admin ürün moderasyonunda "Seçilenleri Onayla" hiçbir ürünü onaylamıyordu ve hata da
+  göstermiyordu. `moderation-table-client.tsx` her ürün için ayrı ham `fetch` atıyordu; hedef route
+  `checkCsrf` uyguladığı ve `Dockerfile.admin-panel` `NODE_ENV=production` sabitlediği için
+  production'da isteklerin tamamı **403** dönüyordu. `Promise.allSettled` HTTP hatasını _başarılı_
+  saydığından ve `res.ok` kontrolü olmadığından operatöre hiçbir şey görünmüyordu. **Yalnız
+  production'da üretilebilir bir hataydı** — `checkCsrf` dev'de `CSRF_STRICT` olmadan sessizce geçer.
+- **Çözüm:** tek sunucu taraflı endpoint `POST /api/admin/products/bulk-approve`
+  (`catalog.service.bulkPublishProducts`). N istek yerine 1 istek; zod ile en fazla 100 id; bütün
+  koşullu yazmalar tek transaction içinde. İstemci `csrfFetch` kullanır, `res.ok` kontrol eder ve sonucu ekranda
+  raporlar ("X onaylandı, Y atlandı").
+- **Durum guard'ı (davranış değişikliği):** artık yalnız `pending_review` ürünler onaylanabilir; hem
+  tekli hem toplu yol. Önceden `publishProduct` guard'sızdı ve `rejected`/`draft`/`unlisted` bir ürünü
+  de yayına alabiliyordu. Toplu yolda uygun olmayan id'ler hata değil `skipped` olarak döner.
+- **Kalıcı guard:** `tests/security/admin-csrf-fetch-usage.test.ts` CSRF korumalı route'ları route
+  dosyalarından türetir ve bunlara ham `fetch` ile giden her admin istemci çağrısını yakalar. Yeni bir
+  route `checkCsrf` uygulamaya başladığında çağıranları otomatik kapsama alır.
+- **Migration YOK, yeni env YOK.** Zorunlu redeploy yalnız **admin-panel**. `packages/ui` `StatCard`
+  değişikliği eklemelidir (`tone` prop'u, varsayılan `'default'`) ve varsayılan görünüm bugünküyle
+  aynıdır — seller-panel redeploy edilmezse de görünümü değişmez.
+- **Kontrol paneli:** stat kartları değeri > 0 olduğunda açık yeşil vurgulanır (`tone="attention"`,
+  `#f0fdf4` zemin / `#86efac` kenarlık / `text-success` rakam). `Aktif Satıcı` bilinçli olarak hariç —
+  sürekli > 0 olduğu için sinyali öldürür. Bu, kod tabanının geri kalanında yeşilin "tamamlandı"
+  anlamı taşımasına göre bilinçli bir istisnadır (iş sahibi kararı); okuma "yeşil = bu kuyrukta iş var".
+- **Not (kapsam dışı, güvenlik takibi):** yeni bulk route dahil admin panelinde 75 API route dosyası
+  vardır; 56'sı POST/PUT/PATCH/DELETE mutasyonu içerir. Bunların 9'u `checkCsrf` çağırıyor, EFT onayı,
+  ceza affı ve hakediş serbest bırakma dahil 47 mutasyon route dosyası CSRF korumasızdır.
+  Ayrı bir güvenlik işi olarak ele alınmalı.
+- **Not:** `apps/admin-panel/` altındaki iki middleware dosyasından build manifestine göre aktif olan
+  `src/middleware.ts`'dir (yalnız CSRF cookie + iki güvenlik başlığı); kökteki admin rolü ve ek
+  güvenlik başlıklarını içeren `middleware.ts` bundle'a girmez. Panel sayfaları ayrıca `(panel)`
+  layout'undaki `getAdminSession` ile admin rolünü doğrular. Middleware'ler ayrı bir güvenlik işinde
+  tek kaynakta birleştirilmelidir.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
+
 - gerçek backend entegrasyonu
 - gerçek domain kuralı
 - build-safe import davranışı

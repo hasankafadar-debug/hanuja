@@ -21,10 +21,7 @@ import { buildSlugWithSuffix, isValidSlug, normalizeSlug } from '../domain/slug'
 import { computeCustomerVisibleCategoryIds } from '../domain/category-visibility'
 import { assertLeafCategory } from '../domain/category-selection'
 import { buildPublicProductWhere } from '../domain/product-visibility'
-import {
-  selectCampaignDiscountShowcase,
-  selectWeeklyFavoriteShowcase,
-} from '../domain/homepage-showcase'
+import { selectCampaignDiscountShowcase, selectWeeklyFavoriteShowcase } from '../domain/homepage-showcase'
 import { enqueueCategorySync, enqueueProductSync } from '../jobs/search-index-sync.job'
 import { deleteObject } from '../lib/r2'
 import { requireModelCode } from '../domain/model-code'
@@ -88,10 +85,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
   }
 
   async function loadCustomerVisibleCategoryData() {
-    const [all, counts] = await Promise.all([
-      categories.findAll(),
-      products.countPublishedGroupedByCategory(),
-    ])
+    const [all, counts] = await Promise.all([categories.findAll(), products.countPublishedGroupedByCategory()])
     const countByCategoryId = new Map<string, number>()
     for (const row of counts) {
       if (row.categoryId !== null) countByCategoryId.set(row.categoryId, row._count._all)
@@ -156,12 +150,8 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         ])
       : [[], []]
 
-    const favoriteCountMap = new Map(
-      favoriteCounts.map((row) => [row.productId, row._count.productId]),
-    )
-    const salesCountMap = new Map(
-      salesCounts.map((row) => [row.productId, row._sum.quantity ?? 0]),
-    )
+    const favoriteCountMap = new Map(favoriteCounts.map((row) => [row.productId, row._count.productId]))
+    const salesCountMap = new Map(salesCounts.map((row) => [row.productId, row._sum.quantity ?? 0]))
 
     return pricedItems.map((item) => {
       const currentPrice = item.price.toNumber()
@@ -249,10 +239,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
     })
   }
 
-  async function ensureUniqueIdentifiers(params: {
-    barcode?: string | null
-    excludeProductId?: string
-  }) {
+  async function ensureUniqueIdentifiers(params: { barcode?: string | null; excludeProductId?: string }) {
     const normalizedBarcode = params.barcode?.trim() || null
 
     if (normalizedBarcode) {
@@ -260,7 +247,11 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         where: {
           barcode: normalizedBarcode,
           ...(params.excludeProductId
-            ? { NOT: { OR: [{ productId: params.excludeProductId }, { variant: { productId: params.excludeProductId } }] } }
+            ? {
+                NOT: {
+                  OR: [{ productId: params.excludeProductId }, { variant: { productId: params.excludeProductId } }],
+                },
+              }
             : {}),
         },
         select: { barcode: true },
@@ -309,16 +300,18 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
 
   async function syncProductVisibility(productId: string, previousStatus: ProductStatus, nextStatus: ProductStatus) {
     if (nextStatus === 'published') {
-      await enqueueProductSync({ operation: 'upsert', entityId: productId }).catch((err) =>
-        console.error('[catalog] Search sync enqueue failed (upsert):', err),
-      )
+      await enqueueProductSync({
+        operation: 'upsert',
+        entityId: productId,
+      }).catch((err) => console.error('[catalog] Search sync enqueue failed (upsert):', err))
       return
     }
 
     if (previousStatus === 'published') {
-      await enqueueProductSync({ operation: 'delete', entityId: productId }).catch((err) =>
-        console.error('[catalog] Search sync enqueue failed (delete):', err),
-      )
+      await enqueueProductSync({
+        operation: 'delete',
+        entityId: productId,
+      }).catch((err) => console.error('[catalog] Search sync enqueue failed (delete):', err))
     }
   }
 
@@ -371,8 +364,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
     }) {
       const candidates = await loadPublishedCandidates(params)
       const enriched = await enrichPublishedProducts(candidates)
-      const filtered =
-        params.onSaleOnly === true ? enriched.filter((item) => item.isOnSale) : enriched
+      const filtered = params.onSaleOnly === true ? enriched.filter((item) => item.isOnSale) : enriched
       const sorted = sortCuratedProducts(filtered, params.sortBy ?? 'newest')
       const start = params.skip ?? 0
       const end = start + (params.take ?? 20)
@@ -462,10 +454,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       if (!category) throw new NotFoundError('Category', params.categoryId)
       assertLeafCategory(category)
 
-      if (
-        params.compareAtPrice &&
-        params.compareAtPrice.toNumber() <= params.price.toNumber()
-      ) {
+      if (params.compareAtPrice && params.compareAtPrice.toNumber() <= params.price.toNumber()) {
         throw new ValidationError('Liste fiyatı satış fiyatından büyük olmalıdır.')
       }
 
@@ -475,12 +464,11 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
 
       const slug = await resolveUniqueProductSlug(params.slugOverride ?? params.name)
 
-      const effectiveBarcode =
-        params.barcode?.trim()
-          ? params.barcode.trim()
-          : params.autoGenerateBarcodeWhenMissing
-            ? await generateUniqueProductBarcode(prisma)
-            : null
+      const effectiveBarcode = params.barcode?.trim()
+        ? params.barcode.trim()
+        : params.autoGenerateBarcodeWhenMissing
+          ? await generateUniqueProductBarcode(prisma)
+          : null
 
       await ensureUniqueIdentifiers({
         barcode: effectiveBarcode,
@@ -564,13 +552,9 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       }
 
       const nextPrice = params.price ?? product.price
-      const nextCompareAtPrice =
-        params.compareAtPrice === undefined ? product.compareAtPrice : params.compareAtPrice
+      const nextCompareAtPrice = params.compareAtPrice === undefined ? product.compareAtPrice : params.compareAtPrice
 
-      if (
-        nextCompareAtPrice &&
-        nextCompareAtPrice.toNumber() <= nextPrice.toNumber()
-      ) {
+      if (nextCompareAtPrice && nextCompareAtPrice.toNumber() <= nextPrice.toNumber()) {
         throw new ValidationError('Liste fiyatı satış fiyatından büyük olmalıdır.')
       }
 
@@ -605,16 +589,12 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
           })
         : null
       const nextStatus =
-        moderation === null
-          ? product.status
-          : product.status === 'published'
-            ? 'published'
-            : moderation.status
+        moderation === null ? product.status : product.status === 'published' ? 'published' : moderation.status
       const nextPublishedAt =
         moderation === null
           ? product.publishedAt
           : nextStatus === 'published'
-            ? product.publishedAt ?? new Date()
+            ? (product.publishedAt ?? new Date())
             : null
 
       const updated = await prisma.product.update({
@@ -663,9 +643,14 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
     async publishProduct(id: string, _adminActorId: string) {
       const product = await products.findById(id)
       if (!product) throw new NotFoundError('Product', id)
+      if (product.status !== 'pending_review') {
+        throw new ValidationError('Yalnizca inceleme bekleyen urunler onaylanabilir.')
+      }
 
-      const updated = await prisma.product.update({
-        where: { id },
+      const [updated] = await prisma.product.updateManyAndReturn({
+        // Keep the state guard in the write itself. A concurrent reject/unlist
+        // between the read above and this update must never be overwritten.
+        where: { id, status: 'pending_review' },
         data: {
           status: 'published',
           publishedAt: product.publishedAt ?? new Date(),
@@ -673,10 +658,91 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
           rejectionReason: null,
         },
       })
+      if (!updated) {
+        throw new ValidationError('Urun artik inceleme beklemiyor. Sayfayi yenileyip tekrar deneyin.')
+      }
 
       await syncProductVisibility(id, product.status, 'published')
 
       return updated
+    },
+
+    /**
+     * Approves many pending products in one server-side pass.
+     *
+     * Exists because the admin moderation table used to fan out one HTTP request
+     * per product, which made partial failure invisible to the operator. Callers
+     * get an explicit per-id outcome so the UI can always report what happened.
+     *
+     * Non-pending and unknown ids are skipped rather than failing the batch — a
+     * stale selection carried over from another page must not force-publish a
+     * rejected or draft product.
+     */
+    async bulkPublishProducts(ids: string[], _adminActorId: string) {
+      const uniqueIds = [...new Set(ids)]
+
+      const now = new Date()
+      const result = await prisma.$transaction(async (tx) => {
+        // Two guarded writes preserve a previous publication date while stamping
+        // first-time publications. updateManyAndReturn reports only rows that this
+        // transaction actually changed, so concurrent moderation is never
+        // misreported as our approval.
+        const firstPublications = await tx.product.updateManyAndReturn({
+          where: {
+            id: { in: uniqueIds },
+            status: 'pending_review',
+            publishedAt: null,
+          },
+          data: {
+            status: 'published',
+            publishedAt: now,
+            rejectedAt: null,
+            rejectionReason: null,
+          },
+          select: { id: true },
+        })
+        const republications = await tx.product.updateManyAndReturn({
+          where: {
+            id: { in: uniqueIds },
+            status: 'pending_review',
+            publishedAt: { not: null },
+          },
+          data: {
+            status: 'published',
+            rejectedAt: null,
+            rejectionReason: null,
+          },
+          select: { id: true },
+        })
+
+        const approvedSet = new Set([
+          ...firstPublications.map((product) => product.id),
+          ...republications.map((product) => product.id),
+        ])
+        const approved = uniqueIds.filter((id) => approvedSet.has(id))
+        const remainingIds = uniqueIds.filter((id) => !approvedSet.has(id))
+        const remaining =
+          remainingIds.length > 0
+            ? await tx.product.findMany({
+                where: { id: { in: remainingIds } },
+                select: { id: true },
+              })
+            : []
+        const remainingSet = new Set(remaining.map((product) => product.id))
+        const skipped = remainingIds.map((id) => ({
+          id,
+          reason: remainingSet.has(id) ? ('not_pending' as const) : ('not_found' as const),
+        }))
+
+        return { approved, skipped }
+      })
+
+      // Search indexing is a read projection — it must never undo an approval
+      // that is already committed, and one slow enqueue must not serialize the
+      // whole batch.
+      await Promise.allSettled(result.approved.map((id) => syncProductVisibility(id, 'pending_review', 'published')))
+
+      return result
     },
 
     async unpublishProduct(id: string, sellerId: string) {
@@ -753,30 +819,35 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       const product = await products.findById(id)
       if (!product) throw new NotFoundError('Product', id)
 
-      const linkedOrderLineCount = await prisma.orderLine.count({ where: { productId: id } })
+      const linkedOrderLineCount = await prisma.orderLine.count({
+        where: { productId: id },
+      })
       if (linkedOrderLineCount > 0) {
         throw new ProductHasOrderHistoryError(linkedOrderLineCount)
       }
 
       const imageUrls = product.images.map((image) => image.url)
-      const mediaAssets = imageUrls.length > 0
-        ? await prisma.mediaAsset.findMany({
-            where: {
-              url: { in: imageUrls },
-              homeSlideMedia: { none: {} },
-              homeSlidePoster: { none: {} },
-              homePromoMedia: { none: {} },
-              supportAttachments: { none: {} },
-              customerSupportAttachments: { none: {} },
-            },
-            select: { id: true, key: true },
-          })
-        : []
+      const mediaAssets =
+        imageUrls.length > 0
+          ? await prisma.mediaAsset.findMany({
+              where: {
+                url: { in: imageUrls },
+                homeSlideMedia: { none: {} },
+                homeSlidePoster: { none: {} },
+                homePromoMedia: { none: {} },
+                supportAttachments: { none: {} },
+                customerSupportAttachments: { none: {} },
+              },
+              select: { id: true, key: true },
+            })
+          : []
 
       await prisma.$transaction(async (tx) => {
         await tx.cartItem.deleteMany({ where: { productId: id } })
         if (mediaAssets.length > 0) {
-          await tx.mediaAsset.deleteMany({ where: { id: { in: mediaAssets.map((asset) => asset.id) } } })
+          await tx.mediaAsset.deleteMany({
+            where: { id: { in: mediaAssets.map((asset) => asset.id) } },
+          })
         }
         await tx.product.delete({ where: { id } })
         await tx.adminAuditLog.create({
@@ -898,11 +969,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return updated
     },
 
-    async updateCategoryTaxGroupForAdmin(params: {
-      categoryIds: string[]
-      taxRate: number | null
-      actorId: string
-    }) {
+    async updateCategoryTaxGroupForAdmin(params: { categoryIds: string[]; taxRate: number | null; actorId: string }) {
       const categoryIds = [...new Set(params.categoryIds.map((id) => id.trim()).filter(Boolean))]
       if (categoryIds.length === 0) {
         throw new ValidationError('En az bir kategori seçilmelidir.')
@@ -982,7 +1049,11 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       for (const row of params.rows) {
         const identifier = row.identifier.trim()
         if (!identifier) {
-          results.push({ identifier, status: 'invalid', message: 'Kimlik alanı boş olamaz' })
+          results.push({
+            identifier,
+            status: 'invalid',
+            message: 'Kimlik alanı boş olamaz',
+          })
           continue
         }
 
@@ -1000,7 +1071,11 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         })
 
         if (!product) {
-          results.push({ identifier, status: 'not_found', message: 'Ürün bulunamadı' })
+          results.push({
+            identifier,
+            status: 'not_found',
+            message: 'Ürün bulunamadı',
+          })
           continue
         }
 
@@ -1051,9 +1126,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
      * Returns every leaf category under the given parent slug.
      * Leaf means active category without children.
      */
-    async getLeafDescendants(
-      parentSlug: string,
-    ): Promise<Array<{ id: string; slug: string; name: string }>> {
+    async getLeafDescendants(parentSlug: string): Promise<Array<{ id: string; slug: string; name: string }>> {
       const all = await categories.findAll()
       const byId = new Map(all.map((category) => [category.id, category]))
       const childrenOf = new Map<string | null, typeof all>()
@@ -1084,24 +1157,24 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return leaves
     },
 
-    async getHomepageFeaturedProducts(
-      groups: Array<{ key: string; categoryIds: string[] }>,
-    ) {
+    async getHomepageFeaturedProducts(groups: Array<{ key: string; categoryIds: string[] }>) {
       const picks: Array<Awaited<ReturnType<typeof enrichPublishedProducts>>[number]> = []
       const pickedIds = new Set<string>()
 
       for (const group of groups) {
-        const candidates = await loadPublishedCandidates({ categoryIds: group.categoryIds })
+        const candidates = await loadPublishedCandidates({
+          categoryIds: group.categoryIds,
+        })
         const enriched = await enrichPublishedProducts(candidates)
         const best = [...enriched]
           .filter((item) => !pickedIds.has(item.id))
           .sort((left, right) => {
-          return (
-            right.salesCount - left.salesCount ||
-            Number(right.isOnSale) - Number(left.isOnSale) ||
-            right.rankingDate.getTime() - left.rankingDate.getTime() ||
-            left.name.localeCompare(right.name, 'tr')
-          )
+            return (
+              right.salesCount - left.salesCount ||
+              Number(right.isOnSale) - Number(left.isOnSale) ||
+              right.rankingDate.getTime() - left.rankingDate.getTime() ||
+              left.name.localeCompare(right.name, 'tr')
+            )
           })[0]
 
         if (best) {
@@ -1122,10 +1195,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
      * getHomepageFeaturedProducts ile benzer maliyet profili); anasayfa
      * revalidate=300 (5 dk ISR) olduğundan kabul edilebilir.
      */
-    async getWeeklyFavoriteShowcase(
-      groups: Array<{ key: string; categoryIds: string[] }>,
-      limit = 20,
-    ) {
+    async getWeeklyFavoriteShowcase(groups: Array<{ key: string; categoryIds: string[] }>, limit = 20) {
       const sevenDaysAgo = new Date()
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 

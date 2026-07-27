@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Badge, Button } from '@hanuja/ui'
+import { csrfFetch } from '@/lib/csrf-fetch'
 import { ProductModerationActions } from '@/components/product-moderation-actions'
 
 type ProductRow = {
@@ -17,7 +18,13 @@ type ProductRow = {
   defaultRejectReason: string
 }
 
-const STATUS_MAP: Record<ProductRow['status'], { label: string; variant: 'warning' | 'success' | 'destructive' | 'secondary' }> = {
+const STATUS_MAP: Record<
+  ProductRow['status'],
+  {
+    label: string
+    variant: 'warning' | 'success' | 'destructive' | 'secondary'
+  }
+> = {
   pending_review: { label: 'Inceleme bekliyor', variant: 'warning' },
   published: { label: 'Yayinda', variant: 'success' },
   rejected: { label: 'Reddedildi', variant: 'destructive' },
@@ -29,17 +36,25 @@ export function ModerationTableClient({ rows }: { rows: ProductRow[] }) {
   const router = useRouter()
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null)
 
   const selectableIds = useMemo(
     () => rows.filter((row) => row.status === 'pending_review').map((row) => row.id),
     [rows],
   )
-  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id))
+  const selectableIdSet = useMemo(() => new Set(selectableIds), [selectableIds])
+
+  // Filtering or paging re-renders the server component but keeps this client
+  // component mounted, so selectedIds can still hold ids from a page the admin
+  // has navigated away from. Only ever act on ids that are currently on screen.
+  const visibleSelectedIds = useMemo(
+    () => selectedIds.filter((id) => selectableIdSet.has(id)),
+    [selectedIds, selectableIdSet],
+  )
+  const allSelected = selectableIds.length > 0 && visibleSelectedIds.length === selectableIds.length
 
   function toggleOne(id: string) {
-    setSelectedIds((current) =>
-      current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id],
-    )
+    setSelectedIds((current) => (current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]))
   }
 
   function toggleAll() {
@@ -47,17 +62,40 @@ export function ModerationTableClient({ rows }: { rows: ProductRow[] }) {
   }
 
   async function handleBulkApprove() {
-    if (selectedIds.length === 0) return
-    const confirmed = window.confirm(`${selectedIds.length} urun onaylansin mi?`)
+    if (visibleSelectedIds.length === 0) return
+    const confirmed = window.confirm(`${visibleSelectedIds.length} urun onaylansin mi?`)
     if (!confirmed) return
 
     setBulkLoading(true)
+    setBulkMessage(null)
     try {
-      await Promise.allSettled(
-        selectedIds.map((id) => fetch(`/api/admin/products/${id}/approve`, { method: 'POST' })),
+      const response = await csrfFetch('/api/admin/products/bulk-approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: visibleSelectedIds }),
+      })
+      const payload = (await response.json().catch(() => ({}))) as {
+        message?: string
+        approved?: string[]
+        skipped?: Array<{ id: string; reason: string }>
+      }
+
+      if (!response.ok) {
+        setBulkMessage(payload.message ?? 'Urunler onaylanamadi.')
+        return
+      }
+
+      const approvedCount = payload.approved?.length ?? 0
+      const skippedCount = payload.skipped?.length ?? 0
+      setBulkMessage(
+        skippedCount > 0
+          ? `${approvedCount} urun onaylandi, ${skippedCount} urun atlandi (artik inceleme beklemiyor).`
+          : `${approvedCount} urun onaylandi.`,
       )
       setSelectedIds([])
       router.refresh()
+    } catch {
+      setBulkMessage('Urunler onaylanamadi. Lutfen tekrar deneyin.')
     } finally {
       setBulkLoading(false)
     }
@@ -66,7 +104,10 @@ export function ModerationTableClient({ rows }: { rows: ProductRow[] }) {
   return (
     <div
       className="overflow-x-auto rounded-xl border"
-      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+      style={{
+        borderColor: 'var(--color-border)',
+        backgroundColor: 'var(--color-surface)',
+      }}
     >
       <div
         className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"
@@ -81,10 +122,23 @@ export function ModerationTableClient({ rows }: { rows: ProductRow[] }) {
           />
           Tumunu Sec
         </label>
-        <Button size="sm" onClick={handleBulkApprove} disabled={selectedIds.length === 0 || bulkLoading}>
-          {bulkLoading ? 'Onaylaniyor...' : `Secilenleri Onayla (${selectedIds.length})`}
+        <Button size="sm" onClick={handleBulkApprove} disabled={visibleSelectedIds.length === 0 || bulkLoading}>
+          {bulkLoading ? 'Onaylaniyor...' : `Secilenleri Onayla (${visibleSelectedIds.length})`}
         </Button>
       </div>
+
+      {bulkMessage ? (
+        <p
+          className="border-b px-4 py-3 text-sm"
+          style={{
+            borderColor: 'var(--color-border)',
+            color: 'var(--color-primary)',
+          }}
+          role="status"
+        >
+          {bulkMessage}
+        </p>
+      ) : null}
 
       <table className="w-full whitespace-nowrap text-sm">
         <thead style={{ backgroundColor: 'var(--color-muted)' }}>
