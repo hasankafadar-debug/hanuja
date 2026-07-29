@@ -12,7 +12,7 @@
  * Medya referans güvenliği: silme öncesi referans sayısı kontrol edilir — kullanımdaki
  * asset'ler silinemez (MediaAsset silme işlemi media.service üzerinden yapılır).
  */
-import type { PrismaClient, HomePromoSlot, AdminActionType } from '@prisma/client'
+import type { PrismaClient, HomePromoSlot, AdminActionType, MediaAssetKind } from '@prisma/client'
 import { NotFoundError, ValidationError } from '../lib/errors'
 
 export interface HomeCmsServiceDeps {
@@ -126,7 +126,61 @@ const mediaAssetSelect = {
   sizeBytes: true,
 } as const
 
+const ADMIN_CMS_FOLDERS = new Set(['slider', 'promo', 'blog', 'general'])
+const SLIDE_MEDIA_KINDS = new Set<MediaAssetKind>(['image', 'video'])
+const IMAGE_MEDIA_KINDS = new Set<MediaAssetKind>(['image'])
+
 export function createHomeCmsService({ prisma }: HomeCmsServiceDeps) {
+  async function getSelectableMediaAsset(
+    assetId: string,
+    actorId: string,
+    allowedKinds: ReadonlySet<MediaAssetKind>,
+  ) {
+    const asset = await prisma.mediaAsset.findUnique({
+      where: { id: assetId },
+      select: {
+        id: true,
+        kind: true,
+        url: true,
+        folder: true,
+        status: true,
+        uploadedBy: true,
+      },
+    })
+    if (!asset) throw new NotFoundError('Medya dosyası')
+    if (asset.status !== 'ready') {
+      throw new ValidationError('Yalnızca yüklemesi tamamlanmış medya dosyaları kullanılabilir.')
+    }
+    if (!allowedKinds.has(asset.kind)) {
+      throw new ValidationError('Bu alan için seçilen medya türü kullanılamaz.')
+    }
+
+    const isAdminMedia =
+      asset.uploadedBy === actorId && asset.folder !== null && ADMIN_CMS_FOLDERS.has(asset.folder)
+
+    if (isAdminMedia) return asset
+
+    if (asset.kind === 'image' && asset.folder === 'products') {
+      const publishedProductImage = await prisma.productImage.findFirst({
+        where: {
+          url: asset.url,
+          product: {
+            status: 'published',
+            seller: {
+              userId: asset.uploadedBy,
+            },
+          },
+        },
+        select: { id: true },
+      })
+      if (publishedProductImage) return asset
+    }
+
+    throw new ValidationError(
+      'Medya, admin havuzuna veya yayındaki bir satıcı ürününe ait olmalıdır.',
+    )
+  }
+
   // ---------------------------------------------------------------------------
   // Storefront okuma — cache edilir, performans kritik
   // ---------------------------------------------------------------------------
@@ -233,9 +287,13 @@ export function createHomeCmsService({ prisma }: HomeCmsServiceDeps) {
   async function createSlide(input: CreateSlideInput) {
     const { actorId, ...data } = input
 
-    // Video ise poster zorunlu
-    const asset = await prisma.mediaAsset.findUnique({ where: { id: data.mediaAssetId } })
-    if (!asset) throw new NotFoundError('Medya dosyası bulunamadı.')
+    const [asset] = await Promise.all([
+      getSelectableMediaAsset(data.mediaAssetId, actorId, SLIDE_MEDIA_KINDS),
+      ...(data.posterAssetId
+        ? [getSelectableMediaAsset(data.posterAssetId, actorId, IMAGE_MEDIA_KINDS)]
+        : []),
+    ])
+
     if (asset.kind === 'video' && !data.posterAssetId) {
       throw new ValidationError('Video slaytlarda poster görseli zorunludur.')
     }
@@ -265,7 +323,11 @@ export function createHomeCmsService({ prisma }: HomeCmsServiceDeps) {
           actionType: 'home_slide_created' as AdminActionType,
           targetType: 'home_slide',
           targetId: created.id,
-          newData: { title: created.title, mediaAssetId: created.mediaAssetId, sortOrder: created.sortOrder },
+          newData: {
+            title: created.title,
+            mediaAssetId: created.mediaAssetId,
+            sortOrder: created.sortOrder,
+          },
         },
       })
 
@@ -279,24 +341,32 @@ export function createHomeCmsService({ prisma }: HomeCmsServiceDeps) {
     const { actorId, ...data } = input
     const existing = await getSlideById(id)
 
-    // Video'ya geçiş yapılıyorsa poster kontrolü
-    const targetMediaId = data.mediaAssetId ?? existing.mediaAssetId
-    if (data.mediaAssetId) {
-      const asset = await prisma.mediaAsset.findUnique({ where: { id: data.mediaAssetId } })
-      if (!asset) throw new NotFoundError('Medya dosyası bulunamadı.')
-      const newPoster = data.posterAssetId !== undefined ? data.posterAssetId : existing.posterAssetId
-      if (asset.kind === 'video' && !newPoster) {
-        throw new ValidationError('Video slaytlarda poster görseli zorunludur.')
-      }
+    let targetMediaKind = existing.mediaAsset.kind
+    if (data.mediaAssetId && data.mediaAssetId !== existing.mediaAssetId) {
+      const asset = await getSelectableMediaAsset(data.mediaAssetId, actorId, SLIDE_MEDIA_KINDS)
+      targetMediaKind = asset.kind
     }
-    void targetMediaId
+
+    if (data.posterAssetId && data.posterAssetId !== existing.posterAssetId) {
+      await getSelectableMediaAsset(data.posterAssetId, actorId, IMAGE_MEDIA_KINDS)
+    }
+
+    const targetPosterId =
+      data.posterAssetId !== undefined ? data.posterAssetId : existing.posterAssetId
+    if (targetMediaKind === 'video' && !targetPosterId) {
+      throw new ValidationError('Video slaytlarda poster görseli zorunludur.')
+    }
 
     const slide = await prisma.$transaction(async (tx) => {
       const updated = await tx.homeSlide.update({
         where: { id },
         data: {
-          ...(data.mediaAssetId !== undefined && { mediaAssetId: data.mediaAssetId }),
-          ...(data.posterAssetId !== undefined && { posterAssetId: data.posterAssetId }),
+          ...(data.mediaAssetId !== undefined && {
+            mediaAssetId: data.mediaAssetId,
+          }),
+          ...(data.posterAssetId !== undefined && {
+            posterAssetId: data.posterAssetId,
+          }),
           ...(data.eyebrow !== undefined && { eyebrow: data.eyebrow }),
           ...(data.title !== undefined && { title: data.title }),
           ...(data.body !== undefined && { body: data.body }),
@@ -363,9 +433,7 @@ export function createHomeCmsService({ prisma }: HomeCmsServiceDeps) {
 
     await prisma.$transaction(async (tx) => {
       await Promise.all(
-        ids.map((id, index) =>
-          tx.homeSlide.update({ where: { id }, data: { sortOrder: index } }),
-        ),
+        ids.map((id, index) => tx.homeSlide.update({ where: { id }, data: { sortOrder: index } })),
       )
 
       await tx.adminAuditLog.create({
@@ -383,14 +451,11 @@ export function createHomeCmsService({ prisma }: HomeCmsServiceDeps) {
   // Promo slot upsert — her slot için tek kayıt (unique constraint ile garanti edilir)
   async function upsertPromo(slot: HomePromoSlot, input: UpsertPromoInput) {
     const { actorId, ...data } = input
-
-    const asset = await prisma.mediaAsset.findUnique({ where: { id: data.mediaAssetId } })
-    if (!asset) throw new NotFoundError('Medya dosyası bulunamadı.')
-    if (asset.kind === 'video') {
-      throw new ValidationError('Promo kartlarda video kullanılamaz, yalnızca görsel kabul edilir.')
-    }
-
     const existing = await prisma.homePromo.findUnique({ where: { slot } })
+
+    if (!existing || existing.mediaAssetId !== data.mediaAssetId) {
+      await getSelectableMediaAsset(data.mediaAssetId, actorId, IMAGE_MEDIA_KINDS)
+    }
 
     const promo = await prisma.$transaction(async (tx) => {
       const upserted = await tx.homePromo.upsert({
@@ -424,7 +489,12 @@ export function createHomeCmsService({ prisma }: HomeCmsServiceDeps) {
           targetType: 'home_promo',
           targetId: upserted.id,
           ...(existing
-            ? { previousData: { title: existing.title, isActive: existing.isActive } }
+            ? {
+                previousData: {
+                  title: existing.title,
+                  isActive: existing.isActive,
+                },
+              }
             : {}),
           newData: { slot, title: upserted.title, isActive: upserted.isActive },
         },

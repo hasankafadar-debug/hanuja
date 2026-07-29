@@ -220,6 +220,7 @@ export function PromoEditor({ slot, title, promo, onRefresh, onMessage }: Props)
         onClose={() => setPickerOpen(false)}
         acceptKind="image"
         folder="promo"
+        allowSellerProducts
         onSelect={setMediaAsset}
       />
     </div>

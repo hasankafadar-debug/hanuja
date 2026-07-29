@@ -12,4 +12,14 @@ export interface MediaAssetItem {
   variants: Record<string, string> | null
   status: string
   createdAt: string
+  source?: 'admin' | 'seller-products'
+  product?: {
+    id: string
+    name: string
+    modelCode: string
+  }
+  seller?: {
+    id: string
+    displayName: string
+  }
 }

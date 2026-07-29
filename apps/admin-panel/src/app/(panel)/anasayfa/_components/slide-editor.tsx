@@ -318,6 +318,7 @@ export function SlideEditor({ open, slide, sellers, nextSortOrder, onClose, onSa
         onClose={() => setPicker(null)}
         acceptKind={picker === 'poster' ? 'image' : 'all'}
         folder="slider"
+        allowSellerProducts
         onSelect={(asset) => {
           if (picker === 'poster') {
             setPosterAsset(asset)

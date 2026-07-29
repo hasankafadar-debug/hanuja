@@ -7,6 +7,8 @@ import { MediaAssetCard } from './media-asset-card'
 import { MediaUploader } from './media-uploader'
 import type { MediaAssetItem } from './types'
 
+export type MediaLibrarySource = 'admin' | 'seller-products'
+
 const KIND_OPTIONS = [
   { value: 'all', label: 'Tümü' },
   { value: 'image', label: 'Görsel' },
@@ -27,6 +29,7 @@ interface MediaLibraryClientProps {
   onAssetSelect?: (asset: MediaAssetItem) => void
   acceptKind?: 'image' | 'video' | 'all'
   initialFolder?: string
+  source?: MediaLibrarySource
 }
 
 export function MediaLibraryClient({
@@ -34,8 +37,12 @@ export function MediaLibraryClient({
   onAssetSelect,
   acceptKind = 'all',
   initialFolder = 'all',
+  source = 'admin',
 }: MediaLibraryClientProps) {
-  const [kind, setKind] = useState<string>(acceptKind === 'all' ? 'all' : acceptKind)
+  const isSellerProducts = source === 'seller-products'
+  const [kind, setKind] = useState<string>(
+    isSellerProducts ? 'image' : acceptKind === 'all' ? 'all' : acceptKind,
+  )
   const [folder, setFolder] = useState(initialFolder)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -60,9 +67,10 @@ export function MediaLibraryClient({
     setLoading(true)
     try {
       const params = new URLSearchParams({
+        source,
         page: String(page),
-        ...(kind !== 'all' ? { kind } : {}),
-        ...(folder !== 'all' ? { folder } : {}),
+        ...(!isSellerProducts && kind !== 'all' ? { kind } : {}),
+        ...(!isSellerProducts && folder !== 'all' ? { folder } : {}),
         ...(debouncedSearch ? { search: debouncedSearch } : {}),
       })
       const res = await fetch(`/api/admin/media?${params.toString()}`)
@@ -82,7 +90,7 @@ export function MediaLibraryClient({
     } finally {
       setLoading(false)
     }
-  }, [kind, folder, debouncedSearch, page])
+  }, [source, isSellerProducts, kind, folder, debouncedSearch, page])
 
   useEffect(() => {
     void fetchAssets()
@@ -112,47 +120,60 @@ export function MediaLibraryClient({
     <div className="space-y-4">
       {/* Filtre bar + Yükle */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Tür toggle */}
-        <div
-          className="flex rounded-md border"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-        >
-          {KIND_OPTIONS.filter((o) => acceptKind === 'all' || o.value === 'all' || o.value === acceptKind).map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setKind(opt.value)}
-              className="px-3 py-1.5 text-sm transition-colors"
+        {!isSellerProducts && (
+          <>
+            {/* Tür toggle */}
+            <div
+              className="flex rounded-md border"
               style={{
-                backgroundColor: kind === opt.value ? 'var(--color-accent)' : 'transparent',
-                color: kind === opt.value ? 'white' : 'var(--color-primary)',
-                borderRadius: '4px',
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
               }}
             >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+              {KIND_OPTIONS.filter(
+                (o) => acceptKind === 'all' || o.value === 'all' || o.value === acceptKind,
+              ).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={kind === opt.value}
+                  onClick={() => setKind(opt.value)}
+                  className="px-3 py-1.5 text-sm transition-colors"
+                  style={{
+                    backgroundColor: kind === opt.value ? 'var(--color-accent)' : 'transparent',
+                    color: kind === opt.value ? 'white' : 'var(--color-primary)',
+                    borderRadius: '4px',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
 
-        {/* Klasör seçici */}
-        <select
-          value={folder}
-          onChange={(e) => setFolder(e.target.value)}
-          className="rounded-md border px-3 py-1.5 text-sm"
-          style={{
-            borderColor: 'var(--color-border)',
-            backgroundColor: 'var(--color-surface)',
-            color: 'var(--color-primary)',
-          }}
-        >
-          {FOLDER_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+            {/* Klasör seçici */}
+            <select
+              value={folder}
+              onChange={(e) => setFolder(e.target.value)}
+              className="rounded-md border px-3 py-1.5 text-sm"
+              aria-label="Medya klasörü"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-primary)',
+              }}
+            >
+              {FOLDER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
 
         {/* Arama */}
         <Input
-          placeholder="Dosya adı ara…"
+          placeholder={isSellerProducts ? 'Ürün, model veya satıcı ara…' : 'Dosya adı ara…'}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-48"
@@ -165,15 +186,17 @@ export function MediaLibraryClient({
           </span>
         )}
 
-        <div className="ml-auto">
-          <MediaUploader
-            {...(folder !== 'all' ? { folder } : {})}
-            onSuccess={(asset) => {
-              if (selectionMode) onAssetSelect?.(asset)
-              void fetchAssets()
-            }}
-          />
-        </div>
+        {!isSellerProducts && (
+          <div className="ml-auto">
+            <MediaUploader
+              {...(folder !== 'all' ? { folder } : {})}
+              onSuccess={(asset) => {
+                if (selectionMode) onAssetSelect?.(asset)
+                void fetchAssets()
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Grid */}
@@ -186,15 +209,20 @@ export function MediaLibraryClient({
       ) : assets.length === 0 ? (
         <div
           className="flex flex-col items-center justify-center rounded-lg py-16 text-center"
-          style={{ backgroundColor: 'var(--color-surface)', border: '1px dashed var(--color-border)' }}
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            border: '1px dashed var(--color-border)',
+          }}
         >
           <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
             Medya bulunamadı
           </p>
           <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            {debouncedSearch || kind !== 'all' || folder !== 'all'
+            {debouncedSearch || (!isSellerProducts && (kind !== 'all' || folder !== 'all'))
               ? 'Farklı filtre deneyin.'
-              : 'İlk dosyayı yüklemek için Yükle butonunu kullanın.'}
+              : isSellerProducts
+                ? 'Yayındaki ürünlere bağlı satıcı görseli bulunmuyor.'
+                : 'İlk dosyayı yüklemek için Yükle butonunu kullanın.'}
           </p>
         </div>
       ) : (
@@ -204,7 +232,13 @@ export function MediaLibraryClient({
               key={asset.id}
               asset={asset}
               {...(selectionMode ? { onSelect: handleSelect } : {})}
-              {...(!selectionMode ? { onDelete: (id: string) => { void handleDelete(id) } } : {})}
+              {...(!selectionMode && !isSellerProducts
+                ? {
+                    onDelete: (id: string) => {
+                      void handleDelete(id)
+                    },
+                  }
+                : {})}
               selectable={selectionMode}
               selected={selectedId === asset.id}
             />
