@@ -42,17 +42,6 @@ function getSellerSignInErrorMessage(authError: AuthClientError | null | undefin
   return 'Giriş yapılamadı. Lütfen tekrar deneyin.'
 }
 
-async function verifyTurnstile(token: string): Promise<string | null> {
-  const res = await fetch('/api/turnstile-verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, action: 'seller-login' }),
-  })
-  if (res.ok) return null
-  const data = (await res.json()) as { message?: string }
-  return data.message ?? 'Güvenlik doğrulaması başarısız. Lütfen tekrar deneyin.'
-}
-
 export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -81,13 +70,6 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
     setLoading(true)
 
     try {
-      const verifyError = await verifyTurnstile(turnstileToken)
-      if (verifyError) {
-        setError(verifyError)
-        setTurnstileKey((k) => k + 1)
-        return
-      }
-
       const { data, error: authError } = await signIn.email({
         email,
         password,
