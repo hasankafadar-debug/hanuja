@@ -92,10 +92,11 @@ export function AdminLoginPageClient({ turnstileSiteKey }: AdminLoginPageClientP
         return
       }
 
-      const { error: signInError } = await signIn.email({
+      const { data, error: signInError } = await signIn.email({
         email,
         password,
         callbackURL: callbackUrl,
+        fetchOptions: { headers: { 'x-captcha-response': turnstileToken } },
         ...adminSignInSessionPolicy,
       })
 
@@ -105,7 +106,11 @@ export function AdminLoginPageClient({ turnstileSiteKey }: AdminLoginPageClientP
         return
       }
 
-      router.push(callbackUrl)
+      router.push(
+        (data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect
+          ? '/iki-asamali-dogrulama?callbackUrl=' + encodeURIComponent(callbackUrl)
+          : callbackUrl,
+      )
     } catch {
       setAuthError('Giriş yapılamadı. Ağ ve veritabanı bağlantısını kontrol edip tekrar deneyin.')
     } finally {

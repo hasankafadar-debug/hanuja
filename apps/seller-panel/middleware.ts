@@ -38,6 +38,7 @@ interface Session {
 
 const PUBLIC_PATHS = [
   '/giris',
+  '/iki-asamali-dogrulama',
   '/basvuru',
   '/basvuru/tesekkur',
   '/sifremi-unuttum',

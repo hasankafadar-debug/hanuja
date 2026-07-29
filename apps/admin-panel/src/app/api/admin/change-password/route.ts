@@ -5,6 +5,8 @@ import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { sendEmail } from '@hanuja/api/lib/mailer'
 import { passwordChangedTemplate } from '@hanuja/api/lib/email-templates/password-changed'
+import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { revokeTrustedDevices } from '@hanuja/api/lib/auth-security'
 
 const schema = z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(8).max(128) })
 
@@ -20,6 +22,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ message: 'Yeni parola en az 8 karakter olmalıdır.' }, { status: 400 })
   try {
     await auth.api.changePassword({ headers: request.headers, body: { ...parsed.data, revokeOtherSessions: true } })
+    await revokeTrustedDevices(createPrismaForRoute(), session.user.id)
     const template = passwordChangedTemplate({ changedAt: new Date() })
     sendEmail({ to: session.user.email, subject: template.subject, html: template.html, text: template.text }).catch(console.error)
     return NextResponse.json({ success: true })

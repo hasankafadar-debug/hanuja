@@ -88,10 +88,11 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
         return
       }
 
-      const { error: authError } = await signIn.email({
+      const { data, error: authError } = await signIn.email({
         email,
         password,
         callbackURL: callbackUrl,
+        fetchOptions: { headers: { 'x-captcha-response': turnstileToken } },
         ...sellerSignInSessionPolicy,
       })
 
@@ -101,7 +102,11 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
         return
       }
 
-      router.push(callbackUrl)
+      router.push(
+        (data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect
+          ? '/iki-asamali-dogrulama?callbackUrl=' + encodeURIComponent(callbackUrl)
+          : callbackUrl,
+      )
     } catch {
       setError('Giriş yapılamadı. Ağ ve sunucu bağlantısını kontrol edip tekrar deneyin.')
     } finally {

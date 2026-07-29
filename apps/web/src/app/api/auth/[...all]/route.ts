@@ -1,5 +1,7 @@
-import { authHandler } from '@/lib/auth'
+import { auth, authHandler } from '@/lib/auth'
 import { toNextJsHandler } from 'better-auth/next-js'
+import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { revokeTrustedDevices } from '@hanuja/api/lib/auth-security'
 
 const authRouteHandlers = toNextJsHandler(authHandler)
 
@@ -21,7 +23,14 @@ function logAuthRouteError(method: 'GET' | 'POST', request: Request, error: unkn
 
 async function handleAuthRequest(method: 'GET' | 'POST', request: Request) {
   try {
-    return await authRouteHandlers[method](request)
+    const path = new URL(request.url).pathname
+    const revokesTrust = method === 'POST' && [
+      '/sign-out', '/change-password', '/two-factor/disable', '/revoke-sessions', '/revoke-other-sessions',
+    ].some((suffix) => path.endsWith(suffix))
+    const session = revokesTrust ? await auth.api.getSession({ headers: request.headers }) : null
+    const response = await authRouteHandlers[method](request)
+    if (response.ok && session?.user) await revokeTrustedDevices(createPrismaForRoute(), session.user.id)
+    return response
   } catch (error) {
     logAuthRouteError(method, request, error)
 

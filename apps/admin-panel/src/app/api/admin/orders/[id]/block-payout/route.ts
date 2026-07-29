@@ -7,6 +7,7 @@ import { handleError, ok } from '@hanuja/api/lib/response'
 import { createPayoutRepository } from '@hanuja/api/repositories/payout.repository'
 import { createAdminAuditLogRepository } from '@hanuja/api/repositories/admin-audit-log.repository'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { requireAdminStepUp } from '@/lib/step-up'
 
 const bodySchema = z.object({
   reason: z.string().min(3, 'Gerekçe en az 3 karakter olmalı'),
@@ -20,6 +21,7 @@ export async function POST(
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     if (session.user.role !== 'admin') throw new ForbiddenError()
+    await requireAdminStepUp(req, session, 'payout:block')
 
     const { id: orderId } = await params
     const body = await req.json()

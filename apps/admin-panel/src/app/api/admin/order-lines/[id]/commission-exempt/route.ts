@@ -6,6 +6,7 @@ import { ConflictError, NotFoundError, UnauthorizedError, ValidationError } from
 import { assertRoleCan } from '@hanuja/api/lib/authorize'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { handleError, ok } from '@hanuja/api/lib/response'
+import { requireAdminStepUp } from '@/lib/step-up'
 
 const bodySchema = z.object({
   reason: z.string().trim().min(1),
@@ -16,6 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     assertRoleCan(session.user.role, 'finance:adjust_manual')
+    await requireAdminStepUp(req, session, 'finance:adjustment')
 
     const { id } = await params
     const body = bodySchema.parse(await req.json())

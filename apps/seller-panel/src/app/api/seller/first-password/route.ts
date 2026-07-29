@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth'
 import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { sellerPasswordSchema } from '@hanuja/security/password-policy'
 import { PrismaClient } from '@prisma/client'
+import { revokeTrustedDevices } from '@hanuja/api/lib/auth-security'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
     headers: await headers(),
     body: { newPassword: body.data.newPassword },
   })
+  await revokeTrustedDevices(prisma, session.user.id)
 
   await prisma.user.update({
     where: { id: session.user.id },

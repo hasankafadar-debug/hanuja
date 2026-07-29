@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { UnauthorizedError, ForbiddenError } from '@hanuja/api/lib/errors'
 import { handleError } from '@hanuja/api/lib/response'
 import { cancelOrderAsAdmin } from '@hanuja/api/routes/orders'
+import { requireAdminStepUp } from '@/lib/step-up'
 
 export async function POST(
   req: NextRequest,
@@ -13,6 +14,7 @@ export async function POST(
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     if (session.user.role !== 'admin') throw new ForbiddenError()
+    await requireAdminStepUp(req, session, 'order:admin-cancel')
 
     const { id } = await params
     return cancelOrderAsAdmin(req, id, session.user.id)

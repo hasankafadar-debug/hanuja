@@ -14,6 +14,7 @@ import {
   Label,
   Textarea,
 } from '@hanuja/ui'
+import { StepUpModal } from './step-up-modal'
 
 interface ReleasePayoutButtonProps {
   payoutId: string
@@ -40,8 +41,9 @@ export function ReleasePayoutButton({
   const [transferReference, setTransferReference] = useState('')
   const [transferBankName, setTransferBankName] = useState(defaultBankName)
   const [transferNote, setTransferNote] = useState('')
+  const [stepUpOpen, setStepUpOpen] = useState(false)
 
-  async function handleRelease() {
+  async function handleRelease(stepUpToken?: string) {
     if (!transferDate) {
       setError('Transfer date is required.')
       return
@@ -53,7 +55,7 @@ export function ReleasePayoutButton({
     try {
       const response = await fetch(`/api/admin/payouts/${payoutId}/release`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(stepUpToken ? { 'x-step-up-token': stepUpToken } : {}) },
         body: JSON.stringify({
           transferDate: new Date(`${transferDate}T12:00:00.000Z`).toISOString(),
           transferReference: transferReference.trim() || undefined,
@@ -64,6 +66,7 @@ export function ReleasePayoutButton({
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
+        if ((payload as { code?: string }).code === 'STEP_UP_REQUIRED') { setStepUpOpen(true); return }
         setError(payload.error ?? 'Payment could not be recorded.')
         return
       }
@@ -157,11 +160,12 @@ export function ReleasePayoutButton({
           <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleRelease} disabled={loading}>
+          <Button onClick={() => void handleRelease()} disabled={loading}>
             {loading ? 'Saving...' : 'Save payout'}
           </Button>
         </DialogFooter>
       </DialogContent>
+      <StepUpModal open={stepUpOpen} capability="payout:release" onClose={() => setStepUpOpen(false)} onVerified={(token) => { setStepUpOpen(false); void handleRelease(token) }} />
     </Dialog>
   )
 }

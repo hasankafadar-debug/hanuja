@@ -7,12 +7,14 @@
 import { betterAuth } from 'better-auth'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
-import { admin as adminPlugin } from 'better-auth/plugins'
+import { admin as adminPlugin, captcha, twoFactor } from 'better-auth/plugins'
 import { PrismaClient } from '@prisma/client'
 import { sendEmail } from '@hanuja/api/lib/mailer'
 import { emailVerificationTemplate } from '@hanuja/api/lib/email-templates/email-verification'
 import { sellerPasswordResetTemplate } from '@hanuja/api/lib/email-templates/seller-password-reset'
 import { evaluateAuthPasswordPolicy } from '@hanuja/security/password-policy'
+import { getRedis } from '@hanuja/api/lib/redis'
+import { revokeTrustedDevices } from '@hanuja/api/lib/auth-security'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -62,13 +64,75 @@ const _auth = betterAuth({
   rateLimit: { enabled: true, window: 60, max: 60, customRules: { '/change-password': { window: 60, max: 5 } } },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      // Resolve the short-lived Better Auth challenge server-side. An admin
+      // using the seller panel must complete TOTP; never let that role select
+      // the seller email OTP endpoint.
+      if (ctx.path === '/two-factor/send-otp' || ctx.path === '/two-factor/verify-otp') {
+        const challengeCookie = ctx.context.createAuthCookie('two_factor', { maxAge: 10 * 60 })
+        const identifier = await ctx.getSignedCookie(challengeCookie.name, ctx.context.secret)
+        const challenge = identifier
+          ? await ctx.context.internalAdapter.findVerificationValue(identifier)
+          : null
+        const user = challenge
+          ? await ctx.context.internalAdapter.findUserById(challenge.value)
+          : null
+        if ((user as { role?: string } | null)?.role === 'admin') {
+          throw new APIError('FORBIDDEN', { message: 'Admin hesaplari e-posta OTP kullanamaz.' })
+        }
+        if (ctx.path === '/two-factor/send-otp' && user?.id) {
+          // Redis is deliberately authoritative here. Any Redis outage rejects
+          // the send rather than silently weakening a credential flow.
+          const redis = getRedis()
+          const resendKey = `auth:seller-otp:resend:${user.id}`
+          if ((await redis.set(resendKey, '1', 'EX', 60, 'NX')) !== 'OK') {
+            throw new APIError('TOO_MANY_REQUESTS', { message: 'Kod yeniden gonderimi icin 60 saniye bekleyin.' })
+          }
+          const hourlyKey = `auth:seller-otp:hour:${user.id}`
+          const hourlyCount = await redis.incr(hourlyKey)
+          if (hourlyCount === 1) await redis.expire(hourlyKey, 60 * 60)
+          if (hourlyCount > 3) {
+            throw new APIError('TOO_MANY_REQUESTS', { message: 'Saatlik kod gonderim limitine ulastiniz.' })
+          }
+        }
+      }
       const message = evaluateAuthPasswordPolicy(ctx.path, ctx.body, 'seller')
       if (message) {
         throw new APIError('BAD_REQUEST', { message })
       }
     }),
   },
-  plugins: [adminPlugin({ defaultRole: 'customer', adminRoles: ['admin'] })],
+  plugins: [
+    captcha({
+      provider: 'cloudflare-turnstile',
+      secretKey: process.env.TURNSTILE_SECRET_KEY ?? 'turnstile-secret-not-configured',
+      endpoints: ['/sign-in/email'],
+    }),
+    // OTP records are stored hashed by Better Auth. Seller accounts are
+    // backfilled into twoFactorEnabled by the migration; admins use the TOTP
+    // path and the panel never exposes the OTP verification UI to them.
+    twoFactor({
+      issuer: 'Hanuja Admin',
+      totpOptions: { digits: 6, period: 30 },
+      otpOptions: {
+        digits: 6,
+        period: 10,
+        allowedAttempts: 3,
+        storeOTP: 'hashed',
+        sendOTP: async ({ user, otp }) => {
+          await sendEmail({
+            to: user.email,
+            subject: 'Hanuja satici giris kodunuz',
+            text: `Giris kodunuz: ${otp}. Kod 10 dakika gecerlidir.`,
+            html: `<p>Giris kodunuz: <strong>${otp}</strong></p><p>Kod 10 dakika gecerlidir.</p>`,
+          })
+        },
+      },
+      backupCodeOptions: { amount: 10 },
+      accountLockout: { enabled: false },
+      trustDeviceMaxAge: 60 * 60 * 24 * 400,
+    }),
+    adminPlugin({ defaultRole: 'customer', adminRoles: ['admin'] }),
+  ],
   trustedOrigins: expandTrustedOriginVariants([
     baseURL,
     process.env.NEXT_PUBLIC_APP_URL,
@@ -98,6 +162,9 @@ const _auth = betterAuth({
         html: template.html,
         text: template.text,
       })
+    },
+    onPasswordReset: async ({ user }) => {
+      await revokeTrustedDevices(prisma, user.id)
     },
   },
   emailVerification: {

@@ -8,6 +8,7 @@ import { emailVerificationTemplate } from '@hanuja/api/lib/email-templates/email
 import { passwordResetTemplate } from '@hanuja/api/lib/email-templates/password-reset'
 import { passwordChangedTemplate } from '@hanuja/api/lib/email-templates/password-changed'
 import { evaluateAuthPasswordPolicy } from '@hanuja/security/password-policy'
+import { revokeTrustedDevices } from '@hanuja/api/lib/auth-security'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -88,6 +89,7 @@ const _auth = betterAuth({
       })
     },
     onPasswordReset: async ({ user }) => {
+      await revokeTrustedDevices(prisma, user.id)
       const template = passwordChangedTemplate({ changedAt: new Date() })
       await sendEmail({
         to: user.email,

@@ -6,6 +6,7 @@ import { UnauthorizedError, ForbiddenError } from '@hanuja/api/lib/errors'
 import { handleError, ok } from '@hanuja/api/lib/response'
 import { createDeliveryService } from '@hanuja/api/services/delivery.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { requireAdminStepUp } from '@/lib/step-up'
 
 const bodySchema = z.object({
   reason: z.string().optional(),
@@ -23,6 +24,7 @@ export async function POST(
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     if (session.user.role !== 'admin') throw new ForbiddenError()
+    await requireAdminStepUp(req, session, 'delivery:manual-confirmation')
 
     const { id } = await params
     const body = await req.json().catch(() => ({}))

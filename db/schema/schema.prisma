@@ -304,6 +304,7 @@ enum AdminActionType {
   customer_support_reopened
   extension_request_decision
   seo_content_run_triggered
+  security_step_up_verified
 }
 
 enum ExtensionRequestStatus {
@@ -445,6 +446,9 @@ model User {
   emailVerified      Boolean   @default(false)
   image              String?
   role               UserRole  @default(customer)
+  // Better Auth two-factor plugin. Admin rollout starts in enrollment mode;
+  // seller accounts are backfilled to require the email OTP factor.
+  twoFactorEnabled   Boolean   @default(false)
   mustChangePassword Boolean   @default(false)
   banned             Boolean   @default(false)
   banReason          String?
@@ -455,6 +459,7 @@ model User {
   // Better Auth ilişkileri
   sessions Session[]
   accounts Account[]
+  twoFactor TwoFactor?
 
   // Domain ilişkileri
   seller                           Seller?
@@ -532,6 +537,25 @@ model Verification {
 
   @@index([identifier])
   @@map("verifications")
+}
+
+// Better Auth two-factor plugin table. Secrets and backup codes are encrypted
+// by Better Auth using BETTER_AUTH_SECRET; never expose either in application
+// responses or audit logs.
+model TwoFactor {
+  id          String   @id @default(cuid())
+  secret      String
+  backupCodes String
+  userId      String   @unique
+  verified    Boolean  @default(true)
+  failedVerificationCount Int @default(0)
+  lockedUntil DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("two_factors")
 }
 
 // =============================================================================

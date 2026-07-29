@@ -1,7 +1,7 @@
 'use client'
 
 import { createAuthClient } from 'better-auth/react'
-import { adminClient } from 'better-auth/client/plugins'
+import { adminClient, twoFactorClient } from 'better-auth/client/plugins'
 
 const baseURL =
   typeof window !== 'undefined'
@@ -11,7 +11,7 @@ const baseURL =
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _client: any = createAuthClient({
   baseURL,
-  plugins: [adminClient()],
+  plugins: [adminClient(), twoFactorClient()],
 })
 
 export const signIn = _client.signIn
@@ -20,3 +20,4 @@ export const useSession = _client.useSession
 export const requestPasswordReset = _client.requestPasswordReset
 export const resetPassword = _client.resetPassword
 export const authClient = _client
+export const twoFactor = _client.twoFactor

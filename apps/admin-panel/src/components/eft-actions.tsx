@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@hanuja/ui'
+import { StepUpModal } from './step-up-modal'
+import type { CriticalCapability } from '@hanuja/api/lib/auth-security'
 
 interface EftActionsProps {
   orderId: string
@@ -30,12 +32,13 @@ export function EftActions({ orderId }: EftActionsProps) {
   const [modal, setModal] = useState<ApproveModalState>(INITIAL_MODAL)
   const [rejectReason, setRejectReason] = useState('Dekont doğrulanamadı')
   const [showReject, setShowReject] = useState(false)
+  const [stepUp, setStepUp] = useState<CriticalCapability | null>(null)
 
   function openApproveModal() {
     setModal({ ...INITIAL_MODAL, open: true })
   }
 
-  async function submitApprove() {
+  async function submitApprove(stepUpToken?: string) {
     setLoading('approve')
     try {
       let discountAmount: number | undefined
@@ -54,11 +57,14 @@ export function EftActions({ orderId }: EftActionsProps) {
         body.discountReason = modal.discountReason || 'Admin onayı'
       }
 
-      await fetch(`/api/admin/payments/eft/${orderId}/approve`, {
+      const response = await fetch(`/api/admin/payments/eft/${orderId}/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(stepUpToken ? { 'x-step-up-token': stepUpToken } : {}) },
         body: JSON.stringify(body),
       })
+      const payload = await response.json().catch(() => ({})) as { code?: string }
+      if (response.status === 403 && payload.code === 'STEP_UP_REQUIRED') { setStepUp('eft:approve'); return }
+      if (!response.ok) return
       setModal(INITIAL_MODAL)
       router.refresh()
     } finally {
@@ -66,14 +72,17 @@ export function EftActions({ orderId }: EftActionsProps) {
     }
   }
 
-  async function submitReject() {
+  async function submitReject(stepUpToken?: string) {
     setLoading('reject')
     try {
-      await fetch(`/api/admin/payments/eft/${orderId}/reject`, {
+      const response = await fetch(`/api/admin/payments/eft/${orderId}/reject`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(stepUpToken ? { 'x-step-up-token': stepUpToken } : {}) },
         body: JSON.stringify({ reason: rejectReason }),
       })
+      const payload = await response.json().catch(() => ({})) as { code?: string }
+      if (response.status === 403 && payload.code === 'STEP_UP_REQUIRED') { setStepUp('eft:reject'); return }
+      if (!response.ok) return
       setShowReject(false)
       router.refresh()
     } finally {
@@ -162,7 +171,7 @@ export function EftActions({ orderId }: EftActionsProps) {
               >
                 İptal
               </Button>
-              <Button data-testid="eft-confirm-approve" size="sm" onClick={submitApprove} disabled={loading === 'approve'}>
+              <Button data-testid="eft-confirm-approve" size="sm" onClick={() => void submitApprove()} disabled={loading === 'approve'}>
                 {loading === 'approve' ? 'İşleniyor...' : 'Onayla'}
               </Button>
             </div>
@@ -189,7 +198,7 @@ export function EftActions({ orderId }: EftActionsProps) {
               <Button
                 size="sm"
                 variant="destructive"
-                onClick={submitReject}
+                onClick={() => void submitReject()}
                 disabled={loading === 'reject' || !rejectReason.trim()}
               >
                 {loading === 'reject' ? 'İşleniyor...' : 'Reddet'}
@@ -198,6 +207,11 @@ export function EftActions({ orderId }: EftActionsProps) {
           </div>
         </div>
       )}
+      <StepUpModal open={stepUp !== null} capability={stepUp} onClose={() => setStepUp(null)} onVerified={(token) => {
+        const action = stepUp; setStepUp(null)
+        if (action === 'eft:approve') void submitApprove(token)
+        if (action === 'eft:reject') void submitReject(token)
+      }} />
     </>
   )
 }

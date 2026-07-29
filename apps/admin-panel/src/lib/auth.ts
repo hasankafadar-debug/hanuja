@@ -6,11 +6,12 @@
  */
 import { betterAuth } from 'better-auth'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
-import { admin as adminPlugin } from 'better-auth/plugins'
+import { admin as adminPlugin, captcha, twoFactor } from 'better-auth/plugins'
 import { PrismaClient } from '@prisma/client'
 import { sendEmail } from '@hanuja/api/lib/mailer'
 import { passwordResetTemplate } from '@hanuja/api/lib/email-templates/password-reset'
 import { passwordChangedTemplate } from '@hanuja/api/lib/email-templates/password-changed'
+import { revokeTrustedDevices } from '@hanuja/api/lib/auth-security'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -90,6 +91,7 @@ const _auth = betterAuth({
       })
     },
     onPasswordReset: async ({ user }) => {
+      await revokeTrustedDevices(prisma, user.id)
       const template = passwordChangedTemplate({ changedAt: new Date() })
       await sendEmail({
         to: user.email,
@@ -109,7 +111,23 @@ const _auth = betterAuth({
   // cookies.
   advanced: { cookiePrefix: 'hanuja-admin-session-v2' },
   rateLimit: { enabled: true, window: 60, max: 60, customRules: { '/change-password': { window: 60, max: 5 } } },
-  plugins: [adminPlugin({ defaultRole: 'customer', adminRoles: ['admin'] })],
+  plugins: [
+    // This validates x-captcha-response inside Better Auth itself. The old
+    // client-side verification endpoint is intentionally not an authority.
+    captcha({
+      provider: 'cloudflare-turnstile',
+      secretKey: process.env.TURNSTILE_SECRET_KEY ?? 'turnstile-secret-not-configured',
+      endpoints: ['/sign-in/email'],
+    }),
+    twoFactor({
+      issuer: 'Hanuja Admin',
+      totpOptions: { digits: 6, period: 30 },
+      backupCodeOptions: { amount: 10 },
+      accountLockout: { enabled: false },
+      trustDeviceMaxAge: 60 * 60 * 24 * 400,
+    }),
+    adminPlugin({ defaultRole: 'customer', adminRoles: ['admin'] }),
+  ],
   trustedOrigins: expandTrustedOriginVariants([
     baseURL,
     process.env.NEXT_PUBLIC_APP_URL,
