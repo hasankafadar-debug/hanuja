@@ -24,6 +24,8 @@ export interface SendEmailOptions {
   replyTo?: string
   /** Which from-address to use. Defaults to 'noreply'. */
   fromCategory?: EmailFromCategory
+  /** Prevent recipient details from being written by the development transport. */
+  suppressDevelopmentRecipientLog?: boolean
   headers?: Record<string, string>
 }
 
@@ -82,7 +84,11 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
   })
 
   // In dev (jsonTransport), log the message instead of sending
-  if (process.env.NODE_ENV !== 'production' && (info as { message?: string }).message) {
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    !options.suppressDevelopmentRecipientLog &&
+    (info as { message?: string }).message
+  ) {
     const parsed = JSON.parse((info as { message: string }).message) as {
       subject?: string
       to?: unknown

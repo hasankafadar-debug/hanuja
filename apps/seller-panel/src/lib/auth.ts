@@ -15,12 +15,23 @@ import { sellerPasswordResetTemplate } from "@hanuja/api/lib/email-templates/sel
 import { evaluateAuthPasswordPolicy } from "@hanuja/security/password-policy";
 import { getRedis } from "@hanuja/api/lib/redis";
 import { revokeTrustedDevices } from "@hanuja/api/lib/auth-security";
+import { ensureSellerEmailOtpFactor } from "@/lib/seller-email-otp-factor";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma = globalForPrisma.prisma ?? new PrismaClient();
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 const baseURL = process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
+
+const sellerForbiddenTwoFactorPaths = new Set([
+  "/two-factor/enable",
+  "/two-factor/disable",
+  "/two-factor/get-totp-uri",
+  "/two-factor/verify-totp",
+  "/two-factor/generate-backup-codes",
+  "/two-factor/verify-backup-code",
+  "/two-factor/view-backup-codes",
+]);
 
 function expandTrustedOriginVariants(
   urls: Array<string | undefined>,
@@ -71,9 +82,16 @@ const _auth = betterAuth({
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      if (sellerForbiddenTwoFactorPaths.has(ctx.path)) {
+        throw new APIError("FORBIDDEN", {
+          message:
+            "Satıcı paneli yalnızca e-posta doğrulama kodunu destekler.",
+        });
+      }
+
       // Resolve the short-lived Better Auth challenge server-side. An admin
-      // using the seller panel must complete TOTP; never let that role select
-      // the seller email OTP endpoint.
+      // or another non-seller role can never select the seller email OTP
+      // endpoint. Drifted seller accounts are repaired before send/verify.
       if (
         ctx.path === "/two-factor/send-otp" ||
         ctx.path === "/two-factor/verify-otp"
@@ -91,19 +109,29 @@ const _auth = betterAuth({
         const user = challenge
           ? await ctx.context.internalAdapter.findUserById(challenge.value)
           : null;
-        if ((user as { role?: string } | null)?.role === "admin") {
+        const role = (user as { role?: string } | null)?.role;
+        if (user && role !== "seller") {
           throw new APIError("FORBIDDEN", {
-            message: "Admin hesaplari e-posta OTP kullanamaz.",
+            message: "Bu hesap e-posta doğrulama kodunu kullanamaz.",
           });
         }
-        if (ctx.path === "/two-factor/send-otp" && user?.id) {
+
+        if (user?.id && role === "seller") {
+          await ensureSellerEmailOtpFactor(prisma, user.id);
+        }
+
+        if (
+          ctx.path === "/two-factor/send-otp" &&
+          user?.id &&
+          role === "seller"
+        ) {
           // Redis is deliberately authoritative here. Any Redis outage rejects
           // the send rather than silently weakening a credential flow.
           const redis = getRedis();
           const resendKey = `auth:seller-otp:resend:${user.id}`;
           if ((await redis.set(resendKey, "1", "EX", 60, "NX")) !== "OK") {
             throw new APIError("TOO_MANY_REQUESTS", {
-              message: "Kod yeniden gonderimi icin 60 saniye bekleyin.",
+              message: "Yeni kod istemek için 60 saniye bekleyin.",
             });
           }
           const hourlyKey = `auth:seller-otp:hour:${user.id}`;
@@ -111,7 +139,7 @@ const _auth = betterAuth({
           if (hourlyCount === 1) await redis.expire(hourlyKey, 60 * 60);
           if (hourlyCount > 3) {
             throw new APIError("TOO_MANY_REQUESTS", {
-              message: "Saatlik kod gonderim limitine ulastiniz.",
+              message: "Saatlik kod gönderim limitine ulaştınız.",
             });
           }
         }
@@ -140,12 +168,19 @@ const _auth = betterAuth({
         allowedAttempts: 3,
         storeOTP: "hashed",
         sendOTP: async ({ user, otp }) => {
-          await sendEmail({
-            to: user.email,
-            subject: "Hanuja satici giris kodunuz",
-            text: `Giris kodunuz: ${otp}. Kod 10 dakika gecerlidir.`,
-            html: `<p>Giris kodunuz: <strong>${otp}</strong></p><p>Kod 10 dakika gecerlidir.</p>`,
-          });
+          try {
+            await sendEmail({
+              to: user.email,
+              subject: "Hanuja satıcı giriş kodunuz",
+              text: `Giriş kodunuz: ${otp}. Kod 10 dakika geçerlidir.`,
+              html: `<p>Giriş kodunuz: <strong>${otp}</strong></p><p>Kod 10 dakika geçerlidir.</p>`,
+              suppressDevelopmentRecipientLog: true,
+            });
+          } catch {
+            // Better Auth logs rejected send callbacks. Keep that error free of
+            // the recipient address, challenge identifier and OTP value.
+            throw new Error("Seller OTP delivery failed");
+          }
         },
       },
       backupCodeOptions: { amount: 10 },

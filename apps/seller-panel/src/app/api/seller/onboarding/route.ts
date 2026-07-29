@@ -20,6 +20,7 @@ import { verifyTurnstileToken } from '@hanuja/api/lib/turnstile'
 import { hasMatchingNormalizedTokens } from '@hanuja/security'
 import { handleError } from '@hanuja/api/lib/response'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
+import { ensureSellerEmailOtpFactor } from '@/lib/seller-email-otp-factor'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -228,8 +229,11 @@ export async function POST(request: NextRequest) {
         where: { id: session.user.id },
         data: {
           role: 'seller',
+          twoFactorEnabled: true,
         },
       })
+
+      await ensureSellerEmailOtpFactor(tx, session.user.id)
     })
 
     return NextResponse.json({ success: true }, { status: 201 })

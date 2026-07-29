@@ -539,9 +539,9 @@ model Verification {
   @@map("verifications")
 }
 
-// Better Auth two-factor plugin table. Secrets and backup codes are encrypted
-// by Better Auth using BETTER_AUTH_SECRET; never expose either in application
-// responses or audit logs.
+// Better Auth two-factor plugin table. Admin TOTP secrets and backup codes are
+// encrypted by Better Auth using BETTER_AUTH_SECRET. Seller rows are non-TOTP
+// email-OTP markers. Never expose any of these values in responses or logs.
 model TwoFactor {
   id          String   @id @default(cuid())
   secret      String
