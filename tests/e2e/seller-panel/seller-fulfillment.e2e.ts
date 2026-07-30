@@ -86,6 +86,41 @@ test.describe('dashboard', () => {
     expect(count).toBeGreaterThanOrEqual(1)
   })
 
+  test('kalite metrikleri dar ekranlarda okunabilir kalıyor', async ({ page }) => {
+    const qualityMetrics = page.getByTestId('seller-dashboard-quality-metrics')
+    const qualityCards = qualityMetrics.getByTestId('stat-card')
+
+    for (const viewport of [
+      { width: 1440, height: 900 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport)
+      await page.reload()
+      await expect(qualityMetrics).toBeVisible()
+      await expect(qualityCards).toHaveCount(4)
+
+      const layout = await qualityCards.evaluateAll((cards) => {
+        const rects = cards.map((card) => card.getBoundingClientRect())
+        const overflowingText = cards.some((card) =>
+          Array.from(card.querySelectorAll('p')).some(
+            (element) => element.scrollWidth > element.clientWidth,
+          ),
+        )
+
+        return {
+          rowTops: [...new Set(rects.map((rect) => Math.round(rect.top)))],
+          overflowingText,
+        }
+      })
+
+      expect(layout.overflowingText).toBe(false)
+      expect(layout.rowTops.length).toBe(viewport.width === 390 ? 4 : 2)
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true)
+    }
+  })
+
   test('navigasyon menüsü görünüyor', async ({ page }) => {
     // Sol menü veya navigasyon var
     const nav = page.locator('nav, aside, [role="navigation"]').first()

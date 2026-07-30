@@ -382,6 +382,7 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
 
       <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
         <section
+          data-testid="seller-dashboard-quality-metrics"
           className="rounded-xl border p-5"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
@@ -395,7 +396,7 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
               </p>
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <StatCard title="İşlem Bekleyen" value={pendingOrders} icon={<ShoppingBag className="h-4 w-4" />} />
             <StatCard title="Ort. Hazırlama" value={`${averagePreparationDays.toFixed(1)} gün`} icon={<Clock className="h-4 w-4" />} />
             <StatCard title="İptal Oranı" value={`%${cancellationRate.toFixed(1)}`} icon={<AlertTriangle className="h-4 w-4" />} />
