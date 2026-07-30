@@ -38,5 +38,12 @@ export default defineConfig({
         url: 'http://localhost:3000',
         reuseExistingServer: !process.env.CI,
         timeout: 120 * 1000,
+        env: {
+          // Cloudflare's public "always passes" test site key. Without a key the widget
+          // short-circuits to its dev placeholder and the real render path — including the
+          // scale-to-fit layout — is never exercised. Network calls are stubbed by
+          // mockTurnstile(), so this key is never actually contacted.
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+        },
       },
 });

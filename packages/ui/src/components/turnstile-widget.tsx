@@ -23,9 +23,20 @@ declare global {
   }
 }
 
+/**
+ * Cloudflare renders the widget at no less than this width, even in "flexible" size.
+ * A container narrower than this cannot fit the iframe, so it overflows its parent.
+ */
+const TURNSTILE_MIN_WIDTH = 300
+
 export interface TurnstileWidgetProps {
   action?: string
   className?: string
+  /**
+   * Scale the widget down when the container is narrower than Turnstile's 300px minimum.
+   * Off by default so existing call sites keep their exact rendering.
+   */
+  fitContainer?: boolean
   onChange: (token: string) => void
   siteKey?: string | undefined
   size?: "normal" | "flexible" | "compact"
@@ -78,14 +89,18 @@ function loadTurnstileScript(): Promise<void> {
 export function TurnstileWidget({
   action,
   className,
+  fitContainer = false,
   onChange,
   siteKey,
   size = "normal",
   theme = "light",
 }: TurnstileWidgetProps) {
+  const wrapperRef = React.useRef<HTMLDivElement | null>(null)
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const widgetIdRef = React.useRef<string | null>(null)
   const [scriptError, setScriptError] = React.useState<string | null>(null)
+  const [scale, setScale] = React.useState(1)
+  const [scaledHeight, setScaledHeight] = React.useState<number | null>(null)
 
   React.useEffect(() => {
     if (!siteKey) {
@@ -143,6 +158,45 @@ export function TurnstileWidget({
     }
   }, [action, onChange, siteKey, size, theme])
 
+  React.useEffect(() => {
+    if (!fitContainer || typeof ResizeObserver === "undefined") {
+      return
+    }
+
+    const wrapper = wrapperRef.current
+    const container = containerRef.current
+    if (!wrapper || !container) {
+      return
+    }
+
+    // The widget renders at a fixed TURNSTILE_MIN_WIDTH and is then scaled down to whatever
+    // width the layout actually gives us. `transform` does not shrink the layout box, so the
+    // clamp box height is recomputed from the intrinsic height to avoid dead space below.
+    const syncScale = () => {
+      const availableWidth = wrapper.clientWidth
+      if (!availableWidth) {
+        return
+      }
+
+      const nextScale = Math.min(1, availableWidth / TURNSTILE_MIN_WIDTH)
+      setScale(nextScale)
+
+      const intrinsicHeight = container.offsetHeight
+      setScaledHeight(intrinsicHeight > 0 ? intrinsicHeight * nextScale : null)
+    }
+
+    syncScale()
+
+    const observer = new ResizeObserver(syncScale)
+    observer.observe(wrapper)
+    // The container grows from 0 to the widget height once Cloudflare injects its iframe.
+    observer.observe(container)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [fitContainer, siteKey])
+
   if (!siteKey) {
     return !isProductionEnvironment() ? (
       <div
@@ -161,9 +215,9 @@ export function TurnstileWidget({
       <div
         className={className}
         style={{
-          border: "1px solid var(--color-danger, #dc2626)",
+          border: "1px solid var(--color-destructive, #dc2626)",
           borderRadius: 12,
-          color: "var(--color-danger, #dc2626)",
+          color: "var(--color-destructive, #dc2626)",
           fontSize: 13,
           padding: 12,
         }}
@@ -174,10 +228,23 @@ export function TurnstileWidget({
   }
 
   return (
-    <div className={className}>
-      <div ref={containerRef} />
+    <div className={className} ref={wrapperRef}>
+      <div style={fitContainer ? { height: scaledHeight ?? undefined, overflow: "hidden" } : undefined}>
+        <div
+          ref={containerRef}
+          style={
+            fitContainer
+              ? {
+                  transform: `scale(${scale})`,
+                  transformOrigin: "top left",
+                  width: TURNSTILE_MIN_WIDTH,
+                }
+              : undefined
+          }
+        />
+      </div>
       {scriptError ? (
-        <p style={{ color: "var(--color-danger, #dc2626)", fontSize: 12, marginTop: 8 }}>{scriptError}</p>
+        <p style={{ color: "var(--color-destructive, #dc2626)", fontSize: 12, marginTop: 8 }}>{scriptError}</p>
       ) : null}
     </div>
   )

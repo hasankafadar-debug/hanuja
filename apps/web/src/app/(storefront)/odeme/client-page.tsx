@@ -410,7 +410,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
       {error ? (
         <div
           className="mb-6 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm"
-          style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+          style={{ borderColor: 'var(--color-destructive)', color: 'var(--color-destructive)' }}
         >
           <AlertTriangle className="h-4 w-4 shrink-0" />
           {error}
@@ -736,14 +736,14 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                       className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
                       style={{
                         borderColor: cardErrors.cardHolderName
-                          ? 'var(--color-danger)'
+                          ? 'var(--color-destructive)'
                           : 'var(--color-border)',
                         backgroundColor: 'var(--color-bg)',
                         color: 'var(--color-primary)',
                       }}
                     />
                     {cardErrors.cardHolderName ? (
-                      <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                      <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
                         {cardErrors.cardHolderName}
                       </p>
                     ) : null}
@@ -768,14 +768,14 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                       className="w-full rounded-lg border px-3 py-2 font-mono text-sm outline-none focus:ring-2"
                       style={{
                         borderColor: cardErrors.cardNumber
-                          ? 'var(--color-danger)'
+                          ? 'var(--color-destructive)'
                           : 'var(--color-border)',
                         backgroundColor: 'var(--color-bg)',
                         color: 'var(--color-primary)',
                       }}
                     />
                     {cardErrors.cardNumber ? (
-                      <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                      <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
                         {cardErrors.cardNumber}
                       </p>
                     ) : null}
@@ -802,14 +802,14 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                         className="w-full rounded-lg border px-3 py-2 text-center text-sm outline-none focus:ring-2"
                         style={{
                           borderColor: cardErrors.expireMonth
-                            ? 'var(--color-danger)'
+                            ? 'var(--color-destructive)'
                             : 'var(--color-border)',
                           backgroundColor: 'var(--color-bg)',
                           color: 'var(--color-primary)',
                         }}
                       />
                       {cardErrors.expireMonth ? (
-                        <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                        <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
                           {cardErrors.expireMonth}
                         </p>
                       ) : null}
@@ -835,14 +835,14 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                         className="w-full rounded-lg border px-3 py-2 text-center text-sm outline-none focus:ring-2"
                         style={{
                           borderColor: cardErrors.expireYear
-                            ? 'var(--color-danger)'
+                            ? 'var(--color-destructive)'
                             : 'var(--color-border)',
                           backgroundColor: 'var(--color-bg)',
                           color: 'var(--color-primary)',
                         }}
                       />
                       {cardErrors.expireYear ? (
-                        <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                        <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
                           {cardErrors.expireYear}
                         </p>
                       ) : null}
@@ -868,14 +868,14 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                         className="w-full rounded-lg border px-3 py-2 text-center text-sm outline-none focus:ring-2"
                         style={{
                           borderColor: cardErrors.cvc
-                            ? 'var(--color-danger)'
+                            ? 'var(--color-destructive)'
                             : 'var(--color-border)',
                           backgroundColor: 'var(--color-bg)',
                           color: 'var(--color-primary)',
                         }}
                       />
                       {cardErrors.cvc ? (
-                        <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                        <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
                           {cardErrors.cvc}
                         </p>
                       ) : null}
@@ -901,14 +901,14 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                       className="w-full rounded-lg border px-3 py-2 font-mono text-sm outline-none focus:ring-2"
                       style={{
                         borderColor: cardErrors.identityNumber
-                          ? 'var(--color-danger)'
+                          ? 'var(--color-destructive)'
                           : 'var(--color-border)',
                         backgroundColor: 'var(--color-bg)',
                         color: 'var(--color-primary)',
                       }}
                     />
                     {cardErrors.identityNumber ? (
-                      <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                      <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
                         {cardErrors.identityNumber}
                       </p>
                     ) : null}
@@ -1011,7 +1011,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                   Seçili adrese göre sözleşmeler hazırlanıyor...
                 </div>
               ) : legalError ? (
-                <p style={{ color: 'var(--color-danger)' }}>{legalError}</p>
+                <p style={{ color: 'var(--color-destructive)' }}>{legalError}</p>
               ) : null}
             </div>
           ) : null}
@@ -1020,6 +1020,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
             <div className="flex items-start gap-2">
               <input
                 type="checkbox"
+                data-testid="checkout-accept-distance-sales"
                 className="mt-0.5 h-4 w-4 shrink-0 accent-current"
                 checked={acceptedMesafeliSatis}
                 disabled={!documentsReady}
@@ -1041,6 +1042,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
             <div className="flex items-start gap-2">
               <input
                 type="checkbox"
+                data-testid="checkout-accept-pre-information"
                 className="mt-0.5 h-4 w-4 shrink-0 accent-current"
                 checked={acceptedOnBilgilendirme}
                 disabled={!documentsReady}
@@ -1065,6 +1067,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
               <TurnstileWidget
                 action="checkout-submit"
                 className="w-full max-w-full"
+                fitContainer
                 onChange={setTurnstileToken}
                 siteKey={turnstileSiteKey}
                 size="flexible"
@@ -1098,15 +1101,15 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
 
             <div data-testid="checkout-submit-note">
               {!documentsReady ? (
-                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-destructive)' }}>
                   Adres seçilip sözleşmeler hazırlanmadan sipariş onaylanamaz.
                 </p>
               ) : !acceptedMesafeliSatis || !acceptedOnBilgilendirme ? (
-                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-destructive)' }}>
                   Devam etmek için iki sözleşmeyi de onaylayın.
                 </p>
               ) : !turnstileToken ? (
-                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-destructive)' }}>
                   Siparişi tamamlamak için insan doğrulamasını tamamlayın.
                 </p>
               ) : paymentMethod === 'eft' ? (

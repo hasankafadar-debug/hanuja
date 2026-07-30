@@ -304,16 +304,26 @@ test('checkout doğrulama alanı düğmeyle hizalanır ve yatay taşma oluşturm
     await addressRadio.check()
   }
 
-  const checkboxes = page.locator('input[type="checkbox"]')
-  await expect(checkboxes.first()).toBeEnabled({ timeout: 15000 })
+  // Havale/EFT seçilmeli — kart ödemesi açık ortamlarda varsayılan "card" olur.
+  const eftRadio = page.locator('input[name="payment"][value="eft"]')
+  await expect(eftRadio).toBeVisible({ timeout: 8000 })
+  await eftRadio.check()
+
+  // Sözleşme onay kutuları testid ile hedeflenir: sayfada ayrıca "Farklı fatura adresi
+  // kullan" kutusu da var, sıraya dayalı seçim yanlış kutuyu işaretliyordu.
+  const distanceSalesCheckbox = page.getByTestId('checkout-accept-distance-sales')
+  const preInformationCheckbox = page.getByTestId('checkout-accept-pre-information')
+  await expect(distanceSalesCheckbox).toBeEnabled({ timeout: 15000 })
 
   const submitButton = page.getByTestId('checkout-submit')
 
-  await checkboxes.nth(0).check()
-  await checkboxes.nth(1).check()
+  // Sözleşmeler onaylanmadan buton kapalı olmalı. (Turnstile token'ı sayfa yüklenirken
+  // geldiği için "geçici olarak kapalı" beklemek yarış koşuluydu — kapı burada sözleşmedir.)
+  await expect(submitButton).toBeDisabled()
+
+  await distanceSalesCheckbox.check()
+  await preInformationCheckbox.check()
   await expect(page.getByTestId('checkout-turnstile')).toBeVisible()
-  await page.waitForTimeout(100)
-  await expect(submitButton).toBeDisabled({ timeout: 500 })
   await expect(submitButton).toBeEnabled({ timeout: 5000 })
   await expect(submitButton).toHaveText(/Siparişi Tamamla/)
 
@@ -334,13 +344,19 @@ test('checkout doğrulama alanı düğmeyle hizalanır ve yatay taşma oluşturm
       note: getRect('[data-testid="checkout-submit-note"]'),
       submit: getRect('[data-testid="checkout-submit"]'),
       turnstile: getRect('[data-testid="checkout-turnstile"]'),
+      // getBoundingClientRect reflects CSS transforms, so this is the widget's visual width.
+      widget: getRect('[data-turnstile-stub]'),
     }
   })
 
   expect(bounds.turnstile).not.toBeNull()
   expect(bounds.submit).not.toBeNull()
   expect(bounds.note).not.toBeNull()
+  expect(bounds.widget).not.toBeNull()
   expect(Math.abs(bounds.turnstile!.width - bounds.submit!.width)).toBeLessThanOrEqual(1)
+  // The widget renders at a 300px minimum; in the ~249px summary column it must be scaled
+  // down to fit instead of overflowing the card.
+  expect(Math.abs(bounds.widget!.width - bounds.turnstile!.width)).toBeLessThanOrEqual(1)
   expect(bounds.turnstile!.top).toBeLessThan(bounds.submit!.top)
   expect(bounds.note!.top).toBeGreaterThanOrEqual(bounds.submit!.bottom)
   expect(bounds.documentWidth).toBeLessThanOrEqual(bounds.viewportWidth + 1)

@@ -106,6 +106,10 @@ async function cleanupFixtureGraph(
   await prisma.couponUsage.deleteMany({
     where: { orderId: { in: params.orderIds } },
   })
+  // Delivery-confirmed fixture orders carry a Payout row, whose FK blocks the order delete.
+  await prisma.payout.deleteMany({
+    where: { orderId: { in: params.orderIds } },
+  })
   await prisma.order.deleteMany({
     where: { id: { in: params.orderIds } },
   })
