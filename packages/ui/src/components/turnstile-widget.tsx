@@ -15,6 +15,7 @@ declare global {
           "error-callback"?: () => void
           "expired-callback"?: () => void
           sitekey: string
+          size?: "normal" | "flexible" | "compact"
           theme?: "auto" | "dark" | "light"
         },
       ) => string
@@ -27,6 +28,7 @@ export interface TurnstileWidgetProps {
   className?: string
   onChange: (token: string) => void
   siteKey?: string | undefined
+  size?: "normal" | "flexible" | "compact"
   theme?: "auto" | "dark" | "light"
 }
 
@@ -78,6 +80,7 @@ export function TurnstileWidget({
   className,
   onChange,
   siteKey,
+  size = "normal",
   theme = "light",
 }: TurnstileWidgetProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
@@ -107,6 +110,7 @@ export function TurnstileWidget({
 
         widgetIdRef.current = window.turnstile.render(containerRef.current, {
           sitekey: siteKey,
+          size,
           theme,
           ...(action ? { action } : {}),
           callback: (token) => onChange(token),
@@ -137,7 +141,7 @@ export function TurnstileWidget({
         containerRef.current.innerHTML = ""
       }
     }
-  }, [action, onChange, siteKey, theme])
+  }, [action, onChange, siteKey, size, theme])
 
   if (!siteKey) {
     return !isProductionEnvironment() ? (

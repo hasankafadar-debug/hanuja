@@ -1066,13 +1066,11 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
             </p>
             <TurnstileWidget
               action="checkout-submit"
-              className="max-w-full"
+              className="min-w-0"
               onChange={setTurnstileToken}
               siteKey={turnstileSiteKey}
+              size="compact"
             />
-            <p className="mt-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Siparişi onaylamak için bu adım zorunludur.
-            </p>
           </div>
 
           <Button
@@ -1084,7 +1082,8 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
               submitting ||
               !documentsReady ||
               !acceptedMesafeliSatis ||
-              !acceptedOnBilgilendirme
+              !acceptedOnBilgilendirme ||
+              !turnstileToken
             }
           >
             {submitting ? (
@@ -1093,9 +1092,9 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                 İşleniyor...
               </span>
             ) : paymentMethod === 'card' ? (
-              'Siparişi Onayla ve Öde'
+              'Ödeme Yap'
             ) : (
-              'Siparişi Onayla ve Havale Bilgilerini Göster'
+              'Siparişi Tamamla'
             )}
           </Button>
 
@@ -1107,10 +1106,21 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
             <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
               Devam etmek için iki sözleşmeyi de onaylayın.
             </p>
-          ) : null}
+          ) : !turnstileToken ? (
+            <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Siparişi tamamlamak için insan doğrulamasını tamamlayın.
+            </p>
+          ) : paymentMethod === 'eft' ? (
+            <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Havale / EFT banka bilgileri sipariş oluşturulduktan sonra gösterilecektir.
+            </p>
+          ) : (
+            <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Güvenli ödeme adımına yönlendirileceksiniz.
+            </p>
+          )}
         </div>
       </div>
     </div>
   )
 }
-
