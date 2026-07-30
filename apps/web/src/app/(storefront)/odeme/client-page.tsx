@@ -959,7 +959,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
         </div>
 
         <div
-          className="h-fit rounded-xl border p-6"
+          className="flex h-full flex-col rounded-xl border p-6"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
           <h2 className="mb-4 font-semibold" style={{ color: 'var(--color-primary)' }}>
@@ -1060,65 +1060,66 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
             </div>
           </div>
 
-          <div className="mt-5 rounded-lg border p-4" style={{ borderColor: 'var(--color-border)' }}>
-            <p className="mb-3 text-xs font-medium" style={{ color: 'var(--color-primary)' }}>
-              İnsan doğrulaması
-            </p>
-            <TurnstileWidget
-              action="checkout-submit"
-              className="min-w-0"
-              onChange={setTurnstileToken}
-              siteKey={turnstileSiteKey}
-              size="compact"
-            />
+          <div className="mt-auto w-full pt-6">
+            <div data-testid="checkout-turnstile" className="w-full max-w-full">
+              <TurnstileWidget
+                action="checkout-submit"
+                className="w-full max-w-full"
+                onChange={setTurnstileToken}
+                siteKey={turnstileSiteKey}
+                size="flexible"
+              />
+            </div>
+
+            <Button
+              className="mt-4 w-full"
+              data-testid="checkout-submit"
+              size="lg"
+              onClick={placeOrder}
+              disabled={
+                submitting ||
+                !documentsReady ||
+                !acceptedMesafeliSatis ||
+                !acceptedOnBilgilendirme ||
+                !turnstileToken
+              }
+            >
+              {submitting ? (
+                <span className="flex items-center gap-2">
+                  <Spinner className="h-4 w-4" />
+                  İşleniyor...
+                </span>
+              ) : paymentMethod === 'card' ? (
+                'Ödeme Yap'
+              ) : (
+                'Siparişi Tamamla'
+              )}
+            </Button>
+
+            <div data-testid="checkout-submit-note">
+              {!documentsReady ? (
+                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                  Adres seçilip sözleşmeler hazırlanmadan sipariş onaylanamaz.
+                </p>
+              ) : !acceptedMesafeliSatis || !acceptedOnBilgilendirme ? (
+                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                  Devam etmek için iki sözleşmeyi de onaylayın.
+                </p>
+              ) : !turnstileToken ? (
+                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                  Siparişi tamamlamak için insan doğrulamasını tamamlayın.
+                </p>
+              ) : paymentMethod === 'eft' ? (
+                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                  Havale / EFT banka bilgileri sipariş oluşturulduktan sonra gösterilecektir.
+                </p>
+              ) : (
+                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                  Güvenli ödeme adımına yönlendirileceksiniz.
+                </p>
+              )}
+            </div>
           </div>
-
-          <Button
-            className="mt-4 w-full"
-            data-testid="checkout-submit"
-            size="lg"
-            onClick={placeOrder}
-            disabled={
-              submitting ||
-              !documentsReady ||
-              !acceptedMesafeliSatis ||
-              !acceptedOnBilgilendirme ||
-              !turnstileToken
-            }
-          >
-            {submitting ? (
-              <span className="flex items-center gap-2">
-                <Spinner className="h-4 w-4" />
-                İşleniyor...
-              </span>
-            ) : paymentMethod === 'card' ? (
-              'Ödeme Yap'
-            ) : (
-              'Siparişi Tamamla'
-            )}
-          </Button>
-
-          {!documentsReady ? (
-            <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Adres seçilip sözleşmeler hazırlanmadan sipariş onaylanamaz.
-            </p>
-          ) : !acceptedMesafeliSatis || !acceptedOnBilgilendirme ? (
-            <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Devam etmek için iki sözleşmeyi de onaylayın.
-            </p>
-          ) : !turnstileToken ? (
-            <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Siparişi tamamlamak için insan doğrulamasını tamamlayın.
-            </p>
-          ) : paymentMethod === 'eft' ? (
-            <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Havale / EFT banka bilgileri sipariş oluşturulduktan sonra gösterilecektir.
-            </p>
-          ) : (
-            <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Güvenli ödeme adımına yönlendirileceksiniz.
-            </p>
-          )}
         </div>
       </div>
     </div>

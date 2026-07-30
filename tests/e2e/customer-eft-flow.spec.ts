@@ -36,8 +36,8 @@ test.describe.configure({ mode: 'serial' })
 test.setTimeout(90_000)
 
 // ─── Yardımcı: Giriş yap ────────────────────────────────────────────────────
-async function loginCustomer(page: Page) {
-  await mockTurnstile(page)
+async function loginCustomer(page: Page, turnstileDelayMs = 60) {
+  await mockTurnstile(page, 'playwright-mock-token', turnstileDelayMs)
   const hydration = trackHydrationErrors(page)
   await page.goto(`${BASE_URL}/giris`)
   await expect(page.locator('#email')).toBeVisible({ timeout: 5000 })
@@ -291,6 +291,61 @@ test('havale/EFT ile sipariş tamamlanır; sözleşmeler kaydedilir; onay sayfas
 })
 
 // ═══════════════════════════════════════════════════════════════════
+test('checkout doğrulama alanı düğmeyle hizalanır ve yatay taşma oluşturmaz', async ({ page }) => {
+  await loginCustomer(page, 1000)
+  await addFirstAvailableProductToCart(page)
+
+  await page.goto(`${BASE_URL}/odeme`)
+  await page.waitForLoadState('networkidle')
+
+  const addressRadio = page.locator('input[name="address"]').first()
+  await expect(addressRadio).toBeVisible({ timeout: 8000 })
+  if (!(await addressRadio.isChecked())) {
+    await addressRadio.check()
+  }
+
+  const checkboxes = page.locator('input[type="checkbox"]')
+  await expect(checkboxes.first()).toBeEnabled({ timeout: 15000 })
+
+  const submitButton = page.getByTestId('checkout-submit')
+
+  await checkboxes.nth(0).check()
+  await checkboxes.nth(1).check()
+  await expect(page.getByTestId('checkout-turnstile')).toBeVisible()
+  await page.waitForTimeout(100)
+  await expect(submitButton).toBeDisabled({ timeout: 500 })
+  await expect(submitButton).toBeEnabled({ timeout: 5000 })
+  await expect(submitButton).toHaveText(/Siparişi Tamamla/)
+
+  const submitNote = page.getByTestId('checkout-submit-note')
+  await expect(submitNote).toHaveText(/Havale \/ EFT banka bilgileri sipariş oluşturulduktan sonra gösterilecektir\./)
+
+  const bounds = await page.evaluate(() => {
+    const getRect = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector)
+      if (!element) return null
+      const rect = element.getBoundingClientRect()
+      return { bottom: rect.bottom, top: rect.top, width: rect.width }
+    }
+
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+      note: getRect('[data-testid="checkout-submit-note"]'),
+      submit: getRect('[data-testid="checkout-submit"]'),
+      turnstile: getRect('[data-testid="checkout-turnstile"]'),
+    }
+  })
+
+  expect(bounds.turnstile).not.toBeNull()
+  expect(bounds.submit).not.toBeNull()
+  expect(bounds.note).not.toBeNull()
+  expect(Math.abs(bounds.turnstile!.width - bounds.submit!.width)).toBeLessThanOrEqual(1)
+  expect(bounds.turnstile!.top).toBeLessThan(bounds.submit!.top)
+  expect(bounds.note!.top).toBeGreaterThanOrEqual(bounds.submit!.bottom)
+  expect(bounds.documentWidth).toBeLessThanOrEqual(bounds.viewportWidth + 1)
+})
+
 // TEST 7: Hesabım profil & adres sayfaları
 // ═══════════════════════════════════════════════════════════════════
 test('hesabım profil ve adres sayfaları yüklenir', async ({ page }) => {

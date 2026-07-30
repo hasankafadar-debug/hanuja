@@ -28,6 +28,14 @@ export default defineConfig({
       testMatch: ['**/storefront/**/*.e2e.ts', '**/customer-eft-flow.spec.ts'],
     },
     {
+      name: 'storefront-mobile',
+      use: {
+        ...devices['iPhone 13'],
+        baseURL: 'http://localhost:3000',
+      },
+      testMatch: '**/customer-eft-flow.spec.ts',
+    },
+    {
       name: 'seller-panel',
       use: {
         ...devices['Desktop Chrome'],

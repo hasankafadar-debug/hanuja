@@ -3,7 +3,11 @@ import type { Page } from '@playwright/test'
 // Test-only helper:
 // This isolates non-critical E2E flows from Cloudflare bot detection and network variability.
 // It does not validate real Cloudflare Turnstile widget behavior.
-export async function mockTurnstile(page: Page, token = 'playwright-mock-token') {
+export async function mockTurnstile(
+  page: Page,
+  token = 'playwright-mock-token',
+  delayMs = 60,
+) {
   await page.addInitScript(({ mockToken }) => {
     ;(
       window as typeof window & {
@@ -30,7 +34,7 @@ export async function mockTurnstile(page: Page, token = 'playwright-mock-token')
       }
     ).turnstile = {
       render: (_container, opts) => {
-        setTimeout(() => opts.callback?.(mockToken), 60)
+        setTimeout(() => opts.callback?.(mockToken), delayMs)
         return 'mock-widget-id'
       },
       remove: () => {},
