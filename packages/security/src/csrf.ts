@@ -11,8 +11,6 @@
  * sufficient. This module adds an explicit token layer for extra protection on
  * state-mutating API routes.
  */
-import { randomBytes, timingSafeEqual } from 'crypto'
-
 export const CSRF_COOKIE_NAME = 'hanuja-csrf'
 export const CSRF_MIRROR_COOKIE_NAME = 'hanuja-csrf-mirror'
 export const CSRF_HEADER_NAME = 'x-csrf-token'
@@ -21,7 +19,9 @@ export const CSRF_TOKEN_BYTES = 32
 // ── Token generation ──────────────────────────────────────────────────────────
 
 export function generateCsrfToken(): string {
-  return randomBytes(CSRF_TOKEN_BYTES).toString('hex')
+  const bytes = new Uint8Array(CSRF_TOKEN_BYTES)
+  globalThis.crypto.getRandomValues(bytes)
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 // ── Token verification ────────────────────────────────────────────────────────
@@ -37,13 +37,11 @@ export function verifyCsrfToken(
   if (!cookieToken || !headerToken) return false
   if (cookieToken.length !== headerToken.length) return false
 
-  try {
-    const a = Buffer.from(cookieToken, 'utf8')
-    const b = Buffer.from(headerToken, 'utf8')
-    return timingSafeEqual(a, b)
-  } catch {
-    return false
+  let difference = 0
+  for (let index = 0; index < cookieToken.length; index += 1) {
+    difference |= cookieToken.charCodeAt(index) ^ headerToken.charCodeAt(index)
   }
+  return difference === 0
 }
 
 // ── Origin check (complement to CSRF token) ───────────────────────────────────
