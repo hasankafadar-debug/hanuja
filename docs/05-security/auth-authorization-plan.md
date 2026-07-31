@@ -47,7 +47,7 @@ Each app enforces its own role boundary in Next.js middleware. The middleware ru
 
 ### 3.1 Storefront — `apps/web`
 
-Protected paths: `/hesabim/*`, `/siparis/*`, `/sepet/odeme`
+Protected paths: `/hesabim/*`, `/faturalarim`, `/siparis`, `/siparis/*`, `/sepet/odeme`
 
 Behavior:
 - Unauthenticated request on a protected path → redirect to `/giris?callbackUrl=<path>`

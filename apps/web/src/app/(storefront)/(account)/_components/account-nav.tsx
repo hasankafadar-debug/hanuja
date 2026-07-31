@@ -35,6 +35,7 @@ export function AccountNav() {
           <Link
             key={href}
             href={href}
+            aria-current={isActive ? 'page' : undefined}
             className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-[var(--color-muted)]"
             style={{
               color: 'var(--color-primary)',

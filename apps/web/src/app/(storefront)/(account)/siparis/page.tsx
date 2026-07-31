@@ -38,7 +38,7 @@ export default async function OrdersPage() {
 
   if (orders.length === 0) {
     return (
-      <div data-testid="empty-state" className="mx-auto max-w-2xl px-4 py-20 sm:px-6 lg:px-8">
+      <div data-testid="empty-state" className="max-w-2xl py-10">
         <EmptyState
           icon={<Package className="h-12 w-12" />}
           title="Henüz siparişiniz yok"
@@ -79,7 +79,7 @@ export default async function OrdersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="max-w-3xl">
       <h1
         className="mb-8 text-2xl font-medium"
         style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}

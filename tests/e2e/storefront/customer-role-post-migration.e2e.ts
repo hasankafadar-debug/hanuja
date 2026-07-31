@@ -553,6 +553,8 @@ test('post-migration customer audit exercises visible customer controls', async 
       async () => {
         await safeGoto(page, '/siparis')
         await expect(page.getByTestId('order-row').first()).toBeVisible({ timeout: 15_000 })
+        await expect(page.locator('nav a[href="/faturalarim"]')).toBeVisible()
+        await expect(page.locator('nav a[href="/siparis"]')).toHaveAttribute('aria-current', 'page')
       },
     )
 
@@ -897,6 +899,28 @@ test('post-migration customer audit exercises visible customer controls', async 
         await page.locator('#review-body').fill(CUSTOMER_FIXTURE.reviewBody)
         await page.getByRole('button', { name: /Değerlendirmeyi Gönder/i }).click()
         await expect(page.getByText(/Değerlendirmen alındı/i)).toBeVisible({ timeout: 15_000 })
+      },
+    )
+
+    await runControl(
+      {
+        priority: 'P2',
+        clickedControl: 'Account menu persistence across invoice and order lists',
+        expected: 'Account navigation should remain visible while moving between invoices and orders.',
+        steps: ['Open /hesabim/adresler', 'Click Faturalarim', 'Click Siparislerim'],
+        fixtureUsed: 'account_navigation',
+      },
+      async () => {
+        await safeGoto(page, '/hesabim/adresler')
+        await page.locator('nav a[href="/faturalarim"]').click()
+        await expect(page).toHaveURL(/\/faturalarim$/)
+        await expect(page.locator('nav a[href="/siparis"]')).toBeVisible()
+        await expect(page.locator('nav a[href="/faturalarim"]')).toHaveAttribute('aria-current', 'page')
+
+        await page.locator('nav a[href="/siparis"]').click()
+        await expect(page).toHaveURL(/\/siparis$/)
+        await expect(page.locator('nav a[href="/faturalarim"]')).toBeVisible()
+        await expect(page.locator('nav a[href="/siparis"]')).toHaveAttribute('aria-current', 'page')
       },
     )
 

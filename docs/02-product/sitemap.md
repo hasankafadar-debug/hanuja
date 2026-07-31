@@ -40,6 +40,7 @@ Ayni slug farkli varlik tiplerinde tekrar edebilir; ayrim namespace ile saglanir
 | `/sepet` | gecici islem ekrani |
 | `/odeme` | oturum ve islem bagimli checkout |
 | `/hesabim` ve alti | kullaniciya ozel |
+| `/faturalarim` | kullaniciya ozel fatura verisi |
 | `/siparis` ve `/siparis/[id]` | kullaniciya ozel siparis verisi |
 | auth sayfalari | indexlenebilir icerik degil |
 | `/seller-panel/**` | operasyon paneli |
@@ -73,7 +74,7 @@ Ayni slug farkli varlik tiplerinde tekrar edebilir; ayrim namespace ile saglanir
 
 ## Robots uyumu
 
-- `packages/seo/src/robots-builder.ts` halihazirda `/hesabim/`, `/sepet`, `/odeme`, `/siparis/`, `/arama`, `/api/` icin disallow uretir.
+- `packages/seo/src/robots-builder.ts` halihazirda `/hesabim/`, `/faturalarim`, `/sepet`, `/odeme`, `/siparis`, `/arama`, `/api/` icin disallow uretir.
 - Sitemap kararlari robots kurallariyla celismemelidir.
 
 ## Canonical notlari

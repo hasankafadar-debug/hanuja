@@ -31,7 +31,7 @@ No journey step may imply that seller receives payment directly or that payout o
 7. Customer sees order confirmation page at `/siparis/[id]`.
 8. Seller receives the order in their queue (status `seller_queue_ready`).
 9. Seller accepts order; status moves through `preparing` → `awaiting_shipment` → `shipped`.
-10. Customer can view shipment tracking under `/hesabim/siparislerim` or `/siparis/[id]`.
+10. Customer can view the order history under `/siparis` and shipment tracking under `/siparis/[id]`.
 11. Cargo provider marks delivery. Status moves to `delivered`.
 12. Customer receives notification to confirm delivery.
 13. Customer clicks "Teslim Aldım" — status moves to `delivery_confirmed`.

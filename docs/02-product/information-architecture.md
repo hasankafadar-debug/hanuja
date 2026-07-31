@@ -33,7 +33,8 @@ The storefront is customer-facing and SEO-first. All public routes must follow n
 | `/sepet` | Cart | No | Authenticated or session-based |
 | `/odeme` | Checkout | No | Authenticated |
 | `/hesabim` | Account overview | No | Authenticated — customer scope only |
-| `/hesabim/siparislerim` | Order history | No | Authenticated |
+| `/siparis` | Order history | No | Authenticated; rendered inside the shared customer account shell |
+| `/faturalarim` | Customer invoices | No | Authenticated; rendered inside the shared customer account shell |
 | `/hesabim/adresler` | Saved addresses | No | Authenticated |
 | `/hesabim/iade-taleplerim` | Return requests | No | Authenticated |
 | `/siparis/[id]` | Order detail | No | Authenticated; customer owns the order |
@@ -64,6 +65,8 @@ These routes must carry `noindex` directives and must not appear in sitemaps:
 - `/sepet`
 - `/odeme`
 - `/hesabim/*`
+- `/faturalarim`
+- `/siparis`
 - `/siparis/*`
 - `/giris`, `/kayit`, `/sifremi-unuttum`
 - All filter/facet parameter combinations by default

@@ -3,6 +3,8 @@
  *
  * Protected paths (require login):
  *   /hesabim/*   — customer account area
+ *   /faturalarim  — customer invoice list
+ *   /siparis      — customer order list
  *   /siparis/*   — order detail/tracking
  *   /sepet/odeme — checkout (cart itself is public)
  *
@@ -34,7 +36,8 @@ interface Session {
 
 const PROTECTED_PATTERNS = [
   /^\/hesabim/,
-  /^\/siparis\//,
+  /^\/faturalarim$/,
+  /^\/siparis(?:\/|$)/,
   /^\/sepet\/odeme/,
 ]
 

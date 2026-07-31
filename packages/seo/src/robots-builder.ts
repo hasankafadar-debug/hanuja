@@ -8,8 +8,10 @@ export function buildRobotsConfig(sitemapUrl: string): MetadataRoute.Robots {
         allow: '/',
         disallow: [
           '/hesabim/',
+          '/faturalarim',
           '/sepet',
           '/odeme',
+          '/siparis',
           '/siparis/',
           '/arama',
           '/api/',

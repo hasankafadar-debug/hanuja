@@ -100,9 +100,12 @@ app/
     urun/[slug]/add-to-cart-button.tsx — Add to cart (client component)
     sepet/page.tsx                  — Cart
     odeme/page.tsx                  — Checkout (client component)
+    (account)/layout.tsx            — Shared authenticated customer account shell
+    (account)/hesabim/page.tsx      — Customer account
+    (account)/hesabim/adresler/page.tsx — Saved addresses
+    (account)/faturalarim/page.tsx  — Customer invoices
+    (account)/siparis/page.tsx      — Customer order history
     siparis/[id]/page.tsx           — Order confirmation / status
-    hesabim/page.tsx                — Customer account
-    hesabim/adresler/page.tsx       — Saved addresses
     blog/page.tsx                   — Blog listing
     magaza/[slug]/page.tsx          — Seller store page
     arama/page.tsx                  — Search results
