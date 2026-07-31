@@ -63,10 +63,13 @@ export async function middleware(request: NextRequest) {
 
   // Issue CSRF token cookie if not already set
   const existingCsrf = request.cookies.get(CSRF_COOKIE_NAME)?.value
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-hanuja-pathname', pathname)
+  const nextResponse = () => NextResponse.next({ request: { headers: requestHeaders } })
   let response: NextResponse
 
   if (!isProtected(pathname)) {
-    response = NextResponse.next()
+    response = nextResponse()
   } else {
     const { data: session } = await betterFetch<Session>(
       '/api/auth/get-session',
@@ -82,7 +85,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl)
     }
 
-    response = NextResponse.next()
+    response = nextResponse()
   }
 
   // Set CSRF cookies if missing.

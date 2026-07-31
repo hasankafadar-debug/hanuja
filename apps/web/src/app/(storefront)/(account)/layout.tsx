@@ -4,8 +4,12 @@ import { auth } from '@/lib/auth'
 import { AccountNav } from './_components/account-nav'
 
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) redirect('/giris?callbackUrl=/hesabim')
+  const requestHeaders = await headers()
+  const session = await auth.api.getSession({ headers: requestHeaders })
+  if (!session?.user) {
+    const pathname = requestHeaders.get('x-hanuja-pathname') ?? '/hesabim'
+    redirect(`/giris?callbackUrl=${encodeURIComponent(pathname)}`)
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
