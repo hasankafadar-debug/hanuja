@@ -24,7 +24,7 @@ import {
   getMirrorCsrfCookieOptions,
   CSRF_COOKIE_NAME,
   CSRF_MIRROR_COOKIE_NAME,
-} from '@hanuja/security'
+} from '@hanuja/security/csrf'
 
 interface Session {
   user: {
