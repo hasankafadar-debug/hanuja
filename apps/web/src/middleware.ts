@@ -16,7 +16,6 @@
  *   All authenticated customers are allowed. Sellers/admins who happen
  *   to browse the storefront are also allowed (they have valid sessions).
  */
-import { betterFetch } from '@better-fetch/fetch'
 import { NextResponse, type NextRequest } from 'next/server'
 import {
   generateCsrfToken,
@@ -26,20 +25,19 @@ import {
   CSRF_MIRROR_COOKIE_NAME,
 } from '@hanuja/security/csrf'
 
-interface Session {
-  user: {
-    id: string
-    email: string
-    role: string
-  }
-}
-
 const PROTECTED_PATTERNS = [
-  /^\/hesabim/,
+  /^\/hesabim(?:\/|$)/,
   /^\/faturalarim$/,
   /^\/siparis(?:\/|$)/,
   /^\/sepet\/odeme/,
 ]
+
+const SESSION_COOKIE_NAMES = [
+  '__Secure-better-auth.session_token',
+  'better-auth.session_token',
+  '__Secure-better-auth-session_token',
+  'better-auth-session_token',
+] as const
 
 function isProtected(pathname: string): boolean {
   return PROTECTED_PATTERNS.some((p) => p.test(pathname))
@@ -51,6 +49,10 @@ function isApiOrAsset(pathname: string): boolean {
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/favicon')
   )
+}
+
+function hasSessionCookie(request: NextRequest): boolean {
+  return SESSION_COOKIE_NAMES.some((name) => Boolean(request.cookies.get(name)?.value))
 }
 
 export async function middleware(request: NextRequest) {
@@ -66,27 +68,14 @@ export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-hanuja-pathname', pathname)
   const nextResponse = () => NextResponse.next({ request: { headers: requestHeaders } })
-  let response: NextResponse
 
-  if (!isProtected(pathname)) {
-    response = nextResponse()
-  } else {
-    const { data: session } = await betterFetch<Session>(
-      '/api/auth/get-session',
-      {
-        baseURL: request.nextUrl.origin,
-        headers: { cookie: request.headers.get('cookie') ?? '' },
-      },
-    )
-
-    if (!session?.user) {
-      const loginUrl = new URL('/giris', request.url)
-      loginUrl.searchParams.set('callbackUrl', pathname)
-      return NextResponse.redirect(loginUrl)
-    }
-
-    response = nextResponse()
+  if (isProtected(pathname) && !hasSessionCookie(request)) {
+    const loginUrl = new URL('/giris', request.url)
+    loginUrl.searchParams.set('callbackUrl', pathname)
+    return NextResponse.redirect(loginUrl)
   }
+
+  const response = nextResponse()
 
   // Set CSRF cookies if missing.
   // Two cookies with the same token value:
