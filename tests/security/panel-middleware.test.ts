@@ -45,6 +45,13 @@ function mockSession(
   )
 }
 
+function expectInternalSessionFetch(port: 3001 | 3002) {
+  expect(fetchMock).toHaveBeenCalledOnce()
+  expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+    `http://127.0.0.1:${port}/api/auth/get-session`,
+  )
+}
+
 describe('active panel middleware', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -119,6 +126,7 @@ describe('active panel middleware', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('location')).toBeNull()
     expectPanelSecurityHeaders(response)
+    expectInternalSessionFetch(3002)
   })
 
   it('keeps only exact seller public routes and recovery APIs public', async () => {
@@ -218,6 +226,16 @@ describe('active panel middleware', () => {
       const response = await sellerMiddleware(request('/dashboard'))
       expect(response.status).toBe(200)
       expect(response.headers.get('location')).toBeNull()
+      expectInternalSessionFetch(3001)
+      fetchMock.mockClear()
     }
+  })
+
+  it('does not use the external request origin for panel session checks', async () => {
+    mockSession({ id: 'admin-1', email: 'admin@example.test', role: 'admin' })
+
+    await adminMiddleware(new NextRequest('https://untrusted.example/dashboard'))
+
+    expectInternalSessionFetch(3002)
   })
 })

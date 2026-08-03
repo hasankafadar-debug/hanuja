@@ -1,4 +1,5 @@
 import { betterFetch } from '@better-fetch/fetch'
+import { getPanelInternalOrigin } from '@hanuja/security/panel-origin'
 import { NextResponse, type NextRequest } from 'next/server'
 import { isPublicAdminPath } from './lib/admin-public-paths'
 
@@ -48,7 +49,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const { data: session } = await betterFetch<Session>('/api/auth/get-session', {
-    baseURL: request.nextUrl.origin,
+    baseURL: getPanelInternalOrigin('admin'),
     headers: { cookie: request.headers.get('cookie') ?? '' },
   })
 
