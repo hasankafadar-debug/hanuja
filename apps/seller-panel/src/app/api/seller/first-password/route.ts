@@ -6,6 +6,7 @@ import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-l
 import { sellerPasswordSchema } from '@hanuja/security/password-policy'
 import { PrismaClient } from '@prisma/client'
 import { revokeTrustedDevices } from '@hanuja/api/lib/auth-security'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -16,6 +17,9 @@ const bodySchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  const csrfError = checkCsrf(req)
+  if (csrfError) return csrfError
+
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
     return NextResponse.json({ message: 'Yetkisiz.' }, { status: 401 })
@@ -26,7 +30,10 @@ export async function POST(req: NextRequest) {
 
   const body = bodySchema.safeParse(await req.json().catch(() => ({})))
   if (!body.success) {
-    return NextResponse.json({ message: body.error.errors[0]?.message ?? 'Geçersiz veri.' }, { status: 400 })
+    return NextResponse.json(
+      { message: body.error.errors[0]?.message ?? 'Geçersiz veri.' },
+      { status: 400 },
+    )
   }
 
   await auth.api.setPassword({

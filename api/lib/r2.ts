@@ -43,9 +43,7 @@ function getR2Config() {
   const endpointHost = `${accountId}.r2.cloudflarestorage.com`
   const endpoint = `https://${endpointHost}`
   const cdnUrl =
-    process.env.R2_CDN_URL ??
-    process.env.R2_PUBLIC_URL ??
-    `https://${bucketName}.${endpointHost}`
+    process.env.R2_CDN_URL ?? process.env.R2_PUBLIC_URL ?? `https://${bucketName}.${endpointHost}`
 
   return { accountId, accessKeyId, secretAccessKey, bucketName, endpoint, endpointHost, cdnUrl }
 }
@@ -96,17 +94,9 @@ export type MediaFolder =
   | 'general'
   | 'customer-support'
 
-const ALLOWED_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-])
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
-export const SLIDER_VIDEO_MIME_TYPES = new Set([
-  'video/mp4',
-  'video/webm',
-])
+export const SLIDER_VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/webm'])
 
 // Extended mime type list for KYC documents.
 export const DOCUMENT_ALLOWED_MIME_TYPES = new Set([
@@ -121,6 +111,7 @@ export const DOCUMENT_ALLOWED_MIME_TYPES = new Set([
 export const DOCUMENT_MAX_SIZE_BYTES = 20 * 1024 * 1024
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+const SIZE_LIMIT_ERROR_CODE = 'MEDIA_FILE_TOO_LARGE'
 const BUCKET_ACCESS_ERROR_MESSAGE = 'R2 bucket bulunamadi veya bu account altinda erisilemiyor.'
 let bucketValidationPromise: Promise<void> | null = null
 
@@ -129,6 +120,33 @@ export interface PresignedUploadResult {
   key: string
   publicUrl: string
   expiresIn: number
+}
+
+/** The server verifies this limit after browser-direct uploads and before processing. */
+export function getMediaMaxSizeBytes(folder: MediaFolder): number {
+  return folder === 'documents' || folder === 'customer-support'
+    ? DOCUMENT_MAX_SIZE_BYTES
+    : MAX_FILE_SIZE_BYTES
+}
+
+export function getAllowedMediaMimeTypes(folder: MediaFolder): Set<string> {
+  if (folder === 'documents' || folder === 'customer-support') {
+    return DOCUMENT_ALLOWED_MIME_TYPES
+  }
+
+  if (folder === 'slider') {
+    return new Set([...ALLOWED_MIME_TYPES, ...SLIDER_VIDEO_MIME_TYPES])
+  }
+
+  return ALLOWED_MIME_TYPES
+}
+
+function mediaSizeLimitError(maxBytes: number) {
+  return new DomainError(
+    `Dosya boyutu en fazla ${Math.round(maxBytes / 1024 / 1024)} MB olabilir.`,
+    SIZE_LIMIT_ERROR_CODE,
+    413,
+  )
 }
 
 export async function presignR2PutObjectUrl(opts: {
@@ -222,14 +240,7 @@ export async function generatePresignedUploadUrl(opts: {
 }): Promise<PresignedUploadResult> {
   const { folder, mimeType, ownerId } = opts
 
-  let allowedTypes: Set<string>
-  if (folder === 'documents' || folder === 'customer-support') {
-    allowedTypes = DOCUMENT_ALLOWED_MIME_TYPES
-  } else if (folder === 'slider') {
-    allowedTypes = new Set([...ALLOWED_MIME_TYPES, ...SLIDER_VIDEO_MIME_TYPES])
-  } else {
-    allowedTypes = ALLOWED_MIME_TYPES
-  }
+  const allowedTypes = getAllowedMediaMimeTypes(folder)
 
   if (!allowedTypes.has(mimeType)) {
     throw new DomainError(
@@ -238,12 +249,6 @@ export async function generatePresignedUploadUrl(opts: {
       415,
     )
   }
-
-  const maxSize =
-    folder === 'documents' || folder === 'customer-support'
-      ? DOCUMENT_MAX_SIZE_BYTES
-      : MAX_FILE_SIZE_BYTES
-  void maxSize
 
   await validateBucketAccess(folder)
 
@@ -257,7 +262,7 @@ export async function generatePresignedUploadUrl(opts: {
     'video/mp4': 'mp4',
     'video/webm': 'webm',
   }
-  const ext = mimeExt[mimeType] ?? (mimeType.split('/')[1] ?? 'jpg')
+  const ext = mimeExt[mimeType] ?? mimeType.split('/')[1] ?? 'jpg'
   const key = `${folder}/${ownerId}/${randomUUID()}.${ext}`
   const expiresIn = 300
 
@@ -284,14 +289,7 @@ export async function uploadObject(opts: {
 }): Promise<{ key: string; publicUrl: string }> {
   const { folder, mimeType, ownerId, body } = opts
 
-  let allowedTypesUpload: Set<string>
-  if (folder === 'documents') {
-    allowedTypesUpload = DOCUMENT_ALLOWED_MIME_TYPES
-  } else if (folder === 'slider') {
-    allowedTypesUpload = new Set([...ALLOWED_MIME_TYPES, ...SLIDER_VIDEO_MIME_TYPES])
-  } else {
-    allowedTypesUpload = ALLOWED_MIME_TYPES
-  }
+  const allowedTypesUpload = getAllowedMediaMimeTypes(folder)
 
   if (!allowedTypesUpload.has(mimeType)) {
     throw new DomainError(
@@ -299,6 +297,10 @@ export async function uploadObject(opts: {
       'UNSUPPORTED_MEDIA_TYPE',
       415,
     )
+  }
+
+  if (body.byteLength > getMediaMaxSizeBytes(folder)) {
+    throw mediaSizeLimitError(getMediaMaxSizeBytes(folder))
   }
 
   const { bucketName, cdnUrl } = getR2Config()
@@ -310,7 +312,7 @@ export async function uploadObject(opts: {
     'video/mp4': 'mp4',
     'video/webm': 'webm',
   }
-  const ext = mimeExtUpload[mimeType] ?? (mimeType.split('/')[1] ?? 'jpg')
+  const ext = mimeExtUpload[mimeType] ?? mimeType.split('/')[1] ?? 'jpg'
   const key = `${folder}/${ownerId}/${randomUUID()}.${ext}`
 
   await r2.send(
@@ -319,6 +321,7 @@ export async function uploadObject(opts: {
       Key: key,
       Body: body,
       ContentType: mimeType,
+      ContentLength: body.byteLength,
     }),
   )
 
@@ -342,28 +345,129 @@ export async function deleteObject(key: string): Promise<void> {
   )
 }
 
+export interface R2ObjectMetadata {
+  contentLength: number | null
+  contentType: string | null
+}
+
+/** Read only object metadata; callers must not infer limits from client claims. */
+export async function getObjectMetadata(key: string): Promise<R2ObjectMetadata> {
+  const { bucketName } = getR2Config()
+  const r2 = createR2Client()
+  const response = await r2.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }))
+
+  return {
+    contentLength:
+      typeof response.ContentLength === 'number' && Number.isFinite(response.ContentLength)
+        ? response.ContentLength
+        : null,
+    contentType: response.ContentType ?? null,
+  }
+}
+
 /**
  * Check if an object exists in R2.
  */
 export async function objectExists(key: string): Promise<boolean> {
-  const { bucketName } = getR2Config()
-  const r2 = createR2Client()
   try {
-    await r2.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }))
+    await getObjectMetadata(key)
     return true
   } catch {
     return false
   }
 }
 
+type StreamChunk = Uint8Array | Buffer | string
+
+type ReadableObjectBody = {
+  [Symbol.asyncIterator]?: () => AsyncIterator<StreamChunk>
+  getReader?: () => ReadableStreamDefaultReader<Uint8Array>
+  cancel?: (reason?: unknown) => Promise<void> | void
+  destroy?: (error?: Error) => void
+}
+
+function toUint8Array(chunk: StreamChunk): Uint8Array {
+  if (typeof chunk === 'string') return Buffer.from(chunk)
+  if (chunk instanceof Uint8Array) return chunk
+  return new Uint8Array(chunk)
+}
+
+async function discardObjectBody(body: ReadableObjectBody, reason: Error) {
+  try {
+    if (typeof body.destroy === 'function') {
+      body.destroy(reason)
+      return
+    }
+    if (typeof body.cancel === 'function') await body.cancel(reason)
+  } catch {
+    // The size validation result is still authoritative even if stream cleanup fails.
+  }
+}
+
+async function readObjectBodyWithinLimit(
+  body: ReadableObjectBody,
+  maxBytes: number,
+): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+
+  const append = (chunk: StreamChunk) => {
+    const bytes = toUint8Array(chunk)
+    totalBytes += bytes.byteLength
+    if (totalBytes > maxBytes) {
+      throw mediaSizeLimitError(maxBytes)
+    }
+    chunks.push(bytes)
+  }
+
+  if (typeof body[Symbol.asyncIterator] === 'function') {
+    try {
+      for await (const chunk of body as AsyncIterable<StreamChunk>) {
+        append(chunk)
+      }
+    } catch (error) {
+      if (error instanceof Error) await discardObjectBody(body, error)
+      throw error
+    }
+  } else if (typeof body.getReader === 'function') {
+    const reader = body.getReader()
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (!value) continue
+        try {
+          append(value)
+        } catch (error) {
+          if (error instanceof Error) await reader.cancel(error)
+          throw error
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  } else {
+    throw new Error('Dosya icerigi okunamadi.')
+  }
+
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
+}
+
 /**
  * Read an object from R2 and return its bytes plus metadata.
  */
-export async function readObject(key: string): Promise<{
+export async function readObject(
+  key: string,
+  maxBytes = MAX_FILE_SIZE_BYTES,
+): Promise<{
   body: Uint8Array
   contentType: string
   sizeBytes: number
 }> {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+    throw new Error('Gecersiz medya boyut siniri.')
+  }
+
   const { bucketName } = getR2Config()
   const r2 = createR2Client()
   const response = await r2.send(
@@ -377,34 +481,20 @@ export async function readObject(key: string): Promise<{
     throw new Error('Dosya icerigi okunamadi.')
   }
 
-  const streamBody = response.Body as {
-    transformToByteArray?: () => Promise<Uint8Array>
-    [Symbol.asyncIterator]?: () => AsyncIterator<Uint8Array | Buffer | string>
+  const streamBody = response.Body as ReadableObjectBody
+  const contentLength = response.ContentLength
+  if (typeof contentLength === 'number' && contentLength > maxBytes) {
+    const error = mediaSizeLimitError(maxBytes)
+    await discardObjectBody(streamBody, error)
+    throw error
   }
 
-  let body: Uint8Array
-  if (typeof streamBody.transformToByteArray === 'function') {
-    body = await streamBody.transformToByteArray()
-  } else if (typeof streamBody[Symbol.asyncIterator] === 'function') {
-    const chunks: Uint8Array[] = []
-    for await (const chunk of response.Body as AsyncIterable<Uint8Array | Buffer | string>) {
-      if (typeof chunk === 'string') {
-        chunks.push(Buffer.from(chunk))
-      } else if (chunk instanceof Uint8Array) {
-        chunks.push(chunk)
-      } else {
-        chunks.push(new Uint8Array(chunk))
-      }
-    }
-    body = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
-  } else {
-    throw new Error('Dosya icerigi okunamadi.')
-  }
+  const body = await readObjectBodyWithinLimit(streamBody, maxBytes)
 
   return {
     body,
     contentType: response.ContentType ?? 'application/octet-stream',
-    sizeBytes: Number(response.ContentLength ?? body.byteLength),
+    sizeBytes: body.byteLength,
   }
 }
 
@@ -427,6 +517,7 @@ export async function uploadBufferWithKey(opts: {
       Key: key,
       Body: body,
       ContentType: mimeType,
+      ContentLength: body.byteLength,
     }),
   )
 

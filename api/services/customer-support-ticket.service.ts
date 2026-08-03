@@ -3,27 +3,23 @@ import type {
   CustomerSupportTicketStatus,
   PrismaClient,
 } from '@prisma/client'
-import {
-  ConflictError,
-  ForbiddenError,
-  NotFoundError,
-  ValidationError,
-} from '../lib/errors'
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../lib/errors'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 
 const MAX_ATTACHMENTS = 5
+const customerSupportAttachmentMediaSelect = {
+  id: true,
+  originalName: true,
+} as const
 
-export function createCustomerSupportTicketService({
-  prisma,
-}: {
-  prisma: PrismaClient
-}) {
+export function createCustomerSupportTicketService({ prisma }: { prisma: PrismaClient }) {
   const auditLog = createAdminAuditLogRepository(prisma)
 
   async function assertReadyAttachments(assetIds: string[], ownerId: string) {
-    const uniqueIds = Array.from(
-      new Set(assetIds.map((id) => id.trim()).filter(Boolean)),
-    ).slice(0, MAX_ATTACHMENTS)
+    const uniqueIds = Array.from(new Set(assetIds.map((id) => id.trim()).filter(Boolean))).slice(
+      0,
+      MAX_ATTACHMENTS,
+    )
     if (uniqueIds.length === 0) return []
 
     const assets = await prisma.mediaAsset.findMany({
@@ -37,9 +33,7 @@ export function createCustomerSupportTicketService({
     })
 
     if (assets.length !== uniqueIds.length) {
-      throw new ValidationError(
-        'Eklerden bazıları bulunamadı veya yükleme tamamlanmadı.',
-      )
+      throw new ValidationError('Eklerden bazıları bulunamadı veya yükleme tamamlanmadı.')
     }
 
     return uniqueIds
@@ -64,12 +58,7 @@ export function createCustomerSupportTicketService({
             attachments: {
               include: {
                 mediaAsset: {
-                  select: {
-                    id: true,
-                    url: true,
-                    originalName: true,
-                    mimeType: true,
-                  },
+                  select: customerSupportAttachmentMediaSelect,
                 },
               },
             },
@@ -128,29 +117,17 @@ export function createCustomerSupportTicketService({
       body: string
       attachmentAssetIds?: string[]
     }) {
-      const {
-        customerId,
-        orderId,
-        category,
-        subject,
-        body,
-        attachmentAssetIds = [],
-      } = params
+      const { customerId, orderId, category, subject, body, attachmentAssetIds = [] } = params
 
       await assertOrderOwnership(orderId, customerId)
-      const assetIds = await assertReadyAttachments(
-        attachmentAssetIds,
-        customerId,
-      )
+      const assetIds = await assertReadyAttachments(attachmentAssetIds, customerId)
 
       return prisma.$transaction(async (tx) => {
         const existing = await tx.customerSupportTicket.findFirst({
           where: { orderId, customerId, status: { not: 'resolved' } },
         })
         if (existing) {
-          throw new ConflictError(
-            'Bu sipariş için zaten açık bir destek talebiniz var.',
-          )
+          throw new ConflictError('Bu sipariş için zaten açık bir destek talebiniz var.')
         }
 
         const ticket = await tx.customerSupportTicket.create({
@@ -186,15 +163,10 @@ export function createCustomerSupportTicketService({
 
       const ticket = await getTicketForCustomer(ticketId, customerId)
       if (ticket.status === 'resolved') {
-        throw new ValidationError(
-          'Bu destek talebi kapatılmış. Yeni bir talep açabilirsiniz.',
-        )
+        throw new ValidationError('Bu destek talebi kapatılmış. Yeni bir talep açabilirsiniz.')
       }
 
-      const assetIds = await assertReadyAttachments(
-        attachmentAssetIds,
-        customerId,
-      )
+      const assetIds = await assertReadyAttachments(attachmentAssetIds, customerId)
 
       return prisma.$transaction(async (tx) => {
         const msg = await createMessageWithAttachments(tx, {
@@ -227,13 +199,9 @@ export function createCustomerSupportTicketService({
         where: { id: ticketId },
       })
       if (!ticket) throw new NotFoundError('Destek talebi')
-      if (ticket.status === 'resolved')
-        throw new ValidationError('Bu destek talebi kapatılmış.')
+      if (ticket.status === 'resolved') throw new ValidationError('Bu destek talebi kapatılmış.')
 
-      const assetIds = await assertReadyAttachments(
-        attachmentAssetIds,
-        adminActorId,
-      )
+      const assetIds = await assertReadyAttachments(attachmentAssetIds, adminActorId)
 
       return prisma.$transaction(async (tx) => {
         const msg = await createMessageWithAttachments(tx, {
@@ -261,11 +229,7 @@ export function createCustomerSupportTicketService({
       })
     },
 
-    async resolveByAdmin(params: {
-      ticketId: string
-      adminActorId: string
-      note?: string
-    }) {
+    async resolveByAdmin(params: { ticketId: string; adminActorId: string; note?: string }) {
       const { ticketId, adminActorId, note } = params
 
       const ticket = await prisma.customerSupportTicket.findUnique({
@@ -354,12 +318,7 @@ export function createCustomerSupportTicketService({
               attachments: {
                 include: {
                   mediaAsset: {
-                    select: {
-                      id: true,
-                      url: true,
-                      originalName: true,
-                      mimeType: true,
-                    },
+                    select: customerSupportAttachmentMediaSelect,
                   },
                 },
               },

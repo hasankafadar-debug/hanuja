@@ -15,6 +15,7 @@ import { sellerPasswordResetTemplate } from "@hanuja/api/lib/email-templates/sel
 import { evaluateAuthPasswordPolicy } from "@hanuja/security/password-policy";
 import { getRedis } from "@hanuja/api/lib/redis";
 import { revokeTrustedDevices } from "@hanuja/api/lib/auth-security";
+import { requireRuntimeSecret } from "@hanuja/config/env";
 import { ensureSellerEmailOtpFactor } from "@/lib/seller-email-otp-factor";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
@@ -22,6 +23,14 @@ const prisma = globalForPrisma.prisma ?? new PrismaClient();
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 const baseURL = process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
+const betterAuthSecret = requireRuntimeSecret(
+  "BETTER_AUTH_SECRET",
+  process.env.BETTER_AUTH_SECRET,
+);
+const turnstileSecret = requireRuntimeSecret(
+  "TURNSTILE_SECRET_KEY",
+  process.env.TURNSTILE_SECRET_KEY,
+);
 
 const sellerForbiddenTwoFactorPaths = new Set([
   "/two-factor/enable",
@@ -64,7 +73,7 @@ function expandTrustedOriginVariants(
 
 const _auth = betterAuth({
   baseURL,
-  secret: process.env.BETTER_AUTH_SECRET ?? "change-me-in-production",
+  secret: betterAuthSecret,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   session: {
     expiresIn: 60 * 60 * 24 * 30,
@@ -84,8 +93,7 @@ const _auth = betterAuth({
     before: createAuthMiddleware(async (ctx) => {
       if (sellerForbiddenTwoFactorPaths.has(ctx.path)) {
         throw new APIError("FORBIDDEN", {
-          message:
-            "Satıcı paneli yalnızca e-posta doğrulama kodunu destekler.",
+          message: "Satıcı paneli yalnızca e-posta doğrulama kodunu destekler.",
         });
       }
 
@@ -153,8 +161,7 @@ const _auth = betterAuth({
   plugins: [
     captcha({
       provider: "cloudflare-turnstile",
-      secretKey:
-        process.env.TURNSTILE_SECRET_KEY ?? "turnstile-secret-not-configured",
+      secretKey: turnstileSecret,
       endpoints: ["/sign-in/email"],
     }),
     // OTP records are stored hashed by Better Auth. Seller accounts only use

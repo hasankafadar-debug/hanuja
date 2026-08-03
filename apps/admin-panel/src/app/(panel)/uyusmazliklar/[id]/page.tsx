@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { Button, StatusBadge, PageHeader, normalizeMediaDisplayUrl } from '@hanuja/ui'
+import { Button, StatusBadge, PageHeader } from '@hanuja/ui'
 import { ArrowLeft, MessageSquare, AlertTriangle } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
@@ -12,11 +12,11 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = { title: 'Uyuşmazlık Detayı' }
 
-export default async function DisputeDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+function privateMediaUrl(assetId: string) {
+  return `/api/media/private/${encodeURIComponent(assetId)}`
+}
+
+export default async function DisputeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await getAdminSession()
 
   const { id } = await params
@@ -49,14 +49,23 @@ export default async function DisputeDetailPage({
   const sellerId = dispute.order?.lines[0]?.sellerId
   let sellerName = '—'
   if (sellerId) {
-    const seller = await prisma.seller.findUnique({ where: { id: sellerId }, select: { displayName: true } })
+    const seller = await prisma.seller.findUnique({
+      where: { id: sellerId },
+      select: { displayName: true },
+    })
     sellerName = seller?.displayName ?? '—'
   }
   const customerName = dispute.order?.customer?.name ?? '—'
   const rr = dispute.escalatedFromReturn
 
   const fmt = (d: Date) =>
-    d.toLocaleString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    d.toLocaleString('tr-TR', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
 
   const roleColors: Record<string, string> = {
     customer: 'var(--color-accent)',
@@ -76,24 +85,24 @@ export default async function DisputeDetailPage({
         authorRole: m.authorRole as string,
         body: m.body,
         createdAt: m.createdAt,
-        attachments: m.attachments.map((a) => ({ id: a.id, url: a.url })),
+        attachments: m.attachments.map((a) => ({ id: a.id })),
       }))
     : dispute.messages.map((m) => ({
         id: m.id,
         authorRole: m.authorRole as string,
         body: m.body,
         createdAt: m.createdAt,
-        attachments: [] as { id: string; url: string }[],
+        attachments: [] as { id: string }[],
       }))
 
   const canResolve = dispute.status === 'open' || dispute.status === 'under_review'
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="max-w-3xl space-y-6">
       <div className="flex items-center gap-3">
         <Link href="/uyusmazliklar">
           <Button size="sm" variant="ghost">
-            <ArrowLeft className="h-4 w-4 mr-1" />
+            <ArrowLeft className="mr-1 h-4 w-4" />
             Geri
           </Button>
         </Link>
@@ -101,10 +110,13 @@ export default async function DisputeDetailPage({
       </div>
 
       <div
-        className="rounded-xl border p-5 space-y-3"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        className="space-y-3 rounded-xl border p-5"
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-surface)',
+        }}
       >
-        <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <StatusBadge status={dispute.status} />
             {dispute.payoutBlocked && (
@@ -124,25 +136,55 @@ export default async function DisputeDetailPage({
 
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-xs uppercase tracking-wide" style={{ color: 'var(--color-muted-fg)' }}>Sipariş</span>
+            <span
+              className="text-xs uppercase tracking-wide"
+              style={{ color: 'var(--color-muted-fg)' }}
+            >
+              Sipariş
+            </span>
             <p>
-              <Link href={`/siparisler/${dispute.orderId}`} className="hover:underline font-medium" style={{ color: 'var(--color-accent)' }}>
+              <Link
+                href={`/siparisler/${dispute.orderId}`}
+                className="font-medium hover:underline"
+                style={{ color: 'var(--color-accent)' }}
+              >
                 {dispute.orderId.slice(0, 12)}…
               </Link>
             </p>
           </div>
           <div>
-            <span className="text-xs uppercase tracking-wide" style={{ color: 'var(--color-muted-fg)' }}>Satıcı</span>
-            <p className="font-medium" style={{ color: 'var(--color-primary)' }}>{sellerName}</p>
+            <span
+              className="text-xs uppercase tracking-wide"
+              style={{ color: 'var(--color-muted-fg)' }}
+            >
+              Satıcı
+            </span>
+            <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
+              {sellerName}
+            </p>
           </div>
           <div>
-            <span className="text-xs uppercase tracking-wide" style={{ color: 'var(--color-muted-fg)' }}>Müşteri</span>
-            <p className="font-medium" style={{ color: 'var(--color-primary)' }}>{customerName}</p>
+            <span
+              className="text-xs uppercase tracking-wide"
+              style={{ color: 'var(--color-muted-fg)' }}
+            >
+              Müşteri
+            </span>
+            <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
+              {customerName}
+            </p>
           </div>
           {dispute.resolution && (
             <div>
-              <span className="text-xs uppercase tracking-wide" style={{ color: 'var(--color-muted-fg)' }}>Sonuç</span>
-              <p className="text-sm" style={{ color: 'var(--color-primary)' }}>{dispute.resolution}</p>
+              <span
+                className="text-xs uppercase tracking-wide"
+                style={{ color: 'var(--color-muted-fg)' }}
+              >
+                Sonuç
+              </span>
+              <p className="text-sm" style={{ color: 'var(--color-primary)' }}>
+                {dispute.resolution}
+              </p>
             </div>
           )}
         </div>
@@ -150,7 +192,10 @@ export default async function DisputeDetailPage({
         {dispute.description && (
           <div
             className="rounded-lg p-3 text-sm"
-            style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-muted-fg)' }}
+            style={{
+              backgroundColor: 'var(--color-muted)',
+              color: 'var(--color-muted-fg)',
+            }}
           >
             {dispute.description}
           </div>
@@ -159,8 +204,11 @@ export default async function DisputeDetailPage({
 
       {rr ? (
         <div
-          className="rounded-xl border p-5 space-y-3 text-sm"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          className="space-y-3 rounded-xl border p-5 text-sm"
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-surface)',
+          }}
         >
           <p className="font-semibold" style={{ color: 'var(--color-primary)' }}>
             İade Bilgisi (#{rr.id.slice(-8).toUpperCase()})
@@ -168,7 +216,9 @@ export default async function DisputeDetailPage({
           <p style={{ color: 'var(--color-muted-fg)' }}>
             <strong style={{ color: 'var(--color-primary)' }}>Müşteri sebebi:</strong> {rr.reason}
           </p>
-          {rr.description ? <p style={{ color: 'var(--color-muted-fg)' }}>{rr.description}</p> : null}
+          {rr.description ? (
+            <p style={{ color: 'var(--color-muted-fg)' }}>{rr.description}</p>
+          ) : null}
           {rr.returnCargoProvider || rr.returnTrackingNumber ? (
             <p style={{ color: 'var(--color-muted-fg)' }}>
               <strong style={{ color: 'var(--color-primary)' }}>Müşteri iade kargosu:</strong>{' '}
@@ -181,15 +231,26 @@ export default async function DisputeDetailPage({
               style={{ backgroundColor: '#fef2f2', color: '#dc2626' }}
             >
               <strong>Satıcı red sebebi:</strong> {rr.sellerRejectReason}
-              {rr.sellerRejectDescription ? <p className="mt-1">{rr.sellerRejectDescription}</p> : null}
+              {rr.sellerRejectDescription ? (
+                <p className="mt-1">{rr.sellerRejectDescription}</p>
+              ) : null}
             </div>
           ) : null}
           {rr.evidence.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {rr.evidence.map((e) => (
-                <a key={e.id} href={e.url} target="_blank" rel="noreferrer">
-                  <span className="relative block h-16 w-16 overflow-hidden rounded border" style={{ borderColor: 'var(--color-border)' }}>
-                    <Image src={normalizeMediaDisplayUrl(e.url)} alt="Kanıt" fill className="object-cover" />
+                <a key={e.id} href={privateMediaUrl(e.id)} target="_blank" rel="noreferrer">
+                  <span
+                    className="relative block h-16 w-16 overflow-hidden rounded border"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    <Image
+                      src={privateMediaUrl(e.id)}
+                      alt="Kanıt"
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
                   </span>
                 </a>
               ))}
@@ -200,24 +261,34 @@ export default async function DisputeDetailPage({
 
       <div
         className="rounded-xl border"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-surface)',
+        }}
       >
-        <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
+        <div
+          className="flex items-center gap-2 border-b px-5 py-3"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
           <MessageSquare className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
           <span className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
             Yazışma ({thread.length})
           </span>
         </div>
         {thread.length === 0 && (
-          <p className="px-5 py-4 text-sm" style={{ color: 'var(--color-muted-fg)' }}>Henüz mesaj yok.</p>
+          <p className="px-5 py-4 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+            Henüz mesaj yok.
+          </p>
         )}
         <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
           {thread.map((msg) => (
-            <div key={msg.id} className="px-5 py-4 space-y-1">
+            <div key={msg.id} className="space-y-1 px-5 py-4">
               <div className="flex items-center justify-between">
                 <span
                   className="text-xs font-semibold uppercase tracking-wide"
-                  style={{ color: roleColors[msg.authorRole] ?? 'var(--color-muted-fg)' }}
+                  style={{
+                    color: roleColors[msg.authorRole] ?? 'var(--color-muted-fg)',
+                  }}
                 >
                   {roleLabels[msg.authorRole] ?? msg.authorRole}
                 </span>
@@ -231,9 +302,18 @@ export default async function DisputeDetailPage({
               {msg.attachments.length > 0 ? (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {msg.attachments.map((a) => (
-                    <a key={a.id} href={a.url} target="_blank" rel="noreferrer">
-                      <span className="relative block h-14 w-14 overflow-hidden rounded border" style={{ borderColor: 'var(--color-border)' }}>
-                        <Image src={normalizeMediaDisplayUrl(a.url)} alt="Ek" fill className="object-cover" />
+                    <a key={a.id} href={privateMediaUrl(a.id)} target="_blank" rel="noreferrer">
+                      <span
+                        className="relative block h-14 w-14 overflow-hidden rounded border"
+                        style={{ borderColor: 'var(--color-border)' }}
+                      >
+                        <Image
+                          src={privateMediaUrl(a.id)}
+                          alt="Ek"
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
                       </span>
                     </a>
                   ))}

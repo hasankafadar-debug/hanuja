@@ -10,9 +10,10 @@
  *
  * See: .claude/rules/07-marketplace-finance-rules.md, .claude/rules/08-order-lifecycle-rules.md
  */
-import type { PrismaClient, UserRole } from '@prisma/client'
+import type { PrismaClient } from '@prisma/client'
 import { NotFoundError, ConflictError, ForbiddenError } from '../lib/errors'
 import { createDisputeRepository } from '../repositories/dispute.repository'
+import { isPersistableDisputeAuthorRole, type DisputeViewer } from '../lib/dispute-authorization'
 import { createOrderRepository } from '../repositories/order.repository'
 import { createReturnRequestRepository } from '../repositories/return-request.repository'
 import { createPayoutRepository } from '../repositories/payout.repository'
@@ -69,7 +70,9 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
         orderId: params.orderId,
         openedById: params.customerId,
         reason: params.reason,
-        ...(params.description !== undefined && { description: params.description }),
+        ...(params.description !== undefined && {
+          description: params.description,
+        }),
       })
 
       await orders.appendStatusHistory(
@@ -95,7 +98,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
       resolution: string
       refundAmount?: import('@prisma/client/runtime/client').Decimal
     }) {
-      const dispute = await disputes.findById(params.disputeId)
+      const dispute = await disputes.findByIdForAdmin(params.disputeId)
       if (!dispute) throw new NotFoundError('Dispute', params.disputeId)
 
       if (dispute.status !== 'open' && dispute.status !== 'under_review') {
@@ -173,7 +176,10 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
         targetType: 'dispute',
         targetId: params.disputeId,
         previousData: { status: dispute.status },
-        newData: { status: params.resolutionType, resolution: params.resolution },
+        newData: {
+          status: params.resolutionType,
+          resolution: params.resolution,
+        },
         ...(params.resolution !== undefined && { reason: params.resolution }),
       })
 
@@ -183,16 +189,22 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
     /**
      * Müşteri, satıcı veya admin mesaj ekler.
      */
-    async addMessage(params: {
-      disputeId: string
-      authorId: string
-      authorRole: UserRole
-      body: string
-    }) {
-      const dispute = await disputes.findById(params.disputeId)
+    async addMessage(params: { disputeId: string; viewer: DisputeViewer; body: string }) {
+      const dispute = await disputes.findMessageTargetForViewer(params.disputeId, params.viewer)
       if (!dispute) throw new NotFoundError('Dispute', params.disputeId)
 
-      if (dispute.status === 'resolved_for_customer' || dispute.status === 'resolved_for_seller' || dispute.status === 'closed') {
+      // The current persisted enum has no `support` author role. Support may
+      // inspect cases through its view-all permission, but cannot be recorded
+      // under another role when posting a message.
+      if (!isPersistableDisputeAuthorRole(params.viewer.viewerRole)) {
+        throw new ForbiddenError('Bu rol uyusmazlik mesaji olusturamaz')
+      }
+
+      if (
+        dispute.status === 'resolved_for_customer' ||
+        dispute.status === 'resolved_for_seller' ||
+        dispute.status === 'closed'
+      ) {
         throw new ConflictError('Kapalı uyuşmazlığa mesaj eklenemez')
       }
 
@@ -200,14 +212,16 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
 
       return disputes.addMessage({
         disputeId: params.disputeId,
-        authorId: params.authorId,
-        authorRole: params.authorRole,
+        authorId: params.viewer.viewerId,
+        authorRole: params.viewer.viewerRole,
         body: params.body,
       })
     },
 
-    getDispute(id: string) {
-      return disputes.findById(id)
+    async getDispute(id: string, viewer: DisputeViewer) {
+      const dispute = await disputes.findByIdForViewer(id, viewer)
+      if (!dispute) throw new NotFoundError('Dispute', id)
+      return dispute
     },
 
     listForAdmin(params: Parameters<typeof disputes.listForAdmin>[0]) {

@@ -14,9 +14,7 @@ type SerializedMessage = {
     id: string
     mediaAsset: {
       id: string
-      url: string
       originalName: string | null
-      mimeType: string | null
     }
   }>
 }
@@ -111,7 +109,7 @@ export function TicketThreadClient({
                     {msg.attachments.map((att) => (
                       <a
                         key={att.id}
-                        href={att.mediaAsset.url}
+                        href={`/api/media/private/${att.mediaAsset.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-1 text-xs rounded-md border px-2 py-1 hover:bg-[var(--color-muted)]"

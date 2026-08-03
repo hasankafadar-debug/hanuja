@@ -150,7 +150,7 @@ export default async function AdminSupportTicketDetailPage({ params }: Props) {
                         {message.attachments.map((attachment) => (
                           <a
                             key={attachment.id}
-                            href={attachment.mediaAsset.url}
+                            href={`/api/media/private/${attachment.mediaAsset.id}`}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"

@@ -3,13 +3,12 @@
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Button, Input, Textarea, StatusBadge, normalizeMediaDisplayUrl, useToast } from '@hanuja/ui'
+import { Button, Input, Textarea, StatusBadge, useToast } from '@hanuja/ui'
 import { Paperclip, X } from 'lucide-react'
 import { uploadSellerReturnPhoto, ACCEPTED_MIME, MAX_FILES } from './seller-return-photo'
 
 interface Attachment {
   id: string
-  url: string
 }
 interface Message {
   id: string
@@ -51,6 +50,10 @@ const ROLE_LABEL: Record<string, string> = {
   admin: 'Hanuja',
 }
 
+function privateMediaUrl(assetId: string) {
+  return `/api/media/private/${encodeURIComponent(assetId)}`
+}
+
 function usePhotos() {
   const [ids, setIds] = useState<string[]>([])
   const [names, setNames] = useState<string[]>([])
@@ -76,16 +79,33 @@ function usePhotos() {
       {names.length > 0 ? (
         <ul className="mb-2 space-y-1 text-xs">
           {names.map((n, i) => (
-            <li key={i} className="flex items-center gap-2" style={{ color: 'var(--color-muted-fg)' }}>
+            <li
+              key={i}
+              className="flex items-center gap-2"
+              style={{ color: 'var(--color-muted-fg)' }}
+            >
               {n} {ids[i] ? '— hazır' : '— yükleniyor...'}
-              <button type="button" onClick={() => { setNames((p) => p.filter((_, x) => x !== i)); setIds((p) => p.filter((_, x) => x !== i)) }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setNames((p) => p.filter((_, x) => x !== i))
+                  setIds((p) => p.filter((_, x) => x !== i))
+                }}
+              >
                 <X className="h-3 w-3" />
               </button>
             </li>
           ))}
         </ul>
       ) : null}
-      <input ref={inputRef} type="file" multiple accept={ACCEPTED_MIME.join(',')} onChange={pick} className="sr-only" />
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        accept={ACCEPTED_MIME.join(',')}
+        onChange={pick}
+        className="sr-only"
+      />
       <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
         <Paperclip className="h-4 w-4" /> Görsel Ekle
       </Button>
@@ -121,7 +141,11 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
       const res = await fetch(url, init)
       if (!res.ok) {
         const p = await res.json().catch(() => null)
-        toast({ title: 'İşlem başarısız', description: (p?.message as string) ?? 'Tekrar deneyin.', variant: 'destructive' })
+        toast({
+          title: 'İşlem başarısız',
+          description: (p?.message as string) ?? 'Tekrar deneyin.',
+          variant: 'destructive',
+        })
         return
       }
       toast({ title: okMsg, variant: 'success' })
@@ -141,20 +165,40 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
         />
       </div>
 
-      <section className="rounded-xl border p-4 text-sm" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+      <section
+        className="rounded-xl border p-4 text-sm"
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-surface)',
+        }}
+      >
         <p style={{ color: 'var(--color-muted-fg)' }}>
-          <strong style={{ color: 'var(--color-primary)' }}>Ürün(ler):</strong> {data.productNames.join(', ')}
+          <strong style={{ color: 'var(--color-primary)' }}>Ürün(ler):</strong>{' '}
+          {data.productNames.join(', ')}
         </p>
         <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>
           <strong style={{ color: 'var(--color-primary)' }}>Müşteri sebebi:</strong> {data.reason}
         </p>
-        {data.description ? <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>{data.description}</p> : null}
+        {data.description ? (
+          <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>
+            {data.description}
+          </p>
+        ) : null}
         {data.evidence.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-2">
             {data.evidence.map((e) => (
-              <a key={e.id} href={e.url} target="_blank" rel="noreferrer">
-                <span className="relative block h-16 w-16 overflow-hidden rounded border" style={{ borderColor: 'var(--color-border)' }}>
-                  <Image src={normalizeMediaDisplayUrl(e.url)} alt="Görsel" fill className="object-cover" />
+              <a key={e.id} href={privateMediaUrl(e.id)} target="_blank" rel="noreferrer">
+                <span
+                  className="relative block h-16 w-16 overflow-hidden rounded border"
+                  style={{ borderColor: 'var(--color-border)' }}
+                >
+                  <Image
+                    src={privateMediaUrl(e.id)}
+                    alt="Görsel"
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
                 </span>
               </a>
             ))}
@@ -169,20 +213,46 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
       </section>
 
       {data.status === 'requested' || data.status === 'under_review' ? (
-        <section className="space-y-2 rounded-xl border p-4" style={{ borderColor: 'var(--color-border)' }}>
-          <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>İade Kargo Bilgisi Gir</p>
-          <Textarea value={address} onChange={(e) => setAddress(e.target.value)} placeholder="İade adresi" rows={2} disabled={pending} />
-          <Input value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Kargo firması (anlaşmalı kod vb.)" disabled={pending} />
-          <Textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Talimat (opsiyonel)" rows={2} disabled={pending} />
+        <section
+          className="space-y-2 rounded-xl border p-4"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
+          <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+            İade Kargo Bilgisi Gir
+          </p>
+          <Textarea
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="İade adresi"
+            rows={2}
+            disabled={pending}
+          />
+          <Input
+            value={carrier}
+            onChange={(e) => setCarrier(e.target.value)}
+            placeholder="Kargo firması (anlaşmalı kod vb.)"
+            disabled={pending}
+          />
+          <Textarea
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            placeholder="Talimat (opsiyonel)"
+            rows={2}
+            disabled={pending}
+          />
           <Button
             type="button"
             disabled={pending}
             onClick={() =>
-              post(`/api/seller/returns/${data.id}/cargo-info`, {
-                address: address.trim(),
-                carrier: carrier.trim(),
-                instructions: instructions.trim() || undefined,
-              }, 'İade kargo bilgisi iletildi')
+              post(
+                `/api/seller/returns/${data.id}/cargo-info`,
+                {
+                  address: address.trim(),
+                  carrier: carrier.trim(),
+                  instructions: instructions.trim() || undefined,
+                },
+                'İade kargo bilgisi iletildi',
+              )
             }
           >
             Kargo Bilgisini Gönder
@@ -191,7 +261,10 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
       ) : null}
 
       {data.status === 'in_transit' ? (
-        <section className="space-y-3 rounded-xl border p-4" style={{ borderColor: 'var(--color-border)' }}>
+        <section
+          className="space-y-3 rounded-xl border p-4"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
           <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
             Ürün size ulaştı mı?
           </p>
@@ -199,29 +272,58 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
             <Button
               type="button"
               disabled={pending}
-              onClick={() => post(`/api/seller/returns/${data.id}/confirm-receipt`, null, 'İade onaylandı, müşteriye iade başlatıldı')}
+              onClick={() =>
+                post(
+                  `/api/seller/returns/${data.id}/confirm-receipt`,
+                  null,
+                  'İade onaylandı, müşteriye iade başlatıldı',
+                )
+              }
             >
               Kargoyu Aldım / Onayla
             </Button>
-            <Button type="button" variant="outline" disabled={pending} onClick={() => setRejectOpen((v) => !v)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setRejectOpen((v) => !v)}
+            >
               Reddet (Yanlış Ürün)
             </Button>
           </div>
           {rejectOpen ? (
-            <div className="space-y-2 rounded-lg border p-3" style={{ borderColor: 'var(--color-destructive, #dc2626)' }}>
-              <Input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Red sebebi" disabled={pending} />
-              <Textarea value={rejectDesc} onChange={(e) => setRejectDesc(e.target.value)} placeholder="Açıklama" rows={2} disabled={pending} />
+            <div
+              className="space-y-2 rounded-lg border p-3"
+              style={{ borderColor: 'var(--color-destructive, #dc2626)' }}
+            >
+              <Input
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Red sebebi"
+                disabled={pending}
+              />
+              <Textarea
+                value={rejectDesc}
+                onChange={(e) => setRejectDesc(e.target.value)}
+                placeholder="Açıklama"
+                rows={2}
+                disabled={pending}
+              />
               {rejectPhotos.node}
               <Button
                 type="button"
                 variant="outline"
                 disabled={pending || rejectReason.trim().length < 1}
                 onClick={() =>
-                  post(`/api/seller/returns/${data.id}/reject`, {
-                    reason: rejectReason.trim(),
-                    description: rejectDesc.trim() || undefined,
-                    evidenceAssetIds: rejectPhotos.ids.length ? rejectPhotos.ids : undefined,
-                  }, 'İade reddedildi, uyuşmazlığa taşındı')
+                  post(
+                    `/api/seller/returns/${data.id}/reject`,
+                    {
+                      reason: rejectReason.trim(),
+                      description: rejectDesc.trim() || undefined,
+                      evidenceAssetIds: rejectPhotos.ids.length ? rejectPhotos.ids : undefined,
+                    },
+                    'İade reddedildi, uyuşmazlığa taşındı',
+                  )
                 }
               >
                 Reddi Gönder
@@ -232,33 +334,65 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
       ) : null}
 
       {data.sellerRejectReason ? (
-        <section className="rounded-xl border p-4 text-sm" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}>
+        <section
+          className="rounded-xl border p-4 text-sm"
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-muted)',
+          }}
+        >
           <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
             Reddedildi — Uyuşmazlık {data.disputeStatus ? `(${data.disputeStatus})` : ''}
           </p>
-          <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>{data.sellerRejectReason}</p>
+          <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>
+            {data.sellerRejectReason}
+          </p>
         </section>
       ) : null}
 
-      <section className="space-y-3 rounded-xl border p-4" style={{ borderColor: 'var(--color-border)' }}>
-        <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>Müşteri ile Yazışma</p>
+      <section
+        className="space-y-3 rounded-xl border p-4"
+        style={{ borderColor: 'var(--color-border)' }}
+      >
+        <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+          Müşteri ile Yazışma
+        </p>
         {data.messages.length === 0 ? (
-          <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>Henüz mesaj yok.</p>
+          <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+            Henüz mesaj yok.
+          </p>
         ) : (
           <ul className="space-y-2">
             {data.messages.map((m) => (
-              <li key={m.id} className="rounded-lg border p-3 text-sm" style={{ borderColor: 'var(--color-border)' }}>
+              <li
+                key={m.id}
+                className="rounded-lg border p-3 text-sm"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
                 <div className="mb-1 flex items-center justify-between text-xs">
-                  <span className="font-medium" style={{ color: 'var(--color-primary)' }}>{ROLE_LABEL[m.authorRole] ?? m.authorRole}</span>
-                  <span style={{ color: 'var(--color-muted-fg)' }}>{new Date(m.createdAt).toLocaleString('tr-TR')}</span>
+                  <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                    {ROLE_LABEL[m.authorRole] ?? m.authorRole}
+                  </span>
+                  <span style={{ color: 'var(--color-muted-fg)' }}>
+                    {new Date(m.createdAt).toLocaleString('tr-TR')}
+                  </span>
                 </div>
                 <p style={{ color: 'var(--color-primary)' }}>{m.body}</p>
                 {m.attachments.length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {m.attachments.map((a) => (
-                      <a key={a.id} href={a.url} target="_blank" rel="noreferrer">
-                        <span className="relative block h-14 w-14 overflow-hidden rounded border" style={{ borderColor: 'var(--color-border)' }}>
-                          <Image src={normalizeMediaDisplayUrl(a.url)} alt="Ek" fill className="object-cover" />
+                      <a key={a.id} href={privateMediaUrl(a.id)} target="_blank" rel="noreferrer">
+                        <span
+                          className="relative block h-14 w-14 overflow-hidden rounded border"
+                          style={{ borderColor: 'var(--color-border)' }}
+                        >
+                          <Image
+                            src={privateMediaUrl(a.id)}
+                            alt="Ek"
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
                         </span>
                       </a>
                     ))}
@@ -270,17 +404,27 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
         )}
         {data.status !== 'refund_completed' ? (
           <div className="space-y-2">
-            <Textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Mesaj (telefon/e-posta paylaşmayın)" rows={2} disabled={pending} />
+            <Textarea
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              placeholder="Mesaj (telefon/e-posta paylaşmayın)"
+              rows={2}
+              disabled={pending}
+            />
             {replyPhotos.node}
             <Button
               type="button"
               variant="outline"
               disabled={pending || reply.trim().length < 1}
               onClick={() =>
-                post(`/api/seller/returns/${data.id}/messages`, {
-                  body: reply.trim(),
-                  attachmentAssetIds: replyPhotos.ids.length ? replyPhotos.ids : undefined,
-                }, 'Mesaj gönderildi')
+                post(
+                  `/api/seller/returns/${data.id}/messages`,
+                  {
+                    body: reply.trim(),
+                    attachmentAssetIds: replyPhotos.ids.length ? replyPhotos.ids : undefined,
+                  },
+                  'Mesaj gönderildi',
+                )
               }
             >
               Mesaj Gönder

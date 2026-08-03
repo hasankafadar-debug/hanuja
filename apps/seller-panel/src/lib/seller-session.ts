@@ -17,6 +17,10 @@ export async function getSellerFromSession(options: { allowSuspended?: boolean }
     redirect('/giris')
   }
 
+  if (session.user.mustChangePassword) {
+    redirect('/sifre-olustur')
+  }
+
   const seller = await prisma.seller.findUnique({
     where: { userId: session.user.id },
   })

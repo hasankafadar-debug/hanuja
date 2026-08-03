@@ -137,7 +137,7 @@ export default async function CustomerSupportTicketDetailPage({ params }: Props)
                       {msg.attachments.map((att) => (
                         <a
                           key={att.id}
-                          href={att.mediaAsset.url}
+                          href={`/api/media/private/${att.mediaAsset.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1 text-xs hover:underline"

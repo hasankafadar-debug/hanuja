@@ -6,7 +6,6 @@ interface Attachment {
   id: string
   mediaAsset: {
     id: string
-    url: string
     originalName: string | null
     mimeType: string
   }
@@ -31,7 +30,7 @@ function AttachmentLink({ attachment }: { attachment: Attachment }) {
 
   return (
     <a
-      href={mediaAsset.url}
+      href={`/api/media/private/${mediaAsset.id}`}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:bg-muted"

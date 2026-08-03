@@ -14,6 +14,7 @@ import {
   Label,
   Textarea,
 } from '@hanuja/ui'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface EditInvoiceDialogProps {
   invoiceId: string
@@ -34,7 +35,12 @@ interface EditPenaltyDialogProps {
 }
 
 function readError(payload: unknown, fallback: string) {
-  if (typeof payload === 'object' && payload !== null && 'message' in payload && typeof payload.message === 'string') {
+  if (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'message' in payload &&
+    typeof payload.message === 'string'
+  ) {
     return payload.message
   }
   return fallback
@@ -98,10 +104,10 @@ export function EditInvoiceDialog({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{type === 'commission' ? 'Komisyon Faturasini Duzenle' : 'Ceza Faturasini Duzenle'}</DialogTitle>
-            <DialogDescription>
-              Fatura numarasi sabittir: {invoiceNumber}
-            </DialogDescription>
+            <DialogTitle>
+              {type === 'commission' ? 'Komisyon Faturasini Duzenle' : 'Ceza Faturasini Duzenle'}
+            </DialogTitle>
+            <DialogDescription>Fatura numarasi sabittir: {invoiceNumber}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -111,7 +117,9 @@ export function EditInvoiceDialog({
                 id={`invoice-date-${invoiceId}`}
                 type="date"
                 value={form.invoiceDate}
-                onChange={(event) => setForm((current) => ({ ...current, invoiceDate: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, invoiceDate: event.target.value }))
+                }
               />
             </div>
             <div className="space-y-1.5">
@@ -119,7 +127,9 @@ export function EditInvoiceDialog({
               <Input
                 id={`invoice-category-${invoiceId}`}
                 value={form.invoiceCategory}
-                onChange={(event) => setForm((current) => ({ ...current, invoiceCategory: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, invoiceCategory: event.target.value }))
+                }
               />
             </div>
             <div className="space-y-1.5">
@@ -130,7 +140,9 @@ export function EditInvoiceDialog({
                 min="0"
                 step="0.01"
                 value={form.grossInvoiceAmount}
-                onChange={(event) => setForm((current) => ({ ...current, grossInvoiceAmount: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, grossInvoiceAmount: event.target.value }))
+                }
               />
             </div>
             <div className="space-y-1.5">
@@ -139,7 +151,9 @@ export function EditInvoiceDialog({
                 id={`invoice-description-${invoiceId}`}
                 rows={4}
                 value={form.description}
-                onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, description: event.target.value }))
+                }
               />
             </div>
 
@@ -181,7 +195,7 @@ export function EditPenaltyDialog({
     setError(null)
 
     try {
-      const response = await fetch(`/api/admin/penalties/${penaltyId}`, {
+      const response = await csrfFetch(`/api/admin/penalties/${penaltyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -212,9 +226,7 @@ export function EditPenaltyDialog({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cezayi Duzenle</DialogTitle>
-            <DialogDescription>
-              Muaf tutulmamis aktif ceza kaydini gunceller.
-            </DialogDescription>
+            <DialogDescription>Muaf tutulmamis aktif ceza kaydini gunceller.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -226,7 +238,9 @@ export function EditPenaltyDialog({
                 min="0"
                 step="0.01"
                 value={form.amount}
-                onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, amount: event.target.value }))
+                }
               />
             </div>
             <div className="space-y-1.5">
@@ -235,7 +249,9 @@ export function EditPenaltyDialog({
                 id={`penalty-reason-${penaltyId}`}
                 rows={4}
                 value={form.reason}
-                onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, reason: event.target.value }))
+                }
               />
             </div>
 

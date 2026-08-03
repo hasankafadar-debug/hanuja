@@ -19,7 +19,7 @@
     "typescript": "^5.4.5"
   },
   "peerDependencies": {
-    "next": "^15.0.0",
+    "next": "^15.5.22",
     "react": "^18.0.0"
   }
 }

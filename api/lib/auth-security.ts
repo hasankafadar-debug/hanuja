@@ -10,15 +10,26 @@ import { randomBytes } from 'node:crypto'
 import type { PrismaClient } from '@prisma/client'
 import { symmetricDecrypt } from 'better-auth/crypto'
 import { createOTP } from '@better-auth/utils/otp'
+import { requireRuntimeSecret } from '@hanuja/config/env'
 import { getRedis } from './redis'
 import { StepUpRequiredError } from './errors'
 
 export const CRITICAL_CAPABILITIES = [
-  'eft:approve', 'eft:reject', 'delivery:manual-confirmation',
-  'payout:release', 'payout:block', 'payout:release-hold',
-  'penalty:apply', 'penalty:waive', 'finance:adjustment',
-  'order:admin-cancel', 'seller-bank:approve', 'seller-bank:block',
-  'seller:password-reset', 'seller:suspend', 'seller:reactivate',
+  'eft:approve',
+  'eft:reject',
+  'delivery:manual-confirmation',
+  'payout:release',
+  'payout:block',
+  'payout:release-hold',
+  'penalty:apply',
+  'penalty:waive',
+  'finance:adjustment',
+  'order:admin-cancel',
+  'seller-bank:approve',
+  'seller-bank:block',
+  'seller:password-reset',
+  'seller:suspend',
+  'seller:reactivate',
   'admin:security-permissions',
 ] as const
 
@@ -29,13 +40,15 @@ const STEP_UP_TTL_SECONDS = 5 * 60
 type Grant = { userId: string; sessionId: string; capability: CriticalCapability }
 
 function requireSecret(): string {
-  const secret = process.env.BETTER_AUTH_SECRET
-  if (!secret || secret === 'change-me-in-production') throw new Error('BETTER_AUTH_SECRET is required')
-  return secret
+  return requireRuntimeSecret('BETTER_AUTH_SECRET', process.env.BETTER_AUTH_SECRET)
 }
 
 /** Strict fixed-window limit: Redis failure is an error, never an in-memory fallback. */
-export async function requireStrictRateLimit(key: string, limit = 10, windowSeconds = 15 * 60): Promise<void> {
+export async function requireStrictRateLimit(
+  key: string,
+  limit = 10,
+  windowSeconds = 15 * 60,
+): Promise<void> {
   const redis = getRedis()
   const redisKey = `auth:strict-rl:${key}`
   const count = await redis.incr(redisKey)
@@ -47,7 +60,11 @@ export async function requireStrictRateLimit(key: string, limit = 10, windowSeco
   }
 }
 
-export async function verifyAdminTotp(prisma: PrismaClient, userId: string, code: string): Promise<boolean> {
+export async function verifyAdminTotp(
+  prisma: PrismaClient,
+  userId: string,
+  code: string,
+): Promise<boolean> {
   if (!/^\d{6}$/.test(code)) return false
   const factor = await prisma.twoFactor.findUnique({ where: { userId }, select: { secret: true } })
   if (!factor) return false
@@ -57,24 +74,38 @@ export async function verifyAdminTotp(prisma: PrismaClient, userId: string, code
 
 export async function issueStepUpGrant(grant: Grant): Promise<string> {
   const token = randomBytes(32).toString('base64url')
-  await getRedis().set(`${STEP_UP_PREFIX}${token}`, JSON.stringify(grant), 'EX', STEP_UP_TTL_SECONDS)
+  await getRedis().set(
+    `${STEP_UP_PREFIX}${token}`,
+    JSON.stringify(grant),
+    'EX',
+    STEP_UP_TTL_SECONDS,
+  )
   return token
 }
 
 /** Atomically consumes a capability-specific grant. Redis unavailability fails closed. */
-export async function consumeStepUpGrant(
-  token: string | null,
-  expected: Grant,
-): Promise<void> {
+export async function consumeStepUpGrant(token: string | null, expected: Grant): Promise<void> {
   if (!token) throw new StepUpRequiredError()
   const redis = getRedis()
   const key = `${STEP_UP_PREFIX}${token}`
   // GETDEL is atomic on Redis 6.2+. Lua retains atomic behaviour on older hosts.
-  const raw = await redis.eval('local v=redis.call("GET", KEYS[1]); if v then redis.call("DEL", KEYS[1]); end; return v', 1, key)
+  const raw = await redis.eval(
+    'local v=redis.call("GET", KEYS[1]); if v then redis.call("DEL", KEYS[1]); end; return v',
+    1,
+    key,
+  )
   if (typeof raw !== 'string') throw new StepUpRequiredError()
   let grant: Grant
-  try { grant = JSON.parse(raw) as Grant } catch { throw new StepUpRequiredError() }
-  if (grant.userId !== expected.userId || grant.sessionId !== expected.sessionId || grant.capability !== expected.capability) {
+  try {
+    grant = JSON.parse(raw) as Grant
+  } catch {
+    throw new StepUpRequiredError()
+  }
+  if (
+    grant.userId !== expected.userId ||
+    grant.sessionId !== expected.sessionId ||
+    grant.capability !== expected.capability
+  ) {
     throw new StepUpRequiredError()
   }
 }

@@ -6,6 +6,9 @@ import { ForbiddenError, UnauthorizedError } from '@hanuja/api/lib/errors'
 export async function getActiveSellerIdOrThrow() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) throw new UnauthorizedError()
+  if (session.user.mustChangePassword) {
+    throw new ForbiddenError('Devam etmek icin yeni sifrenizi olusturmalisiniz')
+  }
 
   const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
   if (!seller || seller.status !== 'active') {
@@ -18,6 +21,9 @@ export async function getActiveSellerIdOrThrow() {
 export async function getOperationalSellerIdOrThrow() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) throw new UnauthorizedError()
+  if (session.user.mustChangePassword) {
+    throw new ForbiddenError('Devam etmek icin yeni sifrenizi olusturmalisiniz')
+  }
 
   const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
   if (!seller || (seller.status !== 'active' && seller.status !== 'suspended')) {

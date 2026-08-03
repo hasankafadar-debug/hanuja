@@ -63,4 +63,13 @@ describe('pending seller application-center routing', () => {
       seller: activeSeller,
     })
   })
+
+  it('requires a seller with a temporary password to create a new password first', async () => {
+    getSessionMock.mockResolvedValue({
+      user: { id: 'user-1', role: 'seller', mustChangePassword: true },
+    })
+
+    await expect(getSellerFromSession()).rejects.toThrow('REDIRECT:/sifre-olustur')
+    expect(prismaMock.seller.findUnique).not.toHaveBeenCalled()
+  })
 })

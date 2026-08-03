@@ -3,15 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import {
-  Button,
-  Input,
-  Textarea,
-  StatusBadge,
-  isManagedMediaProxyUrl,
-  normalizeMediaDisplayUrl,
-  useToast,
-} from '@hanuja/ui'
+import { Button, Input, Textarea, StatusBadge, useToast } from '@hanuja/ui'
 import { csrfFetch } from '@/lib/csrf-fetch'
 import { ReturnPhotoPicker } from './return-photo-picker'
 
@@ -27,7 +19,6 @@ const STATUS_LABELS: Record<string, string> = {
 
 interface Attachment {
   id: string
-  url: string
 }
 
 interface Message {
@@ -61,12 +52,8 @@ const ROLE_LABEL: Record<string, string> = {
   admin: 'Hanuja',
 }
 
-function getManagedImageProps(sourceUrl: string) {
-  const src = normalizeMediaDisplayUrl(sourceUrl)
-  return {
-    src,
-    unoptimized: isManagedMediaProxyUrl(src),
-  }
+function privateMediaUrl(assetId: string) {
+  return `/api/media/private/${encodeURIComponent(assetId)}`
 }
 
 export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
@@ -183,7 +170,10 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
   return (
     <section
       className="mb-5 rounded-xl border p-5"
-      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+      style={{
+        borderColor: 'var(--color-border)',
+        backgroundColor: 'var(--color-surface)',
+      }}
     >
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
@@ -205,19 +195,19 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
       {data.evidence.length > 0 ? (
         <div className="mb-4 flex flex-wrap gap-2">
           {data.evidence.map((e) => {
-            const image = getManagedImageProps(e.url)
+            const imageUrl = privateMediaUrl(e.id)
             return (
-              <a key={e.id} href={e.url} target="_blank" rel="noreferrer">
+              <a key={e.id} href={imageUrl} target="_blank" rel="noreferrer">
                 <span
                   className="relative block h-16 w-16 overflow-hidden rounded-lg border"
                   style={{ borderColor: 'var(--color-border)' }}
                 >
                   <Image
-                    src={image.src}
+                    src={imageUrl}
                     alt="Iade gorseli"
                     fill
                     className="object-cover"
-                    unoptimized={image.unoptimized}
+                    unoptimized
                   />
                 </span>
               </a>
@@ -229,7 +219,10 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
       {data.sellerReturnAddress ? (
         <div
           className="mb-4 rounded-lg border p-3 text-sm"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-muted)',
+          }}
         >
           <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
             Iade Kargo Bilgileri
@@ -276,7 +269,10 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
       {data.escalatedDispute?.resolution ? (
         <div
           className="mb-4 rounded-lg border p-3 text-sm"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-muted)',
+          }}
         >
           <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
             Uyusmazlik Sonucu
@@ -346,19 +342,19 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
                 {m.attachments.length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {m.attachments.map((a) => {
-                      const image = getManagedImageProps(a.url)
+                      const imageUrl = privateMediaUrl(a.id)
                       return (
-                        <a key={a.id} href={a.url} target="_blank" rel="noreferrer">
+                        <a key={a.id} href={imageUrl} target="_blank" rel="noreferrer">
                           <span
                             className="relative block h-14 w-14 overflow-hidden rounded border"
                             style={{ borderColor: 'var(--color-border)' }}
                           >
                             <Image
-                              src={image.src}
+                              src={imageUrl}
                               alt="Ek"
                               fill
                               className="object-cover"
-                              unoptimized={image.unoptimized}
+                              unoptimized
                             />
                           </span>
                         </a>

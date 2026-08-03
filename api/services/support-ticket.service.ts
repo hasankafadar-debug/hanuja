@@ -2,11 +2,19 @@ import type { PrismaClient } from '@prisma/client'
 import { ForbiddenError, NotFoundError, ValidationError } from '../lib/errors'
 import { createNotificationService } from './notification.service'
 
+const supportAttachmentMediaSelect = {
+  id: true,
+  originalName: true,
+} as const
+
 export function createSupportTicketService({ prisma }: { prisma: PrismaClient }) {
   const notifications = createNotificationService({ prisma })
 
   async function assertReadyAttachments(assetIds: string[], ownerId: string) {
-    const uniqueIds = Array.from(new Set(assetIds.map((id) => id.trim()).filter(Boolean))).slice(0, 5)
+    const uniqueIds = Array.from(new Set(assetIds.map((id) => id.trim()).filter(Boolean))).slice(
+      0,
+      5,
+    )
     if (uniqueIds.length === 0) return []
 
     const assets = await prisma.mediaAsset.findMany({
@@ -109,7 +117,7 @@ export function createSupportTicketService({ prisma }: { prisma: PrismaClient })
               select: { id: true, name: true, email: true, role: true },
             },
             attachments: {
-              include: { mediaAsset: true },
+              include: { mediaAsset: { select: supportAttachmentMediaSelect } },
               orderBy: { createdAt: 'asc' },
             },
           },
@@ -146,7 +154,7 @@ export function createSupportTicketService({ prisma }: { prisma: PrismaClient })
               select: { id: true, name: true, email: true, role: true },
             },
             attachments: {
-              include: { mediaAsset: true },
+              include: { mediaAsset: { select: supportAttachmentMediaSelect } },
               orderBy: { createdAt: 'asc' },
             },
           },
@@ -218,7 +226,10 @@ export function createSupportTicketService({ prisma }: { prisma: PrismaClient })
       }
 
       const now = new Date()
-      const attachmentAssetIds = await assertReadyAttachments(params.attachmentAssetIds ?? [], params.authorId)
+      const attachmentAssetIds = await assertReadyAttachments(
+        params.attachmentAssetIds ?? [],
+        params.authorId,
+      )
       const ticket = await prisma.$transaction(async (tx) => {
         const createdTicket = await tx.supportTicket.create({
           data: {
@@ -297,7 +308,10 @@ export function createSupportTicketService({ prisma }: { prisma: PrismaClient })
       }
 
       const now = new Date()
-      const attachmentAssetIds = await assertReadyAttachments(params.attachmentAssetIds ?? [], params.authorId)
+      const attachmentAssetIds = await assertReadyAttachments(
+        params.attachmentAssetIds ?? [],
+        params.authorId,
+      )
       await prisma.$transaction(async (tx) => {
         const message = await tx.supportMessage.create({
           data: {
@@ -395,7 +409,10 @@ export function createSupportTicketService({ prisma }: { prisma: PrismaClient })
       }
 
       const now = new Date()
-      const attachmentAssetIds = await assertReadyAttachments(params.attachmentAssetIds ?? [], params.adminId)
+      const attachmentAssetIds = await assertReadyAttachments(
+        params.attachmentAssetIds ?? [],
+        params.adminId,
+      )
       await prisma.$transaction(async (tx) => {
         const message = await tx.supportMessage.create({
           data: {

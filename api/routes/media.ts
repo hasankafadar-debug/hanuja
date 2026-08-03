@@ -5,11 +5,19 @@ import { NoSuchKey } from '@aws-sdk/client-s3'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { ok, noContent, handleError } from '../lib/response'
-import { buildManagedMediaShareUrl, extractManagedMediaKey } from '../lib/media-url'
-import { readObject } from '../lib/r2'
+import { buildManagedMediaShareUrl, extractPublicManagedMediaKey } from '../lib/media-url'
+import { getMediaMaxSizeBytes, readObject } from '../lib/r2'
 import { createMediaService } from '../services/media.service'
 import { createPrismaForRoute } from '../lib/prisma'
 import type { MediaFolder } from '../lib/r2'
+import type { Prisma } from '@prisma/client'
+import type { UserRole as PermissionUserRole } from '@hanuja/security'
+import { NotFoundError, UnauthorizedError } from '../lib/errors'
+
+export interface PrivateMediaViewer {
+  viewerId: string
+  viewerRole: PermissionUserRole
+}
 
 function getMediaService() {
   return createMediaService({ prisma: createPrismaForRoute() })
@@ -33,7 +41,11 @@ function buildMissingManagedImagePlaceholder(sourceUrl: string) {
     const pathname = new URL(sourceUrl).pathname
     const fileName = pathname.split('/').filter(Boolean).pop()
     if (fileName) {
-      label = fileName.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').slice(0, 32) || label
+      label =
+        fileName
+          .replace(/\.[a-z0-9]+$/i, '')
+          .replace(/[-_]+/g, ' ')
+          .slice(0, 32) || label
     }
   } catch {
     // Keep generic label when URL parsing fails.
@@ -60,7 +72,15 @@ function shouldServeManagedImagePlaceholder(sourceUrl: string) {
   }
 }
 
-const VALID_FOLDERS: MediaFolder[] = ['products', 'stores', 'avatars', 'disputes', 'returns', 'blog', 'documents']
+const VALID_FOLDERS: MediaFolder[] = [
+  'products',
+  'stores',
+  'avatars',
+  'disputes',
+  'returns',
+  'blog',
+  'documents',
+]
 
 const requestUploadSchema = z.object({
   folder: z.enum(['products', 'stores', 'avatars', 'disputes', 'returns', 'blog', 'documents']),
@@ -127,7 +147,10 @@ export async function listAssets(req: NextRequest, ownerId: string) {
     const limit = Number(url.searchParams.get('limit') ?? '20')
     const skip = Number(url.searchParams.get('skip') ?? '0')
     const svc = getMediaService()
-    const result = await svc.listAssets(ownerId, folder ?? undefined, { limit, skip })
+    const result = await svc.listAssets(ownerId, folder ?? undefined, {
+      limit,
+      skip,
+    })
     const proxyBaseUrl = getRequestOrigin(req)
 
     return ok({
@@ -149,7 +172,7 @@ export async function fetchPublicMedia(req: NextRequest) {
   try {
     const url = new URL(req.url)
     sourceUrl = url.searchParams.get('src')?.trim() ?? ''
-    const key = extractManagedMediaKey(sourceUrl)
+    const key = extractPublicManagedMediaKey(sourceUrl)
 
     if (!key) {
       return new Response('GeÃ§ersiz medya kaynaÄŸÄ±.', { status: 400 })
@@ -189,5 +212,122 @@ export async function fetchPublicMedia(req: NextRequest) {
     }
 
     return handleError(err)
+  }
+}
+
+function privateMediaCacheHeaders(contentType: string, sizeBytes: number) {
+  return {
+    'Content-Type': contentType,
+    'Content-Length': String(sizeBytes),
+    'Cache-Control': 'private, no-store',
+    'X-Content-Type-Options': 'nosniff',
+  }
+}
+
+function privateMediaNotFoundResponse() {
+  return new Response('Medya bulunamadi.', {
+    status: 404,
+    headers: { 'Cache-Control': 'private, no-store' },
+  })
+}
+
+function privateMediaUnauthorizedResponse() {
+  const response = handleError(new UnauthorizedError())
+  response.headers.set('Cache-Control', 'private, no-store')
+  return response
+}
+
+function privateMediaWhere(
+  assetId: string,
+  viewer: PrivateMediaViewer,
+): Prisma.MediaAssetWhereInput {
+  const base: Prisma.MediaAssetWhereInput = {
+    id: assetId,
+    status: 'ready',
+    key: { not: null },
+  }
+
+  if (viewer.viewerRole === 'admin') return base
+
+  return {
+    ...base,
+    OR: [
+      { uploadedBy: viewer.viewerId },
+      { dispute: { order: { customerId: viewer.viewerId } } },
+      {
+        dispute: {
+          order: { lines: { some: { seller: { userId: viewer.viewerId } } } },
+        },
+      },
+      { returnRequest: { customerId: viewer.viewerId } },
+      {
+        returnRequest: {
+          order: { lines: { some: { seller: { userId: viewer.viewerId } } } },
+        },
+      },
+      { returnMessage: { returnRequest: { customerId: viewer.viewerId } } },
+      {
+        returnMessage: {
+          returnRequest: {
+            order: { lines: { some: { seller: { userId: viewer.viewerId } } } },
+          },
+        },
+      },
+      // Support attachment access is scoped to the ticket participant. These
+      // relations are explicit because support uploads have existing readers
+      // outside the return/dispute workflows.
+      {
+        supportAttachments: {
+          some: {
+            message: { ticket: { seller: { userId: viewer.viewerId } } },
+          },
+        },
+      },
+      {
+        customerSupportAttachments: {
+          some: { message: { ticket: { customerId: viewer.viewerId } } },
+        },
+      },
+    ],
+  }
+}
+
+// GET /api/media/private/:id — authenticated, asset-ID based private media stream.
+// The supplied ID is scoped through database relations before its storage key is read.
+export async function fetchPrivateMedia(assetId: string, viewer: PrivateMediaViewer | null) {
+  if (!viewer) return privateMediaUnauthorizedResponse()
+
+  try {
+    const prisma = createPrismaForRoute()
+    const asset = await prisma.mediaAsset.findFirst({
+      where: privateMediaWhere(assetId, viewer),
+      select: { id: true, key: true, folder: true },
+    })
+
+    // Missing and unauthorized assets intentionally have the same response.
+    if (!asset?.key) throw new NotFoundError('MediaAsset', assetId)
+
+    const object = await readObject(
+      asset.key,
+      getMediaMaxSizeBytes((asset.folder as MediaFolder | null) ?? 'general'),
+    )
+    return new Response(Buffer.from(object.body), {
+      headers: privateMediaCacheHeaders(object.contentType, object.sizeBytes),
+    })
+  } catch (err) {
+    if (
+      err instanceof NotFoundError ||
+      err instanceof NoSuchKey ||
+      (typeof err === 'object' &&
+        err !== null &&
+        'Code' in err &&
+        (err as { Code?: string }).Code === 'NoSuchKey')
+    ) {
+      return privateMediaNotFoundResponse()
+    }
+
+    const response = handleError(err)
+    response.headers.set('Cache-Control', 'private, no-store')
+    return response
   }
 }

@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { ok, created, handleError } from '../lib/response'
 import { createDisputeService } from '../services/dispute.service'
 import { createPrismaForRoute } from '../lib/prisma'
+import type { DisputeViewer } from '../lib/dispute-authorization'
 
 const openDisputeSchema = z.object({
   orderId: z.string().min(1),
@@ -35,7 +36,12 @@ export async function openDispute(req: NextRequest, customerId: string) {
     const body = await req.json()
     const { orderId, reason, description } = openDisputeSchema.parse(body)
     const svc = getDisputeService()
-    const dispute = await svc.openDispute({ orderId, customerId, reason, ...(description !== undefined ? { description } : {}) })
+    const dispute = await svc.openDispute({
+      orderId,
+      customerId,
+      reason,
+      ...(description !== undefined ? { description } : {}),
+    })
     return created(dispute)
   } catch (err) {
     return handleError(err)
@@ -43,10 +49,10 @@ export async function openDispute(req: NextRequest, customerId: string) {
 }
 
 // GET /api/disputes/:id — uyuşmazlık detayı (mesajlar dahil)
-export async function getDispute(disputeId: string) {
+export async function getDispute(disputeId: string, viewer: DisputeViewer) {
   try {
     const svc = getDisputeService()
-    const dispute = await svc.getDispute(disputeId)
+    const dispute = await svc.getDispute(disputeId, viewer)
     return ok(dispute)
   } catch (err) {
     return handleError(err)
@@ -57,8 +63,7 @@ export async function getDispute(disputeId: string) {
 export async function addDisputeMessage(
   req: NextRequest,
   disputeId: string,
-  authorId: string,
-  authorRole: 'customer' | 'seller' | 'admin',
+  viewer: DisputeViewer,
 ) {
   try {
     const body = await req.json()
@@ -66,8 +71,7 @@ export async function addDisputeMessage(
     const svc = getDisputeService()
     const message = await svc.addMessage({
       disputeId,
-      authorId,
-      authorRole,
+      viewer,
       body: messageBody,
     })
     return created(message)
@@ -92,11 +96,7 @@ export async function listDisputesForAdmin(req: NextRequest) {
 }
 
 // POST /api/admin/disputes/:id/resolve — admin çözer
-export async function resolveDispute(
-  req: NextRequest,
-  disputeId: string,
-  adminActorId: string,
-) {
+export async function resolveDispute(req: NextRequest, disputeId: string, adminActorId: string) {
   try {
     const body = await req.json()
     const { resolutionType, resolution, refundAmount } = resolveDisputeSchema.parse(body)

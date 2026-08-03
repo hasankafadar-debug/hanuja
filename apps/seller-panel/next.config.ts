@@ -9,9 +9,7 @@ const remoteImageHostnames = Array.from(
       'media.hanuja.com.tr',
       'cdn.hanuja.com',
       process.env.R2_PUBLIC_HOSTNAME,
-    ].filter(
-      (hostname): hostname is string => Boolean(hostname),
-    ),
+    ].filter((hostname): hostname is string => Boolean(hostname)),
   ),
 )
 
@@ -25,6 +23,9 @@ const config: NextConfig = {
     localPatterns: [
       {
         pathname: '/api/media/fetch',
+      },
+      {
+        pathname: '/api/media/private/**',
       },
     ],
     remotePatterns: remoteImageHostnames.map((hostname) => ({

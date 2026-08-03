@@ -9,12 +9,14 @@ import { passwordResetTemplate } from '@hanuja/api/lib/email-templates/password-
 import { passwordChangedTemplate } from '@hanuja/api/lib/email-templates/password-changed'
 import { evaluateAuthPasswordPolicy } from '@hanuja/security/password-policy'
 import { revokeTrustedDevices } from '@hanuja/api/lib/auth-security'
+import { requireRuntimeSecret } from '@hanuja/config/env'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 const baseURL = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'
+const betterAuthSecret = requireRuntimeSecret('BETTER_AUTH_SECRET', process.env.BETTER_AUTH_SECRET)
 
 // Google girişi env-kapılıdır: iki değişken de doluysa provider kaydedilir,
 // aksi halde /giris sayfası butonu zaten göstermez (bkz. giris/page.tsx).
@@ -72,7 +74,7 @@ async function ensureDatabaseConnection(request: Request): Promise<Response | nu
 
 const _auth = betterAuth({
   baseURL,
-  secret: process.env.BETTER_AUTH_SECRET ?? 'change-me-in-production',
+  secret: betterAuthSecret,
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   emailAndPassword: {
     enabled: true,
@@ -120,9 +122,16 @@ const _auth = betterAuth({
     cookieCache: { enabled: true, maxAge: 60 * 5 },
   },
   ...(googleClientId && googleClientSecret
-    ? { socialProviders: { google: { clientId: googleClientId, clientSecret: googleClientSecret } } }
+    ? {
+        socialProviders: { google: { clientId: googleClientId, clientSecret: googleClientSecret } },
+      }
     : {}),
-  rateLimit: { enabled: true, window: 60, max: 60, customRules: { '/change-password': { window: 60, max: 5 } } },
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 60,
+    customRules: { '/change-password': { window: 60, max: 5 } },
+  },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       const message = evaluateAuthPasswordPolicy(ctx.path, ctx.body, 'customer')

@@ -106,9 +106,7 @@ export default async function TicketDetailPage({ params }: Props) {
       id: string
       mediaAsset: {
         id: string
-        url: string
         originalName: string | null
-        mimeType: string | null
       }
     }>
   }
@@ -122,9 +120,7 @@ export default async function TicketDetailPage({ params }: Props) {
       id: att.id,
       mediaAsset: {
         id: att.mediaAsset.id,
-        url: att.mediaAsset.url,
         originalName: att.mediaAsset.originalName ?? null,
-        mimeType: att.mediaAsset.mimeType ?? null,
       },
     })),
   }))

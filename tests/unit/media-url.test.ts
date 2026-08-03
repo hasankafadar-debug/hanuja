@@ -4,6 +4,7 @@ import {
   buildMediaProxyUrl,
   extractManagedMediaProxySourceUrl,
   extractManagedMediaKey,
+  extractPublicManagedMediaKey,
   getManagedMediaShareUrlConfigError,
   normalizeManagedMediaUrl,
   normalizeMediaDisplayUrl as normalizeApiMediaDisplayUrl,
@@ -123,12 +124,31 @@ describe('media url helpers', () => {
     expect(extractManagedMediaKey(source)).toBe('products/test/image.jpg')
   })
 
+  it('allows only explicit public media prefixes for the anonymous proxy', () => {
+    expect(extractPublicManagedMediaKey('https://media.hanuja.tr/products/test/image.jpg')).toBe(
+      'products/test/image.jpg',
+    )
+    expect(
+      extractPublicManagedMediaKey('https://media.hanuja.tr/avatars/store-owner/logo.png'),
+    ).toBe('avatars/store-owner/logo.png')
+    expect(
+      extractPublicManagedMediaKey('https://media.hanuja.tr/returns/test/private.jpg'),
+    ).toBeNull()
+  })
+
+  it.each([
+    'https://foreign-bucket.r2.dev/products/test/image.jpg',
+    'https://media.hanuja.tr/products//test/image.jpg',
+    'https://media.hanuja.tr/products/%2e%2e/returns/test/image.jpg',
+    'https://media.hanuja.tr/products%2Ftest%2Fimage.jpg',
+  ])('rejects an untrusted or non-canonical proxy source: %s', (source) => {
+    expect(extractPublicManagedMediaKey(source)).toBeNull()
+  })
+
   it('detects first-party proxied media urls for Next Image unoptimized mode', () => {
     const proxied = buildMediaProxyUrl('https://cdn.hanuja.com.tr/products/test/image.jpg')
 
     expect(isManagedMediaProxyUrl(proxied)).toBe(true)
-    expect(isManagedMediaProxyUrl('https://media.hanuja.tr/products/test/image.jpg')).toBe(
-      false,
-    )
+    expect(isManagedMediaProxyUrl('https://media.hanuja.tr/products/test/image.jpg')).toBe(false)
   })
 })

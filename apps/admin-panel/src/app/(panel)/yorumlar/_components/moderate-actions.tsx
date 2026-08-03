@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@hanuja/ui'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface Props {
   reviewId: string
@@ -19,7 +20,7 @@ export default function ModerateActions({ reviewId }: Props) {
     setError(null)
     setBusy(decision === 'approved' ? 'approve' : 'reject')
     try {
-      const res = await fetch(`/api/admin/reviews/${reviewId}/moderate`, {
+      const res = await csrfFetch(`/api/admin/reviews/${reviewId}/moderate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -70,7 +71,10 @@ export default function ModerateActions({ reviewId }: Props) {
             maxLength={2000}
             placeholder="Red gerekçesi (müşteriye iletilir)"
             className="w-full rounded-md border px-2 py-1 text-xs"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-background)',
+            }}
           />
           <Button
             size="sm"

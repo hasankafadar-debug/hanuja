@@ -58,12 +58,42 @@ function getReturnService() {
   return createReturnService({ prisma })
 }
 
+type MediaWithDirectUrl = {
+  url: string
+  key?: string | null
+  variants?: unknown
+}
+
+function toPrivateMediaReference<T extends MediaWithDirectUrl>(asset: T) {
+  const { url: _url, key: _key, variants: _variants, ...reference } = asset
+  return reference
+}
+
+function toPrivateReturnMessage<T extends { attachments: MediaWithDirectUrl[] }>(message: T) {
+  return {
+    ...message,
+    attachments: message.attachments.map(toPrivateMediaReference),
+  }
+}
+
+function toPrivateReturnRequest<
+  T extends {
+    evidence: MediaWithDirectUrl[]
+    messages: { attachments: MediaWithDirectUrl[] }[]
+  },
+>(returnRequest: T) {
+  return {
+    ...returnRequest,
+    evidence: returnRequest.evidence.map(toPrivateMediaReference),
+    messages: returnRequest.messages.map(toPrivateReturnMessage),
+  }
+}
+
 // POST /api/returns — müşteri iade talebi açar
 export async function openReturnRequest(req: NextRequest, customerId: string) {
   try {
     const body = await req.json()
-    const { orderId, reason, description, evidenceAssetIds } =
-      openRequestSchema.parse(body)
+    const { orderId, reason, description, evidenceAssetIds } = openRequestSchema.parse(body)
     const svc = getReturnService()
     const returnRequest = await svc.openRequest({
       orderId,
@@ -83,17 +113,14 @@ export async function getReturnRequest(returnRequestId: string) {
   try {
     const svc = getReturnService()
     const returnRequest = await svc.getRequest(returnRequestId)
-    return ok(returnRequest)
+    return ok(returnRequest ? toPrivateReturnRequest(returnRequest) : null)
   } catch (err) {
     return handleError(err)
   }
 }
 
 // GET /api/returns/:id — müşteri iade detayı (ownership-scoped)
-export async function getReturnRequestForCustomer(
-  returnRequestId: string,
-  customerId: string,
-) {
+export async function getReturnRequestForCustomer(returnRequestId: string, customerId: string) {
   try {
     const svc = getReturnService()
     const rr = await svc.getRequest(returnRequestId)
@@ -101,21 +128,22 @@ export async function getReturnRequestForCustomer(
       const { NotFoundError } = await import('../lib/errors')
       throw new NotFoundError('ReturnRequest', returnRequestId)
     }
-    return ok(rr)
+    return ok(toPrivateReturnRequest(rr))
   } catch (err) {
     return handleError(err)
   }
 }
 
 // GET seller iade detayı (ownership-scoped)
-export async function getReturnRequestForSeller(
-  returnRequestId: string,
-  sellerId: string,
-) {
+export async function getReturnRequestForSeller(returnRequestId: string, sellerId: string) {
   try {
     const svc = getReturnService()
     const returnRequest = await svc.getRequestForSeller(returnRequestId, sellerId)
-    return ok(returnRequest)
+    if (!returnRequest) {
+      const { NotFoundError } = await import('../lib/errors')
+      throw new NotFoundError('ReturnRequest', returnRequestId)
+    }
+    return ok(toPrivateReturnRequest(returnRequest))
   } catch (err) {
     return handleError(err)
   }
@@ -153,7 +181,11 @@ export async function addReturnMessage(
       body: messageBody,
       ...(attachmentAssetIds !== undefined ? { attachmentAssetIds } : {}),
     })
-    return created(message)
+    if (!message) {
+      const { NotFoundError } = await import('../lib/errors')
+      throw new NotFoundError('ReturnMessage', returnRequestId)
+    }
+    return created(toPrivateReturnMessage(message))
   } catch (err) {
     return handleError(err)
   }
@@ -229,8 +261,7 @@ export async function submitReturnShipment(
 ) {
   try {
     const body = await req.json()
-    const { carrier, trackingNumber, barcodeAssetId } =
-      customerShipmentSchema.parse(body)
+    const { carrier, trackingNumber, barcodeAssetId } = customerShipmentSchema.parse(body)
     const svc = getReturnService()
     const updated = await svc.submitCustomerShipment({
       returnRequestId,
@@ -253,7 +284,10 @@ export async function confirmReturnReceipt(
 ) {
   try {
     const svc = getReturnService()
-    const updated = await svc.confirmReceiptBySeller({ returnRequestId, sellerId })
+    const updated = await svc.confirmReceiptBySeller({
+      returnRequestId,
+      sellerId,
+    })
     return ok(updated)
   } catch (err) {
     return handleError(err)

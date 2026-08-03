@@ -2,10 +2,12 @@ import { type NextRequest } from 'next/server'
 import { createBinaryFileResponse } from '@hanuja/api/lib/file-response'
 import { handleError } from '@hanuja/api/lib/response'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { buildSellerOrderCsv, toSellerSafeOrderDtos } from '@hanuja/api/lib/seller-order-projection'
 import { createOrderService } from '@hanuja/api/services/order.service'
-import { getSellerOrderStatusesForTab, isSellerOrderTab } from '@hanuja/api/domain/seller-order-tabs'
-import { maskCustomerName } from '@hanuja/security'
+import {
+  getSellerOrderStatusesForTab,
+  isSellerOrderTab,
+} from '@hanuja/api/domain/seller-order-tabs'
 import { getOperationalSellerIdOrThrow } from '@/lib/route-seller'
 
 function toDateStart(value: string) {
@@ -14,54 +16,6 @@ function toDateStart(value: string) {
 
 function toDateEnd(value: string) {
   return new Date(`${value}T23:59:59.999Z`)
-}
-
-function buildOrderCsv(rows: Array<{
-  id: string
-  createdAt: Date
-  status: string
-  customer?: { name?: string | null } | null
-  lines: Array<{
-    quantity: number
-    unitPrice: { toNumber(): number } | number
-    product: { name: string } | null
-  }>
-}>) {
-  const formatDate = (date: Date) =>
-    new Intl.DateTimeFormat('tr-TR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }).format(date)
-  const formatAmount = (value: number) =>
-    `${new Intl.NumberFormat('tr-TR', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)} TL`
-  const escape = (value: string) => `"${value.replace(/"/g, '""')}"`
-
-  const header = ['Siparis No', 'Tarih', 'Musteri', 'Durum', 'Urunler', 'Toplam']
-  const body = rows.map((order) => {
-    const orderNumberSource = order as typeof order & { publicNumber?: number | null }
-    const total = order.lines.reduce((sum, line) => {
-      const price =
-        typeof line.unitPrice === 'object' && 'toNumber' in line.unitPrice
-          ? line.unitPrice.toNumber()
-          : Number(line.unitPrice)
-      return sum + price * line.quantity
-    }, 0)
-    const products = order.lines.map((line) => line.product?.name ?? 'Urun').join(', ')
-    return [
-      escape(formatOrderDisplayNumber(orderNumberSource.publicNumber, order.id)),
-      escape(formatDate(new Date(order.createdAt))),
-      escape(maskCustomerName(order.customer?.name)),
-      escape(order.status),
-      escape(products),
-      escape(formatAmount(total)),
-    ].join(';')
-  })
-
-  return `\uFEFF${[header.map(escape).join(';'), ...body].join('\r\n')}`
 }
 
 export async function GET(req: NextRequest) {
@@ -93,21 +47,10 @@ export async function GET(req: NextRequest) {
       skip: format === 'csv' ? 0 : skip,
       take: format === 'csv' ? Math.max(total, 1) : take,
     })
+    const sellerSafeOrders = toSellerSafeOrderDtos(orders)
 
     if (format === 'csv') {
-      const csv = buildOrderCsv(
-        orders as Array<{
-          id: string
-          createdAt: Date
-          status: string
-          customer?: { name?: string | null } | null
-          lines: Array<{
-            quantity: number
-            unitPrice: { toNumber(): number } | number
-            product: { name: string } | null
-          }>
-        }>,
-      )
+      const csv = buildSellerOrderCsv(sellerSafeOrders)
       return createBinaryFileResponse({
         body: new TextEncoder().encode(csv),
         contentType: 'text/csv; charset=utf-8',
@@ -117,7 +60,7 @@ export async function GET(req: NextRequest) {
 
     return Response.json({
       success: true,
-      data: orders,
+      data: sellerSafeOrders,
       meta: {
         total,
         page,

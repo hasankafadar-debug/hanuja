@@ -17,7 +17,13 @@ import sharp from 'sharp'
 import { redis } from '../lib/redis'
 import { QUEUE_NAMES } from '../lib/queue'
 import { prisma } from '../lib/prisma'
-import { objectExists, readObject, uploadBufferWithKey } from '../lib/r2'
+import {
+  getMediaMaxSizeBytes,
+  objectExists,
+  readObject,
+  uploadBufferWithKey,
+  type MediaFolder,
+} from '../lib/r2'
 
 export interface MediaProcessingJobData {
   assetId: string
@@ -26,6 +32,9 @@ export interface MediaProcessingJobData {
 }
 
 const RASTER_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+export const MAX_MEDIA_IMAGE_DIMENSION = 6000
+export const MAX_MEDIA_INPUT_PIXELS = MAX_MEDIA_IMAGE_DIMENSION * MAX_MEDIA_IMAGE_DIMENSION
+export const SHARP_INPUT_OPTIONS = { limitInputPixels: MAX_MEDIA_INPUT_PIXELS } as const
 
 export interface MediaVariantRecord {
   key: string
@@ -46,12 +55,13 @@ function variantKey(originalKey: string, suffix: string): string {
   return `${base}_${suffix}.webp`
 }
 
-async function generateVariants(
+export async function generateVariants(
   originalBytes: Uint8Array,
   originalKey: string,
   cdnUrl: string,
+  sharpFactory: typeof sharp = sharp,
 ): Promise<{ variants: MediaVariants; width: number; height: number }> {
-  const image = sharp(Buffer.from(originalBytes))
+  const image = sharpFactory(Buffer.from(originalBytes), SHARP_INPUT_OPTIONS)
   const meta = await image.metadata()
   const originalWidth = meta.width ?? 0
   const originalHeight = meta.height ?? 0
@@ -64,7 +74,7 @@ async function generateVariants(
   const results: Partial<Record<string, MediaVariantRecord>> = {}
 
   for (const v of VARIANTS) {
-    const outputBuffer = await sharp(Buffer.from(originalBytes))
+    const outputBuffer = await sharpFactory(Buffer.from(originalBytes), SHARP_INPUT_OPTIONS)
       .resize(v.width, v.width, {
         fit: 'contain',
         withoutEnlargement: true,
@@ -73,7 +83,7 @@ async function generateVariants(
       .webp({ quality: v.quality })
       .toBuffer()
 
-    const outMeta = await sharp(outputBuffer).metadata()
+    const outMeta = await sharpFactory(outputBuffer, SHARP_INPUT_OPTIONS).metadata()
     const key = variantKey(originalKey, v.suffix)
     const { publicUrl } = await uploadBufferWithKey({
       key,
@@ -112,7 +122,8 @@ async function processMediaJob(job: Job<MediaProcessingJobData>) {
   const isImage = RASTER_MIME_TYPES.has(mimeType) && asset?.kind === 'image'
 
   if (isImage) {
-    const { body } = await readObject(key)
+    const folder = (asset.folder as MediaFolder | null) ?? 'general'
+    const { body } = await readObject(key, getMediaMaxSizeBytes(folder))
     const { variants, width, height } = await generateVariants(body, key, '')
 
     await prisma.mediaAsset.updateMany({
@@ -139,11 +150,10 @@ async function processMediaJob(job: Job<MediaProcessingJobData>) {
 }
 
 export function startMediaProcessingWorker() {
-  const worker = new Worker<MediaProcessingJobData>(
-    QUEUE_NAMES.MEDIA_PROCESSING,
-    processMediaJob,
-    { connection: redis, concurrency: 3 },
-  )
+  const worker = new Worker<MediaProcessingJobData>(QUEUE_NAMES.MEDIA_PROCESSING, processMediaJob, {
+    connection: redis,
+    concurrency: 3,
+  })
 
   worker.on('failed', (job, err) => {
     console.error(`[media-processing] Job ${job?.id} failed:`, err.message)

@@ -14,6 +14,7 @@ import {
 } from '../lib/private-document-storage'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
 import { getWebBaseUrl } from '../lib/platform-info'
+import { toSellerSafeLegalSnapshot } from '../lib/seller-legal-snapshot'
 
 interface OrderDocumentServiceDeps {
   prisma: PrismaClient
@@ -140,7 +141,10 @@ function selectInvoiceAttachment(payload: PostmarkInboundPayload) {
   )
 }
 
-export function createOrderDocumentService({ prisma, storage: providedStorage }: OrderDocumentServiceDeps) {
+export function createOrderDocumentService({
+  prisma,
+  storage: providedStorage,
+}: OrderDocumentServiceDeps) {
   let resolvedStorage = providedStorage
   const storage = () => (resolvedStorage ??= createPrivateDocumentStorage())
 
@@ -153,7 +157,9 @@ export function createOrderDocumentService({ prisma, storage: providedStorage }:
   }
 
   async function readInvoiceFile(fileKey: string) {
-    if (!isPrivateDocumentStorageKey(fileKey)) return readObject(fileKey)
+    if (!isPrivateDocumentStorageKey(fileKey)) {
+      return readObject(fileKey, DOCUMENT_MAX_SIZE_BYTES)
+    }
     const body = await storage().read(fileKey)
     return { body, contentType: undefined, sizeBytes: body.byteLength }
   }
@@ -265,7 +271,12 @@ export function createOrderDocumentService({ prisma, storage: providedStorage }:
     })
 
     if (!order) throw new NotFoundError('Sipariş', orderId)
-    return order
+    if (!order.legalSnapshot) return order
+
+    return {
+      ...order,
+      legalSnapshot: toSellerSafeLegalSnapshot(order.legalSnapshot),
+    }
   }
 
   async function getDocumentsForAdmin(orderId: string) {
@@ -339,7 +350,7 @@ export function createOrderDocumentService({ prisma, storage: providedStorage }:
 
     if (!order) throw new NotFoundError('Sipariş', orderId)
     if (!order.legalSnapshot) throw new NotFoundError('Sözleşme')
-    return order.legalSnapshot
+    return toSellerSafeLegalSnapshot(order.legalSnapshot)
   }
 
   async function getContractForAdmin(orderId: string) {

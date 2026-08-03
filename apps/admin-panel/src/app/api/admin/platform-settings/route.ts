@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { Decimal } from '@prisma/client/runtime/client'
 import { auth } from '@/lib/auth'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 
 const schema = z.object({
@@ -19,6 +20,9 @@ const schema = z.object({
 })
 
 export async function PATCH(req: NextRequest) {
+  const csrfError = checkCsrf(req)
+  if (csrfError) return csrfError
+
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })

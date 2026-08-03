@@ -21,12 +21,21 @@ const config: NextConfig = {
   compress: true,
   allowedDevOrigins: ['http://127.0.0.1:3000', 'http://localhost:3000'],
   serverExternalPackages: ['iyzipay', '@prisma/client', 'prisma', 'better-auth'],
-  transpilePackages: ['@hanuja/ui', '@hanuja/seo', '@hanuja/security', '@hanuja/types', '@hanuja/api'],
+  transpilePackages: [
+    '@hanuja/ui',
+    '@hanuja/seo',
+    '@hanuja/security',
+    '@hanuja/types',
+    '@hanuja/api',
+  ],
   images: {
     formats: ['image/avif', 'image/webp'],
     localPatterns: [
       {
         pathname: '/api/media/fetch',
+      },
+      {
+        pathname: '/api/media/private/**',
       },
     ],
     remotePatterns: remoteImageHostnames.map((hostname) => ({

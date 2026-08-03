@@ -13,6 +13,9 @@ import type { PrismaClient } from '@prisma/client'
 import {
   generatePresignedUploadUrl,
   deleteObject,
+  getAllowedMediaMimeTypes,
+  getMediaMaxSizeBytes,
+  getObjectMetadata,
   readObject,
   uploadObject,
   SLIDER_VIDEO_MIME_TYPES,
@@ -28,6 +31,67 @@ export interface MediaServiceDeps {
 
 export function createMediaService({ prisma }: MediaServiceDeps) {
   const productAllowedTypes = new Set(['image/jpeg', 'image/png'])
+
+  function normalizeMimeType(value: string | null | undefined) {
+    const mimeType = value?.split(';')[0]?.trim().toLowerCase()
+    return mimeType || null
+  }
+
+  async function rejectUploadedAsset(
+    asset: { id: string; key: string | null },
+    sizeBytes?: number,
+  ) {
+    const cleanup = asset.key ? deleteObject(asset.key) : null
+
+    await prisma.mediaAsset.update({
+      where: { id: asset.id },
+      data: {
+        status: 'rejected',
+        ...(sizeBytes !== undefined ? { sizeBytes } : {}),
+      },
+    })
+
+    if (!cleanup) return
+
+    try {
+      await cleanup
+    } catch {
+      // The DB record remains rejected even if object cleanup needs a retry.
+      console.warn('[media] rejected upload cleanup failed', { assetId: asset.id })
+    }
+  }
+
+  async function readExternalResponseWithinLimit(
+    response: Response,
+    maxBytes: number,
+  ): Promise<Uint8Array> {
+    if (!response.body) throw new ValidationError('Gorsel icerigi okunamadi.')
+
+    const reader = response.body.getReader()
+    const chunks: Uint8Array[] = []
+    let totalBytes = 0
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (!value) continue
+
+        totalBytes += value.byteLength
+        if (totalBytes > maxBytes) {
+          await reader.cancel()
+          throw new ValidationError(
+            `Gorsel dosyasi en fazla ${Math.round(maxBytes / 1024 / 1024)} MB olabilir.`,
+          )
+        }
+        chunks.push(value)
+      }
+    } finally {
+      reader.releaseLock()
+    }
+
+    return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
+  }
 
   /**
    * Request a presigned upload URL.
@@ -57,7 +121,7 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
     })
 
     // Create a pending record — confirmed after successful upload
-    const isDocument = folder === 'documents'
+    const isDocument = folder === 'documents' || folder === 'customer-support'
     const asset = await prisma.mediaAsset.create({
       data: {
         uploadedBy: ownerId,
@@ -88,20 +152,60 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
       throw new Error('Medya kaydı bulunamadı veya zaten onaylandı.')
     }
 
+    if (!asset.key) {
+      await rejectUploadedAsset(asset)
+      throw new ValidationError('Yuklenen dosya dogrulanamadi.')
+    }
+
+    let objectMetadata: Awaited<ReturnType<typeof getObjectMetadata>>
+    try {
+      objectMetadata = await getObjectMetadata(asset.key)
+    } catch {
+      await rejectUploadedAsset(asset)
+      throw new ValidationError('Yuklenen dosya dogrulanamadi.')
+    }
+
+    const folder = (asset.folder as MediaFolder | null) ?? 'general'
+    const maxSizeBytes = getMediaMaxSizeBytes(folder)
+    const actualMimeType = normalizeMimeType(objectMetadata.contentType)
+    const actualSizeBytes = objectMetadata.contentLength
+    const declaredMimeType = normalizeMimeType(asset.mimeType)
+
+    if (actualSizeBytes === null || !Number.isSafeInteger(actualSizeBytes) || actualSizeBytes < 0) {
+      await rejectUploadedAsset(asset)
+      throw new ValidationError('Yuklenen dosyanin boyutu dogrulanamadi.')
+    }
+
+    if (actualSizeBytes > maxSizeBytes) {
+      await rejectUploadedAsset(asset, actualSizeBytes)
+      throw new ValidationError(
+        `Dosya boyutu en fazla ${Math.round(maxSizeBytes / 1024 / 1024)} MB olabilir.`,
+      )
+    }
+
+    if (
+      !actualMimeType ||
+      actualMimeType !== declaredMimeType ||
+      !getAllowedMediaMimeTypes(folder).has(actualMimeType)
+    ) {
+      await rejectUploadedAsset(asset, actualSizeBytes)
+      throw new ValidationError('Yuklenen dosya turu dogrulanamadi.')
+    }
+
     // Video-specific validation for slider folder
     if (asset.kind === 'video') {
       const VIDEO_MAX_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
       const VIDEO_MAX_DURATION_SEC = 15
 
-      if (asset.sizeBytes != null && asset.sizeBytes > VIDEO_MAX_SIZE_BYTES) {
-        await prisma.mediaAsset.update({ where: { id: assetId }, data: { status: 'rejected' } })
+      if (actualSizeBytes > VIDEO_MAX_SIZE_BYTES) {
+        await rejectUploadedAsset(asset, actualSizeBytes)
         throw new ValidationError(
-          `Video dosyası 10 MB sınırını aşıyor (yüklenen: ${(asset.sizeBytes / 1024 / 1024).toFixed(1)} MB).`,
+          `Video dosyası 10 MB sınırını aşıyor (yüklenen: ${(actualSizeBytes / 1024 / 1024).toFixed(1)} MB).`,
         )
       }
 
       if (asset.durationSec != null && asset.durationSec > VIDEO_MAX_DURATION_SEC) {
-        await prisma.mediaAsset.update({ where: { id: assetId }, data: { status: 'rejected' } })
+        await rejectUploadedAsset(asset, actualSizeBytes)
         throw new ValidationError(
           `Video süresi 15 saniyeyi geçemez (yüklenen: ${asset.durationSec} saniye).`,
         )
@@ -109,16 +213,11 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
     }
 
     if (asset.folder === 'products') {
-      if (!asset.key) {
-        await prisma.mediaAsset.update({ where: { id: assetId }, data: { status: 'failed' } })
-        throw new Error('Görsel dosyası doğrulanamadı.')
-      }
-
       try {
-        const object = await readObject(asset.key)
-        const metadata = parseImageMetadata(object.body, asset.mimeType ?? object.contentType)
+        const object = await readObject(asset.key, maxSizeBytes)
+        const metadata = parseImageMetadata(object.body, actualMimeType)
 
-        if (!productAllowedTypes.has(asset.mimeType ?? object.contentType)) {
+        if (!productAllowedTypes.has(actualMimeType)) {
           throw new Error('Yalnızca PNG veya JPEG kabul edilir.')
         }
 
@@ -134,14 +233,14 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
           )
         }
       } catch (error) {
-        await prisma.mediaAsset.update({ where: { id: assetId }, data: { status: 'rejected' } })
+        await rejectUploadedAsset(asset, actualSizeBytes)
         throw error
       }
     }
 
     const updated = await prisma.mediaAsset.update({
       where: { id: assetId },
-      data: { status: 'ready' },
+      data: { status: 'ready', sizeBytes: actualSizeBytes },
     })
 
     // Enqueue post-processing (metadata, future resize variants)
@@ -211,24 +310,51 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
     folder?: MediaFolder
     originalName?: string
   }) {
-    const response = await fetch(opts.sourceUrl, {
-      headers: {
-        'User-Agent': 'Hanuja-Import-Bot/1.0 (+https://www.hanuja.com.tr/bot)',
-      },
-    })
+    const folder = opts.folder ?? 'products'
+    const maxSizeBytes = getMediaMaxSizeBytes(folder)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15_000)
 
-    if (!response.ok) {
-      throw new Error(`Görsel indirilemedi: ${response.status}`)
+    let body: Uint8Array
+    let mimeType: string
+    try {
+      const response = await fetch(opts.sourceUrl, {
+        headers: {
+          'User-Agent': 'Hanuja-Import-Bot/1.0 (+https://www.hanuja.com.tr/bot)',
+        },
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Görsel indirilemedi: ${response.status}`)
+      }
+
+      mimeType = normalizeMimeType(response.headers.get('content-type')) ?? ''
+      if (!productAllowedTypes.has(mimeType)) {
+        throw new Error(`Desteklenmeyen görsel türü: ${mimeType || 'bilinmiyor'}`)
+      }
+
+      const contentLength = response.headers.get('content-length')
+      if (contentLength) {
+        const declaredBytes = Number(contentLength)
+        if (!Number.isSafeInteger(declaredBytes) || declaredBytes < 0) {
+          throw new ValidationError('Gorsel boyutu dogrulanamadi.')
+        }
+        if (declaredBytes > maxSizeBytes) {
+          await response.body?.cancel()
+          throw new ValidationError(
+            `Gorsel dosyasi en fazla ${Math.round(maxSizeBytes / 1024 / 1024)} MB olabilir.`,
+          )
+        }
+      }
+
+      body = await readExternalResponseWithinLimit(response, maxSizeBytes)
+    } finally {
+      clearTimeout(timeout)
     }
 
-    const mimeType = response.headers.get('content-type')?.split(';')[0]?.trim() || 'image/jpeg'
-    if (!productAllowedTypes.has(mimeType)) {
-      throw new Error(`Desteklenmeyen görsel türü: ${mimeType}`)
-    }
-
-    const body = new Uint8Array(await response.arrayBuffer())
     const uploaded = await uploadObject({
-      folder: opts.folder ?? 'products',
+      folder,
       mimeType,
       ownerId: opts.ownerId,
       body,
@@ -237,12 +363,13 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
     return prisma.mediaAsset.create({
       data: {
         uploadedBy: opts.ownerId,
-        folder: opts.folder ?? 'products',
+        folder,
         key: uploaded.key,
         url: uploaded.publicUrl,
         mimeType,
         originalName: opts.originalName ?? null,
         status: 'ready',
+        sizeBytes: body.byteLength,
         type: 'product_image',
       },
     })

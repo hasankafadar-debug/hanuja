@@ -12,12 +12,21 @@ import { sendEmail } from "@hanuja/api/lib/mailer";
 import { passwordResetTemplate } from "@hanuja/api/lib/email-templates/password-reset";
 import { passwordChangedTemplate } from "@hanuja/api/lib/email-templates/password-changed";
 import { revokeTrustedDevices } from "@hanuja/api/lib/auth-security";
+import { requireRuntimeSecret } from "@hanuja/config/env";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma = globalForPrisma.prisma ?? new PrismaClient();
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 const baseURL = process.env.BETTER_AUTH_URL ?? "http://localhost:3002";
+const betterAuthSecret = requireRuntimeSecret(
+  "BETTER_AUTH_SECRET",
+  process.env.BETTER_AUTH_SECRET,
+);
+const turnstileSecret = requireRuntimeSecret(
+  "TURNSTILE_SECRET_KEY",
+  process.env.TURNSTILE_SECRET_KEY,
+);
 
 function expandTrustedOriginVariants(
   urls: Array<string | undefined>,
@@ -78,7 +87,7 @@ async function ensureDatabaseConnection(
 // Cast to avoid TypeScript "cannot be named" error caused by zod internal path references
 const _auth = betterAuth({
   baseURL,
-  secret: process.env.BETTER_AUTH_SECRET ?? "change-me-in-production",
+  secret: betterAuthSecret,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   emailAndPassword: {
     enabled: true,
@@ -125,8 +134,7 @@ const _auth = betterAuth({
     // client-side verification endpoint is intentionally not an authority.
     captcha({
       provider: "cloudflare-turnstile",
-      secretKey:
-        process.env.TURNSTILE_SECRET_KEY ?? "turnstile-secret-not-configured",
+      secretKey: turnstileSecret,
       endpoints: ["/sign-in/email"],
     }),
     twoFactor({

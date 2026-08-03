@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, Input, Label } from '@hanuja/ui'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface PlatformSettingsValues {
   standardPenaltyRate: string
@@ -51,7 +52,7 @@ export function PlatformSettingsForm({ initialValues }: Props) {
     setError(null)
 
     try {
-      const response = await fetch('/api/admin/platform-settings', {
+      const response = await csrfFetch('/api/admin/platform-settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -89,15 +90,51 @@ export function PlatformSettingsForm({ initialValues }: Props) {
     step?: string
     min?: string
   }> = [
-    { key: 'standardPenaltyRate', label: 'Varsayilan ceza orani', suffix: '%', step: '0.01', min: '0' },
-    { key: 'dailyPenaltyRate', label: 'Gunluk gec sevkiyat ceza orani', suffix: '%', step: '0.01', min: '0' },
-    { key: 'defaultSellerCommissionRate', label: 'Genel satici komisyonu', suffix: '%', step: '0.01', min: '0' },
+    {
+      key: 'standardPenaltyRate',
+      label: 'Varsayilan ceza orani',
+      suffix: '%',
+      step: '0.01',
+      min: '0',
+    },
+    {
+      key: 'dailyPenaltyRate',
+      label: 'Gunluk gec sevkiyat ceza orani',
+      suffix: '%',
+      step: '0.01',
+      min: '0',
+    },
+    {
+      key: 'defaultSellerCommissionRate',
+      label: 'Genel satici komisyonu',
+      suffix: '%',
+      step: '0.01',
+      min: '0',
+    },
     { key: 'fulfillmentDays', label: 'Sevk suresi', suffix: 'gun', min: '1' },
     { key: 'fulfillmentWarningDays', label: 'Admin uyari penceresi', suffix: 'gun kala', min: '1' },
     { key: 'payoutHoldDays', label: 'Hakedis bekleme suresi', suffix: 'gun', min: '1' },
-    { key: 'freeShippingThresholdTry', label: 'Ucretsiz kargo esigi', suffix: 'TL', step: '0.01', min: '0' },
-    { key: 'flatShippingFeeTry', label: 'Sabit kargo ucreti', suffix: 'TL', step: '0.01', min: '0' },
-    { key: 'eftDiscountRate', label: 'EFT / Havale indirim orani', suffix: '%', step: '0.01', min: '0' },
+    {
+      key: 'freeShippingThresholdTry',
+      label: 'Ucretsiz kargo esigi',
+      suffix: 'TL',
+      step: '0.01',
+      min: '0',
+    },
+    {
+      key: 'flatShippingFeeTry',
+      label: 'Sabit kargo ucreti',
+      suffix: 'TL',
+      step: '0.01',
+      min: '0',
+    },
+    {
+      key: 'eftDiscountRate',
+      label: 'EFT / Havale indirim orani',
+      suffix: '%',
+      step: '0.01',
+      min: '0',
+    },
   ]
 
   return (
@@ -123,8 +160,16 @@ export function PlatformSettingsForm({ initialValues }: Props) {
         ))}
       </div>
 
-      {message ? <p className="text-sm" style={{ color: 'var(--color-success)' }}>{message}</p> : null}
-      {error ? <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>{error}</p> : null}
+      {message ? (
+        <p className="text-sm" style={{ color: 'var(--color-success)' }}>
+          {message}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>
+          {error}
+        </p>
+      ) : null}
 
       <Button onClick={save} disabled={loading}>
         {loading ? 'Kaydediliyor...' : 'Ayarlari Kaydet'}

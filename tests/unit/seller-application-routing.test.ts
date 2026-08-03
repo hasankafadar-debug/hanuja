@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isPublicPath } from '../../apps/seller-panel/middleware'
+import { isPublicPath } from '../../apps/seller-panel/src/middleware'
 import {
   canSubmitSellerApplication,
   resolveSellerApplicationState,

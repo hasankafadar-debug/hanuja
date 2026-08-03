@@ -18,7 +18,7 @@
     "ioredis": "^5.0.0",
     "iyzipay": "^2.0.67",
     "nodemailer": "^6.9.0",
-    "sharp": "^0.33.5",
+    "sharp": "0.35.3",
     "zod": "^3.23.0",
     "better-auth": "1.6.25",
     "@better-auth/utils": "0.4.2"
