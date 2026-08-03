@@ -18,6 +18,7 @@ const DOCUMENT_TYPES = [
   'trade_registry',
   'signature_circular',
   'bank_statement',
+  'contract',
   'other',
 ] as const satisfies readonly SellerDocumentType[]
 
@@ -86,6 +87,10 @@ export default async function BasvuruBelgelerPage({ searchParams }: PageProps) {
               id: document.id,
               type: document.type,
               status: document.status,
+              identityPart: document.identityPart,
+              uploadGroupId: document.uploadGroupId,
+              uploadOrder: document.uploadOrder,
+              uploadGroupSize: document.uploadGroupSize,
               fileName: document.fileName,
               mimeType: document.mimeType,
               sizeBytes: document.sizeBytes,

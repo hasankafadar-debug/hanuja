@@ -40,6 +40,7 @@ enum SellerDocumentType {
   trade_registry // Ticaret Sicil Gazetesi / Esnaf Sicil Belgesi
   signature_circular // İmza Sirküleri (tüzel kişiler)
   bank_statement // Banka Hesap Cüzdanı / IBAN Belgesi
+  contract // Satıcı pazaryeri sözleşmesi
   other // Diğer
 }
 
@@ -699,6 +700,9 @@ model SellerDocument {
   sellerId     String
   type         SellerDocumentType
   identityPart SellerDocumentIdentityPart? // Yalnızca identity türünde kullanılır
+  uploadGroupId String? // Sözleşme dosyalarını tek sürümde gruplar
+  uploadOrder Int? // Grup içindeki sıra (0 tabanlı)
+  uploadGroupSize Int? // Gruptaki toplam dosya sayısı
   status       SellerDocumentStatus        @default(pending)
   fileUrl      String // Erişim işareti; KYC belgeleri için herkese açık URL değildir
   fileKey      String // Şifreli özel belge deposundaki anahtar
@@ -716,6 +720,7 @@ model SellerDocument {
   @@index([sellerId])
   @@index([sellerId, type])
   @@index([sellerId, type, identityPart])
+  @@index([sellerId, type, uploadGroupId])
   @@index([status])
   @@map("seller_documents")
 }

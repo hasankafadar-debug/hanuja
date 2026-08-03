@@ -46,6 +46,10 @@ type SellerDocumentRecord = {
   id: string
   sellerId: string
   type: string
+  identityPart?: 'combined' | 'front' | 'back' | null
+  uploadGroupId?: string | null
+  uploadOrder?: number | null
+  uploadGroupSize?: number | null
   status: 'pending' | 'approved' | 'rejected'
   fileKey: string
   fileUrl: string
@@ -90,6 +94,13 @@ function createPrismaMock(opts?: {
     },
     sellerDocument: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => docs.get(where.id) ?? null),
+      findMany: vi.fn(async ({ where }: { where?: { uploadGroupId?: string; type?: string } }) =>
+        [...docs.values()].filter(
+          (document) =>
+            (!where?.uploadGroupId || document.uploadGroupId === where.uploadGroupId) &&
+            (!where?.type || document.type === where.type),
+        ),
+      ),
       update: vi.fn(
         async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
           const current = docs.get(where.id)
@@ -104,6 +115,25 @@ function createPrismaMock(opts?: {
         if (current) docs.delete(where.id)
         return current
       }),
+      updateMany: vi.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { uploadGroupId?: string; type?: string; status?: string }
+          data: Record<string, unknown>
+        }) => {
+          let count = 0
+          for (const [id, document] of docs) {
+            if (where.uploadGroupId && document.uploadGroupId !== where.uploadGroupId) continue
+            if (where.type && document.type !== where.type) continue
+            if (where.status && document.status !== where.status) continue
+            docs.set(id, { ...document, ...data } as SellerDocumentRecord)
+            count += 1
+          }
+          return { count }
+        },
+      ),
     },
     adminAuditLog: {
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -219,6 +249,53 @@ describe('Seller document API routes', () => {
     )
   })
 
+  it('reviews a complete contract upload group with one admin request', async () => {
+    const groupId = 'contract-group-1'
+    const { prisma, createdAuditLogs, docs } = createPrismaMock({
+      documents: [
+        makeDocument({
+          id: 'contract-1',
+          type: 'contract',
+          uploadGroupId: groupId,
+          uploadOrder: 0,
+          uploadGroupSize: 2,
+        }),
+        makeDocument({
+          id: 'contract-2',
+          type: 'contract',
+          uploadGroupId: groupId,
+          uploadOrder: 1,
+          uploadGroupSize: 2,
+        }),
+      ],
+    })
+    prismaMock = prisma
+    getSessionMock.mockResolvedValue({
+      user: { id: 'admin-1', role: 'admin' },
+    })
+    const route =
+      await import('../../../apps/admin-panel/src/app/api/admin/document-groups/[groupId]/review/route.ts')
+
+    const response = await route.POST(
+      new Request(`http://localhost/api/admin/document-groups/${groupId}/review`, {
+        method: 'POST',
+        body: JSON.stringify({ decision: 'approved' }),
+        headers: { 'Content-Type': 'application/json' },
+      }) as never,
+      { params: Promise.resolve({ groupId }) },
+    )
+
+    expect(response.status).toBe(200)
+    expect(docs.get('contract-1')?.status).toBe('approved')
+    expect(docs.get('contract-2')?.status).toBe('approved')
+    expect(storageReadMock).toHaveBeenCalledTimes(2)
+    expect(createdAuditLogs[0]).toMatchObject({
+      actionType: 'seller_document_approved',
+      targetType: 'SellerDocumentGroup',
+      targetId: groupId,
+    })
+  })
+
   it('serves a private document inline to an authenticated admin', async () => {
     const document = makeDocument({
       fileName: 'kimlik ön yüz.png',
@@ -298,7 +375,9 @@ describe('Seller document API routes', () => {
 
     expect(response.status).toBe(404)
     expect(response.headers.get('cache-control')).toContain('no-store')
-    expect(await response.json()).toEqual({ message: 'Belge şu anda görüntülenemiyor.' })
+    expect(await response.json()).toEqual({
+      message: 'Belge şu anda görüntülenemiyor.',
+    })
     expect(consoleError).toHaveBeenCalledWith('Admin seller document read failed', {
       documentId: 'doc-1',
       errorName: 'Error',
@@ -324,7 +403,10 @@ describe('Seller document API routes', () => {
     const response = await route.POST(
       new Request('http://localhost/api/admin/documents/doc-1/review', {
         method: 'POST',
-        body: JSON.stringify({ decision: 'rejected', note: '  Belge okunamıyor  ' }),
+        body: JSON.stringify({
+          decision: 'rejected',
+          note: '  Belge okunamıyor  ',
+        }),
         headers: { 'Content-Type': 'application/json' },
       }) as never,
       { params: Promise.resolve({ id: 'doc-1' }) },

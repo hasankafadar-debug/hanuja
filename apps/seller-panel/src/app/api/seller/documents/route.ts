@@ -90,6 +90,9 @@ function toSellerDocumentResponse(document: {
   sizeBytes: number
   adminNote: string | null
   createdAt: Date
+  uploadGroupId?: string | null
+  uploadOrder?: number | null
+  uploadGroupSize?: number | null
   fileKey?: string
   requiresReupload?: boolean
   fileAvailable?: boolean
@@ -106,6 +109,9 @@ function toSellerDocumentResponse(document: {
     sizeBytes: document.sizeBytes,
     adminNote: document.adminNote,
     createdAt: document.createdAt,
+    uploadGroupId: document.uploadGroupId ?? null,
+    uploadOrder: document.uploadOrder ?? null,
+    uploadGroupSize: document.uploadGroupSize ?? null,
     fileUrl: `/api/seller/documents/${document.id}/file`,
     requiresReupload,
     fileAvailable: document.fileAvailable ?? !requiresReupload,
@@ -152,7 +158,9 @@ export async function GET(_request: NextRequest) {
 
   const service = createSellerDocumentService({ prisma })
   const documents = await service.listDocuments(result.seller.id)
-  return NextResponse.json({ documents: documents.map(toSellerDocumentResponse) })
+  return NextResponse.json({
+    documents: documents.map(toSellerDocumentResponse),
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -239,7 +247,9 @@ export async function POST(request: NextRequest) {
       })
     if ((type !== 'identity' && occupiedDocuments.length > 0) || identitySlotOccupied) {
       return NextResponse.json(
-        { message: 'Bu belge türü için incelenen veya onaylanan bir yüklemeniz zaten var.' },
+        {
+          message: 'Bu belge türü için incelenen veya onaylanan bir yüklemeniz zaten var.',
+        },
         { status: 409 },
       )
     }

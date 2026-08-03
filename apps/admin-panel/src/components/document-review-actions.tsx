@@ -9,11 +9,11 @@ import { useRouter } from 'next/navigation'
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { csrfFetch } from '@/lib/csrf-fetch'
 
-interface Props {
-  documentId: string
-}
+type Props =
+  | { documentId: string; groupId?: never }
+  | { documentId?: never; groupId: string }
 
-export function DocumentReviewActions({ documentId }: Props) {
+export function DocumentReviewActions({ documentId, groupId }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState<'approve' | 'reject' | null>(null)
   const [showRejectForm, setShowRejectForm] = useState(false)
@@ -24,7 +24,10 @@ export function DocumentReviewActions({ documentId }: Props) {
     setLoading(decision === 'approved' ? 'approve' : 'reject')
     setError(null)
     try {
-      const res = await csrfFetch(`/api/admin/documents/${documentId}/review`, {
+      const endpoint = groupId
+        ? `/api/admin/document-groups/${groupId}/review`
+        : `/api/admin/documents/${documentId}/review`
+      const res = await csrfFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision, note }),
@@ -69,7 +72,10 @@ export function DocumentReviewActions({ documentId }: Props) {
             disabled={!rejectNote.trim() || loading === 'reject'}
             onClick={() => submit('rejected', rejectNote.trim())}
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-            style={{ backgroundColor: 'var(--color-destructive)', color: '#fff' }}
+            style={{
+              backgroundColor: 'var(--color-destructive)',
+              color: '#fff',
+            }}
           >
             {loading === 'reject' ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

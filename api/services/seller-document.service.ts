@@ -4,11 +4,8 @@
  * KYC bytes are accepted by the server and encrypted in the private local
  * document store. Product images and other public media keep using R2.
  */
-import type {
-  PrismaClient,
-  SellerDocumentIdentityPart,
-  SellerDocumentType,
-} from '@prisma/client'
+import type { PrismaClient, SellerDocumentIdentityPart, SellerDocumentType } from '@prisma/client'
+import { randomUUID } from 'node:crypto'
 import { createSellerDocumentRepository } from '../repositories/seller-document.repository'
 import {
   createPrivateDocumentStorage,
@@ -25,6 +22,8 @@ export const DOCUMENT_ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
 ])
 export const DOCUMENT_MAX_SIZE_BYTES = 20 * 1024 * 1024
+export const CONTRACT_MAX_FILES = 50
+export const CONTRACT_MAX_TOTAL_SIZE_BYTES = 100 * 1024 * 1024
 
 export const IDENTITY_PARTS = new Set<SellerDocumentIdentityPart>(['combined', 'front', 'back'])
 
@@ -37,7 +36,14 @@ export const DOCUMENT_TYPE_LABELS: Record<SellerDocumentType, string> = {
   trade_registry: 'Ticaret Sicil Gazetesi',
   signature_circular: 'İmza Sirküleri',
   bank_statement: 'Banka Hesap Cüzdanı / IBAN Belgesi',
+  contract: 'Sözleşme',
   other: 'Diğer Belge',
+}
+
+type ContractUploadFile = {
+  fileName: string
+  mimeType: string
+  bytes: Uint8Array
 }
 
 function hasExpectedFileSignature(bytes: Uint8Array, mimeType: string): boolean {
@@ -78,6 +84,33 @@ function validateUpload(file: { fileName: string; mimeType: string; bytes: Uint8
   }
 }
 
+function validateContractFiles(files: ContractUploadFile[]): void {
+  if (files.length === 0) throw new ValidationError('En az bir sözleşme dosyası yükleyin.')
+  if (files.length > CONTRACT_MAX_FILES) {
+    throw new ValidationError(
+      `Bir sözleşme için en fazla ${CONTRACT_MAX_FILES} dosya yüklenebilir.`,
+    )
+  }
+
+  let totalSizeBytes = 0
+  for (const file of files) {
+    validateUpload(file)
+    totalSizeBytes += file.bytes.byteLength
+  }
+  if (totalSizeBytes > CONTRACT_MAX_TOTAL_SIZE_BYTES) {
+    throw new ValidationError('Sözleşme dosyalarının toplam boyutu 100 MB limitini aşıyor.')
+  }
+}
+
+function isUniqueConstraintError(error: unknown): error is { code: 'P2002' } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'P2002'
+  )
+}
+
 export function isLegacySellerDocument(document: { fileKey: string }): boolean {
   return !isPrivateDocumentStorageKey(document.fileKey)
 }
@@ -111,6 +144,11 @@ export function createSellerDocumentService(deps: {
     bytes: Uint8Array
   }) {
     validateUpload(opts)
+    if (opts.type === 'contract') {
+      throw new ValidationError(
+        'Sözleşme dosyaları sözleşme yükleme alanından grup olarak yüklenmelidir.',
+      )
+    }
     const identityPart = opts.type === 'identity' ? (opts.identityPart ?? 'combined') : null
     if (opts.type !== 'identity' && opts.identityPart != null) {
       throw new ValidationError('Kimlik parçası yalnızca kimlik belgesi için seçilebilir.')
@@ -218,6 +256,128 @@ export function createSellerDocumentService(deps: {
     return withStorageState(document)
   }
 
+  async function uploadContractGroup(opts: { sellerId: string; files: ContractUploadFile[] }) {
+    validateContractFiles(opts.files)
+
+    const existingPendingGroup = await prisma.sellerDocument.findFirst({
+      where: { sellerId: opts.sellerId, type: 'contract', status: 'pending' },
+      select: { uploadGroupId: true },
+    })
+    if (existingPendingGroup) {
+      throw new ValidationError(
+        'İncelenen bir sözleşme yüklemeniz zaten var. Yeni sürüm yüklemek için incelemenin tamamlanmasını bekleyin.',
+      )
+    }
+
+    const uploadGroupId = randomUUID()
+    const uploadGroupSize = opts.files.length
+    const submittedAt = new Date()
+    const storedFiles: Array<{
+      key: string
+      fileName: string
+      mimeType: string
+      sizeBytes: number
+      uploadOrder: number
+    }> = []
+
+    try {
+      for (const [uploadOrder, file] of opts.files.entries()) {
+        const stored = await storage().write(file.bytes)
+        storedFiles.push({
+          key: stored.key,
+          fileName: file.fileName.trim().slice(0, 255),
+          mimeType: file.mimeType,
+          sizeBytes: file.bytes.byteLength,
+          uploadOrder,
+        })
+      }
+
+      const documents = await prisma.$transaction(async (tx) => {
+        const created = []
+        for (const file of storedFiles) {
+          created.push(
+            await tx.sellerDocument.create({
+              data: {
+                sellerId: opts.sellerId,
+                type: 'contract',
+                identityPart: null,
+                uploadGroupId,
+                uploadOrder: file.uploadOrder,
+                uploadGroupSize,
+                fileUrl: 'private://seller-document',
+                fileKey: file.key,
+                fileName: file.fileName,
+                mimeType: file.mimeType,
+                sizeBytes: file.sizeBytes,
+                createdAt: submittedAt,
+              },
+            }),
+          )
+        }
+        return created
+      })
+
+      return {
+        groupId: uploadGroupId,
+        documents: documents.map(withStorageState),
+      }
+    } catch (error) {
+      const cleanupResults = await Promise.allSettled(
+        storedFiles.map((file) => storage().delete(file.key)),
+      )
+      if (cleanupResults.some((result) => result.status === 'rejected')) {
+        console.error('Seller contract upload rollback cleanup incomplete', {
+          uploadGroupId,
+          storedFileCount: storedFiles.length,
+        })
+      }
+      if (isUniqueConstraintError(error)) {
+        throw new ValidationError(
+          'İncelenen bir sözleşme yüklemeniz zaten var. Yeni sürüm yüklemek için incelemenin tamamlanmasını bekleyin.',
+        )
+      }
+      throw error
+    }
+  }
+
+  async function deleteContractGroup(uploadGroupId: string, sellerId: string) {
+    const documents = await prisma.sellerDocument.findMany({
+      where: { uploadGroupId, type: 'contract' },
+      orderBy: { uploadOrder: 'asc' },
+    })
+    if (documents.length === 0) throw new NotFoundError('SellerDocumentGroup', uploadGroupId)
+    if (documents.some((document) => document.sellerId !== sellerId)) {
+      throw new ForbiddenError('Bu sözleşmeye erişim yetkiniz yok.')
+    }
+    if (documents.some((document) => document.status !== 'pending')) {
+      throw new ValidationError('Yalnızca beklemedeki sözleşme yüklemeleri silinebilir.')
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const deleted = await tx.sellerDocument.deleteMany({
+        where: {
+          uploadGroupId,
+          sellerId,
+          type: 'contract',
+          status: 'pending',
+        },
+      })
+      if (deleted.count !== documents.length) {
+        throw new ValidationError('Sözleşmenin durumu değişti. Sayfayı yenileyip tekrar deneyin.')
+      }
+    })
+
+    const cleanupResults = await Promise.allSettled(
+      documents.map((document) => storage().delete(document.fileKey)),
+    )
+    if (cleanupResults.some((result) => result.status === 'rejected')) {
+      console.error('Deleted seller contract left private storage orphans', {
+        uploadGroupId,
+        documentCount: documents.length,
+      })
+    }
+  }
+
   async function listDocuments(sellerId: string) {
     const documents = await docRepo.findBySeller(sellerId)
     return documents.map(withStorageState)
@@ -227,6 +387,9 @@ export function createSellerDocumentService(deps: {
     const doc = await docRepo.findById(documentId)
     if (!doc) throw new NotFoundError('SellerDocument', documentId)
     if (doc.sellerId !== sellerId) throw new ForbiddenError('Bu belgeye erişim yetkiniz yok.')
+    if (doc.type === 'contract') {
+      throw new ValidationError('Sözleşme dosyaları grup olarak silinmelidir.')
+    }
     if (doc.status !== 'pending') {
       throw new ValidationError('Yalnızca beklemedeki belgeler silinebilir.')
     }
@@ -295,6 +458,9 @@ export function createSellerDocumentService(deps: {
 
     const doc = await docRepo.findById(documentId)
     if (!doc) throw new NotFoundError('SellerDocument', documentId)
+    if (doc.type === 'contract') {
+      throw new ValidationError('Sözleşme dosyaları grup olarak incelenmelidir.')
+    }
     if (doc.status !== 'pending') {
       throw new ValidationError(`Belge zaten incelendi: ${doc.status}`)
     }
@@ -341,6 +507,88 @@ export function createSellerDocumentService(deps: {
     })
   }
 
+  async function reviewContractGroup(opts: {
+    uploadGroupId: string
+    adminId: string
+    decision: 'approved' | 'rejected'
+    note?: string
+  }) {
+    const normalizedNote = opts.note?.trim() || undefined
+    const documents = await prisma.sellerDocument.findMany({
+      where: { uploadGroupId: opts.uploadGroupId, type: 'contract' },
+      orderBy: { uploadOrder: 'asc' },
+    })
+    if (documents.length === 0) {
+      throw new NotFoundError('SellerDocumentGroup', opts.uploadGroupId)
+    }
+    if (documents.some((document) => document.status !== 'pending')) {
+      throw new ValidationError('Sözleşme grubu zaten incelendi.')
+    }
+    if (
+      documents.some(
+        (document, index) =>
+          document.uploadGroupSize !== documents.length || document.uploadOrder !== index,
+      )
+    ) {
+      throw new ValidationError('Sözleşme dosya grubu eksik veya sırası bozuk.')
+    }
+    if (opts.decision === 'rejected' && !normalizedNote) {
+      throw new ValidationError('Ret kararında gerekçe zorunludur.')
+    }
+
+    if (opts.decision === 'approved') {
+      for (const document of documents) {
+        if (isLegacySellerDocument(document)) {
+          throw new ValidationError(LEGACY_DOCUMENT_REUPLOAD_MESSAGE)
+        }
+        try {
+          await storage().read(document.fileKey)
+        } catch {
+          throw new ValidationError(
+            'Sözleşme dosyalarından biri özel depoda doğrulanamadı. Satıcıdan sözleşmeyi yeniden yüklemesini isteyin.',
+          )
+        }
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const reviewedAt = new Date()
+      const updated = await tx.sellerDocument.updateMany({
+        where: {
+          uploadGroupId: opts.uploadGroupId,
+          type: 'contract',
+          status: 'pending',
+        },
+        data: {
+          status: opts.decision,
+          adminNote: normalizedNote ?? null,
+          reviewedBy: opts.adminId,
+          reviewedAt,
+        },
+      })
+      if (updated.count !== documents.length) {
+        throw new ValidationError('Sözleşmenin durumu değişti. Sayfayı yenileyip tekrar deneyin.')
+      }
+
+      await tx.adminAuditLog.create({
+        data: {
+          actorId: opts.adminId,
+          actionType:
+            opts.decision === 'approved' ? 'seller_document_approved' : 'seller_document_rejected',
+          targetType: 'SellerDocumentGroup',
+          targetId: opts.uploadGroupId,
+          previousData: {
+            status: 'pending',
+            type: 'contract',
+            documentIds: documents.map((document) => document.id),
+          } as never,
+          newData: { status: opts.decision } as never,
+          ...(normalizedNote ? { reason: normalizedNote } : {}),
+        },
+      })
+    })
+  }
+
   async function listDocumentsBySeller(sellerId: string) {
     const documents = await docRepo.findBySeller(sellerId)
     return documents.map(withStorageState)
@@ -353,12 +601,15 @@ export function createSellerDocumentService(deps: {
 
   return {
     uploadDocument,
+    uploadContractGroup,
     listDocuments,
     deleteDocument,
+    deleteContractGroup,
     confirmUpload,
     readDocumentFile,
     documentFileExists,
     reviewDocument,
+    reviewContractGroup,
     listDocumentsBySeller,
     listPendingDocuments,
   }

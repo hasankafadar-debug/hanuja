@@ -16,6 +16,7 @@ const DOC_TYPES = [
   'trade_registry',
   'signature_circular',
   'bank_statement',
+  'contract',
   'other',
 ] as const
 
@@ -30,6 +31,7 @@ const LABELS: Record<(typeof DOC_TYPES)[number], string> = {
   trade_registry: 'Ticaret Sicil Gazetesi',
   signature_circular: 'İmza Sirküleri',
   bank_statement: 'Banka Hesap Belgesi',
+  contract: 'Sözleşme',
   other: 'Diğer',
 }
 

@@ -9,6 +9,7 @@ const SELLER_DOCUMENT_TYPES = new Set<SellerDocumentType>([
   'trade_registry',
   'signature_circular',
   'bank_statement',
+  'contract',
   'other',
 ])
 
@@ -58,7 +59,13 @@ async function readAndValidateActivation(
       },
       documents: {
         where: { status: 'approved' },
-        select: { type: true, identityPart: true },
+        select: {
+          type: true,
+          identityPart: true,
+          uploadGroupId: true,
+          uploadOrder: true,
+          uploadGroupSize: true,
+        },
       },
     },
   })
@@ -87,9 +94,37 @@ async function readAndValidateActivation(
   const identityIsComplete =
     approvedIdentityParts.has('combined') ||
     (approvedIdentityParts.has('front') && approvedIdentityParts.has('back'))
+  const approvedContractGroups = new Map<string, { size: number; orders: Set<number> }>()
+  for (const document of seller.documents.filter((item) => item.type === 'contract')) {
+    if (
+      !document.uploadGroupId ||
+      document.uploadGroupSize == null ||
+      document.uploadOrder == null
+    ) {
+      continue
+    }
+    const group = approvedContractGroups.get(document.uploadGroupId) ?? {
+      size: document.uploadGroupSize,
+      orders: new Set<number>(),
+    }
+    if (group.size === document.uploadGroupSize) group.orders.add(document.uploadOrder)
+    approvedContractGroups.set(document.uploadGroupId, group)
+  }
+  const contractIsComplete = [...approvedContractGroups.values()].some(
+    (group) =>
+      group.size > 0 &&
+      group.orders.size === group.size &&
+      Array.from({ length: group.size }, (_, index) => index).every((index) =>
+        group.orders.has(index),
+      ),
+  )
   const approvedDocumentTypes = new Set(
     seller.documents
-      .filter((document) => document.type !== 'identity' || identityIsComplete)
+      .filter(
+        (document) =>
+          (document.type !== 'identity' || identityIsComplete) &&
+          (document.type !== 'contract' || contractIsComplete),
+      )
       .map((document) => document.type),
   )
   const missingDocumentTypes = requiredDocumentTypes.filter(

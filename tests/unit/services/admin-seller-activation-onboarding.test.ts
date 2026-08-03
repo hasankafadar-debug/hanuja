@@ -72,7 +72,9 @@ describe('admin seller onboarding activation', () => {
 
   it('is ready when every admin-requested type is approved without a hidden bank-statement rule', async () => {
     const prisma = createPrismaMock()
-    const service = createAdminSellerActivationService({ prisma: prisma as never })
+    const service = createAdminSellerActivationService({
+      prisma: prisma as never,
+    })
 
     await expect(service.assertReady('seller-1')).resolves.toMatchObject({
       sellerId: 'seller-1',
@@ -82,9 +84,13 @@ describe('admin seller onboarding activation', () => {
 
   it('reports exactly the requested document types that are still missing', async () => {
     const prisma = createPrismaMock(
-      createSeller({ documents: [{ type: 'identity' }, { type: 'signature_circular' }] }),
+      createSeller({
+        documents: [{ type: 'identity' }, { type: 'signature_circular' }],
+      }),
     )
-    const service = createAdminSellerActivationService({ prisma: prisma as never })
+    const service = createAdminSellerActivationService({
+      prisma: prisma as never,
+    })
 
     await expect(service.assertReady('seller-1')).rejects.toMatchObject({
       statusCode: 422,
@@ -103,9 +109,13 @@ describe('admin seller onboarding activation', () => {
         ],
       }),
     )
-    const service = createAdminSellerActivationService({ prisma: prisma as never })
+    const service = createAdminSellerActivationService({
+      prisma: prisma as never,
+    })
 
-    await expect(service.assertReady('seller-1')).resolves.toMatchObject({ sellerId: 'seller-1' })
+    await expect(service.assertReady('seller-1')).resolves.toMatchObject({
+      sellerId: 'seller-1',
+    })
   })
 
   it('keeps identity missing until both separately uploaded faces are approved', async () => {
@@ -118,7 +128,9 @@ describe('admin seller onboarding activation', () => {
         ],
       }),
     )
-    const service = createAdminSellerActivationService({ prisma: prisma as never })
+    const service = createAdminSellerActivationService({
+      prisma: prisma as never,
+    })
 
     await expect(service.assertReady('seller-1')).rejects.toMatchObject({
       statusCode: 422,
@@ -126,18 +138,85 @@ describe('admin seller onboarding activation', () => {
     })
   })
 
+  it('accepts a complete approved contract group when contract is requested', async () => {
+    const prisma = createPrismaMock(
+      createSeller({
+        requiredDocumentTypes: ['identity', 'contract'],
+        documents: [
+          { type: 'identity', identityPart: 'combined' },
+          {
+            type: 'contract',
+            identityPart: null,
+            uploadGroupId: 'contract-group-1',
+            uploadOrder: 0,
+            uploadGroupSize: 2,
+          },
+          {
+            type: 'contract',
+            identityPart: null,
+            uploadGroupId: 'contract-group-1',
+            uploadOrder: 1,
+            uploadGroupSize: 2,
+          },
+        ],
+      }),
+    )
+    const service = createAdminSellerActivationService({
+      prisma: prisma as never,
+    })
+
+    await expect(service.assertReady('seller-1')).resolves.toMatchObject({
+      sellerId: 'seller-1',
+    })
+  })
+
+  it('keeps a requested contract missing when its approved group is incomplete', async () => {
+    const prisma = createPrismaMock(
+      createSeller({
+        requiredDocumentTypes: ['identity', 'contract'],
+        documents: [
+          { type: 'identity', identityPart: 'combined' },
+          {
+            type: 'contract',
+            identityPart: null,
+            uploadGroupId: 'contract-group-1',
+            uploadOrder: 0,
+            uploadGroupSize: 2,
+          },
+        ],
+      }),
+    )
+    const service = createAdminSellerActivationService({
+      prisma: prisma as never,
+    })
+
+    await expect(service.assertReady('seller-1')).rejects.toMatchObject({
+      statusCode: 422,
+      details: { missingDocumentTypes: ['contract'] },
+    })
+  })
+
   it('requires an explicit admin document request before activation', async () => {
     const prisma = createPrismaMock(createSeller({ requiredDocumentTypes: [] }))
-    const service = createAdminSellerActivationService({ prisma: prisma as never })
+    const service = createAdminSellerActivationService({
+      prisma: prisma as never,
+    })
 
-    await expect(service.assertReady('seller-1')).rejects.toMatchObject({ statusCode: 422 })
+    await expect(service.assertReady('seller-1')).rejects.toMatchObject({
+      statusCode: 422,
+    })
   })
 
   it('atomically activates and verifies the initial bank, profile, and seller', async () => {
     const prisma = createPrismaMock()
-    const service = createAdminSellerActivationService({ prisma: prisma as never })
+    const service = createAdminSellerActivationService({
+      prisma: prisma as never,
+    })
 
-    await service.activateInitial({ sellerId: 'seller-1', adminActorId: 'admin-1' })
+    await service.activateInitial({
+      sellerId: 'seller-1',
+      adminActorId: 'admin-1',
+    })
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)
     expect(prisma.sellerBankDetail.updateMany).toHaveBeenCalledWith({

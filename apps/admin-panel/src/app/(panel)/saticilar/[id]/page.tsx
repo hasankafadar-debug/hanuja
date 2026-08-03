@@ -11,14 +11,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@hanuja/ui'
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Clock,
-  FileText,
-  ShieldAlert,
-  XCircle,
-} from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Clock, FileText, ShieldAlert, XCircle } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { isPrivateDocumentStorageKey } from '@hanuja/api/lib/private-document-storage'
@@ -78,6 +71,7 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   trade_registry: 'Ticaret Sicil Gazetesi',
   signature_circular: 'İmza Sirküleri',
   bank_statement: 'Banka Hesap Belgesi',
+  contract: 'Sözleşme',
   other: 'Diğer Belge',
 }
 
@@ -197,11 +191,41 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
   const requestedDocumentTypes = Array.isArray(seller.requiredDocumentTypes)
     ? seller.requiredDocumentTypes.map(String)
     : []
+  const contractDocumentGroups = Array.from(
+    kycDocuments
+      .filter((document) => document.type === 'contract')
+      .reduce((groups, document) => {
+        const groupId = document.uploadGroupId ?? document.id
+        const group = groups.get(groupId) ?? []
+        group.push(document)
+        groups.set(groupId, group)
+        return groups
+      }, new Map<string, typeof kycDocuments>()),
+    ([groupId, documents]) => ({
+      groupId,
+      documents: documents.sort((a, b) => (a.uploadOrder ?? 0) - (b.uploadOrder ?? 0)),
+    }),
+  ).sort((a, b) => b.documents[0]!.createdAt.getTime() - a.documents[0]!.createdAt.getTime())
+  const completeApprovedContractGroup = contractDocumentGroups.find(
+    (group) =>
+      group.documents.length > 0 &&
+      group.documents.every(
+        (document, index) =>
+          document.status === 'approved' &&
+          document.uploadGroupSize === group.documents.length &&
+          document.uploadOrder === index,
+      ),
+  )
   const approvedDocumentTypes = new Set(
     kycDocuments
-      .filter((document) => document.status === 'approved')
+      .filter((document) => document.status === 'approved' && document.type !== 'contract')
       .map((document) => document.type),
   )
+  if (completeApprovedContractGroup) approvedDocumentTypes.add('contract')
+  const pendingDocumentReviewCount =
+    kycDocuments.filter((document) => document.type !== 'contract' && document.status === 'pending')
+      .length +
+    contractDocumentGroups.filter((group) => group.documents[0]?.status === 'pending').length
   const missingDocumentTypes = requestedDocumentTypes.filter(
     (documentType) => !approvedDocumentTypes.has(documentType as never),
   )
@@ -231,7 +255,11 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
     { label: 'Telefon', value: seller.profile?.phone },
     { label: 'Mağaza adı', value: seller.displayName },
     { label: 'Şirket / Ticari unvan', value: seller.profile?.companyName },
-    { label: 'Açık yasal adres', value: seller.profile?.legalAddress, fullWidth: true },
+    {
+      label: 'Açık yasal adres',
+      value: seller.profile?.legalAddress,
+      fullWidth: true,
+    },
     { label: 'İl', value: seller.profile?.city },
     { label: 'İlçe', value: seller.profile?.district },
     { label: 'Posta kodu', value: seller.profile?.postalCode },
@@ -350,7 +378,7 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
           <TabsTrigger value="profile">Profil</TabsTrigger>
           <TabsTrigger value="kyc">
             Belgeler
-            {kycDocuments.filter((document) => document.status === 'pending').length > 0 && (
+            {pendingDocumentReviewCount > 0 && (
               <span
                 className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold"
                 style={{
@@ -358,7 +386,7 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                   color: '#fff',
                 }}
               >
-                {kycDocuments.filter((document) => document.status === 'pending').length}
+                {pendingDocumentReviewCount}
               </span>
             )}
           </TabsTrigger>
@@ -524,31 +552,34 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
             </div>
           ) : (
             <div className="space-y-3">
-              {kycDocuments.map((document) => {
-                const requiresReupload = !isPrivateDocumentStorageKey(document.fileKey)
+              {contractDocumentGroups.map((group) => {
+                const firstDocument = group.documents[0]!
+                const requiresReupload = group.documents.some(
+                  (document) => !isPrivateDocumentStorageKey(document.fileKey),
+                )
                 const statusIcon =
-                  document.status === 'approved' ? (
+                  firstDocument.status === 'approved' ? (
                     <CheckCircle2 className="h-4 w-4" style={{ color: 'var(--color-success)' }} />
-                  ) : document.status === 'rejected' ? (
+                  ) : firstDocument.status === 'rejected' ? (
                     <XCircle className="h-4 w-4" style={{ color: 'var(--color-destructive)' }} />
                   ) : (
                     <Clock className="h-4 w-4" style={{ color: 'var(--color-warning)' }} />
                   )
-
                 const statusLabel =
-                  document.status === 'approved'
+                  firstDocument.status === 'approved'
                     ? 'Onaylandı'
-                    : document.status === 'rejected'
+                    : firstDocument.status === 'rejected'
                       ? 'Reddedildi'
                       : 'İnceleniyor'
+                const isEffective = completeApprovedContractGroup?.groupId === group.groupId
 
                 return (
                   <div
-                    key={document.id}
+                    key={group.groupId}
                     className="space-y-3 rounded-xl border p-4"
                     style={{
                       borderColor:
-                        document.status === 'pending'
+                        firstDocument.status === 'pending'
                           ? 'var(--color-warning)'
                           : 'var(--color-border)',
                       backgroundColor: 'var(--color-surface)',
@@ -560,63 +591,179 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                         style={{ color: 'var(--color-muted-fg)' }}
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p
-                              className="text-sm font-medium"
-                              style={{ color: 'var(--color-primary)' }}
-                            >
-                              {DOCUMENT_TYPE_LABELS[document.type] ?? document.type}
-                            </p>
-                            {document.type === 'identity' && document.identityPart && (
-                              <Badge variant="secondary">
-                                {IDENTITY_PART_LABELS[document.identityPart] ??
-                                  document.identityPart}
-                              </Badge>
-                            )}
-                          </div>
-                          <span className="inline-flex items-center gap-1 text-xs">
-                            {statusIcon} {statusLabel}
-                          </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p
+                            className="text-sm font-medium"
+                            style={{ color: 'var(--color-primary)' }}
+                          >
+                            Sözleşme
+                          </p>
+                          <Badge variant="secondary">{group.documents.length} dosya</Badge>
+                          {isEffective ? <Badge variant="success">Geçerli sürüm</Badge> : null}
                         </div>
                         <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                          {document.fileName} ·{' '}
-                          {new Date(document.createdAt).toLocaleDateString('tr-TR', {
+                          {firstDocument.createdAt.toLocaleDateString('tr-TR', {
                             day: 'numeric',
                             month: 'short',
                             year: 'numeric',
                           })}
                         </p>
-                        {document.adminNote && (
+                        {firstDocument.adminNote ? (
                           <p
                             className="mt-1 text-xs italic"
                             style={{ color: 'var(--color-muted-fg)' }}
                           >
-                            Not: {document.adminNote}
+                            Not: {firstDocument.adminNote}
                           </p>
-                        )}
+                        ) : null}
                       </div>
-                      {requiresReupload ? (
-                        <span className="text-xs" style={{ color: 'var(--color-destructive)' }}>
-                          Yeniden yüklenmeli
-                        </span>
-                      ) : null}
+                      <span className="inline-flex items-center gap-1 text-xs">
+                        {statusIcon} {statusLabel}
+                      </span>
                     </div>
-                    {!requiresReupload && (
-                      <DocumentFileActions
-                        documentId={document.id}
-                        fileName={document.fileName}
-                        mimeType={document.mimeType}
-                      />
-                    )}
-                    {document.status === 'pending' && (
+
+                    <ol
+                      className="space-y-3 border-t pt-3"
+                      style={{ borderColor: 'var(--color-border)' }}
+                    >
+                      {group.documents.map((document, index) => (
+                        <li
+                          key={document.id}
+                          className="rounded-lg border p-3"
+                          style={{ borderColor: 'var(--color-border)' }}
+                        >
+                          <div className="mb-2 flex items-center gap-2 text-xs">
+                            <span
+                              className="font-semibold"
+                              style={{ color: 'var(--color-primary)' }}
+                            >
+                              {index + 1}.
+                            </span>
+                            <span
+                              className="min-w-0 flex-1 truncate"
+                              style={{ color: 'var(--color-primary)' }}
+                            >
+                              {document.fileName}
+                            </span>
+                          </div>
+                          {isPrivateDocumentStorageKey(document.fileKey) ? (
+                            <DocumentFileActions
+                              documentId={document.id}
+                              fileName={document.fileName}
+                              mimeType={document.mimeType}
+                            />
+                          ) : (
+                            <span className="text-xs" style={{ color: 'var(--color-destructive)' }}>
+                              Yeniden yüklenmeli
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+
+                    {firstDocument.status === 'pending' && !requiresReupload ? (
                       <div className="pt-1">
-                        <DocumentReviewActions documentId={document.id} />
+                        <DocumentReviewActions groupId={group.groupId} />
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 )
               })}
+              {kycDocuments
+                .filter((document) => document.type !== 'contract')
+                .map((document) => {
+                  const requiresReupload = !isPrivateDocumentStorageKey(document.fileKey)
+                  const statusIcon =
+                    document.status === 'approved' ? (
+                      <CheckCircle2 className="h-4 w-4" style={{ color: 'var(--color-success)' }} />
+                    ) : document.status === 'rejected' ? (
+                      <XCircle className="h-4 w-4" style={{ color: 'var(--color-destructive)' }} />
+                    ) : (
+                      <Clock className="h-4 w-4" style={{ color: 'var(--color-warning)' }} />
+                    )
+
+                  const statusLabel =
+                    document.status === 'approved'
+                      ? 'Onaylandı'
+                      : document.status === 'rejected'
+                        ? 'Reddedildi'
+                        : 'İnceleniyor'
+
+                  return (
+                    <div
+                      key={document.id}
+                      className="space-y-3 rounded-xl border p-4"
+                      style={{
+                        borderColor:
+                          document.status === 'pending'
+                            ? 'var(--color-warning)'
+                            : 'var(--color-border)',
+                        backgroundColor: 'var(--color-surface)',
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <FileText
+                          className="mt-0.5 h-5 w-5 shrink-0"
+                          style={{ color: 'var(--color-muted-fg)' }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p
+                                className="text-sm font-medium"
+                                style={{ color: 'var(--color-primary)' }}
+                              >
+                                {DOCUMENT_TYPE_LABELS[document.type] ?? document.type}
+                              </p>
+                              {document.type === 'identity' && document.identityPart && (
+                                <Badge variant="secondary">
+                                  {IDENTITY_PART_LABELS[document.identityPart] ??
+                                    document.identityPart}
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="inline-flex items-center gap-1 text-xs">
+                              {statusIcon} {statusLabel}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                            {document.fileName} ·{' '}
+                            {new Date(document.createdAt).toLocaleDateString('tr-TR', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </p>
+                          {document.adminNote && (
+                            <p
+                              className="mt-1 text-xs italic"
+                              style={{ color: 'var(--color-muted-fg)' }}
+                            >
+                              Not: {document.adminNote}
+                            </p>
+                          )}
+                        </div>
+                        {requiresReupload ? (
+                          <span className="text-xs" style={{ color: 'var(--color-destructive)' }}>
+                            Yeniden yüklenmeli
+                          </span>
+                        ) : null}
+                      </div>
+                      {!requiresReupload && (
+                        <DocumentFileActions
+                          documentId={document.id}
+                          fileName={document.fileName}
+                          mimeType={document.mimeType}
+                        />
+                      )}
+                      {document.status === 'pending' && (
+                        <div className="pt-1">
+                          <DocumentReviewActions documentId={document.id} />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
             </div>
           )}
         </TabsContent>

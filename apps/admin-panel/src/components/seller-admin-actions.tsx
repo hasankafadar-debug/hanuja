@@ -11,6 +11,7 @@ const DOC_TYPES = [
   { value: 'trade_registry', label: 'Ticaret Sicil Gazetesi' },
   { value: 'signature_circular', label: 'İmza Sirküleri' },
   { value: 'bank_statement', label: 'Banka Hesap Belgesi' },
+  { value: 'contract', label: 'Sözleşme' },
   { value: 'other', label: 'Diğer' },
 ] as const
 
