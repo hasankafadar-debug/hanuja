@@ -20,13 +20,31 @@ Before configuring apps, ensure the following backing services are running in Co
 2. Grant access to the `hanuja` repository
 3. Set the default branch to `main`
 
-> **Fiili durum (2026-07-19):** Dört uygulama servisi de şu an `codex/release-2026-07-15`
-> branch'ini izliyor (Coolify UI'dan doğrulandı) — yukarıdaki `main` hedefi henüz devreye
-> alınmadı. Ayrıca her servisin Git Source ekranındaki **Commit SHA** alanı `HEAD` olmalı;
-> alana sabit bir SHA yazılırsa redeploy'lar branch ucunu değil o commit'i kurar
-> (2026-07-19 deploy'unda bu alanlar eski SHA'lara sabitlenmiş bulundu ve `HEAD`'e çekildi).
+> **Fiili durum (2026-08-06'da Coolify UI'dan okundu):** yukarıdaki `main` hedefi hâlâ devreye
+> alınmadı. Dört uygulama servisi de GitHub'daki `hasankafadar-debug/hanuja` reposunu ve
+> `codex/release-2026-07-15` branch'ini izliyor:
+>
+> | Servis | Branch | Commit SHA alanı | O an canlıdaki commit | Deploy |
+> |---|---|---|---|---|
+> | `hanuja-web` | `codex/release-2026-07-15` | `HEAD` | `c248d2f` | 2026-08-03 21:32 UTC |
+> | `hanuja-admin` | `codex/release-2026-07-15` | `HEAD` | `c248d2f` | 2026-08-03 21:16 UTC |
+> | `hanuja-seller` | `codex/release-2026-07-15` | `HEAD` | `c248d2f` | 2026-08-03 21:27 UTC |
+> | `hanuja-worker` | `codex/release-2026-07-15` | `HEAD` | `a763972` | 2026-08-03 20:59 UTC |
+>
+> **Commit SHA alanı:** dördünde de `HEAD` yazıyordu. Bu alan `HEAD` kalmalı — sabit bir SHA
+> yazılırsa redeploy branch ucunu değil o commit'i kurar. 2026-07-19 deploy'unda dört serviste
+> de eski SHA'lara sabitlenmiş bulunmuş ve `HEAD`'e çekilmişti; 2026-08-06 okumasında temizdi.
+> "Deploy ettim ama düzeltme canlıda yok" durumunda ilk bakılacak yer burasıdır.
+>
+> **Worker sürüklenmesi:** worker bir commit geride (`a763972`). Bu ölçümde zararsızdı —
+> `c248d2f` yalnızca iki panel middleware'ini ve additive `packages/security/src/panel-origin.ts`
+> dosyasını değiştiriyor, `panel-origin`'i yalnız o iki panel import ediyor. Servislerin farklı
+> commit'lerde kalabildiğini gösterdiği için yine de not edildi: dördünü aynı commit'te
+> varsaymayın, deploy öncesi her birinin son deploy commit'ini ayrı okuyun.
+>
 > `main`'e geçiş yapılırsa bu not güncellenmeli ve dört serviste branch alanı birlikte
-> değiştirilmelidir.
+> değiştirilmelidir. Bu tablo bir *kayıttır*, canlı okuma değil — yayın öncesi Coolify UI'dan
+> teyit edin ve değişmişse burayı güncelleyin.
 
 ---
 

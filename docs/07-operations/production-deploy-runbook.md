@@ -30,7 +30,9 @@ Bu adım otomatikleştirilemez; bu doküman sadece hatırlatma listesi sağlar. 
 - [ ] PostgreSQL 16 servisi Coolify üzerinde (veya yönetilen ayrı bir servis olarak) provision edilmiş — CLAUDE.md §"Redis ve PostgreSQL ayrı yönetilen servisler olmalı" kuralına göre uygulama container'ının İÇİNDE DEĞİL
 - [ ] Redis 7 servisi ayrı yönetilen servis olarak provision edilmiş
 - [ ] Meilisearch servisi provision edilmiş
-- [ ] Coolify Git kaynak bağlantısı yapılmış, default branch `main` olarak ayarlanmış (bkz. `docs/06-engineering/coolify-setup.md` §"Repository Connection")
+- [ ] Coolify Git kaynak bağlantısı yapılmış ve **dört servisin de izlediği dal doğrulanmış**. ⚠️ Buradaki eski madde "default branch `main`" diyordu; bu **fiili durum değildir** — `main` deponun ilk commit'inde duruyor (2026-08-06 ölçümünde 80 commit geride). Dört servis de `codex/release-2026-07-15` dalını izliyor (bkz. `docs/06-engineering/coolify-setup.md` §"Repository Connection" → "Fiili durum (2026-08-06)"). Buradaki sayıyı kopyalama, `git rev-list --left-right --count origin/main...HEAD` ile ölç. `main`'e geçiş yapılırsa her iki dosya birlikte güncellenmeli.
+- [ ] Her servisin Git Source ekranındaki **Commit SHA** alanı `HEAD` (sabit SHA yazılıysa redeploy branch ucunu değil o commit'i kurar — 2026-07-19'da dört serviste de bozuk bulundu, 2026-08-06'da temizdi)
+- [ ] Her servisin **son deploy commit'i ayrı ayrı** okunmuş — servisler farklı commit'lerde kalabiliyor (2026-08-06'da worker diğer üçünden bir commit gerideydi)
 
 Bu adım tamamlanmadan sonraki adımlara geçilmez.
 

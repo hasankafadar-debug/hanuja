@@ -152,6 +152,120 @@ Before making a meaningful change, determine which layer is affected:
 
 Then update the matching docs if needed.
 
+### 3.5 Release reality check — run this BEFORE writing any commit or deploy plan
+
+**Documented claims about branches, deploy targets, and live infrastructure are not source of truth.**
+They go stale silently. `CLAUDE.local.md`, this file, and the runbooks describe *intent*; only git and
+the Coolify UI describe *reality*. The source-of-truth order in 3.2 applies to business rules — it does
+**not** apply to "which branch is deployed". For that, the live system always wins.
+
+This rule exists because it has already gone wrong: a plan asserted "Coolify tracks `main`, so nothing
+ships until the change lands on `main`". It was copied from `CLAUDE.local.md` without verification.
+`origin/main` was in fact sitting at the repo's initial commit, dozens of commits behind, and every
+service was running from a release branch. The whole deploy section of that plan was wrong.
+
+It then went wrong a second time, in the opposite direction: a later plan repeated the *number* "58
+commits behind" from this very file instead of measuring it. The measured value on 2026-08-06 was **80**.
+Counts, SHAs, and dates in any document are snapshots — re-measure them, never quote them.
+
+#### Step 1 — always verify the remote before planning
+
+```bash
+git ls-remote --heads origin
+```
+
+```bash
+git rev-list --left-right --count origin/main...HEAD
+```
+
+Read the result before writing a single word about branches. If `origin/main` is behind the working
+branch, **`main` is not the release path** — do not write "merge to main so Coolify redeploys".
+
+State measured on 2026-08-06 (**re-verify, never assume it still holds**):
+- `origin/main` → `a2a6c6a` *"chore: initial commit"*, 80 commits behind. Not the live branch.
+- `origin/codex/release-2026-07-15` → `c248d2f`, carries all work, in sync with local HEAD (0/0).
+  This matches the Coolify state recorded in Step 2, so it is the release branch.
+- A second remote exists: `backup` → `H:\git-backups\hanuja.git`. Its `codex/release-2026-07-15`
+  had **diverged** from origin (`07d2694` vs `c248d2f`, common ancestor `af12435`). Nothing deploys
+  from it — Coolify pulls from GitHub only — but do not treat it as a faithful backup of origin, and
+  never resolve a "which commit is live" question from it.
+
+#### Step 2 — read the recorded Coolify state: `docs/06-engineering/coolify-setup.md`
+
+**This file is the first place to look for deploy targets, not `CLAUDE.local.md`.** Its
+§"Repository Connection" carries a dated "Fiili durum" note recording what was actually verified in
+the Coolify UI. As of the 2026-08-06 note:
+
+- **All four services track `codex/release-2026-07-15`** on the GitHub repo. The `main` target
+  described in the setup steps above that note was never switched on.
+- Each service's Git Source screen must have **Commit SHA = `HEAD`**. If a fixed SHA is pinned there,
+  redeploys install that commit instead of the branch tip — this was found broken on 2026-07-19 and
+  reset to `HEAD`; it read clean on 2026-08-06. Check this before concluding "deployed but the fix
+  isn't live".
+- **Services can sit on different commits.** On 2026-08-06 `worker` was one commit behind the other
+  three. Read each service's last deploy commit separately rather than assuming they match.
+
+Treat that note as the best available record, not as permanent truth: it is dated, and the setup steps
+sitting above it still describe an unexecuted `main` migration, so the two read as contradictory at a
+glance. Re-confirm in the Coolify UI before a release, and update the note when it changes.
+
+Per `CLAUDE.local.md`, **the user performs all Coolify login, env entry, and deploy triggering** —
+Claude never enters credentials or secrets there. Claude coordinates order and verification only.
+If Coolify cannot be reached, fall back to the recorded note and say it is a record rather than a live
+reading. Never fill the gap with an assumption or present an unverified branch claim as fact.
+
+#### Step 3 — decide which services actually need redeploying
+
+Do not redeploy all four by reflex. Determine impact from the diff:
+- shared `packages/*` → every app that imports it (check with a grep, do not guess)
+- `api/` service or route → the panels that call it
+- app-local files → that app only
+- queue/job payload or schema change → `worker`
+
+A shared-package change that is purely additive with an unchanged default may not require redeploying
+consumers at all — but say so explicitly, with the reason.
+
+#### Step 4 — pre-deploy gate
+
+```bash
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
+```
+
+**`pnpm test` currently exits 1 on a known pre-existing failure** (`seller-product-import.test.ts`
+references route files that were never committed). Judge the suite by which tests fail, not by the
+exit code — and never report a suite as green/✅ when the exit code is non-zero. Report the real
+numbers and name the pre-existing failures.
+
+`pnpm check-env --env=prod` is red locally by design (real prod values live only in Coolify). Env
+verification happens in the Coolify UI.
+
+#### Step 5 — migrations
+
+If the change adds a Prisma migration, the deploy chain grows. Before `pnpm db:migrate:deploy`, run
+`pnpm check-duplicate-payments` against production when the migration touches payment uniqueness.
+Adding a value to a Prisma **enum** is a migration — check the enum before writing code that uses a
+new `AdminActionType`, status, or similar, or a "no migration needed" claim will be wrong.
+See `docs/07-operations/production-deploy-runbook.md`.
+
+#### Step 6 — redeploy order
+
+When several services ship together: **worker → admin-panel → seller-panel → web**.
+Worker first so queue consumers understand new payloads before producers emit them; storefront last.
+With no migration and no queue change the order is not critical — say so rather than implying risk.
+
+#### Step 7 — commit and push
+
+- **Never commit or push unless the user explicitly asks.** Approval for one commit is not approval
+  for the next.
+- Commit to the active release branch identified in Step 1 — not to `main` unless Step 1 proved `main`
+  is the live branch.
+- Push is a production trigger when a service auto-deploys from that branch. Treat it as
+  outward-facing: confirm before pushing, and say which services the push will redeploy.
+- Split unrelated work into separate commits.
+- A task is not "done" because the files changed locally. Local edits do not fix production. If the
+  user reported a live bug, the work is incomplete until it is committed, deployed, and verified on
+  the live system — say plainly which of those steps have not happened yet.
+
 ---
 
 ## 4) Required reading by task type
