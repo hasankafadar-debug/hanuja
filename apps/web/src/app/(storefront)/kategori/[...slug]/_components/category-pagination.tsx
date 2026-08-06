@@ -1,32 +1,27 @@
-'use client'
-
-import { useRouter } from 'next/navigation'
-import { Pagination } from '@hanuja/ui'
-
-interface CategoryPaginationProps {
-  currentPage: number
-  totalPages: number
-  categoryPath: string
-  basePath?: string
+interface SeoPaginationLinksProps {
+  hrefs: Array<{ page: number; href: string }>
 }
 
-export function CategoryPagination({
-  currentPage,
-  totalPages,
-  categoryPath,
-  basePath,
-}: CategoryPaginationProps) {
-  const router = useRouter()
-
-  function handlePageChange(page: number) {
-    router.push(`${basePath ?? `/kategori/${categoryPath}`}?sayfa=${page}`)
-  }
+/**
+ * Visually hidden, crawlable links to pages 2..N.
+ *
+ * The product grid loads further pages on scroll, which a crawler never
+ * triggers. Without these anchors only the first page of products would stay
+ * linked from the listing, orphaning the rest. The `?sayfa=N` URLs still render
+ * server-side, so each one is a real, indexable page.
+ */
+export function SeoPaginationLinks({ hrefs }: SeoPaginationLinksProps) {
+  if (hrefs.length === 0) return null
 
   return (
-    <Pagination
-      page={currentPage}
-      totalPages={totalPages}
-      onPageChange={handlePageChange}
-    />
+    <nav aria-label="Sayfalar" className="sr-only">
+      <ul>
+        {hrefs.map(({ page, href }) => (
+          <li key={page}>
+            <a href={href}>{page}. sayfa</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
   )
 }

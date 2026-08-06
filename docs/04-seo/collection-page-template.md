@@ -12,7 +12,7 @@ Hedef, SEO ve UX beklentisini ayni layout icinde sabitlemektir.
 2. H1 ve kisa intro
 3. Filtre ve siralama alanlari
 4. Product grid
-5. Pagination
+5. Sonsuz kaydirma + gizli crawl linkleri (numarali pagination degil — bkz. asagi)
 6. Ilgili alt kategoriler veya ilgili icerik linkleri
 
 ## H1 ve intro kurali
@@ -26,6 +26,23 @@ Hedef, SEO ve UX beklentisini ayni layout icinde sabitlemektir.
 - Filtre UI kullanici icindir; tum filtre varyasyonlari index hedefi degildir.
 - Filtre secimi canonical mantigini bozmamalidir.
 - Product count ve aktif filtre durumu sayfada gorunur olmalidir.
+- Filtre araç çubugu sonsuz kaydirmada erisilebilir kalmalidir (sticky) — aksi halde kullanici
+  filtreye ulasmak icin listenin basina donmek zorunda kalir.
+- Kategori filtresi **yaprak kategoriye kadar kademeli** iner: her adimda secili dugumun
+  cocuklari listelenir, ustte geri donulebilir bir yol gosterilir. Tek seviye inip durmaz.
+
+## Sayfalama: sonsuz kaydirma + gizli crawl linkleri
+
+Urun listesi kullaniciya kaydirdikca yuklenir; numarali sayfalama UI'si yoktur. SEO tarafi
+su sekilde korunur (detay: `docs/04-seo/technical-seo-spec.md` §"Sonsuz kaydirma"):
+
+- Ilk sayfa sunucuda render edilir.
+- `?sayfa=N` URL'leri sunucu tarafinda calisir ve indexlenebilir kalir.
+- Sayfa 2..N linkleri HTML'de gercek `<a>` olarak durur, `sr-only` ile gizlenir.
+- Bu linkler aktif filtre ve siralamayi korur.
+
+Numarali pagination UI'sine geri donulecekse bu bolum, teknik spec ve
+`.claude/rules/12-production-readiness.md` birlikte guncellenmelidir.
 
 ## Grid kurallari
 

@@ -39,7 +39,10 @@ export default function StorefrontProductGrid({
   const { toast } = useToast()
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
   const [favoriteLoading, setFavoriteLoading] = useState<Record<string, boolean>>({})
-  const productIdsKey = products.map((product) => product.id).join('|')
+  // The endpoint returns every favorite id for the user, so it does not depend
+  // on which products are on screen. Keying this on the rendered ids would
+  // refetch the whole list on each infinite-scroll page append.
+  const hasProducts = products.length > 0
 
   useEffect(() => {
     let active = true
@@ -66,7 +69,7 @@ export default function StorefrontProductGrid({
       }
     }
 
-    if (products.length > 0) {
+    if (hasProducts) {
       void loadFavoriteIds()
     } else if (active) {
       setFavoriteIds(new Set())
@@ -75,7 +78,7 @@ export default function StorefrontProductGrid({
     return () => {
       active = false
     }
-  }, [products.length, productIdsKey])
+  }, [hasProducts])
 
   async function handleToggleFavorite(productId: string, nextState: boolean) {
     setFavoriteLoading((current) => ({ ...current, [productId]: true }))

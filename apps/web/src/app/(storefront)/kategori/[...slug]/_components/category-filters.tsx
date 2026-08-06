@@ -26,7 +26,10 @@ interface CategoryFiltersProps {
   activeSeller?: string
   activeSubcategory?: string
   sellers: FilterSeller[]
+  /** Children of the deepest selected category — the next level to choose from. */
   subcategories: FilterSubcategory[]
+  /** Path from the page scope down to the selected category, for stepping back up. */
+  categoryTrail?: FilterSubcategory[]
 }
 
 function AccordionSection({
@@ -75,6 +78,7 @@ export function CategoryFilters({
   activeSubcategory,
   sellers,
   subcategories,
+  categoryTrail = [],
 }: CategoryFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -120,8 +124,13 @@ export function CategoryFilters({
     updateParams({ tasarimci: activeSeller === slug ? null : slug })
   }
 
+  /** `alt` points at the deepest selected node; descending replaces it. */
   function handleSubcategoryChange(slug: string) {
     updateParams({ alt: activeSubcategory === slug ? null : slug })
+  }
+
+  function handleTrailChange(slug: string | null) {
+    updateParams({ alt: slug })
   }
 
   const hasActiveFilters =
@@ -134,33 +143,74 @@ export function CategoryFilters({
 
   return (
     <div>
-      {/* Alt Kategori */}
-      {subcategories.length > 0 && (
+      {/* Alt Kategori — steps down one level at a time until the leaf */}
+      {(subcategories.length > 0 || categoryTrail.length > 0) && (
         <AccordionSection title="Alt Kategori">
-          <ul className="space-y-1">
-            {subcategories.map((sub) => (
-              <li key={sub.id}>
-                <button
-                  type="button"
-                  onClick={() => handleSubcategoryChange(sub.slug)}
-                  className="w-full rounded px-2 py-1 text-left text-sm transition-colors"
-                  style={{
-                    backgroundColor:
-                      activeSubcategory === sub.slug
-                        ? 'var(--color-accent)'
-                        : 'transparent',
-                    color:
-                      activeSubcategory === sub.slug
-                        ? '#fff'
-                        : 'var(--color-primary)',
-                    fontWeight: activeSubcategory === sub.slug ? 600 : 400,
-                  }}
-                >
-                  {sub.name}
-                </button>
-              </li>
-            ))}
-          </ul>
+          {categoryTrail.length > 0 && (
+            <div className="mb-2 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => handleTrailChange(null)}
+                className="underline"
+                style={{ color: 'var(--color-muted-fg)' }}
+              >
+                Tümü
+              </button>
+              {categoryTrail.map((step, index) => {
+                const isLast = index === categoryTrail.length - 1
+                return (
+                  <span key={step.id} className="flex items-center gap-1">
+                    <span style={{ color: 'var(--color-muted-fg)' }}>›</span>
+                    {isLast ? (
+                      <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
+                        {step.name}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleTrailChange(step.slug)}
+                        className="underline"
+                        style={{ color: 'var(--color-muted-fg)' }}
+                      >
+                        {step.name}
+                      </button>
+                    )}
+                  </span>
+                )
+              })}
+            </div>
+          )}
+
+          {subcategories.length > 0 ? (
+            <ul className="space-y-1">
+              {subcategories.map((sub) => (
+                <li key={sub.id}>
+                  <button
+                    type="button"
+                    onClick={() => handleSubcategoryChange(sub.slug)}
+                    className="w-full rounded px-2 py-1 text-left text-sm transition-colors"
+                    style={{
+                      backgroundColor:
+                        activeSubcategory === sub.slug
+                          ? 'var(--color-accent)'
+                          : 'transparent',
+                      color:
+                        activeSubcategory === sub.slug
+                          ? '#fff'
+                          : 'var(--color-primary)',
+                      fontWeight: activeSubcategory === sub.slug ? 600 : 400,
+                    }}
+                  >
+                    {sub.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Bu en alt kategori.
+            </p>
+          )}
         </AccordionSection>
       )}
 

@@ -345,6 +345,37 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   layout'undaki `getAdminSession` ile admin rolünü doğrular. Middleware'ler ayrı bir güvenlik işinde
   tek kaynakta birleştirilmelidir.
 
+### 25. Ürün listelerinde sonsuz kaydırma + filtrede yaprağa kadar inme (yeni — 2026-08-06)
+
+- **Kapsam:** `/kategori/[...slug]` (sanal koleksiyonlar dahil) ve `/urunler`. `/magaza/[slug]` zaten
+  sonsuz kaydırmaydı, değişmedi. `/arama` ve `/blog` numaralı sayfalamada kaldı.
+- **Migration YOK, yeni env YOK.** Değişiklikler yalnız `apps/web` içinde; `packages/*`, `api/` ve
+  queue payload'ları değişmedi → **yalnız `web` servisi** redeploy edilmeli.
+- **SEO yaklaşımı (hibrit):** ilk sayfa sunucuda render edilir, `?sayfa=N` URL'leri sunucu tarafında
+  çalışmaya devam eder ve sayfa 2..N linkleri HTML'de `sr-only` gerçek `<a>` olarak kalır. Googlebot
+  kaydırma yapmadığı için bu linkler kaldırılırsa ilk 20 üründen sonrası listeleme sayfasından orphan
+  kalır. Bkz. `docs/04-seo/technical-seo-spec.md` §"Sonsuz kaydirma". Link sayısı 100 ile sınırlıdır
+  (`MAX_SEO_PAGE_LINKS`).
+- **Tek kaynak:** sayfa ile `GET /api/storefront/products` aynı filtre/kapsam çözümlemesini
+  `apps/web/src/lib/product-listing-query.ts` üzerinden kullanır. İkisi ayrışırsa kullanıcı
+  kaydırdıkça iki farklı sonuç kümesi karışır — bu modül bunun için var, filtre mantığı burada
+  tutulmalı, sayfalara kopyalanmamalı.
+- **Filtre:** `alt` parametresi artık "seçili en derin kategori" işaretçisi; her adımda o düğümün
+  çocukları listelenir ve üstte geri dönülebilir bir yol gösterilir. Önceden yalnız tek seviye
+  iniyordu. `/urunler`'de de kök kategorilerden başlayarak aynı akış çalışır (önceden orada hiç
+  kategori filtresi yoktu).
+- **Yol boyunca düzeltilen iki hata:** sayfa değişiminde filtre/sıralamanın düşmesi
+  (`category-pagination.tsx` diğer query paramlarını atıyordu) ve her sayfa eklendiğinde
+  `/api/user/favorites/ids` çağrısının tekrarlanması.
+- **Bilinen sınır (blocking değil):** kaydırma tetikleyicisinin kendisi yerelde görsel olarak
+  doğrulanamadı — tarayıcı paneli compositing yapmadığı için `IntersectionObserver` ateşlenmiyordu.
+  Veri katmanı (sayfalama bütünlüğü, sunucu/API eşdeğerliği, kademeli filtre, crawl linkleri) uçtan
+  uca doğrulandı; aynı observer deseni `/magaza/[slug]`'da canlıda çalışıyor. Canlı smoke test
+  sırasında bir kategori sayfasında fiilen kaydırılıp teyit edilmeli.
+- **Route-seviyesi test yok:** `/api/storefront/products` için entegrasyon testi eklenmedi; kapsam
+  `tests/unit/product-listing-query.test.ts` ve `tests/unit/category-filter-trail.test.ts` (34 test)
+  ile domain seviyesinde sağlandı.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

@@ -8,76 +8,22 @@ import { CategoryFilters, type FilterSeller } from '../kategori/[...slug]/_compo
 import { CategoryPageBody } from '../kategori/[...slug]/_components/category-page-body'
 import { CategorySort } from '../kategori/[...slug]/_components/category-sort'
 import { getCustomerVisibleCategories } from '@/lib/customer-visible-categories'
-import { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
+import {
+  PAGE_SIZE,
+  buildCuratedListOptions,
+  buildListingQueryString,
+  buildPaginationHrefs,
+  parseListingSearchParams,
+  resolveCategoryDrilldown,
+  resolveListingCategoryIds,
+  toGridProduct,
+  type ListingSearchParams,
+} from '@/lib/product-listing-query'
 
 export const revalidate = 300
 
-const PAGE_SIZE = 20
-
 interface ProductsPageProps {
-  searchParams: Promise<{
-    sayfa?: string
-    siralama?: string
-    fiyat?: string
-    fiyatMin?: string
-    fiyatMax?: string
-    stokta?: string
-    tasarimci?: string
-    indirimli?: string
-    vitrin?: string
-  }>
-}
-
-function parsePriceParams(p: {
-  fiyatMin?: string
-  fiyatMax?: string
-  fiyat?: string
-}): { minPrice?: number; maxPrice?: number } {
-  if (p.fiyatMin !== undefined || p.fiyatMax !== undefined) {
-    const min = Number(p.fiyatMin)
-    const max = Number(p.fiyatMax)
-    return {
-      ...(Number.isFinite(min) && min > 0 ? { minPrice: min } : {}),
-      ...(Number.isFinite(max) && max > 0 ? { maxPrice: max } : {}),
-    }
-  }
-  if (!p.fiyat) return {}
-  if (p.fiyat === '3000+') return { minPrice: 3000 }
-  const parts = p.fiyat.split('-')
-  const min = Number(parts[0])
-  const max = Number(parts[1])
-  return {
-    ...(Number.isFinite(min) ? { minPrice: min } : {}),
-    ...(Number.isFinite(max) && max > 0 ? { maxPrice: max } : {}),
-  }
-}
-
-function toGridProduct(
-  product: {
-    id: string
-    name: string
-    slug: string
-    price: { toNumber(): number } | number
-    compareAtPrice?: { toNumber(): number } | number | null
-    images: Array<{ url: string }>
-    seller: { displayName: string; slug: string } | null
-  },
-): StorefrontGridProduct {
-  return {
-    id: product.id,
-    title: product.name,
-    slug: product.slug,
-    price: typeof product.price === 'object' ? product.price.toNumber() : Number(product.price),
-    comparePrice:
-      product.compareAtPrice && typeof product.compareAtPrice === 'object'
-        ? product.compareAtPrice.toNumber()
-        : (product.compareAtPrice ?? null),
-    imageUrl: product.images?.[0]?.url ?? null,
-    imageUrls: product.images?.map((img) => img.url) ?? [],
-    ...(product.seller
-      ? { sellerName: product.seller.displayName, sellerSlug: product.seller.slug }
-      : {}),
-  }
+  searchParams: Promise<ListingSearchParams>
 }
 
 function getPageTitle(vitrin?: string) {
@@ -93,19 +39,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const sp = await searchParams
-  const currentPage = Math.max(1, Number(sp.sayfa ?? '1'))
-  const activeVitrin = sp.vitrin
-  const requestedSort = sp.siralama as 'newest' | 'favorited' | 'price-asc' | 'price-desc' | undefined
-  const currentSort =
-    requestedSort ?? (activeVitrin === 'favorited' ? 'favorited' : 'newest')
-  const inStockOnly = sp.stokta === '1'
-  const onSaleOnly = sp.indirimli === '1' || activeVitrin === 'discounts'
-  const activeSeller = sp.tasarimci
-  const priceRange = parsePriceParams({
-    ...(sp.fiyatMin !== undefined ? { fiyatMin: sp.fiyatMin } : {}),
-    ...(sp.fiyatMax !== undefined ? { fiyatMax: sp.fiyatMax } : {}),
-    ...(sp.fiyat !== undefined ? { fiyat: sp.fiyat } : {}),
-  })
+  const filters = parseListingSearchParams(sp)
+  const listingQuery = buildListingQueryString(filters)
+  const subcategoryOpt =
+    filters.subcategorySlug !== undefined ? { subcategorySlug: filters.subcategorySlug } : {}
 
   const prisma = createPrismaForRoute()
   const svc = createCatalogService({ prisma })
@@ -113,27 +50,33 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const allCategories = await getCustomerVisibleCategories()
 
   let sellerId: string | undefined
-  if (activeSeller) {
-    const seller = await sellerRepo.findBySlug(activeSeller)
+  if (filters.sellerSlug) {
+    const seller = await sellerRepo.findBySlug(filters.sellerSlug)
     if (seller) sellerId = seller.id
   }
 
-  const categoryIds = allCategories.map((category) => category.id)
+  // Empty slugParts = the whole visible catalog; `alt` narrows it to a subtree.
+  const { baseCategoryIds, categoryIds } = resolveListingCategoryIds({
+    slugParts: [],
+    allCategories,
+    ...subcategoryOpt,
+  })
+
   const [catalogResult, sellers] = await Promise.all([
     svc.listPublishedCurated({
       categoryIds,
-      skip: (currentPage - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      sortBy: currentSort,
-      ...priceRange,
-      ...(inStockOnly ? { inStockOnly: true as const } : {}),
-      ...(onSaleOnly ? { onSaleOnly: true as const } : {}),
-      ...(sellerId ? { sellerId } : {}),
+      ...buildCuratedListOptions(filters, sellerId),
     }),
-    svc.getSellersByCategory(categoryIds),
+    svc.getSellersByCategory(baseCategoryIds),
   ])
 
-  const pageTitle = getPageTitle(activeVitrin)
+  const drilldown = resolveCategoryDrilldown({
+    slugParts: [],
+    allCategories,
+    ...subcategoryOpt,
+  })
+
+  const pageTitle = getPageTitle(filters.vitrin)
   const totalPages = Math.max(1, Math.ceil(catalogResult.total / PAGE_SIZE))
   const breadcrumbJsonLd = buildBreadcrumbStructuredData([
     { name: 'Ana Sayfa', url: '/' },
@@ -141,11 +84,12 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   ])
   const breadcrumbs = [{ label: 'Ana Sayfa', href: '/' }, { label: pageTitle }]
   const activeFilterCount = [
-    priceRange.minPrice !== undefined,
-    priceRange.maxPrice !== undefined,
-    inStockOnly,
-    onSaleOnly,
-    activeSeller !== undefined,
+    filters.minPrice !== undefined,
+    filters.maxPrice !== undefined,
+    filters.inStockOnly,
+    filters.onSaleOnly,
+    filters.sellerSlug !== undefined,
+    filters.subcategorySlug !== undefined,
   ].filter(Boolean).length
 
   return (
@@ -170,22 +114,35 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           activeFilterCount={activeFilterCount}
           products={catalogResult.items.map(toGridProduct as never)}
           totalProducts={catalogResult.total}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          categoryPath="urunler"
-          paginationBasePath="/urunler"
+          listingQuery={listingQuery}
+          initialPage={filters.page}
+          paginationHrefs={buildPaginationHrefs({
+            basePath: '/urunler',
+            search: sp,
+            totalPages,
+          })}
+          pageSize={PAGE_SIZE}
           filterContent={
             <CategoryFilters
-              {...(priceRange.minPrice !== undefined ? { minPrice: priceRange.minPrice } : {})}
-              {...(priceRange.maxPrice !== undefined ? { maxPrice: priceRange.maxPrice } : {})}
-              inStockOnly={inStockOnly}
-              onSaleOnly={onSaleOnly}
-              {...(activeSeller !== undefined ? { activeSeller } : {})}
+              {...(filters.minPrice !== undefined ? { minPrice: filters.minPrice } : {})}
+              {...(filters.maxPrice !== undefined ? { maxPrice: filters.maxPrice } : {})}
+              inStockOnly={filters.inStockOnly}
+              onSaleOnly={filters.onSaleOnly}
+              {...(filters.sellerSlug !== undefined ? { activeSeller: filters.sellerSlug } : {})}
+              {...(filters.subcategorySlug !== undefined
+                ? { activeSubcategory: filters.subcategorySlug }
+                : {})}
               sellers={sellers as FilterSeller[]}
-              subcategories={[]}
+              subcategories={drilldown.children}
+              categoryTrail={drilldown.trail}
             />
           }
-          sortContent={<CategorySort totalProducts={catalogResult.total} currentSort={currentSort} />}
+          sortContent={
+            <CategorySort
+              totalProducts={catalogResult.total}
+              currentSort={filters.sort ?? 'newest'}
+            />
+          }
         />
       </div>
     </div>

@@ -58,6 +58,25 @@ Satici/admin akislari bu kuraldan ETKILENMEZ — tam aktif agaci gormeye devam e
 - Paginated category sayfalari canonical zinciri bozmayacak sekilde server-side uretilmelidir.
 - Sonsuz varyasyon ureten query kombinasyonlari sitemap ve internal linking disinda tutulmalidir.
 
+### Sonsuz kaydirma (2026-08-06)
+
+`/kategori/...` ve `/urunler` urun listeleri kullaniciya numarali sayfalama yerine **sonsuz
+kaydirma** sunar. Bu bir SEO tavizi DEGILDIR, cunku crawl yolu ayrica korunur:
+
+- Ilk sayfa **sunucuda** render edilir; crawler'in gordugu HTML degismedi.
+- `?sayfa=N` URL'leri **sunucu tarafinda calismaya devam eder** — her biri gercek, indexlenebilir
+  bir sayfadir. Sonraki sayfalar kullaniciya `GET /api/storefront/products` uzerinden eklenir.
+- Sayfa 2..N'e giden **gercek `<a>` linkleri HTML'de kalir**, yalnizca `sr-only` ile gorsel olarak
+  gizlenir (`_components/category-pagination.tsx` → `SeoPaginationLinks`). Googlebot kaydirma
+  yapmaz ve IntersectionObserver fetch'ini calistirmaz; bu linkler olmadan ilk 20 urunden sonrasi
+  listeleme sayfasindan orphan kalirdi.
+- Bu linkler aktif filtre ve siralamayi korur, dolayisiyla sayfa 2 filtresiz bir sayfa degildir.
+- Canonical ve metadata davranisi **degismedi**.
+
+Ayni yaklasim `/magaza/{slug}` icin de gecerlidir (orada cursor tabanli, tek satici kapsaminda).
+Bu davranis degistirilirse burasi ve `docs/04-seo/collection-page-template.md` birlikte
+guncellenmelidir.
+
 ## Yapilandirilmis veri zorunluluklari
 
 - Urun sayfalari: `Product` + `BreadcrumbList`

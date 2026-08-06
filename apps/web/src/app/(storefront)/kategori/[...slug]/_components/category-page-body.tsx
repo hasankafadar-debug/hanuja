@@ -4,20 +4,22 @@ import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { SlidersHorizontal, X, Package } from 'lucide-react'
 import { EmptyState } from '@hanuja/ui'
-import StorefrontProductGrid, {
-  type StorefrontGridProduct,
-} from '@/components/storefront/storefront-product-grid'
-import { CategoryPagination } from './category-pagination'
+import { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
+import ProductsInfiniteGrid from '@/components/storefront/products-infinite-grid'
+import { SeoPaginationLinks } from './category-pagination'
 
 interface CategoryPageBodyProps {
   filterContent: ReactNode
   sortContent: ReactNode
   products: StorefrontGridProduct[]
   totalProducts: number
-  currentPage: number
-  totalPages: number
-  categoryPath: string
-  paginationBasePath?: string
+  /** Serialized filters for the load-more endpoint, without `sayfa`. */
+  listingQuery: string
+  /** Page rendered on the server; scrolling continues from the next one. */
+  initialPage: number
+  /** Crawlable links to pages 2..N; see SeoPaginationLinks. */
+  paginationHrefs: Array<{ page: number; href: string }>
+  pageSize: number
   activeFilterCount: number
 }
 
@@ -28,10 +30,10 @@ export function CategoryPageBody({
   sortContent,
   products,
   totalProducts,
-  currentPage,
-  totalPages,
-  categoryPath,
-  paginationBasePath,
+  listingQuery,
+  initialPage,
+  paginationHrefs,
+  pageSize,
   activeFilterCount,
 }: CategoryPageBodyProps) {
   const router = useRouter()
@@ -67,8 +69,13 @@ export function CategoryPageBody({
 
   return (
     <>
-      {/* Toolbar: filter toggle + clear + sort */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      {/* Toolbar: filter toggle + clear + sort.
+          Sticky under the 4rem site header — with infinite scroll the shopper
+          would otherwise have to scroll back to the top to reach the filters. */}
+      <div
+        className="sticky top-16 z-30 mb-4 flex flex-wrap items-center gap-3 py-3"
+        style={{ backgroundColor: 'var(--color-background)' }}
+      >
         <div ref={containerRef} className="relative">
           <button
             type="button"
@@ -161,17 +168,17 @@ export function CategoryPageBody({
         )
       ) : (
         <>
-          <StorefrontProductGrid gridClassName={GRID_CLASS} products={products} />
-          {totalProducts > products.length && totalPages > 1 && (
-            <div className="mt-10 flex justify-center">
-              <CategoryPagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                categoryPath={categoryPath}
-                {...(paginationBasePath ? { basePath: paginationBasePath } : {})}
-              />
-            </div>
-          )}
+          {/* key: a filter/sort change must restart the list, not append to it */}
+          <ProductsInfiniteGrid
+            key={listingQuery}
+            initialProducts={products}
+            total={totalProducts}
+            listingQuery={listingQuery}
+            initialPage={initialPage}
+            gridClassName={GRID_CLASS}
+            pageSize={pageSize}
+          />
+          <SeoPaginationLinks hrefs={paginationHrefs} />
         </>
       )}
     </>
