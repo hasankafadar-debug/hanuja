@@ -367,11 +367,13 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - **Yol boyunca düzeltilen iki hata:** sayfa değişiminde filtre/sıralamanın düşmesi
   (`category-pagination.tsx` diğer query paramlarını atıyordu) ve her sayfa eklendiğinde
   `/api/user/favorites/ids` çağrısının tekrarlanması.
-- **Bilinen sınır (blocking değil):** kaydırma tetikleyicisinin kendisi yerelde görsel olarak
-  doğrulanamadı — tarayıcı paneli compositing yapmadığı için `IntersectionObserver` ateşlenmiyordu.
-  Veri katmanı (sayfalama bütünlüğü, sunucu/API eşdeğerliği, kademeli filtre, crawl linkleri) uçtan
-  uca doğrulandı; aynı observer deseni `/magaza/[slug]`'da canlıda çalışıyor. Canlı smoke test
-  sırasında bir kategori sayfasında fiilen kaydırılıp teyit edilmeli.
+- **Canlıda doğrulandı (2026-08-06, deploy `22ad16b`):** `/kategori/mobilya` kaydırınca 20 → 87,
+  `/urunler` 20 → 92, ikisinde de sonda "Tüm ürünler yüklendi"; numaralı sayfalama UI'si yok, gizli
+  `?sayfa=2..5` linkleri HTML'de mevcut. `/kategori/ev?alt=ev-mobilya-sehpa-modelleri-yan-sehpa`
+  28 ürüne daralıyor ve crawl linki `alt`'ı koruyor. Filtre paneli yolu
+  `Tümü › Mobilya › Sehpa Modelleri › Yan Sehpa` + "Bu en alt kategori." olarak render ediyor.
+  (Kaydırma tetikleyicisi yerelde test edilememişti — tarayıcı paneli compositing yapmadığı için
+  `IntersectionObserver` ateşlenmiyordu; canlıda çalıştığı teyit edildi.)
 - **Route-seviyesi test yok:** `/api/storefront/products` için entegrasyon testi eklenmedi; kapsam
   `tests/unit/product-listing-query.test.ts` ve `tests/unit/category-filter-trail.test.ts` (34 test)
   ile domain seviyesinde sağlandı.
