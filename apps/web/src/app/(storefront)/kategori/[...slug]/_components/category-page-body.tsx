@@ -70,11 +70,17 @@ export function CategoryPageBody({
   return (
     <>
       {/* Toolbar: filter toggle + clear + sort.
-          Sticky under the 4rem site header — with infinite scroll the shopper
-          would otherwise have to scroll back to the top to reach the filters. */}
+          Sticky under the site header — with infinite scroll the shopper would
+          otherwise have to scroll back to the top to reach the filters.
+          The offset must clear the WHOLE header (logo row + category nav row),
+          not just the h-16 inner row: pinning at 4rem put the toolbar behind the
+          nav and it read as disappearing on scroll. */}
       <div
-        className="sticky top-16 z-30 mb-4 flex flex-wrap items-center gap-3 py-3"
-        style={{ backgroundColor: 'var(--color-background)' }}
+        className="sticky z-30 mb-4 flex flex-wrap items-center gap-3 py-3"
+        style={{
+          top: 'var(--storefront-header-height)',
+          backgroundColor: 'var(--color-background)',
+        }}
       >
         <div ref={containerRef} className="relative">
           <button

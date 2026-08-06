@@ -44,6 +44,14 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-full: 9999px;
+
+  /* — Layout —
+     Rendered height of the sticky storefront header: the h-16 logo/search row
+     plus the StorefrontNav category row plus its bottom border. Sticky elements
+     that must clear the header (e.g. the listing filter toolbar) offset by this.
+     If SiteHeader in (storefront)/layout.tsx changes height, update this — a
+     stale value silently hides whatever is pinned beneath it. */
+  --storefront-header-height: 110px;
 }
 
 @layer base {
