@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react'
 import Link from 'next/link'
-import { Heart, User, Search } from 'lucide-react'
+import { Facebook, Heart, Instagram, Search, User } from 'lucide-react'
 import { HanujaLogo } from '@hanuja/ui'
 import { getSellerPanelUrl, PLATFORM_LEGAL_INFO } from '@hanuja/api/lib/platform-info'
 import { isCardPaymentsEnabled } from '@hanuja/api/lib/payment-capabilities'
@@ -156,9 +156,40 @@ async function SiteFooter() {
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           <div className="col-span-2 md:col-span-1">
             <HanujaLogo scale={0.5} variant="dark" />
-            <p className="mt-3 text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
-              Ev, ofis ve yaşam ürünlerinde seçkin mağazalar.
-            </p>
+            <div className="w-full max-w-xs">
+              <p
+                className="mt-3 text-sm leading-relaxed"
+                style={{ color: 'rgba(255,255,255,0.6)' }}
+              >
+                Ev, ofis ve yaşam ürünlerinde seçkin mağazalar.
+              </p>
+              <p
+                className="mt-4 text-sm font-semibold"
+                style={{ color: 'rgba(255,255,255,0.7)' }}
+              >
+                Hanuja Sosyal
+              </p>
+              <nav className="mt-3 flex items-center gap-3" aria-label="Sosyal medya">
+                <a
+                  href="https://www.instagram.com/hanuja.com.tr/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Hanuja Instagram hesabı"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 text-white/70 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-primary)]"
+                >
+                  <Instagram className="h-5 w-5" aria-hidden="true" />
+                </a>
+                <a
+                  href="https://www.facebook.com/profile.php?id=61593041854223&locale=tr_TR"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Hanuja Facebook hesabı"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 text-white/70 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-primary)]"
+                >
+                  <Facebook className="h-5 w-5" aria-hidden="true" />
+                </a>
+              </nav>
+            </div>
           </div>
 
           <div>
