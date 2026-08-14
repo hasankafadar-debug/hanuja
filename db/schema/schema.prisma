@@ -570,6 +570,7 @@ model Seller {
   displayName            String
   sellerNumber           Int          @unique @default(autoincrement())
   status                 SellerStatus @default(pending)
+  vacationModeEnabled    Boolean      @default(false)
   commissionRateOverride Decimal?     @db.Decimal(5, 4)
   createdAt              DateTime     @default(now())
   updatedAt              DateTime     @updatedAt

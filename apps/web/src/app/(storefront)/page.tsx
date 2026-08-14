@@ -21,7 +21,7 @@ import { getCustomerVisibleCategories } from '@/lib/customer-visible-categories'
 import FeaturedProductsCarousel from '@/components/storefront/featured-products-carousel'
 import type { StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
 
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Ev, Ofis & Yaşam Ürünleri',

@@ -20,7 +20,7 @@ import {
   type ListingSearchParams,
 } from '@/lib/product-listing-query'
 
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
 
 interface ProductsPageProps {
   searchParams: Promise<ListingSearchParams>

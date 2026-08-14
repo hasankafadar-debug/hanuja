@@ -7,6 +7,7 @@ import StoreProfileForm from './_components/store-profile-form'
 import StoreBrandForm from './_components/store-brand-form'
 import BankDetailsForm from './_components/bank-details-form'
 import DocumentsForm from './_components/documents-form'
+import VacationModeForm from './_components/vacation-mode-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,7 @@ export default async function SellerSettingsPage() {
           <TabsTrigger value="store">Mağaza Profili</TabsTrigger>
           <TabsTrigger value="bank">Banka Bilgileri</TabsTrigger>
           <TabsTrigger value="documents">Belgeler</TabsTrigger>
+          <TabsTrigger value="vacation">Tatil Modu</TabsTrigger>
           <TabsTrigger value="account">Hesap</TabsTrigger>
         </TabsList>
 
@@ -136,6 +138,10 @@ export default async function SellerSettingsPage() {
               createdAt: d.createdAt.toISOString(),
             }))}
           />
+        </TabsContent>
+
+        <TabsContent value="vacation" className="mt-5">
+          <VacationModeForm enabled={sellerWithDetails?.vacationModeEnabled ?? false} />
         </TabsContent>
 
         <TabsContent value="account" className="mt-5 space-y-4">

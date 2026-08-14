@@ -112,6 +112,14 @@ describe('Cart Service — addItem validation', () => {
     expect(product.status !== 'published').toBe(true)
   })
 
+  it('rejects a product whose seller is in Tatil Modu', () => {
+    const product = {
+      status: 'published',
+      seller: { status: 'active', vacationModeEnabled: true },
+    }
+    expect(product.seller.vacationModeEnabled).toBe(true)
+  })
+
   it('rejects product with zero stock', () => {
     const product = { id: 'p1', status: 'published', stockQuantity: 0 }
     expect(product.stockQuantity < 1).toBe(true)

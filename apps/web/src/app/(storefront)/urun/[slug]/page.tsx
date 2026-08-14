@@ -22,6 +22,7 @@ import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { createProductReviewService } from '@hanuja/api/services/product-review.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { NotFoundError } from '@hanuja/api/lib/errors'
+import { buildPublicProductWhere } from '@hanuja/api/domain/product-visibility'
 import AddToCartButton from './add-to-cart-button'
 import { ReviewStars } from './_components/review-stars'
 import { ReviewList } from './_components/review-list'
@@ -30,7 +31,7 @@ import ProductGallery from './_components/product-gallery'
 import { StoreFollowButton } from './_components/store-follow-button'
 import { ProductViewTracker } from './_components/product-view-tracker'
 
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -49,13 +50,11 @@ async function getProduct(slug: string) {
 async function getVisualSiblings(params: { sellerId: string; categoryId: string; modelCode: string }) {
   const prisma = createPrismaForRoute()
   return prisma.product.findMany({
-    where: {
+    where: buildPublicProductWhere({
       sellerId: params.sellerId,
       categoryId: params.categoryId,
       modelCode: params.modelCode,
-      status: 'published',
-      seller: { is: { status: 'active' } },
-    },
+    }),
     select: {
       id: true,
       slug: true,

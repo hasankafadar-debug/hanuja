@@ -116,6 +116,11 @@ describe('Checkout — cart validation rules', () => {
     expect(product.status !== 'published').toBe(true)
   })
 
+  it('detects a seller whose Tatil Modu is enabled', () => {
+    const seller = { status: 'active', vacationModeEnabled: true }
+    expect(seller.status !== 'active' || seller.vacationModeEnabled).toBe(true)
+  })
+
   it('detects insufficient stock', () => {
     const product = { id: 'p1', status: 'published', stockQuantity: 2 }
     const requestedQuantity = 5

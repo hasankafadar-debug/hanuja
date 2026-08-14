@@ -88,7 +88,12 @@ export {
   type ToastProps,
   type ToastActionElement,
 } from './components/toast'
-export { Tooltip } from './components/tooltip'
+export {
+  Tooltip,
+  TooltipProvider,
+  TooltipTrigger,
+  TooltipContent,
+} from './components/tooltip'
 
 // ── Composite Components ───────────────────────────────────────────────────
 export { DataTable, type Column, type DataTableProps } from './components/composite/data-table'

@@ -23,6 +23,7 @@ import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
 import {
   ConflictError,
   NotFoundError,
+  SellerOnVacationError,
   SellerSuspendedError,
   ValidationError,
 } from '../lib/errors'
@@ -242,6 +243,9 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       if (product.seller.status !== 'active') {
         throw new SellerSuspendedError(product.name)
       }
+      if (product.seller.vacationModeEnabled) {
+        throw new SellerOnVacationError(product.name)
+      }
 
       const variant = item.variantId
         ? product.variants.find((entry) => entry.id === item.variantId)
@@ -452,7 +456,10 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       const productIds = cart.items.map((i: { productId: string }) => i.productId)
       const products = await prisma.product.findMany({
         where: { id: { in: productIds } },
-        include: { variants: true },
+        include: {
+          variants: true,
+          seller: { select: { status: true, vacationModeEnabled: true } },
+        },
       })
 
       const warnings: string[] = []
@@ -468,6 +475,11 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
 
         if (!product || product.status !== 'published') {
           errors.push('Ürün artık mevcut değil')
+          continue
+        }
+
+        if (product.seller.status !== 'active' || product.seller.vacationModeEnabled) {
+          errors.push(`"${product.name}" mağazası geçici olarak satışa kapalı`)
           continue
         }
 
@@ -533,6 +545,20 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       const draft = await buildCheckoutDraft(params)
 
       const result = await prisma.$transaction(async (tx) => {
+        const unavailableSeller = await tx.seller.findFirst({
+          where: {
+            id: { in: [...new Set(draft.lines.map((line) => line.sellerId))] },
+            OR: [{ status: { not: 'active' } }, { vacationModeEnabled: true }],
+          },
+          select: { status: true, vacationModeEnabled: true },
+        })
+        if (unavailableSeller?.vacationModeEnabled) {
+          throw new SellerOnVacationError()
+        }
+        if (unavailableSeller) {
+          throw new SellerSuspendedError()
+        }
+
         const order = await tx.order.create({
           data: {
             customerId: params.userId,

@@ -171,7 +171,7 @@ export function createProductRepository(prisma: PrismaClient) {
 
       const sellerIds = rows.map((r) => r.sellerId)
       const sellers = await prisma.seller.findMany({
-        where: { id: { in: sellerIds }, status: 'active' },
+        where: { id: { in: sellerIds }, status: 'active', vacationModeEnabled: false },
         select: { id: true, displayName: true, slug: true },
       })
 

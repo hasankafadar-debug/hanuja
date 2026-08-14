@@ -107,6 +107,19 @@ export class SellerSuspendedError extends DomainError {
   }
 }
 
+export class SellerOnVacationError extends DomainError {
+  constructor(productName?: string) {
+    super(
+      productName
+        ? `"${productName}" mağazası geçici olarak satışa ara verdi.`
+        : 'Mağaza geçici olarak satışa ara verdiği için bu işlem yapılamaz.',
+      'SELLER_ON_VACATION',
+      409,
+    )
+    this.name = 'SellerOnVacationError'
+  }
+}
+
 export class ProductHasOrderHistoryError extends DomainError {
   constructor(orderLineCount: number) {
     super(

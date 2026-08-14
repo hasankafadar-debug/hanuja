@@ -424,6 +424,29 @@ test.describe('ayarlar', () => {
       await expect(form).toBeVisible()
     }
   })
+
+  test('Tatil Modu sekmesi, bilgi metni ve açılış onayı çalışıyor', async ({ page }) => {
+    await page.goto('/ayarlar')
+    await page.getByRole('tab', { name: 'Tatil Modu' }).click()
+
+    const toggle = page.getByRole('switch', { name: 'Tatil Modu' })
+    await expect(toggle).toBeVisible()
+
+    await page.getByRole('button', { name: 'Tatil Modu hakkında bilgi' }).hover()
+    await expect(
+      page.getByText(
+        'Bu modu aktifleştirdiğinizde tekrar kapatana kadar ürünleriniz satıştan gizlenir. Kapatıp tekrar satışa çıktığınızda görünürlük sıralamanız düşer.',
+      ),
+    ).toBeVisible()
+
+    if ((await toggle.getAttribute('aria-checked')) === 'false') {
+      await toggle.click()
+      await expect(
+        page.getByRole('dialog').getByText('Tatil Modu’nu açmak istiyor musunuz?'),
+      ).toBeVisible()
+      await page.getByRole('button', { name: 'Vazgeç' }).click()
+    }
+  })
 })
 
 // ─── MEDYA ────────────────────────────────────────────────────────────────────

@@ -318,7 +318,12 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
   return {
     async getProductBySlug(slug: string) {
       const product = await products.findBySlug(slug)
-      if (!product || product.status !== 'published' || product.seller.status !== 'active') {
+      if (
+        !product ||
+        product.status !== 'published' ||
+        product.seller.status !== 'active' ||
+        product.seller.vacationModeEnabled
+      ) {
         throw new NotFoundError('Product', slug)
       }
       return applyEffectivePricingToProduct(product)

@@ -236,6 +236,46 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
     }
   }
 
+  async function updateVacationMode(
+    sellerId: string,
+    actorId: string,
+    enabled: boolean,
+  ): Promise<boolean> {
+    const seller = await sellerRepo.findById(sellerId)
+    if (!seller) throw new NotFoundError('Seller', sellerId)
+    if (seller.userId !== actorId) {
+      throw new ForbiddenError('Tatil Modu ayarını değiştirme yetkiniz yok.')
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.seller.update({
+        where: { id: sellerId },
+        data: { vacationModeEnabled: enabled },
+      })
+
+      if (enabled) {
+        const productIds = await tx.product.findMany({
+          where: { sellerId },
+          select: { id: true },
+        })
+        if (productIds.length > 0) {
+          await tx.cartItem.deleteMany({
+            where: { productId: { in: productIds.map((product) => product.id) } },
+          })
+        }
+      }
+    })
+
+    await enqueueStoreSync({
+      entityId: sellerId,
+      operation: enabled ? 'delete' : 'upsert',
+    }).catch((err) =>
+      console.error('[seller] Search sync enqueue failed (vacation mode):', err),
+    )
+
+    return enabled
+  }
+
   /**
    * Update seller bank/payout details.
    *
@@ -286,6 +326,7 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
     suspendSeller,
     reactivateSeller,
     updateProfile,
+    updateVacationMode,
     updateBankDetails,
   }
 }

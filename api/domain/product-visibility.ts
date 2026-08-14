@@ -7,7 +7,7 @@ import type { Prisma } from '@prisma/client'
  */
 export const PUBLIC_PRODUCT_WHERE = {
   status: 'published',
-  seller: { is: { status: 'active' } },
+  seller: { is: { status: 'active', vacationModeEnabled: false } },
 } satisfies Prisma.ProductWhereInput
 
 export function buildPublicProductWhere(

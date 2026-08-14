@@ -9,6 +9,7 @@ import {
 } from '@hanuja/seo'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
+import { PUBLIC_PRODUCT_WHERE } from '@hanuja/api/domain/product-visibility'
 
 /**
  * Next.js sitemap route.
@@ -23,7 +24,7 @@ import { createCatalogService } from '@hanuja/api/services/catalog.service'
 // Without this the handler is statically snapshotted at build time (no fetch /
 // dynamic API in the module) and would never refresh until the next deploy.
 // One-hour ISR keeps the sitemap a live, self-updating URL for Google.
-export const revalidate = 3600
+export const revalidate = 0
 const staticCategories = [
   'mobilya',
   'dekor',
@@ -90,7 +91,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const [categories, products, blogPosts, stores] = await Promise.all([
       catalogSvc.listCustomerVisibleCategories(),
       prisma.product.findMany({
-        where: { status: 'published', seller: { is: { status: 'active' } } },
+        where: PUBLIC_PRODUCT_WHERE,
         select: { slug: true, updatedAt: true },
         orderBy: { updatedAt: 'desc' },
         take: 20000,

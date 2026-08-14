@@ -23,7 +23,7 @@ import {
   type ListingSearchParams,
 } from '@/lib/product-listing-query'
 
-export const revalidate = 1800
+export const dynamic = 'force-dynamic'
 
 interface CategoryPageProps {
   params: Promise<{ slug: string[] }>

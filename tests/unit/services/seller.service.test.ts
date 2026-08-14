@@ -63,3 +63,63 @@ describe('seller.service updateProfile search sync', () => {
     expect(enqueueStoreSyncMock).not.toHaveBeenCalled()
   })
 })
+
+describe('seller.service updateVacationMode', () => {
+  beforeEach(() => {
+    enqueueStoreSyncMock.mockReset()
+    enqueueStoreSyncMock.mockResolvedValue(undefined)
+  })
+
+  function createPrismaMock(productIds = [{ id: 'product-1' }, { id: 'product-2' }]) {
+    const tx = {
+      seller: { update: vi.fn().mockResolvedValue({}) },
+      product: { findMany: vi.fn().mockResolvedValue(productIds) },
+      cartItem: { deleteMany: vi.fn().mockResolvedValue({ count: 3 }) },
+    }
+    const prisma = {
+      seller: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'seller-1',
+          userId: 'user-1',
+          displayName: 'Magaza',
+          bankDetails: [],
+        }),
+      },
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    }
+    return { prisma: prisma as never, tx }
+  }
+
+  it('enables Tatil Modu, clears seller products from carts, and removes search documents', async () => {
+    const { prisma, tx } = createPrismaMock()
+    const service = createSellerService({ prisma })
+
+    await expect(service.updateVacationMode('seller-1', 'user-1', true)).resolves.toBe(true)
+
+    expect(tx.seller.update).toHaveBeenCalledWith({
+      where: { id: 'seller-1' },
+      data: { vacationModeEnabled: true },
+    })
+    expect(tx.cartItem.deleteMany).toHaveBeenCalledWith({
+      where: { productId: { in: ['product-1', 'product-2'] } },
+    })
+    expect(enqueueStoreSyncMock).toHaveBeenCalledWith({
+      entityId: 'seller-1',
+      operation: 'delete',
+    })
+  })
+
+  it('disables Tatil Modu without touching carts and reindexes published products', async () => {
+    const { prisma, tx } = createPrismaMock()
+    const service = createSellerService({ prisma })
+
+    await expect(service.updateVacationMode('seller-1', 'user-1', false)).resolves.toBe(false)
+
+    expect(tx.product.findMany).not.toHaveBeenCalled()
+    expect(tx.cartItem.deleteMany).not.toHaveBeenCalled()
+    expect(enqueueStoreSyncMock).toHaveBeenCalledWith({
+      entityId: 'seller-1',
+      operation: 'upsert',
+    })
+  })
+})

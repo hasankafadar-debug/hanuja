@@ -5,10 +5,10 @@ import {
 } from '../../api/domain/product-visibility'
 
 describe('public product visibility', () => {
-  it('requires both a published product and an active seller', () => {
+  it('requires a published product, an active seller, and Tatil Modu to be off', () => {
     expect(PUBLIC_PRODUCT_WHERE).toEqual({
       status: 'published',
-      seller: { is: { status: 'active' } },
+      seller: { is: { status: 'active', vacationModeEnabled: false } },
     })
   })
 

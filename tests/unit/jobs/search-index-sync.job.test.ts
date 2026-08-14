@@ -90,7 +90,7 @@ describe('search-index-sync.job', () => {
           AND: [
             {
               status: 'published',
-              seller: { is: { status: 'active' } },
+              seller: { is: { status: 'active', vacationModeEnabled: false } },
             },
             { categoryId: 'cat-42' },
           ],
