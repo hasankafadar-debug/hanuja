@@ -1903,7 +1903,7 @@ model MediaAsset {
   width           Int? // original image width px
   height          Int? // original image height px
   durationSec     Int? // video duration — validated ≤ 15 sec for slider
-  variants        Json? // { "1200w": url, "800w": url, "400w": url }
+  variants        Json? // Home media: { "400w": url, "800w": url, "1200w": url, "1600w": url }
   uploadedBy      String // user/seller ID who owns this asset
   verifiedAt      DateTime? // Set by media-processing job after R2 verification
   // Polymorphic relations — nullable, set when asset is attached to a record

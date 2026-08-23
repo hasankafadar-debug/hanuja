@@ -28,6 +28,7 @@
     "check-barcode-registry-ready": "tsx tools/scripts/check-barcode-registry-ready.ts",
     "search:seed": "tsx tools/scripts/seed-search.ts",
     "media:backfill": "tsx tools/scripts/backfill-media-urls.ts",
+    "media:optimize-home": "tsx tools/scripts/optimize-home-media.ts",
     "ledger:backfill": "tsx tools/scripts/backfill-seller-ledger.ts",
     "payout:repair": "tsx tools/scripts/repair-missing-payouts.ts",
     "launch:clean-data": "tsx tools/scripts/pre-launch-data-clean.ts",

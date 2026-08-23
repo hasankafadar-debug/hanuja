@@ -99,6 +99,25 @@ describe('R2 media size bounds', () => {
     expect(mocks.putInputs).toHaveLength(1)
   })
 
+  it('applies immutable cache metadata to generated variants', async () => {
+    const { uploadBufferWithKey } = await import('../../api/lib/r2')
+    mocks.send.mockResolvedValue({})
+
+    await uploadBufferWithKey({
+      key: 'slider/admin/hero_1200w.webp',
+      mimeType: 'image/webp',
+      body: new Uint8Array([1, 2, 3]),
+      cacheControl: 'public, max-age=31536000, immutable',
+    })
+
+    expect(mocks.putInputs[0]).toMatchObject({
+      Key: 'slider/admin/hero_1200w.webp',
+      ContentType: 'image/webp',
+      ContentLength: 3,
+      CacheControl: 'public, max-age=31536000, immutable',
+    })
+  })
+
   it('rejects an oversized declared ContentLength before consuming the stream', async () => {
     const { readObject } = await import('../../api/lib/r2')
     const destroy = vi.fn()

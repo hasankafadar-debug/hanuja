@@ -506,8 +506,9 @@ export async function uploadBufferWithKey(opts: {
   key: string
   body: Uint8Array
   mimeType: string
+  cacheControl?: string
 }): Promise<{ publicUrl: string }> {
-  const { key, body, mimeType } = opts
+  const { key, body, mimeType, cacheControl } = opts
   const { bucketName, cdnUrl } = getR2Config()
   const r2 = createR2Client()
 
@@ -518,6 +519,7 @@ export async function uploadBufferWithKey(opts: {
       Body: body,
       ContentType: mimeType,
       ContentLength: body.byteLength,
+      ...(cacheControl ? { CacheControl: cacheControl } : {}),
     }),
   )
 

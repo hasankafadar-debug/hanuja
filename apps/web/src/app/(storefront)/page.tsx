@@ -218,7 +218,6 @@ export default async function HomePage() {
                   title={resolvedTopPromo.title}
                   subtitle={resolvedTopPromo.subtitle}
                   ctaHref={resolvedTopPromo.ctaHref}
-                  priority
                 />
               ) : (
                 <div className="flex-1 rounded-xl" style={{ backgroundColor: 'var(--color-muted)' }} />
@@ -231,7 +230,6 @@ export default async function HomePage() {
                   title={resolvedBottomPromo.title}
                   subtitle={resolvedBottomPromo.subtitle}
                   ctaHref={resolvedBottomPromo.ctaHref}
-                  priority
                 />
               ) : (
                 <div className="flex-1 rounded-xl" style={{ backgroundColor: 'var(--color-muted)' }} />

@@ -23,7 +23,7 @@ export function PromoCard({
   priority = false,
 }: PromoCardProps) {
   const { src, srcSet, sizes } = mediaSrcSet(imageVariants ?? null, imageUrl)
-  const useUnoptimizedImage = isManagedMediaProxyUrl(src)
+  const useUnoptimizedImage = Boolean(srcSet) || isManagedMediaProxyUrl(src)
 
   return (
     <Link
@@ -38,7 +38,7 @@ export function PromoCard({
         fill
         className="object-cover transition-transform duration-500 group-hover:scale-105"
         priority={priority}
-        sizes={sizes ?? '(max-width: 768px) 50vw, 33vw'}
+        sizes={sizes ?? '(min-width: 1024px) 400px, 50vw'}
         unoptimized={useUnoptimizedImage}
         {...(srcSet ? { srcSet } : {})}
       />

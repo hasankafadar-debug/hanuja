@@ -38,16 +38,32 @@ export interface HeroSliderProps {
 export function HeroSlider({ slides, autoPlayMs = 6000, loop = true }: HeroSliderProps) {
   const [current, setCurrent] = useState(0)
   const [paused, setPaused] = useState(false)
+  const [preparedSlides, setPreparedSlides] = useState<Set<number>>(() => new Set([0]))
   const touchStartX = useRef<number | null>(null)
   const count = slides.length
 
+  const prepareSlide = useCallback((index: number) => {
+    if (index < 0 || index >= count) return
+    setPreparedSlides((prepared) => {
+      if (prepared.has(index)) return prepared
+      const nextPrepared = new Set(prepared)
+      nextPrepared.add(index)
+      return nextPrepared
+    })
+  }, [count])
+
+  const showSlide = useCallback((index: number) => {
+    prepareSlide(index)
+    setCurrent(index)
+  }, [prepareSlide])
+
   const prev = useCallback(() => {
-    setCurrent((c) => (c === 0 ? (loop ? count - 1 : 0) : c - 1))
-  }, [count, loop])
+    showSlide(current === 0 ? (loop ? count - 1 : 0) : current - 1)
+  }, [count, current, loop, showSlide])
 
   const next = useCallback(() => {
-    setCurrent((c) => (c === count - 1 ? (loop ? 0 : count - 1) : c + 1))
-  }, [count, loop])
+    showSlide(current === count - 1 ? (loop ? 0 : count - 1) : current + 1)
+  }, [count, current, loop, showSlide])
 
   // Auto-rotate — disabled when paused or single slide or prefers-reduced-motion
   useEffect(() => {
@@ -109,7 +125,13 @@ export function HeroSlider({ slides, autoPlayMs = 6000, loop = true }: HeroSlide
           : undefined
         const imgMeta = mediaSrcSet(slide.mediaAsset.variants, slide.mediaAsset.url)
         const videoSrc = normalizeMediaDisplayUrl(slide.mediaAsset.url)
-        const useUnoptimizedImage = isManagedMediaProxyUrl(imgMeta.src)
+        const useUnoptimizedImage = Boolean(imgMeta.srcSet) || isManagedMediaProxyUrl(imgMeta.src)
+        const shouldRenderMedia = preparedSlides.has(i)
+        const prepareFollowingSlide = () => {
+          if (count <= 1) return
+          const nextIndex = i === count - 1 ? (loop ? 0 : i) : i + 1
+          if (nextIndex !== i) prepareSlide(nextIndex)
+        }
 
         return (
           <div
@@ -122,15 +144,17 @@ export function HeroSlider({ slides, autoPlayMs = 6000, loop = true }: HeroSlide
             style={{ opacity: i === current ? 1 : 0, pointerEvents: i === current ? 'auto' : 'none' }}
           >
             {/* Background media */}
-            {isVideo ? (
+            {!shouldRenderMedia ? null : isVideo ? (
               <video
                 className="absolute inset-0 h-full w-full object-cover"
                 src={videoSrc}
                 poster={posterSrc}
+                preload={i === 0 ? 'auto' : 'metadata'}
                 autoPlay
                 muted
                 loop
                 playsInline
+                onLoadedData={prepareFollowingSlide}
                 aria-hidden="true"
               />
             ) : (
@@ -139,9 +163,12 @@ export function HeroSlider({ slides, autoPlayMs = 6000, loop = true }: HeroSlide
                 alt={slide.title}
                 fill
                 className="object-cover"
-                priority
-                sizes="(max-width: 768px) 100vw, 66vw"
+                priority={i === 0}
+                loading={i === 0 ? 'eager' : 'lazy'}
+                fetchPriority={i === 0 ? 'high' : 'low'}
+                sizes="(max-width: 1023px) calc(100vw - 2rem), 832px"
                 unoptimized={useUnoptimizedImage}
+                onLoad={prepareFollowingSlide}
                 {...(imgMeta.srcSet ? { srcSet: imgMeta.srcSet } : {})}
               />
             )}
@@ -222,7 +249,7 @@ export function HeroSlider({ slides, autoPlayMs = 6000, loop = true }: HeroSlide
             {slides.map((_, i) => (
               <button
                 key={i}
-                onClick={() => setCurrent(i)}
+                onClick={() => showSlide(i)}
                 aria-label={`Slayt ${i + 1}`}
                 aria-current={i === current ? 'true' : undefined}
                 className="h-1.5 rounded-full transition-all"

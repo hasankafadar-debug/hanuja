@@ -12,6 +12,7 @@ import {
 } from '../../api/lib/media-url'
 import {
   isManagedMediaProxyUrl,
+  mediaSrcSet,
   normalizeMediaDisplayUrl as normalizeUiMediaDisplayUrl,
 } from '../../packages/ui/src/lib/media-url'
 
@@ -150,5 +151,42 @@ describe('media url helpers', () => {
 
     expect(isManagedMediaProxyUrl(proxied)).toBe(true)
     expect(isManagedMediaProxyUrl('https://media.hanuja.tr/products/test/image.jpg')).toBe(false)
+  })
+
+  it('builds a responsive srcset from canonical flat home-media variants', () => {
+    const result = mediaSrcSet(
+      {
+        '400w': 'https://media.hanuja.tr/slider/test/hero_400w.webp',
+        '800w': 'https://media.hanuja.tr/slider/test/hero_800w.webp',
+        '1200w': 'https://media.hanuja.tr/slider/test/hero_1200w.webp',
+        '1600w': 'https://media.hanuja.tr/slider/test/hero_1600w.webp',
+      },
+      'https://media.hanuja.tr/slider/test/hero.png',
+    )
+
+    expect(result.src).toBe('https://media.hanuja.tr/slider/test/hero_800w.webp')
+    expect(result.srcSet).toContain('hero_400w.webp 400w')
+    expect(result.srcSet).toContain('hero_1600w.webp 1600w')
+  })
+
+  it('keeps nested thumb/medium variant records backward compatible', () => {
+    const result = mediaSrcSet(
+      {
+        thumb: {
+          url: 'https://media.hanuja.tr/slider/test/hero_thumb.webp',
+          width: 320,
+        },
+        medium: {
+          url: 'https://media.hanuja.tr/slider/test/hero_medium.webp',
+          width: 800,
+        },
+      },
+      'https://media.hanuja.tr/slider/test/hero.png',
+    )
+
+    expect(result.src).toBe('https://media.hanuja.tr/slider/test/hero_medium.webp')
+    expect(result.srcSet).toBe(
+      'https://media.hanuja.tr/slider/test/hero_thumb.webp 320w, https://media.hanuja.tr/slider/test/hero_medium.webp 800w',
+    )
   })
 })

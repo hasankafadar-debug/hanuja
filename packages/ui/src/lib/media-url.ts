@@ -1,4 +1,5 @@
-type Variants = Record<string, string>
+type VariantValue = string | { url?: unknown; width?: unknown }
+type Variants = Record<string, VariantValue>
 const DEFAULT_MEDIA_HOSTNAME = 'media.hanuja.tr'
 const LEGACY_MEDIA_HOSTNAME = 'media.hanuja.com.tr'
 const DEFAULT_CDN_HOSTNAME = 'cdn.hanuja.com.tr'
@@ -61,23 +62,38 @@ export function mediaSrcSet(
   fallback: string,
 ): { src: string; srcSet?: string; sizes?: string } {
   const normalizedFallback = normalizeMediaDisplayUrl(fallback)
-  if (!variants || typeof variants !== 'object') return { src: normalizedFallback }
+  if (!variants || typeof variants !== 'object' || Array.isArray(variants)) {
+    return { src: normalizedFallback }
+  }
 
   const v = variants as Variants
-  const variant400 = v['400w'] ? normalizeMediaDisplayUrl(v['400w']) : null
-  const variant800 = v['800w'] ? normalizeMediaDisplayUrl(v['800w']) : null
-  const variant1200 = v['1200w'] ? normalizeMediaDisplayUrl(v['1200w']) : null
-  const src = variant800 ?? variant1200 ?? normalizedFallback
-  const parts: string[] = []
-  if (variant400) parts.push(`${variant400} 400w`)
-  if (variant800) parts.push(`${variant800} 800w`)
-  if (variant1200) parts.push(`${variant1200} 1200w`)
+  const candidates = new Map<number, string>()
+
+  const addCandidate = (value: VariantValue | undefined, defaultWidth: number) => {
+    if (!value) return
+    const url = typeof value === 'string' ? value : value.url
+    const width =
+      typeof value === 'object' && typeof value.width === 'number' ? value.width : defaultWidth
+    if (typeof url !== 'string' || !url || !Number.isFinite(width) || width <= 0) return
+    candidates.set(width, normalizeMediaDisplayUrl(url))
+  }
+
+  addCandidate(v['400w'], 400)
+  addCandidate(v['800w'], 800)
+  addCandidate(v['1200w'], 1200)
+  addCandidate(v['1600w'], 1600)
+  addCandidate(v.thumb, 320)
+  addCandidate(v.medium, 800)
+
+  const sorted = Array.from(candidates.entries()).sort(([left], [right]) => left - right)
+  const src =
+    candidates.get(800) ?? candidates.get(1200) ?? sorted.at(-1)?.[1] ?? normalizedFallback
+  const parts = sorted.map(([width, url]) => `${url} ${width}w`)
 
   if (parts.length === 0) return { src: normalizedFallback }
 
   return {
     src,
     srcSet: parts.join(', '),
-    sizes: '(max-width: 640px) 400px, (max-width: 1024px) 800px, 1200px',
   }
 }

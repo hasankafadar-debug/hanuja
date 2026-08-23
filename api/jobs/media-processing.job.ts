@@ -5,8 +5,8 @@
  *   1. Verify the original object exists in R2.
  *   2. If kind === 'image' and mimeType is a raster image:
  *      a. Download original bytes from R2.
- *      b. Use Sharp to generate two WebP variants (thumb 320w, medium 800w).
- *      c. Upload variants to R2 under <originalKey>_thumb.webp / _medium.webp.
+ *      b. Home CMS images receive responsive 400/800/1200/1600 WebP variants.
+ *         Other folders retain the legacy thumb/medium pipeline.
  *      d. Write variants JSON + original dimensions to MediaAsset record.
  *   3. Mark verifiedAt.
  *
@@ -24,6 +24,12 @@ import {
   uploadBufferWithKey,
   type MediaFolder,
 } from '../lib/r2'
+import {
+  generateHomeMediaVariants,
+  MAX_MEDIA_IMAGE_DIMENSION,
+  MAX_MEDIA_INPUT_PIXELS,
+  SHARP_INPUT_OPTIONS,
+} from '../lib/home-media-variants'
 
 export interface MediaProcessingJobData {
   assetId: string
@@ -32,9 +38,7 @@ export interface MediaProcessingJobData {
 }
 
 const RASTER_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
-export const MAX_MEDIA_IMAGE_DIMENSION = 6000
-export const MAX_MEDIA_INPUT_PIXELS = MAX_MEDIA_IMAGE_DIMENSION * MAX_MEDIA_IMAGE_DIMENSION
-export const SHARP_INPUT_OPTIONS = { limitInputPixels: MAX_MEDIA_INPUT_PIXELS } as const
+export { MAX_MEDIA_IMAGE_DIMENSION, MAX_MEDIA_INPUT_PIXELS, SHARP_INPUT_OPTIONS }
 
 export interface MediaVariantRecord {
   key: string
@@ -47,6 +51,8 @@ export interface MediaVariants {
   thumb: MediaVariantRecord
   medium: MediaVariantRecord
 }
+
+const HOME_MEDIA_FOLDERS = new Set<MediaFolder>(['slider', 'promo'])
 
 function variantKey(originalKey: string, suffix: string): string {
   // products/owner/uuid.jpg  →  products/owner/uuid_thumb.webp
@@ -124,7 +130,10 @@ async function processMediaJob(job: Job<MediaProcessingJobData>) {
   if (isImage) {
     const folder = (asset.folder as MediaFolder | null) ?? 'general'
     const { body } = await readObject(key, getMediaMaxSizeBytes(folder))
-    const { variants, width, height } = await generateVariants(body, key, '')
+    const isHomeMedia = HOME_MEDIA_FOLDERS.has(folder)
+    const { variants, width, height } = isHomeMedia
+      ? await generateHomeMediaVariants(body, key)
+      : await generateVariants(body, key, '')
 
     await prisma.mediaAsset.updateMany({
       where: { id: assetId, status: 'ready' },
@@ -136,9 +145,7 @@ async function processMediaJob(job: Job<MediaProcessingJobData>) {
       },
     })
 
-    console.log(
-      `[media-processing] Asset ${assetId} processed — variants: thumb=${variants.thumb.url} medium=${variants.medium.url}`,
-    )
+    console.log(`[media-processing] Asset ${assetId} processed — folder=${folder}`)
   } else {
     await prisma.mediaAsset.updateMany({
       where: { id: assetId, status: 'ready' },
