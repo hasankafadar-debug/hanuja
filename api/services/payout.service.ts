@@ -62,15 +62,34 @@ export function createPayoutService({
       for (const sellerId of sellerIds) {
         const sellerLines = lines.filter((line) => line.sellerId === sellerId)
         const snapshotTotals = sumPayoutSnapshot(sellerLines)
+        const cancellationAdjustments =
+          order.quantityLifecycleVersion === 2
+            ? await prisma.orderCancellation.aggregate({
+                where: { orderId: params.orderId, sellerId },
+                _sum: {
+                  sellerAdjustmentAmount: true,
+                  commissionAdjustmentAmount: true,
+                },
+              })
+            : null
+        const cancelledSellerAmount = new Decimal(
+          cancellationAdjustments?._sum.sellerAdjustmentAmount ?? 0,
+        )
+        const cancelledCommissionAmount = new Decimal(
+          cancellationAdjustments?._sum.commissionAdjustmentAmount ?? 0,
+        )
         const grossAmount = snapshotTotals.grossAmount
-        const commissionAmount = snapshotTotals.commissionAmount
+        const commissionAmount = Decimal.max(
+          zero,
+          snapshotTotals.commissionAmount.sub(cancelledCommissionAmount),
+        )
         const couponShareAmount = snapshotTotals.couponShareAmount
         const cargoChargeAmount = zero
         const adFeeAmount = zero
         const penaltyAmount = zero
-        const refundAmount = zero
+        const refundAmount = cancelledSellerAmount.add(cancelledCommissionAmount)
         const adjustmentAmount = zero
-        const netAmount = snapshotTotals.netAmount
+        const netAmount = Decimal.max(zero, snapshotTotals.netAmount.sub(cancelledSellerAmount))
 
         created.push(
           await payouts.create({
@@ -148,11 +167,11 @@ export function createPayoutService({
         }
       }
 
-      if (await returnRequests.countOpenByOrderId(payout.orderId)) {
+      if (await returnRequests.countOpenByOrderAndSeller(payout.orderId, payout.sellerId)) {
         return { ready: false, reason: 'Açık iade talebi var' }
       }
 
-      if (await disputes.countOpenByOrderId(payout.orderId)) {
+      if (await disputes.countOpenByOrderAndSeller(payout.orderId, payout.sellerId)) {
         return { ready: false, reason: 'Açık uyuşmazlık var' }
       }
 

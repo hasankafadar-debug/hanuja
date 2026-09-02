@@ -1,19 +1,11 @@
 import { DomainError } from './errors'
 
-const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on'])
+type PaymentEnvironment = Partial<Record<'CARD_PAYMENTS_ENABLED' | 'NODE_ENV', string | undefined>>
 
-type PaymentEnvironment = Partial<
-  Record<'CARD_PAYMENTS_ENABLED' | 'NODE_ENV', string | undefined>
->
-
-export function isCardPaymentsEnabled(
-  env: PaymentEnvironment = process.env,
-): boolean {
-  const configured = env.CARD_PAYMENTS_ENABLED?.trim().toLowerCase()
-  if (configured) return TRUE_VALUES.has(configured)
-
-  // Production fails closed until iyzico credentials are deliberately enabled.
-  return env.NODE_ENV !== 'production'
+export function isCardPaymentsEnabled(_env: PaymentEnvironment = process.env): boolean {
+  // No provider-neutral charge adapter is wired yet. Card sales remain closed
+  // in every environment until the new payment provider integration ships.
+  return false
 }
 
 export function assertPaymentMethodEnabled(

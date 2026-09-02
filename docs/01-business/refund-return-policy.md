@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-09-02
 # Durum: taslak v1
 
 # Refund and Return Policy
@@ -349,10 +349,31 @@ New `ReturnRequest` fields: `sellerReturnAddress`, `sellerReturnCargoCarrier`,
 `sellerRejectedAt`, `disputeId`. `ReturnMessage` gains message-level attachments
 (`MediaAsset.returnMessageId`).
 
-Known limitation: partial returns are not modeled — the refund equals the full
-seller-portion of the order; multi-seller orders refund only the acting seller's
-lines. Seller-side timeouts (no cargo info / no receipt confirmation) are handled
-manually via admin override routes; an SLA job is a follow-up.
+### Quantity lifecycle v2 (new orders)
+
+`Order.quantityLifecycleVersion = 2` olan yeni siparişlerde iade, sipariş satırı ve
+adet bazında çalışır. Eski siparişler yukarıdaki order-level akışta kalır; backfill
+yapılmaz.
+
+- Müşteri aynı satırdan 1–uygun kalan adet arasında seçim yapabilir ve kalan adetler
+  için daha sonra yeni talep açabilir.
+- Tek istekte farklı satıcılar seçilirse backend her satıcı için ayrı `ReturnRequest`
+  ve `ReturnRequestItem` kayıtları oluşturur; ortak neden her işleme kopyalanır.
+- Satıcı teslimde her satır için kabul ve red adedi girer. Toplam talep adedine eşit
+  olmalı; reddedilen her satır için gerekçe zorunludur.
+- Kabul edilen adetler sağlayıcı-bağımsız `RefundTransaction` kaydına, reddedilen
+  adetler aynı iadeye bağlı tek uyuşmazlığa aktarılır. İade ürünleri stoğu değiştirmez.
+- Müşteri refund tutarı kupon ve EFT indirimi sonrası satır net ürün bedelinin
+  kümülatif kuruş dağıtımıyla hesaplanır. Ardışık işlemler satır snapshot'ını aşamaz.
+- İlk gönderim kargo ücreti yalnız bütün sipariş adetleri iptal veya kabul edilmiş
+  iadeyle kapandığında ve yalnız bir kez müşteriye eklenir.
+- Açık iade/uyuşmazlık yalnız ilgili satıcının payout'unu bloke eder. İlgili adetlerin
+  satıcı net hakedişi ve komisyon snapshot'ı ayrıca düzeltilir.
+- Gerçek ödeme sağlayıcısı bağlanana kadar yeni akıştaki bütün refund kayıtları
+  `pending` kalır; operasyon kaydı kendiliğinden tamamlanmış sayılmaz.
+
+Satıcı tarafı zaman aşımı (kargo bilgisi veya teslim kararı verilmemesi) halen manuel
+operasyonla izlenir; otomatik SLA işi ayrı geliştirmedir.
 
 ---
 

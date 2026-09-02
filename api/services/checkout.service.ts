@@ -89,6 +89,7 @@ type CheckoutDraft = {
     quantity: number
     unitPrice: Decimal
     totalPrice: Decimal
+    customerPaidProductAmount: Decimal
     taxRate: Decimal
     taxAmount: Decimal
     couponDiscountAmount: Decimal
@@ -358,6 +359,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           quantity: line.quantity,
           unitPrice: line.unitPrice,
           totalPrice: line.totalPrice,
+          customerPaidProductAmount: line.totalPrice,
           taxRate: line.taxRate,
           taxAmount: line.taxAmount,
           couponDiscountAmount,
@@ -374,6 +376,18 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       const eftDiscountAmount = eftDiscountRate.gt(0)
         ? roundMoney(grossAmount.mul(eftDiscountRate))
         : new Decimal(0)
+      const customerDiscountTotal = discountAmount.add(eftDiscountAmount)
+      if (customerDiscountTotal.gt(0)) {
+        const customerDiscountShares = allocateCouponDiscount(
+          lines.map((line) => ({ totalPrice: line.totalPrice })),
+          customerDiscountTotal,
+        )
+        lines.forEach((line, index) => {
+          line.customerPaidProductAmount = roundMoney(
+            line.totalPrice.sub(customerDiscountShares[index] ?? new Decimal(0)),
+          )
+        })
+      }
       const taxBreakdownMap = new Map<number, Decimal>()
       for (const line of lines) {
         const ratePercent = Number(line.taxRate.mul(100).toFixed(2))
@@ -567,6 +581,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
               ? { billingAddressId: params.billingAddressId }
               : {}),
             status: 'checkout_started',
+            quantityLifecycleVersion: 2,
             grossAmount: draft.grossAmount,
             netSubtotal: draft.netSubtotal,
             discountAmount: draft.discountAmount,
@@ -582,6 +597,12 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
             ...(params.notes !== undefined ? { notes: params.notes } : {}),
             lines: {
               create: draft.lines,
+            },
+            sellerFulfillments: {
+              create: [...new Set(draft.lines.map((line) => line.sellerId))].map((sellerId) => ({
+                sellerId,
+                status: 'queue_ready' as const,
+              })),
             },
           },
           include: { lines: true },

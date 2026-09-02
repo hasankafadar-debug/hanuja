@@ -1,4 +1,6 @@
-import type { PrismaClient, ShipmentStatus } from '@prisma/client'
+import type { Prisma, PrismaClient, ShipmentStatus } from '@prisma/client'
+
+type DbClient = PrismaClient | Prisma.TransactionClient
 
 export function createShipmentRepository(prisma: PrismaClient) {
   return {
@@ -9,8 +11,14 @@ export function createShipmentRepository(prisma: PrismaClient) {
       })
     },
 
-    findByOrderId(orderId: string) {
-      return prisma.shipment.findFirst({ where: { orderId } })
+    findByOrderId(orderId: string, tx?: DbClient) {
+      return (tx ?? prisma).shipment.findFirst({ where: { orderId } })
+    },
+
+    findByOrderAndSeller(orderId: string, sellerId: string, tx?: DbClient) {
+      return (tx ?? prisma).shipment.findUnique({
+        where: { orderId_sellerId: { orderId, sellerId } },
+      })
     },
 
     create(data: {
@@ -18,26 +26,31 @@ export function createShipmentRepository(prisma: PrismaClient) {
       sellerId: string
       cargoProvider: string
       trackingNumber?: string
-    }) {
-      return prisma.shipment.create({
+      estimatedDeliveryAt?: Date
+    }, tx?: DbClient) {
+      return (tx ?? prisma).shipment.create({
         data: {
           orderId: data.orderId,
           sellerId: data.sellerId,
           cargoProvider: data.cargoProvider,
           ...(data.trackingNumber !== undefined ? { trackingNumber: data.trackingNumber } : {}),
+          ...(data.estimatedDeliveryAt !== undefined ? { estimatedDeliveryAt: data.estimatedDeliveryAt } : {}),
         },
       })
     },
 
     updateTracking(
       id: string,
-      data: { trackingNumber: string; cargoProvider?: string },
+      data: { trackingNumber: string; cargoProvider?: string; status?: ShipmentStatus; handedAt?: Date },
+      tx?: DbClient,
     ) {
-      return prisma.shipment.update({
+      return (tx ?? prisma).shipment.update({
         where: { id },
         data: {
           trackingNumber: data.trackingNumber,
           ...(data.cargoProvider !== undefined ? { cargoProvider: data.cargoProvider } : {}),
+          ...(data.status !== undefined ? { status: data.status } : {}),
+          ...(data.handedAt !== undefined ? { handedAt: data.handedAt } : {}),
         },
       })
     },
@@ -47,8 +60,8 @@ export function createShipmentRepository(prisma: PrismaClient) {
       return client.shipment.update({ where: { id }, data: { status } })
     },
 
-    markDelivered(id: string, deliveredAt = new Date()) {
-      return prisma.shipment.update({
+    markDelivered(id: string, deliveredAt = new Date(), tx?: DbClient) {
+      return (tx ?? prisma).shipment.update({
         where: { id },
         data: { status: 'delivered', deliveredAt },
       })

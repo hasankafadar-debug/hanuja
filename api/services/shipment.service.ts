@@ -43,6 +43,41 @@ export function createShipmentService({ prisma }: ShipmentServiceDeps) {
       const order = await orders.findByIdForSeller(params.orderId, params.sellerId)
       if (!order) throw new NotFoundError('Sipariş', params.orderId)
 
+      if (order.quantityLifecycleVersion === 2) {
+        return prisma.$transaction(async (tx) => {
+          const fulfillment = await tx.orderSellerFulfillment.findUnique({
+            where: {
+              orderId_sellerId: { orderId: params.orderId, sellerId: params.sellerId },
+            },
+          })
+          if (!fulfillment || fulfillment.status !== 'accepted') {
+            throw new ConflictError('Bu satıcı gönderisi hazırlamaya başlamak için uygun durumda değil')
+          }
+
+          const changed = await tx.orderSellerFulfillment.updateMany({
+            where: { id: fulfillment.id, status: 'accepted' },
+            data: { status: 'preparing', preparingAt: new Date() },
+          })
+          if (changed.count !== 1) throw new ConflictError('Gönderi durumu başka bir işlemle değişti')
+
+          await tx.order.updateMany({
+            where: {
+              id: params.orderId,
+              status: { in: ['seller_queue_ready', 'seller_accepted'] },
+            },
+            data: { status: 'preparing' },
+          })
+          await orders.appendStatusHistory(
+            params.orderId,
+            'preparing',
+            params.sellerId,
+            'Satıcı hazırlamaya başladı',
+            tx as unknown as PrismaClient,
+          )
+          return tx.orderSellerFulfillment.findUniqueOrThrow({ where: { id: fulfillment.id } })
+        })
+      }
+
       assertTransition(order.status, 'preparing')
 
       return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -70,17 +105,69 @@ export function createShipmentService({ prisma }: ShipmentServiceDeps) {
       const order = await orders.findByIdForSeller(params.orderId, params.sellerId)
       if (!order) throw new NotFoundError('Sipariş', params.orderId)
 
+      if (order.quantityLifecycleVersion === 2) {
+        return prisma.$transaction(async (tx) => {
+          const fulfillment = await tx.orderSellerFulfillment.findUnique({
+            where: {
+              orderId_sellerId: { orderId: params.orderId, sellerId: params.sellerId },
+            },
+          })
+          if (!fulfillment || fulfillment.status !== 'preparing') {
+            throw new ConflictError('Bu satıcı gönderisi kargo bekliyor durumuna alınamaz')
+          }
+
+          const changed = await tx.orderSellerFulfillment.updateMany({
+            where: { id: fulfillment.id, status: 'preparing' },
+            data: { status: 'awaiting_shipment', awaitingShipmentAt: new Date() },
+          })
+          if (changed.count !== 1) throw new ConflictError('Gönderi durumu başka bir işlemle değişti')
+
+          await tx.shipment.upsert({
+            where: {
+              orderId_sellerId: { orderId: params.orderId, sellerId: params.sellerId },
+            },
+            create: {
+              orderId: params.orderId,
+              sellerId: params.sellerId,
+              cargoProvider: params.cargoProvider,
+              ...(params.estimatedDeliveryAt ? { estimatedDeliveryAt: params.estimatedDeliveryAt } : {}),
+            },
+            update: {
+              cargoProvider: params.cargoProvider,
+              ...(params.estimatedDeliveryAt ? { estimatedDeliveryAt: params.estimatedDeliveryAt } : {}),
+            },
+          })
+          await tx.order.updateMany({
+            where: { id: params.orderId, status: { in: ['seller_accepted', 'preparing'] } },
+            data: { status: 'awaiting_shipment' },
+          })
+          await orders.appendStatusHistory(
+            params.orderId,
+            'awaiting_shipment',
+            params.sellerId,
+            `Kargo için hazır. Firma: ${params.cargoProvider}`,
+            tx as unknown as PrismaClient,
+          )
+          return tx.orderSellerFulfillment.findUniqueOrThrow({ where: { id: fulfillment.id } })
+        })
+      }
+
       assertTransition(order.status, 'awaiting_shipment')
 
       return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // Kargo kaydını oluştur (tracking number henüz girilmeden)
-        const existingShipment = await shipments.findByOrderId(params.orderId)
+        const existingShipment = await shipments.findByOrderAndSeller(
+          params.orderId,
+          params.sellerId,
+          tx,
+        )
         if (!existingShipment) {
           await shipments.create({
             orderId: params.orderId,
             sellerId: params.sellerId,
             cargoProvider: params.cargoProvider,
-          })
+            ...(params.estimatedDeliveryAt ? { estimatedDeliveryAt: params.estimatedDeliveryAt } : {}),
+          }, tx)
         }
 
         await orders.updateStatus(params.orderId, 'awaiting_shipment', tx as unknown as PrismaClient)
@@ -101,7 +188,7 @@ export function createShipmentService({ prisma }: ShipmentServiceDeps) {
     async getShipmentForSeller(orderId: string, sellerId: string) {
       const order = await orders.findByIdForSeller(orderId, sellerId)
       if (!order) throw new NotFoundError('Sipariş', orderId)
-      return shipments.findByOrderId(orderId)
+      return shipments.findByOrderAndSeller(orderId, sellerId)
     },
 
     /**

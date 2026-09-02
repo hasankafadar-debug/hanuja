@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-09-02
 # Durum: taslak v1
 
 # Order Lifecycle — Sipariş Yaşam Döngüsü
@@ -287,6 +287,30 @@ Aşağıdaki geçişler bildirim oluşturur:
 - `OrderStatusHistory`: append-only, üzerine yazma yok
 - Her geçiş için `fromStatus`, `toStatus`, `actorId`, `actorRole`, `reason`, `createdAt` kaydedilir
 - `Payout` modeli sipariş yaşam döngüsüyle ayrı tutulur; finance state burada yönetilir
+
+### 13.1 Adet yaşam döngüsü v2
+
+Yeni siparişler `Order.quantityLifecycleVersion = 2` ile oluşturulur. Bu sürümde
+`Order.status` geriye dönük uyumluluk için genel özet durumudur; müşteri ve satıcı
+ekranları operasyon kararlarında `OrderSellerFulfillment` ve aşağıdaki satır sayaçlarını
+esas alır:
+
+- `OrderLine.quantity`: değişmeyen özgün adet
+- `cancelledQuantity`: iptal edilip stoğa geri eklenen adet
+- `shippedQuantity`: `ShipmentItem` ile kargoya kilitlenen adet
+- `returnClaimedQuantity`: açık/sonuçlanmış iade talebine bağlanan adet
+- `customerPaidProductAmount`: kupon ve EFT indirimi sonrası net ürün bedeli snapshot'ı
+
+Müşteri iptali ve satıcının “Kargoya ver” işlemi aynı sipariş+satıcı kapsamında
+serializable transaction ile yarışır. İlk tamamlanan işlem kazanır; diğeri güncel
+satır sayaçlarıyla `409 Conflict` alır. Bir satıcının `shipped` fulfillment'ı yalnız
+o satıcının aktif adetlerini iptale kapatır; diğer satıcıların fulfillment'ları ve
+iptal hakları etkilenmez.
+
+Tek müşteri isteğindeki farklı satıcı satırları ayrı `OrderCancellation` veya
+`ReturnRequest` operasyonlarına bölünür. İstek tekrarı `Idempotency-Key` ile güvenli
+hale getirilir. Tam sipariş terminal duruma yalnız bütün özgün adetler kapandığında
+taşınır; kısmi işlem genel siparişi terminal duruma taşımaz.
 
 ---
 

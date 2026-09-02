@@ -124,7 +124,12 @@ export default async function OrderDetailPage({ params }: Props) {
 
   type OrderLine = {
     id: string
+    productName: string
     quantity: number
+    cancelledQuantity: number
+    shippedQuantity: number
+    returnClaimedQuantity: number
+    deliveryConfirmedAt: Date | string | null
     unitPrice: { toNumber(): number } | number
     product: { id: string; name: string; slug: string; images: Array<{ url: string }> } | null
   }
@@ -134,13 +139,6 @@ export default async function OrderDetailPage({ params }: Props) {
     trackingNumber: string | null
     status: string
     createdAt: Date
-  }
-
-  type Payment = {
-    id: string
-    status: string
-    eftDiscountAmount: { toNumber(): number } | number | null
-    eftDiscountReason: string | null
   }
 
   type Address = {
@@ -174,8 +172,31 @@ export default async function OrderDetailPage({ params }: Props) {
   }
 
   const lines = order.lines as unknown as OrderLine[]
+  const isQuantityLifecycle = order.quantityLifecycleVersion === 2
+  const cancellationLines = isQuantityLifecycle
+    ? lines
+        .map((line) => ({
+          id: line.id,
+          name: line.product?.name ?? line.productName,
+          availableQuantity: line.quantity - line.cancelledQuantity - line.shippedQuantity,
+        }))
+        .filter((line) => line.availableQuantity > 0)
+    : []
+  const returnLines = isQuantityLifecycle
+    ? lines
+        .map((line) => ({
+          id: line.id,
+          name: line.product?.name ?? line.productName,
+          availableQuantity: line.shippedQuantity - line.returnClaimedQuantity,
+          deliveryConfirmedAt: line.deliveryConfirmedAt,
+        }))
+        .filter(
+          (line) =>
+            line.availableQuantity > 0 && isWithinReturnWindow(line.deliveryConfirmedAt),
+        )
+        .map(({ deliveryConfirmedAt: _deliveryConfirmedAt, ...line }) => line)
+    : []
   const shipments = (order.shipments ?? []) as unknown as Shipment[]
-  const payments = (order.payments ?? []) as unknown as Payment[]
   const address = (order.address ?? null) as Address
   const legalSnapshot = (order.legalSnapshot ?? null) as LegalSnapshot
   const sellerInvoices = (order.sellerInvoices ?? []) as unknown as SellerInvoice[]
@@ -195,12 +216,14 @@ export default async function OrderDetailPage({ params }: Props) {
     'preparing',
     'awaiting_shipment',
   ])
-  const canCustomerCancel = CUSTOMER_CANCELLABLE_STATUSES.has(order.status)
-  const latestReturn = returnRequests[0]
+  const canCustomerCancel = isQuantityLifecycle
+    ? cancellationLines.length > 0
+    : CUSTOMER_CANCELLABLE_STATUSES.has(order.status)
   const hasActiveReturn = returnRequests.some((r) => r.status !== 'refund_completed')
   const withinReturnWindow = isWithinReturnWindow(order.deliveryConfirmedAt)
-  const canCustomerReturn =
-    order.status === 'delivery_confirmed' && withinReturnWindow && !hasActiveReturn
+  const canCustomerReturn = isQuantityLifecycle
+    ? returnLines.length > 0
+    : order.status === 'delivery_confirmed' && withinReturnWindow && !hasActiveReturn
   // Pencere kapandıktan sonra iade yolu tamamen kapalıdır (politika kararı)
   const returnWindowClosed =
     order.status === 'delivery_confirmed' && !withinReturnWindow && returnRequests.length === 0
@@ -252,11 +275,18 @@ export default async function OrderDetailPage({ params }: Props) {
             status={order.status as Parameters<typeof StatusBadge>[0]['status']}
             {...(statusLabel ? { label: statusLabel } : {})}
           />
-          {canCustomerCancel ? <CancelOrderButton orderId={order.id} /> : null}
+          {canCustomerCancel ? (
+            <CancelOrderButton
+              orderId={order.id}
+              {...(isQuantityLifecycle ? { lines: cancellationLines } : {})}
+            />
+          ) : null}
         </div>
       </div>
 
-      {latestReturn ? <ReturnPanel returnRequestId={latestReturn.id} /> : null}
+      {returnRequests.map((returnRequest) => (
+        <ReturnPanel key={returnRequest.id} returnRequestId={returnRequest.id} />
+      ))}
 
       {canCustomerReturn ? (
         <section
@@ -271,7 +301,10 @@ export default async function OrderDetailPage({ params }: Props) {
               Teslim onayından itibaren 14 gün içinde iade talebi oluşturabilirsiniz.
             </p>
           </div>
-          <ReturnRequestButton orderId={order.id} />
+          <ReturnRequestButton
+            orderId={order.id}
+            {...(isQuantityLifecycle ? { lines: returnLines } : {})}
+          />
         </section>
       ) : null}
 
@@ -339,6 +372,15 @@ export default async function OrderDetailPage({ params }: Props) {
                   )}
                   <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                     {line.quantity} adet
+                    {isQuantityLifecycle && line.cancelledQuantity > 0
+                      ? ` · ${line.cancelledQuantity} iptal`
+                      : ''}
+                    {isQuantityLifecycle && line.shippedQuantity > 0
+                      ? ` · ${line.shippedQuantity} kargolandı`
+                      : ''}
+                    {isQuantityLifecycle && line.returnClaimedQuantity > 0
+                      ? ` · ${line.returnClaimedQuantity} iade sürecinde`
+                      : ''}
                   </p>
                 </div>
                 <span className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>

@@ -19,6 +19,7 @@ import { createReturnRequestRepository } from '../repositories/return-request.re
 import { createPayoutRepository } from '../repositories/payout.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { createRefundService } from './refund.service'
+import { createQuantityRefundService } from './quantity-refund.service'
 import { assertTransition } from '../domain/order-state-machine'
 import { assertNoContactSharing } from './contact-sharing-guard.service'
 import { roundMoney } from '@hanuja/security/money'
@@ -34,7 +35,8 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
   const returnRequests = createReturnRequestRepository(prisma)
   const payouts = createPayoutRepository(prisma)
   const auditLog = createAdminAuditLogRepository(prisma)
-  const refunds = createRefundService({ prisma })
+  const legacyRefunds = createRefundService({ prisma })
+  const quantityRefunds = createQuantityRefundService({ prisma })
 
   return {
     /**
@@ -106,6 +108,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
       }
 
       const isCustomerFavored = params.resolutionType === 'resolved_for_customer'
+      const rr = dispute.escalatedFromReturn
 
       const resolved = await disputes.resolve(params.disputeId, {
         status: params.resolutionType,
@@ -118,7 +121,10 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
       // Müşteri lehine ise ilgili siparişin payoutunu da bloke et
       if (isCustomerFavored) {
         const orderPayouts = await payouts.findManyByOrderId(dispute.orderId)
-        for (const payout of orderPayouts) {
+        const affectedPayouts = rr?.sellerId
+          ? orderPayouts.filter((payout) => payout.sellerId === rr.sellerId)
+          : orderPayouts
+        for (const payout of affectedPayouts) {
           if (payout.status !== 'payout_paid' && payout.status !== 'payout_blocked') {
             await payouts.block(
               payout.id,
@@ -130,10 +136,105 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
 
       // İade reddinden eskale edilen uyuşmazlık müşteri lehine çözülürse
       // gerçek para iadesi tetiklenir (idempotent — refund.service).
-      const rr = dispute.escalatedFromReturn
-      if (rr && isCustomerFavored && !rr.refundedAt) {
-        const sellerIds = [...new Set(rr.order.lines.map((l) => l.sellerId))]
-        if (sellerIds.length === 1) {
+      if (rr && isCustomerFavored && (rr.items.length > 0 || !rr.refundedAt)) {
+        if (rr.items.length > 0 && rr.sellerId) {
+          let customerAmount = rr.items.reduce(
+            (sum, item) => sum.add(item.requestedCustomerAmount.sub(item.customerRefundAmount)),
+            new Decimal(0),
+          )
+          const sellerAdjustmentAmount = rr.items.reduce(
+            (sum, item) =>
+              sum.add(
+                item.requestedSellerAdjustmentAmount.sub(item.sellerAdjustmentAmount),
+              ),
+            new Decimal(0),
+          )
+          const commissionAdjustmentAmount = rr.items.reduce(
+            (sum, item) =>
+              sum.add(
+                item.requestedCommissionAdjustmentAmount.sub(
+                  item.commissionAdjustmentAmount,
+                ),
+              ),
+            new Decimal(0),
+          )
+          const shippingRefund = await prisma.$transaction(async (tx) => {
+            const lineTotals = await tx.orderLine.aggregate({
+              where: { orderId: rr.orderId },
+              _sum: { quantity: true, cancelledQuantity: true },
+            })
+            const acceptedTotals = await tx.returnRequestItem.aggregate({
+              where: { orderLine: { orderId: rr.orderId } },
+              _sum: { acceptedQuantity: true },
+            })
+            const disputeResolvedTotals =
+              await tx.returnRequestItem.aggregate({
+                where: {
+                  orderLine: { orderId: rr.orderId },
+                  returnRequest: {
+                    escalatedDispute: {
+                      is: { status: 'resolved_for_customer' },
+                    },
+                  },
+                },
+                _sum: { rejectedQuantity: true },
+              })
+            const originalQuantity = lineTotals._sum.quantity ?? 0
+            const closedQuantity =
+              (lineTotals._sum.cancelledQuantity ?? 0) +
+              (acceptedTotals._sum.acceptedQuantity ?? 0) +
+              (disputeResolvedTotals._sum.rejectedQuantity ?? 0)
+            if (originalQuantity <= 0 || closedQuantity < originalQuantity) {
+              return new Decimal(0)
+            }
+
+            const order = await tx.order.findUniqueOrThrow({
+              where: { id: rr.orderId },
+              select: {
+                shippingAmount: true,
+                refundedShippingAmount: true,
+              },
+            })
+            const remainingShipping = order.shippingAmount.sub(
+              order.refundedShippingAmount,
+            )
+            if (remainingShipping.lte(0)) return new Decimal(0)
+            await tx.order.update({
+              where: { id: rr.orderId },
+              data: {
+                refundedShippingAmount: { increment: remainingShipping },
+              },
+            })
+            return remainingShipping
+          })
+          customerAmount = customerAmount.add(shippingRefund)
+          if (customerAmount.gt(0)) {
+            await quantityRefunds.queue({
+              orderId: rr.orderId,
+              sellerId: rr.sellerId,
+              sourceType: 'dispute',
+              sourceId: dispute.id,
+              customerAmount,
+              sellerAdjustmentAmount,
+              commissionAdjustmentAmount,
+              platformFundedAmount: Decimal.max(
+                new Decimal(0),
+                customerAmount.sub(sellerAdjustmentAmount),
+              ),
+            })
+            await prisma.returnRequest.update({
+              where: { id: rr.id },
+              data: {
+                status: 'received',
+                refundAmount: { increment: customerAmount },
+              },
+            })
+          }
+        } else {
+          const sellerIds = [...new Set(rr.order.lines.map((l) => l.sellerId))]
+          if (sellerIds.length !== 1) {
+            throw new ConflictError('Eski iade birden fazla satıcıya ait; otomatik iade yapılamaz')
+          }
           const sellerId = sellerIds[0]!
           const refundAmount =
             params.refundAmount ??
@@ -142,7 +243,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
                 .filter((l) => l.sellerId === sellerId)
                 .reduce((s, l) => s.plus(new Decimal(l.totalPrice)), new Decimal(0)),
             )
-          await refunds.executeReturnRefund({
+          await legacyRefunds.executeReturnRefund({
             returnRequestId: rr.id,
             orderId: rr.orderId,
             sellerId,

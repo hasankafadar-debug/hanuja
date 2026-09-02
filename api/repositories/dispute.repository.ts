@@ -128,6 +128,7 @@ export function createDisputeRepository(prisma: PrismaClient) {
           evidence: true,
           escalatedFromReturn: {
             include: {
+              items: { include: { orderLine: true } },
               messages: {
                 orderBy: { createdAt: 'asc' },
                 include: { attachments: true },
@@ -186,6 +187,19 @@ export function createDisputeRepository(prisma: PrismaClient) {
     countOpenByOrderId(orderId: string) {
       return prisma.dispute.count({
         where: { orderId, status: 'open' },
+      })
+    },
+
+    countOpenByOrderAndSeller(orderId: string, sellerId: string) {
+      return prisma.dispute.count({
+        where: {
+          orderId,
+          status: 'open',
+          OR: [
+            { escalatedFromReturn: { sellerId } },
+            { escalatedFromReturn: null },
+          ],
+        },
       })
     },
 

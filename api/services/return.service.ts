@@ -92,6 +92,10 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
       const order = await orders.findByIdForCustomer(params.orderId, params.customerId)
       if (!order) throw new NotFoundError('Order', params.orderId)
 
+      if (order.quantityLifecycleVersion === 2) {
+        throw new ConflictError('Bu siparişte ürün ve adet seçerek iade talebi oluşturun')
+      }
+
       if (!order.deliveryConfirmedAt) {
         throw new ConflictError('Teslim onaylanmadan iade talebi açılamaz')
       }
@@ -271,6 +275,9 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         params.sellerId,
       )
       if (!rr) throw new NotFoundError('ReturnRequest', params.returnRequestId)
+      if (rr.items.length > 0) {
+        throw new ConflictError('Bu iade için ürün/adet bazlı teslim kararı kullanılmalıdır')
+      }
       if (rr.status !== 'in_transit') {
         throw new ConflictError(`İade bu aşamada teslim onayı kabul etmiyor: ${rr.status}`)
       }
@@ -345,6 +352,9 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         params.sellerId,
       )
       if (!rr) throw new NotFoundError('ReturnRequest', params.returnRequestId)
+      if (rr.items.length > 0) {
+        throw new ConflictError('Bu iade için ürün/adet bazlı teslim kararı kullanılmalıdır')
+      }
       if (rr.status !== 'in_transit') {
         throw new ConflictError(`İade bu aşamada reddedilemez: ${rr.status}`)
       }
@@ -424,6 +434,9 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
     }) {
       const returnRequest = await returnRequests.findById(params.returnRequestId)
       if (!returnRequest) throw new NotFoundError('ReturnRequest', params.returnRequestId)
+      if (returnRequest.items.length > 0) {
+        throw new ConflictError('Adet bazlı iadeler satıcı teslim kararı veya uyuşmazlık akışıyla yönetilir')
+      }
 
       const newStatus = params.decision === 'approved' ? 'approved' : 'rejected'
 
@@ -476,6 +489,9 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
     }) {
       const rr = await returnRequests.findByIdWithOrder(params.returnRequestId)
       if (!rr) throw new NotFoundError('ReturnRequest', params.returnRequestId)
+      if (rr.items.length > 0) {
+        throw new ConflictError('Adet bazlı iade bu eski admin akışıyla tamamlanamaz')
+      }
 
       await orders.updateStatus(rr.orderId, 'return_received')
       await orders.updateStatus(rr.orderId, 'refund_pending')

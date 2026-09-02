@@ -6,6 +6,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { ok, created, handleError } from '../lib/response'
 import { createReturnService } from '../services/return.service'
+import { createQuantityReturnService } from '../services/quantity-return.service'
 import { createPrismaForRoute } from '../lib/prisma'
 
 const assetIds = z.array(z.string().min(1)).max(10).optional()
@@ -15,6 +16,30 @@ const openRequestSchema = z.object({
   reason: z.string().min(3, 'Sebep en az 3 karakter olmalı'),
   description: z.string().optional(),
   evidenceAssetIds: assetIds,
+  items: z
+    .array(
+      z.object({
+        orderLineId: z.string().min(1),
+        quantity: z.number().int().positive(),
+      }),
+    )
+    .min(1)
+    .max(100)
+    .optional(),
+})
+
+const receiptDecisionSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        returnRequestItemId: z.string().min(1),
+        acceptedQuantity: z.number().int().min(0),
+        rejectedQuantity: z.number().int().min(0),
+        rejectionReason: z.string().optional(),
+      }),
+    )
+    .min(1)
+    .max(100),
 })
 
 const reviewSchema = z.object({
@@ -64,6 +89,57 @@ type MediaWithDirectUrl = {
   variants?: unknown
 }
 
+type QuantityReturnItemWithFinancials = {
+  id: string
+  returnRequestId: string
+  orderLineId: string
+  requestedQuantity: number
+  acceptedQuantity: number
+  rejectedQuantity: number
+  rejectionReason: string | null
+  customerRefundAmount: unknown
+  requestedCustomerAmount: unknown
+  requestedSellerAdjustmentAmount: unknown
+  requestedCommissionAdjustmentAmount: unknown
+  sellerAdjustmentAmount: unknown
+  commissionAdjustmentAmount: unknown
+  createdAt: Date
+  updatedAt: Date
+  orderLine: {
+    id: string
+    productName: string
+    variantName: string | null
+    quantity: number
+    cancelledQuantity: number
+    shippedQuantity: number
+    returnClaimedQuantity: number
+  }
+}
+
+function toPrivateQuantityReturnItem(item: QuantityReturnItemWithFinancials) {
+  return {
+    id: item.id,
+    returnRequestId: item.returnRequestId,
+    orderLineId: item.orderLineId,
+    requestedQuantity: item.requestedQuantity,
+    acceptedQuantity: item.acceptedQuantity,
+    rejectedQuantity: item.rejectedQuantity,
+    rejectionReason: item.rejectionReason,
+    customerRefundAmount: item.customerRefundAmount,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    orderLine: {
+      id: item.orderLine.id,
+      productName: item.orderLine.productName,
+      variantName: item.orderLine.variantName,
+      quantity: item.orderLine.quantity,
+      cancelledQuantity: item.orderLine.cancelledQuantity,
+      shippedQuantity: item.orderLine.shippedQuantity,
+      returnClaimedQuantity: item.orderLine.returnClaimedQuantity,
+    },
+  }
+}
+
 function toPrivateMediaReference<T extends MediaWithDirectUrl>(asset: T) {
   const { url: _url, key: _key, variants: _variants, ...reference } = asset
   return reference
@@ -80,10 +156,12 @@ function toPrivateReturnRequest<
   T extends {
     evidence: MediaWithDirectUrl[]
     messages: { attachments: MediaWithDirectUrl[] }[]
+    items: QuantityReturnItemWithFinancials[]
   },
 >(returnRequest: T) {
   return {
     ...returnRequest,
+    items: returnRequest.items.map(toPrivateQuantityReturnItem),
     evidence: returnRequest.evidence.map(toPrivateMediaReference),
     messages: returnRequest.messages.map(toPrivateReturnMessage),
   }
@@ -93,7 +171,33 @@ function toPrivateReturnRequest<
 export async function openReturnRequest(req: NextRequest, customerId: string) {
   try {
     const body = await req.json()
-    const { orderId, reason, description, evidenceAssetIds } = openRequestSchema.parse(body)
+    const { orderId, reason, description, evidenceAssetIds, items } = openRequestSchema.parse(body)
+    if (items) {
+      const prisma = createPrismaForRoute()
+      const quantityService = createQuantityReturnService({ prisma })
+      const operations = await quantityService.openRequest({
+        orderId,
+        customerId,
+        reason,
+        ...(req.headers.get('idempotency-key')?.trim()
+          ? { idempotencyKey: req.headers.get('idempotency-key')!.trim().slice(0, 200) }
+          : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(evidenceAssetIds !== undefined ? { evidenceAssetIds } : {}),
+        items,
+      })
+      return created({
+        operations: operations.map((operation) => ({
+          id: operation.id,
+          sellerId: operation.sellerId,
+          status: operation.status,
+          reason: operation.reason,
+          description: operation.description,
+          createdAt: operation.createdAt,
+          items: operation.items.map(toPrivateQuantityReturnItem),
+        })),
+      })
+    }
     const svc = getReturnService()
     const returnRequest = await svc.openRequest({
       orderId,
@@ -105,6 +209,27 @@ export async function openReturnRequest(req: NextRequest, customerId: string) {
     return created(returnRequest)
   } catch (err) {
     return handleError(err)
+  }
+}
+
+// POST /api/seller/returns/:id/receipt-decision — v2 adet bazlı kabul/red
+export async function decideQuantityReturnReceipt(
+  req: NextRequest,
+  returnRequestId: string,
+  sellerId: string,
+) {
+  try {
+    const body = receiptDecisionSchema.parse(await req.json())
+    const prisma = createPrismaForRoute()
+    const service = createQuantityReturnService({ prisma })
+    const result = await service.decideReceipt({
+      returnRequestId,
+      sellerId,
+      decisions: body.items,
+    })
+    return ok(result)
+  } catch (error) {
+    return handleError(error)
   }
 }
 

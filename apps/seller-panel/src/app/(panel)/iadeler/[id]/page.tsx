@@ -48,6 +48,14 @@ export default async function SellerReturnDetailPage({ params }: Props) {
     productNames: rr.order.lines
       .filter((l) => l.sellerId === seller.id)
       .map((l) => l.product?.name ?? 'Ürün'),
+    items: rr.items.map((item) => ({
+      id: item.id,
+      productName: item.orderLine.productName,
+      requestedQuantity: item.requestedQuantity,
+      acceptedQuantity: item.acceptedQuantity,
+      rejectedQuantity: item.rejectedQuantity,
+      rejectionReason: item.rejectionReason,
+    })),
   }
 
   return (

@@ -9,10 +9,13 @@ describe('payment capabilities', () => {
     expect(isCardPaymentsEnabled({ NODE_ENV: 'production' })).toBe(false)
   })
 
-  it('keeps local development backwards compatible unless explicitly disabled', () => {
-    expect(isCardPaymentsEnabled({ NODE_ENV: 'development' })).toBe(true)
+  it('keeps card payments disabled in local development too', () => {
+    expect(isCardPaymentsEnabled({ NODE_ENV: 'development' })).toBe(false)
     expect(
-      isCardPaymentsEnabled({ NODE_ENV: 'development', CARD_PAYMENTS_ENABLED: 'false' }),
+      isCardPaymentsEnabled({
+        NODE_ENV: 'development',
+        CARD_PAYMENTS_ENABLED: 'false',
+      }),
     ).toBe(false)
   })
 
@@ -20,13 +23,21 @@ describe('payment capabilities', () => {
     const env = { NODE_ENV: 'production', CARD_PAYMENTS_ENABLED: 'false' }
     expect(() => assertPaymentMethodEnabled('eft', env)).not.toThrow()
     expect(() => assertPaymentMethodEnabled('card', env)).toThrowError(
-      expect.objectContaining({ code: 'CARD_PAYMENTS_DISABLED', statusCode: 503 }),
+      expect.objectContaining({
+        code: 'CARD_PAYMENTS_DISABLED',
+        statusCode: 503,
+      }),
     )
   })
 
-  it('enables card payments only after an explicit production opt-in', () => {
+  it('does not allow the legacy flag to reopen card sales', () => {
     const env = { NODE_ENV: 'production', CARD_PAYMENTS_ENABLED: 'true' }
-    expect(isCardPaymentsEnabled(env)).toBe(true)
-    expect(() => assertPaymentMethodEnabled('card', env)).not.toThrow()
+    expect(isCardPaymentsEnabled(env)).toBe(false)
+    expect(() => assertPaymentMethodEnabled('card', env)).toThrowError(
+      expect.objectContaining({
+        code: 'CARD_PAYMENTS_DISABLED',
+        statusCode: 503,
+      }),
+    )
   })
 })

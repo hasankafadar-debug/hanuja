@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { Button, Input, Textarea, StatusBadge, useToast } from '@hanuja/ui'
 import { Paperclip, X } from 'lucide-react'
 import { uploadSellerReturnPhoto, ACCEPTED_MIME, MAX_FILES } from './seller-return-photo'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface Attachment {
   id: string
@@ -33,6 +34,14 @@ export interface SellerReturnData {
   disputeStatus: string | null
   orderNumber: string
   productNames: string[]
+  items: Array<{
+    id: string
+    productName: string
+    requestedQuantity: number
+    acceptedQuantity: number
+    rejectedQuantity: number
+    rejectionReason: string | null
+  }>
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -122,6 +131,20 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
   const [address, setAddress] = useState('')
   const [carrier, setCarrier] = useState('')
   const [instructions, setInstructions] = useState('')
+  const [itemDecisions, setItemDecisions] = useState<
+    Record<string, { acceptedQuantity: number; rejectedQuantity: number; rejectionReason: string }>
+  >(() =>
+    Object.fromEntries(
+      data.items.map((item) => [
+        item.id,
+        {
+          acceptedQuantity: item.acceptedQuantity,
+          rejectedQuantity: item.rejectedQuantity,
+          rejectionReason: item.rejectionReason ?? '',
+        },
+      ]),
+    ),
+  )
 
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
@@ -138,7 +161,7 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
         headers: { 'Content-Type': 'application/json' },
       }
       if (body) init.body = JSON.stringify(body)
-      const res = await fetch(url, init)
+      const res = await csrfFetch(url, init)
       if (!res.ok) {
         const p = await res.json().catch(() => null)
         toast({
@@ -266,8 +289,116 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
           style={{ borderColor: 'var(--color-border)' }}
         >
           <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-            Ürün size ulaştı mı?
+            {data.items.length > 0 ? 'Her ürün için teslim kararını girin' : 'Ürün size ulaştı mı?'}
           </p>
+          {data.items.length > 0 ? (
+            <div className="space-y-3">
+              {data.items.map((item) => {
+                const decision = itemDecisions[item.id] ?? {
+                  acceptedQuantity: 0,
+                  rejectedQuantity: 0,
+                  rejectionReason: '',
+                }
+                return (
+                  <div key={item.id} className="space-y-2 border-b pb-3 last:border-b-0 last:pb-0" style={{ borderColor: 'var(--color-border)' }}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium">{item.productName}</span>
+                      <span className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                        Talep: {item.requestedQuantity} adet
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                        Kabul adedi
+                        <Input
+                          type="number"
+                          min={0}
+                          max={item.requestedQuantity}
+                          value={decision.acceptedQuantity}
+                          onChange={(event) =>
+                            setItemDecisions((current) => ({
+                              ...current,
+                              [item.id]: {
+                                ...decision,
+                                acceptedQuantity: Math.max(0, Number(event.target.value) || 0),
+                              },
+                            }))
+                          }
+                          disabled={pending}
+                        />
+                      </label>
+                      <label className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                        Red adedi
+                        <Input
+                          type="number"
+                          min={0}
+                          max={item.requestedQuantity}
+                          value={decision.rejectedQuantity}
+                          onChange={(event) =>
+                            setItemDecisions((current) => ({
+                              ...current,
+                              [item.id]: {
+                                ...decision,
+                                rejectedQuantity: Math.max(0, Number(event.target.value) || 0),
+                              },
+                            }))
+                          }
+                          disabled={pending}
+                        />
+                      </label>
+                    </div>
+                    {decision.rejectedQuantity > 0 ? (
+                      <Input
+                        value={decision.rejectionReason}
+                        onChange={(event) =>
+                          setItemDecisions((current) => ({
+                            ...current,
+                            [item.id]: { ...decision, rejectionReason: event.target.value },
+                          }))
+                        }
+                        placeholder="Reddedilen adetler için gerekçe"
+                        disabled={pending}
+                      />
+                    ) : null}
+                    {decision.acceptedQuantity + decision.rejectedQuantity !== item.requestedQuantity ? (
+                      <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>
+                        Kabul + red toplamı {item.requestedQuantity} olmalı.
+                      </p>
+                    ) : null}
+                  </div>
+                )
+              })}
+              <Button
+                type="button"
+                disabled={
+                  pending ||
+                  data.items.some((item) => {
+                    const decision = itemDecisions[item.id]
+                    return (
+                      !decision ||
+                      decision.acceptedQuantity + decision.rejectedQuantity !== item.requestedQuantity ||
+                      (decision.rejectedQuantity > 0 && decision.rejectionReason.trim().length < 3)
+                    )
+                  })
+                }
+                onClick={() =>
+                  post(
+                    `/api/seller/returns/${data.id}/receipt-decision`,
+                    {
+                      items: data.items.map((item) => ({
+                        returnRequestItemId: item.id,
+                        ...itemDecisions[item.id],
+                      })),
+                    },
+                    'Teslim kararı kaydedildi',
+                  )
+                }
+              >
+                Kararı Gönder
+              </Button>
+            </div>
+          ) : (
+          <>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -330,6 +461,8 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
               </Button>
             </div>
           ) : null}
+          </>
+          )}
         </section>
       ) : null}
 

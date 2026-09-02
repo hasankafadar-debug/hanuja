@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-09-02
 # Durum: taslak v1
 
 # Cargo and Shipping Policy
@@ -247,8 +247,10 @@ rather than modifying `sellerQueueReadyAt` so the original deadline remains audi
 
 ## After Shipment: No Simple Cancellation
 
-Once an order reaches `shipped` status, the order has left the seller's custody.
-Simple cancellation is no longer the correct path.
+For lifecycle-v2 orders shipment is seller-scoped. Once an
+`OrderSellerFulfillment` reaches `shipped`, that seller's active quantities have
+left the seller's custody and simple cancellation is no longer the correct path
+for those quantities. Other sellers' unshipped quantities remain cancellable.
 
 If the customer no longer wants the product after shipment, the flow is:
 
@@ -256,9 +258,13 @@ If the customer no longer wants the product after shipment, the flow is:
 - admin-evaluated return (if outside 14-day window)
 - dispute flow if the product was damaged, wrong, or not received
 
-Do not allow seller-side or customer-side plain cancellation of shipped orders.
-The status transition rules in the order state machine enforce this. A `shipped`
-order cannot transition back to a cancellation state through normal flows.
+`ShipmentItem` records the exact `OrderLine` quantities handed to cargo. The tracking
+write, shipment item creation, line `shippedQuantity` increment, and seller fulfillment
+transition are committed in one serializable transaction. A concurrent cancellation
+either wins first or receives `409 Conflict`; it cannot create a half-shipped state.
+
+Legacy orders continue to use the order-level `shipped` rule. Do not allow seller-side
+or customer-side plain cancellation of quantities already represented by `ShipmentItem`.
 
 ---
 
@@ -325,7 +331,7 @@ This document must stay aligned with:
 - `CLAUDE.md` — section 2.2 (delivery semantics), section 2.4 (penalty model), section 15.3 (net ruling sentences 5–8)
 - `.claude/rules/07-marketplace-finance-rules.md` — cargo charge rules, net payout formula
 - `.claude/rules/08-order-lifecycle-rules.md` — 20-day fulfillment commitment, shipment rules, delivery states
-- `db/schema/schema.prisma` — `Shipment`, `ShipmentEvent`, `ShipmentStatus`, `AdminActionType.fulfillment_window_extended`
+- `db/schema/schema.prisma` — `Shipment`, `ShipmentItem`, `OrderSellerFulfillment`, `ShipmentEvent`, `ShipmentStatus`, `AdminActionType.fulfillment_window_extended`
 - `docs/06-engineering/event-status-model.md` — `delivered` vs `delivery_confirmed` state distinction
 - `docs/06-engineering/queue-jobs-plan.md` — 20-day breach detection job, silent confirmation job
 - `docs/07-operations/order-lifecycle.md` — cancellation rules after shipment

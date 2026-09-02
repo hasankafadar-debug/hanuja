@@ -31,6 +31,9 @@ export function createOrderRepository(prisma: PrismaClient) {
           lines: { include: { product: true } },
           payments: true,
           shipments: true,
+          sellerFulfillments: true,
+          cancellations: { include: { items: true }, orderBy: { createdAt: 'desc' } },
+          refundTransactions: { orderBy: { createdAt: 'desc' } },
           statusHistory: { orderBy: { createdAt: 'asc' } },
         },
       })
@@ -43,7 +46,10 @@ export function createOrderRepository(prisma: PrismaClient) {
         include: {
           lines: { include: { product: { include: { images: { take: 1 } } } } },
           payments: true,
-          shipments: true,
+          shipments: { include: { items: true } },
+          sellerFulfillments: true,
+          cancellations: { include: { items: true }, orderBy: { createdAt: 'desc' } },
+          refundTransactions: { orderBy: { createdAt: 'desc' } },
           address: true,
           legalSnapshot: true,
           sellerInvoices: {
@@ -85,7 +91,13 @@ export function createOrderRepository(prisma: PrismaClient) {
         },
         include: {
           lines: { where: { sellerId }, include: { product: true } },
-          shipments: true,
+          shipments: { where: { sellerId }, include: { items: true } },
+          sellerFulfillments: { where: { sellerId } },
+          cancellations: {
+            where: { sellerId },
+            include: { items: true },
+            orderBy: { createdAt: 'desc' },
+          },
           address: { select: sellerVisibleAddressSelect },
           customer: {
             select: {

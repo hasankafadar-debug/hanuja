@@ -8,6 +8,7 @@ const messageInclude = {
   },
   evidence: true,
   escalatedDispute: true,
+  items: { include: { orderLine: true } },
 } as const
 
 export function createReturnRequestRepository(prisma: PrismaClient) {
@@ -41,7 +42,13 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
      */
     findByIdForSeller(id: string, sellerId: string) {
       return prisma.returnRequest.findFirst({
-        where: { id, order: { lines: { some: { sellerId } } } },
+        where: {
+          id,
+          OR: [
+            { sellerId },
+            { sellerId: null, order: { lines: { some: { sellerId } } } },
+          ],
+        },
         include: {
           ...messageInclude,
           order: {
@@ -182,7 +189,11 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
         where: {
           ...(params.status !== undefined ? { status: params.status } : {}),
         },
-        include: { order: true },
+        include: {
+          order: true,
+          items: { include: { orderLine: true } },
+          escalatedDispute: true,
+        },
         orderBy: { createdAt: 'desc' },
         ...(params.skip !== undefined ? { skip: params.skip } : {}),
         take: params.take ?? 20,
@@ -196,9 +207,13 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
     listForSeller(params: { sellerId: string; skip?: number; take?: number }) {
       return prisma.returnRequest.findMany({
         where: {
-          order: { lines: { some: { sellerId: params.sellerId } } },
+          OR: [
+            { sellerId: params.sellerId },
+            { sellerId: null, order: { lines: { some: { sellerId: params.sellerId } } } },
+          ],
         },
         include: {
+          items: { include: { orderLine: true } },
           order: {
             select: {
               id: true,
@@ -222,6 +237,16 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
         where: {
           orderId,
           status: { notIn: ['rejected', 'refund_completed'] },
+        },
+      })
+    },
+
+    countOpenByOrderAndSeller(orderId: string, sellerId: string) {
+      return prisma.returnRequest.count({
+        where: {
+          orderId,
+          status: { notIn: ['rejected', 'refund_completed'] },
+          OR: [{ sellerId }, { sellerId: null }],
         },
       })
     },

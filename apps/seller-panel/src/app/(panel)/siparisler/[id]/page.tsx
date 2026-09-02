@@ -44,6 +44,15 @@ export default async function SellerOrderDetailPage({ params }: Props) {
     .ensureInvoiceAliasForSeller(id, seller.id)
     .catch(() => null)
 
+  const fulfillment = order.sellerFulfillments?.[0]
+  const fulfillmentStatusMap: Record<string, string> = {
+    queue_ready: 'seller_queue_ready',
+    reviewing: 'seller_reviewing',
+    accepted: 'seller_accepted',
+  }
+  const operationalStatus = order.quantityLifecycleVersion === 2 && fulfillment
+    ? (fulfillmentStatusMap[fulfillment.status] ?? fulfillment.status)
+    : order.status
   const ACTIVE_FULFILLMENT_STATUSES = new Set([
     'seller_queue_ready',
     'seller_reviewing',
@@ -51,7 +60,7 @@ export default async function SellerOrderDetailPage({ params }: Props) {
     'preparing',
     'awaiting_shipment',
   ])
-  const canRequestExtension = ACTIVE_FULFILLMENT_STATUSES.has(order.status)
+  const canRequestExtension = ACTIVE_FULFILLMENT_STATUSES.has(operationalStatus)
   const openExtensionRequest = canRequestExtension
     ? await prisma.fulfillmentExtensionRequest.findFirst({
         where: {
@@ -68,6 +77,8 @@ export default async function SellerOrderDetailPage({ params }: Props) {
   type OrderLine = {
     id: string
     quantity: number
+    cancelledQuantity: number
+    shippedQuantity: number
     unitPrice: { toNumber(): number } | number
     commissionAmount?: { toNumber(): number } | number
     product: { id: string; name: string; slug: string } | null
@@ -164,7 +175,7 @@ export default async function SellerOrderDetailPage({ params }: Props) {
             description={date}
           />
         </div>
-        <StatusBadge status={order.status as Parameters<typeof StatusBadge>[0]['status']} />
+        <StatusBadge status={operationalStatus as Parameters<typeof StatusBadge>[0]['status']} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.6fr,1fr]">
@@ -187,6 +198,8 @@ export default async function SellerOrderDetailPage({ params }: Props) {
                       </p>
                       <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                         {line.quantity} adet
+                        {line.cancelledQuantity > 0 ? ` · ${line.cancelledQuantity} iptal` : ''}
+                        {line.shippedQuantity > 0 ? ` · ${line.shippedQuantity} kargolandı` : ''}
                       </p>
                     </div>
                     <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
@@ -200,7 +213,7 @@ export default async function SellerOrderDetailPage({ params }: Props) {
 
           <OrderWorkflowCard
             orderId={id}
-            status={order.status}
+            status={operationalStatus}
             trackingNumber={latestShipment?.trackingNumber ?? null}
             cargoProvider={latestShipment?.cargoProvider ?? null}
             canRequestExtension={canRequestExtension}

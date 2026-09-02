@@ -5,7 +5,7 @@
  * Payout countdown starts ONLY from delivery_confirmed.
  * See: 08-order-lifecycle-rules.md, delivery-confirmation.ts
  */
-import type { PrismaClient, Prisma } from '@prisma/client'
+import { Prisma, type PrismaClient } from '@prisma/client'
 import { NotFoundError, ConflictError } from '../lib/errors'
 import { createOrderRepository } from '../repositories/order.repository'
 import { createShipmentRepository } from '../repositories/shipment.repository'
@@ -30,6 +30,42 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
   const shipments = createShipmentRepository(prisma)
   const auditLog = createAdminAuditLogRepository(prisma)
 
+  async function notifyShipped(params: {
+    orderId: string
+    sellerId: string
+    trackingNumber: string
+    cargoProvider?: string
+  }) {
+    const order = await prisma.order.findUnique({
+      where: { id: params.orderId },
+      select: {
+        customerId: true,
+        customer: { select: { email: true, name: true } },
+        lines: {
+          where: { sellerId: params.sellerId, shippedQuantity: { gt: 0 } },
+          select: { productName: true, shippedQuantity: true },
+        },
+      },
+    })
+    if (!order) return
+    await enqueueNotification({
+      userId: order.customerId,
+      type: 'order_shipped',
+      emailTo: order.customer.email ?? undefined,
+      title: 'Siparişiniz Kargoya Verildi',
+      body: `Takip numaranız: ${params.trackingNumber}`,
+      data: {
+        orderId: params.orderId,
+        orderNumber: params.orderId.slice(-8).toUpperCase(),
+        trackingNumber: params.trackingNumber,
+        cargoCompany: params.cargoProvider ?? 'Kargo',
+        customerName: order.customer.name ?? 'Değerli Müşterimiz',
+        sellerId: params.sellerId,
+        items: order.lines,
+      },
+    })
+  }
+
   return {
     /**
      * Seller enters tracking number — transitions order to 'shipped'.
@@ -43,75 +79,190 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
       const order = await orders.findByIdForSeller(params.orderId, params.sellerId)
       if (!order) throw new NotFoundError('Order', params.orderId)
 
+      if (order.quantityLifecycleVersion === 2) {
+        const shipment = await prisma
+          .$transaction(
+            async (tx) => {
+              const fulfillment = await tx.orderSellerFulfillment.findUnique({
+                where: {
+                  orderId_sellerId: {
+                    orderId: params.orderId,
+                    sellerId: params.sellerId,
+                  },
+                },
+              })
+              if (!fulfillment || fulfillment.status !== 'awaiting_shipment') {
+                throw new ConflictError('Bu satıcı gönderisi kargoya verilebilecek durumda değil')
+              }
+
+              const lines = await tx.orderLine.findMany({
+                where: { orderId: params.orderId, sellerId: params.sellerId },
+              })
+              const activeLines = lines
+                .map((line) => ({
+                  line,
+                  quantity: line.quantity - line.cancelledQuantity - line.shippedQuantity,
+                }))
+                .filter((item) => item.quantity > 0)
+              if (activeLines.length === 0) {
+                throw new ConflictError('Kargoya verilebilecek aktif ürün adedi kalmadı')
+              }
+
+              const shippedAt = new Date()
+              const currentShipment = await tx.shipment.upsert({
+                where: {
+                  orderId_sellerId: {
+                    orderId: params.orderId,
+                    sellerId: params.sellerId,
+                  },
+                },
+                create: {
+                  orderId: params.orderId,
+                  sellerId: params.sellerId,
+                  cargoProvider: params.cargoProvider ?? 'unknown',
+                  trackingNumber: params.trackingNumber,
+                  status: 'handed_to_cargo',
+                  handedAt: shippedAt,
+                },
+                update: {
+                  cargoProvider: params.cargoProvider ?? 'unknown',
+                  trackingNumber: params.trackingNumber,
+                  status: 'handed_to_cargo',
+                  handedAt: shippedAt,
+                },
+              })
+
+              for (const item of activeLines) {
+                const changed = await tx.orderLine.updateMany({
+                  where: {
+                    id: item.line.id,
+                    cancelledQuantity: item.line.cancelledQuantity,
+                    shippedQuantity: item.line.shippedQuantity,
+                  },
+                  data: {
+                    shippedQuantity: { increment: item.quantity },
+                    fulfilledAt: shippedAt,
+                  },
+                })
+                if (changed.count !== 1) {
+                  throw new ConflictError(
+                    'İptal ile kargoya verme işlemi çakıştı; güncel durumu yenileyin',
+                  )
+                }
+                await tx.shipmentItem.create({
+                  data: {
+                    shipmentId: currentShipment.id,
+                    orderLineId: item.line.id,
+                    quantity: item.quantity,
+                  },
+                })
+              }
+
+              const fulfillmentChanged = await tx.orderSellerFulfillment.updateMany({
+                where: { id: fulfillment.id, status: 'awaiting_shipment' },
+                data: { status: 'shipped', shippedAt },
+              })
+              if (fulfillmentChanged.count !== 1) {
+                throw new ConflictError('Gönderi durumu başka bir işlemle değişti')
+              }
+
+              await tx.order.update({
+                where: { id: params.orderId },
+                data: {
+                  status: 'shipped',
+                  shippedAt: order.shippedAt ?? shippedAt,
+                },
+              })
+              await orders.appendStatusHistory(
+                params.orderId,
+                'shipped',
+                params.sellerId,
+                `Satıcı gönderisi kargoya verildi: ${params.trackingNumber}`,
+                tx as unknown as PrismaClient,
+              )
+              return currentShipment
+            },
+            { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+          )
+          .catch((error) => {
+            const concurrent =
+              typeof error === 'object' &&
+              error !== null &&
+              'code' in error &&
+              error.code === 'P2034'
+            if (concurrent) {
+              throw new ConflictError(
+                'İptal ile kargoya verme işlemi çakıştı; güncel durumu yenileyin',
+              )
+            }
+            throw error
+          })
+
+        void notifyShipped(params).catch((error) =>
+          console.error('[delivery] Shipped notification failed:', error),
+        )
+        return shipment
+      }
+
       assertTransition(order.status, 'shipped')
 
-      return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const shippedAt = new Date()
-        let shipment = await shipments.findByOrderId(params.orderId)
+      return prisma
+        .$transaction(async (tx: Prisma.TransactionClient) => {
+          const shippedAt = new Date()
+          let shipment = await shipments.findByOrderAndSeller(params.orderId, params.sellerId, tx)
 
-        if (shipment) {
-          await shipments.updateTracking(shipment.id, {
-            trackingNumber: params.trackingNumber,
-            ...(params.cargoProvider !== undefined ? { cargoProvider: params.cargoProvider } : {}),
+          if (shipment) {
+            await shipments.updateTracking(
+              shipment.id,
+              {
+                trackingNumber: params.trackingNumber,
+                ...(params.cargoProvider !== undefined
+                  ? { cargoProvider: params.cargoProvider }
+                  : {}),
+              },
+              tx,
+            )
+          } else {
+            shipment = await shipments.create(
+              {
+                orderId: params.orderId,
+                sellerId: params.sellerId,
+                cargoProvider: params.cargoProvider ?? 'unknown',
+                trackingNumber: params.trackingNumber,
+              },
+              tx,
+            )
+          }
+
+          await orders.updateStatus(params.orderId, 'shipped', tx as unknown as PrismaClient)
+          await (tx as PrismaClient).order.update({
+            where: { id: params.orderId },
+            data: { shippedAt },
           })
-        } else {
-          shipment = await shipments.create({
-            orderId: params.orderId,
-            sellerId: params.sellerId,
-            cargoProvider: params.cargoProvider ?? 'unknown',
-            trackingNumber: params.trackingNumber,
-          })
-        }
-
-        await orders.updateStatus(params.orderId, 'shipped', tx as unknown as PrismaClient)
-        await (tx as PrismaClient).order.update({
-          where: { id: params.orderId },
-          data: { shippedAt },
-        })
-        await (tx as PrismaClient).orderLine.updateMany({
-          where: {
-            orderId: params.orderId,
-            sellerId: params.sellerId,
-            fulfilledAt: null,
-          },
-          data: { fulfilledAt: shippedAt },
-        })
-        await orders.appendStatusHistory(
-          params.orderId,
-          'shipped',
-          params.sellerId,
-          `Kargo: ${params.trackingNumber}${params.cargoProvider ? ` (${params.cargoProvider})` : ''}`,
-          tx as unknown as PrismaClient,
-        )
-
-        return shipment
-      }).then(async (shipment) => {
-        // Notify customer that order is shipped (fire-and-forget)
-        void prisma.order.findUnique({
-          where: { id: params.orderId },
-          select: {
-            customerId: true,
-            customer: { select: { email: true, name: true } },
-          },
-        }).then((o) => {
-          if (!o) return
-          return enqueueNotification({
-            userId: o.customerId,
-            type: 'order_shipped',
-            emailTo: o.customer.email ?? undefined,
-            title: 'Siparişiniz Kargoya Verildi',
-            body: `Takip numaranız: ${params.trackingNumber}`,
-            data: {
+          await (tx as PrismaClient).orderLine.updateMany({
+            where: {
               orderId: params.orderId,
-              orderNumber: params.orderId.slice(-8).toUpperCase(),
-              trackingNumber: params.trackingNumber,
-              cargoCompany: params.cargoProvider ?? 'Kargo',
-              customerName: o.customer.name ?? 'Değerli Müşterimiz',
+              sellerId: params.sellerId,
+              fulfilledAt: null,
             },
+            data: { fulfilledAt: shippedAt },
           })
-        }).catch((err) => console.error('[delivery] Shipped notification failed:', err))
-        return shipment
-      })
+          await orders.appendStatusHistory(
+            params.orderId,
+            'shipped',
+            params.sellerId,
+            `Kargo: ${params.trackingNumber}${params.cargoProvider ? ` (${params.cargoProvider})` : ''}`,
+            tx as unknown as PrismaClient,
+          )
+
+          return shipment
+        })
+        .then((shipment) => {
+          void notifyShipped(params).catch((error) =>
+            console.error('[delivery] Shipped notification failed:', error),
+          )
+          return shipment
+        })
     },
 
     /**
@@ -125,15 +276,30 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
       assertTransition(order.status, 'delivered')
 
       return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const shipment = await shipments.findByOrderId(params.orderId)
-        if (shipment) {
-          await shipments.markDelivered(shipment.id)
+        const deliveredAt = new Date()
+        if (order.quantityLifecycleVersion === 2) {
+          await tx.shipment.updateMany({
+            where: { orderId: params.orderId, status: { not: 'delivered' } },
+            data: { status: 'delivered', deliveredAt },
+          })
+          await tx.orderSellerFulfillment.updateMany({
+            where: { orderId: params.orderId, status: 'shipped' },
+            data: {
+              status: 'delivery_confirmation_pending',
+              deliveredAt,
+            },
+          })
+        } else {
+          const shipment = await shipments.findByOrderId(params.orderId, tx)
+          if (shipment) {
+            await shipments.markDelivered(shipment.id, deliveredAt, tx)
+          }
         }
 
         await orders.updateStatus(params.orderId, 'delivered', tx as unknown as PrismaClient)
         await (tx as PrismaClient).order.update({
           where: { id: params.orderId },
-          data: { deliveredAt: new Date() },
+          data: { deliveredAt },
         })
         await orders.appendStatusHistory(
           params.orderId,
@@ -261,15 +427,22 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
       confirmedLineIds: string[]
     }> {
       const txResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const lifecycle = await tx.order.findUnique({
+          where: { id: orderId },
+          select: { quantityLifecycleVersion: true },
+        })
+        if (!lifecycle) throw new NotFoundError('Order', orderId)
+        const isQuantityLifecycle = lifecycle.quantityLifecycleVersion === 2
         const orderLineWhere: Prisma.OrderLineWhereInput = {
           orderId,
           deliveryConfirmedAt: null,
+          ...(isQuantityLifecycle ? { shippedQuantity: { gt: 0 } } : {}),
           ...(orderLineIds && orderLineIds.length > 0 ? { id: { in: orderLineIds } } : {}),
         }
 
         const linesToStamp = await (tx as PrismaClient).orderLine.findMany({
           where: orderLineWhere,
-          select: { id: true },
+          select: { id: true, sellerId: true },
         })
         const stampedIds = linesToStamp.map((l) => l.id)
 
@@ -286,9 +459,39 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
         // Determine whether ALL active lines are now confirmed. If yes, move
         // order to delivery_confirmed and activate payout hold (caller side).
         const remainingUnconfirmed = await (tx as PrismaClient).orderLine.count({
-          where: { orderId, deliveryConfirmedAt: null },
+          where: {
+            orderId,
+            deliveryConfirmedAt: null,
+            ...(isQuantityLifecycle ? { shippedQuantity: { gt: 0 } } : {}),
+          },
         })
         const allLinesConfirmed = remainingUnconfirmed === 0 && stampedIds.length > 0
+
+        if (isQuantityLifecycle && linesToStamp.length > 0) {
+          for (const sellerId of [...new Set(linesToStamp.map((line) => line.sellerId))]) {
+            const sellerRemaining = await tx.orderLine.count({
+              where: {
+                orderId,
+                sellerId,
+                shippedQuantity: { gt: 0 },
+                deliveryConfirmedAt: null,
+              },
+            })
+            if (sellerRemaining === 0) {
+              await tx.orderSellerFulfillment.updateMany({
+                where: {
+                  orderId,
+                  sellerId,
+                  status: { notIn: ['cancelled', 'delivery_confirmed'] },
+                },
+                data: {
+                  status: 'delivery_confirmed',
+                  deliveryConfirmedAt: confirmation.confirmedAt,
+                },
+              })
+            }
+          }
+        }
 
         if (allLinesConfirmed) {
           await orders.setDeliveryConfirmed(orderId, confirmation.confirmedAt, tx as unknown as PrismaClient)

@@ -24,6 +24,11 @@ vi.mock('@hanuja/api/services/payment.service', () => ({
 vi.mock('@hanuja/api/lib/prisma', () => ({
   createPrismaForRoute: () => ({}),
 }))
+// Card sales are globally disabled until the replacement provider ships. This
+// suite keeps exercising the dormant legacy callback's binding checks only.
+vi.mock('@hanuja/api/lib/payment-capabilities', () => ({
+  isCardPaymentsEnabled: () => true,
+}))
 
 function buildCallbackRequest(fields: Record<string, string>) {
   const body = new URLSearchParams(fields).toString()

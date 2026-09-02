@@ -10,6 +10,8 @@ import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.r
 import { assertTransition, isPostShipmentStatus } from '../domain/order-state-machine'
 import { createPenaltyService } from './penalty.service'
 import { createPaymentService } from './payment.service'
+import { isWithinReturnWindow } from '../domain/penalty-calculator'
+import { createQuantityCancellationService } from './quantity-cancellation.service'
 
 interface OrderServiceDeps {
   prisma: PrismaClient
@@ -20,6 +22,32 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
   const auditLog = createAdminAuditLogRepository(prisma)
   const penalties = createPenaltyService({ prisma })
   const payments = createPaymentService({ prisma })
+  const quantityCancellations = createQuantityCancellationService({ prisma })
+
+  function withQuantityAvailability<T extends { quantityLifecycleVersion: number; lines: Array<{
+    quantity: number
+    cancelledQuantity: number
+    shippedQuantity: number
+    returnClaimedQuantity: number
+    deliveryConfirmedAt: Date | null
+  }> }>(order: T) {
+    if (order.quantityLifecycleVersion !== 2) return order
+    return {
+      ...order,
+      lines: order.lines.map((line) => ({
+        ...line,
+        activeQuantity: Math.max(0, line.quantity - line.cancelledQuantity),
+        cancellableQuantity: Math.max(
+          0,
+          line.quantity - line.cancelledQuantity - line.shippedQuantity,
+        ),
+        returnableQuantity:
+          line.deliveryConfirmedAt && isWithinReturnWindow(line.deliveryConfirmedAt)
+            ? Math.max(0, line.shippedQuantity - line.returnClaimedQuantity)
+            : 0,
+      })),
+    }
+  }
 
   async function cancelOrder(params: {
     orderId: string
@@ -92,6 +120,38 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       const order = await orders.findByIdForSeller(params.orderId, params.sellerId)
       if (!order) throw new NotFoundError('Order', params.orderId)
 
+      if (order.quantityLifecycleVersion === 2) {
+        return prisma.$transaction(async (tx) => {
+          const fulfillment = await tx.orderSellerFulfillment.findUnique({
+            where: {
+              orderId_sellerId: { orderId: params.orderId, sellerId: params.sellerId },
+            },
+          })
+          if (!fulfillment || !['queue_ready', 'reviewing'].includes(fulfillment.status)) {
+            throw new ConflictError('Bu satıcı gönderisi onaylanabilecek durumda değil')
+          }
+
+          const changed = await tx.orderSellerFulfillment.updateMany({
+            where: { id: fulfillment.id, status: fulfillment.status },
+            data: { status: 'accepted', acceptedAt: new Date() },
+          })
+          if (changed.count !== 1) throw new ConflictError('Gönderi durumu başka bir işlemle değişti')
+
+          await tx.order.updateMany({
+            where: { id: params.orderId, status: 'seller_queue_ready' },
+            data: { status: 'seller_accepted' },
+          })
+          await orders.appendStatusHistory(
+            params.orderId,
+            'seller_accepted',
+            params.sellerId,
+            'Satıcı tarafından onaylandı',
+            tx as PrismaClient,
+          )
+          return tx.orderSellerFulfillment.findUniqueOrThrow({ where: { id: fulfillment.id } })
+        })
+      }
+
       assertTransition(order.status, 'seller_accepted')
 
       return prisma.$transaction(async (tx) => {
@@ -118,6 +178,40 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
     }) {
       const order = await orders.findByIdForSeller(params.orderId, params.sellerId)
       if (!order) throw new NotFoundError('Order', params.orderId)
+
+      if (order.quantityLifecycleVersion === 2) {
+        const items = order.lines
+          .map((line) => ({
+            orderLineId: line.id,
+            quantity: line.quantity - line.cancelledQuantity - line.shippedQuantity,
+          }))
+          .filter((item) => item.quantity > 0)
+        if (items.length === 0) {
+          throw new ConflictError('Reddedilebilecek aktif ürün adedi kalmadı')
+        }
+
+        const result = await quantityCancellations.create({
+          orderId: params.orderId,
+          customerId: order.customerId,
+          actorId: params.sellerId,
+          reason: `Satıcı reddi: ${params.reason}`,
+          idempotencyKey: `seller-reject:${params.orderId}:${params.sellerId}`,
+          fullCancellationStatus: 'cancelled_due_to_seller_rejection',
+          items,
+        })
+        await prisma.orderSellerFulfillment.update({
+          where: {
+            orderId_sellerId: { orderId: params.orderId, sellerId: params.sellerId },
+          },
+          data: { status: 'cancelled' },
+        })
+        await penalties.applyForCancellation({
+          orderId: params.orderId,
+          sellerId: params.sellerId,
+          reason: 'seller_rejected_paid_order',
+        })
+        return result
+      }
 
       assertTransition(order.status, 'seller_rejected')
 
@@ -166,6 +260,10 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
     async customerCancel(params: { orderId: string; customerId: string; reason?: string }) {
       const order = await orders.findByIdForCustomer(params.orderId, params.customerId)
       if (!order) throw new NotFoundError('Order', params.orderId)
+
+      if (order.quantityLifecycleVersion === 2) {
+        throw new ConflictError('Bu siparişte ürün ve adet seçerek iptal oluşturun')
+      }
 
       if (isPostShipmentStatus(order.status)) {
         throw new ConflictError(
@@ -240,16 +338,19 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       })
     },
 
-    getOrderForCustomer(orderId: string, customerId: string) {
-      return orders.findByIdForCustomer(orderId, customerId)
+    async getOrderForCustomer(orderId: string, customerId: string) {
+      const order = await orders.findByIdForCustomer(orderId, customerId)
+      return order ? withQuantityAvailability(order) : null
     },
 
-    getOrderForSeller(orderId: string, sellerId: string) {
-      return orders.findByIdForSeller(orderId, sellerId)
+    async getOrderForSeller(orderId: string, sellerId: string) {
+      const order = await orders.findByIdForSeller(orderId, sellerId)
+      return order ? withQuantityAvailability(order) : null
     },
 
-    getOrderForAdmin(orderId: string) {
-      return orders.findById(orderId)
+    async getOrderForAdmin(orderId: string) {
+      const order = await orders.findById(orderId)
+      return order ? withQuantityAvailability(order) : null
     },
 
     listForCustomer(customerId: string, skip?: number, take?: number) {
