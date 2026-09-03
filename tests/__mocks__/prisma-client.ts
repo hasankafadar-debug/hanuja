@@ -133,6 +133,9 @@ export enum CampaignDispatchSource {
 // No-op PrismaClient — prevents accidental DB calls in unit tests
 export const Prisma = {
   JsonNull: null,
+  sql(strings: TemplateStringsArray, ...values: unknown[]) {
+    return { strings: Array.from(strings), values }
+  },
 }
 
 export class PrismaClient {

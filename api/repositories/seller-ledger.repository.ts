@@ -33,7 +33,10 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
     // aggregate + insert atomic for one seller without blocking other sellers.
     if (typeof client.$queryRaw === 'function') {
       await client.$queryRaw(
-        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${data.sellerId}, 0))`,
+        // PostgreSQL returns `void` for pg_advisory_xact_lock. Prisma cannot
+        // deserialize `void`, so cast the selected value while preserving the
+        // transaction-scoped lock side effect.
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${data.sellerId}, 0))::text`,
       )
     }
 

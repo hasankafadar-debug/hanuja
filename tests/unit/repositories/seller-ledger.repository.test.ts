@@ -37,4 +37,36 @@ describe('seller-ledger.repository', () => {
 
     expect(total.toNumber()).toBe(0)
   })
+
+  it('casts the advisory lock result so Prisma does not deserialize PostgreSQL void', async () => {
+    const queryRaw = vi.fn().mockResolvedValue([{ pg_advisory_xact_lock: '' }])
+    const create = vi.fn().mockResolvedValue({ id: 'ledger-1' })
+    const transactionClient = {
+      $queryRaw: queryRaw,
+      sellerLedgerEntry: {
+        aggregate: vi.fn().mockResolvedValue({ _sum: { amount: null } }),
+        create,
+      },
+    }
+    const repo = createSellerLedgerRepository({} as never)
+
+    await repo.createEntry(
+      {
+        sellerId: 'seller-1',
+        type: 'sale',
+        amount: new Decimal('100.00'),
+        referenceType: 'order',
+        referenceId: 'order-1',
+      },
+      transactionClient as never,
+    )
+
+    expect(queryRaw).toHaveBeenCalledTimes(1)
+    const query = queryRaw.mock.calls[0]?.[0] as { strings?: string[] }
+    expect(query.strings?.join('')).toContain('pg_advisory_xact_lock')
+    expect(query.strings?.join('')).toContain('::text')
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ balanceAfter: new Decimal('100.00') }),
+    }))
+  })
 })
