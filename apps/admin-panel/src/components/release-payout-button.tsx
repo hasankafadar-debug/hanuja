@@ -14,7 +14,8 @@ import {
   Label,
   Textarea,
 } from '@hanuja/ui'
-import { StepUpModal } from './step-up-modal'
+import { csrfFetch } from '@/lib/csrf-fetch'
+import { getApiErrorMessage } from '@/lib/api-error'
 
 interface ReleasePayoutButtonProps {
   payoutId: string
@@ -41,9 +42,8 @@ export function ReleasePayoutButton({
   const [transferReference, setTransferReference] = useState('')
   const [transferBankName, setTransferBankName] = useState(defaultBankName)
   const [transferNote, setTransferNote] = useState('')
-  const [stepUpOpen, setStepUpOpen] = useState(false)
 
-  async function handleRelease(stepUpToken?: string) {
+  async function handleRelease() {
     if (!transferDate) {
       setError('Transfer date is required.')
       return
@@ -53,9 +53,9 @@ export function ReleasePayoutButton({
     setError(null)
 
     try {
-      const response = await fetch(`/api/admin/payouts/${payoutId}/release`, {
+      const response = await csrfFetch(`/api/admin/payouts/${payoutId}/release`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(stepUpToken ? { 'x-step-up-token': stepUpToken } : {}) },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transferDate: new Date(`${transferDate}T12:00:00.000Z`).toISOString(),
           transferReference: transferReference.trim() || undefined,
@@ -66,13 +66,14 @@ export function ReleasePayoutButton({
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
-        if ((payload as { code?: string }).code === 'STEP_UP_REQUIRED') { setStepUpOpen(true); return }
-        setError(payload.error ?? 'Payment could not be recorded.')
+        setError(getApiErrorMessage(payload, 'Payment could not be recorded.'))
         return
       }
 
       setOpen(false)
       router.refresh()
+    } catch {
+      setError('Network error. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -150,7 +151,7 @@ export function ReleasePayoutButton({
           </div>
 
           {error ? (
-            <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>
+            <p role="alert" className="text-sm" style={{ color: 'var(--color-destructive)' }}>
               {error}
             </p>
           ) : null}
@@ -165,7 +166,6 @@ export function ReleasePayoutButton({
           </Button>
         </DialogFooter>
       </DialogContent>
-      <StepUpModal open={stepUpOpen} capability="payout:release" onClose={() => setStepUpOpen(false)} onVerified={(token) => { setStepUpOpen(false); void handleRelease(token) }} />
     </Dialog>
   )
 }

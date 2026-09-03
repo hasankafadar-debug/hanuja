@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, Input } from '@hanuja/ui'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface Row {
   id: string
@@ -27,7 +28,7 @@ export function BankDetailReviewTable({ rows }: { rows: Row[] }) {
       return
     }
 
-    const res = await fetch(`/api/admin/bank-details/${id}/${action}`, {
+    const res = await csrfFetch(`/api/admin/bank-details/${id}/${action}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason }),

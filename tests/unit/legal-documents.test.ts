@@ -33,8 +33,21 @@ describe('legal documents', () => {
     expect(bundle.preInformationHtml).toContain(
       `<strong>Belge Sürümü:</strong> ${PRE_INFORMATION_DOCUMENT_VERSION}`,
     )
+    expect(bundle.distanceSalesVersion).toBe('distance-sales-2026-09-03-v3')
+    expect(bundle.preInformationVersion).toBe('pre-information-2026-09-03-v3')
     expect(bundle.distanceSalesVersion).not.toBe('distance-sales-2026-06-16-v1')
     expect(bundle.preInformationVersion).not.toBe('pre-information-2026-06-16-v1')
+  })
+
+  it('shows VAT-inclusive prices without a separate calculated VAT line', () => {
+    const bundle = renderLegalDocuments(buildPublicLegalDocumentContext())
+
+    for (const html of [bundle.distanceSalesHtml, bundle.preInformationHtml]) {
+      expect(html).toContain('KDV Dahil')
+      expect(html).toContain('Toplam Sipariş Bedeli')
+      expect(html).not.toContain('Hesaplanan KDV')
+      expect(html).not.toContain('ürün bedelleri, KDV, kargo')
+    }
   })
 
   it('uses the 2026 return shipping posture and does not keep old electronics exceptions', () => {

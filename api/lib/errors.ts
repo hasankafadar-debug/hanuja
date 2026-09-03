@@ -48,13 +48,6 @@ export class ForbiddenError extends DomainError {
   }
 }
 
-export class StepUpRequiredError extends DomainError {
-  constructor() {
-    super('Bu islem icin yeniden kimlik dogrulama gerekli', 'STEP_UP_REQUIRED', 403)
-    this.name = 'StepUpRequiredError'
-  }
-}
-
 export class ConflictError extends DomainError {
   constructor(message: string) {
     super(message, 'CONFLICT', 409)

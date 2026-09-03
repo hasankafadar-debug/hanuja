@@ -4,6 +4,8 @@ import { Decimal } from '@prisma/client/runtime/client'
 
 const {
   checkUserRateLimitMock,
+  approveEftMock,
+  rejectEftMock,
   createPlatformSettingsServiceMock,
   getSessionMock,
   moderateReviewMock,
@@ -27,6 +29,8 @@ const {
   }
 
   return {
+    approveEftMock: vi.fn(),
+    rejectEftMock: vi.fn(),
     checkUserRateLimitMock: vi.fn(),
     createPlatformSettingsServiceMock: vi.fn(() => ({
       get: platformSettingsGetMock,
@@ -78,12 +82,18 @@ vi.mock('@hanuja/api/routes/product-reviews', () => ({
 vi.mock('@hanuja/api/routes/returns', () => ({
   reviewReturnRequest: reviewReturnRequestMock,
 }))
+vi.mock('@hanuja/api/routes/payments', () => ({
+  approveEft: approveEftMock,
+  rejectEft: rejectEftMock,
+}))
 
 import { POST as firstPasswordPost } from '../../apps/seller-panel/src/app/api/seller/first-password/route'
 import { PUT as updatePenalty } from '../../apps/admin-panel/src/app/api/admin/penalties/[id]/route'
 import { PATCH as updatePlatformSettings } from '../../apps/admin-panel/src/app/api/admin/platform-settings/route'
 import { POST as moderateReviewPost } from '../../apps/admin-panel/src/app/api/admin/reviews/[id]/moderate/route'
 import { POST as reviewReturnPost } from '../../apps/admin-panel/src/app/api/admin/returns/[id]/review/route'
+import { POST as approveEftPost } from '../../apps/admin-panel/src/app/api/admin/payments/eft/[orderId]/approve/route'
+import { POST as rejectEftPost } from '../../apps/admin-panel/src/app/api/admin/payments/eft/[orderId]/reject/route'
 
 const VALID_CSRF_TOKEN = 'a'.repeat(64)
 const INVALID_CSRF_TOKEN = 'b'.repeat(64)
@@ -140,6 +150,8 @@ beforeEach(() => {
   platformSettingsUpdateMock.mockResolvedValue({ id: 'platform' })
   moderateReviewMock.mockResolvedValue(NextResponse.json({ success: true }))
   reviewReturnRequestMock.mockResolvedValue(NextResponse.json({ success: true }))
+  approveEftMock.mockResolvedValue(NextResponse.json({ success: true }))
+  rejectEftMock.mockResolvedValue(NextResponse.json({ success: true }))
 })
 
 afterEach(() => {
@@ -240,6 +252,18 @@ const adminTargets: AdminTarget[] = [
     invoke: (req) => reviewReturnPost(req, { params: Promise.resolve({ id: 'return-1' }) }),
     request: () => request('/api/admin/returns/return-1/review', { decision: 'approved' }),
     businessSpy: reviewReturnRequestMock,
+  },
+  {
+    name: 'EFT approval',
+    invoke: (req) => approveEftPost(req, { params: Promise.resolve({ orderId: 'order-1' }) }),
+    request: () => request('/api/admin/payments/eft/order-1/approve', {}),
+    businessSpy: approveEftMock,
+  },
+  {
+    name: 'EFT rejection',
+    invoke: (req) => rejectEftPost(req, { params: Promise.resolve({ orderId: 'order-1' }) }),
+    request: () => request('/api/admin/payments/eft/order-1/reject', { reason: 'Dekont doğrulanamadı' }),
+    businessSpy: rejectEftMock,
   },
 ]
 

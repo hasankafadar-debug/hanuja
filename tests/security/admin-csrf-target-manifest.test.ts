@@ -1,7 +1,7 @@
 /**
- * HNJ-SEC-008 deliberately protects the step-up-less admin mutations below.
- * Routes that consume a one-use `x-step-up-token` are recorded separately:
- * step-up is an additional intent proof, not a substitute for this CSRF pass.
+ * HNJ-SEC-008 protects privileged admin mutations with double-submit CSRF.
+ * Admin TOTP is verified at sign-in; action routes must not implement a second
+ * step-up challenge.
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { readFile } from 'node:fs/promises'
@@ -67,12 +67,21 @@ const HNJ_SEC_008_TARGETS: TargetMutation[] = [
   },
 ]
 
-const STEP_UP_PROTECTED_NOT_TARGETED = [
+const LOGIN_MFA_ONLY_ROUTES = [
+  'apps/admin-panel/src/app/api/admin/bank-details/[id]/approve/route.ts',
+  'apps/admin-panel/src/app/api/admin/bank-details/[id]/block/route.ts',
+  'apps/admin-panel/src/app/api/admin/order-lines/[id]/commission-exempt/route.ts',
+  'apps/admin-panel/src/app/api/admin/orders/[id]/block-payout/route.ts',
+  'apps/admin-panel/src/app/api/admin/orders/[id]/cancel/route.ts',
+  'apps/admin-panel/src/app/api/admin/orders/[id]/confirm-delivery/route.ts',
   'apps/admin-panel/src/app/api/admin/orders/[id]/penalties/route.ts',
   'apps/admin-panel/src/app/api/admin/penalties/[id]/waive/route.ts',
   'apps/admin-panel/src/app/api/admin/payments/eft/[orderId]/approve/route.ts',
   'apps/admin-panel/src/app/api/admin/payments/eft/[orderId]/reject/route.ts',
   'apps/admin-panel/src/app/api/admin/payouts/[id]/release/route.ts',
+  'apps/admin-panel/src/app/api/admin/refunds/[id]/complete/route.ts',
+  'apps/admin-panel/src/app/api/admin/sellers/[id]/reset-password/route.ts',
+  'apps/admin-panel/src/app/api/admin/sellers/[id]/status/route.ts',
 ]
 
 async function source(relativePath: string) {
@@ -124,10 +133,14 @@ describe('HNJ-SEC-008 admin CSRF route/client manifest', () => {
     expect(clientSource).toContain('refundAmount" value="0"')
   })
 
-  it('documents the separate step-up-protected financial routes', async () => {
-    const routes = await Promise.all(STEP_UP_PROTECTED_NOT_TARGETED.map(source))
+  it('keeps login-MFA-only admin mutations CSRF protected without step-up tokens', async () => {
+    const routes = await Promise.all(LOGIN_MFA_ONLY_ROUTES.map(source))
     for (const routeSource of routes) {
-      expect(routeSource).toContain('requireAdminStepUp')
+      expect(routeSource).toContain("import { checkCsrf } from '@hanuja/api/lib/csrf-check'")
+      expect(routeSource).toMatch(/const csrfError = checkCsrf\((req|request)\)/)
+      expect(routeSource.indexOf('checkCsrf(')).toBeLessThan(routeSource.indexOf('getSession'))
+      expect(routeSource).not.toContain('requireAdminStepUp')
+      expect(routeSource).not.toContain('x-step-up-token')
     }
   })
 })

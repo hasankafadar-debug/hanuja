@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 import { PLATFORM_LEGAL_INFO } from './platform-info'
 
-export const DISTANCE_SALES_DOCUMENT_VERSION = 'distance-sales-2026-09-03-v2'
-export const PRE_INFORMATION_DOCUMENT_VERSION = 'pre-information-2026-09-03-v2'
+export const DISTANCE_SALES_DOCUMENT_VERSION = 'distance-sales-2026-09-03-v3'
+export const PRE_INFORMATION_DOCUMENT_VERSION = 'pre-information-2026-09-03-v3'
 
 export interface LegalBuyerSnapshot {
   fullName: string
@@ -238,10 +238,6 @@ function renderOrderSummary(context: LegalContractContext) {
       <div class="summary-row">
         <strong>Kargo</strong>
         <span>${formatCurrency(context.shippingAmount)}</span>
-      </div>
-      <div class="summary-row">
-        <strong>Hesaplanan KDV</strong>
-        <span>${formatCurrency(context.taxAmount)}</span>
       </div>
       <div class="summary-row">
         <strong>Toplam Sipariş Bedeli</strong>
@@ -506,7 +502,7 @@ function renderPreInformation(context: LegalContractContext) {
         <h2>5. Ödeme, Ek Masraflar ve Teknik Sipariş Adımları</h2>
         <p>
           Sipariş bedeli ${escapeHtml(paymentMethodLabel(context.paymentMethod))} yöntemiyle tahsil edilir veya
-          ödeme beklemeye alınır. Toplam bedel; ürün bedelleri, KDV, kargo ve sipariş sırasında gösterilen
+          ödeme beklemeye alınır. Toplam bedel; ürün bedelleri, kargo ve sipariş sırasında gösterilen
           indirim/ek ücretleri içerir. Alıcı, ödeme öncesinde sepeti, adresi, fatura bilgisini, ödeme yöntemini
           ve ürün adetlerini kontrol edip düzeltebilir.
         </p>

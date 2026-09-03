@@ -32,7 +32,7 @@ flowchart LR
 1. **Anonim internet → uygulamalar:** tüm route, header, body, URL ve upload metadata saldırgan kontrollüdür.
 2. **Kimliği doğrulanmış kullanıcı → domain nesnesi:** session kimliği nesne sahipliği değildir; order/dispute/return/seller ilişkisi her serviste ayrıca kanıtlanmalıdır.
 3. **Seller → müşteri PII:** seller meşru fulfillment katılımcısıdır fakat purpose limitation geçerlidir; account e-postası ve operasyonel teslimat verisi aynı kategori değildir.
-4. **Admin tarayıcısı → finansal mutasyon:** admin session tek başına intent kanıtı değildir; CSRF ve yüksek riskli eylemlerde step-up gerekir.
+4. **Admin tarayıcısı → finansal mutasyon:** admin girişinde TOTP uygulanır; mutasyonlarda CSRF, sunucu tarafı rol/izin kontrolü ve audit kaydı gerekir.
 5. **Uygulama → R2:** server credential tüm kovayı okuyabilir. Key bilinmesi yetki anlamına gelmemelidir.
 6. **Public CDN → R2:** custom domain'e bağlanan tek kova, uygulama auth katmanını atlayan ayrı bir okuma yüzeyidir.
 7. **Upload → worker:** doğrulanmış kullanıcı içeriği güvenilir değildir; byte boyutu, decode edilen piksel sayısı ve işlem süresi sınırlanmalıdır.
@@ -96,11 +96,13 @@ flowchart LR
 
 1. Saldırgan `www` veya `satici` sibling origin'de script execution kazanır.
 2. Admin cookie kapsamı ve CORS/request şekli izin verirse admin API'ye credentialed request yollar.
-3. Step-up'sız JSON route, CSRF token kontrolü olmadan penalty/platform setting/return state değiştirir.
+3. JSON route, CSRF token kontrolü olmadan penalty/platform setting/return state değiştirir.
 
-**Kontrol:** Host-scoped cookie; CSRF double-submit header; route ve `csrfFetch` client'ı birlikte değiştirme; Origin/Content-Type doğrulaması; yüksek etkili işlemlerde step-up; CSP ve sibling origin takeover/XSS önleme.
+**Kontrol:** Admin girişinde TOTP; host-scoped cookie; CSRF double-submit header; route ve `csrfFetch` client'ı birlikte değiştirme; sunucu tarafı rol/izin doğrulaması; audit kaydı; Origin/Content-Type doğrulaması; CSP ve sibling origin takeover/XSS önleme.
 
 **2026-08-03 durumu:** Dört step-up'sız admin mutasyonu ve seller ilk-parola route'u handler seviyesinde korundu; production-semantics entegrasyon testleri eklendi. `mark-received` akışı sıfır refund tutarlı mevcut iş kuralı hatası çözülmeden dönüştürülmedi ve açık envanterde tutuldu.
+
+**2026-09-03 durumu:** Admin TOTP doğrulaması giriş aşamasında uygulanır. İşlem bazlı step-up grant akışı kaldırılmıştır; kritik admin mutasyonları session, rol/izin, CSRF, doğrulama ve audit kontrolleriyle korunur.
 
 ### TM-05 — Upload ile kaynak tüketimi
 
@@ -119,7 +121,7 @@ flowchart LR
 | TM-01 dispute IDOR | Orta | Yüksek | High | `apps/web/src/app/api/disputes/[id]`, `api/services/dispute.service.ts`, `api/repositories/dispute.repository.ts` |
 | TM-02 private medya | Orta | Yüksek | High | `api/routes/media.ts:fetchPublicMedia`, `api/lib/media-url.ts`, canlı `media.hanuja.tr` |
 | TM-03 auth fallback | Düşük/Belirsiz | Kritik | Koşullu Critical | üç `apps/*/src/lib/auth.ts`, `packages/config/src/env.ts` |
-| TM-04 admin CSRF chain | Düşük-Orta | Yüksek | High/Medium | `api/lib/csrf-check.ts`, step-up'sız admin mutasyon route'ları |
+| TM-04 admin CSRF chain | Düşük-Orta | Yüksek | High/Medium | `api/lib/csrf-check.ts`, admin mutasyon route'ları |
 | TM-05 upload DoS | Orta | Yüksek | High | `api/lib/r2.ts`, `api/services/media.service.ts`, `api/jobs/media-processing.job.ts` |
 | Seller e-posta disclosure | Yüksek (normal akış) | Orta | Medium | `api/services/order-document.service.ts`, seller detail/download |
 | Middleware shadowing | Yüksek (deterministik) | Orta-Yüksek | High | `apps/*/middleware.ts` ve `apps/*/src/middleware.ts`; canlı header gözlemi |
@@ -128,7 +130,7 @@ flowchart LR
 
 - Better Auth session ve server-side panel layout kontrolleri vardır.
 - Seller order sorguları seller/order line ilişkisiyle filtrelenir.
-- Finansal işlemlerin önemli bir alt kümesi tek kullanımlık step-up grant ister.
+- Admin girişinde TOTP uygulanır; kritik admin mutasyonları CSRF, rol/izin ve audit kontrolleri ister.
 - R2 key'leri server-side UUID ile oluşturulur; kullanıcı filename'i key olarak kullanılmaz.
 - KYC belgeleri public R2 yerine AES-256-GCM ile private persistent storage'da tutulur.
 - Iyzico ödeme bağlama, tutar ve provider ID kontrolleri için ayrı güvenlik katmanları bulunur.

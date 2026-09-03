@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 type Line = {
   id: string
@@ -55,7 +56,7 @@ export function PerLineDeliveryConfirm({
     setError(null)
     const allSelected = selected.size === pendingLines.length
 
-    const res = await fetch(`/api/admin/orders/${orderId}/confirm-delivery`, {
+    const res = await csrfFetch(`/api/admin/orders/${orderId}/confirm-delivery`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

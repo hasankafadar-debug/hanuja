@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 type Row = {
   id: string
@@ -64,7 +65,7 @@ export function QueueConfirm({ lines }: { lines: Row[] }) {
       if (lineIdsForOrder.length === 0) continue
       const allSelected = lineIdsForOrder.length === orderLines.length
 
-      const res = await fetch(`/api/admin/orders/${orderId}/confirm-delivery`, {
+      const res = await csrfFetch(`/api/admin/orders/${orderId}/confirm-delivery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -8,7 +8,7 @@ import { UnauthorizedError, ForbiddenError, NotFoundError } from '@hanuja/api/li
 import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { handleError, ok } from '@hanuja/api/lib/response'
 import { getSellerPanelUrl } from '@hanuja/api/lib/platform-info'
-import { requireAdminStepUp } from '@/lib/step-up'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { revokeTrustedDevices } from '@hanuja/api/lib/auth-security'
 
 const bodySchema = z.object({
@@ -20,11 +20,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const csrfError = checkCsrf(req)
+    if (csrfError) return csrfError
+
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     if (session.user.role !== 'admin') throw new ForbiddenError()
-    await requireAdminStepUp(req, session, 'seller:password-reset')
-
     const rl = await checkUserRateLimit(session.user.id, 'sellers:reset-password', HIGH_RISK_RATE_LIMIT)
     if (!rl.allowed) return rl.response!
 

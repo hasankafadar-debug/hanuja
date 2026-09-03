@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 export function InvoiceRowAction({
   orderLineId,
@@ -193,7 +194,7 @@ export function ExemptRowAction({ orderLineId }: { orderLineId: string }) {
       return
     }
 
-    const res = await fetch(`/api/admin/order-lines/${orderLineId}/commission-exempt`, {
+    const res = await csrfFetch(`/api/admin/order-lines/${orderLineId}/commission-exempt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason: reason.trim() }),

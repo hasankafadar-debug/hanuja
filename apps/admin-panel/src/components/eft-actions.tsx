@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@hanuja/ui'
-import { StepUpModal } from './step-up-modal'
-import type { CriticalCapability } from '@hanuja/api/lib/auth-security'
+import { csrfFetch } from '@/lib/csrf-fetch'
+import { getApiErrorMessage } from '@/lib/api-error'
 
 interface EftActionsProps {
   orderId: string
@@ -32,14 +32,16 @@ export function EftActions({ orderId }: EftActionsProps) {
   const [modal, setModal] = useState<ApproveModalState>(INITIAL_MODAL)
   const [rejectReason, setRejectReason] = useState('Dekont doğrulanamadı')
   const [showReject, setShowReject] = useState(false)
-  const [stepUp, setStepUp] = useState<CriticalCapability | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   function openApproveModal() {
+    setError(null)
     setModal({ ...INITIAL_MODAL, open: true })
   }
 
-  async function submitApprove(stepUpToken?: string) {
+  async function submitApprove() {
     setLoading('approve')
+    setError(null)
     try {
       let discountAmount: number | undefined
       if (modal.discountType !== 'none' && modal.discountValue) {
@@ -57,34 +59,43 @@ export function EftActions({ orderId }: EftActionsProps) {
         body.discountReason = modal.discountReason || 'Admin onayı'
       }
 
-      const response = await fetch(`/api/admin/payments/eft/${orderId}/approve`, {
+      const response = await csrfFetch(`/api/admin/payments/eft/${orderId}/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(stepUpToken ? { 'x-step-up-token': stepUpToken } : {}) },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const payload = await response.json().catch(() => ({})) as { code?: string }
-      if (response.status === 403 && payload.code === 'STEP_UP_REQUIRED') { setStepUp('eft:approve'); return }
-      if (!response.ok) return
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setError(getApiErrorMessage(payload, 'EFT ödemesi onaylanamadı.'))
+        return
+      }
       setModal(INITIAL_MODAL)
       router.refresh()
+    } catch {
+      setError('Ağ hatası. Tekrar deneyin.')
     } finally {
       setLoading(null)
     }
   }
 
-  async function submitReject(stepUpToken?: string) {
+  async function submitReject() {
     setLoading('reject')
+    setError(null)
     try {
-      const response = await fetch(`/api/admin/payments/eft/${orderId}/reject`, {
+      const response = await csrfFetch(`/api/admin/payments/eft/${orderId}/reject`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(stepUpToken ? { 'x-step-up-token': stepUpToken } : {}) },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: rejectReason }),
       })
-      const payload = await response.json().catch(() => ({})) as { code?: string }
-      if (response.status === 403 && payload.code === 'STEP_UP_REQUIRED') { setStepUp('eft:reject'); return }
-      if (!response.ok) return
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setError(getApiErrorMessage(payload, 'EFT ödemesi reddedilemedi.'))
+        return
+      }
       setShowReject(false)
       router.refresh()
+    } catch {
+      setError('Ağ hatası. Tekrar deneyin.')
     } finally {
       setLoading(null)
     }
@@ -99,7 +110,10 @@ export function EftActions({ orderId }: EftActionsProps) {
         <Button
           size="sm"
           variant="destructive"
-          onClick={() => setShowReject(true)}
+          onClick={() => {
+            setError(null)
+            setShowReject(true)
+          }}
           disabled={loading !== null}
         >
           Reddet
@@ -162,6 +176,8 @@ export function EftActions({ orderId }: EftActionsProps) {
               </>
             )}
 
+            {error ? <p role="alert" className="mb-4 text-sm text-red-600">{error}</p> : null}
+
             <div className="flex justify-end gap-2">
               <Button
                 size="sm"
@@ -191,6 +207,7 @@ export function EftActions({ orderId }: EftActionsProps) {
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
             />
+            {error ? <p role="alert" className="mb-4 text-sm text-red-600">{error}</p> : null}
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="outline" onClick={() => setShowReject(false)}>
                 İptal
@@ -207,11 +224,6 @@ export function EftActions({ orderId }: EftActionsProps) {
           </div>
         </div>
       )}
-      <StepUpModal open={stepUp !== null} capability={stepUp} onClose={() => setStepUp(null)} onVerified={(token) => {
-        const action = stepUp; setStepUp(null)
-        if (action === 'eft:approve') void submitApprove(token)
-        if (action === 'eft:reject') void submitReject(token)
-      }} />
     </>
   )
 }

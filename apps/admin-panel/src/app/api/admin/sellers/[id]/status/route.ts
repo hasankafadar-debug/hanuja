@@ -12,7 +12,6 @@ import { sendEmail } from '@hanuja/api/lib/mailer'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { enqueueStoreSync } from '@hanuja/api/jobs/search-index-sync.job'
 import { createAdminSellerActivationService } from '@hanuja/api/services/admin-seller-activation.service'
-import { requireAdminStepUp } from '@/lib/step-up'
 
 const bodySchema = z
   .object({
@@ -40,8 +39,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params
     const body = await req.json()
     const { status, reason } = bodySchema.parse(body)
-    if (status === 'suspended') await requireAdminStepUp(req, session, 'seller:suspend')
-    if (status === 'active') await requireAdminStepUp(req, session, 'seller:reactivate')
 
     const prisma = createPrismaForRoute()
     const sellers = createSellerRepository(prisma)

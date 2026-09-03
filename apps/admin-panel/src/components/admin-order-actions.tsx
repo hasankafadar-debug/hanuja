@@ -13,6 +13,8 @@ import {
   Input,
   Textarea,
 } from '@hanuja/ui'
+import { csrfFetch } from '@/lib/csrf-fetch'
+import { getApiErrorMessage } from '@/lib/api-error'
 
 interface AdminOrderActionsProps {
   orderId: string
@@ -50,14 +52,14 @@ export function AdminOrderActions({
     if (!confirm(confirmMsg)) return
     setLoading(key)
     try {
-      const res = await fetch(url, {
+      const res = await csrfFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        alert((data as { error?: string }).error ?? 'İşlem başarısız. Detay için loglara bakın.')
+        alert(getApiErrorMessage(data, 'İşlem başarısız. Detay için loglara bakın.'))
         return
       }
       router.refresh()
@@ -73,7 +75,7 @@ export function AdminOrderActions({
 
     setLoading('manual-penalty')
     try {
-      const res = await fetch(`/api/admin/orders/${orderId}/penalties`, {
+      const res = await csrfFetch(`/api/admin/orders/${orderId}/penalties`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -85,7 +87,7 @@ export function AdminOrderActions({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        alert((data as { error?: string }).error ?? 'Ceza uygulanamadı.')
+        alert(getApiErrorMessage(data, 'Ceza uygulanamadı.'))
         return
       }
 
