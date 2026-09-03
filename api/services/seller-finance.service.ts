@@ -1,5 +1,4 @@
 import type { PrismaClient } from '@prisma/client'
-import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 import {
   type SellerStatementRow,
   getSellerStatementDescription,
@@ -22,8 +21,6 @@ function escapeCsvCell(value: string) {
 }
 
 export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps) {
-  const ledger = createSellerLedgerRepository(prisma)
-
   return {
     async getStatement(params: {
       sellerId: string
@@ -35,17 +32,26 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
       rows: SellerStatementRow[]
     }> {
       const [openingBalanceRaw, entries] = await Promise.all([
-        ledger.getOpeningBalance(params.sellerId, params.from, { visibleToSeller: true }),
+        prisma.sellerLedgerEntry
+          .aggregate({
+            where: {
+              sellerId: params.sellerId,
+              visibleToSeller: true,
+              effectiveAt: { lt: params.from },
+            },
+            _sum: { amount: true },
+          })
+          .then((result) => result._sum.amount ?? 0),
         prisma.sellerLedgerEntry.findMany({
           where: {
             sellerId: params.sellerId,
             visibleToSeller: true,
-            createdAt: {
+            effectiveAt: {
               gte: params.from,
               lte: params.to,
             },
           },
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          orderBy: [{ effectiveAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
         }),
       ])
 
@@ -55,8 +61,11 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
       const penaltyIds = entries
         .filter((entry) => entry.referenceType === 'penalty')
         .map((entry) => entry.referenceId)
+      const refundIds = entries
+        .filter((entry) => entry.referenceType === 'refund_transaction')
+        .map((entry) => entry.referenceId)
 
-      const [payoutRefs, penaltyRefs] = await Promise.all([
+      const [payoutRefs, penaltyRefs, refundRefs] = await Promise.all([
         payoutIds.length
           ? prisma.payout.findMany({
               where: { id: { in: payoutIds } },
@@ -69,22 +78,34 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
               select: { id: true, orderId: true },
             })
           : Promise.resolve([]),
+        refundIds.length
+          ? prisma.refundTransaction.findMany({
+              where: { id: { in: refundIds } },
+              select: { id: true, orderId: true, sourceType: true },
+            })
+          : Promise.resolve([]),
       ])
 
       const payoutOrderMap = new Map(payoutRefs.map((item) => [item.id, item.orderId]))
       const penaltyOrderMap = new Map(penaltyRefs.map((item) => [item.id, item.orderId]))
+      const refundOrderMap = new Map(refundRefs.map((item) => [item.id, item.orderId]))
+      const refundSourceTypeMap = new Map(refundRefs.map((item) => [item.id, item.sourceType]))
+
+      const resolveOrderId = (entry: (typeof entries)[number]) =>
+        entry.referenceType === 'order'
+          ? entry.referenceId
+          : entry.referenceType === 'payout'
+            ? payoutOrderMap.get(entry.referenceId)
+            : entry.referenceType === 'penalty'
+              ? penaltyOrderMap.get(entry.referenceId)
+              : entry.referenceType === 'refund_transaction'
+                ? refundOrderMap.get(entry.referenceId)
+                : undefined
 
       // Collect all order IDs referenced by entries so we can show publicNumber
       const allOrderIds = new Set<string>()
       for (const entry of entries) {
-        const orderId =
-          entry.referenceType === 'order'
-            ? entry.referenceId
-            : entry.referenceType === 'payout'
-              ? payoutOrderMap.get(entry.referenceId)
-              : entry.referenceType === 'penalty'
-                ? penaltyOrderMap.get(entry.referenceId)
-                : undefined
+        const orderId = resolveOrderId(entry)
         if (orderId) allOrderIds.add(orderId)
       }
 
@@ -113,14 +134,11 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
         )
         runningBalance += amount
 
-        const orderId =
-          entry.referenceType === 'order'
-            ? entry.referenceId
-            : entry.referenceType === 'payout'
-              ? payoutOrderMap.get(entry.referenceId)
-              : entry.referenceType === 'penalty'
-                ? penaltyOrderMap.get(entry.referenceId)
-                : undefined
+        const orderId = resolveOrderId(entry)
+        const refundSourceType =
+          entry.referenceType === 'refund_transaction'
+            ? refundSourceTypeMap.get(entry.referenceId)
+            : undefined
 
         const reference = orderId
           ? formatOrderDisplayNumber(orderPublicNumberMap.get(orderId), orderId)
@@ -128,9 +146,11 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
 
         return {
           id: entry.id,
-          date: entry.createdAt,
+          date: entry.effectiveAt,
           reference,
-          topic: getSellerStatementTopic(entry.type),
+          ...(orderId ? { orderId } : {}),
+          ...(refundSourceType ? { refundSourceType } : {}),
+          topic: getSellerStatementTopic(entry.type, refundSourceType),
           description: entry.description?.trim() || getSellerStatementDescription(entry.type),
           credit: amount > 0 ? amount : 0,
           debit: amount < 0 ? Math.abs(amount) : 0,

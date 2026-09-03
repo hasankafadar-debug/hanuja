@@ -79,6 +79,7 @@ export default async function SellerOrderDetailPage({ params }: Props) {
     quantity: number
     cancelledQuantity: number
     shippedQuantity: number
+    activeQuantity?: number
     unitPrice: { toNumber(): number } | number
     commissionAmount?: { toNumber(): number } | number
     product: { id: string; name: string; slug: string } | null
@@ -190,19 +191,33 @@ export default async function SellerOrderDetailPage({ params }: Props) {
             <div className="space-y-4">
               {lines.map((line) => {
                 const total = toNumber(line.unitPrice) * line.quantity
+                const lineCurrentQuantity = Math.max(
+                  0,
+                  line.activeQuantity ?? line.quantity - line.cancelledQuantity,
+                )
                 return (
-                  <div key={line.id} className="flex items-center justify-between gap-4">
-                    <div>
+                  <div
+                    key={line.id}
+                    className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-6"
+                  >
+                    <div className="min-w-0">
                       <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
                         {line.product?.name ?? 'Ürün'}
                       </p>
                       <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                        {line.quantity} adet
-                        {line.cancelledQuantity > 0 ? ` · ${line.cancelledQuantity} iptal` : ''}
-                        {line.shippedQuantity > 0 ? ` · ${line.shippedQuantity} kargolandı` : ''}
+                        Orijinal: {line.quantity} · Güncel: {lineCurrentQuantity} · İptal: {line.cancelledQuantity} · Kargolanan: {line.shippedQuantity}
                       </p>
                     </div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                    <p
+                      className="w-fit whitespace-nowrap rounded-md px-3 py-2 text-sm font-semibold sm:justify-self-center"
+                      style={{ color: 'var(--color-primary)', backgroundColor: 'var(--color-muted)' }}
+                    >
+                      Sevk Adeti: {lineCurrentQuantity} adet
+                    </p>
+                    <p
+                      className="text-sm font-medium sm:justify-self-end"
+                      style={{ color: 'var(--color-primary)' }}
+                    >
                       {formatMoney(total)}
                     </p>
                   </div>

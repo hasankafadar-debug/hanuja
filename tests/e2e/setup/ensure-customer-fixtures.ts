@@ -201,6 +201,7 @@ async function createOrderFixture(
       id: params.paymentId,
       orderId: params.orderId,
       method: PaymentMethod.card,
+      provider: 'iyzico',
       status: PaymentStatus.confirmed,
       amount: params.productPrice,
       confirmedAt: params.paymentConfirmedAt ?? params.createdAt,

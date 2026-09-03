@@ -11,11 +11,9 @@
  *   - always writes a negative seller ledger entry so payout reconciles
  */
 import type { PrismaClient } from '@prisma/client'
-import type { Decimal } from '@prisma/client/runtime/client'
-import { ConflictError } from '../lib/errors'
+import { Decimal } from '@prisma/client/runtime/client'
 import { createReturnRequestRepository } from '../repositories/return-request.repository'
-import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
-import { refundPayment as iyzicoRefund } from '../lib/iyzico'
+import { createQuantityRefundService } from './quantity-refund.service'
 
 interface RefundServiceDeps {
   prisma: PrismaClient
@@ -23,7 +21,7 @@ interface RefundServiceDeps {
 
 export function createRefundService({ prisma }: RefundServiceDeps) {
   const returnRequests = createReturnRequestRepository(prisma)
-  const ledger = createSellerLedgerRepository(prisma)
+  const quantityRefunds = createQuantityRefundService({ prisma })
 
   return {
     /**
@@ -44,46 +42,20 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
         return fresh // already refunded — idempotent no-op
       }
 
-      const cardPayment = params.payments.find(
-        (p) => p.method === 'card' && p.providerPaymentId,
-      )
-      if (cardPayment?.providerPaymentId) {
-        const refundResult = await iyzicoRefund({
-          paymentTransactionId: cardPayment.providerPaymentId,
-          price: params.refundAmount.toFixed(2),
-          conversationId: `refund-${params.returnRequestId}`,
-          ip: params.ip ?? '127.0.0.1',
-        })
-        if (!refundResult.success) {
-          throw new ConflictError(
-            `Iyzico iade başarısız: ${refundResult.errorMessage ?? refundResult.errorCode ?? 'Bilinmeyen hata'}`,
-          )
-        }
-        await prisma.paymentEvent.create({
-          data: {
-            paymentId: cardPayment.id,
-            eventType: 'refund_initiated',
-            payload: {
-              note: `İade — ${params.refundAmount.toFixed(2)} TRY (${params.actorRef})`,
-              iyzicoRef: refundResult.paymentTransactionId ?? 'N/A',
-            },
-          },
-        })
-      }
-      // EFT: banka transferi manuel halledilir — provider çağrısı yok.
-
-      await ledger.createEntry({
-        sellerId: params.sellerId,
-        type: 'refund',
-        amount: params.refundAmount.negated(),
-        referenceType: 'return_request',
-        referenceId: params.returnRequestId,
+      // Legacy returns do not have a trustworthy order-line/provider-item
+      // allocation. Queue a manually resolvable refund and never substitute the
+      // top-level Iyzico payment id for a basket-item transaction id.
+      await quantityRefunds.queue({
         orderId: params.orderId,
-        description: `İade tamamlandı — ${params.refundAmount.toFixed(2)} TRY`,
-        visibleToSeller: true,
+        sellerId: params.sellerId,
+        sourceType: 'return_request',
+        sourceId: params.returnRequestId,
+        customerAmount: params.refundAmount,
+        grossProductAmount: params.refundAmount,
+        sellerAdjustmentAmount: params.refundAmount,
+        platformFundedAmount: new Decimal(0),
       })
-
-      return returnRequests.markRefunded(params.returnRequestId, params.refundAmount)
+      return fresh
     },
   }
 }

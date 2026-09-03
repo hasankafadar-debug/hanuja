@@ -101,6 +101,11 @@ export default async function SellerStatementPage({ searchParams }: Props) {
         </Button>
       </form>
 
+      <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+        Ekstre bakiyesi tahakkuk bakiyesidir. Kullanılabilir bakiye, payout ve teslimat kurallarına
+        bağlı olarak belirlenir.
+      </p>
+
       <div className="grid gap-4 md:grid-cols-3">
         {[
           { label: 'Devir Bakiyesi', value: statement.openingBalance, currency: true },
@@ -170,7 +175,13 @@ export default async function SellerStatementPage({ searchParams }: Props) {
                   {formatReportingDate(new Date(row.date))}
                 </td>
                 <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
-                  {row.reference}
+                  {row.orderId ? (
+                    <Link href={`/siparisler/${row.orderId}`} className="hover:underline">
+                      {row.reference}
+                    </Link>
+                  ) : (
+                    row.reference
+                  )}
                 </td>
                 <td className="px-4 py-3" style={{ color: 'var(--color-primary)' }}>
                   {row.topic}

@@ -11,13 +11,16 @@ import { Decimal } from '@prisma/client/runtime/client'
 import { NotFoundError, ConflictError } from '../lib/errors'
 import { createPaymentRepository } from '../repositories/payment.repository'
 import { createOrderRepository } from '../repositories/order.repository'
-import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { assertTransition } from '../domain/order-state-machine'
 import { addBusinessDays } from '../domain/business-days'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
 import { createOrderDocumentService } from './order-document.service'
+import { postPaymentConfirmedSellerAccruals } from './seller-payment-accrual.service'
+import { createQuantityRefundService } from './quantity-refund.service'
 import { formatMoney } from '@hanuja/security/money'
+import { formatOrderNumber } from '../lib/order-number'
+import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 
 /** Fire payment-confirmed notifications to customer + seller (fire-and-forget). */
 export async function firePaymentConfirmedNotifications(prisma: PrismaClient, orderId: string) {
@@ -25,29 +28,95 @@ export async function firePaymentConfirmedNotifications(prisma: PrismaClient, or
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       select: {
+        id: true,
+        publicNumber: true,
+        totalAmount: true,
         customerId: true,
-        lines: {
-          select: { seller: { select: { userId: true } } },
+        customer: { select: { email: true, name: true } },
+        payments: {
+          where: { status: 'confirmed' },
+          orderBy: { confirmedAt: 'desc' },
           take: 1,
+          select: { method: true },
+        },
+        lines: {
+          select: {
+            sellerId: true,
+            productName: true,
+            variantName: true,
+            quantity: true,
+            unitPrice: true,
+            totalPrice: true,
+            seller: {
+              select: {
+                displayName: true,
+                user: { select: { id: true, email: true } },
+              },
+            },
+          },
         },
       },
     })
     if (!order) return
-    const sellerUserId = order.lines[0]?.seller?.userId
+    const orderNumber = formatOrderNumber(order.publicNumber, order.id)
+    const customerItems = order.lines.map((line) => ({
+      productName: line.productName,
+      variantName: line.variantName,
+      sellerId: line.sellerId,
+      quantity: line.quantity,
+      unitPrice: formatMoney(line.unitPrice.toNumber()),
+      lineTotal: formatMoney(line.totalPrice.toNumber()),
+    }))
     await enqueueNotification({
+      eventKey: `order:${order.id}:payment-confirmed:customer`,
       userId: order.customerId,
+      emailTo: order.customer.email,
       type: 'order_payment_confirmed',
       title: 'Ödemeniz Onaylandı',
       body: 'Siparişiniz ödeme onayı aldı ve satıcıya iletildi.',
-      data: { orderId },
+      data: {
+        orderId,
+        orderNumber,
+        customerName: order.customer.name ?? 'Değerli Müşterimiz',
+        paymentMethod: order.payments[0]?.method ?? 'card',
+        totalAmount: formatMoney(order.totalAmount.toNumber()),
+        orderUrl: `${getWebBaseUrl()}/siparis/${order.id}`,
+        items: customerItems,
+      },
     })
-    if (sellerUserId) {
+
+    const sellerIds = [...new Set(order.lines.map((line) => line.sellerId))]
+    for (const sellerId of sellerIds) {
+      const sellerLines = order.lines.filter((line) => line.sellerId === sellerId)
+      const seller = sellerLines[0]?.seller
+      if (!seller) continue
       await enqueueNotification({
-        userId: sellerUserId,
+        eventKey: `order:${order.id}:payment-confirmed:seller:${sellerId}`,
+        userId: seller.user.id,
+        emailTo: seller.user.email,
         type: 'seller_order_received',
         title: 'Yeni Sipariş',
         body: 'Ödeme onaylı yeni bir sipariş aldınız.',
-        data: { orderId },
+        data: {
+          orderId,
+          orderNumber,
+          sellerId,
+          sellerName: seller.displayName,
+          totalAmount: formatMoney(
+            sellerLines
+              .reduce((sum, line) => sum.add(line.totalPrice), new Decimal(0))
+              .toNumber(),
+          ),
+          panelUrl: `${getSellerPanelUrl()}/siparisler/${order.id}`,
+          items: sellerLines.map((line) => ({
+            productName: line.productName,
+            variantName: line.variantName,
+            sellerId,
+            quantity: line.quantity,
+            unitPrice: formatMoney(line.unitPrice.toNumber()),
+            lineTotal: formatMoney(line.totalPrice.toNumber()),
+          })),
+        },
       })
     }
   } catch (err) {
@@ -70,7 +139,7 @@ interface PaymentServiceDeps {
 export function createPaymentService({ prisma }: PaymentServiceDeps) {
   const payments = createPaymentRepository(prisma)
   const orders = createOrderRepository(prisma)
-  const ledger = createSellerLedgerRepository(prisma)
+  const quantityRefunds = createQuantityRefundService({ prisma })
   const auditLog = createAdminAuditLogRepository(prisma)
 
   async function stampFulfillmentDueDates(tx: PrismaClient, orderId: string, sourceAt: Date) {
@@ -105,6 +174,13 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
       orderId: string
       providerRef: string
       amount: import('@prisma/client/runtime/client').Decimal
+      itemTransactions?: Array<{
+        itemId: string
+        paymentTransactionId: string
+        transactionStatus?: number
+        price?: string
+        paidPrice?: string
+      }>
     }) {
       const payment = await payments.findByOrderId(params.orderId)
       if (!payment) throw new NotFoundError('Payment', params.orderId)
@@ -148,6 +224,35 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         throw new ConflictError('Ödeme referansı başka bir siparişe ait')
       }
 
+      const providerItems = await prisma.paymentProviderItem.findMany({
+        where: { paymentId: payment.id },
+        orderBy: { providerItemId: 'asc' },
+      })
+      const providerTransactions = params.itemTransactions ?? []
+      if (providerItems.length > 0) {
+        const byItemId = new Map(
+          providerTransactions.map((item) => [item.itemId, item]),
+        )
+        if (
+          byItemId.size !== providerTransactions.length ||
+          providerItems.some((item) => !byItemId.has(item.providerItemId)) ||
+          providerTransactions.some(
+            (item) => !providerItems.some((expected) => expected.providerItemId === item.itemId),
+          )
+        ) {
+          await payments.appendEvent({
+            paymentId: payment.id,
+            eventType: 'provider_item_mapping_rejected',
+            providerPayload: {
+              expectedItemIds: providerItems.map((item) => item.providerItemId),
+              receivedItemIds: providerTransactions.map((item) => item.itemId),
+              providerRef: params.providerRef,
+            },
+          })
+          throw new ConflictError('Ödeme kalemleri sağlayıcı yanıtıyla uyuşmuyor')
+        }
+      }
+
       return prisma.$transaction(async (tx) => {
         const confirmedAt = new Date()
         const order = await tx.order.findUnique({
@@ -163,6 +268,32 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           { providerRef: params.providerRef },
           tx as PrismaClient,
         )
+
+        if (providerItems.length > 0) {
+          for (const item of providerItems) {
+            const providerTransaction = providerTransactions.find(
+              (candidate) => candidate.itemId === item.providerItemId,
+            )!
+            await tx.paymentProviderItem.update({
+              where: { id: item.id },
+              data: {
+                providerTransactionId: providerTransaction.paymentTransactionId,
+                providerData: providerTransaction as never,
+              },
+            })
+          }
+        } else {
+          await tx.paymentEvent.create({
+            data: {
+              paymentId: payment.id,
+              eventType: 'provider_item_mapping_missing',
+              payload: {
+                providerRef: params.providerRef,
+                note: 'Eski kart ödemesi; otomatik kalem iadesi için manuel müdahale gerekir',
+              },
+            },
+          })
+        }
 
         await (tx as PrismaClient).order.update({
           where: { id: params.orderId },
@@ -200,6 +331,14 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         })
         await (tx as PrismaClient).cartItem.deleteMany({
           where: { cart: { userId: order.customerId } },
+        })
+
+        await postPaymentConfirmedSellerAccruals({
+          prisma,
+          tx,
+          orderId: params.orderId,
+          effectiveAt: confirmedAt,
+          actorId: 'system',
         })
 
         return updated
@@ -335,24 +474,13 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           where: { cart: { userId: order.customerId } },
         })
 
-        // EFT indirim — platform-absorbe: satıcı payout'u etkilemez.
-        // Bu kayıt yalnızca mutabakat/audit amaçlı; Payout.netAmount bu girdiden hesaplanmaz.
-        // visibleToSeller: false — satıcı ekstresinde görünmez (docs/01-business/payout-policy.md §12).
-        if (discountDecimal) {
-          const sellerEntry = order.lines[0] as { sellerId?: string } | undefined
-          const sellerId = sellerEntry?.sellerId
-          if (sellerId) {
-            await ledger.createEntry({
-              sellerId,
-              type: 'eft_discount',
-              amount: discountDecimal.negated(),
-              orderId: params.orderId,
-              note: `Havale indirimi (platform-absorbe): ${params.discountReason ?? 'Admin onayı'}`,
-              createdBy: params.adminActorId,
-              visibleToSeller: false,
-            })
-          }
-        }
+        await postPaymentConfirmedSellerAccruals({
+          prisma,
+          tx,
+          orderId: params.orderId,
+          effectiveAt: confirmedAt,
+          actorId: params.adminActorId,
+        })
 
         await auditLog.createEntry({
           actorId: params.adminActorId,
@@ -423,9 +551,9 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
     /**
      * Refund a confirmed payment — called after return/dispute resolved for customer.
      *
-     * Database tarafını kaydeder + seller ledger'a debit yazar.
-     * Gerçek Iyzico refund API çağrısı entegrasyon katmanında yapılır
-     * (iyzico.refund(providerPaymentId, amount)).
+     * Legacy tam sipariş akışını da ortak, kalem-güvenli iade kuyruğuna taşır.
+     * Kalem işlem ID'si bulunmayan eski kart ödemeleri otomatik çağrı yapmaz;
+     * manuel müdahale durumunda kalır.
      *
      * See: docs/05-security/payment-security.md
      */
@@ -444,56 +572,42 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         throw new ConflictError(`İade edilebilir onaylı ödeme yok: ${payment.status}`)
       }
 
-      return prisma.$transaction(async (tx) => {
-        const updated = await payments.recordRefund(
-          payment.id,
-          { refundAmount: params.refundAmount },
-          tx as PrismaClient,
-        )
-
-        await payments.appendEvent({
-          paymentId: payment.id,
-          eventType: 'refund_recorded',
-          note: `İade: ${params.refundAmount.toFixed(2)} TRY — ${params.reason}`,
-        })
-
-        // Seller ledger'a refund debit yaz (satıcıdan düşülür)
-        await ledger.createEntry({
-          sellerId: params.sellerId,
-          type: 'refund',
-          amount: params.refundAmount.negated(),
-          orderId: params.orderId,
-          note: `İade kesintisi: ${params.reason}`,
-          createdBy: params.adminActorId,
-        })
-
-        if (params.skipOrderStatusUpdate) {
-          await (tx as PrismaClient).order.update({
-            where: { id: params.orderId },
-            data: { refundCompletedAt: new Date() },
-          })
-        } else {
-          await orders.updateStatus(params.orderId, 'refund_completed' as never, tx as PrismaClient)
-          await orders.appendStatusHistory(
-            params.orderId,
-            'refund_completed' as never,
-            params.adminActorId,
-            `İade tamamlandı: ${params.refundAmount.toFixed(2)} TRY`,
-            tx as PrismaClient,
-          )
-        }
-
-        await auditLog.createEntry({
-          actorId: params.adminActorId,
-          actionType: 'manual_ledger_adjustment',
-          targetType: 'payment',
-          targetId: payment.id,
-          previousData: { status: payment.status },
-          newData: { status: 'refunded', refundAmount: params.refundAmount },
-          reason: params.reason,
-        })
-
-        return updated
+      const order = await prisma.order.findUniqueOrThrow({
+        where: { id: params.orderId },
+        include: { lines: { where: { sellerId: params.sellerId } } },
+      })
+      const grossProductAmount = order.lines.reduce(
+        (sum, line) => sum.add(line.totalPrice),
+        new Decimal(0),
+      )
+      const couponAdjustmentAmount = order.lines.reduce(
+        (sum, line) => sum.add(line.couponDiscountAmount),
+        new Decimal(0),
+      )
+      const sellerAdjustmentAmount = order.lines.reduce(
+        (sum, line) => sum.add(line.netPayoutAmount),
+        new Decimal(0),
+      )
+      const commissionAdjustmentAmount = order.lines.reduce(
+        (sum, line) => sum.add(line.commissionAmount),
+        new Decimal(0),
+      )
+      return quantityRefunds.queue({
+        orderId: params.orderId,
+        sellerId: params.sellerId,
+        sourceType: 'cancellation',
+        sourceId: `legacy-order:${params.orderId}:${params.sellerId}`,
+        customerAmount: params.refundAmount,
+        grossProductAmount,
+        couponAdjustmentAmount,
+        sellerAdjustmentAmount,
+        commissionAdjustmentAmount,
+        platformFundedAmount: Decimal.max(
+          new Decimal(0),
+          params.refundAmount
+            .sub(sellerAdjustmentAmount)
+            .sub(commissionAdjustmentAmount),
+        ),
       })
     },
 

@@ -37,6 +37,7 @@ function buildActivateHoldPrisma(lines: FakeLine[]) {
     },
     payout: {
       findFirst: vi.fn(async () => null),
+      findMany: vi.fn(async () => []),
       create: vi.fn(async (args: { data: Record<string, unknown> }) => {
         const payout = { id: `payout-${createdPayouts.length + 1}`, ...args.data }
         createdPayouts.push(payout)
@@ -48,6 +49,7 @@ function buildActivateHoldPrisma(lines: FakeLine[]) {
     },
     sellerLedgerEntry: {
       findFirst: vi.fn(async () => null),
+      findUnique: vi.fn(async () => null),
       aggregate: vi.fn(async () => ({ _sum: { amount: new Decimal(0) } })),
       create: vi.fn(async (args: { data: Record<string, unknown> }) => {
         createdLedgerEntries.push(args.data)

@@ -191,13 +191,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const lastName = rest.join(' ') || 'Kullanici'
   const email = customer.email ?? user.email ?? 'musteri@example.com'
 
-  const basketItems = orderDetail.lines.map((line) => ({
-    id: line.productId,
-    name: line.productName.slice(0, 100),
-    category1: (line.product as { category?: { name?: string } } | null)?.category?.name ?? 'Diger',
-    itemType: 'PHYSICAL' as const,
-    price: line.totalPrice.toFixed(2),
-  }))
+  const basketItems = [
+    ...orderDetail.lines.map((line) => ({
+      id: `line:${line.id}`,
+      name: line.productName.slice(0, 100),
+      category1: (line.product as { category?: { name?: string } } | null)?.category?.name ?? 'Diger',
+      itemType: 'PHYSICAL' as const,
+      price: (line.customerPaidProductAmount ?? line.totalPrice).toFixed(2),
+    })),
+    ...(orderDetail.shippingAmount.gt(0)
+      ? [{
+          id: `shipping:${orderDetail.id}`,
+          name: 'Kargo',
+          category1: 'Kargo',
+          itemType: 'VIRTUAL' as const,
+          price: orderDetail.shippingAmount.toFixed(2),
+        }]
+      : []),
+  ]
 
   const addrLine2Part = addr.addressLine2 ? `, ${addr.addressLine2}` : ''
   const buyerAddress = `${addr.addressLine1}${addrLine2Part}, ${addr.district}, ${addr.city}`

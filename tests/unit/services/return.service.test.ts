@@ -30,10 +30,11 @@ describe('Return — 14-day return window (isWithinReturnWindow)', () => {
   })
 
   it('returns true on exactly the 14th day', () => {
-    const confirmedAt = new Date()
+    const now = new Date()
+    const confirmedAt = new Date(now)
     confirmedAt.setDate(confirmedAt.getDate() - RETURN_WINDOW_DAYS)
     // now equals the deadline — still within window
-    expect(isWithinReturnWindow(confirmedAt)).toBe(true)
+    expect(isWithinReturnWindow(confirmedAt, now)).toBe(true)
   })
 
   it('returns false when more than 14 days have passed', () => {

@@ -253,8 +253,28 @@ enum OrderCancellationStatus {
 enum RefundTransactionStatus {
   pending
   processing
+  partially_completed
   completed
   failed
+  manual_required
+}
+
+enum PaymentProvider {
+  iyzico
+  manual_eft
+}
+
+enum PaymentProviderItemKind {
+  product
+  shipping
+}
+
+enum RefundTransactionItemStatus {
+  pending
+  processing
+  completed
+  failed
+  manual_required
 }
 
 enum RefundSourceType {
@@ -374,6 +394,7 @@ enum NotificationType {
   seller_payout_paid
   seller_penalty_applied
   seller_return_request
+  seller_refund_completed
   penalty_applied
   dispute_opened
   dispute_resolved
@@ -401,6 +422,18 @@ enum NotificationType {
   store_discount_followed_seller
   product_discount_favorited
   product_discount_in_cart
+}
+
+enum NotificationChannel {
+  in_app
+  email
+}
+
+enum NotificationDeliveryStatus {
+  pending
+  processing
+  sent
+  failed
 }
 
 enum CampaignDispatchSource {
@@ -490,27 +523,28 @@ model User {
   updatedAt          DateTime  @updatedAt
 
   // Better Auth ilişkileri
-  sessions Session[]
-  accounts Account[]
+  sessions  Session[]
+  accounts  Account[]
   twoFactor TwoFactor?
 
   // Domain ilişkileri
-  seller                           Seller?
-  addresses                        Address[]
-  cart                             Cart?
-  orders                           Order[]
-  notifications                    Notification[]
-  couponUsages                     CouponUsage[]
-  supportMessages                  SupportMessage[]
-  productReviews                   ProductReview[]
-  favorites                        FavoriteProduct[]
-  productAnalyticsEvents           ProductAnalyticsEvent[]
-  followedStores                   StoreFollow[]               @relation("StoreFollowUser")
-  storeDiscountDispatches          StoreDiscountDispatch[]
-  paidPayouts                      Payout[]                    @relation("PayoutPaidByAdmin")
-  createdSellerInvoices            SellerInvoice[]             @relation("SellerInvoiceCreatedByAdmin")
-  marketingConsent                 MarketingConsent?
-  campaignEmailDispatches          CampaignEmailDispatch[]
+  seller                  Seller?
+  addresses               Address[]
+  cart                    Cart?
+  orders                  Order[]
+  notifications           Notification[]
+  notificationDeliveries  NotificationDelivery[]
+  couponUsages            CouponUsage[]
+  supportMessages         SupportMessage[]
+  productReviews          ProductReview[]
+  favorites               FavoriteProduct[]
+  productAnalyticsEvents  ProductAnalyticsEvent[]
+  followedStores          StoreFollow[]           @relation("StoreFollowUser")
+  storeDiscountDispatches StoreDiscountDispatch[]
+  paidPayouts             Payout[]                @relation("PayoutPaidByAdmin")
+  createdSellerInvoices   SellerInvoice[]         @relation("SellerInvoiceCreatedByAdmin")
+  marketingConsent        MarketingConsent?
+  campaignEmailDispatches CampaignEmailDispatch[]
 
   customerSupportTickets         CustomerSupportTicket[]  @relation("CustomerSupportTicketsAsCustomer")
   resolvedCustomerSupportTickets CustomerSupportTicket[]  @relation("CustomerSupportTicketsAsResolver")
@@ -576,15 +610,15 @@ model Verification {
 // encrypted by Better Auth using BETTER_AUTH_SECRET. Seller rows are non-TOTP
 // email-OTP markers. Never expose any of these values in responses or logs.
 model TwoFactor {
-  id          String   @id @default(cuid())
-  secret      String
-  backupCodes String
-  userId      String   @unique
-  verified    Boolean  @default(true)
-  failedVerificationCount Int @default(0)
-  lockedUntil DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                      String    @id @default(cuid())
+  secret                  String
+  backupCodes             String
+  userId                  String    @unique
+  verified                Boolean   @default(true)
+  failedVerificationCount Int       @default(0)
+  lockedUntil             DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -730,24 +764,24 @@ model SellerBankDetailHistory {
 // Satıcı KYC belgeleri — kimlik, vergi, sicil, imza belgesi vb.
 // Her belge ayrı bir kayıt; aynı tipten birden fazla yükleme mümkün (son=geçerli).
 model SellerDocument {
-  id           String                      @id @default(cuid())
-  sellerId     String
-  type         SellerDocumentType
-  identityPart SellerDocumentIdentityPart? // Yalnızca identity türünde kullanılır
-  uploadGroupId String? // Sözleşme dosyalarını tek sürümde gruplar
-  uploadOrder Int? // Grup içindeki sıra (0 tabanlı)
+  id              String                      @id @default(cuid())
+  sellerId        String
+  type            SellerDocumentType
+  identityPart    SellerDocumentIdentityPart? // Yalnızca identity türünde kullanılır
+  uploadGroupId   String? // Sözleşme dosyalarını tek sürümde gruplar
+  uploadOrder     Int? // Grup içindeki sıra (0 tabanlı)
   uploadGroupSize Int? // Gruptaki toplam dosya sayısı
-  status       SellerDocumentStatus        @default(pending)
-  fileUrl      String // Erişim işareti; KYC belgeleri için herkese açık URL değildir
-  fileKey      String // Şifreli özel belge deposundaki anahtar
-  fileName     String // Orijinal dosya adı (yalnızca bilgi amaçlı)
-  mimeType     String // image/jpeg | image/png | application/pdf
-  sizeBytes    Int
-  adminNote    String? // Admin red/onay notu
-  reviewedBy   String? // Admin kullanıcı ID
-  reviewedAt   DateTime?
-  createdAt    DateTime                    @default(now())
-  updatedAt    DateTime                    @updatedAt
+  status          SellerDocumentStatus        @default(pending)
+  fileUrl         String // Erişim işareti; KYC belgeleri için herkese açık URL değildir
+  fileKey         String // Şifreli özel belge deposundaki anahtar
+  fileName        String // Orijinal dosya adı (yalnızca bilgi amaçlı)
+  mimeType        String // image/jpeg | image/png | application/pdf
+  sizeBytes       Int
+  adminNote       String? // Admin red/onay notu
+  reviewedBy      String? // Admin kullanıcı ID
+  reviewedAt      DateTime?
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
 
   seller Seller @relation(fields: [sellerId], references: [id])
 
@@ -767,17 +801,21 @@ model SellerLedgerEntry {
   type            LedgerEntryType
   amount          Decimal         @db.Decimal(12, 2) // Pozitif = giriş, negatif = çıkış
   balanceAfter    Decimal         @db.Decimal(12, 2) // Bu kayıt sonrası güncel bakiye
+  eventKey        String?         @unique // Aynı finansal olayın yeniden uygulanmasını engeller
   referenceType   String // 'order' | 'payout' | 'penalty' | 'manual' vb.
   referenceId     String // İlgili kaydın ID'si
   description     String? // İnsan okunabilir açıklama
   visibleToSeller Boolean         @default(false) // Accrual entries hidden until invoice is issued; payout entries marked visible explicitly
+  effectiveAt     DateTime        @default(now()) // Finansal olay zamanı; createdAt append/audit zamanıdır
   createdAt       DateTime        @default(now())
   createdBy       String? // Admin action'dan geliyorsa actor ID
 
   seller Seller @relation(fields: [sellerId], references: [id])
 
   @@index([sellerId, createdAt])
+  @@index([sellerId, effectiveAt])
   @@index([sellerId, visibleToSeller, createdAt])
+  @@index([sellerId, visibleToSeller, effectiveAt])
   @@index([referenceType, referenceId])
   @@map("seller_ledger_entries")
 }
@@ -982,7 +1020,7 @@ model ProductVariant {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product            Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   barcodeReservation BarcodeRegistry? @relation("VariantBarcodeRegistry")
 
   @@index([productId])
@@ -991,12 +1029,12 @@ model ProductVariant {
 }
 
 model BarcodeRegistry {
-  barcode   String  @id @db.VarChar(13)
-  productId String? @unique
-  variantId String? @unique
+  barcode   String   @id @db.VarChar(13)
+  productId String?  @unique
+  variantId String?  @unique
   createdAt DateTime @default(now())
 
-  product Product? @relation("ProductBarcodeRegistry", fields: [productId], references: [id], onDelete: Cascade)
+  product Product?        @relation("ProductBarcodeRegistry", fields: [productId], references: [id], onDelete: Cascade)
   variant ProductVariant? @relation("VariantBarcodeRegistry", fields: [variantId], references: [id], onDelete: Cascade)
 
   @@map("barcode_registry")
@@ -1287,16 +1325,18 @@ model OrderLine {
 
   createdAt DateTime @default(now())
 
-  order             Order                   @relation(fields: [orderId], references: [id])
-  product           Product                 @relation(fields: [productId], references: [id])
-  seller            Seller                  @relation(fields: [sellerId], references: [id])
-  fulfillmentRisk   FulfillmentRisk?
-  payout            Payout?
-  commissionInvoice SellerInvoice?          @relation("OrderLineCommissionInvoice", fields: [commissionInvoiceId], references: [id], onDelete: SetNull)
-  penalties         Penalty[]
-  cancellationItems OrderCancellationItem[]
-  returnItems       ReturnRequestItem[]
-  shipmentItems     ShipmentItem[]
+  order                  Order                   @relation(fields: [orderId], references: [id])
+  product                Product                 @relation(fields: [productId], references: [id])
+  seller                 Seller                  @relation(fields: [sellerId], references: [id])
+  fulfillmentRisk        FulfillmentRisk?
+  payout                 Payout?
+  commissionInvoice      SellerInvoice?          @relation("OrderLineCommissionInvoice", fields: [commissionInvoiceId], references: [id], onDelete: SetNull)
+  penalties              Penalty[]
+  cancellationItems      OrderCancellationItem[]
+  returnItems            ReturnRequestItem[]
+  shipmentItems          ShipmentItem[]
+  paymentProviderItems   PaymentProviderItem[]
+  refundTransactionItems RefundTransactionItem[]
 
   @@index([orderId])
   @@index([sellerId])
@@ -1395,14 +1435,15 @@ model OrderStatusHistory {
 // =============================================================================
 
 model Payment {
-  id                    String        @id @default(cuid())
+  id                    String          @id @default(cuid())
   orderId               String
   method                PaymentMethod
-  status                PaymentStatus @default(pending)
-  currency              String        @default("TRY")
-  amount                Decimal       @db.Decimal(12, 2)
+  provider              PaymentProvider
+  status                PaymentStatus   @default(pending)
+  currency              String          @default("TRY")
+  amount                Decimal         @db.Decimal(12, 2)
   // Iyzico entegrasyon alanları
-  providerPaymentId     String?       @unique // Iyzico payment ID — bir provider ödemesi yalnız bir siparişi onaylayabilir
+  providerPaymentId     String?         @unique // Iyzico payment ID — bir provider ödemesi yalnız bir siparişi onaylayabilir
   providerReferenceId   String?
   providerData          Json? // Raw provider response (audit için)
   // EFT/Havale için
@@ -1412,25 +1453,49 @@ model Payment {
   eftRejectedBy         String?
   eftRejectedAt         DateTime?
   eftRejectionReason    String?
-  eftDiscountAmount     Decimal?      @db.Decimal(12, 2) // Admin tarafından uygulanan indirim tutarı
+  eftDiscountAmount     Decimal?        @db.Decimal(12, 2) // Admin tarafından uygulanan indirim tutarı
   eftDiscountReason     String? // İndirim gerekçesi
   selectedBankAccountId String? // Müşterinin havale yapacağı banka hesabı (snapshot için)
   // Timing
   confirmedAt           DateTime?
   failedAt              DateTime?
   refundedAt            DateTime?
-  refundedAmount        Decimal       @default(0) @db.Decimal(12, 2)
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  refundedAmount        Decimal         @default(0) @db.Decimal(12, 2)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 
-  order               Order                @relation(fields: [orderId], references: [id])
+  order               Order                 @relation(fields: [orderId], references: [id])
   events              PaymentEvent[]
-  selectedBankAccount PlatformBankAccount? @relation(fields: [selectedBankAccountId], references: [id])
+  selectedBankAccount PlatformBankAccount?  @relation(fields: [selectedBankAccountId], references: [id])
   refundTransactions  RefundTransaction[]
+  providerItems       PaymentProviderItem[]
 
   @@index([orderId])
   @@index([status])
   @@map("payments")
+}
+
+model PaymentProviderItem {
+  id                    String                  @id @default(cuid())
+  paymentId             String
+  orderLineId           String?
+  kind                  PaymentProviderItemKind
+  providerItemId        String
+  providerTransactionId String?
+  amount                Decimal                 @db.Decimal(12, 2)
+  refundedAmount        Decimal                 @default(0) @db.Decimal(12, 2)
+  providerData          Json?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  payment     Payment                 @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  orderLine   OrderLine?              @relation(fields: [orderLineId], references: [id], onDelete: Restrict)
+  refundItems RefundTransactionItem[]
+
+  @@unique([paymentId, providerItemId])
+  @@unique([paymentId, orderLineId])
+  @@index([providerTransactionId])
+  @@map("payment_provider_items")
 }
 
 // Ödeme olayları — webhook, callback, manuel değişiklikler
@@ -1743,6 +1808,8 @@ model OrderCancellation {
   reason                     String
   status                     OrderCancellationStatus @default(refund_pending)
   customerRefundAmount       Decimal                 @default(0) @db.Decimal(12, 2)
+  grossProductAmount         Decimal                 @default(0) @db.Decimal(12, 2)
+  couponAdjustmentAmount     Decimal                 @default(0) @db.Decimal(12, 2)
   sellerAdjustmentAmount     Decimal                 @default(0) @db.Decimal(12, 2)
   commissionAdjustmentAmount Decimal                 @default(0) @db.Decimal(12, 2)
   shippingRefundAmount       Decimal                 @default(0) @db.Decimal(12, 2)
@@ -1764,6 +1831,8 @@ model OrderCancellationItem {
   orderLineId                String
   quantity                   Int
   customerRefundAmount       Decimal  @db.Decimal(12, 2)
+  grossProductAmount         Decimal  @default(0) @db.Decimal(12, 2)
+  couponAdjustmentAmount     Decimal  @default(0) @db.Decimal(12, 2)
   sellerAdjustmentAmount     Decimal  @db.Decimal(12, 2)
   commissionAdjustmentAmount Decimal  @default(0) @db.Decimal(12, 2)
   createdAt                  DateTime @default(now())
@@ -1777,21 +1846,25 @@ model OrderCancellationItem {
 }
 
 model ReturnRequestItem {
-  id                         String   @id @default(cuid())
-  returnRequestId            String
-  orderLineId                String
-  requestedQuantity          Int
-  acceptedQuantity           Int      @default(0)
-  rejectedQuantity           Int      @default(0)
-  rejectionReason            String?
-  requestedCustomerAmount    Decimal  @default(0) @db.Decimal(12, 2)
-  requestedSellerAdjustmentAmount Decimal @default(0) @db.Decimal(12, 2)
-  requestedCommissionAdjustmentAmount Decimal @default(0) @db.Decimal(12, 2)
-  customerRefundAmount       Decimal  @default(0) @db.Decimal(12, 2)
-  sellerAdjustmentAmount     Decimal  @default(0) @db.Decimal(12, 2)
-  commissionAdjustmentAmount Decimal  @default(0) @db.Decimal(12, 2)
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  id                                  String   @id @default(cuid())
+  returnRequestId                     String
+  orderLineId                         String
+  requestedQuantity                   Int
+  acceptedQuantity                    Int      @default(0)
+  rejectedQuantity                    Int      @default(0)
+  rejectionReason                     String?
+  requestedCustomerAmount             Decimal  @default(0) @db.Decimal(12, 2)
+  requestedGrossProductAmount         Decimal  @default(0) @db.Decimal(12, 2)
+  requestedCouponAdjustmentAmount     Decimal  @default(0) @db.Decimal(12, 2)
+  requestedSellerAdjustmentAmount     Decimal  @default(0) @db.Decimal(12, 2)
+  requestedCommissionAdjustmentAmount Decimal  @default(0) @db.Decimal(12, 2)
+  customerRefundAmount                Decimal  @default(0) @db.Decimal(12, 2)
+  grossProductAmount                  Decimal  @default(0) @db.Decimal(12, 2)
+  couponAdjustmentAmount              Decimal  @default(0) @db.Decimal(12, 2)
+  sellerAdjustmentAmount              Decimal  @default(0) @db.Decimal(12, 2)
+  commissionAdjustmentAmount          Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt                           DateTime @default(now())
+  updatedAt                           DateTime @updatedAt
 
   returnRequest ReturnRequest @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
   orderLine     OrderLine     @relation(fields: [orderLineId], references: [id], onDelete: Restrict)
@@ -1809,6 +1882,8 @@ model RefundTransaction {
   sourceType                 RefundSourceType
   sourceId                   String
   customerAmount             Decimal                 @db.Decimal(12, 2)
+  grossProductAmount         Decimal                 @default(0) @db.Decimal(12, 2)
+  couponAdjustmentAmount     Decimal                 @default(0) @db.Decimal(12, 2)
   sellerAdjustmentAmount     Decimal                 @default(0) @db.Decimal(12, 2)
   commissionAdjustmentAmount Decimal                 @default(0) @db.Decimal(12, 2)
   platformFundedAmount       Decimal                 @default(0) @db.Decimal(12, 2)
@@ -1816,17 +1891,47 @@ model RefundTransaction {
   providerReference          String?
   failureReason              String?
   accountingAppliedAt        DateTime?
+  ledgerAppliedAt            DateTime?
+  payoutAppliedAt            DateTime?
   completedAt                DateTime?
   createdAt                  DateTime                @default(now())
   updatedAt                  DateTime                @updatedAt
 
-  order   Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  order   Order                   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  payment Payment?                @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  items   RefundTransactionItem[]
 
   @@unique([sourceType, sourceId])
   @@index([status, createdAt])
   @@index([orderId, sellerId])
   @@map("refund_transactions")
+}
+
+model RefundTransactionItem {
+  id                    String                      @id @default(cuid())
+  refundTransactionId   String
+  paymentProviderItemId String?
+  orderLineId           String?
+  kind                  PaymentProviderItemKind
+  amount                Decimal                     @db.Decimal(12, 2)
+  quantity              Int?
+  status                RefundTransactionItemStatus @default(pending)
+  providerReference     String?
+  failureReason         String?
+  attemptCount          Int                         @default(0)
+  lastAttemptAt         DateTime?
+  completedAt           DateTime?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  refundTransaction   RefundTransaction    @relation(fields: [refundTransactionId], references: [id], onDelete: Cascade)
+  paymentProviderItem PaymentProviderItem? @relation(fields: [paymentProviderItemId], references: [id], onDelete: SetNull)
+  orderLine           OrderLine?           @relation(fields: [orderLineId], references: [id], onDelete: Restrict)
+
+  @@unique([refundTransactionId, paymentProviderItemId], map: "refund_tx_items_refund_provider_item_key")
+  @@unique([refundTransactionId, orderLineId, kind], map: "refund_tx_items_refund_order_line_kind_key")
+  @@index([status, createdAt])
+  @@map("refund_transaction_items")
 }
 
 model ReturnMessage {
@@ -2248,11 +2353,37 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime         @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  user       User                   @relation(fields: [userId], references: [id])
+  deliveries NotificationDelivery[]
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+model NotificationDelivery {
+  id             String                     @id @default(cuid())
+  eventKey       String
+  userId         String
+  type           NotificationType
+  channel        NotificationChannel
+  recipient      String
+  status         NotificationDeliveryStatus @default(pending)
+  notificationId String?
+  attemptCount   Int                        @default(0)
+  lastAttemptAt  DateTime?
+  lastError      String?
+  deliveredAt    DateTime?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notification Notification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+
+  @@unique([recipient, channel, eventKey])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@map("notification_deliveries")
 }
 
 model StoreDiscountDispatch {
@@ -2280,16 +2411,16 @@ model StoreDiscountDispatch {
 // tutulur. Rıza olmayan/geri çekilmiş kullanıcı kampanya e-postası alamaz.
 
 model MarketingConsent {
-  id              String    @id @default(cuid())
-  userId          String    @unique
-  emailConsentAt  DateTime?
-  emailRevokedAt  DateTime?
-  smsConsentAt    DateTime?
-  smsRevokedAt    DateTime?
-  consentSource   String
-  optOutToken     String    @unique
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  emailConsentAt DateTime?
+  emailRevokedAt DateTime?
+  smsConsentAt   DateTime?
+  smsRevokedAt   DateTime?
+  consentSource  String
+  optOutToken    String    @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

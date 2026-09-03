@@ -315,23 +315,6 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         actorRef: `seller_${params.sellerId}`,
       })
 
-      assertTransition('refund_pending', 'refund_completed')
-      await orders.updateStatus(rr.orderId, 'refund_completed')
-      await orders.appendStatusHistory(
-        rr.orderId,
-        'refund_completed',
-        `seller_${params.sellerId}`,
-        `İade tamamlandı — ${refundAmount.toFixed(2)} TRY müşteriye iade edildi`,
-      )
-
-      await notifications.send({
-        userId: rr.customerId,
-        type: 'refund_completed',
-        title: 'İadeniz Tamamlandı',
-        body: `İade ürününüz satıcıya ulaştı. ${refundAmount.toFixed(2)} TRY tutarındaki iadeniz başlatıldı.`,
-        data: { orderId: rr.orderId, returnRequestId: rr.id },
-      })
-
       return returnRequests.findById(rr.id)
     },
 
@@ -517,7 +500,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         targetType: 'return_request',
         targetId: params.returnRequestId,
         previousData: { status: rr.status },
-        newData: { status: 'refund_completed', refundAmount: params.refundAmount },
+        newData: { status: 'refund_pending', refundAmount: params.refundAmount },
         reason: `İade alındı, ${params.refundAmount.toFixed(2)} TRY iade başlatıldı`,
       })
 

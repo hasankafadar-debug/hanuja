@@ -49,24 +49,52 @@ function buildPrismaMock(options: {
     order: {
       findUnique: vi.fn(async (args: { select?: Record<string, unknown> }) => {
         if (!options.order) return null
-        if (args.select && 'totalAmount' in args.select) {
+        if (
+          args.select &&
+          'totalAmount' in args.select &&
+          !('lines' in args.select)
+        ) {
           return { totalAmount: options.order.totalAmount }
         }
         // transaction içi + bildirim yolu
         return {
           id: options.payment?.orderId ?? 'o1',
+          publicNumber: null,
           status: 'payment_pending',
           customerId: 'c1',
+          totalAmount: options.order.totalAmount,
+          customer: { email: 'customer@example.com', name: 'Test Customer' },
+          payments: [],
           lines: [],
         }
       }),
       update: vi.fn(async () => ({})),
     },
     paymentEvent: { create: vi.fn(async () => ({})) },
-    orderStatusHistory: { create: vi.fn(async () => ({})) },
-    orderLine: {
+    paymentProviderItem: {
       findMany: vi.fn(async () => []),
       update: vi.fn(async () => ({})),
+    },
+    orderStatusHistory: { create: vi.fn(async () => ({})) },
+    orderLine: {
+      findMany: vi.fn(async () => [
+        {
+          id: 'line-1',
+          sellerId: 'seller-1',
+          promisedFulfillmentDays: null,
+          totalPrice: options.order?.totalAmount ?? new Decimal(0),
+          couponDiscountAmount: new Decimal(0),
+        },
+      ]),
+      update: vi.fn(async () => ({})),
+    },
+    sellerLedgerEntry: {
+      findUnique: vi.fn(async () => null),
+      aggregate: vi.fn(async () => ({ _sum: { amount: new Decimal(0) } })),
+      create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
+        id: 'ledger-1',
+        ...args.data,
+      })),
     },
     cartItem: { deleteMany: vi.fn(async () => ({ count: 0 })) },
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),

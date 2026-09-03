@@ -5,11 +5,21 @@ const {
   createMock,
   sendEmailMock,
   queueAddMock,
+  deliveryUpsertMock,
+  deliveryUpdateManyMock,
+  deliveryUpdateMock,
+  transactionMock,
+  deliveryRecords,
 } = vi.hoisted(() => ({
   findUniqueMock: vi.fn(),
   createMock: vi.fn(),
   sendEmailMock: vi.fn(),
   queueAddMock: vi.fn(),
+  deliveryUpsertMock: vi.fn(),
+  deliveryUpdateManyMock: vi.fn(),
+  deliveryUpdateMock: vi.fn(),
+  transactionMock: vi.fn(),
+  deliveryRecords: new Map<string, { id: string; status: string; [key: string]: unknown }>(),
 }))
 
 vi.mock('bullmq', () => ({
@@ -33,6 +43,12 @@ vi.mock('../../../api/lib/prisma', () => ({
     notification: {
       create: createMock,
     },
+    notificationDelivery: {
+      upsert: deliveryUpsertMock,
+      updateMany: deliveryUpdateManyMock,
+      update: deliveryUpdateMock,
+    },
+    $transaction: transactionMock,
   },
 }))
 
@@ -52,6 +68,42 @@ describe('notification-dispatch.job', () => {
     createMock.mockReset()
     sendEmailMock.mockReset()
     queueAddMock.mockReset()
+    deliveryUpsertMock.mockReset()
+    deliveryUpdateManyMock.mockReset()
+    deliveryUpdateMock.mockReset()
+    transactionMock.mockReset()
+    deliveryRecords.clear()
+
+    createMock.mockResolvedValue({ id: 'notification-1' })
+    deliveryUpsertMock.mockImplementation(async ({ create }: { create: { eventKey: string; channel: string; recipient: string } }) => {
+      const key = `${create.channel}:${create.recipient}:${create.eventKey}`
+      const existing = deliveryRecords.get(key)
+      if (existing) return existing
+      const delivery = {
+        id: `delivery-${deliveryRecords.size + 1}`,
+        status: 'pending',
+        ...create,
+      }
+      deliveryRecords.set(key, delivery)
+      return delivery
+    })
+    deliveryUpdateManyMock.mockImplementation(async ({ where }: { where: { id: string } }) => {
+      const delivery = [...deliveryRecords.values()].find((candidate) => candidate.id === where.id)
+      if (!delivery || !['pending', 'failed'].includes(delivery.status)) return { count: 0 }
+      delivery.status = 'processing'
+      return { count: 1 }
+    })
+    deliveryUpdateMock.mockImplementation(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+      const delivery = [...deliveryRecords.values()].find((candidate) => candidate.id === where.id)
+      if (delivery) Object.assign(delivery, data)
+      return delivery
+    })
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+      callback({
+        notification: { create: createMock },
+        notificationDelivery: { update: deliveryUpdateMock },
+      }),
+    )
   })
 
   it('canonicalizes legacy order_confirmed notifications before persisting', async () => {
@@ -124,13 +176,110 @@ describe('notification-dispatch.job', () => {
     expect(queueAddMock).toHaveBeenCalledWith(
       'notify',
       expect.objectContaining({ type: 'order_payment_confirmed' }),
-      expect.objectContaining({ attempts: 3 }),
+      expect.objectContaining({
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 2000 },
+      }),
     )
+  })
+
+  it('uses a stable job id for an explicit event key so queue retries stay idempotent', async () => {
+    const data = {
+      eventKey: 'order:order-1:payment-confirmed:customer',
+      userId: 'user-1',
+      type: 'order_payment_confirmed' as const,
+      title: 'Queued',
+      body: 'Body',
+    }
+
+    await enqueueNotification(data)
+    await enqueueNotification(data)
+
+    expect(queueAddMock).toHaveBeenCalledTimes(2)
+    const firstCall = queueAddMock.mock.calls[0] as [string, { eventKey: string }, { jobId: string }]
+    const secondCall = queueAddMock.mock.calls[1] as [string, { eventKey: string }, { jobId: string }]
+    expect(firstCall[1].eventKey).toBe(data.eventKey)
+    expect(secondCall[1].eventKey).toBe(data.eventKey)
+    expect(firstCall[2].jobId).toBe(secondCall[2].jobId)
   })
 
   it('resolves canonical and legacy notification types', () => {
     expect(resolveNotificationType('order_payment_confirmed')).toBe('order_payment_confirmed')
     expect(resolveNotificationType('order_confirmed')).toBe('order_placed')
+  })
+
+  it('renders order-created line details and the customer order link from the event payload', async () => {
+    findUniqueMock.mockResolvedValue({ id: 'user-1' })
+
+    await processNotificationDispatch({
+      id: 'job-order-created',
+      data: {
+        eventKey: 'order:order-1:created:customer',
+        userId: 'user-1',
+        type: 'order_placed',
+        title: 'Sipariş alındı',
+        body: 'Body',
+        emailTo: 'customer@example.com',
+        data: {
+          customerName: 'Ayşe',
+          orderNumber: 'ABC12345',
+          paymentMethod: 'card',
+          totalAmount: '300 TL',
+          orderUrl: 'https://www.hanuja.com.tr/siparis/order-1',
+          items: [{
+            productName: 'Meşe Sehpa',
+            variantName: 'Ceviz',
+            quantity: 2,
+            unitPrice: '150 TL',
+            lineTotal: '300 TL',
+          }],
+        },
+      },
+    } as never)
+
+    const call = sendEmailMock.mock.calls[0]?.[0]
+    expect(call.html).toContain('Meşe Sehpa')
+    expect(call.html).toContain('Varyant: Ceviz')
+    expect(call.html).toContain('150 TL')
+    expect(call.html).toContain('300 TL')
+    expect(call.html).toContain('href="https://www.hanuja.com.tr/siparis/order-1"')
+  })
+
+  it('renders shipped line details and the customer order link from the event payload', async () => {
+    findUniqueMock.mockResolvedValue({ id: 'user-1' })
+
+    await processNotificationDispatch({
+      id: 'job-order-shipped',
+      data: {
+        eventKey: 'order:order-1:shipped:seller-1:TRACK-1',
+        userId: 'user-1',
+        type: 'order_shipped',
+        title: 'Siparişiniz kargoya verildi',
+        body: 'Body',
+        emailTo: 'customer@example.com',
+        data: {
+          customerName: 'Ayşe',
+          orderNumber: 'ABC12345',
+          trackingNumber: 'TRACK-1',
+          cargoCompany: 'Hızlı Kargo',
+          orderUrl: 'https://www.hanuja.com.tr/siparis/order-1',
+          items: [{
+            productName: 'Gea Berjer',
+            variantName: 'Doğal keten',
+            quantity: 1,
+            unitPrice: '2.500 TL',
+            lineTotal: '2.500 TL',
+          }],
+        },
+      },
+    } as never)
+
+    const call = sendEmailMock.mock.calls[0]?.[0]
+    expect(call.html).toContain('Gea Berjer')
+    expect(call.html).toContain('Doğal keten')
+    expect(call.html).toContain('TRACK-1')
+    expect(call.html).toContain('href="https://www.hanuja.com.tr/siparis/order-1"')
+    expect(call.text).toContain('Birim Satın Alma Fiyatı: 2.500 TL')
   })
 
   it('sends invoice_uploaded emails with the fatura category and support replyTo', async () => {
@@ -436,5 +585,75 @@ describe('notification-dispatch.job', () => {
     const call = sendEmailMock.mock.calls[0]?.[0]
     expect(call).toMatchObject({ fromCategory: 'noreply' })
     expect(call).not.toHaveProperty('replyTo')
+  })
+
+  it('deduplicates in-app and email delivery for the same event and normalizes the recipient', async () => {
+    findUniqueMock.mockResolvedValue({ id: 'user-1' })
+    const job = {
+      id: 'job-idempotent',
+      data: {
+        eventKey: 'invoice:invoice-1:uploaded',
+        userId: 'user-1',
+        type: 'invoice_uploaded',
+        title: 'Fatura yüklendi',
+        body: 'Body',
+        emailTo: ' Customer@Example.COM ',
+        data: { customerName: 'Ayşe', orderNumber: 'ABC12345' },
+      },
+    }
+
+    await processNotificationDispatch(job as never)
+    await processNotificationDispatch(job as never)
+
+    expect(createMock).toHaveBeenCalledTimes(1)
+    expect(sendEmailMock).toHaveBeenCalledTimes(1)
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'customer@example.com' }),
+    )
+  })
+
+  it('marks an email delivery failed and retries that channel without duplicating in-app delivery', async () => {
+    findUniqueMock.mockResolvedValue({ id: 'user-1' })
+    sendEmailMock
+      .mockRejectedValueOnce(new Error('SMTP geçici hata'))
+      .mockResolvedValueOnce(undefined)
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const job = {
+      id: 'job-retry',
+      data: {
+        eventKey: 'invoice:invoice-2:uploaded',
+        userId: 'user-1',
+        type: 'invoice_uploaded',
+        title: 'Fatura yüklendi',
+        body: 'Body',
+        emailTo: 'customer@example.com',
+        data: { customerName: 'Ayşe', orderNumber: 'ABC12345' },
+      },
+    }
+
+    await expect(processNotificationDispatch(job as never)).rejects.toThrow('SMTP geçici hata')
+    const failedEmailDelivery = [...deliveryRecords.values()].find(
+      (delivery) => delivery.channel === 'email',
+    )
+    expect(failedEmailDelivery).toMatchObject({
+      status: 'failed',
+      lastError: 'SMTP geçici hata',
+    })
+    expect(deliveryUpdateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ attemptCount: { increment: 1 } }),
+      }),
+    )
+    await expect(processNotificationDispatch(job as never)).resolves.toBeUndefined()
+
+    expect(createMock).toHaveBeenCalledTimes(1)
+    expect(sendEmailMock).toHaveBeenCalledTimes(2)
+    expect(
+      [...deliveryRecords.values()].filter((delivery) => delivery.channel === 'in_app'),
+    ).toHaveLength(1)
+    expect(
+      [...deliveryRecords.values()].find((delivery) => delivery.channel === 'email')?.status,
+    ).toBe('sent')
+    errorSpy.mockRestore()
   })
 })

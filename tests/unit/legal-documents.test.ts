@@ -24,6 +24,19 @@ describe('legal documents', () => {
     expect(bundle.preInformationHtml).toContain('Platformun Rolü ve Sorumluluk Sınırı')
   })
 
+  it('embeds the active document versions in both order snapshots', () => {
+    const bundle = renderLegalDocuments(buildPublicLegalDocumentContext())
+
+    expect(bundle.distanceSalesHtml).toContain(
+      `<strong>Belge Sürümü:</strong> ${DISTANCE_SALES_DOCUMENT_VERSION}`,
+    )
+    expect(bundle.preInformationHtml).toContain(
+      `<strong>Belge Sürümü:</strong> ${PRE_INFORMATION_DOCUMENT_VERSION}`,
+    )
+    expect(bundle.distanceSalesVersion).not.toBe('distance-sales-2026-06-16-v1')
+    expect(bundle.preInformationVersion).not.toBe('pre-information-2026-06-16-v1')
+  })
+
   it('uses the 2026 return shipping posture and does not keep old electronics exceptions', () => {
     const bundle = renderLegalDocuments(buildPublicLegalDocumentContext())
     const combinedHtml = `${bundle.distanceSalesHtml}\n${bundle.preInformationHtml}`
@@ -32,6 +45,19 @@ describe('legal documents', () => {
     expect(combinedHtml).toContain('tüketici iade masraflarından sorumlu tutulamaz')
     expect(combinedHtml).not.toContain('telefon, akıllı saat, tablet ve bilgisayar')
     expect(combinedHtml).not.toContain('iade kargo müşteriye aittir')
+  })
+
+  it('states the personalized-goods withdrawal exception without limiting defective-goods remedies', () => {
+    const bundle = renderLegalDocuments(buildPublicLegalDocumentContext())
+
+    for (const html of [bundle.distanceSalesHtml, bundle.preInformationHtml]) {
+      expect(html).toContain('Tüketicinin istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan mallara ilişkin')
+      expect(html).toContain("Mesafeli Sözleşmeler Yönetmeliği'ndeki cayma hakkı istisnaları")
+      expect(html).toContain('Ürün bu nitelikteyse ve mevzuattaki koşullar oluşmuşsa cayma hakkı kullanılamayabilir')
+      expect(html).toContain('Ayıplı veya sözleşmeye aykırı ürünlere ilişkin tüketicinin mevzuattan doğan')
+      expect(html).toContain('yasal hakları saklıdır')
+      expect(html).toContain('cayma hakkı istisnası bu hakları ortadan kaldırmaz')
+    }
   })
 
   it('hashes rendered HTML deterministically for legal acceptance evidence', () => {

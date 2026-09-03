@@ -1,4 +1,4 @@
-import type { LedgerEntryType, PrismaClient } from '@prisma/client'
+import { Prisma, type LedgerEntryType, type PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 
 type DecimalLike = Decimal | number | string | null | undefined
@@ -10,51 +10,88 @@ export function coerceDecimal(value: DecimalLike): Decimal {
 }
 
 export function createSellerLedgerRepository(prisma: PrismaClient) {
+  type LedgerClient = PrismaClient | Prisma.TransactionClient
+  type EntryInput = {
+    sellerId: string
+    type: LedgerEntryType
+    amount: Decimal
+    eventKey?: string
+    effectiveAt?: Date
+    referenceType?: string
+    referenceId?: string
+    description?: string
+    orderId?: string
+    payoutId?: string
+    penaltyId?: string
+    note?: string
+    createdBy?: string
+    visibleToSeller?: boolean
+  }
+
+  async function appendEntry(client: LedgerClient, data: EntryInput) {
+    // balanceAfter is an append chain. A transaction-scoped advisory lock makes
+    // aggregate + insert atomic for one seller without blocking other sellers.
+    if (typeof client.$queryRaw === 'function') {
+      await client.$queryRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${data.sellerId}, 0))`,
+      )
+    }
+
+    if (data.eventKey) {
+      const existing = await client.sellerLedgerEntry.findUnique({
+        where: { eventKey: data.eventKey },
+      })
+      if (existing) {
+        if (
+          existing.sellerId !== data.sellerId ||
+          existing.type !== data.type ||
+          !existing.amount.equals(data.amount)
+        ) {
+          throw new Error(`Ledger event key farklı bir hareket için kullanılmış: ${data.eventKey}`)
+        }
+        return existing
+      }
+    }
+
+    const result = await client.sellerLedgerEntry.aggregate({
+      where: { sellerId: data.sellerId },
+      _sum: { amount: true },
+    })
+    const previousBalance = coerceDecimal(result._sum.amount)
+    const balanceAfter = previousBalance.plus(coerceDecimal(data.amount))
+    const referenceType =
+      data.referenceType ??
+      (data.orderId ? 'order' : data.payoutId ? 'payout' : data.penaltyId ? 'penalty' : 'manual')
+    const referenceId = data.referenceId ?? data.orderId ?? data.payoutId ?? data.penaltyId ?? 'manual'
+    const description = data.description ?? data.note
+
+    return client.sellerLedgerEntry.create({
+      data: {
+        sellerId: data.sellerId,
+        type: data.type,
+        amount: data.amount,
+        balanceAfter,
+        ...(data.eventKey !== undefined ? { eventKey: data.eventKey } : {}),
+        ...(data.effectiveAt !== undefined ? { effectiveAt: data.effectiveAt } : {}),
+        referenceType,
+        referenceId,
+        ...(description !== undefined ? { description } : {}),
+        ...(data.createdBy !== undefined ? { createdBy: data.createdBy } : {}),
+        ...(data.visibleToSeller !== undefined ? { visibleToSeller: data.visibleToSeller } : {}),
+      },
+    })
+  }
+
   return {
     /**
      * Append a new ledger entry — ledger is append-only, never update/delete.
      */
-    createEntry(data: {
-      sellerId: string
-      type: LedgerEntryType
-      amount: Decimal
-      referenceType?: string
-      referenceId?: string
-      description?: string
-      orderId?: string
-      payoutId?: string
-      penaltyId?: string
-      note?: string
-      createdBy?: string
-      visibleToSeller?: boolean
-    }, tx?: PrismaClient) {
-      const client = tx ?? prisma
-      return client.sellerLedgerEntry.aggregate({
-        where: { sellerId: data.sellerId },
-        _sum: { amount: true },
-      }).then((result) => {
-        const previousBalance = coerceDecimal(result._sum.amount)
-        const balanceAfter = previousBalance.plus(coerceDecimal(data.amount))
-        const referenceType =
-          data.referenceType ??
-          (data.orderId ? 'order' : data.payoutId ? 'payout' : data.penaltyId ? 'penalty' : 'manual')
-        const referenceId = data.referenceId ?? data.orderId ?? data.payoutId ?? data.penaltyId ?? 'manual'
-        const description = data.description ?? data.note
-
-        return client.sellerLedgerEntry.create({
-          data: {
-            sellerId: data.sellerId,
-            type: data.type,
-            amount: data.amount,
-            balanceAfter,
-            referenceType,
-            referenceId,
-            ...(description !== undefined ? { description } : {}),
-            ...(data.createdBy !== undefined ? { createdBy: data.createdBy } : {}),
-            ...(data.visibleToSeller !== undefined ? { visibleToSeller: data.visibleToSeller } : {}),
-          },
-        })
-      })
+    createEntry(data: EntryInput, tx?: Prisma.TransactionClient | PrismaClient) {
+      if (tx) return appendEntry(tx, data)
+      if (typeof prisma.$transaction === 'function') {
+        return prisma.$transaction((transaction) => appendEntry(transaction, data))
+      }
+      return appendEntry(prisma, data)
     },
 
     /**

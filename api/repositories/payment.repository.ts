@@ -26,7 +26,13 @@ export function createPaymentRepository(prisma: PrismaClient) {
       currency?: string
       providerPaymentId?: string
     }) {
-      return prisma.payment.create({ data: { currency: 'TRY', ...data } })
+      return prisma.payment.create({
+        data: {
+          currency: 'TRY',
+          provider: data.method === 'card' ? 'iyzico' : 'manual_eft',
+          ...data,
+        },
+      })
     },
 
     updateStatus(id: string, status: PaymentStatus, tx?: PrismaClient) {

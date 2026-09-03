@@ -4,9 +4,9 @@
  */
 import { NotificationType as NotificationTypeEnum } from '@prisma/client'
 import { Worker, Job } from 'bullmq'
+import { createHash, randomUUID } from 'node:crypto'
 import { redis } from '../lib/redis'
 import { QUEUE_NAMES } from '../lib/queue'
-import { prisma } from '../lib/prisma'
 import { sendEmail, type EmailFromCategory } from '../lib/mailer'
 import { PLATFORM_LEGAL_INFO } from '../lib/platform-info'
 import {
@@ -19,12 +19,19 @@ import {
   penaltyAppliedTemplate,
   storeDiscountFollowedSellerTemplate,
   productDiscountTemplate,
+  orderPaymentConfirmedTemplate,
+  sellerNewOrderTemplate,
+  sellerOrderCancellationTemplate,
+  sellerReturnRequestTemplate,
+  sellerRefundCompletedTemplate,
+  refundCompletedTemplate,
 } from '../lib/email-templates'
 
 type CanonicalNotificationType = (typeof NotificationTypeEnum)[keyof typeof NotificationTypeEnum]
 type LegacyNotificationType = 'order_confirmed' | 'payout_processed'
 
 export interface NotificationDispatchJobData {
+  eventKey?: string
   userId: string
   type: CanonicalNotificationType | LegacyNotificationType
   title: string
@@ -38,9 +45,15 @@ export interface NotificationDispatchJobData {
 /** Notification types that warrant an email */
 const EMAIL_NOTIFICATION_TYPES = new Set<CanonicalNotificationType>([
   NotificationTypeEnum.order_placed,
+  NotificationTypeEnum.order_payment_confirmed,
   NotificationTypeEnum.order_shipped,
   NotificationTypeEnum.order_delivery_confirmed,
   NotificationTypeEnum.return_requested,
+  NotificationTypeEnum.order_canceled,
+  NotificationTypeEnum.seller_order_received,
+  NotificationTypeEnum.seller_return_request,
+  NotificationTypeEnum.refund_completed,
+  NotificationTypeEnum.seller_refund_completed,
   NotificationTypeEnum.payout_paid,
   NotificationTypeEnum.penalty_applied,
   NotificationTypeEnum.invoice_uploaded,
@@ -95,7 +108,14 @@ async function buildEmailPayload(
         customerName: String(data['customerName'] ?? ''),
         orderNumber: String(data['orderNumber'] ?? ''),
         totalAmount: String(data['totalAmount'] ?? ''),
-        items: (data['items'] as Array<{ name: string; quantity: number; price: string }>) ?? [],
+        items: (data['items'] as Array<{
+          productName: string
+          variantName?: string | null
+          quantity: number
+          unitPrice: string
+          lineTotal: string
+        }>) ?? [],
+        ...(data['orderUrl'] ? { orderUrl: String(data['orderUrl']) } : {}),
         paymentMethod: data['paymentMethod'] === 'eft' ? 'eft' : 'card',
         ...((data['bankTransferInstructions'] as {
           bankName: string
@@ -116,12 +136,132 @@ async function buildEmailPayload(
           : {}),
       })
 
+    case NotificationTypeEnum.order_payment_confirmed:
+      return orderPaymentConfirmedTemplate({
+        customerName: String(data['customerName'] ?? ''),
+        orderNumber: String(data['orderNumber'] ?? ''),
+        items: (data['items'] as Array<{
+          productName: string
+          variantName?: string | null
+          quantity: number
+          unitPrice: string
+          lineTotal: string
+        }>) ?? [],
+        ...(data['totalAmount'] !== undefined
+          ? { totalAmount: String(data['totalAmount']) }
+          : {}),
+        ...(data['orderUrl'] ? { orderUrl: String(data['orderUrl']) } : {}),
+        paymentMethod: data['paymentMethod'] === 'eft' ? 'eft' : 'card',
+      })
+
+    case NotificationTypeEnum.seller_order_received:
+      return sellerNewOrderTemplate({
+        sellerName: String(data['sellerName'] ?? ''),
+        sellerId: String(data['sellerId'] ?? ''),
+        orderNumber: String(data['orderNumber'] ?? ''),
+        items: (data['items'] as Array<{
+          productName: string
+          sellerId?: string
+          variantName?: string | null
+          quantity: number
+          unitPrice: string
+          lineTotal: string
+        }>) ?? [],
+        ...(data['totalAmount'] !== undefined
+          ? { totalAmount: String(data['totalAmount']) }
+          : {}),
+        ...(data['panelUrl'] ? { panelUrl: String(data['panelUrl']) } : {}),
+      })
+
+    case NotificationTypeEnum.order_canceled:
+      return sellerOrderCancellationTemplate({
+        sellerName: String(data['sellerName'] ?? ''),
+        sellerId: String(data['sellerId'] ?? ''),
+        orderNumber: String(data['orderNumber'] ?? ''),
+        items: (data['items'] as Array<{
+          productName: string
+          sellerId?: string
+          variantName?: string | null
+          quantity: number
+          unitPrice: string
+          lineTotal: string
+        }>) ?? [],
+        ...(data['cancellationReason']
+          ? { cancellationReason: String(data['cancellationReason']) }
+          : {}),
+        ...(data['panelUrl'] ? { panelUrl: String(data['panelUrl']) } : {}),
+      })
+
+    case NotificationTypeEnum.seller_return_request:
+      return sellerReturnRequestTemplate({
+        sellerName: String(data['sellerName'] ?? ''),
+        sellerId: String(data['sellerId'] ?? ''),
+        orderNumber: String(data['orderNumber'] ?? ''),
+        items: (data['items'] as Array<{
+          productName: string
+          sellerId?: string
+          variantName?: string | null
+          quantity: number
+          unitPrice: string
+          lineTotal: string
+        }>) ?? [],
+        ...(data['returnReason'] ? { returnReason: String(data['returnReason']) } : {}),
+        ...(data['panelUrl'] ? { panelUrl: String(data['panelUrl']) } : {}),
+      })
+
+    case NotificationTypeEnum.refund_completed:
+      return refundCompletedTemplate({
+        customerName: String(data['customerName'] ?? ''),
+        orderNumber: String(data['orderNumber'] ?? ''),
+        items: (data['items'] as Array<{
+          productName: string
+          variantName?: string | null
+          quantity: number
+          unitPrice: string
+          lineTotal: string
+        }>) ?? [],
+        ...(data['refundAmount'] !== undefined
+          ? { refundAmount: String(data['refundAmount']) }
+          : {}),
+        ...(data['orderUrl'] ? { orderUrl: String(data['orderUrl']) } : {}),
+      })
+
+    case NotificationTypeEnum.seller_refund_completed:
+      return sellerRefundCompletedTemplate({
+        sellerName: String(data['sellerName'] ?? ''),
+        sellerId: String(data['sellerId'] ?? ''),
+        orderNumber: String(data['orderNumber'] ?? ''),
+        items: (data['items'] as Array<{
+          productName: string
+          sellerId?: string
+          variantName?: string | null
+          quantity: number
+          unitPrice: string
+          lineTotal: string
+        }>) ?? [],
+        ...(data['refundAmount'] !== undefined
+          ? { refundAmount: String(data['refundAmount']) }
+          : {}),
+        ...(data['panelUrl'] ? { panelUrl: String(data['panelUrl']) } : {}),
+      })
+
     case NotificationTypeEnum.order_shipped:
       return shipmentNotificationTemplate({
         customerName: String(data['customerName'] ?? ''),
         orderNumber: String(data['orderNumber'] ?? ''),
         trackingNumber: String(data['trackingNumber'] ?? ''),
         cargoCompany: String(data['cargoCompany'] ?? ''),
+        items: (data['items'] as Array<{
+          productName: string
+          variantName?: string | null
+          quantity: number
+          unitPrice: string
+          lineTotal: string
+        }>) ?? [],
+        ...(data['totalAmount'] !== undefined
+          ? { totalAmount: String(data['totalAmount']) }
+          : {}),
+        ...(data['orderUrl'] ? { orderUrl: String(data['orderUrl']) } : {}),
       })
 
     case NotificationTypeEnum.order_delivery_confirmed:
@@ -187,6 +327,9 @@ async function buildEmailPayload(
 }
 
 export async function processNotificationDispatch(job: Job<NotificationDispatchJobData>) {
+  // Keep database initialization inside the processor so importing the job for
+  // queue helpers or unit-tested services does not instantiate Prisma.
+  const { prisma } = await import('../lib/prisma')
   const { userId, type, title, body, data, emailTo, replyTo } = job.data
   const canonicalType = resolveNotificationType(type)
 
@@ -213,15 +356,68 @@ export async function processNotificationDispatch(job: Job<NotificationDispatchJ
     return
   }
 
-  await prisma.notification.create({
-    data: {
+  const eventKey = job.data.eventKey ?? `legacy-job:${job.id ?? 'unknown'}`
+  const inAppRecipient = user.id
+  const inAppDelivery = await prisma.notificationDelivery.upsert({
+    where: {
+      recipient_channel_eventKey: {
+        recipient: inAppRecipient,
+        channel: 'in_app',
+        eventKey,
+      },
+    },
+    update: {},
+    create: {
+      eventKey,
       userId: user.id,
       type: canonicalType,
-      title,
-      body,
-      data: data as never,
+      channel: 'in_app',
+      recipient: inAppRecipient,
     },
   })
+  if (inAppDelivery.status !== 'sent') {
+    const claimed = await prisma.notificationDelivery.updateMany({
+      where: { id: inAppDelivery.id, status: { in: ['pending', 'failed'] } },
+      data: {
+        status: 'processing',
+        attemptCount: { increment: 1 },
+        lastAttemptAt: new Date(),
+        lastError: null,
+      },
+    })
+    if (claimed.count === 1) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          const notification = await tx.notification.create({
+            data: {
+              userId: user.id,
+              type: canonicalType,
+              title,
+              body,
+              data: data as never,
+            },
+          })
+          await tx.notificationDelivery.update({
+            where: { id: inAppDelivery.id },
+            data: {
+              status: 'sent',
+              notificationId: notification.id,
+              deliveredAt: new Date(),
+            },
+          })
+        })
+      } catch (error) {
+        await prisma.notificationDelivery.update({
+          where: { id: inAppDelivery.id },
+          data: {
+            status: 'failed',
+            lastError: error instanceof Error ? error.message.slice(0, 2000) : 'Bilinmeyen hata',
+          },
+        })
+        throw error
+      }
+    }
+  }
 
   if (emailTo && EMAIL_NOTIFICATION_TYPES.has(canonicalType)) {
     const emailPayload = await buildEmailPayload(canonicalType, data)
@@ -240,16 +436,57 @@ export async function processNotificationDispatch(job: Job<NotificationDispatchJ
               'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
             }
           : undefined
+      const normalizedRecipient = emailTo.trim().toLowerCase()
+      const emailDelivery = await prisma.notificationDelivery.upsert({
+        where: {
+          recipient_channel_eventKey: {
+            recipient: normalizedRecipient,
+            channel: 'email',
+            eventKey,
+          },
+        },
+        update: {},
+        create: {
+          eventKey,
+          userId: user.id,
+          type: canonicalType,
+          channel: 'email',
+          recipient: normalizedRecipient,
+        },
+      })
+      if (emailDelivery.status === 'sent') return
+      const claimed = await prisma.notificationDelivery.updateMany({
+        where: { id: emailDelivery.id, status: { in: ['pending', 'failed'] } },
+        data: {
+          status: 'processing',
+          attemptCount: { increment: 1 },
+          lastAttemptAt: new Date(),
+          lastError: null,
+        },
+      })
+      if (claimed.count !== 1) return
       try {
         await sendEmail({
-          to: emailTo,
+          to: normalizedRecipient,
           ...emailPayload,
           fromCategory,
           ...(resolvedReplyTo ? { replyTo: resolvedReplyTo } : {}),
           ...(listUnsubscribeHeaders ? { headers: listUnsubscribeHeaders } : {}),
         })
+        await prisma.notificationDelivery.update({
+          where: { id: emailDelivery.id },
+          data: { status: 'sent', deliveredAt: new Date(), lastError: null },
+        })
       } catch (err) {
+        await prisma.notificationDelivery.update({
+          where: { id: emailDelivery.id },
+          data: {
+            status: 'failed',
+            lastError: err instanceof Error ? err.message.slice(0, 2000) : 'Bilinmeyen hata',
+          },
+        })
         console.error(`[notification-dispatch] Email send failed for ${canonicalType}:`, err)
+        throw err
       }
     }
   }
@@ -276,8 +513,15 @@ export function startNotificationDispatchWorker() {
  */
 export async function enqueueNotification(data: NotificationDispatchJobData) {
   const { notificationDispatchQueue } = await import('../lib/queue')
-  return notificationDispatchQueue.add('notify', data, {
-    attempts: 3,
+  const eventKey = data.eventKey ?? `notification:${randomUUID()}`
+  const jobId = createHash('sha256')
+    .update(`${data.userId}|${data.type}|${eventKey}`)
+    .digest('hex')
+  return notificationDispatchQueue.add('notify', { ...data, eventKey }, {
+    jobId,
+    attempts: 5,
     backoff: { type: 'exponential', delay: 2000 },
+    removeOnComplete: 10000,
+    removeOnFail: 10000,
   })
 }

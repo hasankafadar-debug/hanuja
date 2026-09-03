@@ -149,6 +149,20 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
               ),
             new Decimal(0),
           )
+          const grossProductAmount = rr.items.reduce(
+            (sum, item) =>
+              sum.add(
+                item.requestedGrossProductAmount.sub(item.grossProductAmount),
+              ),
+            new Decimal(0),
+          )
+          const couponAdjustmentAmount = rr.items.reduce(
+            (sum, item) =>
+              sum.add(
+                item.requestedCouponAdjustmentAmount.sub(item.couponAdjustmentAmount),
+              ),
+            new Decimal(0),
+          )
           const commissionAdjustmentAmount = rr.items.reduce(
             (sum, item) =>
               sum.add(
@@ -215,12 +229,22 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
               sourceType: 'dispute',
               sourceId: dispute.id,
               customerAmount,
+              grossProductAmount,
+              couponAdjustmentAmount,
               sellerAdjustmentAmount,
               commissionAdjustmentAmount,
               platformFundedAmount: Decimal.max(
                 new Decimal(0),
                 customerAmount.sub(sellerAdjustmentAmount),
               ),
+              items: rr.items
+                .map((item) => ({
+                  orderLineId: item.orderLineId,
+                  quantity: item.rejectedQuantity,
+                  amount: item.requestedCustomerAmount.sub(item.customerRefundAmount),
+                }))
+                .filter((item) => item.amount.gt(0)),
+              shippingAmount: shippingRefund,
             })
             await prisma.returnRequest.update({
               where: { id: rr.id },

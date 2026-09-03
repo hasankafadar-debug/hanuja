@@ -36,9 +36,11 @@ export type SellerLedgerEntry = {
   sellerId: string
   type: SellerLedgerEntryType
   amount: number
+  eventKey: string | null
   referenceType: string
   referenceId: string
   balanceAfter: number
+  effectiveAt: Date
   createdAt: Date
 }
 
@@ -46,6 +48,8 @@ export type SellerStatementRow = {
   id: string
   date: Date
   reference: string
+  orderId?: string
+  refundSourceType?: 'cancellation' | 'return_request' | 'dispute'
   topic: string
   description: string
   credit: number

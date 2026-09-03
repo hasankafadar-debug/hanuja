@@ -30,6 +30,7 @@
     "media:backfill": "tsx tools/scripts/backfill-media-urls.ts",
     "media:optimize-home": "tsx tools/scripts/optimize-home-media.ts",
     "ledger:backfill": "tsx tools/scripts/backfill-seller-ledger.ts",
+    "ledger:repair-mosaiss": "tsx tools/scripts/repair-mosaiss-ledger.ts",
     "payout:repair": "tsx tools/scripts/repair-missing-payouts.ts",
     "launch:clean-data": "tsx tools/scripts/pre-launch-data-clean.ts",
     "worker": "tsx api/worker.ts",

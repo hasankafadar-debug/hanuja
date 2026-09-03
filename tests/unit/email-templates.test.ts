@@ -2,11 +2,164 @@ import { describe, expect, it } from 'vitest'
 import {
   invoiceUploadedTemplate,
   orderConfirmationTemplate,
+  orderCreatedTemplate,
+  orderPaymentConfirmedTemplate,
+  orderShippedTemplate,
   passwordResetTemplate,
   passwordChangedTemplate,
   productDiscountTemplate,
+  refundCompletedTemplate,
+  sellerNewOrderTemplate,
+  sellerOrderCancellationTemplate,
+  sellerRefundCompletedTemplate,
+  sellerReturnRequestTemplate,
   storeDiscountFollowedSellerTemplate,
 } from '../../api/lib/email-templates'
+
+const transactionalOrderLine = {
+  productName: 'Gea Berjer',
+  variantName: 'Doğal keten',
+  quantity: 2,
+  unitPrice: '₺4.850,00',
+  lineTotal: '₺9.700,00',
+} as const
+
+const customerOrderInput = {
+  customerName: 'Ayşe',
+  orderNumber: 'HNJ-1001',
+  items: [transactionalOrderLine],
+  totalAmount: '₺9.700,00',
+  orderUrl: 'https://www.hanuja.com.tr/siparis/order-1',
+}
+
+const sellerOrderInput = {
+  sellerName: 'Atelier Noa',
+  orderNumber: 'HNJ-1001',
+  items: [transactionalOrderLine],
+  panelUrl: 'https://satici.hanuja.com.tr/siparisler/order-1',
+}
+
+describe('phase 4 transactional order email templates', () => {
+  it('uses the shared Hanuja logo, mobile shell, order fields, and customer link', () => {
+    const template = orderCreatedTemplate(customerOrderInput)
+
+    expect(template.html).toContain('<svg xmlns="http://www.w3.org/2000/svg"')
+    expect(template.html).toContain('Hanuja')
+    expect(template.html).toContain('@media only screen and (max-width: 620px)')
+    expect(template.html).toContain('max-width:580px')
+    expect(template.html).toContain('href="https://www.hanuja.com.tr/siparis/order-1"')
+    expect(template.html).toContain('Gea Berjer')
+    expect(template.html).toContain('Doğal keten')
+    expect(template.html).toContain('Birim Satın Alma Fiyatı')
+    expect(template.html).toContain('Satır Toplamı')
+    expect(template.html).toContain('₺4.850,00')
+    expect(template.html).toContain('₺9.700,00')
+    expect(template.text).toContain('Adet: 2')
+  })
+
+  it('renders the customer payment-confirmed event with Turkish copy and order details', () => {
+    const template = orderPaymentConfirmedTemplate({
+      ...customerOrderInput,
+      paymentMethod: 'card',
+    })
+
+    expect(template.subject).toBe('Ödemeniz Onaylandı — #HNJ-1001')
+    expect(template.html).toContain('siparişinizin ödemesi onaylandı')
+    expect(template.html).toContain('Siparişimi Görüntüle')
+    expect(template.text).toContain('Kredi Kartı')
+  })
+
+  it('renders shipped details when the shipment event carries line data', () => {
+    const template = orderShippedTemplate({
+      ...customerOrderInput,
+      trackingNumber: 'TRK-123',
+      cargoCompany: 'Hanuja Kargo',
+    })
+
+    expect(template.subject).toBe('Siparişiniz Yolda — #HNJ-1001')
+    expect(template.html).toContain('Siparişiniz Kargoya Verildi')
+    expect(template.html).toContain('TRK-123')
+    expect(template.html).toContain('Hanuja Kargo')
+    expect(template.html).toContain('Doğal keten')
+    expect(template.text).toContain('https://www.hanuja.com.tr/siparis/order-1')
+  })
+
+  it('keeps the seller order email scoped to the supplied seller lines', () => {
+    const template = sellerNewOrderTemplate(sellerOrderInput)
+
+    expect(template.subject).toBe('Yeni Sipariş — Ödemesi Onaylandı — #HNJ-1001')
+    expect(template.html).toContain('Atelier Noa')
+    expect(template.html).toContain('Gea Berjer')
+    expect(template.html).toContain('href="https://satici.hanuja.com.tr/siparisler/order-1"')
+    expect(template.html).toContain('Satıcı Panelinde Görüntüle')
+    expect(template.text).toContain('Birim Satın Alma Fiyatı: ₺4.850,00')
+  })
+
+  it('filters line ownership when a seller id is present in the pure payload', () => {
+    const template = sellerNewOrderTemplate({
+      ...sellerOrderInput,
+      sellerId: 'seller-a',
+      items: [
+        { ...transactionalOrderLine, sellerId: 'seller-a' },
+        {
+          ...transactionalOrderLine,
+          productName: 'Başka Mağazanın Ürünü',
+          sellerId: 'seller-b',
+        },
+      ],
+    })
+
+    expect(template.html).toContain('Gea Berjer')
+    expect(template.html).not.toContain('Başka Mağazanın Ürünü')
+  })
+
+  it('renders product/quantity cancellation using the seller panel link', () => {
+    const template = sellerOrderCancellationTemplate({
+      ...sellerOrderInput,
+      cancellationReason: 'Stok adedi güncellendi',
+    })
+
+    expect(template.subject).toBe('Ürün / Adet İptali — #HNJ-1001')
+    expect(template.html).toContain('ürün/adet iptali gerçekleşti')
+    expect(template.html).toContain('Adet')
+    expect(template.html).toContain('Stok adedi güncellendi')
+    expect(template.text).toContain('https://satici.hanuja.com.tr/siparisler/order-1')
+  })
+
+  it('renders seller return-request and terminal refund events', () => {
+    const requested = sellerReturnRequestTemplate({
+      ...sellerOrderInput,
+      returnReason: 'Ürün beklediğim gibi değil',
+    })
+    const completed = sellerRefundCompletedTemplate({
+      ...sellerOrderInput,
+      refundAmount: '₺4.850,00',
+    })
+
+    expect(requested.subject).toBe('Yeni İade Talebi — #HNJ-1001')
+    expect(requested.html).toContain('iade talebi oluşturuldu')
+    expect(requested.html).toContain('Ürün beklediğim gibi değil')
+    expect(completed.subject).toBe('İade Tamamlandı — #HNJ-1001')
+    expect(completed.html).toContain('iade kesinleşti')
+    expect(completed.html).toContain('İade Tutarı: ₺4.850,00')
+    expect(completed.text).toContain(
+      'Satıcı paneli: https://satici.hanuja.com.tr/siparisler/order-1',
+    )
+  })
+
+  it('renders the customer terminal refund event and rejects unsafe panel links', () => {
+    const template = refundCompletedTemplate({
+      ...customerOrderInput,
+      refundAmount: 4850,
+      orderUrl: 'javascript:alert(1)',
+    })
+
+    expect(template.html).toContain('İadeniz Tamamlandı')
+    expect(template.html).toContain('İade Tutarı: 4.850,00 TL')
+    expect(template.html).not.toContain('javascript:alert(1)')
+    expect(template.html).not.toMatch(/href="javascript:/i)
+  })
+})
 
 describe('orderConfirmationTemplate', () => {
   it('includes EFT payment details and bank reference when provided', () => {
@@ -45,7 +198,9 @@ describe('orderConfirmationTemplate', () => {
       },
     })
 
-    expect(template.html).toContain('Banka bilgileri için lütfen destek ekibimizle iletişime geçin.')
+    expect(template.html).toContain(
+      'Banka bilgileri için lütfen destek ekibimizle iletişime geçin.',
+    )
   })
 })
 
@@ -90,7 +245,9 @@ describe('invoiceUploadedTemplate', () => {
 
 describe('passwordResetTemplate', () => {
   it('includes the reset link and 1-hour validity notice', () => {
-    const template = passwordResetTemplate({ resetUrl: 'https://www.hanuja.com.tr/sifre-sifirla?token=abc123' })
+    const template = passwordResetTemplate({
+      resetUrl: 'https://www.hanuja.com.tr/sifre-sifirla?token=abc123',
+    })
 
     expect(template.subject).toBe('Şifre Sıfırlama Talebi')
     expect(template.html).toContain('https://www.hanuja.com.tr/sifre-sifirla?token=abc123')
@@ -117,7 +274,9 @@ describe('productDiscountTemplate', () => {
     expect(template.html).toContain('Atelier Noa')
     expect(template.html).toContain('href="https://www.hanuja.com.tr/urun/mese-sehpa"')
     expect(template.html).toContain('Ürünü İncele')
-    expect(template.html).toContain('href="https://www.hanuja.com.tr/api/marketing/unsubscribe?token=abc"')
+    expect(template.html).toContain(
+      'href="https://www.hanuja.com.tr/api/marketing/unsubscribe?token=abc"',
+    )
     expect(template.html).toContain('abonelikten çıkın')
     expect(template.text).toContain('https://www.hanuja.com.tr/urun/mese-sehpa')
     expect(template.text).toContain('https://www.hanuja.com.tr/api/marketing/unsubscribe?token=abc')
@@ -137,7 +296,9 @@ describe('productDiscountTemplate', () => {
     expect(template.html).toContain('Sepetinizdeki')
     expect(template.html).toContain('Rattan Konsol')
     expect(template.html).toContain('Woodform')
-    expect(template.text).toContain('Sepetinizdeki Rattan Konsol ürünü, Woodform mağazasında şimdi indirimde.')
+    expect(template.text).toContain(
+      'Sepetinizdeki Rattan Konsol ürünü, Woodform mağazasında şimdi indirimde.',
+    )
   })
 
   it('escapes a malicious productName in html but leaves the text branch raw', () => {
@@ -232,7 +393,9 @@ describe('storeDiscountFollowedSellerTemplate', () => {
 
 describe('passwordChangedTemplate', () => {
   it('states the password was changed and warns without any link', () => {
-    const template = passwordChangedTemplate({ changedAt: new Date('2026-07-16T10:30:00Z') })
+    const template = passwordChangedTemplate({
+      changedAt: new Date('2026-07-16T10:30:00Z'),
+    })
 
     expect(template.subject).toBe('Şifreniz Değiştirildi')
     expect(template.html).toContain('admin@hanuja.com.tr')

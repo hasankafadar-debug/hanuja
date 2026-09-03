@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 import { PLATFORM_LEGAL_INFO } from './platform-info'
 
-export const DISTANCE_SALES_DOCUMENT_VERSION = 'distance-sales-2026-06-16-v1'
-export const PRE_INFORMATION_DOCUMENT_VERSION = 'pre-information-2026-06-16-v1'
+export const DISTANCE_SALES_DOCUMENT_VERSION = 'distance-sales-2026-09-03-v2'
+export const PRE_INFORMATION_DOCUMENT_VERSION = 'pre-information-2026-09-03-v2'
 
 export interface LegalBuyerSnapshot {
   fullName: string
@@ -256,7 +256,7 @@ function renderRightOfWithdrawalExceptions() {
   return `
     <ul>
       <li>Fiyatı finansal piyasalardaki dalgalanmalara bağlı olarak değişen ve satıcı veya sağlayıcının kontrolünde olmayan ürün ve hizmetler.</li>
-      <li>Alıcının istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan kişiye özel ürünler.</li>
+      <li>Tüketicinin istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan mallara ilişkin sözleşmeler.</li>
       <li>Çabuk bozulabilen veya son kullanma tarihi geçebilecek ürünler.</li>
       <li>Tesliminden sonra ambalaj, bant, mühür veya koruyucu unsurları açılmış olan ve sağlık/hijyen açısından iadesi uygun olmayan ürünler.</li>
       <li>Tesliminden sonra başka ürünlerle karışan ve doğası gereği ayrıştırılması mümkün olmayan ürünler.</li>
@@ -267,6 +267,23 @@ function renderRightOfWithdrawalExceptions() {
       <li>Cayma hakkı süresi sona ermeden önce tüketicinin onayı ile ifasına başlanan hizmetler.</li>
       <li>Mevzuatta cayma hakkı dışında bırakılan diğer ürün ve hizmetler.</li>
     </ul>
+  `
+}
+
+function renderPersonalizedGoodsWithdrawalNotice() {
+  return `
+    <div class="notice">
+      <h3>Tüketicinin İstekleri veya Kişisel İhtiyaçları Doğrultusunda Hazırlanan Mallar</h3>
+      <p>
+        Tüketicinin istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan mallara ilişkin
+        sözleşmeler, Mesafeli Sözleşmeler Yönetmeliği'ndeki cayma hakkı istisnaları arasında yer alır.
+        Ürün bu nitelikteyse ve mevzuattaki koşullar oluşmuşsa cayma hakkı kullanılamayabilir.
+      </p>
+      <p>
+        Ayıplı veya sözleşmeye aykırı ürünlere ilişkin tüketicinin mevzuattan doğan seçimlik ve diğer
+        yasal hakları saklıdır; cayma hakkı istisnası bu hakları ortadan kaldırmaz.
+      </p>
+    </div>
   `
 }
 
@@ -416,6 +433,7 @@ function renderDistanceSales(context: LegalContractContext) {
 
         <h2>10. Cayma Hakkının İstisnaları</h2>
         <p>Aşağıdaki hallerde ve mevzuatta sayılan diğer durumlarda cayma hakkı kullanılamayabilir:</p>
+        ${renderPersonalizedGoodsWithdrawalNotice()}
         ${renderRightOfWithdrawalExceptions()}
 
         <h2>11. Ayıplı, Hasarlı, Yanlış veya Eksik Ürün</h2>
@@ -524,6 +542,7 @@ function renderPreInformation(context: LegalContractContext) {
 
         <h2>8. Cayma Hakkının İstisnaları</h2>
         <p>Ürün niteliği veya mevzuat gereği aşağıdaki sözleşmelerde cayma hakkı kullanılamayabilir:</p>
+        ${renderPersonalizedGoodsWithdrawalNotice()}
         ${renderRightOfWithdrawalExceptions()}
 
         <h2>9. Ayıplı Ürün, İade ve Uyuşmazlık Kanalları</h2>

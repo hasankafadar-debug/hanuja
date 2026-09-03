@@ -1,9 +1,11 @@
-import type { LedgerEntryType } from '@prisma/client'
+import type { LedgerEntryType, RefundSourceType } from '@prisma/client'
 
 export interface SellerStatementRow {
   id: string
   date: Date
   reference: string
+  orderId?: string
+  refundSourceType?: RefundSourceType
   topic: string
   description: string
   credit: number
@@ -11,7 +13,10 @@ export interface SellerStatementRow {
   balance: number
 }
 
-export function getSellerStatementTopic(type: LedgerEntryType): string {
+export function getSellerStatementTopic(
+  type: LedgerEntryType,
+  refundSourceType?: RefundSourceType,
+): string {
   switch (type) {
     case 'sale':
       return 'Satış'
@@ -24,6 +29,10 @@ export function getSellerStatementTopic(type: LedgerEntryType): string {
     case 'penalty':
       return 'Ceza'
     case 'refund':
+      if (refundSourceType === 'cancellation') return 'Ürün İptali'
+      if (refundSourceType === 'return_request' || refundSourceType === 'dispute') {
+        return 'Ürün İadesi'
+      }
       return 'İade'
     case 'coupon_share':
       return 'Kupon Payı'

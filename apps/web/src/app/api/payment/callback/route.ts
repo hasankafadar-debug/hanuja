@@ -97,6 +97,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       orderId: conversationId,
       providerRef: paymentId,
       amount: new Decimal(complete3DSResult.paidPrice ?? '0'),
+      ...(complete3DSResult.itemTransactions
+        ? { itemTransactions: complete3DSResult.itemTransactions }
+        : {}),
     })
   } catch (err: unknown) {
     // Zaten confirm edilmişse (idempotency) devam et

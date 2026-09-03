@@ -7,6 +7,9 @@ import {
 } from '../domain/quantity-allocation'
 import { createQuantityRefundService } from './quantity-refund.service'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
+import { formatOrderNumber } from '../lib/order-number'
+import { getSellerPanelUrl } from '../lib/platform-info'
+import { formatMoney } from '@hanuja/security/money'
 
 interface CancellationSelection {
   orderLineId: string
@@ -79,12 +82,22 @@ export function createQuantityCancellationService({
           sourceType: 'cancellation',
           sourceId: operation.id,
           customerAmount: operation.customerRefundAmount,
+          grossProductAmount: operation.grossProductAmount,
+          couponAdjustmentAmount: operation.couponAdjustmentAmount,
           sellerAdjustmentAmount: operation.sellerAdjustmentAmount,
           commissionAdjustmentAmount: operation.commissionAdjustmentAmount,
           platformFundedAmount: Decimal.max(
             new Decimal(0),
-            operation.customerRefundAmount.sub(operation.sellerAdjustmentAmount),
+            operation.customerRefundAmount
+              .sub(operation.sellerAdjustmentAmount)
+              .sub(operation.commissionAdjustmentAmount),
           ),
+          items: operation.items.map((item) => ({
+            orderLineId: item.orderLineId,
+            quantity: item.quantity,
+            amount: item.customerRefundAmount,
+          })),
+          shippingAmount: operation.shippingRefundAmount,
         }),
       )
     }
@@ -102,9 +115,18 @@ export function createQuantityCancellationService({
   async function notifyCancellation(
     operations: Array<{
       id: string
+      orderId: string
       sellerId: string
       customerId: string
-      items: Array<{ quantity: number; orderLine: { productName: string } }>
+      reason: string
+      items: Array<{
+        quantity: number
+        orderLine: {
+          productName: string
+          variantName: string | null
+          unitPrice: Decimal
+        }
+      }>
     }>,
   ) {
     const sellerIds = [
@@ -113,46 +135,71 @@ export function createQuantityCancellationService({
     const [sellers, admins] = await Promise.all([
       prisma.seller.findMany({
         where: { id: { in: sellerIds } },
-        select: { id: true, userId: true },
+        select: {
+          id: true,
+          displayName: true,
+          user: { select: { id: true, email: true } },
+        },
       }),
       prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } }),
     ])
-    const sellerUsers = new Map(
-      sellers.map((seller) => [seller.id, seller.userId]),
-    )
+    const sellerById = new Map(sellers.map((seller) => [seller.id, seller]))
 
     for (const operation of operations) {
+      const order = await prisma.order.findUnique({
+        where: { id: operation.orderId },
+        select: { id: true, publicNumber: true },
+      })
+      if (!order) continue
+      const orderNumber = formatOrderNumber(order.publicNumber, order.id)
       const items = operation.items.map((item) => ({
         productName: item.orderLine.productName,
+        variantName: item.orderLine.variantName,
+        sellerId: operation.sellerId,
         quantity: item.quantity,
+        unitPrice: formatMoney(item.orderLine.unitPrice.toNumber()),
+        lineTotal: formatMoney(
+          item.orderLine.unitPrice.mul(item.quantity).toNumber(),
+        ),
       }))
       const summary = items
         .map((item) => `${item.productName} (${item.quantity})`)
         .join(', ')
       const data = {
         operationId: operation.id,
+        orderId: order.id,
+        orderNumber,
         sellerId: operation.sellerId,
+        cancellationReason: operation.reason,
         items,
       }
       await enqueueNotification({
+        eventKey: `cancellation:${operation.id}:customer`,
         userId: operation.customerId,
         type: 'order_cancelled',
         title: 'Ürün iptali tamamlandı',
         body: summary,
         data,
       })
-      const sellerUserId = sellerUsers.get(operation.sellerId)
-      if (sellerUserId) {
+      const seller = sellerById.get(operation.sellerId)
+      if (seller) {
         await enqueueNotification({
-          userId: sellerUserId,
+          eventKey: `cancellation:${operation.id}:seller`,
+          userId: seller.user.id,
+          emailTo: seller.user.email,
           type: 'order_canceled',
           title: 'Siparişinizde adet iptali var',
           body: summary,
-          data,
+          data: {
+            ...data,
+            sellerName: seller.displayName,
+            panelUrl: `${getSellerPanelUrl()}/siparisler/${order.id}`,
+          },
         })
       }
       for (const admin of admins) {
         await enqueueNotification({
+          eventKey: `cancellation:${operation.id}:admin`,
           userId: admin.id,
           type: 'order_canceled',
           title: 'Adet bazlı iptal oluşturuldu',
@@ -226,6 +273,8 @@ export function createQuantityCancellationService({
     const created = []
     for (const [sellerId, lines] of bySeller) {
       let customerRefundAmount = new Decimal(0)
+      let grossProductAmount = new Decimal(0)
+      let couponAdjustmentAmount = new Decimal(0)
       let sellerAdjustmentAmount = new Decimal(0)
       let commissionAdjustmentAmount = new Decimal(0)
       const itemData = []
@@ -235,6 +284,18 @@ export function createQuantityCancellationService({
         const consumed = line.cancelledQuantity + line.returnClaimedQuantity
         const customerAmount = allocateQuantitySlice({
           totalAmount: line.customerPaidProductAmount ?? line.totalPrice,
+          originalQuantity: line.quantity,
+          consumedQuantity: consumed,
+          requestedQuantity: quantity,
+        })
+        const grossAmount = allocateQuantitySlice({
+          totalAmount: line.totalPrice,
+          originalQuantity: line.quantity,
+          consumedQuantity: consumed,
+          requestedQuantity: quantity,
+        })
+        const couponAmount = allocateQuantitySlice({
+          totalAmount: line.couponDiscountAmount,
           originalQuantity: line.quantity,
           consumedQuantity: consumed,
           requestedQuantity: quantity,
@@ -279,6 +340,8 @@ export function createQuantityCancellationService({
         }
 
         customerRefundAmount = customerRefundAmount.add(customerAmount)
+        grossProductAmount = grossProductAmount.add(grossAmount)
+        couponAdjustmentAmount = couponAdjustmentAmount.add(couponAmount)
         sellerAdjustmentAmount = sellerAdjustmentAmount.add(sellerAmount)
         commissionAdjustmentAmount =
           commissionAdjustmentAmount.add(commissionAmount)
@@ -286,6 +349,8 @@ export function createQuantityCancellationService({
           orderLineId: line.id,
           quantity,
           customerRefundAmount: customerAmount,
+          grossProductAmount: grossAmount,
+          couponAdjustmentAmount: couponAmount,
           sellerAdjustmentAmount: sellerAmount,
           commissionAdjustmentAmount: commissionAmount,
         })
@@ -302,6 +367,8 @@ export function createQuantityCancellationService({
               : {}),
             reason: params.reason.trim(),
             customerRefundAmount,
+            grossProductAmount,
+            couponAdjustmentAmount,
             sellerAdjustmentAmount,
             commissionAdjustmentAmount,
             items: { create: itemData },

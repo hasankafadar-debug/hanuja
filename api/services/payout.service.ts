@@ -48,48 +48,87 @@ export function createPayoutService({
       const order = await orders.findById(params.orderId)
       if (!order) throw new NotFoundError('Order', params.orderId)
 
-      const existing = await payouts.findByOrderId(params.orderId)
-      if (existing) return existing
-
       const lines = await orderLines.findByOrderId(params.orderId)
       if (!lines.length) throw new ConflictError('Sipariş kalemleri bulunamadı')
 
       const holdUntil = calculateHoldUntil(params.deliveryConfirmedAt)
       const sellerIds = [...new Set(lines.map((line) => line.sellerId))]
+      const existingPayouts = await payouts.findManyByOrderId(params.orderId)
       const created = []
       const zero = new Decimal(0)
 
       for (const sellerId of sellerIds) {
         const sellerLines = lines.filter((line) => line.sellerId === sellerId)
         const snapshotTotals = sumPayoutSnapshot(sellerLines)
-        const cancellationAdjustments =
+        const cancellations =
           order.quantityLifecycleVersion === 2
-            ? await prisma.orderCancellation.aggregate({
+            ? await prisma.orderCancellation.findMany({
                 where: { orderId: params.orderId, sellerId },
-                _sum: {
+                select: {
+                  id: true,
+                  grossProductAmount: true,
+                  couponAdjustmentAmount: true,
                   sellerAdjustmentAmount: true,
                   commissionAdjustmentAmount: true,
                 },
               })
-            : null
-        const cancelledSellerAmount = new Decimal(
-          cancellationAdjustments?._sum.sellerAdjustmentAmount ?? 0,
+            : []
+        const cancelledSellerAmount = cancellations.reduce(
+          (sum, cancellation) => sum.add(cancellation.sellerAdjustmentAmount),
+          new Decimal(0),
         )
-        const cancelledCommissionAmount = new Decimal(
-          cancellationAdjustments?._sum.commissionAdjustmentAmount ?? 0,
+        const cancelledCommissionAmount = cancellations.reduce(
+          (sum, cancellation) => sum.add(cancellation.commissionAdjustmentAmount),
+          new Decimal(0),
+        )
+        const cancelledCouponAmount = cancellations.reduce(
+          (sum, cancellation) => sum.add(cancellation.couponAdjustmentAmount),
+          new Decimal(0),
+        )
+        const cancelledGrossAmount = cancellations.reduce(
+          (sum, cancellation) => {
+            const gross = cancellation.grossProductAmount.gt(0)
+              ? cancellation.grossProductAmount
+              : cancellation.sellerAdjustmentAmount
+                  .add(cancellation.commissionAdjustmentAmount)
+                  .add(cancellation.couponAdjustmentAmount)
+            return sum.add(gross)
+          },
+          new Decimal(0),
         )
         const grossAmount = snapshotTotals.grossAmount
         const commissionAmount = Decimal.max(
           zero,
           snapshotTotals.commissionAmount.sub(cancelledCommissionAmount),
         )
-        const couponShareAmount = snapshotTotals.couponShareAmount
+        const couponShareAmount = Decimal.max(
+          zero,
+          snapshotTotals.couponShareAmount.sub(cancelledCouponAmount),
+        )
         const cargoChargeAmount = zero
         const adFeeAmount = zero
         const penaltyAmount = zero
-        const refundAmount = cancelledSellerAmount.add(cancelledCommissionAmount)
+        const refundAmount = cancelledGrossAmount
         const adjustmentAmount = zero
         const netAmount = Decimal.max(zero, snapshotTotals.netAmount.sub(cancelledSellerAmount))
+
+        const existingPayout = existingPayouts.find(
+          (payout) => payout.sellerId === sellerId,
+        )
+        if (existingPayout) {
+          if (cancellations.length > 0) {
+            await prisma.refundTransaction.updateMany({
+              where: {
+                sourceType: 'cancellation',
+                sourceId: { in: cancellations.map((cancellation) => cancellation.id) },
+                payoutAppliedAt: null,
+              },
+              data: { payoutAppliedAt: existingPayout.createdAt },
+            })
+          }
+          created.push(existingPayout)
+          continue
+        }
 
         created.push(
           await payouts.create({
@@ -118,11 +157,35 @@ export function createPayoutService({
                 sellerId,
                 type: 'sale',
                 amount: grossAmount,
+                eventKey: `payment-confirmed:sale:${params.orderId}:${sellerId}`,
+                effectiveAt: order.paymentConfirmedAt ?? params.deliveryConfirmedAt,
                 referenceType: 'order',
                 referenceId: params.orderId,
-                description: 'Brüt satış (fatura kesilince satıcı ekstresinde görünür)',
-                visibleToSeller: false,
+                description: 'Ödemesi onaylanan brüt ürün satışı',
+                visibleToSeller: true,
               })
+            }
+
+            if (snapshotTotals.couponShareAmount.gt(0)) {
+              const couponEntry = await ledger.findByReference({
+                sellerId,
+                type: 'coupon_share',
+                referenceType: 'order',
+                referenceId: params.orderId,
+              })
+              if (!couponEntry) {
+                await ledger.createEntry({
+                  sellerId,
+                  type: 'coupon_share',
+                  amount: snapshotTotals.couponShareAmount.negated(),
+                  eventKey: `payment-confirmed:coupon-share:${params.orderId}:${sellerId}`,
+                  effectiveAt: order.paymentConfirmedAt ?? params.deliveryConfirmedAt,
+                  referenceType: 'order',
+                  referenceId: params.orderId,
+                  description: 'Satıcı tarafından karşılanan kupon payı',
+                  visibleToSeller: true,
+                })
+              }
             }
 
             const commissionEntry = await ledger.findByReference({
@@ -136,10 +199,23 @@ export function createPayoutService({
                 sellerId,
                 type: 'commission',
                 amount: commissionAmount.negated(),
+                eventKey: `payout:commission:${payout.id}`,
+                effectiveAt: params.deliveryConfirmedAt,
                 referenceType: 'payout',
                 referenceId: payout.id,
                 description: 'Platform komisyonu (fatura kesilince satıcı ekstresinde görünür)',
                 visibleToSeller: false,
+              })
+            }
+
+            if (cancellations.length > 0) {
+              await prisma.refundTransaction.updateMany({
+                where: {
+                  sourceType: 'cancellation',
+                  sourceId: { in: cancellations.map((cancellation) => cancellation.id) },
+                  payoutAppliedAt: null,
+                },
+                data: { payoutAppliedAt: new Date() },
               })
             }
 
@@ -315,6 +391,8 @@ export function createPayoutService({
           sellerId: payout.sellerId,
           type: 'payout',
           amount: payout.netAmount.negated(),
+          eventKey: `payout:paid:${payout.id}`,
+          effectiveAt: params.transferDate,
           referenceType: 'payout',
           referenceId: payout.id,
           description: `Satıcı ödemesi — ${transferLabel}${referenceSuffix}`,
@@ -324,6 +402,10 @@ export function createPayoutService({
 
         // Reveal accrual entries linked to this payout (sale + commission) so
         // that the seller statement reconciles with the now-visible payout.
+        const refundIds = await prisma.refundTransaction.findMany({
+          where: { orderId: payout.orderId, sellerId: payout.sellerId },
+          select: { id: true },
+        })
         await prisma.sellerLedgerEntry.updateMany({
           where: {
             sellerId: payout.sellerId,
@@ -331,6 +413,15 @@ export function createPayoutService({
             OR: [
               { type: 'commission', referenceType: 'payout', referenceId: payout.id },
               { type: 'sale', referenceType: 'order', referenceId: payout.orderId },
+              ...(refundIds.length > 0
+                ? [
+                    {
+                      type: 'commission' as const,
+                      referenceType: 'refund_transaction',
+                      referenceId: { in: refundIds.map((refund) => refund.id) },
+                    },
+                  ]
+                : []),
             ],
           },
           data: { visibleToSeller: true },

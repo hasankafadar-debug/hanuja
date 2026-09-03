@@ -19,4 +19,10 @@ describe('seller statement labels', () => {
     expect(getSellerStatementTopic('manual_adjustment')).toBe('Manuel Düzeltme')
     expect(getSellerStatementDescription('manual_adjustment')).toBe('Manuel düzeltme')
   })
+
+  it('distinguishes product cancellation and return refunds', () => {
+    expect(getSellerStatementTopic('refund', 'cancellation')).toBe('Ürün İptali')
+    expect(getSellerStatementTopic('refund', 'return_request')).toBe('Ürün İadesi')
+    expect(getSellerStatementTopic('refund', 'dispute')).toBe('Ürün İadesi')
+  })
 })

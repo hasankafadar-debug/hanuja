@@ -10,6 +10,7 @@ import { enqueueNotification } from '../jobs/notification-dispatch.job'
 export type NotificationType = PrismaNotificationType
 
 export interface NotificationPayload {
+  eventKey?: string
   userId: string
   type: NotificationType
   title: string
@@ -30,6 +31,7 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
    */
   async function send(payload: NotificationPayload): Promise<void> {
     await enqueueNotification({
+      ...(payload.eventKey ? { eventKey: payload.eventKey } : {}),
       userId: payload.userId,
       type: payload.type,
       title: payload.title,

@@ -2,6 +2,7 @@ import type { PrismaClient, SellerInvoiceType } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { roundMoney } from '@hanuja/security/money'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors'
+import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 
 // Commission invoices carry 20% VAT; penalty invoices carry 0% VAT (default rates).
 const DEFAULT_VAT_RATE: Record<SellerInvoiceType, Decimal> = {
@@ -12,6 +13,7 @@ const DEFAULT_VAT_RATE: Record<SellerInvoiceType, Decimal> = {
 const ONE = new Decimal(1)
 
 export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient }) {
+  const ledger = createSellerLedgerRepository(prisma)
   return {
     async create(params: {
       sellerId: string
@@ -222,11 +224,6 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
         //   invoices: nothing was accrued elsewhere for this invoice, so the
         //   pre-existing vatAmount-only debit is preserved (0 for penalties by
         //   default, per DEFAULT_VAT_RATE).
-        const previousBalanceAgg = await tx.sellerLedgerEntry.aggregate({
-          where: { sellerId: params.sellerId },
-          _sum: { amount: true },
-        })
-        const previousBalance = previousBalanceAgg._sum.amount ?? new Decimal(0)
         const ledgerTopUpAmount =
           params.type === 'commission' && params.sourceOrderId
             ? roundMoney(grossInvoiceAmount.minus(alreadyAccruedCommissionAmount))
@@ -234,21 +231,22 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
         const vatLedgerAmount = ledgerTopUpAmount.greaterThan(0)
           ? ledgerTopUpAmount.negated()
           : new Decimal(0)
-        const balanceAfter = previousBalance.plus(vatLedgerAmount)
 
-        await tx.sellerLedgerEntry.create({
-          data: {
+        await ledger.createEntry(
+          {
             sellerId: params.sellerId,
             type: ledgerEntryType,
             amount: vatLedgerAmount,
-            balanceAfter,
+            eventKey: `seller-invoice:top-up:${invoice.id}`,
+            effectiveAt: params.invoiceDate,
             referenceType: 'seller_invoice',
             referenceId: invoice.id,
             description: vatLineDescription,
             createdBy: params.createdByAdminId,
             visibleToSeller: true,
           },
-        })
+          tx,
+        )
 
         return invoice
       })

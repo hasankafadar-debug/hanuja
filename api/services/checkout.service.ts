@@ -31,7 +31,7 @@ import { createCartRepository } from '../repositories/cart.repository'
 import { hashLegalDocumentHtml, renderLegalDocuments } from '../lib/legal-documents'
 import type { LegalAcceptanceEvidence } from '../lib/legal-acceptance'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
-import { getPlatformBankInfo } from '../lib/platform-info'
+import { getPlatformBankInfo, getWebBaseUrl } from '../lib/platform-info'
 import { createPlatformBankAccountService } from './platform-bank-account.service'
 import { formatOrderNumber, formatOrderDisplayNumber } from '../lib/order-number'
 import { createPlatformSettingsService } from './platform-settings.service'
@@ -647,9 +647,30 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           data: {
             orderId: order.id,
             method: params.paymentMethod,
+            provider: params.paymentMethod === 'card' ? 'iyzico' : 'manual_eft',
             status: 'pending',
             amount: draft.totalAmount,
           },
+        })
+
+        await tx.paymentProviderItem.createMany({
+          data: [
+            ...order.lines.map((line) => ({
+              paymentId: payment.id,
+              orderLineId: line.id,
+              kind: 'product' as const,
+              providerItemId: `line:${line.id}`,
+              amount: line.customerPaidProductAmount ?? line.totalPrice,
+            })),
+            ...(order.shippingAmount.gt(0)
+              ? [{
+                  paymentId: payment.id,
+                  kind: 'shipping' as const,
+                  providerItemId: `shipping:${order.id}`,
+                  amount: order.shippingAmount,
+                }]
+              : []),
+          ],
         })
 
         const nextStatus =
@@ -738,6 +759,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           : undefined
 
       void enqueueNotification({
+        eventKey: `order:${result.order.id}:created:customer`,
         userId: params.userId,
         emailTo: draft.customer.email,
         type: 'order_placed',
@@ -748,12 +770,18 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           orderNumber: formatOrderNumber(result.order.publicNumber, result.order.id),
           paymentMethod: params.paymentMethod,
           items: result.lines.map((line) => ({
-            name: line.productName,
+            productName: line.productName,
+            variantName: line.variantName,
+            sellerId: line.sellerId,
             quantity: line.quantity,
-            price: formatMoney(line.unitPrice),
+            unitPrice: formatMoney(line.unitPrice),
+            lineTotal: formatMoney(
+              line.customerPaidProductAmount ?? line.totalPrice,
+            ),
           })),
           totalAmount: formatMoney(result.order.totalAmount),
           customerName: draft.customer.name ?? draft.address.fullName,
+          orderUrl: `${getWebBaseUrl()}/siparis/${result.order.id}`,
           ...(bankTransferInstructions ? { bankTransferInstructions } : {}),
         },
       }).catch((err) => console.error('[checkout] Order confirmation notification failed:', err))

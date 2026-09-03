@@ -20,6 +20,9 @@ import {
 } from '../domain/delivery-confirmation'
 import { calculateHoldUntil } from '../domain/payout-calculator'
 import { createPayoutService } from './payout.service'
+import { formatOrderNumber } from '../lib/order-number'
+import { getWebBaseUrl } from '../lib/platform-info'
+import { formatMoney } from '@hanuja/security/money'
 
 interface DeliveryServiceDeps {
   prisma: PrismaClient
@@ -39,16 +42,24 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
     const order = await prisma.order.findUnique({
       where: { id: params.orderId },
       select: {
+        id: true,
+        publicNumber: true,
         customerId: true,
         customer: { select: { email: true, name: true } },
         lines: {
           where: { sellerId: params.sellerId, shippedQuantity: { gt: 0 } },
-          select: { productName: true, shippedQuantity: true },
+          select: {
+            productName: true,
+            variantName: true,
+            shippedQuantity: true,
+            unitPrice: true,
+          },
         },
       },
     })
     if (!order) return
     await enqueueNotification({
+      eventKey: `order:${order.id}:shipped:${params.sellerId}:${params.trackingNumber}`,
       userId: order.customerId,
       type: 'order_shipped',
       emailTo: order.customer.email ?? undefined,
@@ -56,12 +67,21 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
       body: `Takip numaranız: ${params.trackingNumber}`,
       data: {
         orderId: params.orderId,
-        orderNumber: params.orderId.slice(-8).toUpperCase(),
+        orderNumber: formatOrderNumber(order.publicNumber, order.id),
         trackingNumber: params.trackingNumber,
         cargoCompany: params.cargoProvider ?? 'Kargo',
         customerName: order.customer.name ?? 'Değerli Müşterimiz',
         sellerId: params.sellerId,
-        items: order.lines,
+        orderUrl: `${getWebBaseUrl()}/siparis/${order.id}`,
+        items: order.lines.map((line) => ({
+          productName: line.productName,
+          variantName: line.variantName,
+          quantity: line.shippedQuantity,
+          unitPrice: formatMoney(line.unitPrice.toNumber()),
+          lineTotal: formatMoney(
+            line.unitPrice.mul(line.shippedQuantity).toNumber(),
+          ),
+        })),
       },
     })
   }

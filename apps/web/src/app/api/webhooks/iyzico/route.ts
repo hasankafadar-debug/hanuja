@@ -17,7 +17,7 @@
  * See: docs/05-security/payment-security.md
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyWebhookSignature } from '@hanuja/api/lib/iyzico'
+import { retrievePayment, verifyWebhookSignature } from '@hanuja/api/lib/iyzico'
 import { isCardPaymentsEnabled } from '@hanuja/api/lib/payment-capabilities'
 import { createPaymentService } from '@hanuja/api/services/payment.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
@@ -61,10 +61,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           return NextResponse.json({ error: 'Eksik alan' }, { status: 400 })
         }
 
+        const detail = await retrievePayment({
+          paymentId: providerRef,
+          paymentConversationId: orderId,
+          conversationId: `webhook-${orderId}`,
+        })
+        if (
+          !detail.success ||
+          detail.paymentId !== providerRef ||
+          (detail.paymentConversationId !== undefined &&
+            detail.paymentConversationId !== orderId)
+        ) {
+          throw new Error(detail.errorMessage ?? 'Iyzico ödeme detayı doğrulanamadı')
+        }
+
         await paymentSvc.confirmCardPayment({
           orderId,
           providerRef,
-          amount: new Decimal(paidPrice ?? '0'),
+          amount: new Decimal(detail.paidPrice ?? paidPrice ?? '0'),
+          ...(detail.itemTransactions
+            ? { itemTransactions: detail.itemTransactions }
+            : {}),
         })
 
         break

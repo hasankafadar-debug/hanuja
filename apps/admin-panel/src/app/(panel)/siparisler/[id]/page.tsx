@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, Download, FileText } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { summarizeOrderQuantities } from '@hanuja/api/domain/order-quantity-summary'
 import { createFulfillmentRiskService } from '@hanuja/api/services/fulfillment-risk.service'
 import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 import { AdminOrderActions } from '@/components/admin-order-actions'
@@ -22,6 +23,52 @@ interface Props {
 function moneyToNumber(value: { toNumber(): number } | number | null | undefined) {
   if (!value) return 0
   return typeof value === 'object' && 'toNumber' in value ? value.toNumber() : Number(value)
+}
+
+const REFUND_STATUS_LABELS: Record<string, string> = {
+  pending: 'Bekliyor',
+  processing: 'İşleniyor',
+  partially_completed: 'Kısmen tamamlandı',
+  completed: 'Tamamlandı',
+  failed: 'Başarısız',
+  manual_required: 'Manuel işlem gerekli',
+}
+
+const REFUND_SOURCE_LABELS: Record<string, string> = {
+  cancellation: 'İptal',
+  return_request: 'İade talebi',
+  dispute: 'Uyuşmazlık',
+}
+
+const REFUND_ITEM_KIND_LABELS: Record<string, string> = {
+  product: 'Ürün',
+  shipping: 'Kargo',
+}
+
+function refundStatusLabel(status: string) {
+  return REFUND_STATUS_LABELS[status] ?? status
+}
+
+function refundStatusStyle(status: string) {
+  if (status === 'completed') {
+    return {
+      borderColor: '#86efac',
+      backgroundColor: '#f0fdf4',
+      color: '#166534',
+    }
+  }
+  if (status === 'failed' || status === 'manual_required') {
+    return {
+      borderColor: '#fca5a5',
+      backgroundColor: '#fff5f5',
+      color: '#991b1b',
+    }
+  }
+  return {
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-muted)',
+    color: 'var(--color-primary)',
+  }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -85,6 +132,39 @@ export default async function AdminOrderDetailPage({ params }: Props) {
       },
       payouts: { orderBy: { createdAt: 'desc' } },
       penalties: { orderBy: { createdAt: 'desc' } },
+      cancellations: {
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          customerRefundAmount: true,
+          grossProductAmount: true,
+          couponAdjustmentAmount: true,
+          sellerAdjustmentAmount: true,
+          commissionAdjustmentAmount: true,
+          shippingRefundAmount: true,
+          createdAt: true,
+        },
+      },
+      refundTransactions: {
+        orderBy: { createdAt: 'desc' },
+        include: {
+          items: {
+            orderBy: { createdAt: 'asc' },
+            include: {
+              orderLine: { select: { id: true, productName: true } },
+              paymentProviderItem: {
+                select: {
+                  id: true,
+                  providerItemId: true,
+                  providerTransactionId: true,
+                  kind: true,
+                },
+              },
+            },
+          },
+        },
+      },
       fulfillmentRisks: {
         where: { status: { in: ['warning', 'breached'] } },
         orderBy: [{ deadlineAt: 'asc' }, { createdAt: 'desc' }],
@@ -103,6 +183,57 @@ export default async function AdminOrderDetailPage({ params }: Props) {
   const grossAmount = moneyToNumber(order.grossAmount)
   const shippingAmount = moneyToNumber(order.shippingAmount)
   const eftDiscountAmount = moneyToNumber(order.eftDiscountAmount)
+
+  const { originalQuantity, currentQuantity, cancelledQuantity, shippedQuantity } =
+    summarizeOrderQuantities(order.lines)
+  const cancellationGrossProductAmount = order.cancellations.reduce(
+    (sum, cancellation) => sum + moneyToNumber(cancellation.grossProductAmount),
+    0,
+  )
+  const refundCancellationGrossProductAmount = order.refundTransactions
+    .filter((refund) => refund.sourceType === 'cancellation')
+    .reduce((sum, refund) => sum + moneyToNumber(refund.grossProductAmount), 0)
+  const cancelledGrossProductAmount =
+    cancellationGrossProductAmount > 0
+      ? cancellationGrossProductAmount
+      : refundCancellationGrossProductAmount
+
+  const refundTotals = order.refundTransactions.reduce(
+    (totals, refund) => {
+      const hasItems = refund.items.length > 0
+      const productAmount = hasItems
+        ? refund.items
+            .filter((item) => item.kind === 'product')
+            .reduce((sum, item) => sum + moneyToNumber(item.amount), 0)
+        : moneyToNumber(refund.customerAmount)
+      const shippingRefundAmount = refund.items
+        .filter((item) => item.kind === 'shipping')
+        .reduce((sum, item) => sum + moneyToNumber(item.amount), 0)
+
+      return {
+        customerAmount: totals.customerAmount + moneyToNumber(refund.customerAmount),
+        productAmount: totals.productAmount + productAmount,
+        shippingAmount: totals.shippingAmount + shippingRefundAmount,
+        sellerAdjustmentAmount:
+          totals.sellerAdjustmentAmount + moneyToNumber(refund.sellerAdjustmentAmount),
+        commissionAdjustmentAmount:
+          totals.commissionAdjustmentAmount + moneyToNumber(refund.commissionAdjustmentAmount),
+        couponAdjustmentAmount:
+          totals.couponAdjustmentAmount + moneyToNumber(refund.couponAdjustmentAmount),
+        platformFundedAmount:
+          totals.platformFundedAmount + moneyToNumber(refund.platformFundedAmount),
+      }
+    },
+    {
+      customerAmount: 0,
+      productAmount: 0,
+      shippingAmount: 0,
+      sellerAdjustmentAmount: 0,
+      commissionAdjustmentAmount: 0,
+      couponAdjustmentAmount: 0,
+      platformFundedAmount: 0,
+    },
+  )
 
   const isTerminal = TERMINAL_STATUSES.has(order.status)
   const canConfirmDelivery = DELIVERY_CONFIRMABLE.has(order.status)
@@ -185,36 +316,64 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         </div>
       ) : null}
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-[1.35fr,1fr]">
         <section
+          data-testid="admin-order-finance"
           className="rounded-xl border p-5"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
           <h2 className="mb-4 font-semibold" style={{ color: 'var(--color-primary)' }}>
             Ürünler ve Finans
           </h2>
-          <div className="space-y-2">
-            {order.lines.map((line) => (
-              <div key={line.id} className="text-sm">
-                <div className="flex justify-between">
-                  <span style={{ color: 'var(--color-muted-fg)' }}>
-                    {line.productName} × {line.quantity}
-                  </span>
-                  <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
-                    {formatMoney(
-                      typeof line.totalPrice === 'object'
-                        ? line.totalPrice.toNumber()
-                        : Number(line.totalPrice),
-                    )}
-                  </span>
-                </div>
-                {line.deliveryConfirmedAt ? (
-                  <p className="mt-0.5 text-xs" style={{ color: 'var(--color-success)' }}>
-                    ✓ Teslim onaylandı — {new Date(line.deliveryConfirmedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
-                ) : null}
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: 'Orijinal adet', value: originalQuantity },
+              { label: 'Güncel adet', value: currentQuantity },
+              { label: 'İptal edilen', value: cancelledQuantity },
+              { label: 'Kargolanan', value: shippedQuantity },
+            ].map(({ label, value }) => (
+              <div
+                key={label}
+                className="rounded-lg border px-3 py-3"
+                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
+              >
+                <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                  {label}
+                </p>
+                <p className="mt-1 text-lg font-semibold" style={{ color: 'var(--color-primary)' }}>
+                  {value} adet
+                </p>
               </div>
             ))}
+          </div>
+          <div className="space-y-2">
+            {order.lines.map((line) => {
+              const lineCurrentQuantity = Math.max(0, line.quantity - line.cancelledQuantity)
+              return (
+                <div key={line.id} className="text-sm">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
+                    <div>
+                      <p style={{ color: 'var(--color-muted-fg)' }}>{line.productName}</p>
+                      <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                        Orijinal: {line.quantity} · Güncel: {lineCurrentQuantity} · İptal: {line.cancelledQuantity} · Kargolanan: {line.shippedQuantity}
+                      </p>
+                    </div>
+                    <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                      {formatMoney(
+                        typeof line.totalPrice === 'object'
+                          ? line.totalPrice.toNumber()
+                          : Number(line.totalPrice),
+                      )}
+                    </span>
+                  </div>
+                  {line.deliveryConfirmedAt ? (
+                    <p className="mt-0.5 text-xs" style={{ color: 'var(--color-success)' }}>
+                      ✓ Teslim onaylandı — {new Date(line.deliveryConfirmedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
 
           <Separator className="my-3" />
@@ -222,6 +381,10 @@ export default async function AdminOrderDetailPage({ params }: Props) {
           <div className="space-y-1 text-sm">
             {[
               { label: 'Urunler', value: formatMoney(grossAmount) },
+              {
+                label: 'İptal edilen brüt ürün',
+                value: formatMoney(cancelledGrossProductAmount),
+              },
               ...(eftDiscountAmount > 0
                 ? [{ label: 'EFT indirimi', value: `-${formatMoney(eftDiscountAmount)}` }]
                 : []),
@@ -268,6 +431,155 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                 <span style={{ color: 'var(--color-primary)' }}>{value}</span>
               </div>
             ))}
+          </div>
+
+          <div
+              data-testid="admin-refund-summary"
+              className="mt-5 border-t pt-4"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                İade finansı
+              </h3>
+              <div className="space-y-1 text-sm">
+                {[
+                  { label: 'Müşteriye ürün iadesi', value: formatMoney(refundTotals.productAmount) },
+                  { label: 'Müşteriye kargo iadesi', value: formatMoney(refundTotals.shippingAmount) },
+                  { label: 'Müşteriye ürün + kargo iadesi', value: formatMoney(refundTotals.customerAmount) },
+                  { label: 'Satıcı payı', value: formatMoney(refundTotals.sellerAdjustmentAmount) },
+                  { label: 'Komisyon düzeltmesi', value: formatMoney(refundTotals.commissionAdjustmentAmount) },
+                  { label: 'Satıcı kuponu düzeltmesi', value: formatMoney(refundTotals.couponAdjustmentAmount) },
+                  { label: 'Platform payı', value: formatMoney(refundTotals.platformFundedAmount) },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex justify-between gap-4">
+                    <span style={{ color: 'var(--color-muted-fg)' }}>{label}</span>
+                    <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 space-y-3">
+                <h3 className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                  Refund transaction kayıtları
+                </h3>
+                {order.refundTransactions.length === 0 ? (
+                  <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                    Bu sipariş için refund transaction kaydı yok.
+                  </p>
+                ) : (
+                  order.refundTransactions.map((refund) => (
+                  <div
+                    key={refund.id}
+                    data-testid={`refund-transaction-${refund.id}`}
+                    className="rounded-lg border p-3"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                          Refund transaction · {REFUND_SOURCE_LABELS[refund.sourceType] ?? refund.sourceType}
+                        </p>
+                        <p className="break-all text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                          ID: {refund.id} · {new Date(refund.createdAt).toLocaleString('tr-TR')}
+                        </p>
+                      </div>
+                      <span
+                        className="inline-flex w-fit shrink-0 rounded-full border px-2 py-1 text-xs font-medium"
+                        style={refundStatusStyle(refund.status)}
+                      >
+                        {refundStatusLabel(refund.status)}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid gap-2 border-t pt-3 text-xs sm:grid-cols-2" style={{ borderColor: 'var(--color-border)' }}>
+                      <div>
+                        <p style={{ color: 'var(--color-muted-fg)' }}>Müşteri iadesi</p>
+                        <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                          {formatMoney(moneyToNumber(refund.customerAmount))}
+                        </p>
+                      </div>
+                      <div>
+                        <p style={{ color: 'var(--color-muted-fg)' }}>Sağlayıcı referansı</p>
+                        <p className="break-all font-medium" style={{ color: 'var(--color-primary)' }}>
+                          {refund.providerReference ?? '—'}
+                        </p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <p style={{ color: 'var(--color-muted-fg)' }}>Hata</p>
+                        <p style={{ color: refund.failureReason ? 'var(--color-destructive)' : 'var(--color-primary)' }}>
+                          {refund.failureReason ?? '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
+                      <p className="mb-2 text-xs font-semibold" style={{ color: 'var(--color-muted-fg)' }}>
+                        İade kalemleri
+                      </p>
+                      {refund.items.length === 0 ? (
+                        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                          Kalem kaydı yok.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {refund.items.map((item) => {
+                            const providerReference =
+                              item.providerReference ??
+                              item.paymentProviderItem?.providerTransactionId ??
+                              item.paymentProviderItem?.providerItemId ??
+                              '—'
+                            return (
+                              <div
+                                key={item.id}
+                                className="rounded-md border p-2"
+                                style={{ borderColor: 'var(--color-border)' }}
+                              >
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                  <div>
+                                    <p className="text-xs font-medium" style={{ color: 'var(--color-primary)' }}>
+                                      {REFUND_ITEM_KIND_LABELS[item.kind] ?? item.kind}
+                                      {item.orderLine?.productName ? ` · ${item.orderLine.productName}` : ''}
+                                    </p>
+                                    <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                                      {item.quantity !== null && item.quantity !== undefined
+                                        ? `${item.quantity} adet · `
+                                        : ''}
+                                      {formatMoney(moneyToNumber(item.amount))}
+                                    </p>
+                                  </div>
+                                  <span
+                                    className="inline-flex w-fit shrink-0 rounded-full border px-2 py-1 text-xs font-medium"
+                                    style={refundStatusStyle(item.status)}
+                                  >
+                                    {refundStatusLabel(item.status)}
+                                  </span>
+                                </div>
+                                <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+                                  <div>
+                                    <p style={{ color: 'var(--color-muted-fg)' }}>Sağlayıcı referansı</p>
+                                    <p className="break-all" style={{ color: 'var(--color-primary)' }}>
+                                      {providerReference}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p style={{ color: 'var(--color-muted-fg)' }}>Hata</p>
+                                    <p style={{ color: item.failureReason ? 'var(--color-destructive)' : 'var(--color-primary)' }}>
+                                      {item.failureReason ?? '—'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  ))
+                )}
+              </div>
           </div>
         </section>
 
