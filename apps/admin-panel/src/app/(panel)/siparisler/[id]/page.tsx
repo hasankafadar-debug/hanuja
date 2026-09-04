@@ -8,11 +8,13 @@ import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { summarizeOrderQuantities } from '@hanuja/api/domain/order-quantity-summary'
+import { getManualEftRefundCompletion } from '@hanuja/api/domain/manual-eft-refund'
 import { createFulfillmentRiskService } from '@hanuja/api/services/fulfillment-risk.service'
 import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 import { AdminOrderActions } from '@/components/admin-order-actions'
 import { CancellationDetailCard } from './_components/cancellation-detail-card'
 import { PerLineDeliveryConfirm } from './_components/per-line-delivery-confirm'
+import { ManualRefundCompletion } from './_components/manual-refund-completion'
 
 export const dynamic = 'force-dynamic'
 
@@ -149,6 +151,12 @@ export default async function AdminOrderDetailPage({ params }: Props) {
       refundTransactions: {
         orderBy: { createdAt: 'desc' },
         include: {
+          payment: {
+            select: {
+              orderId: true, method: true, provider: true, status: true,
+              amount: true, refundedAmount: true, currency: true,
+            },
+          },
           items: {
             orderBy: { createdAt: 'asc' },
             include: {
@@ -512,6 +520,12 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                           {refund.failureReason ?? '—'}
                         </p>
                       </div>
+                      {refund.completedAt ? (
+                        <div className="sm:col-span-2">
+                          <p style={{ color: 'var(--color-muted-fg)' }}>İade tamamlanma tarihi</p>
+                          <p>{new Date(refund.completedAt).toLocaleString('tr-TR')}</p>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
@@ -576,6 +590,16 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                         </div>
                       )}
                     </div>
+                    {refund.status === 'manual_required' ? (
+                      <ManualRefundCompletion
+                        refundId={refund.id}
+                        orderId={order.id}
+                        orderLabel={formatOrderDisplayNumber(order.publicNumber, order.id)}
+                        customerName={order.customer.name ?? order.customer.email}
+                        currency={refund.payment?.currency ?? order.currency}
+                        {...getManualEftRefundCompletion(refund)}
+                      />
+                    ) : null}
                   </div>
                   ))
                 )}

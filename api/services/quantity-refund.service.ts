@@ -2,6 +2,8 @@ import type { PrismaClient, RefundSourceType } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { ConflictError, NotFoundError } from '../lib/errors'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
+import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
+import { getManualEftRefundCompletion } from '../domain/manual-eft-refund'
 import { enqueueRefundProcessing } from '../jobs/refund-processing.job'
 import { enqueueRefundCompletedNotifications } from './refund-notification.service'
 
@@ -315,38 +317,58 @@ export function createQuantityRefundService({
 
   async function complete(params: {
     refundTransactionId: string
+    orderId: string
     actorId: string
     providerReference: string
+    expectedOutstandingAmount: string
+    ipAddress?: string
   }) {
-    if (!params.providerReference.trim())
+    const reference = params.providerReference.trim()
+    if (reference.length < 3 || reference.length > 200)
       throw new ConflictError('İade işlem referansı gerekli')
 
     const result = await prisma.$transaction(async (tx) => {
       const refund = await tx.refundTransaction.findUnique({
         where: { id: params.refundTransactionId },
-        include: { items: { include: { paymentProviderItem: true } } },
+        include: { payment: true, items: { include: { paymentProviderItem: true } } },
       })
       if (!refund)
         throw new NotFoundError('RefundTransaction', params.refundTransactionId)
-      if (refund.status === 'completed') return refund
+      if (refund.orderId !== params.orderId) throw new ConflictError('İade bu siparişe ait değil.')
+      if (refund.status === 'completed') {
+        if (refund.providerReference !== reference) {
+          throw new ConflictError('Bu iade zaten tamamlanmış. Mevcut işlem referansını kontrol edin.')
+        }
+        return refund
+      }
+      const completion = getManualEftRefundCompletion(refund)
+      if (completion.blockedReason) throw new ConflictError(completion.blockedReason)
+      if (completion.outstandingAmount !== params.expectedOutstandingAmount) {
+        throw new ConflictError('İade tutarı değişmiş. Sayfayı yenileyip kalan tutarı kontrol edin.')
+      }
 
       const claimed = await tx.refundTransaction.updateMany({
-        where: { id: refund.id, status: { not: 'completed' } },
+        where: { id: refund.id, status: 'manual_required', updatedAt: refund.updatedAt },
         data: {
           status: 'completed',
-          providerReference: params.providerReference.trim(),
+          providerReference: reference,
           completedAt: new Date(),
           failureReason: null,
         },
       })
       if (claimed.count !== 1) {
-        return tx.refundTransaction.findUniqueOrThrow({
+        const latest = await tx.refundTransaction.findUniqueOrThrow({
           where: { id: refund.id },
         })
+        if (latest.status === 'completed' && latest.providerReference === reference) return latest
+        throw new ConflictError('İade kaydı değişmiş. Sayfayı yenileyip tekrar kontrol edin.')
       }
       const unfinishedItems = refund.items.filter((item) => item.status !== 'completed')
       for (const item of unfinishedItems) {
         if (item.paymentProviderItem) {
+          if (item.paymentProviderItem.paymentId !== refund.paymentId) {
+            throw new ConflictError('İade kaleminin ödeme bağlantısı doğrulanamadı.')
+          }
           const cap = await tx.paymentProviderItem.updateMany({
             where: {
               id: item.paymentProviderItem.id,
@@ -360,15 +382,16 @@ export function createQuantityRefundService({
             throw new ConflictError('Manuel iade kalemi kalan tutarı aşıyor')
           }
         }
-        await tx.refundTransactionItem.update({
-          where: { id: item.id },
+        const itemClaim = await tx.refundTransactionItem.updateMany({
+          where: { id: item.id, status: item.status, amount: item.amount },
           data: {
             status: 'completed',
-            providerReference: params.providerReference.trim(),
+            providerReference: reference,
             failureReason: null,
             completedAt: new Date(),
           },
         })
+        if (itemClaim.count !== 1) throw new ConflictError('İade kalemi değişmiş. Sayfayı yenileyin.')
       }
       const completed = await tx.refundTransaction.findUniqueOrThrow({
         where: { id: refund.id },
@@ -384,6 +407,11 @@ export function createQuantityRefundService({
         const paymentCap = await tx.payment.updateMany({
           where: {
             id: refund.paymentId,
+            orderId: refund.orderId,
+            method: 'eft',
+            provider: 'manual_eft',
+            status: 'confirmed',
+            amount: paymentBefore.amount,
             refundedAmount: { lte: paymentBefore.amount.sub(increment) },
           },
           data: { refundedAmount: { increment } },
@@ -449,21 +477,31 @@ export function createQuantityRefundService({
           },
         })
       }
-      await tx.adminAuditLog.create({
-        data: {
-          actorId: params.actorId,
-          actionType: 'manual_ledger_adjustment',
-          targetType: 'refund_transaction',
-          targetId: refund.id,
-          newData: {
-            status: 'completed',
-            providerReference: params.providerReference.trim(),
-          },
-          reason: 'Sağlayıcı/banka iade işlemi tamamlandı',
+      await createAdminAuditLogRepository(tx).createEntry({
+        actorId: params.actorId,
+        actionType: 'manual_ledger_adjustment',
+        targetType: 'refund_transaction',
+        targetId: refund.id,
+        previousData: {
+          status: refund.status,
+          outstandingAmount: completion.outstandingAmount,
         },
+        newData: {
+          status: 'completed',
+          providerReference: reference,
+          orderId: refund.orderId,
+          paymentId: refund.paymentId,
+          amount: completion.outstandingAmount,
+          currency: refund.payment!.currency,
+          completedAt: completed.completedAt?.toISOString(),
+        },
+        reason: 'Admin, banka üzerinden yaptığı EFT/havale iade ödemesini onayladı.',
+        ...(params.ipAddress ? { ipAddress: params.ipAddress } : {}),
       })
       return completed
     })
+    // Stable notification event keys deduplicate delivery; preserve retry recovery
+    // if the previous completion committed but enqueueing failed.
     if (result.status === 'completed') {
       void enqueueRefundCompletedNotifications(prisma, result.id).catch((error) =>
         console.error('[quantity-refund] İade bildirimi kuyruğa eklenemedi:', error),

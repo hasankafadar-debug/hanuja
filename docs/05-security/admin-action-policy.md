@@ -320,6 +320,7 @@ existing `handleError()` route error handler maps it correctly:
 | `POST /api/admin/penalties/[id]/waive` | `penalty:waive` |
 | `POST /api/admin/orders/[id]/penalties` | `penalty:apply` |
 | `POST /api/admin/order-lines/[id]/commission-exempt` | `finance:adjust_manual` |
+| `POST /api/admin/refunds/[id]/complete` | `finance:adjust_manual` |
 
 **Behavior today is unchanged.** The matrix currently grants every one of these
 actions only to the `admin` role (see the T1–T4 tiers above, which are all
@@ -348,6 +349,28 @@ and `support`, and includes a route-level example
 403 while an `admin` session succeeds.
 
 ---
+
+## EFT/havale iade ödemesinin manuel tamamlanması
+
+- Sipariş detayındaki **İade ödeme yapıldı** yalnızca `manual_required` durumundaki,
+  onaylanmış `eft` / `manual_eft` ödemesine bağlı iade için kullanılabilir. Kart,
+  otomatik işlemdeki, başarısız veya ödeme/kalem bilgisi eksik iadeler bu işlemle
+  kapatılamaz; kuyrukta görünür kalır ve mutabakat gerektirir.
+- CSRF, oturum, `finance:adjust_manual` yetkisi ve kullanıcı bazlı
+  `HIGH_RISK_RATE_LIMIT` uygulanır. Actor kimliği gövdeden değil oturumdan alınır.
+- Admin bankadan ödemeyi önceden yapmış olmalıdır. Buton para göndermez. Onay
+  kutusu, 3–200 karakter banka/dekont referansı, sipariş kimliği ve gösterilen
+  kalan tutar zorunludur. Sunucu kalan tutarı Decimal ile yeniden hesaplar;
+  istemci tutarı yalnızca eski ekranı tespit etmek için kullanılır.
+- Durum/tutar kontrolleri, atomik parent/kalem sahiplenmesi, ödeme ve sağlayıcı
+  kalemi üst sınırları aynı transaction'dadır. Aynı referansla tekrar onay ikinci
+  finans hareketi/audit üretmez; tamamlanmış kaydın referansı değiştirilemez.
+- `createAdminAuditLogRepository(tx).createEntry()` ile `manual_ledger_adjustment`
+  / `refund_transaction` kaydı aynı transaction'a yazılır. Actor, önceki durum,
+  ödenen kalan tutar, para birimi, sipariş/ödeme kimliği, referans ve tamamlanma
+  zamanı tutulur; IP mevcutsa eklenir. Audit başarısızsa tüm değişiklikler geri alınır.
+- Queue oluşturulurken uygulanmış ledger/payout düzeltmeleri yeniden uygulanmaz.
+  Kısmi iadede yalnızca tamamlanmamış kalemler ödeme toplamına eklenir.
 
 ## General Rules Applying to All Actions
 

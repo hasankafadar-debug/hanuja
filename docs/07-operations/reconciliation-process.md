@@ -368,9 +368,33 @@ bu çalışma kapsamında değiştirilmez.
   kaynağı, durumu ve İstanbul saatindeki oluşturulma tarihini gösterir. Banka
   bilgileri, ham sağlayıcı hataları ve yeni ödeme aksiyonları eklenmez.
 
-Bu aşama iade başlatmaz/tamamlamaz, ledger/payout değiştirmez ve migration
-gerektirmez. Sipariş detayındaki manuel tamamlama butonu sonraki ayrı adımdır.
-Ortak sorgu servisinin filtresiz davranışı korunur; yalnızca admin servisi deploy edilir.
+Tam kuyruk ekranı tek başına iade başlatmaz/tamamlamaz, ledger/payout değiştirmez.
+Ortak sorgu servisinin filtresiz davranışı korunur.
+
+### Sipariş detayında EFT/havale ödeme onayı
+
+1. Kuyruk satırından ilgili siparişi açın. Aynı siparişin iki ayrı kısmi iptali
+   iki ayrı iade kaydıdır; her kaydı kendi tutarı ve banka referansıyla ele alın.
+2. İlgili kayıttaki **Ödenecek kalan tutar** ve müşteri/sipariş bilgilerini
+   kontrol edin. Bu tutar, yalnızca tamamlanmamış kalemlerin Decimal toplamıdır.
+3. İadeyi banka üzerinden gerçekten yaptıktan sonra **İade ödeme yapıldı**
+   düğmesini açın. Banka işlem/dekont referansını girin, tutarı müşteriye
+   gönderdiğinizi ve dekontu kontrol ettiğinizi onaylayın; **Ödemeyi kaydet** deyin.
+   Bu düğmeler banka transferi veya kart sağlayıcısı iade çağrısı yapmaz.
+4. Başarıyla tamamlanan `RefundTransaction` ve kalemleri `completed` olur.
+   Referans ve tarih siparişte kalır; audit kim/ne zaman/hangi tutarı onayladı
+   bilgisini saklar. Dashboard ve `/iadeler` yeniden doğrulanır; bu kayıt manuel
+   kuyruk ve sayacından çıkar. Aynı siparişin diğer açık iadeleri düşmez.
+5. Ağ hatasında yeniden para göndermeyin. Sayfayı yenileyip mevcut referans ve
+   durumu kontrol edin. Aynı referansla tekrar onay idempotenttir; farklı
+   referansla tamamlanmış kaydın üzerine yazılamaz.
+
+Ödeme/kalem bilgisi eksik, toplamı tutarsız veya ödeme durumu uygun olmayan
+kayıtlarda onay engellenir. Kart iadeleri bu EFT düğmesiyle kapatılamaz;
+otomatik deneme ve sağlayıcı mutabakatı ayrı süreçtir, görünürlükleri korunur.
+14 gün sonrası destek/resim/belge süreci ve mevcut iade değerlendirme kuralları
+değişmez. Bu değişiklik migration veya worker değişikliği içermez; yalnızca
+`hanuja-admin` deploy edilir (`complete` çağrısının tek üretim kullanıcısı admin API'dir).
 
 ## 13. Çapraz Referanslar
 

@@ -5,7 +5,7 @@
  */
 import type { AdminActionType, PrismaClient } from '@prisma/client'
 
-export function createAdminAuditLogRepository(prisma: PrismaClient) {
+export function createAdminAuditLogRepository(prisma: Pick<PrismaClient, 'adminAuditLog' | 'user'>) {
   return {
     /**
      * Append a new audit entry. Never call update or delete on this table.
