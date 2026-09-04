@@ -320,9 +320,29 @@ bu çalışma kapsamında değiştirilmez.
   seçimi müşteri kimliği/adıyla sınırlıdır; banka bilgileri ve ham sağlayıcı
   yanıtları sorguya dahil edilmez.
 
-Bu ilk aşama ekranlara yeni kart/buton eklemez, iade başlatmaz, iade tamamlamaz,
-ledger/payout değiştirmez ve migration gerektirmez. Dashboard, `/iadeler` ve
-sipariş detayı arayüz bağlantıları sonraki ayrı adımlardır.
+### Kontrol paneli kısa listeleri
+
+- Dashboard, admin oturumu doğrulandıktan sonra ortak sorgudan her kuyruk için
+  en eski 5 işlemi okur. Manuel iade ve başarısız kart iadesi sayaçları, kısa
+  listenin kendi snapshot toplamını kullanır; sayaç 5 ile sınırlı değildir.
+- İki yeni sayaç da mevcut `StatCard` uyarı stilini kullanır: sayı 0 ise normal,
+  0'dan büyükse yeşil zemin/kenarlık ve yeşil rakam görünür. Renk dışındaki
+  erişilebilir "İşlem bekliyor" işareti de korunur.
+- Sayaçlar ve acil kuyruk uyarıları ilgili sayfa içi listeye gider. Her iade satırı
+  müşteriyi, siparişi, işlem kimliğini, ödeme yöntemini, kaynağı ve İstanbul
+  saat dilimindeki oluşturulma tarihini gösterir; ilgili sipariş detayını açar.
+- Tutar "Kalan iade" olarak, kuruş hassasiyeti korunarak gösterilir. Kalemsiz
+  kayıtta "Tutar doğrulanmalı" yazılır; orijinal toplam yerine konmaz.
+- Kart hatası uyarısı otomatik denemelerin devam edebileceğini belirtir ve yeni
+  bir ödeme öncesinde sağlayıcı sonucunun kontrol edilmesini ister. Ham sağlayıcı
+  hataları bu kısa listede gösterilmez.
+- Boş kuyruklar açıkça belirtilir; sorgu hataları boş liste/sıfır sayaç gibi
+  gizlenmez. Aynı siparişin ayrı iadeleri ayrı satırlarda kalır. Liste sınırı
+  aşıldığında kaç işlemin gösterildiği ayrıca belirtilir.
+
+Bu aşama iade başlatmaz/tamamlamaz, ledger/payout değiştirmez ve migration
+gerektirmez. `/iadeler` tam ödeme iadesi kuyruğu ve sipariş detayındaki manuel
+tamamlama butonu sonraki ayrı adımlardır. Yalnızca admin servisi deploy edilir.
 
 ## 13. Çapraz Referanslar
 

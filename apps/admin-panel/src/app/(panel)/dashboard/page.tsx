@@ -21,7 +21,9 @@ import { createAdminAnalyticsService } from '@hanuja/api/services/admin-analytic
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { createFulfillmentRiskService } from '@hanuja/api/services/fulfillment-risk.service'
+import { createAdminRefundQueryService } from '@hanuja/api/services/admin-refund-query.service'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { RefundQueuePreview } from './refund-queue-preview'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,11 +36,14 @@ export default async function AdminDashboardPage() {
   const analytics = createAdminAnalyticsService({ prisma })
   const orderSvc = createOrderService({ prisma })
   const fulfillmentRiskSvc = createFulfillmentRiskService({ prisma })
+  const refundQuery = createAdminRefundQueryService({ prisma })
 
-  const [stats, recentOrdersResult, fulfillmentRisks] = await Promise.all([
+  const [stats, recentOrdersResult, fulfillmentRisks, manualRefunds, failedCardRefunds] = await Promise.all([
     analytics.getDashboardStats(),
     orderSvc.listForAdmin({ skip: 0, take: 5 }),
     fulfillmentRiskSvc.listActiveForAdmin({ take: 5 }),
+    refundQuery.listManualRequiredForAdmin({ take: 5 }),
+    refundQuery.listFailedCardForAdmin({ take: 5 }),
   ])
 
   type OrderRow = {
@@ -68,6 +73,22 @@ export default async function AdminDashboardPage() {
       type: 'EFT Onayi',
       description: `${stats.payments.pendingEftApprovals} havale onay bekliyor`,
       href: '/odemeler?method=eft&status=pending',
+      urgent: true,
+    })
+  }
+  if (manualRefunds.total > 0) {
+    urgentItems.push({
+      type: 'Manuel İade',
+      description: `${manualRefunds.total} iade işlemi manuel tamamlama bekliyor`,
+      href: '#manuel-iadeler',
+      urgent: true,
+    })
+  }
+  if (failedCardRefunds.total > 0) {
+    urgentItems.push({
+      type: 'Kart İadesi Hatası',
+      description: `${failedCardRefunds.total} kart iadesinde çözülmemiş hata var`,
+      href: '#basarisiz-kart-iadeleri',
       urgent: true,
     })
   }
@@ -129,6 +150,21 @@ export default async function AdminDashboardPage() {
       value: String(stats.payments.pendingEftApprovals),
       attention: stats.payments.pendingEftApprovals > 0,
       icon: <CreditCard className="h-5 w-5" />,
+    },
+    {
+      // Use each preview's own total so its counter and rows share one snapshot.
+      href: '#manuel-iadeler',
+      title: 'Manuel İade Bekleyen',
+      value: String(manualRefunds.total),
+      attention: manualRefunds.total > 0,
+      icon: <Wallet className="h-5 w-5" />,
+    },
+    {
+      href: '#basarisiz-kart-iadeleri',
+      title: 'Başarısız Kart İadesi',
+      value: String(failedCardRefunds.total),
+      attention: failedCardRefunds.total > 0,
+      icon: <AlertOctagon className="h-5 w-5" />,
     },
     {
       href: '/hakedisler?status=payout_ready',
@@ -256,6 +292,11 @@ export default async function AdminDashboardPage() {
             <div key={card.title}>{content}</div>
           )
         })}
+      </div>
+
+      <div className="grid items-start gap-6 lg:grid-cols-2" data-testid="dashboard-refund-queues">
+        <RefundQueuePreview kind="manual" queue={manualRefunds} />
+        <RefundQueuePreview kind="failed_card" queue={failedCardRefunds} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
