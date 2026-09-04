@@ -85,6 +85,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
   const [useDifferentBilling, setUseDifferentBilling] = useState(false)
   const [selectedBillingAddressId, setSelectedBillingAddressId] = useState<string | null>(null)
   const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileKey, setTurnstileKey] = useState(0)
   const [cardForm, setCardForm] = useState<CardForm>({
     cardHolderName: '',
     cardNumber: '',
@@ -332,12 +333,34 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
           }),
         })
 
+        if (!res.ok) {
+          const contentType = res.headers.get('content-type') ?? ''
+          let message = 'Ödeme başlatılamadı. Lütfen tekrar deneyin.'
+
+          if (contentType.includes('application/json')) {
+            const body = (await res.json().catch(() => ({}))) as { message?: string }
+            message = body.message ?? message
+          } else {
+            const html = await res.text()
+            const parsed = new DOMParser().parseFromString(html, 'text/html')
+            message = parsed.querySelector('p')?.textContent?.trim() || message
+          }
+
+          setError(message)
+          setTurnstileToken('')
+          setTurnstileKey((value) => value + 1)
+          setSubmitting(false)
+          return
+        }
+
         const html = await res.text()
         document.open()
         document.write(html)
         document.close()
       } catch {
         setError('Ödeme başlatılırken hata oluştu. Lütfen tekrar deneyin.')
+        setTurnstileToken('')
+        setTurnstileKey((value) => value + 1)
         setSubmitting(false)
       }
 
@@ -366,6 +389,8 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(body.message ?? 'Sipariş oluşturulamadı.')
+        setTurnstileToken('')
+        setTurnstileKey((value) => value + 1)
         setSubmitting(false)
         return
       }
@@ -374,6 +399,8 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
       router.push(`/siparis/${orderId}?yeni=1&odeme=eft`)
     } catch {
       setError('Sipariş oluşturulurken hata oluştu.')
+      setTurnstileToken('')
+      setTurnstileKey((value) => value + 1)
       setSubmitting(false)
     }
   }
@@ -1065,6 +1092,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
           <div className="mt-auto w-full pt-6">
             <div data-testid="checkout-turnstile" className="w-full max-w-full">
               <TurnstileWidget
+                key={turnstileKey}
                 action="checkout-submit"
                 className="w-full max-w-full"
                 fitContainer

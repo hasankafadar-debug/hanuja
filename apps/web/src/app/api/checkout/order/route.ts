@@ -5,7 +5,10 @@ import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { UnauthorizedError } from '@hanuja/api/lib/errors'
 import { handleError } from '@hanuja/api/lib/response'
 import { checkRateLimit, SENSITIVE_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
-import { verifyTurnstileToken } from '@hanuja/api/lib/turnstile'
+import {
+  getTurnstileFailureContract,
+  verifyTurnstileToken,
+} from '@hanuja/api/lib/turnstile'
 import { createOrder, createOrderSchema } from '@hanuja/api/routes/checkout'
 
 export async function POST(req: NextRequest) {
@@ -37,13 +40,12 @@ export async function POST(req: NextRequest) {
       token: body.turnstileToken,
       ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
       action: 'checkout-submit',
+      surface: 'checkout-order',
     })
 
     if (!turnstileResult.success) {
-      return NextResponse.json(
-        { message: turnstileResult.message ?? 'Insan dogrulamasi tamamlanamadi.' },
-        { status: 400 },
-      )
+      const contract = getTurnstileFailureContract(turnstileResult)
+      return NextResponse.json(contract.body, { status: contract.status })
     }
 
     return createOrder(req, session.user.id, body)

@@ -5,35 +5,31 @@ import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
 import { adminSignInSessionPolicy } from '@/lib/admin-session-policy'
+import {
+  getTurnstileClientErrorMessage,
+  isDatabaseUnavailableError,
+  type TurnstileClientError,
+} from '@hanuja/security'
 import { TurnstileWidget } from '@hanuja/ui'
-
-type AuthClientError = {
-  code?: string
-  message?: string
-  status?: number
-}
 
 type AdminLoginPageClientProps = {
   turnstileSiteKey?: string | undefined
 }
 
-function getAdminSignInErrorMessage(authError: AuthClientError | null | undefined): string {
-  const message = authError?.message?.toLowerCase() ?? ''
-  const code = authError?.code?.toLowerCase() ?? ''
+function getAdminSignInErrorMessage(authError: TurnstileClientError | null | undefined): string {
+  const turnstileMessage = getTurnstileClientErrorMessage(authError)
+  if (turnstileMessage) return turnstileMessage
 
-  if (
-    authError?.status === 500 ||
-    authError?.status === 503 ||
-    code.includes('database_unavailable') ||
-    message.includes('database') ||
-    message.includes('prisma') ||
-    message.includes('connect')
-  ) {
-    return 'Admin girişi şu anda veritabanı bağlantısı nedeniyle kullanılamıyor. apps/admin-panel/.env.local içindeki DATABASE_URL değerini ve PostgreSQL servisini kontrol edin.'
+  if (isDatabaseUnavailableError(authError)) {
+    return 'Admin girişi şu anda veritabanı bağlantısı nedeniyle kullanılamıyor. Lütfen biraz sonra tekrar deneyin.'
   }
 
   if (authError?.status === 401 || authError?.status === 403) {
     return 'E-posta veya şifre hatalı.'
+  }
+
+  if (authError?.status === 500 || authError?.status === 503) {
+    return 'Admin giriş hizmetine şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.'
   }
 
   if (authError?.message) {
@@ -83,7 +79,8 @@ export function AdminLoginPageClient({ turnstileSiteKey }: AdminLoginPageClientP
       })
 
       if (signInError) {
-        setAuthError(getAdminSignInErrorMessage(signInError as AuthClientError))
+        setAuthError(getAdminSignInErrorMessage(signInError as TurnstileClientError))
+        setTurnstileToken('')
         setTurnstileKey((k) => k + 1)
         return
       }
@@ -94,7 +91,9 @@ export function AdminLoginPageClient({ turnstileSiteKey }: AdminLoginPageClientP
           : callbackUrl,
       )
     } catch {
-      setAuthError('Giriş yapılamadı. Ağ ve veritabanı bağlantısını kontrol edip tekrar deneyin.')
+      setAuthError('Giriş yapılamadı. Ağ bağlantısını kontrol edip tekrar deneyin.')
+      setTurnstileToken('')
+      setTurnstileKey((k) => k + 1)
     } finally {
       setLoading(false)
     }

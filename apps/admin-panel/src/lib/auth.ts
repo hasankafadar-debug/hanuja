@@ -6,12 +6,13 @@
  */
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { admin as adminPlugin, captcha, twoFactor } from "better-auth/plugins";
+import { admin as adminPlugin, twoFactor } from "better-auth/plugins";
 import { PrismaClient } from "@prisma/client";
 import { sendEmail } from "@hanuja/api/lib/mailer";
 import { passwordResetTemplate } from "@hanuja/api/lib/email-templates/password-reset";
 import { passwordChangedTemplate } from "@hanuja/api/lib/email-templates/password-changed";
 import { revokeTrustedDevices } from "@hanuja/api/lib/auth-security";
+import { verifyTurnstileAuthRequest } from "@hanuja/api/lib/turnstile-auth";
 import { requireRuntimeSecret } from "@hanuja/config/env";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
@@ -23,11 +24,6 @@ const betterAuthSecret = requireRuntimeSecret(
   "BETTER_AUTH_SECRET",
   process.env.BETTER_AUTH_SECRET,
 );
-const turnstileSecret = requireRuntimeSecret(
-  "TURNSTILE_SECRET_KEY",
-  process.env.TURNSTILE_SECRET_KEY,
-);
-
 function expandTrustedOriginVariants(
   urls: Array<string | undefined>,
 ): string[] {
@@ -130,13 +126,6 @@ const _auth = betterAuth({
     customRules: { "/change-password": { window: 60, max: 5 } },
   },
   plugins: [
-    // This validates x-captcha-response inside Better Auth itself. The old
-    // client-side verification endpoint is intentionally not an authority.
-    captcha({
-      provider: "cloudflare-turnstile",
-      secretKey: turnstileSecret,
-      endpoints: ["/sign-in/email"],
-    }),
     twoFactor({
       issuer: "Hanuja Admin",
       totpOptions: { digits: 6, period: 30 },
@@ -197,6 +186,14 @@ export const authHandler = async (request: Request): Promise<Response> => {
 
   if (dbErrorResponse) {
     return dbErrorResponse;
+  }
+
+  const turnstileErrorResponse = await verifyTurnstileAuthRequest(request, {
+    "/sign-in/email": { action: "admin-login", surface: "admin-auth" },
+  });
+
+  if (turnstileErrorResponse) {
+    return turnstileErrorResponse;
   }
 
   return _auth.handler(request);

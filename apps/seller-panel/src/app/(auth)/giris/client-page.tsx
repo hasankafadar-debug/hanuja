@@ -4,35 +4,31 @@ import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
 import { sellerSignInSessionPolicy } from '@/lib/seller-session-policy'
+import {
+  getTurnstileClientErrorMessage,
+  isDatabaseUnavailableError,
+  type TurnstileClientError,
+} from '@hanuja/security'
 import { TurnstileWidget } from '@hanuja/ui'
-
-type AuthClientError = {
-  code?: string
-  message?: string
-  status?: number
-}
 
 type SellerLoginPageClientProps = {
   turnstileSiteKey?: string | undefined
 }
 
-function getSellerSignInErrorMessage(authError: AuthClientError | null | undefined): string {
-  const message = authError?.message?.toLowerCase() ?? ''
-  const code = authError?.code?.toLowerCase() ?? ''
+function getSellerSignInErrorMessage(authError: TurnstileClientError | null | undefined): string {
+  const turnstileMessage = getTurnstileClientErrorMessage(authError)
+  if (turnstileMessage) return turnstileMessage
 
-  if (
-    authError?.status === 500 ||
-    authError?.status === 503 ||
-    code.includes('database_unavailable') ||
-    message.includes('database') ||
-    message.includes('prisma') ||
-    message.includes('connect')
-  ) {
-    return 'Satıcı girişi şu anda geçici bir sunucu veya veritabanı hatası nedeniyle tamamlanamıyor. Lütfen satıcı paneli servislerini kontrol edip tekrar deneyin.'
+  if (isDatabaseUnavailableError(authError)) {
+    return 'Satıcı girişi şu anda veritabanı bağlantısı nedeniyle kullanılamıyor. Lütfen biraz sonra tekrar deneyin.'
   }
 
   if (authError?.status === 401 || authError?.status === 403) {
     return 'E-posta veya şifre hatalı.'
+  }
+
+  if (authError?.status === 500 || authError?.status === 503) {
+    return 'Satıcı giriş hizmetine şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.'
   }
 
   if (authError?.message) {
@@ -79,7 +75,8 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
       })
 
       if (authError) {
-        setError(getSellerSignInErrorMessage(authError as AuthClientError))
+        setError(getSellerSignInErrorMessage(authError as TurnstileClientError))
+        setTurnstileToken('')
         setTurnstileKey((k) => k + 1)
         return
       }
@@ -90,7 +87,9 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
           : callbackUrl,
       )
     } catch {
-      setError('Giriş yapılamadı. Ağ ve sunucu bağlantısını kontrol edip tekrar deneyin.')
+      setError('Giriş yapılamadı. Ağ bağlantısını kontrol edip tekrar deneyin.')
+      setTurnstileToken('')
+      setTurnstileKey((k) => k + 1)
     } finally {
       setLoading(false)
     }
@@ -138,7 +137,9 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
           onChange={handleTurnstileChange}
         />
 
-        {error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
+        {error ? (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+        ) : null}
 
         <button
           type="submit"

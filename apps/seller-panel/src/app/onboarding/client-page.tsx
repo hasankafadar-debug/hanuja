@@ -92,6 +92,7 @@ export function OnboardingPageClient({ turnstileSiteKey }: OnboardingPageClientP
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileKey, setTurnstileKey] = useState(0)
   const [phone, setPhone] = useState('')
   const [magaza, setMagaza] = useState<StepMagaza>({
     storeName: '',
@@ -289,12 +290,16 @@ export function OnboardingPageClient({ turnstileSiteKey }: OnboardingPageClientP
         }
 
         setError(message)
+        setTurnstileToken('')
+        setTurnstileKey((value) => value + 1)
         return
       }
 
       router.push('/basvuru/tesekkur')
     } catch {
       setError('Bağlantı hatası oluştu. Lütfen tekrar deneyin.')
+      setTurnstileToken('')
+      setTurnstileKey((value) => value + 1)
     } finally {
       setSubmitting(false)
     }
@@ -689,6 +694,7 @@ export function OnboardingPageClient({ turnstileSiteKey }: OnboardingPageClientP
                 <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                   <p className="mb-3 text-sm font-medium text-neutral-900">İnsan doğrulaması</p>
                   <TurnstileWidget
+                    key={turnstileKey}
                     action="seller-onboarding"
                     onChange={setTurnstileToken}
                     siteKey={turnstileSiteKey}

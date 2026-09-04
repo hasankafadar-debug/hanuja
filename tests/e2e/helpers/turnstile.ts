@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test'
 // It does not validate real Cloudflare Turnstile widget behavior.
 export async function mockTurnstile(
   page: Page,
-  token = 'playwright-mock-token',
+  token = 'dev-turnstile-bypass',
   delayMs = 60,
 ) {
   // Both values must travel through the argument object — addInitScript serializes the
@@ -53,9 +53,5 @@ export async function mockTurnstile(
 
   await page.route('**/challenges.cloudflare.com/**', (route) =>
     route.fulfill({ body: '', contentType: 'application/javascript' }),
-  )
-
-  await page.route('**/api/turnstile-verify', (route) =>
-    route.fulfill({ json: { ok: true }, status: 200 }),
   )
 }

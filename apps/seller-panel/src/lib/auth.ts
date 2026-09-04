@@ -7,7 +7,7 @@
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { admin as adminPlugin, captcha, twoFactor } from "better-auth/plugins";
+import { admin as adminPlugin, twoFactor } from "better-auth/plugins";
 import { PrismaClient } from "@prisma/client";
 import { sendEmail } from "@hanuja/api/lib/mailer";
 import { emailVerificationTemplate } from "@hanuja/api/lib/email-templates/email-verification";
@@ -15,6 +15,7 @@ import { sellerPasswordResetTemplate } from "@hanuja/api/lib/email-templates/sel
 import { evaluateAuthPasswordPolicy } from "@hanuja/security/password-policy";
 import { getRedis } from "@hanuja/api/lib/redis";
 import { revokeTrustedDevices } from "@hanuja/api/lib/auth-security";
+import { verifyTurnstileAuthRequest } from "@hanuja/api/lib/turnstile-auth";
 import { requireRuntimeSecret } from "@hanuja/config/env";
 import { ensureSellerEmailOtpFactor } from "@/lib/seller-email-otp-factor";
 
@@ -27,11 +28,6 @@ const betterAuthSecret = requireRuntimeSecret(
   "BETTER_AUTH_SECRET",
   process.env.BETTER_AUTH_SECRET,
 );
-const turnstileSecret = requireRuntimeSecret(
-  "TURNSTILE_SECRET_KEY",
-  process.env.TURNSTILE_SECRET_KEY,
-);
-
 const sellerForbiddenTwoFactorPaths = new Set([
   "/two-factor/enable",
   "/two-factor/disable",
@@ -159,11 +155,6 @@ const _auth = betterAuth({
     }),
   },
   plugins: [
-    captcha({
-      provider: "cloudflare-turnstile",
-      secretKey: turnstileSecret,
-      endpoints: ["/sign-in/email"],
-    }),
     // OTP records are stored hashed by Better Auth. Seller accounts only use
     // email OTP; the TOTP provider is disabled for this panel.
     twoFactor({
@@ -293,5 +284,15 @@ const _auth = betterAuth({
 };
 
 export const auth = _auth;
-export const authHandler: (request: Request) => Promise<Response> =
-  _auth.handler;
+export const authHandler = async (request: Request): Promise<Response> => {
+  const turnstileErrorResponse = await verifyTurnstileAuthRequest(request, {
+    "/sign-in/email": { action: "seller-login", surface: "seller-auth" },
+    "/sign-up/email": { action: "seller-signup", surface: "seller-auth" },
+  });
+
+  if (turnstileErrorResponse) {
+    return turnstileErrorResponse;
+  }
+
+  return _auth.handler(request);
+};

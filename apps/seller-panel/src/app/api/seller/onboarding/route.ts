@@ -16,7 +16,10 @@ import {
   isValidTaxNumber,
   normalizePhone,
 } from '@/lib/onboarding'
-import { verifyTurnstileToken } from '@hanuja/api/lib/turnstile'
+import {
+  getTurnstileFailureContract,
+  verifyTurnstileToken,
+} from '@hanuja/api/lib/turnstile'
 import { hasMatchingNormalizedTokens } from '@hanuja/security'
 import { handleError } from '@hanuja/api/lib/response'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
@@ -162,13 +165,12 @@ export async function POST(request: NextRequest) {
       token: turnstileToken ?? '',
       ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
       action: 'seller-onboarding',
+      surface: 'seller-onboarding',
     })
 
     if (!turnstileResult.success) {
-      return NextResponse.json(
-        { message: turnstileResult.message ?? 'Insan dogrulamasi tamamlanamadi.' },
-        { status: 400 },
-      )
+      const contract = getTurnstileFailureContract(turnstileResult)
+      return NextResponse.json(contract.body, { status: contract.status })
     }
 
     if (!hasMatchingNormalizedTokens(banka.accountHolderName, isletme.companyName)) {

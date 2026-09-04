@@ -8,7 +8,10 @@ import { isCardPaymentsEnabled } from '@hanuja/api/lib/payment-capabilities'
 import { buildLegalAcceptanceEvidence, extractClientIp } from '@hanuja/api/lib/legal-acceptance'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { checkRateLimit, SENSITIVE_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
-import { verifyTurnstileToken } from '@hanuja/api/lib/turnstile'
+import {
+  getTurnstileFailureContract,
+  verifyTurnstileToken,
+} from '@hanuja/api/lib/turnstile'
 import { createCheckoutService } from '@hanuja/api/services/checkout.service'
 
 const APP_URL =
@@ -133,13 +136,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     token: body.turnstileToken,
     ip: extractClientIp(req),
     action: 'checkout-submit',
+    surface: 'checkout-payment',
   })
 
   if (!turnstileResult.success) {
-    return htmlResponse(
-      buildErrorHtml(turnstileResult.message ?? 'İnsan doğrulaması tamamlanamadı.'),
-      400,
-    )
+    const contract = getTurnstileFailureContract(turnstileResult)
+    return NextResponse.json(contract.body, { status: contract.status })
   }
 
   const prisma = createPrismaForRoute()

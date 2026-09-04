@@ -102,12 +102,7 @@ export {
 export type { CsrfCookieOptions } from './csrf'
 
 // Permission matrix
-export {
-  can,
-  permissionsFor,
-  assertCan,
-  PermissionDeniedError,
-} from './permission-matrix'
+export { can, permissionsFor, assertCan, PermissionDeniedError } from './permission-matrix'
 export type { UserRole, Action } from './permission-matrix'
 
 // Money formatting
@@ -140,3 +135,7 @@ export {
   auditManualFinanceAdjustment,
 } from './audit-logger'
 export type { AuditAction, AuditEntry, BuildAuditEntryInput } from './audit-logger'
+
+// Auth service error contracts safe for use in client components.
+export { getTurnstileClientErrorMessage, isDatabaseUnavailableError } from './turnstile-error'
+export type { TurnstileClientError } from './turnstile-error'

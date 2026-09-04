@@ -3,12 +3,12 @@
 import { useCallback, useState } from 'react'
 import { TurnstileWidget } from '@hanuja/ui'
 import { authClient, signUp } from '@/lib/auth-client'
-import { getSellerPasswordErrors } from '@hanuja/security/password-policy'
-
-type AuthClientError = {
-  message?: string | undefined
-  status?: number
-}
+import {
+  getSellerPasswordErrors,
+  getTurnstileClientErrorMessage,
+  isDatabaseUnavailableError,
+  type TurnstileClientError,
+} from '@hanuja/security'
 
 type ApplicationAccountGateProps = {
   email?: string | undefined
@@ -16,37 +16,24 @@ type ApplicationAccountGateProps = {
   verificationJustCompleted?: boolean
 }
 
-function getSignupErrorMessage(authError: AuthClientError | null | undefined): string {
+function getSignupErrorMessage(authError: TurnstileClientError | null | undefined): string {
   const message = authError?.message?.toLowerCase() ?? ''
+  const turnstileMessage = getTurnstileClientErrorMessage(authError)
+  if (turnstileMessage) return turnstileMessage
 
   if (authError?.status === 422 || message.includes('already')) {
     return 'Bu e-posta adresi zaten kayıtlı. Mevcut hesabınızla giriş yapabilirsiniz.'
   }
 
-  if (
-    authError?.status === 500 ||
-    authError?.status === 503 ||
-    message.includes('database') ||
-    message.includes('prisma') ||
-    message.includes('connect')
-  ) {
+  if (isDatabaseUnavailableError(authError)) {
+    return 'Kayıt şu anda veritabanı bağlantısı nedeniyle kullanılamıyor. Lütfen biraz sonra tekrar deneyin.'
+  }
+
+  if (authError?.status === 500 || authError?.status === 503) {
     return 'Kayıt hizmetine şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.'
   }
 
   return authError?.message ?? 'Hesap oluşturulamadı. Lütfen tekrar deneyin.'
-}
-
-async function verifyTurnstile(token: string): Promise<string | null> {
-  const response = await fetch('/api/turnstile-verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, action: 'seller-signup' }),
-  })
-
-  if (response.ok) return null
-
-  const body = (await response.json()) as { message?: string }
-  return body.message ?? 'Güvenlik doğrulaması tamamlanamadı. Lütfen tekrar deneyin.'
 }
 
 async function sendVerificationEmail(email: string) {
@@ -102,23 +89,16 @@ export function ApplicationAccountGate({
     setLoading(true)
 
     try {
-      const verificationError = await verifyTurnstile(turnstileToken)
-      if (verificationError) {
-        setError(verificationError)
-        setTurnstileToken('')
-        setTurnstileKey((value) => value + 1)
-        return
-      }
-
       const { error: authError } = await signUp.email({
         name: name.trim(),
         email: email.trim(),
         password,
         callbackURL: `${window.location.origin}/basvuru`,
+        fetchOptions: { headers: { 'x-captcha-response': turnstileToken } },
       })
 
       if (authError) {
-        setError(getSignupErrorMessage(authError as AuthClientError))
+        setError(getSignupErrorMessage(authError as TurnstileClientError))
         setTurnstileToken('')
         setTurnstileKey((value) => value + 1)
         return
@@ -139,6 +119,8 @@ export function ApplicationAccountGate({
           message: caughtError instanceof Error ? caughtError.message : undefined,
         }),
       )
+      setTurnstileToken('')
+      setTurnstileKey((value) => value + 1)
     } finally {
       setLoading(false)
     }

@@ -4,32 +4,30 @@ import { useCallback, useState } from 'react'
 import { authClient, signUp } from '@/lib/auth-client'
 import { csrfFetch } from '@/lib/csrf-fetch'
 import { TurnstileWidget } from '@hanuja/ui'
-import { getCustomerPasswordErrors } from '@hanuja/security/password-policy'
-
-type AuthClientError = {
-  message?: string
-  status?: number
-}
+import {
+  getCustomerPasswordErrors,
+  getTurnstileClientErrorMessage,
+  isDatabaseUnavailableError,
+  type TurnstileClientError,
+} from '@hanuja/security'
 
 type SignupPageClientProps = {
   turnstileSiteKey?: string | undefined
 }
 
-function getSignupErrorMessage(authError: AuthClientError | null | undefined): string {
-  const message = authError?.message?.toLowerCase() ?? ''
+function getSignupErrorMessage(authError: TurnstileClientError | null | undefined): string {
+  const turnstileMessage = getTurnstileClientErrorMessage(authError)
+  if (turnstileMessage) return turnstileMessage
 
   if (authError?.status === 422) {
     return 'Bu e-posta adresi zaten kayıtlı.'
   }
 
-  if (
-    authError?.status === 500 ||
-    authError?.status === 503 ||
-    message.includes('database') ||
-    message.includes("can't reach database") ||
-    message.includes('connect') ||
-    message.includes('prisma')
-  ) {
+  if (isDatabaseUnavailableError(authError)) {
+    return 'Kayıt şu anda veritabanı bağlantısı nedeniyle kullanılamıyor. Lütfen biraz sonra tekrar deneyin.'
+  }
+
+  if (authError?.status === 500 || authError?.status === 503) {
     return 'Kayıt hizmetine şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.'
   }
 
@@ -38,17 +36,6 @@ function getSignupErrorMessage(authError: AuthClientError | null | undefined): s
   }
 
   return 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.'
-}
-
-async function verifyTurnstile(token: string): Promise<string | null> {
-  const res = await fetch('/api/turnstile-verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, action: 'customer-signup' }),
-  })
-  if (res.ok) return null
-  const data = (await res.json()) as { message?: string }
-  return data.message ?? 'Güvenlik doğrulaması başarısız. Lütfen tekrar deneyin.'
 }
 
 async function sendVerificationEmail(email: string) {
@@ -67,6 +54,7 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileKey, setTurnstileKey] = useState(0)
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null)
   const [verificationMessage, setVerificationMessage] = useState<string | null>(null)
   const [resending, setResending] = useState(false)
@@ -98,23 +86,18 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
     setLoading(true)
 
     try {
-      const verifyError = await verifyTurnstile(turnstileToken)
-      if (verifyError) {
-        setError(verifyError)
-        setTurnstileToken('')
-        return
-      }
-
       const { error: authError } = await signUp.email({
         name,
         email,
         password,
         callbackURL: '/hesabim',
+        fetchOptions: { headers: { 'x-captcha-response': turnstileToken } },
       })
 
       if (authError) {
-        setError(getSignupErrorMessage(authError as AuthClientError))
+        setError(getSignupErrorMessage(authError as TurnstileClientError))
         setTurnstileToken('')
+        setTurnstileKey((value) => value + 1)
         return
       }
 
@@ -145,6 +128,8 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
           ? err.message
           : 'Kayıt oluşturulamadı. Bağlantıyı kontrol edip tekrar deneyin.'
       setError(getSignupErrorMessage({ message }))
+      setTurnstileToken('')
+      setTurnstileKey((value) => value + 1)
     } finally {
       setLoading(false)
     }
@@ -276,6 +261,7 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
         </div>
 
         <TurnstileWidget
+          key={turnstileKey}
           siteKey={turnstileSiteKey}
           action="customer-signup"
           onChange={handleTurnstileChange}

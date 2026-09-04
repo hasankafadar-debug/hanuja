@@ -3,6 +3,11 @@
 import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
+import {
+  getTurnstileClientErrorMessage,
+  isDatabaseUnavailableError,
+  type TurnstileClientError,
+} from '@hanuja/security'
 import { TurnstileWidget } from '@hanuja/ui'
 
 type LoginPageClientProps = {
@@ -10,15 +15,23 @@ type LoginPageClientProps = {
   googleLoginEnabled?: boolean
 }
 
-async function verifyTurnstile(token: string): Promise<string | null> {
-  const res = await fetch('/api/turnstile-verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, action: 'customer-login' }),
-  })
-  if (res.ok) return null
-  const data = (await res.json()) as { message?: string }
-  return data.message ?? 'Güvenlik doğrulaması başarısız. Lütfen tekrar deneyin.'
+function getLoginErrorMessage(authError: TurnstileClientError | null | undefined): string {
+  const turnstileMessage = getTurnstileClientErrorMessage(authError)
+  if (turnstileMessage) return turnstileMessage
+
+  if (isDatabaseUnavailableError(authError)) {
+    return 'Giriş şu anda veritabanı bağlantısı nedeniyle kullanılamıyor. Lütfen biraz sonra tekrar deneyin.'
+  }
+
+  if (authError?.status === 401 || authError?.status === 403) {
+    return 'E-posta veya şifre hatalı.'
+  }
+
+  if (authError?.status === 500 || authError?.status === 503) {
+    return 'Giriş hizmetine şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.'
+  }
+
+  return authError?.message ?? 'Giriş yapılamadı. Lütfen tekrar deneyin.'
 }
 
 export function LoginPageClient({ turnstileSiteKey, googleLoginEnabled = false }: LoginPageClientProps) {
@@ -41,7 +54,7 @@ export function LoginPageClient({ turnstileSiteKey, googleLoginEnabled = false }
     e.preventDefault()
     setError(null)
 
-    if (turnstileSiteKey && !turnstileToken) {
+    if (!turnstileToken) {
       setError('Lütfen önce güvenlik doğrulamasını tamamlayın.')
       return
     }
@@ -49,23 +62,16 @@ export function LoginPageClient({ turnstileSiteKey, googleLoginEnabled = false }
     setLoading(true)
 
     try {
-      if (turnstileSiteKey) {
-        const verifyError = await verifyTurnstile(turnstileToken)
-        if (verifyError) {
-          setError(verifyError)
-          setTurnstileKey((k) => k + 1)
-          return
-        }
-      }
-
       const { error: authError } = await signIn.email({
         email,
         password,
         callbackURL: callbackUrl,
+        fetchOptions: { headers: { 'x-captcha-response': turnstileToken } },
       })
 
       if (authError) {
-        setError('E-posta veya şifre hatalı.')
+        setError(getLoginErrorMessage(authError as TurnstileClientError))
+        setTurnstileToken('')
         setTurnstileKey((k) => k + 1)
         return
       }
@@ -73,6 +79,8 @@ export function LoginPageClient({ turnstileSiteKey, googleLoginEnabled = false }
       router.push(callbackUrl)
     } catch {
       setError('Giriş yapılamadı. Bağlantıyı kontrol edip tekrar deneyin.')
+      setTurnstileToken('')
+      setTurnstileKey((k) => k + 1)
     } finally {
       setLoading(false)
     }
@@ -131,7 +139,7 @@ export function LoginPageClient({ turnstileSiteKey, googleLoginEnabled = false }
 
         <button
           type="submit"
-          disabled={loading || (Boolean(turnstileSiteKey) && !turnstileToken)}
+          disabled={loading || !turnstileToken}
           className="w-full rounded-lg bg-neutral-900 text-white text-sm font-medium py-2.5 hover:bg-neutral-700 disabled:opacity-50 transition"
         >
           {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}

@@ -37,7 +37,7 @@ test.setTimeout(90_000)
 
 // ─── Yardımcı: Giriş yap ────────────────────────────────────────────────────
 async function loginCustomer(page: Page, turnstileDelayMs = 60) {
-  await mockTurnstile(page, 'playwright-mock-token', turnstileDelayMs)
+  await mockTurnstile(page, 'dev-turnstile-bypass', turnstileDelayMs)
   const hydration = trackHydrationErrors(page)
   await page.goto(`${BASE_URL}/giris`)
   await expect(page.locator('#email')).toBeVisible({ timeout: 5000 })

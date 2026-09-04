@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-07-17
+# Son güncelleme: 2026-09-05
 # Durum: taslak v1
 
 # Production Deploy Runbook
@@ -228,6 +228,29 @@ Minimum manuel smoke test kapsamı:
 - [ ] Üç uygulamanın health endpoint'i yanıt veriyor: `/api/health` (web, seller-panel, admin-panel — bkz. `docs/06-engineering/deployment-environments.md` §"Health Checks", interval 30s / timeout 5s)
 
 Smoke test başarısız olursa deploy'u tamamlanmış saymayın; Bölüm 9'daki rollback yaklaşımını değerlendirin.
+
+### Turnstile çıkış yolu izleme ve teşhis
+
+- Coolify worker Scheduled Task: `pnpm check-turnstile-egress`
+- Zamanlama: beş dakikada bir
+- Normal sonuç: exit 0; DNS, TLS ve Siteverify bilgileri Coolify task logunda görünür
+- Teşhis komutu: `pnpm check-turnstile-egress -- --detailed` (IPv4 ve IPv6'yı sırayla sınar)
+- Web, seller-panel ve admin-panel için health check yolu `/api/health`, interval `30s`, timeout `5s`
+- Turnstile `/api/health` sonucuna dahil edilmez; Cloudflare kesintisi container restart sebebi değildir
+- Coolify sunucu metrikleri açık tutulur; olay saatindeki CPU, RAM, load ve ağ verileri korunur
+
+| Kanıt | Olası kaynak | Sonraki kontrol |
+|---|---|---|
+| Üç uygulamada eşzamanlı timeout ve worker probe da başarısız | VDS çıkışı, DNS, firewall veya ortak ağ yolu | Detailed probe; IPv4/IPv6 sonucu; Coolify sunucu metrikleri; sağlayıcı ağ paneli |
+| Yalnız IPv6 başarısız, IPv4 başarılı | VDS IPv6 route/DNS yolu | Sistem IPv6 route ve firewall ayarları; gerekirse Node/DNS IPv4 önceliği |
+| DNS başarılı, TLS/Siteverify timeout; `cf-ray` yok | VDS ile Cloudflare arasındaki bağlantı | Sağlayıcı traceroute/MTR ve egress firewall; aynı anda farklı dış HTTPS hedefi |
+| HTTP 429/5xx veya `internal-error`; `cf-ray` mevcut | Cloudflare Turnstile tarafı veya rate limit | `cf-ray` ve zaman damgasıyla Cloudflare durum/destek kontrolü |
+| Worker probe başarılı, yalnız tek uygulama başarısız | İlgili container/runtime | Uygulama logu, container DNS/ağ namespace'i ve deploy farkı |
+| Probe ve Turnstile başarılı, `DATABASE_UNAVAILABLE` var | PostgreSQL bağlantısı | `/api/health`, PostgreSQL logları, bağlantı havuzu ve Coolify DB metrikleri |
+
+Turnstile loglarında token, secret, e-posta, parola veya kullanıcı IP'si bulunmamalıdır. Hata mesajını
+yalnız HTTP statusundan tahmin etmeyin: veritabanı mesajı için `DATABASE_UNAVAILABLE`, Turnstile için
+yukarıdaki açık hata kodları esas alınır.
 
 ---
 

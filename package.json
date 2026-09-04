@@ -26,6 +26,7 @@
     "check-env": "tsx tools/scripts/check-env.ts",
     "check-duplicate-payments": "tsx tools/scripts/check-duplicate-provider-payment-ids.ts",
     "check-barcode-registry-ready": "tsx tools/scripts/check-barcode-registry-ready.ts",
+    "check-turnstile-egress": "tsx tools/scripts/check-turnstile-egress.ts",
     "search:seed": "tsx tools/scripts/seed-search.ts",
     "media:backfill": "tsx tools/scripts/backfill-media-urls.ts",
     "media:optimize-home": "tsx tools/scripts/optimize-home-media.ts",

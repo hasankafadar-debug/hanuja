@@ -9,6 +9,7 @@ import { passwordResetTemplate } from '@hanuja/api/lib/email-templates/password-
 import { passwordChangedTemplate } from '@hanuja/api/lib/email-templates/password-changed'
 import { evaluateAuthPasswordPolicy } from '@hanuja/security/password-policy'
 import { revokeTrustedDevices } from '@hanuja/api/lib/auth-security'
+import { verifyTurnstileAuthRequest } from '@hanuja/api/lib/turnstile-auth'
 import { requireRuntimeSecret } from '@hanuja/config/env'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
@@ -123,7 +124,12 @@ const _auth = betterAuth({
   },
   ...(googleClientId && googleClientSecret
     ? {
-        socialProviders: { google: { clientId: googleClientId, clientSecret: googleClientSecret } },
+        socialProviders: {
+          google: {
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
+          },
+        },
       }
     : {}),
   rateLimit: {
@@ -163,7 +169,11 @@ const _auth = betterAuth({
     }) => Promise<unknown>
     changePassword: (opts: {
       headers: Headers
-      body: { currentPassword: string; newPassword: string; revokeOtherSessions: boolean }
+      body: {
+        currentPassword: string
+        newPassword: string
+        revokeOtherSessions: boolean
+      }
     }) => Promise<unknown>
   }
 }
@@ -174,6 +184,15 @@ export const authHandler = async (request: Request): Promise<Response> => {
 
   if (dbErrorResponse) {
     return dbErrorResponse
+  }
+
+  const turnstileErrorResponse = await verifyTurnstileAuthRequest(request, {
+    '/sign-in/email': { action: 'customer-login', surface: 'web-auth' },
+    '/sign-up/email': { action: 'customer-signup', surface: 'web-auth' },
+  })
+
+  if (turnstileErrorResponse) {
+    return turnstileErrorResponse
   }
 
   return _auth.handler(request)
