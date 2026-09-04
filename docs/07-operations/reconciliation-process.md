@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-09-03
+# Son güncelleme: 2026-09-04
 # Durum: taslak v1
 
 # Reconciliation Process — Mutabakat Süreci
@@ -340,9 +340,37 @@ bu çalışma kapsamında değiştirilmez.
   gizlenmez. Aynı siparişin ayrı iadeleri ayrı satırlarda kalır. Liste sınırı
   aşıldığında kaç işlemin gösterildiği ayrıca belirtilir.
 
+### `/iadeler` tam ödeme iadesi kuyrukları
+
+- `/iadeler` varsayılan olarak mevcut **İade talepleri** ekranını açar. Talep
+  değerlendirme aksiyonları ve 14 gün sonrası destek/resim/belge süreci değişmez.
+- `/iadeler?tab=manual_refunds` manuel ödeme iadelerini,
+  `/iadeler?tab=failed_card_refunds` başarısız kart iadelerini gösterir. İptal,
+  ürün iadesi ve uyuşmazlık kaynaklı `RefundTransaction` kayıtları listelenir;
+  sadece `ReturnRequest` kayıtlarına bakılmaz.
+- Dashboard kısa listelerinin **Tümünü gör** bağlantıları ilgili sekmeye gider.
+  Sayaçların yeşil uyarısı ve sayfa içi kısa liste bağlantıları korunur.
+- `q`: müşteri adında büyük/küçük harf duyarsız arama; sipariş numarası (`#`
+  isteğe bağlı), tam sipariş kimliği veya tam iade işlem kimliği ile arama.
+  Arama metni en fazla 100 karakterdir; sorgu SQL birleştirmesi kullanmaz.
+- `method`: manuel sekmede `eft`, `card`, `missing` (ödeme kaydı eksik) veya tümü.
+  `source`: `cancellation`, `return_request`, `dispute` veya tümü. Filtreler
+  kuyruk koşullarına **AND** ile eklenir; tamamlanan veya yanlış ödeme yöntemine
+  ait kayıtları yeniden kuyruğa alamaz.
+- Sayfa boyutu 20, 50 veya 100'dür. Arama/filtreleme tüm kuyruk üzerinde yapılır;
+  sonuçlar ve filtrelenmiş toplam aynı veritabanı snapshot'ından okunur. Sekme
+  sayaçları tüm kuyruğun toplamıdır; liste toplamı uygulanan filtrelere göredir.
+- Filtre uygulamak sayfayı 1'e döndürür; önceki/sonraki bağlantıları filtreleri
+  korur. Sekme değiştirmek filtreleri sıfırlar. Kuyruk küçülüp seçili sayfa
+  boşalırsa son geçerli sayfaya yönlendirilir. Boş kuyruk ve aramada sonuç
+  bulunamaması farklı metinlerle açıklanır; veritabanı hatası sıfır gibi gizlenmez.
+- Liste yalnızca kalan tutarı, işlem kimliğini, müşteri/siparişi, ödeme yöntemini,
+  kaynağı, durumu ve İstanbul saatindeki oluşturulma tarihini gösterir. Banka
+  bilgileri, ham sağlayıcı hataları ve yeni ödeme aksiyonları eklenmez.
+
 Bu aşama iade başlatmaz/tamamlamaz, ledger/payout değiştirmez ve migration
-gerektirmez. `/iadeler` tam ödeme iadesi kuyruğu ve sipariş detayındaki manuel
-tamamlama butonu sonraki ayrı adımlardır. Yalnızca admin servisi deploy edilir.
+gerektirmez. Sipariş detayındaki manuel tamamlama butonu sonraki ayrı adımdır.
+Ortak sorgu servisinin filtresiz davranışı korunur; yalnızca admin servisi deploy edilir.
 
 ## 13. Çapraz Referanslar
 

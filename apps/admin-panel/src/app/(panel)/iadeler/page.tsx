@@ -1,19 +1,55 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { Button, StatusBadge, PageHeader } from '@hanuja/ui'
 import { getAdminSession } from '@/lib/admin-session'
 import { createReturnService } from '@hanuja/api/services/return.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { createAdminRefundQueryService } from '@hanuja/api/services/admin-refund-query.service'
+import type { RawAdminSearchParams } from '@/lib/admin-list-params'
+import { parseRefundQueueParams, readRefundTab, refundQueueHref } from '@/lib/admin-refund-list-params'
 import { ReturnReviewActions } from './_components/return-review-actions'
+import { RefundPaymentQueue } from './_components/refund-payment-queue'
+import { RefundQueueTabs } from './_components/refund-queue-tabs'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = { title: 'İadeler' }
 
-export default async function ReturnsAdminPage() {
+export default async function ReturnsAdminPage({ searchParams }: { searchParams?: Promise<RawAdminSearchParams> }) {
   await getAdminSession()
 
+  const raw = searchParams ? await searchParams : undefined
+  const tab = readRefundTab(raw)
   const prisma = createPrismaForRoute()
+  const refundQuery = createAdminRefundQueryService({ prisma })
+  const counts = await refundQuery.getCounts()
+
+  if (tab !== 'requests') {
+    const params = parseRefundQueueParams(raw, tab)
+    const query = {
+      skip: (params.page - 1) * params.pageSize,
+      take: params.pageSize,
+      ...(params.q ? { query: params.q } : {}),
+      ...(params.method !== 'all' ? { method: params.method } : {}),
+      ...(params.source !== 'all' ? { sourceType: params.source } : {}),
+    }
+    const result = tab === 'manual_refunds'
+      ? await refundQuery.listManualRequiredForAdmin(query)
+      : await refundQuery.listFailedCardForAdmin(query)
+    const totalPages = Math.max(1, Math.ceil(result.total / params.pageSize))
+    // Completion can shrink the queue while an admin is on its last page.
+    if (params.page > totalPages) redirect(refundQueueHref(params, totalPages))
+
+    return (
+      <div className="min-w-0 space-y-6" data-testid="admin-returns-page">
+        <PageHeader title="İadeler" description="İade talepleri ve ödeme iadesi takibi" />
+        <RefundQueueTabs tab={tab} counts={counts} />
+        <RefundPaymentQueue params={params} result={result} />
+      </div>
+    )
+  }
+
   const svc = createReturnService({ prisma })
   const returns = await svc.listForAdmin({ skip: 0, take: 50 })
   const refundRows = returns.length
@@ -27,8 +63,10 @@ export default async function ReturnsAdminPage() {
   const openCount = returns.filter((r) => !closedStatuses.includes(r.status)).length
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6" data-testid="admin-returns-page">
       <PageHeader title="İadeler" description={`${openCount} açık iade`} />
+      <RefundQueueTabs tab={tab} counts={counts} />
+      <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>İade talepleri</h2>
 
       <div
         className="rounded-xl border p-4 text-sm"

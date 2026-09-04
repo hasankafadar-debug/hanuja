@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-09-04
 # Durum: taslak v1
 
 # Admin Journeys
@@ -58,6 +58,21 @@ Amac, hangi admin akisinda hangi veri, yetki ve audit beklentisinin oldugunu sab
 - Gerekli veri: iade nedeni, fotograf, mesaj, teslimat kaydi, payout baglami
 - Karar: tam refund, kismi refund, red, ek delil isteme
 - Kural: dispute acikken payout bloklu kalir
+
+### Journey 5b: Ödeme iadesi kuyruğu
+
+- Giriş noktası: kontrol panelindeki iade kısa listeleri → **Tümünü gör** veya
+  `/iadeler` içindeki **Manuel ödeme iadeleri** / **Başarısız kart iadeleri** sekmeleri.
+- İade talebi değerlendirmesi ile para iadesi takibi ayrı gösterilir. 14 gün sonrası
+  destek üzerinden başvuru ve belge/resim ile değerlendirme süreci korunur.
+- Her satır bir `RefundTransaction` kaydıdır. Aynı müşteri/siparişin ayrı iptal veya
+  iade işlemleri birleştirilmez; tamamlanan işlemler bekleyen kuyrukta gösterilmez.
+- Müşteri adı, sipariş numarası veya işlem kimliğiyle arama; ödeme yöntemi/kaynak
+  filtreleri ve sayfalama kullanılır. Sadece kalan iade tutarı gösterilir.
+- Satırdan ilgili sipariş detayına gidilir. Bu liste salt okunurdur; iade başlatma,
+  manuel tamamlandı işaretleme veya sağlayıcıya yeniden deneme aksiyonu içermez.
+- Kart hatası görünürlüğü otomatik denemelerin tükendiği anlamına gelmez; yeni bir
+  ödeme öncesinde sipariş kayıtları ve sağlayıcı sonucu kontrol edilmelidir.
 
 ## Journey 6: Seller denetim ve askiya alma
 

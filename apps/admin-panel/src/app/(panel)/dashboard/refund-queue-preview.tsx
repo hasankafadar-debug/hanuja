@@ -2,23 +2,15 @@ import Link from 'next/link'
 import { AlertTriangle, ArrowUpRight } from 'lucide-react'
 import type { AdminRefundQueueRow } from '@hanuja/api/services/admin-refund-query.service'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import {
+  CARD_REFUND_RETRY_WARNING,
+  formatRefundOutstandingAmount,
+  refundSourceLabels,
+} from '../../../lib/admin-refund-presentation'
 
 type Props = {
   kind: 'manual' | 'failed_card'
   queue: { rows: AdminRefundQueueRow[]; total: number }
-}
-
-const sourceLabels: Record<AdminRefundQueueRow['sourceType'], string> = {
-  cancellation: 'İptal',
-  return_request: 'Ürün iadesi',
-  dispute: 'Uyuşmazlık',
-}
-
-// The query returns exact two-decimal strings. Group digits without floating-point rounding.
-function formatOutstandingAmount(amount: string | null, currency: string) {
-  if (amount === null) return 'Tutar doğrulanmalı'
-  const [whole, fraction] = amount.split('.')
-  return `${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${fraction} ${currency === 'TRY' ? 'TL' : currency}`
 }
 
 export function RefundQueuePreview({ kind, queue }: Props) {
@@ -53,10 +45,7 @@ export function RefundQueuePreview({ kind, queue }: Props) {
           data-testid="card-refund-failure-warning"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <p>
-            Otomatik yeniden denemeler devam ediyor olabilir. Yeni bir ödeme yapmadan önce
-            siparişteki iade kayıtlarını ve sağlayıcı sonucunu kontrol edin.
-          </p>
+          <p>{CARD_REFUND_RETRY_WARNING}</p>
         </div>
       )}
 
@@ -82,13 +71,16 @@ export function RefundQueuePreview({ kind, queue }: Props) {
                       <p className="mt-0.5 text-sm text-[var(--color-primary)]">
                         {formatOrderDisplayNumber(refund.order.publicNumber, refund.orderId)}
                         {' · '}
-                        {sourceLabels[refund.sourceType]}
+                        {refundSourceLabels[refund.sourceType]}
                       </p>
                     </div>
                     <div className="max-w-full text-right">
                       <p className="text-xs text-stone-600">Kalan iade</p>
                       <p className="break-words text-sm font-semibold tabular-nums text-[var(--color-primary)]">
-                        {formatOutstandingAmount(refund.outstandingAmount, refund.order.currency)}
+                        {formatRefundOutstandingAmount(
+                          refund.outstandingAmount,
+                          refund.order.currency,
+                        )}
                       </p>
                     </div>
                   </div>
@@ -135,6 +127,13 @@ export function RefundQueuePreview({ kind, queue }: Props) {
           Her satır ayrı bir iade işlemidir; aynı sipariş birden fazla kez görünebilir.
         </p>
       )}
+      <Link
+        href={manual ? '/iadeler?tab=manual_refunds' : '/iadeler?tab=failed_card_refunds'}
+        prefetch={false}
+        className="mt-3 inline-block text-sm font-medium text-[var(--color-primary)] underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        Tümünü gör<span className="sr-only"> — {title}</span> →
+      </Link>
     </section>
   )
 }

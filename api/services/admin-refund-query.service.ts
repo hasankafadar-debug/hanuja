@@ -5,6 +5,9 @@ import { z } from 'zod'
 const paginationSchema = z.object({
   skip: z.number().int().min(0).default(0),
   take: z.number().int().min(1).max(100).default(50),
+  query: z.string().trim().max(100).optional(),
+  method: z.enum(['eft', 'card', 'missing']).optional(),
+  sourceType: z.enum(['cancellation', 'return_request', 'dispute']).optional(),
 })
 
 const manualRequiredWhere: Prisma.RefundTransactionWhereInput = {
@@ -52,19 +55,46 @@ const refundSelect = {
   },
 } satisfies Prisma.RefundTransactionSelect
 
-type Pagination = { skip?: number; take?: number }
+export type AdminRefundQueryParams = z.input<typeof paginationSchema>
+
+function filterQueue(
+  base: Prisma.RefundTransactionWhereInput,
+  params: z.output<typeof paginationSchema>,
+): Prisma.RefundTransactionWhereInput {
+  const filters: Prisma.RefundTransactionWhereInput[] = [base]
+  if (params.method) {
+    filters.push({
+      payment: { is: params.method === 'missing' ? null : { method: params.method } },
+    })
+  }
+  if (params.sourceType) filters.push({ sourceType: params.sourceType })
+  if (params.query) {
+    const query = params.query
+    const publicNumberText = query.replace(/^#/, '')
+    const publicNumber = Number(publicNumberText)
+    const search: Prisma.RefundTransactionWhereInput[] = [
+      { id: query },
+      { orderId: query },
+      { order: { is: { customer: { is: { name: { contains: query, mode: 'insensitive' } } } } } },
+    ]
+    if (/^\d+$/.test(publicNumberText) && publicNumber > 0 && publicNumber <= 2147483647) {
+      search.push({ order: { is: { publicNumber } } })
+    }
+    filters.push({ OR: search })
+  }
+  // Search must only narrow the queue; it must never replace its status/payment guards.
+  return filters.length === 1 ? base : { AND: filters }
+}
 
 /** Read-only admin projection. Does not issue refunds, enqueue jobs or change ledger entries. */
-export function createAdminRefundQueryService({
-  prisma,
-}: {
-  prisma: PrismaClient
-}) {
+export function createAdminRefundQueryService({ prisma }: { prisma: PrismaClient }) {
   async function list(
-    where: Prisma.RefundTransactionWhereInput,
-    params: Pagination,
+    baseWhere: Prisma.RefundTransactionWhereInput,
+    params: AdminRefundQueryParams,
   ) {
-    const { skip, take } = paginationSchema.parse(params)
+    const parsed = paginationSchema.parse(params)
+    const { skip, take } = parsed
+    const where = filterQueue(baseWhere, parsed)
     const [refunds, total] = await prisma.$transaction(
       [
         prisma.refundTransaction.findMany({
@@ -117,17 +147,12 @@ export function createAdminRefundQueryService({
 
   return {
     getCounts,
-    listManualRequiredForAdmin: (params: Pagination = {}) =>
+    listManualRequiredForAdmin: (params: AdminRefundQueryParams = {}) =>
       list(manualRequiredWhere, params),
-    listFailedCardForAdmin: (params: Pagination = {}) =>
-      list(failedCardWhere, params),
+    listFailedCardForAdmin: (params: AdminRefundQueryParams = {}) => list(failedCardWhere, params),
   }
 }
 
 export type AdminRefundQueueRow = Awaited<
-  ReturnType<
-    ReturnType<
-      typeof createAdminRefundQueryService
-    >['listManualRequiredForAdmin']
-  >
+  ReturnType<ReturnType<typeof createAdminRefundQueryService>['listManualRequiredForAdmin']>
 >['rows'][number]

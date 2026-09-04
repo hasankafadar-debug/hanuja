@@ -164,8 +164,8 @@ describe('dashboard refund previews', () => {
     expect(html).toContain('23 iade işlemi')
     expect(html).toContain('En eski 5 işlem gösteriliyor; toplam 23 işlem var.')
     expect(html.match(/data-testid="dashboard-refund-refund-/g)).toHaveLength(5)
-    // The full /iadeler payment-refund queue belongs to a later stage, not a dead-end CTA here.
-    expect(html).not.toContain('href="/iadeler')
+    expect(html).toContain('href="/iadeler?tab=manual_refunds"')
+    expect(render([], 'failed_card')).toContain('href="/iadeler?tab=failed_card_refunds"')
   })
 
   it('escapes customer content and does not expose raw provider errors', () => {
