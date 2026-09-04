@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-09-03
 # Durum: taslak v1
 
 # Reconciliation Process — Mutabakat Süreci
@@ -292,7 +292,39 @@ tolerans yoktur. Bkz. `.claude/rules/12-production-readiness.md` §12,
 
 ---
 
-## 12. Çapraz Referanslar
+## 12. Admin İade Ödeme Takibi — Ortak Sorgu Altyapısı
+
+`api/services/admin-refund-query.service.ts` yalnızca mevcut `RefundTransaction`
+kayıtlarını okur. Destek başvurusu veya henüz değerlendirilmekte olan iade talebi,
+tek başına ödeme bekleyen iade değildir. 14 gün sonrası destek/resim/belge süreci
+bu çalışma kapsamında değiştirilmez.
+
+- `listManualRequiredForAdmin`: tüm `manual_required` kayıtları. EFT/havale yanında
+  manuel mutabakat gerektiren kart iadeleri ve ödeme ilişkisi eksik kayıtlar da
+  kaybolmadan listelenir; ödeme yöntemi ayrıca döndürülür.
+- `listFailedCardForAdmin`: kart ödemelerine bağlı `failed` kayıtları ve başarısız
+  kalemi bulunan `partially_completed` kayıtları. `manual_required` bu listede
+  yeniden sayılmaz. Bu liste ilk başarısızlıktan itibaren görünürlük sağlar;
+  otomatik denemelerin bittiğini iddia etmez. Denemeler tükense de başarısızlık
+  veritabanında kaldığı sürece listeden düşmez. Worker retry davranışı değişmez.
+- Her satır ve sayaç bir **iade işlemini** temsil eder; müşteri veya sipariş sayısı
+  değildir. Aynı siparişin iki ayrı adet iptali tek kayda birleştirilmez.
+- Liste ve toplam aynı filtreyle, aynı veritabanı snapshot'ından okunur. En eski
+  kayıt önce gelir; sayfa varsayılanı 50, üst sınırı 100'dür. Toplam, sayfa
+  büyüklüğünden bağımsızdır. `completed` kayıtlar iki listeden de çıkar.
+- `outstandingAmount`, yalnızca tamamlanmamış kalemlerin Decimal toplamıdır;
+  tamamlanmış kart iadesi yeniden ödenecek tutara dahil edilmez. Kalemsiz bir
+  kayıtta tutar tahmin edilmez (`null`); manuel inceleme gerekir.
+- Admin istatistik servisi `payments.pendingManualRefunds` ve
+  `payments.failedCardRefunds` alanlarını bu ortak sorgudan alır. Kişisel veri
+  seçimi müşteri kimliği/adıyla sınırlıdır; banka bilgileri ve ham sağlayıcı
+  yanıtları sorguya dahil edilmez.
+
+Bu ilk aşama ekranlara yeni kart/buton eklemez, iade başlatmaz, iade tamamlamaz,
+ledger/payout değiştirmez ve migration gerektirmez. Dashboard, `/iadeler` ve
+sipariş detayı arayüz bağlantıları sonraki ayrı adımlardır.
+
+## 13. Çapraz Referanslar
 
 - `.claude/rules/07-marketplace-finance-rules.md` — mutabakat gereksinim kuralları
 - `docs/07-operations/payout-lifecycle.md` — payout durumları ve batch akışı

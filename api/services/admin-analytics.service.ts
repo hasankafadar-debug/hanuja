@@ -9,6 +9,7 @@
 import type { PrismaClient } from '@prisma/client'
 import { isMissingDatabaseObjectError } from '../lib/prisma-runtime'
 import { createFulfillmentRiskService } from './fulfillment-risk.service'
+import { createAdminRefundQueryService } from './admin-refund-query.service'
 
 export interface AdminDashboardStats {
   orders: {
@@ -24,6 +25,8 @@ export interface AdminDashboardStats {
   }
   payments: {
     pendingEftApprovals: number
+    pendingManualRefunds: number
+    failedCardRefunds: number
     collectedToday: number
   }
   payouts: {
@@ -97,6 +100,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       customerSupportNewTickets,
       customerSupportRepliedTickets,
       sellerSupportPendingTickets,
+      refundCounts,
     ] = await Promise.all([
       prisma.order.count({
         where: { createdAt: { gte: startOfToday } },
@@ -185,6 +189,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       prisma.supportTicket.count({
         where: { status: 'waiting_for_admin' },
       }),
+      createAdminRefundQueryService({ prisma }).getCounts(),
     ])
 
     const activeFulfillmentRisks = await createFulfillmentRiskService({ prisma })
@@ -219,6 +224,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       },
       payments: {
         pendingEftApprovals,
+        ...refundCounts,
         collectedToday: Number(collectedTodayResult._sum.amount ?? 0),
       },
       payouts: {
