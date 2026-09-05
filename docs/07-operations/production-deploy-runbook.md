@@ -235,7 +235,9 @@ Smoke test başarısız olursa deploy'u tamamlanmış saymayın; Bölüm 9'daki 
 - Zamanlama: beş dakikada bir
 - Normal sonuç: exit 0; DNS, TLS ve Siteverify bilgileri Coolify task logunda görünür
 - Teşhis komutu: `pnpm check-turnstile-egress -- --detailed` (IPv4 ve IPv6'yı sırayla sınar)
-- Web, seller-panel ve admin-panel için health check yolu `/api/health`, interval `30s`, timeout `5s`
+- Web, seller-panel ve admin-panel için Coolify health check ayarları: host `127.0.0.1`
+  (`localhost` kullanmayın; IPv6 `::1` bağlantı reddine düşebilir), port sırasıyla `3000`/`3001`/`3002`,
+  yol `/api/health`, interval `30s`, timeout `5s`
 - Turnstile `/api/health` sonucuna dahil edilmez; Cloudflare kesintisi container restart sebebi değildir
 - Coolify sunucu metrikleri açık tutulur; olay saatindeki CPU, RAM, load ve ağ verileri korunur
 
