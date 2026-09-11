@@ -23,7 +23,6 @@ import {
   sellerNewOrderTemplate,
   sellerOrderCancellationTemplate,
   sellerReturnRequestTemplate,
-  sellerRefundCompletedTemplate,
   refundCompletedTemplate,
 } from '../lib/email-templates'
 
@@ -53,7 +52,6 @@ const EMAIL_NOTIFICATION_TYPES = new Set<CanonicalNotificationType>([
   NotificationTypeEnum.seller_order_received,
   NotificationTypeEnum.seller_return_request,
   NotificationTypeEnum.refund_completed,
-  NotificationTypeEnum.seller_refund_completed,
   NotificationTypeEnum.payout_paid,
   NotificationTypeEnum.penalty_applied,
   NotificationTypeEnum.invoice_uploaded,
@@ -226,25 +224,6 @@ async function buildEmailPayload(
         ...(data['orderUrl'] ? { orderUrl: String(data['orderUrl']) } : {}),
       })
 
-    case NotificationTypeEnum.seller_refund_completed:
-      return sellerRefundCompletedTemplate({
-        sellerName: String(data['sellerName'] ?? ''),
-        sellerId: String(data['sellerId'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
-        items: (data['items'] as Array<{
-          productName: string
-          sellerId?: string
-          variantName?: string | null
-          quantity: number
-          unitPrice: string
-          lineTotal: string
-        }>) ?? [],
-        ...(data['refundAmount'] !== undefined
-          ? { refundAmount: String(data['refundAmount']) }
-          : {}),
-        ...(data['panelUrl'] ? { panelUrl: String(data['panelUrl']) } : {}),
-      })
-
     case NotificationTypeEnum.order_shipped:
       return shipmentNotificationTemplate({
         customerName: String(data['customerName'] ?? ''),
@@ -341,6 +320,10 @@ export async function processNotificationDispatch(job: Job<NotificationDispatchJ
     })
     return
   }
+
+  // Customer refund completion is an admin/customer money movement. Keep the
+  // legacy enum for historical records, but discard any queued seller jobs.
+  if (canonicalType === NotificationTypeEnum.seller_refund_completed) return
 
   const user = await prisma.user.findUnique({
     where: { id: userId },

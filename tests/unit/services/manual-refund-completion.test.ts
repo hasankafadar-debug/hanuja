@@ -8,7 +8,7 @@ vi.mock('@prisma/client/runtime/client', () =>
 const { notify } = vi.hoisted(() => ({ notify: vi.fn(async () => undefined) }))
 vi.mock('../../../api/jobs/refund-processing.job', () => ({ enqueueRefundProcessing: vi.fn() }))
 vi.mock('../../../api/services/refund-notification.service', () => ({
-  enqueueRefundCompletedNotifications: notify,
+  enqueueCustomerRefundCompletedNotification: notify,
 }))
 import { Decimal } from '@prisma/client/runtime/client'
 import { createQuantityRefundService } from '../../../api/services/quantity-refund.service'

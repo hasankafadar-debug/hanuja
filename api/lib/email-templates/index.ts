@@ -19,7 +19,6 @@ import type {
   EmailTemplate,
   SellerCancellationEmailInput,
   SellerOrderEmailInput,
-  SellerRefundCompletedEmailInput,
   SellerReturnRequestEmailInput,
 } from './types'
 
@@ -37,7 +36,6 @@ export type {
   LegacyEmailOrderLine,
   SellerCancellationEmailInput,
   SellerOrderEmailInput,
-  SellerRefundCompletedEmailInput,
   SellerReturnRequestEmailInput,
 } from './types'
 
@@ -614,40 +612,11 @@ export function sellerReturnRequestTemplate(params: SellerReturnRequestEmailInpu
   }
 }
 
-/** Seller event emitted when the return/refund reaches its terminal state. */
-export function sellerRefundCompletedTemplate(
-  params: SellerRefundCompletedEmailInput,
-): EmailTemplate {
-  const title = 'İade Tamamlandı'
-  const orderUrl = sellerOrderUrl(params)
-  const items = sellerScopedItems(params)
-  const refundText =
-    params.refundAmount === undefined ? '' : ` ${amountText(params.refundAmount)} tutarındaki`
-  const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${title}</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${escapeHtml(params.sellerName)},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişte${refundText} iade kesinleşti.
-    </p>
-    ${sellerItemsTable(items)}
-    ${params.refundAmount === undefined ? '' : `<p style="margin:0 0 24px;text-align:right;font-size:15px;font-weight:bold;color:#1a1a1a;">İade Tutarı: ${escapeHtml(amountText(params.refundAmount))}</p>`}
-    ${renderCta('Satıcı Panelinde Görüntüle', orderUrl)}
-  `
-
-  return {
-    subject: `${title} — #${params.orderNumber}`,
-    html: layout(title, body),
-    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı siparişte${refundText} iade kesinleşti.${params.refundAmount === undefined ? '' : ` İade tutarı: ${amountText(params.refundAmount)}.`}\n${renderLineItemsText(items)}${orderUrl ? `\nSatıcı paneli: ${orderUrl}` : ''}`,
-  }
-}
-
 export const sellerNewOrderEmailTemplate = sellerNewOrderTemplate
 export const sellerOrderReceivedTemplate = sellerNewOrderTemplate
 export const sellerProductCancellationTemplate = sellerOrderCancellationTemplate
 export const sellerQuantityCancellationTemplate = sellerOrderCancellationTemplate
 export const sellerReturnRequestedTemplate = sellerReturnRequestTemplate
-export const sellerReturnCompletedTemplate = sellerRefundCompletedTemplate
-export const sellerRefundCompletedEmailTemplate = sellerRefundCompletedTemplate
 export const sellerOrderPaymentConfirmedTemplate = sellerNewOrderTemplate
 export const productQuantityCancellationTemplate = sellerOrderCancellationTemplate
 export const returnCompletedTemplate = refundCompletedTemplate

@@ -4,7 +4,7 @@ import {
   RefundProviderError,
   type RefundProcessor,
 } from './refund-processor'
-import { enqueueRefundCompletedNotifications } from './refund-notification.service'
+import { enqueueCustomerRefundCompletedNotification } from './refund-notification.service'
 
 type ProcessorFactory = ReturnType<typeof createRefundProcessor> extends infer T
   ? (provider: import('@prisma/client').PaymentProvider) => T
@@ -126,7 +126,7 @@ export function createRefundExecutionService({
       return { updated, allCompleted }
     })
     if (result.allCompleted) {
-      void enqueueRefundCompletedNotifications(prisma, refundTransactionId).catch((error) =>
+      void enqueueCustomerRefundCompletedNotification(prisma, refundTransactionId).catch((error) =>
         console.error('[refund-execution] İade bildirimi kuyruğa eklenemedi:', error),
       )
     }

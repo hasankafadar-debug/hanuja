@@ -102,6 +102,7 @@ export enum NotificationType {
   seller_payout_paid = 'seller_payout_paid',
   seller_penalty_applied = 'seller_penalty_applied',
   seller_return_request = 'seller_return_request',
+  seller_refund_completed = 'seller_refund_completed',
   penalty_applied = 'penalty_applied',
   dispute_opened = 'dispute_opened',
   dispute_resolved = 'dispute_resolved',

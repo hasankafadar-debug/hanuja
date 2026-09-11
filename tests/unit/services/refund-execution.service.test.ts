@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Decimal } from '../../__mocks__/prisma-runtime'
 
-const { enqueueRefundCompletedNotifications } = vi.hoisted(() => ({
-  enqueueRefundCompletedNotifications: vi.fn(async () => undefined),
+const { enqueueCustomerRefundCompletedNotification } = vi.hoisted(() => ({
+  enqueueCustomerRefundCompletedNotification: vi.fn(async () => undefined),
 }))
 
 vi.mock('../../../api/services/refund-notification.service', () => ({
-  enqueueRefundCompletedNotifications,
+  enqueueCustomerRefundCompletedNotification,
 }))
 
 import { createRefundExecutionService } from '../../../api/services/refund-execution.service'
@@ -139,7 +139,7 @@ function buildExecutionPrisma(amounts: string[], options?: { missingProviderTran
 }
 
 describe('refund execution service', () => {
-  beforeEach(() => enqueueRefundCompletedNotifications.mockClear())
+  beforeEach(() => enqueueCustomerRefundCompletedNotification.mockClear())
 
   it('keeps completed items idempotent while retrying only a safe failed item', async () => {
     const state = buildExecutionPrisma(['40.00', '60.00'])

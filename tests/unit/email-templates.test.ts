@@ -11,7 +11,6 @@ import {
   refundCompletedTemplate,
   sellerNewOrderTemplate,
   sellerOrderCancellationTemplate,
-  sellerRefundCompletedTemplate,
   sellerReturnRequestTemplate,
   storeDiscountFollowedSellerTemplate,
 } from '../../api/lib/email-templates'
@@ -126,25 +125,15 @@ describe('phase 4 transactional order email templates', () => {
     expect(template.text).toContain('https://satici.hanuja.com.tr/siparisler/order-1')
   })
 
-  it('renders seller return-request and terminal refund events', () => {
+  it('renders seller return-request events', () => {
     const requested = sellerReturnRequestTemplate({
       ...sellerOrderInput,
       returnReason: 'Ürün beklediğim gibi değil',
-    })
-    const completed = sellerRefundCompletedTemplate({
-      ...sellerOrderInput,
-      refundAmount: '₺4.850,00',
     })
 
     expect(requested.subject).toBe('Yeni İade Talebi — #HNJ-1001')
     expect(requested.html).toContain('iade talebi oluşturuldu')
     expect(requested.html).toContain('Ürün beklediğim gibi değil')
-    expect(completed.subject).toBe('İade Tamamlandı — #HNJ-1001')
-    expect(completed.html).toContain('iade kesinleşti')
-    expect(completed.html).toContain('İade Tutarı: ₺4.850,00')
-    expect(completed.text).toContain(
-      'Satıcı paneli: https://satici.hanuja.com.tr/siparisler/order-1',
-    )
   })
 
   it('renders the customer terminal refund event and rejects unsafe panel links', () => {

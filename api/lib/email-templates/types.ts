@@ -109,10 +109,6 @@ export interface SellerReturnRequestEmailInput extends SellerOrderEmailInput {
   returnReason?: string
 }
 
-export interface SellerRefundCompletedEmailInput extends SellerOrderEmailInput {
-  refundAmount?: EmailAmount
-}
-
 export interface CustomerReturnRequestEmailInput extends Omit<CustomerOrderEmailInput, 'items'> {
   /** Older return events only carried the reason and order number. */
   items?: readonly EmailOrderLineInput[]

@@ -5,7 +5,7 @@ import { createSellerLedgerRepository } from '../repositories/seller-ledger.repo
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { getManualEftRefundCompletion } from '../domain/manual-eft-refund'
 import { enqueueRefundProcessing } from '../jobs/refund-processing.job'
-import { enqueueRefundCompletedNotifications } from './refund-notification.service'
+import { enqueueCustomerRefundCompletedNotification } from './refund-notification.service'
 
 export function createQuantityRefundService({
   prisma,
@@ -503,7 +503,7 @@ export function createQuantityRefundService({
     // Stable notification event keys deduplicate delivery; preserve retry recovery
     // if the previous completion committed but enqueueing failed.
     if (result.status === 'completed') {
-      void enqueueRefundCompletedNotifications(prisma, result.id).catch((error) =>
+      void enqueueCustomerRefundCompletedNotification(prisma, result.id).catch((error) =>
         console.error('[quantity-refund] İade bildirimi kuyruğa eklenemedi:', error),
       )
     }

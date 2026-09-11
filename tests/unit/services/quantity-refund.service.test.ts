@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Decimal } from '../../__mocks__/prisma-runtime'
 
-const { enqueueRefundProcessing, enqueueRefundCompletedNotifications } = vi.hoisted(() => ({
+const { enqueueRefundProcessing, enqueueCustomerRefundCompletedNotification } = vi.hoisted(() => ({
   enqueueRefundProcessing: vi.fn(async () => undefined),
-  enqueueRefundCompletedNotifications: vi.fn(async () => undefined),
+  enqueueCustomerRefundCompletedNotification: vi.fn(async () => undefined),
 }))
 
 vi.mock('../../../api/jobs/refund-processing.job', () => ({ enqueueRefundProcessing }))
 vi.mock('../../../api/services/refund-notification.service', () => ({
-  enqueueRefundCompletedNotifications,
+  enqueueCustomerRefundCompletedNotification,
 }))
 
 import { createQuantityRefundService } from '../../../api/services/quantity-refund.service'
@@ -181,7 +181,7 @@ function queueCancellation(prisma: import('@prisma/client').PrismaClient, amount
 describe('quantity refund accounting', () => {
   beforeEach(() => {
     enqueueRefundProcessing.mockClear()
-    enqueueRefundCompletedNotifications.mockClear()
+    enqueueCustomerRefundCompletedNotification.mockClear()
   })
 
   it('posts gross reversal and seller-coupon correction once for a partial cancellation', async () => {

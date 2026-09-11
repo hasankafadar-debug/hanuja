@@ -9,12 +9,13 @@ vi.mock('../../../api/jobs/notification-dispatch.job', () => ({
   enqueueNotification: enqueueNotificationMock,
 }))
 
-import { enqueueRefundCompletedNotifications } from '../../../api/services/refund-notification.service'
+import { enqueueCustomerRefundCompletedNotification } from '../../../api/services/refund-notification.service'
 
-function buildRefund() {
+function buildRefund(sourceType: 'cancellation' | 'return_request' | 'dispute' = 'cancellation') {
   return {
     id: 'refund-1',
     status: 'completed',
+    sourceType,
     sellerId: 'seller-a',
     customerAmount: new Decimal('47.50'),
     order: {
@@ -67,59 +68,43 @@ describe('refund completion notifications', () => {
     enqueueNotificationMock.mockReset()
   })
 
-  it('isolates seller refund recipients and product lines while customer sees shipping', async () => {
-    const refund = buildRefund()
-    const prisma = {
-      refundTransaction: {
-        findUnique: vi.fn().mockResolvedValue(refund),
-      },
-      seller: {
-        findUnique: vi.fn().mockResolvedValue({
-          id: 'seller-a',
-          displayName: 'Atelier A',
-          user: { id: 'seller-user-a', email: 'seller-a@example.com' },
-        }),
-      },
-    }
+  it.each(['cancellation', 'return_request', 'dispute'] as const)(
+    'enqueues only the customer notification for a %s refund',
+    async (sourceType) => {
+      const refund = buildRefund(sourceType)
+      const sellerFindUnique = vi.fn()
+      const prisma = {
+        refundTransaction: {
+          findUnique: vi.fn().mockResolvedValue(refund),
+        },
+        seller: { findUnique: sellerFindUnique },
+      }
 
-    await enqueueRefundCompletedNotifications(prisma as never, refund.id)
+      await enqueueCustomerRefundCompletedNotification(prisma as never, refund.id)
 
-    expect(enqueueNotificationMock).toHaveBeenCalledTimes(2)
-    expect(enqueueNotificationMock).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        eventKey: 'refund:refund-1:customer:completed',
-        userId: 'customer-user-1',
-        emailTo: 'customer@example.com',
-        type: 'refund_completed',
-        data: expect.objectContaining({
-          items: expect.arrayContaining([
-            expect.objectContaining({ productName: 'Gea Berjer', sellerId: 'seller-a', quantity: 2 }),
-            expect.objectContaining({ productName: 'Meşe Sehpa', sellerId: 'seller-b', quantity: 1 }),
-            expect.objectContaining({ productName: 'Kargo', quantity: 1 }),
-          ]),
+      expect(enqueueNotificationMock).toHaveBeenCalledTimes(1)
+      expect(enqueueNotificationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventKey: 'refund:refund-1:customer:completed',
+          userId: 'customer-user-1',
+          emailTo: 'customer@example.com',
+          type: 'refund_completed',
+          data: expect.objectContaining({
+            items: expect.arrayContaining([
+              expect.objectContaining({ productName: 'Gea Berjer', quantity: 2 }),
+              expect.objectContaining({ productName: 'Meşe Sehpa', quantity: 1 }),
+              expect.objectContaining({ productName: 'Kargo', quantity: 1 }),
+            ]),
+          }),
         }),
-      }),
-    )
-    expect(enqueueNotificationMock).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        eventKey: 'refund:refund-1:seller:completed',
-        userId: 'seller-user-a',
-        emailTo: 'seller-a@example.com',
-        type: 'seller_refund_completed',
-        data: expect.objectContaining({
-          sellerId: 'seller-a',
-          items: [expect.objectContaining({ productName: 'Gea Berjer', sellerId: 'seller-a' })],
-        }),
-      }),
-    )
+      )
+      expect(sellerFindUnique).not.toHaveBeenCalled()
 
-    const sellerPayload = enqueueNotificationMock.mock.calls[1]?.[0]
-    expect(sellerPayload.data.items).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ sellerId: 'seller-b' })]),
-    )
-  })
+      const customerPayload = enqueueNotificationMock.mock.calls[0]?.[0]
+      expect(customerPayload.data.items).toHaveLength(3)
+      expect(customerPayload.data.items.every((item: object) => !('sellerId' in item))).toBe(true)
+    },
+  )
 
   it('does not enqueue terminal refund emails for a non-completed transaction', async () => {
     const refund = { ...buildRefund(), status: 'processing' }
@@ -128,7 +113,7 @@ describe('refund completion notifications', () => {
       seller: { findUnique: vi.fn() },
     }
 
-    await enqueueRefundCompletedNotifications(prisma as never, refund.id)
+    await enqueueCustomerRefundCompletedNotification(prisma as never, refund.id)
 
     expect(enqueueNotificationMock).not.toHaveBeenCalled()
     expect(prisma.seller.findUnique).not.toHaveBeenCalled()

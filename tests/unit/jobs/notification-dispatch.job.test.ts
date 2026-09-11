@@ -146,6 +146,30 @@ describe('notification-dispatch.job', () => {
     warnSpy.mockRestore()
   })
 
+  it('silently discards queued seller refund-completed jobs before any delivery', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await processNotificationDispatch({
+      id: 'job-seller-refund-completed',
+      data: {
+        eventKey: 'refund:refund-1:seller:completed',
+        userId: 'seller-user-1',
+        type: 'seller_refund_completed',
+        title: 'İade Tamamlandı',
+        body: 'Müşteri iadesi tamamlandı.',
+        emailTo: 'seller@example.com',
+        data: { refundTransactionId: 'refund-1' },
+      },
+    } as never)
+
+    expect(warnSpy).not.toHaveBeenCalled()
+    expect(findUniqueMock).not.toHaveBeenCalled()
+    expect(deliveryUpsertMock).not.toHaveBeenCalled()
+    expect(createMock).not.toHaveBeenCalled()
+    expect(sendEmailMock).not.toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
   it('skips notifications for missing users instead of failing the job', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     findUniqueMock.mockResolvedValue(null)
