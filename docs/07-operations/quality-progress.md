@@ -1,6 +1,6 @@
 # Hanuja kalite ve performans — devam notu
 
-Son güncelleme: 2026-09-12. Başlangıç commit'i: `6361cc7`.
+Son güncelleme: 2026-09-13. Başlangıç commit'i: `6361cc7`.
 
 ## Çalışma düzeni ve kararlar
 
@@ -105,3 +105,54 @@ Son güncelleme: 2026-09-12. Başlangıç commit'i: `6361cc7`.
   Sonraki kontrollerde de detay açılmadı; console hata/uyarı kaydı yok. Bağlantı 46×16 px ve
   merkezinde onu örten DOM katmanı yok. Kesin RSC/ağ nedeni hâlâ ölçülmüş değil.
 - Admin paketi commit/push/deploy için kabul edildi; canlı tekrar doğrulaması henüz yapılmadı.
+
+## Dağıtım ve devam noktası — 2026-09-13
+
+- İlk paket commit'i `38593a79d7b795033972a80354ae81b5c2c475f5`; GitHub üretim dalına push edildi.
+- Coolify admin dağıtımı `gkl9bao0gfnbmkpvfglxhbdu` **finished** oldu. Yeni container:
+  `p673x4otqf3sysdofwdrebb1-160121348274`; image `38593a7`, healthy. Eski admin container kalktı.
+- Gerçek admin env'iyle `check-env --env=prod --app=admin-panel` geçti (16 değişken).
+  Kontrol worker araçlarıyla ancak yalnız admin ortam değişkenleri kullanılarak çalıştırıldı;
+  gizli değerler çıktıya veya dosyaya yazılmadı.
+- Canlı `/api/health` healthy; DB 3 ms, Redis 2 ms (tek anlık ölçüm).
+- Mevcut admin sekmesi yenilendi; yeni `Yükleniyor` içeriği DOM'da görüldü. Ancak tarayıcı
+  aracında locator/DOM okuma zaman aşımı oldu. Bu araç hatası uygulama geçiş hatası veya başarı
+  sayılmadı. **20 tekrar canlı kabul kontrolü henüz tamamlanmadı.** Önce bu kontrolü tamamla.
+- Önceki Chrome sekmeleri: admin `363316252`, Coolify `363316634`, browser `2`.
+  Sekmeler değişmiş olabilir; yeni envanterle kontrol et. Coolify localhost:18000 oturumu açıktı.
+- Yerel otomatik backup dalı non-fast-forward nedeniyle güncellenemedi; geçmişi zorlamadan
+  `backup` remote'unda `codex/quality-admin-2026-09-12` dalına aynı commit başarıyla yedeklendi.
+- Sonraki teşhis: SidebarNav native anchor kullanıyor ve masaüstünde pathname almıyor.
+  Olası çözüm: UI paketini Next'e bağlamadan panel client adaptörüyle Next Link ve aktif yol
+  eşleşmesi sağlamak; bütün menüyü otomatik prefetch edip auth isteklerini artırmamak.
+  Henüz kodlanmadı; önce admin canlı doğrulaması, sonra tek Sol görevi ve yönetici beklemesi.
+
+## Admin oturum gezinme güvenilirliği — Sol paketi, 2026-09-13
+
+- Admin Better Auth hız sınırlama politikası ayrı ve doğrudan test edilebilir bir sabite taşındı.
+  Genel `enabled: true`, 60 saniye/60 istek ayarı ve `/change-password` için 60 saniye/5 istek
+  sınırı korundu; yalnız middleware'in loopback üzerinden her gezinmede çağırdığı salt okunur
+  `/get-session` yolu ortak IP kovasından çıkarıldı. Better Auth'un yerleşik giriş sınırı korunuyor.
+- Admin middleware oturum, doğrulanmış anonimlik ve doğrulama servisinin kullanılamaması
+  sonuçlarını ayırıyor. Başarılı boş yanıt ile 401/403 girişe yönlendiriyor; 429, 5xx, ağ hatası
+  ve 5 saniyelik zaman aşımında güvenlik başlıklarıyla sayfaya geçiyor. Korumalı panel layout'u ve
+  sayfalar oturumu süreç içinde yeniden doğruladığı için erişim kararı orada veriliyor. Loglarda
+  yalnız pathname, HTTP durum kodu veya hata sınıfı bulunuyor.
+- Admin middleware testleri boş oturum, 401/403, yanlış rol, geçerli admin, 429/503, reddedilen
+  fetch ve `AbortError` sonuçlarını ve güvenlik başlıklarını doğruluyor. Gerçek admin politika
+  sabitini ve admin paketinin Better Auth test aracını kullanan mekanizma testi aynı IP'den 80
+  `/get-session` isteğinin 200 kaldığını; dördüncü giriş isteğinin ve altıncı şifre değiştirme
+  isteğinin 429 olduğunu doğruluyor. Mevcut seller mekanizma testleri değişmeden geçti.
+- `pnpm --dir tests exec vitest run security/panel-middleware.test.ts
+  security/admin-better-auth-rate-limit.test.ts security/better-auth-get-session-rate-limit.test.ts`:
+  geçti, 30/30. Yalnız Better Auth test aracının beklenen `User not found` ve Node deneysel SQLite
+  uyarıları görüldü.
+- `pnpm --filter admin-panel typecheck`: geçti. `pnpm --filter admin-panel lint`: geçti; görev
+  dosyalarında yeni uyarı yok, daha önce bilinen dokuz depo uyarısı ve `next lint` kaldırılma
+  bildirimi kaldı.
+- Bu paket ilk PendingLink/streaming düzeltmesini veya seller kodunu değiştirmedi. Üretim yükü,
+  canlı veri, build, E2E, commit, push ve deploy işlemi Sol tarafından yapılmadı; yönetici inceleme
+  ve dağıtımını bekliyor. Bu düzeltme kanıtlanan ortak loopback hız sınırı/yanlış logout yolunu
+  kapatır; ilk aralıklı `İncele` tıklamasının ölçülmemiş ağ nedeninin tümüyle çözüldüğü iddia edilmez.
+
+- Yönetici incelemesi: admin veri sayfalarında ve panel layout'unda süreç-içi oturum/rol doğrulaması kontrol edildi. Yeni timeout seçeneğinin kurulu better-fetch tarafından AbortController ile uygulandığı doğrulandı. Üretim build'i ve gerçek admin ortamı için 16 değişkenlik check-env kontrolü geçti. Admin oturum paketi dağıtım için kabul edildi; canlı 80 istek/20 gezinme kontrolü sırada.

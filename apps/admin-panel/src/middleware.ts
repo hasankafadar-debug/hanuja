@@ -41,6 +41,44 @@ interface Session {
   }
 }
 
+type SessionCheck =
+  | { kind: 'session'; session: Session }
+  | { kind: 'anonymous' }
+  | { kind: 'unavailable'; status?: number }
+
+async function checkSession(request: NextRequest): Promise<SessionCheck> {
+  const { pathname } = request.nextUrl
+
+  try {
+    const { data, error } = await betterFetch<Session | null>('/api/auth/get-session', {
+      baseURL: getPanelInternalOrigin('admin'),
+      headers: { cookie: request.headers.get('cookie') ?? '' },
+      timeout: 5000,
+      retry: 0,
+    })
+
+    if (error) {
+      if (error.status === 401 || error.status === 403) {
+        return { kind: 'anonymous' }
+      }
+
+      console.warn('[admin-middleware] session check unavailable', {
+        pathname,
+        status: error.status,
+      })
+      return { kind: 'unavailable', status: error.status }
+    }
+
+    return data?.user ? { kind: 'session', session: data } : { kind: 'anonymous' }
+  } catch (error) {
+    console.warn('[admin-middleware] session check failed', {
+      pathname,
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return { kind: 'unavailable' }
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -48,16 +86,19 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(request, NextResponse.next())
   }
 
-  const { data: session } = await betterFetch<Session>('/api/auth/get-session', {
-    baseURL: getPanelInternalOrigin('admin'),
-    headers: { cookie: request.headers.get('cookie') ?? '' },
-  })
+  const check = await checkSession(request)
 
-  if (!session?.user) {
+  if (check.kind === 'unavailable') {
+    // Protected pages and their layout re-validate the session in-process, so
+    // an unavailable loopback check can safely defer the decision to them.
+    return applySecurityHeaders(request, NextResponse.next())
+  }
+
+  if (check.kind === 'anonymous') {
     return applySecurityHeaders(request, NextResponse.redirect(new URL('/giris', request.url)))
   }
 
-  if (session.user.role !== 'admin') {
+  if (check.session.user.role !== 'admin') {
     const loginUrl = new URL('/giris', request.url)
     loginUrl.searchParams.set('error', 'unauthorized')
     return applySecurityHeaders(request, NextResponse.redirect(loginUrl))

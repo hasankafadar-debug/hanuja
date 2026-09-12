@@ -54,6 +54,12 @@ function expectInternalSessionFetch(port: 3001 | 3002) {
   expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
     `http://127.0.0.1:${port}/api/auth/get-session`,
   )
+
+  if (port === 3002) {
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({ timeout: 5000, retry: 0 }),
+    )
+  }
 }
 
 describe('active panel middleware', () => {
@@ -113,6 +119,19 @@ describe('active panel middleware', () => {
     expectPanelSecurityHeaders(response)
   })
 
+  it.each([401, 403])(
+    'redirects an admin-panel visitor to login when get-session answers %s',
+    async (status) => {
+      mockSessionCheckFailure(status, '{"message":"Unauthorized"}')
+
+      const response = await adminMiddleware(request('/dashboard'))
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe(`${ORIGIN}/giris`)
+      expectPanelSecurityHeaders(response)
+    },
+  )
+
   it('denies a non-admin from protected admin pages', async () => {
     mockSession({ id: 'seller-1', email: 'seller@example.test', role: 'seller' })
 
@@ -120,6 +139,7 @@ describe('active panel middleware', () => {
 
     expect(response.status).toBe(307)
     expect(response.headers.get('location')).toBe(`${ORIGIN}/giris?error=unauthorized`)
+    expectPanelSecurityHeaders(response)
   })
 
   it('allows an admin through the active admin middleware', async () => {
@@ -131,6 +151,50 @@ describe('active panel middleware', () => {
     expect(response.headers.get('location')).toBeNull()
     expectPanelSecurityHeaders(response)
     expectInternalSessionFetch(3002)
+  })
+
+  describe('admin session check that cannot be completed', () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+
+    it.each([
+      [429, '{"message":"Too many requests. Please try again later."}'],
+      [503, ''],
+    ])('lets an admin page through when get-session answers %s', async (status, body) => {
+      mockSessionCheckFailure(status, body)
+
+      const response = await adminMiddleware(request('/dashboard', 'hanuja-csrf=stable'))
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('location')).toBeNull()
+      expectPanelSecurityHeaders(response)
+      expectInternalSessionFetch(3002)
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[admin-middleware] session check unavailable',
+        { pathname: '/dashboard', status },
+      )
+    })
+
+    it.each([
+      ['Error', () => new Error('connection details must not be logged')],
+      ['AbortError', () => new DOMException('request timed out', 'AbortError')],
+    ])('lets an admin page through when get-session throws %s', async (errorClass, makeError) => {
+      fetchMock.mockRejectedValue(makeError())
+
+      const response = await adminMiddleware(request('/dashboard'))
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('location')).toBeNull()
+      expectPanelSecurityHeaders(response)
+      expectInternalSessionFetch(3002)
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[admin-middleware] session check failed',
+        { pathname: '/dashboard', errorClass },
+      )
+    })
   })
 
   it('keeps only exact seller public routes and recovery APIs public', async () => {

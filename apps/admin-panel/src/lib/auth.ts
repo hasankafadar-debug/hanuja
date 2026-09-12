@@ -14,6 +14,7 @@ import { passwordChangedTemplate } from "@hanuja/api/lib/email-templates/passwor
 import { revokeTrustedDevices } from "@hanuja/api/lib/auth-security";
 import { verifyTurnstileAuthRequest } from "@hanuja/api/lib/turnstile-auth";
 import { requireRuntimeSecret } from "@hanuja/config/env";
+import { ADMIN_AUTH_RATE_LIMIT } from "./auth-rate-limit";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma = globalForPrisma.prisma ?? new PrismaClient();
@@ -119,12 +120,7 @@ const _auth = betterAuth({
   // sign-ins use rememberMe: false and therefore create browser-session-only
   // cookies.
   advanced: { cookiePrefix: "hanuja-admin-session-v2" },
-  rateLimit: {
-    enabled: true,
-    window: 60,
-    max: 60,
-    customRules: { "/change-password": { window: 60, max: 5 } },
-  },
+  rateLimit: ADMIN_AUTH_RATE_LIMIT,
   plugins: [
     twoFactor({
       issuer: "Hanuja Admin",
