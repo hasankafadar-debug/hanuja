@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { Suspense } from 'react'
 import {
   Badge,
   PageHeader,
@@ -23,6 +24,7 @@ import { SellerCommissionSettings } from '@/components/seller-commission-setting
 import { DocumentReviewActions } from '@/components/document-review-actions'
 import { DocumentFileActions } from '@/components/document-file-actions'
 import { SellerStatusButtons } from '@/components/seller-status-buttons'
+import { PendingLink } from '@/components/pending-link'
 import { SellerAccountStatement } from './seller-account-statement'
 
 export const dynamic = 'force-dynamic'
@@ -81,6 +83,59 @@ const IDENTITY_PART_LABELS: Record<string, string> = {
   back: 'Arka yüz',
 }
 
+async function SellerStatementSection({
+  sellerId,
+  from,
+  to,
+  fromInput,
+  toInput,
+  exportHref,
+}: {
+  sellerId: string
+  from: Date
+  to: Date
+  fromInput: string
+  toInput: string
+  exportHref: string
+}) {
+  const prisma = createPrismaForRoute()
+  const statement = await createSellerFinanceService({ prisma }).getStatement({
+    sellerId,
+    from,
+    to,
+  })
+
+  return (
+    <SellerAccountStatement
+      from={from}
+      fromInput={fromInput}
+      toInput={toInput}
+      exportHref={exportHref}
+      statement={statement}
+    />
+  )
+}
+
+function SellerStatementLoading() {
+  return (
+    <div
+      className="rounded-xl border p-5"
+      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+      role="status"
+      aria-live="polite"
+      aria-label="Hesap ekstresi yükleniyor"
+    >
+      <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+        <span
+          className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+          aria-hidden="true"
+        />
+        Hesap ekstresi yükleniyor…
+      </div>
+    </div>
+  )
+}
+
 export default async function SellerDetailPage({ params, searchParams }: Props) {
   await getAdminSession()
 
@@ -111,8 +166,6 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
 
   if (!seller) notFound()
 
-  const service = createSellerFinanceService({ prisma })
-
   const [
     platformSettings,
     orderAgg,
@@ -122,7 +175,6 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
     commissionAgg,
     kycDocuments,
     penalties,
-    statement,
   ] = await Promise.all([
     createPlatformSettingsService({ prisma }).get(),
     prisma.orderLine.aggregate({
@@ -153,11 +205,6 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
       include: { order: { select: { id: true } } },
       orderBy: { createdAt: 'desc' },
       take: 20,
-    }),
-    service.getStatement({
-      sellerId: seller.id,
-      from,
-      to,
     }),
   ])
 
@@ -271,13 +318,13 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <Link
+        <PendingLink
           href="/saticilar"
-          className="mb-3 inline-flex items-center gap-1.5 text-sm"
+          className="mb-3 inline-flex min-h-9 items-center rounded-md px-2 text-sm"
           style={{ color: 'var(--color-muted-fg)' }}
         >
           <ArrowLeft className="h-4 w-4" /> Satıcılara Dön
-        </Link>
+        </PendingLink>
         <div className="flex items-start justify-between gap-4">
           <PageHeader
             title={seller.displayName}
@@ -495,13 +542,16 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
         </TabsContent>
 
         <TabsContent value="statement" className="mt-5">
-          <SellerAccountStatement
-            from={from}
-            fromInput={fromInput}
-            toInput={toInput}
-            exportHref={exportHref}
-            statement={statement}
-          />
+          <Suspense fallback={<SellerStatementLoading />}>
+            <SellerStatementSection
+              sellerId={seller.id}
+              from={from}
+              to={to}
+              fromInput={fromInput}
+              toInput={toInput}
+              exportHref={exportHref}
+            />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="kyc" className="mt-5">

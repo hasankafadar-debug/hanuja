@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { Badge, PageHeader } from '@hanuja/ui'
 import { getAdminSession } from '@/lib/admin-session'
 import { createSellerRepository } from '@hanuja/api/repositories/seller.repository'
@@ -7,6 +6,7 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { AdminListControls } from '@/components/admin-list-controls'
 import { UrlPagination } from '@/components/url-pagination'
 import { formatMoney } from '@hanuja/security'
+import { PendingLink } from '@/components/pending-link'
 import { buildDateRange, getPagination, getPrimaryStatusValue, parseAdminListParams, type RawAdminSearchParams } from '@/lib/admin-list-params'
 
 export const dynamic = 'force-dynamic'
@@ -157,13 +157,13 @@ export default async function SellersPage({
                       <Badge variant={status.variant}>{status.label}</Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <Link
+                      <PendingLink
                         href={`/saticilar/${seller.id}`}
-                        className="text-xs hover:underline"
+                        className="inline-flex min-h-9 items-center rounded-md px-2 text-xs hover:underline"
                         style={{ color: 'var(--color-accent)' }}
                       >
                         İncele →
-                      </Link>
+                      </PendingLink>
                     </td>
                   </tr>
                 )

@@ -152,11 +152,63 @@ test.describe('seller management', () => {
 
   test('seller detail shows finance summary', async ({ page }) => {
     await page.goto('/saticilar')
-    const firstRow = page.getByRole('link').filter({ hasText: /Atelier|WoodForm|Bohem/i }).first()
-    if (await firstRow.isVisible()) {
-      await firstRow.click()
-      await expect(page).toHaveURL(/\/saticilar\//)
+    const firstSellerRow = page.locator('tbody tr').first()
+    const reviewLink = firstSellerRow.getByRole('link', { name: /İncele/i })
+
+    await expect(firstSellerRow).toBeVisible()
+    await expect(reviewLink).toBeVisible()
+    const sellerName = (await firstSellerRow.locator('td').first().locator('span').last().innerText()).trim()
+    expect(sellerName).not.toBe('')
+    await reviewLink.click()
+
+    await expect(page).toHaveURL(/\/saticilar\/[^/?]+$/)
+    await expect(page.getByRole('heading', { level: 1, name: sellerName, exact: true })).toBeVisible()
+    await expect(page.getByText('Toplam Sipariş', { exact: true })).toBeVisible()
+    await expect(page.getByText('Bekleyen Hakediş', { exact: true })).toBeVisible()
+  })
+
+  test('seller detail navigation shows progress and remains repeatable', async ({ page }) => {
+    let releaseRscGate = () => {}
+    const rscGate = new Promise<void>((resolve) => {
+      releaseRscGate = resolve
+    })
+    const interceptedDetailPaths = new Set<string>()
+
+    await page.route('**/saticilar/**', async (route) => {
+      const request = route.request()
+      const pathname = new URL(request.url()).pathname
+      if (request.headers()['rsc'] === '1' && /^\/saticilar\/[^/]+$/.test(pathname)) {
+        interceptedDetailPaths.add(pathname)
+        await rscGate
+      }
+      await route.continue()
+    })
+
+    await page.goto('/saticilar')
+    const namedReviewLink = page.locator('tbody tr').first().getByRole('link', { name: /İncele/i })
+    await expect(namedReviewLink).toBeVisible()
+    const detailHref = await namedReviewLink.getAttribute('href')
+    expect(detailHref).toMatch(/^\/saticilar\/[^/?]+$/)
+    if (!detailHref) throw new Error('İncele bağlantısında satıcı detay adresi bulunamadı.')
+    const stableReviewLink = page.locator(`a[href=${JSON.stringify(detailHref)}]`).first()
+
+    try {
+      await stableReviewLink.click()
+      await expect.poll(() => interceptedDetailPaths.has(detailHref)).toBe(true)
+      await expect(stableReviewLink.getByRole('status', { name: 'Yükleniyor' })).toBeVisible()
+    } finally {
+      releaseRscGate()
     }
+
+    await expect(page).toHaveURL(/\/saticilar\/[^/?]+$/)
+
+    await page.getByRole('link', { name: /Satıcılara Dön/i }).click()
+    await expect(page).toHaveURL(/\/saticilar$/)
+    await expect(page.getByTestId('admin-sellers-page')).toBeVisible()
+
+    await page.locator('tbody tr').first().getByRole('link', { name: /İncele/i }).click()
+    await expect(page).toHaveURL(/\/saticilar\/[^/?]+$/)
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   })
 
   test('seller suspension requires confirmation', async ({ page }) => {

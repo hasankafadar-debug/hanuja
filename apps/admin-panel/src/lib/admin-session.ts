@@ -4,9 +4,10 @@
  */
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { cache } from 'react'
 import { auth } from './auth'
 
-export async function getAdminSession() {
+export const getAdminSession = cache(async () => {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
     redirect('/giris')
@@ -15,4 +16,4 @@ export async function getAdminSession() {
     redirect('/giris')
   }
   return session
-}
+})
