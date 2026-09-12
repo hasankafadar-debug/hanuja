@@ -156,3 +156,10 @@ Son güncelleme: 2026-09-13. Başlangıç commit'i: `6361cc7`.
   kapatır; ilk aralıklı `İncele` tıklamasının ölçülmemiş ağ nedeninin tümüyle çözüldüğü iddia edilmez.
 
 - Yönetici incelemesi: admin veri sayfalarında ve panel layout'unda süreç-içi oturum/rol doğrulaması kontrol edildi. Yeni timeout seçeneğinin kurulu better-fetch tarafından AbortController ile uygulandığı doğrulandı. Üretim build'i ve gerçek admin ortamı için 16 değişkenlik check-env kontrolü geçti. Admin oturum paketi dağıtım için kabul edildi; canlı 80 istek/20 gezinme kontrolü sırada.
+
+## Kullanıcı kararı ve push — 2026-09-13
+
+- Kullanıcı açık talimatı: deploy işlemini kullanıcı yapacak; ajan yalnız kontrol, commit ve push yapacak. Önceki otomatik deploy akışı bu kararla değişti. Bundan sonraki paketlerde Coolify deploy başlatma.
+- Admin oturum düzeltmesi 1e3e4dd olarak codex/release-2026-07-15 dalına push edildi; yerel quality-admin yedeği de güncellendi.
+- Bu yeni paket için Coolify deploy başlatılmadı. Son bilinen canlı sürüm 4deb77b; yeni paket canlıya alındığında 80 get-session isteği ve 20 tek-tık gezinme kontrolü yapılacak. Henüz geçmiş sayma.
+- Kodlama yalnız GPT-5.6 Sol tarafından yapıldı. Yönetici incelemesi, 30 odaklı test, admin typecheck/lint ve üretim build başarılı. Genel kalite denetiminin sidebar/katalog/worker ve kalan ürün akışları henüz tamamlanmadı.
