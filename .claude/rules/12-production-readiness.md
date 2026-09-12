@@ -378,6 +378,42 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   `tests/unit/product-listing-query.test.ts` ve `tests/unit/category-filter-trail.test.ts` (34 test)
   ile domain seviyesinde sağlandı.
 
+### 26. Satıcı panelinde menüde gezerken "kendi kendine çıkış" (yeni — 2026-09-12)
+
+- **Belirti:** satıcı sol menüde gezerken aniden `/giris`'e düşüyordu; cookie ve DB oturumu
+  geçerliydi. Canlıda tekrar üretildi: `satici.hanuja.com.tr/api/auth/get-session`'a 65 istek →
+  60. istekten itibaren `429 {"message":"Too many requests…"}`.
+- **Mekanizma (üç parça):** (1) `apps/seller-panel/src/middleware.ts` her sayfa geçişinde ve her
+  `/api/seller/*`, `/api/media/*` çağrısında loopback (`127.0.0.1:3001`) üzerinden `get-session`
+  çağırır; (2) Next.js 15.5 gelen istekte `x-forwarded-for` yoksa soket adresini yazar
+  (`next/dist/server/base-server.js`, `??= socket.remoteAddress`) → Better Auth'a `127.0.0.1`
+  ulaşır; (3) Better Auth 1.6.25 rate-limit anahtarı `ip|path` → **tüm satıcıların bütün sayfa
+  geçişleri tek `127.0.0.1|/get-session` kovasında** (`window: 60, max: 60`, bellek-içi, tek
+  konteyner). 61. istek `429` → `betterFetch` `data: null` → middleware "oturum yok" sayıp
+  login'e atıyordu; bir sonraki izinli isteğe kadar 60 sn'ye varan panel-geneli dalga.
+  Yerelde görülmez (tek kullanıcı). 429'lar hiçbir yerde loglanmaz; Coolify logundan teşhis
+  edilemez.
+- **Düzeltme (yalnız satıcı paneli, 2 dosya):** `apps/seller-panel/src/lib/auth.ts`
+  `customRules["/get-session"] = false` (sign-in 3/10sn, change-password 5/dk vb. aynen kalır);
+  `middleware.ts` `checkSession` yardımcısı `session` / `anonymous` / `unavailable` ayırır —
+  `unavailable` (429/5xx/ağ hatası) sayfayı **geçirir** ve `[seller-middleware] session check
+  unavailable|failed` uyarısı loglar; `(panel)` layout'u, `basvuru/*` sayfaları ve route
+  handler'lar (`route-seller.ts`, `mustChangePassword` dahil) süreç-içi `auth.api.getSession`
+  ile karar verir. Ağ hatası da artık 500 sayfası yerine geçiş.
+- **Testler:** `tests/security/panel-middleware.test.ts` (429/503/throw/401 senaryoları) ve
+  `tests/security/better-auth-get-session-rate-limit.test.ts` (gerçek Better Auth örneğiyle
+  61. istek → 429 tekrar-üretimi; muafiyetle 80 istek → 200, sign-in limiti hâlâ 429).
+- **Migration YOK, env YOK.** Zorunlu redeploy yalnız **seller-panel**.
+- **Açık takip işleri (bu işte dokunulmadı):** (i) `apps/admin-panel/src/middleware.ts` +
+  `admin-panel/src/lib/auth.ts` rateLimit bloğu birebir aynı kalıbı taşıyor — admin kullanıcı
+  sayısı düşük olduğu için görünmüyor olabilir, aynı iki değişiklik uygulanmalı; (ii) satıcı
+  konteyner logunda tekrarlayan `TypeError: Cannot read properties of null (reading 'useRef')`
+  (digest `526698342`, `.next/server/chunks/1851.js`) sunucu render hatası; (iii) deploy sonrası
+  eski istemcilerden `Server Reference ID did not match the expected format` hataları;
+  (iv) `docs/05-security/auth-authorization-plan.md` §4 dışındaki bölümlerin güncelliği
+  ("tek paylaşılan auth backend" ifadesi — gerçekte üç ayrı `betterAuth()` örneği, ortak DB ve
+  secret).
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

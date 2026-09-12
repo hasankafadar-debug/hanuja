@@ -83,7 +83,16 @@ const _auth = betterAuth({
     enabled: true,
     window: 60,
     max: 60,
-    customRules: { "/change-password": { window: 60, max: 5 } },
+    customRules: {
+      "/change-password": { window: 60, max: 5 },
+      // The panel middleware calls get-session over loopback on every page
+      // navigation. Next.js fills x-forwarded-for with the socket address
+      // (127.0.0.1) on that internal hop, so every seller shared one
+      // 60/min bucket and the 61st navigation was bounced to /giris as if
+      // logged out. get-session is a cookie-authenticated read; sign-in,
+      // change-password and the other default limits stay in force.
+      "/get-session": false,
+    },
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {

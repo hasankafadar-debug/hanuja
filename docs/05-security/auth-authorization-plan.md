@@ -79,16 +79,35 @@ The admin panel applies stricter security headers (`X-Frame-Options: DENY`, `Con
 
 ## 4. Server-Side Session Validation
 
-All three middlewares call:
+The seller and admin panel middlewares call their own Better Auth instance over the
+container-internal origin (`packages/security/src/panel-origin.ts`, since commit `c248d2f`):
 
 ```
 betterFetch('/api/auth/get-session', {
-  baseURL: request.nextUrl.origin,
+  baseURL: getPanelInternalOrigin('seller'), // http://127.0.0.1:3001 (admin: :3002)
   headers: { cookie: request.headers.get('cookie') ?? '' },
 })
 ```
 
 The session is fetched from the server using the incoming request cookies. There is no JWT decoding client-side. The session object exposes `user.id`, `user.email`, and `user.role`. These are the only identity values considered authoritative.
+
+**Middleware is an early gate, not the decision point.** Every protected page (`(panel)` layout,
+`basvuru/*` pages) and every API route handler re-validates the session in-process with
+`auth.api.getSession` (no HTTP hop, so no rate limiter). The seller middleware therefore keeps
+three outcomes apart (`apps/seller-panel/src/middleware.ts`, `checkSession`, 2026-09-12):
+
+- `anonymous` — get-session answered `200 null` (or an explicit 401/403) → redirect to `/giris`
+- `session` — role / `mustChangePassword` checks as before
+- `unavailable` — 429, 5xx or a network failure → the request is **passed through** and a
+  `[seller-middleware] session check …` warning is logged; the layout/route decides
+
+Rationale: the loopback hop reaches Better Auth with `x-forwarded-for: 127.0.0.1` (Next.js fills
+it from the socket), so every seller's navigation shared one rate-limit bucket
+(`60/min`); the 61st navigation answered 429, which the old `if (!session?.user)` read as
+"logged out". `/get-session` is now exempt from the Better Auth rate limiter in the seller
+config (`customRules: { "/get-session": false }`); sign-in, change-password and the other
+defaults stay enforced. The admin middleware still uses the old single-outcome shape (open
+follow-up, see `.claude/rules/12-production-readiness.md` §26).
 
 Server components and API route handlers that need the session call:
 

@@ -45,6 +45,10 @@ function mockSession(
   )
 }
 
+function mockSessionCheckFailure(status: number, body = '') {
+  fetchMock.mockResolvedValue(new Response(body, { status }))
+}
+
 function expectInternalSessionFetch(port: 3001 | 3002) {
   expect(fetchMock).toHaveBeenCalledOnce()
   expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
@@ -229,6 +233,71 @@ describe('active panel middleware', () => {
       expectInternalSessionFetch(3001)
       fetchMock.mockClear()
     }
+  })
+
+  describe('seller session check that cannot be completed', () => {
+    // Regression: the internal get-session call used to share one Better Auth
+    // rate-limit bucket across every seller (loopback x-forwarded-for =
+    // 127.0.0.1). A 429 was read as "no session" and bounced valid sellers to
+    // /giris. Non-2xx and network failures must now pass the request through
+    // (the (panel) layout and route handlers re-validate in-process) and log.
+
+    let warnSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+
+    it.each([
+      [429, '{"message":"Too many requests. Please try again later."}'],
+      [503, ''],
+    ])('lets a seller page through when get-session answers %s', async (status, body) => {
+      mockSessionCheckFailure(status, body)
+
+      const response = await sellerMiddleware(request('/dashboard', 'hanuja-csrf=stable'))
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('location')).toBeNull()
+      expectPanelSecurityHeaders(response)
+      expectInternalSessionFetch(3001)
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[seller-middleware] session check unavailable',
+        expect.objectContaining({ status, pathname: '/dashboard' }),
+      )
+    })
+
+    it('lets a seller page through when the internal fetch throws', async () => {
+      fetchMock.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:3001'))
+
+      const response = await sellerMiddleware(request('/dashboard'))
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('location')).toBeNull()
+      expectPanelSecurityHeaders(response)
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[seller-middleware] session check failed',
+        expect.objectContaining({ pathname: '/dashboard', error: expect.stringContaining('ECONNREFUSED') }),
+      )
+    })
+
+    it('leaves seller API authorization to the route handler when get-session answers 429', async () => {
+      mockSessionCheckFailure(429)
+
+      const response = await sellerMiddleware(request('/api/seller/profile'))
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('location')).toBeNull()
+    })
+
+    it('still treats an explicit 401 from get-session as anonymous', async () => {
+      mockSessionCheckFailure(401, '{"message":"Unauthorized"}')
+
+      const response = await sellerMiddleware(request('/dashboard'))
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe(`${ORIGIN}/giris?callbackUrl=%2Fdashboard`)
+      expect(warnSpy).not.toHaveBeenCalled()
+    })
   })
 
   it('does not use the external request origin for panel session checks', async () => {

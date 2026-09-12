@@ -65,6 +65,49 @@ function isSellerOrMediaApiPath(pathname: string): boolean {
   )
 }
 
+type SessionCheck =
+  | { kind: 'session'; session: Session }
+  | { kind: 'anonymous' }
+  | { kind: 'unavailable'; status?: number }
+
+/**
+ * Asks this panel's own Better Auth instance whether the request carries a
+ * session. Three outcomes are deliberately kept apart: a real "no session"
+ * answer (redirect to login), a session, and a check that could not be
+ * completed (429 / 5xx / network). The last one must never be treated as
+ * "logged out" — the (panel) layout and every API route handler re-validate
+ * the session in-process, so the middleware passes the request through and
+ * logs the failure instead of bouncing a valid seller to /giris.
+ */
+async function checkSession(request: NextRequest): Promise<SessionCheck> {
+  const { pathname } = request.nextUrl
+  try {
+    const { data, error } = await betterFetch<Session | null>('/api/auth/get-session', {
+      baseURL: getPanelInternalOrigin('seller'),
+      headers: { cookie: request.headers.get('cookie') ?? '' },
+    })
+
+    if (error) {
+      if (error.status === 401 || error.status === 403) {
+        return { kind: 'anonymous' }
+      }
+      console.warn('[seller-middleware] session check unavailable', {
+        status: error.status,
+        pathname,
+      })
+      return { kind: 'unavailable', status: error.status }
+    }
+
+    return data?.user ? { kind: 'session', session: data } : { kind: 'anonymous' }
+  } catch (error) {
+    console.warn('[seller-middleware] session check failed', {
+      pathname,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return { kind: 'unavailable' }
+  }
+}
+
 function passwordChangeRequiredApiResponse(): NextResponse {
   return NextResponse.json(
     { error: 'Yeni şifrenizi oluşturmadan bu işlem yapılamaz.' },
@@ -91,16 +134,18 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next()
     }
 
-    const { data: session } = await betterFetch<Session>('/api/auth/get-session', {
-      baseURL: getPanelInternalOrigin('seller'),
-      headers: { cookie: request.headers.get('cookie') ?? '' },
-    })
+    const check = await checkSession(request)
 
-    if (session?.user.role === 'seller' && session.user.mustChangePassword) {
+    if (
+      check.kind === 'session' &&
+      check.session.user.role === 'seller' &&
+      check.session.user.mustChangePassword
+    ) {
       return passwordChangeRequiredApiResponse()
     }
 
-    // API route handlers retain responsibility for authentication and roles.
+    // API route handlers retain responsibility for authentication and roles
+    // (including mustChangePassword when the check above was unavailable).
     return NextResponse.next()
   }
 
@@ -108,16 +153,20 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(request, NextResponse.next())
   }
 
-  const { data: session } = await betterFetch<Session>('/api/auth/get-session', {
-    baseURL: getPanelInternalOrigin('seller'),
-    headers: { cookie: request.headers.get('cookie') ?? '' },
-  })
+  const check = await checkSession(request)
 
-  if (!session?.user) {
+  if (check.kind === 'unavailable') {
+    // Let the page render; its layout re-validates the session in-process.
+    return applySecurityHeaders(request, NextResponse.next())
+  }
+
+  if (check.kind === 'anonymous') {
     const loginUrl = new URL('/giris', request.url)
     loginUrl.searchParams.set('callbackUrl', pathname)
     return applySecurityHeaders(request, NextResponse.redirect(loginUrl))
   }
+
+  const { session } = check
 
   if (session.user.role === 'seller' && session.user.mustChangePassword) {
     return applySecurityHeaders(
