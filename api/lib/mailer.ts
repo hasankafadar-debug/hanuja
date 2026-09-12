@@ -64,6 +64,17 @@ function getTransport(): Transporter {
     port,
     secure: port === 465,
     auth: { user, pass },
+    // Reuse a warm connection across sends instead of a fresh TLS handshake
+    // + AUTH per email — the first send still pays full connection cost, but
+    // repeat sends within maxMessages/keepalive reuse the open socket.
+    pool: true,
+    maxConnections: 3,
+    maxMessages: 100,
+    // Fail fast instead of hanging the caller (seller OTP send is awaited
+    // synchronously inside the login request).
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
   })
 
   return _transport
