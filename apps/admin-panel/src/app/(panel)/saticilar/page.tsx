@@ -6,7 +6,6 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { AdminListControls } from '@/components/admin-list-controls'
 import { UrlPagination } from '@/components/url-pagination'
 import { formatMoney } from '@hanuja/security'
-import { PendingLink } from '@/components/pending-link'
 import { buildDateRange, getPagination, getPrimaryStatusValue, parseAdminListParams, type RawAdminSearchParams } from '@/lib/admin-list-params'
 
 export const dynamic = 'force-dynamic'
@@ -157,13 +156,15 @@ export default async function SellersPage({
                       <Badge variant={status.variant}>{status.label}</Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <PendingLink
+                      {/* A document navigation avoids a stalled App Router RSC transition on this dynamic route. */}
+                      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                      <a
                         href={`/saticilar/${seller.id}`}
                         className="inline-flex min-h-9 items-center rounded-md px-2 text-xs hover:underline"
                         style={{ color: 'var(--color-accent)' }}
                       >
                         İncele →
-                      </PendingLink>
+                      </a>
                     </td>
                   </tr>
                 )

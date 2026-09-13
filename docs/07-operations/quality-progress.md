@@ -163,3 +163,37 @@ Son güncelleme: 2026-09-13. Başlangıç commit'i: `6361cc7`.
 - Admin oturum düzeltmesi 1e3e4dd olarak codex/release-2026-07-15 dalına push edildi; yerel quality-admin yedeği de güncellendi.
 - Bu yeni paket için Coolify deploy başlatılmadı. Son bilinen canlı sürüm 4deb77b; yeni paket canlıya alındığında 80 get-session isteği ve 20 tek-tık gezinme kontrolü yapılacak. Henüz geçmiş sayma.
 - Kodlama yalnız GPT-5.6 Sol tarafından yapıldı. Yönetici incelemesi, 30 odaklı test, admin typecheck/lint ve üretim build başarılı. Genel kalite denetiminin sidebar/katalog/worker ve kalan ürün akışları henüz tamamlanmadı.
+
+## Canlı İncele geçişi kesin teşhisi ve ikinci düzeltme — 2026-09-13
+
+- `200c468` admin dağıtımından sonra taze Chrome sekmesinde ilk Satıcılar → `İncele` tıklaması
+  10 saniyeden uzun süre kalıcı `Yükleniyor` durumunda kaldı; art arda dört tıklama da geçişi
+  tamamlamadı ve tarayıcı console'unda hata/uyarı yoktu.
+- Tıklama sırasında detay sayfasının auth, temel detay, aggregation ve hesap ekstresi PostgreSQL
+  sorgularının tamamlandığı, aktif veya bekleyen sorgu kalmadığı görüldü. Admin container CPU'su
+  yaklaşık %0, belleği yaklaşık 175 MiB idi. Aynı detay URL'si tam belge gezinmesiyle 591 ms'de,
+  detaydan listeye mevcut istemci gezinmesiyle 540 ms'de açıldı. Bu kanıt önceki “kök neden henüz
+  ölçülmedi” durumunu geçersiz kılar: sorun veritabanı veya sunucu kapasitesi değil, listeden dinamik
+  detay route'una Next App Router RSC geçişinin tamamlanmamasıdır.
+- Satıcı listesindeki satır sonu `İncele →` artık semantik bir `<a href>` ile tam belge gezinmesi
+  yapıyor. Tek tıklama ile tarayıcının doğal gezinmesi kullanılır; Ctrl/Cmd tıklama, yeni sekmede
+  açma ve bağlantı adresini kopyalama davranışları korunur. Detay sayfasındaki çalışan
+  `Satıcılara Dön` PendingLink davranışı değiştirilmedi.
+- Admin Docker build komutu her gerçek image build'inde Node 22 `crypto.randomUUID()` ile benzersiz
+  `NEXT_DEPLOYMENT_ID` üretip yalnız `pnpm --filter admin-panel build` sürecine veriyor. Böylece
+  Next.js'in self-hosted rolling deployment sürüm uyuşmazlığı koruması Coolify build arg veya
+  `SOURCE_COMMIT` bağımlılığı olmadan etkinleşir; Docker aynı build layer'ını cache'ten kullanırsa
+  aynı image kimliği korunur. Secret eklenmedi.
+- Admin finans E2E sözleşmesi ilk gerçek satırdaki `İncele →` bağlantısının tek tıklamayla doğru
+  detay URL'sine, satıcı başlığına ve finans özetine gitmesini zorunlu tutuyor. İstek ayrıca gerçek
+  üst seviye `document` navigasyonu olmalı ve `rsc` header'ı taşımamalı. Önceki bloke RSC/pending
+  testi kaldırıldı; detaydaki geri bağlantı ve ikinci belge gezinmesi koşulsuz doğrulanmaya devam
+  ediyor.
+- `pnpm --filter admin-panel typecheck` geçti. `pnpm --filter admin-panel lint` geçti; görev
+  dosyalarında yeni uyarı yok, önceden bilinen dokuz depo uyarısı kaldı. Admin production build
+  Next.js 15.5.22 ile geçti. E2E dosyası Playwright tarafından 18 test olarak ve yeni iki gezinme
+  testi sessiz skip olmadan keşfedildi. İzole veritabanı guard testi 5/5 geçti. Yerel Docker servisi
+  ile 3002/15432/16379 portları kapalı olduğundan izole tarayıcı testi bu kodlama turunda
+  çalıştırılmadı; canlı veya geliştirme DB'sine yönlendirilmedi.
+- Kullanıcı kararı geçerlidir: ajan commit/push yapabilir, deploy işlemini kullanıcı yapar; ajan
+  Coolify deploy başlatmaz.
