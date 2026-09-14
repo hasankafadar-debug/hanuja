@@ -62,54 +62,58 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
           for (const sellerId of sellerIds) {
             const sellerLines = lines.filter((line) => line.sellerId === sellerId)
             const snapshotTotals = sumPayoutSnapshot(sellerLines)
-            const cancellations =
-              order.quantityLifecycleVersion === 2
-                ? await tx.orderCancellation.findMany({
-                    where: { orderId: params.orderId, sellerId },
-                    select: {
-                      id: true,
-                      grossProductAmount: true,
-                      couponAdjustmentAmount: true,
-                      sellerAdjustmentAmount: true,
-                      commissionAdjustmentAmount: true,
-                    },
-                  })
-                : []
-            const cancelledSellerAmount = cancellations.reduce(
-              (sum, cancellation) => sum.add(cancellation.sellerAdjustmentAmount),
+            // RefundTransaction is the accounting source for cancellations,
+            // returns and disputes. An operation not queued yet is deducted by
+            // queue() when it commits; counting its source row here would double it.
+            const accountedRefunds = await tx.refundTransaction.findMany({
+              where: {
+                orderId: params.orderId,
+                sellerId,
+                accountingAppliedAt: { not: null },
+                payoutAppliedAt: null,
+              },
+              select: {
+                id: true,
+                grossProductAmount: true,
+                couponAdjustmentAmount: true,
+                sellerAdjustmentAmount: true,
+                commissionAdjustmentAmount: true,
+              },
+            })
+            const refundedCommissionAmount = accountedRefunds.reduce(
+              (sum, refund) => sum.add(refund.commissionAdjustmentAmount),
               new Decimal(0),
             )
-            const cancelledCommissionAmount = cancellations.reduce(
-              (sum, cancellation) => sum.add(cancellation.commissionAdjustmentAmount),
+            const refundedCouponAmount = accountedRefunds.reduce(
+              (sum, refund) => sum.add(refund.couponAdjustmentAmount),
               new Decimal(0),
             )
-            const cancelledCouponAmount = cancellations.reduce(
-              (sum, cancellation) => sum.add(cancellation.couponAdjustmentAmount),
-              new Decimal(0),
-            )
-            const cancelledGrossAmount = cancellations.reduce((sum, cancellation) => {
-              const gross = cancellation.grossProductAmount.gt(0)
-                ? cancellation.grossProductAmount
-                : cancellation.sellerAdjustmentAmount
-                    .add(cancellation.commissionAdjustmentAmount)
-                    .add(cancellation.couponAdjustmentAmount)
+            const refundedGrossAmount = accountedRefunds.reduce((sum, refund) => {
+              const gross = refund.grossProductAmount.gt(0)
+                ? refund.grossProductAmount
+                : refund.sellerAdjustmentAmount
+                    .add(refund.commissionAdjustmentAmount)
+                    .add(refund.couponAdjustmentAmount)
               return sum.add(gross)
             }, new Decimal(0))
             const grossAmount = snapshotTotals.grossAmount
             const commissionAmount = Decimal.max(
               zero,
-              snapshotTotals.commissionAmount.sub(cancelledCommissionAmount),
+              snapshotTotals.commissionAmount.sub(refundedCommissionAmount),
             )
             const couponShareAmount = Decimal.max(
               zero,
-              snapshotTotals.couponShareAmount.sub(cancelledCouponAmount),
+              snapshotTotals.couponShareAmount.sub(refundedCouponAmount),
             )
             const cargoChargeAmount = zero
             const adFeeAmount = zero
             const penaltyAmount = zero
-            const refundAmount = cancelledGrossAmount
+            const refundAmount = refundedGrossAmount
             const adjustmentAmount = zero
-            const netAmount = Decimal.max(zero, snapshotTotals.netAmount.sub(cancelledSellerAmount))
+            const netAmount = Decimal.max(
+              zero,
+              grossAmount.sub(refundAmount).sub(commissionAmount).sub(couponShareAmount),
+            )
 
             const existingPayout = existingPayouts.find((payout) => payout.sellerId === sellerId)
             const payout =
@@ -213,12 +217,11 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
               })
             }
 
-            if (!existingPayout && cancellations.length > 0) {
+            if (!existingPayout && accountedRefunds.length > 0) {
               await tx.refundTransaction.updateMany({
                 where: {
-                  sourceType: 'cancellation',
-                  sourceId: {
-                    in: cancellations.map((cancellation) => cancellation.id),
+                  id: {
+                    in: accountedRefunds.map((refund) => refund.id),
                   },
                   payoutAppliedAt: null,
                 },

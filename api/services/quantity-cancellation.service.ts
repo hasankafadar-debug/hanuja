@@ -2,7 +2,7 @@ import { Prisma, type PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors'
 import {
-  allocateQuantitySlice,
+  allocateProductRefund,
   isQuantityFullyClosed,
 } from '../domain/quantity-allocation'
 import { createQuantityRefundService } from './quantity-refund.service'
@@ -282,36 +282,13 @@ export function createQuantityCancellationService({
       for (const line of lines) {
         const quantity = requestedById.get(line.id)!
         const consumed = line.cancelledQuantity + line.returnClaimedQuantity
-        const customerAmount = allocateQuantitySlice({
-          totalAmount: line.customerPaidProductAmount ?? line.totalPrice,
-          originalQuantity: line.quantity,
-          consumedQuantity: consumed,
-          requestedQuantity: quantity,
-        })
-        const grossAmount = allocateQuantitySlice({
-          totalAmount: line.totalPrice,
-          originalQuantity: line.quantity,
-          consumedQuantity: consumed,
-          requestedQuantity: quantity,
-        })
-        const couponAmount = allocateQuantitySlice({
-          totalAmount: line.couponDiscountAmount,
-          originalQuantity: line.quantity,
-          consumedQuantity: consumed,
-          requestedQuantity: quantity,
-        })
-        const sellerAmount = allocateQuantitySlice({
-          totalAmount: line.netPayoutAmount,
-          originalQuantity: line.quantity,
-          consumedQuantity: consumed,
-          requestedQuantity: quantity,
-        })
-        const commissionAmount = allocateQuantitySlice({
-          totalAmount: line.commissionAmount,
-          originalQuantity: line.quantity,
-          consumedQuantity: consumed,
-          requestedQuantity: quantity,
-        })
+        const {
+          customerAmount,
+          grossAmount,
+          couponAmount,
+          sellerAmount,
+          commissionAmount,
+        } = allocateProductRefund(line, consumed, quantity)
 
         const updated = await tx.orderLine.updateMany({
           where: {

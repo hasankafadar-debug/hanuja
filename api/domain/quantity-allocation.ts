@@ -33,6 +33,38 @@ export function allocateQuantitySlice(params: {
   return roundMoney(after.sub(before))
 }
 
+/** Allocate independent financial components; derive seller net after rounding. */
+export function allocateProductRefund(
+  line: {
+    quantity: number
+    totalPrice: Decimal
+    customerPaidProductAmount?: Decimal | null
+    couponDiscountAmount: Decimal
+    commissionAmount: Decimal
+    commissionExemptedAt?: Date | null
+  },
+  consumedQuantity: number,
+  requestedQuantity: number,
+) {
+  const slice = (totalAmount: Decimal) =>
+    allocateQuantitySlice({
+      totalAmount,
+      originalQuantity: line.quantity,
+      consumedQuantity,
+      requestedQuantity,
+    })
+  const grossAmount = slice(line.totalPrice)
+  const couponAmount = slice(line.couponDiscountAmount)
+  const commissionAmount = line.commissionExemptedAt ? new Decimal(0) : slice(line.commissionAmount)
+  return {
+    customerAmount: slice(line.customerPaidProductAmount ?? line.totalPrice),
+    grossAmount,
+    couponAmount,
+    commissionAmount,
+    sellerAmount: grossAmount.sub(couponAmount).sub(commissionAmount),
+  }
+}
+
 export function quantityAvailable(params: {
   originalQuantity: number
   cancelledQuantity: number
@@ -55,7 +87,6 @@ export function isQuantityFullyClosed(params: {
 }) {
   return (
     params.originalQuantity > 0 &&
-    params.originalQuantity ===
-      params.cancelledQuantity + params.acceptedReturnQuantity
+    params.originalQuantity === params.cancelledQuantity + params.acceptedReturnQuantity
   )
 }

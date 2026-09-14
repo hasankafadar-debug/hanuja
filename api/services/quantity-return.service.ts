@@ -7,7 +7,7 @@ import {
   ValidationError,
 } from '../lib/errors'
 import {
-  allocateQuantitySlice,
+  allocateProductRefund,
   isQuantityFullyClosed,
 } from '../domain/quantity-allocation'
 import { isWithinReturnWindow } from '../domain/penalty-calculator'
@@ -275,36 +275,14 @@ export function createQuantityReturnService({
       for (const line of lines) {
         const quantity = requestedById.get(line.id)!
         const consumed = line.cancelledQuantity + line.returnClaimedQuantity
-        const customerAmount = allocateQuantitySlice({
-          totalAmount: line.customerPaidProductAmount ?? line.totalPrice,
-          originalQuantity: line.quantity,
-          consumedQuantity: consumed,
-          requestedQuantity: quantity,
-        })
-        const grossAmount = allocateQuantitySlice({
-          totalAmount: line.totalPrice,
-          originalQuantity: line.quantity,
-          consumedQuantity: consumed,
-          requestedQuantity: quantity,
-        })
-        const couponAmount = allocateQuantitySlice({
-          totalAmount: line.couponDiscountAmount,
-          originalQuantity: line.quantity,
-          consumedQuantity: consumed,
-          requestedQuantity: quantity,
-        })
-        const sellerAmount = allocateQuantitySlice({
-          totalAmount: line.netPayoutAmount,
-          originalQuantity: line.quantity,
-          consumedQuantity: consumed,
-          requestedQuantity: quantity,
-        })
-        const commissionAmount = allocateQuantitySlice({
-          totalAmount: line.commissionAmount,
-          originalQuantity: line.quantity,
-          consumedQuantity: consumed,
-          requestedQuantity: quantity,
-        })
+        const {
+          customerAmount,
+          grossAmount,
+          couponAmount,
+          sellerAmount,
+          commissionAmount,
+        } = allocateProductRefund(line, consumed, quantity)
+
         const updated = await tx.orderLine.updateMany({
           where: {
             id: line.id,
@@ -401,7 +379,11 @@ export function createQuantityReturnService({
             },
           },
         })
-        if (!refundTransaction && prior.refundAmount?.gt(0)) {
+        if (
+          !refundTransaction &&
+          (prior.refundAmount?.gt(0) ||
+            prior.items.some((item) => item.grossProductAmount.gt(0)))
+        ) {
           const sellerAdjustmentAmount = prior.items.reduce(
             (sum, item) => sum.add(item.sellerAdjustmentAmount),
             new Decimal(0),
@@ -423,19 +405,19 @@ export function createQuantityReturnService({
             ...(prior.sellerId ? { sellerId: prior.sellerId } : {}),
             sourceType: 'return_request',
             sourceId: prior.id,
-            customerAmount: prior.refundAmount,
+            customerAmount: prior.refundAmount ?? new Decimal(0),
             grossProductAmount,
             couponAdjustmentAmount,
             sellerAdjustmentAmount,
             commissionAdjustmentAmount,
             platformFundedAmount: Decimal.max(
               new Decimal(0),
-              prior.refundAmount
+              (prior.refundAmount ?? new Decimal(0))
                 .sub(sellerAdjustmentAmount)
                 .sub(commissionAdjustmentAmount),
             ),
             items: prior.items
-              .filter((item) => item.customerRefundAmount.gt(0))
+              .filter((item) => item.acceptedQuantity > 0)
               .map((item) => ({
                 orderLineId: item.orderLineId,
                 quantity: item.acceptedQuantity,
@@ -443,7 +425,7 @@ export function createQuantityReturnService({
               })),
             shippingAmount: Decimal.max(
               new Decimal(0),
-              prior.refundAmount.sub(
+              (prior.refundAmount ?? new Decimal(0)).sub(
                 prior.items.reduce(
                   (sum, item) => sum.add(item.customerRefundAmount),
                   new Decimal(0),
@@ -529,51 +511,36 @@ export function createQuantityReturnService({
               )
             }
 
-            const acceptedCustomer =
+            const accepted =
               decision.acceptedQuantity > 0
-                ? allocateQuantitySlice({
-                    totalAmount: item.requestedCustomerAmount,
-                    originalQuantity: item.requestedQuantity,
-                    consumedQuantity: 0,
-                    requestedQuantity: decision.acceptedQuantity,
-                  })
-                : new Decimal(0)
-            const acceptedSeller =
-              decision.acceptedQuantity > 0
-                ? allocateQuantitySlice({
-                    totalAmount: item.requestedSellerAdjustmentAmount,
-                    originalQuantity: item.requestedQuantity,
-                    consumedQuantity: 0,
-                    requestedQuantity: decision.acceptedQuantity,
-                  })
-                : new Decimal(0)
-            const acceptedGross =
-              decision.acceptedQuantity > 0
-                ? allocateQuantitySlice({
-                    totalAmount: item.requestedGrossProductAmount,
-                    originalQuantity: item.requestedQuantity,
-                    consumedQuantity: 0,
-                    requestedQuantity: decision.acceptedQuantity,
-                  })
-                : new Decimal(0)
-            const acceptedCoupon =
-              decision.acceptedQuantity > 0
-                ? allocateQuantitySlice({
-                    totalAmount: item.requestedCouponAdjustmentAmount,
-                    originalQuantity: item.requestedQuantity,
-                    consumedQuantity: 0,
-                    requestedQuantity: decision.acceptedQuantity,
-                  })
-                : new Decimal(0)
-            const acceptedCommission =
-              decision.acceptedQuantity > 0
-                ? allocateQuantitySlice({
-                    totalAmount: item.requestedCommissionAdjustmentAmount,
-                    originalQuantity: item.requestedQuantity,
-                    consumedQuantity: 0,
-                    requestedQuantity: decision.acceptedQuantity,
-                  })
-                : new Decimal(0)
+                ? allocateProductRefund(
+                    {
+                      quantity: item.requestedQuantity,
+                      totalPrice: item.requestedGrossProductAmount,
+                      customerPaidProductAmount: item.requestedCustomerAmount,
+                      couponDiscountAmount:
+                        item.requestedCouponAdjustmentAmount,
+                      commissionAmount:
+                        item.requestedCommissionAdjustmentAmount,
+                      commissionExemptedAt: item.orderLine.commissionExemptedAt,
+                    },
+                    0,
+                    decision.acceptedQuantity,
+                  )
+                : {
+                    customerAmount: new Decimal(0),
+                    grossAmount: new Decimal(0),
+                    couponAmount: new Decimal(0),
+                    sellerAmount: new Decimal(0),
+                    commissionAmount: new Decimal(0),
+                  }
+            const {
+              customerAmount: acceptedCustomer,
+              grossAmount: acceptedGross,
+              couponAmount: acceptedCoupon,
+              sellerAmount: acceptedSeller,
+              commissionAmount: acceptedCommission,
+            } = accepted
 
             await tx.returnRequestItem.update({
               where: { id: item.id },
@@ -597,7 +564,7 @@ export function createQuantityReturnService({
             acceptedSellerAmount = acceptedSellerAmount.add(acceptedSeller)
             acceptedCommissionAmount =
               acceptedCommissionAmount.add(acceptedCommission)
-            if (acceptedCustomer.gt(0)) {
+            if (decision.acceptedQuantity > 0) {
               refundItems.push({
                 orderLineId: item.orderLineId,
                 quantity: decision.acceptedQuantity,
@@ -619,18 +586,17 @@ export function createQuantityReturnService({
             where: { orderLine: { orderId: request.orderId } },
             _sum: { acceptedQuantity: true },
           })
-          const disputeResolvedTotals =
-            await tx.returnRequestItem.aggregate({
-              where: {
-                orderLine: { orderId: request.orderId },
-                returnRequest: {
-                  escalatedDispute: {
-                    is: { status: 'resolved_for_customer' },
-                  },
+          const disputeResolvedTotals = await tx.returnRequestItem.aggregate({
+            where: {
+              orderLine: { orderId: request.orderId },
+              returnRequest: {
+                escalatedDispute: {
+                  is: { status: 'resolved_for_customer' },
                 },
               },
-              _sum: { rejectedQuantity: true },
-            })
+            },
+            _sum: { rejectedQuantity: true },
+          })
           const totalQuantity = lineTotals._sum.quantity ?? 0
           if (
             isQuantityFullyClosed({
@@ -676,7 +642,10 @@ export function createQuantityReturnService({
           await tx.returnRequest.update({
             where: { id: request.id },
             data: {
-              status: acceptedCustomerAmount.gt(0) ? 'received' : 'rejected',
+              status:
+                acceptedGrossProductAmount.gt(0) || acceptedCustomerAmount.gt(0)
+                  ? 'received'
+                  : 'rejected',
               refundAmount: acceptedCustomerAmount,
               sellerReceivedAt: new Date(),
               ...(rejectedDescriptions.length > 0
@@ -714,7 +683,10 @@ export function createQuantityReturnService({
       })
 
     let refundTransaction = null
-    if (result.acceptedCustomerAmount.gt(0)) {
+    if (
+      result.acceptedCustomerAmount.gt(0) ||
+      result.acceptedGrossProductAmount.gt(0)
+    ) {
       refundTransaction = await refunds.queue({
         orderId: result.request.orderId,
         sellerId: params.sellerId,

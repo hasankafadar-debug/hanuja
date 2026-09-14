@@ -11,6 +11,7 @@
  * See: .claude/rules/07-marketplace-finance-rules.md, .claude/rules/08-order-lifecycle-rules.md
  */
 import type { PrismaClient } from '@prisma/client'
+import { allocateProductRefund } from '../domain/quantity-allocation'
 import { NotFoundError, ConflictError, ForbiddenError } from '../lib/errors'
 import { createDisputeRepository } from '../repositories/dispute.repository'
 import { isPersistableDisputeAuthorRole, type DisputeViewer } from '../lib/dispute-authorization'
@@ -138,40 +139,30 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
       // gerçek para iadesi tetiklenir (idempotent — refund.service).
       if (rr && isCustomerFavored && (rr.items.length > 0 || !rr.refundedAt)) {
         if (rr.items.length > 0 && rr.sellerId) {
-          let customerAmount = rr.items.reduce(
-            (sum, item) => sum.add(item.requestedCustomerAmount.sub(item.customerRefundAmount)),
-            new Decimal(0),
-          )
-          const sellerAdjustmentAmount = rr.items.reduce(
-            (sum, item) =>
-              sum.add(
-                item.requestedSellerAdjustmentAmount.sub(item.sellerAdjustmentAmount),
+          const remainingItems = rr.items
+            .filter((item) => item.rejectedQuantity > 0)
+            .map((item) => ({
+              item,
+              amounts: allocateProductRefund(
+                {
+                  quantity: item.requestedQuantity,
+                  totalPrice: item.requestedGrossProductAmount,
+                  customerPaidProductAmount: item.requestedCustomerAmount,
+                  couponDiscountAmount: item.requestedCouponAdjustmentAmount,
+                  commissionAmount: item.requestedCommissionAdjustmentAmount,
+                  commissionExemptedAt: item.orderLine.commissionExemptedAt,
+                },
+                item.acceptedQuantity,
+                item.rejectedQuantity,
               ),
-            new Decimal(0),
-          )
-          const grossProductAmount = rr.items.reduce(
-            (sum, item) =>
-              sum.add(
-                item.requestedGrossProductAmount.sub(item.grossProductAmount),
-              ),
-            new Decimal(0),
-          )
-          const couponAdjustmentAmount = rr.items.reduce(
-            (sum, item) =>
-              sum.add(
-                item.requestedCouponAdjustmentAmount.sub(item.couponAdjustmentAmount),
-              ),
-            new Decimal(0),
-          )
-          const commissionAdjustmentAmount = rr.items.reduce(
-            (sum, item) =>
-              sum.add(
-                item.requestedCommissionAdjustmentAmount.sub(
-                  item.commissionAdjustmentAmount,
-                ),
-              ),
-            new Decimal(0),
-          )
+            }))
+          const total = (key: keyof (typeof remainingItems)[number]['amounts']) =>
+            remainingItems.reduce((sum, entry) => sum.add(entry.amounts[key]), new Decimal(0))
+          let customerAmount = total('customerAmount')
+          const sellerAdjustmentAmount = total('sellerAmount')
+          const grossProductAmount = total('grossAmount')
+          const couponAdjustmentAmount = total('couponAmount')
+          const commissionAdjustmentAmount = total('commissionAmount')
           const shippingRefund = await prisma.$transaction(async (tx) => {
             const lineTotals = await tx.orderLine.aggregate({
               where: { orderId: rr.orderId },
@@ -181,18 +172,17 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
               where: { orderLine: { orderId: rr.orderId } },
               _sum: { acceptedQuantity: true },
             })
-            const disputeResolvedTotals =
-              await tx.returnRequestItem.aggregate({
-                where: {
-                  orderLine: { orderId: rr.orderId },
-                  returnRequest: {
-                    escalatedDispute: {
-                      is: { status: 'resolved_for_customer' },
-                    },
+            const disputeResolvedTotals = await tx.returnRequestItem.aggregate({
+              where: {
+                orderLine: { orderId: rr.orderId },
+                returnRequest: {
+                  escalatedDispute: {
+                    is: { status: 'resolved_for_customer' },
                   },
                 },
-                _sum: { rejectedQuantity: true },
-              })
+              },
+              _sum: { rejectedQuantity: true },
+            })
             const originalQuantity = lineTotals._sum.quantity ?? 0
             const closedQuantity =
               (lineTotals._sum.cancelledQuantity ?? 0) +
@@ -209,9 +199,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
                 refundedShippingAmount: true,
               },
             })
-            const remainingShipping = order.shippingAmount.sub(
-              order.refundedShippingAmount,
-            )
+            const remainingShipping = order.shippingAmount.sub(order.refundedShippingAmount)
             if (remainingShipping.lte(0)) return new Decimal(0)
             await tx.order.update({
               where: { id: rr.orderId },
@@ -222,7 +210,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
             return remainingShipping
           })
           customerAmount = customerAmount.add(shippingRefund)
-          if (customerAmount.gt(0)) {
+          if (customerAmount.gt(0) || grossProductAmount.gt(0)) {
             await quantityRefunds.queue({
               orderId: rr.orderId,
               sellerId: rr.sellerId,
@@ -235,15 +223,13 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
               commissionAdjustmentAmount,
               platformFundedAmount: Decimal.max(
                 new Decimal(0),
-                customerAmount.sub(sellerAdjustmentAmount),
+                customerAmount.sub(sellerAdjustmentAmount).sub(commissionAdjustmentAmount),
               ),
-              items: rr.items
-                .map((item) => ({
-                  orderLineId: item.orderLineId,
-                  quantity: item.rejectedQuantity,
-                  amount: item.requestedCustomerAmount.sub(item.customerRefundAmount),
-                }))
-                .filter((item) => item.amount.gt(0)),
+              items: remainingItems.map(({ item, amounts }) => ({
+                orderLineId: item.orderLineId,
+                quantity: item.rejectedQuantity,
+                amount: amounts.customerAmount,
+              })),
               shippingAmount: shippingRefund,
             })
             await prisma.returnRequest.update({

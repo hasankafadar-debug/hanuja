@@ -45,6 +45,7 @@ function buildActivateHoldPrisma(lines: FakeLine[]) {
         return payout
       }),
     },
+    refundTransaction: { findMany: vi.fn(async () => []) },
     orderLine: {
       findMany: vi.fn(async () => lines),
     },

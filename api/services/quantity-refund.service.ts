@@ -161,7 +161,9 @@ export function createQuantityRefundService({
                 : {}),
               kind: spec.kind,
               amount: spec.amount,
-              ...(!providerItem || (payment?.method === 'card' && !providerItem.providerTransactionId)
+              ...(spec.amount.eq(0)
+                ? { status: 'completed' as const, completedAt: new Date() }
+                : !providerItem || (payment?.method === 'card' && !providerItem.providerTransactionId)
                 ? {
                     status: 'manual_required' as const,
                     failureReason:
@@ -182,6 +184,26 @@ export function createQuantityRefundService({
         where: { refundTransactionId: refund.id },
         select: { status: true },
       })
+      // Zero customer payment still reverses seller accounting, but must never
+      // enqueue a zero-value provider transfer or require a bank refund.
+      if (refund.customerAmount.eq(0) && refund.status !== 'completed') {
+        await tx.refundTransactionItem.updateMany({
+          where: { refundTransactionId: refund.id },
+          data: {
+            status: 'completed',
+            completedAt: new Date(),
+            failureReason: null,
+          },
+        })
+        refund = await tx.refundTransaction.update({
+          where: { id: refund.id },
+          data: {
+            status: 'completed',
+            completedAt: new Date(),
+            failureReason: null,
+          },
+        })
+      }
       if (
         refund.status !== 'completed' &&
         (payment?.method === 'eft' ||

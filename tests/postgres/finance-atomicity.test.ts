@@ -7,10 +7,16 @@ import { Decimal } from '@prisma/client/runtime/client'
 import { createPayoutService } from '../../api/services/payout.service'
 import { createQuantityRefundService } from '../../api/services/quantity-refund.service'
 import { createCommissionExemptionService } from '../../api/services/commission-exemption.service'
+import { allocateProductRefund } from '../../api/domain/quantity-allocation'
+import { createQuantityCancellationService } from '../../api/services/quantity-cancellation.service'
+import { createQuantityReturnService } from '../../api/services/quantity-return.service'
+import { createDisputeService } from '../../api/services/dispute.service'
 import { createPayoutRepository } from '../../api/repositories/payout.repository'
 
+vi.mock('../../api/jobs/notification-dispatch.job', () => ({ enqueueNotification: vi.fn(async () => undefined) }))
+
 vi.mock('../../api/jobs/refund-processing.job', () => ({
-  enqueueRefundProcessing: vi.fn(),
+  enqueueRefundProcessing: vi.fn(async () => undefined),
 }))
 vi.mock('../../api/services/refund-notification.service', () => ({
   enqueueCustomerRefundCompletedNotification: vi.fn(),
@@ -221,5 +227,236 @@ describe('finance atomicity on PostgreSQL', () => {
     const payout = await prisma.payout.findFirstOrThrow({ where: { orderId: f.orderId } })
     expect(payout.commissionAmount.toFixed(2)).toBe(line.commissionExemptedAt ? '0.00' : '180.00')
     expect(payout.netAmount.toFixed(2)).toBe(line.commissionExemptedAt ? '1000.00' : '820.00')
+  })
+})
+
+describe('phase 2 refund accounting on PostgreSQL', () => {
+  it.each(['return_request', 'cancellation', 'dispute'] as const)(
+    'applies a pre-payout %s exactly once across hold and refund retries',
+    async (sourceType) => {
+      const f = await fixture(2)
+      const line = await prisma.orderLine.findUniqueOrThrow({
+        where: { id: f.lineIds[0] },
+      })
+      const amounts = allocateProductRefund(line, 0, 10)
+      const args = {
+        orderId: f.orderId,
+        sellerId: f.sellerIds[0]!,
+        sourceType,
+        sourceId: randomUUID(),
+        customerAmount: amounts.customerAmount,
+        grossProductAmount: amounts.grossAmount,
+        couponAdjustmentAmount: amounts.couponAmount,
+        commissionAdjustmentAmount: amounts.commissionAmount,
+        sellerAdjustmentAmount: amounts.sellerAmount,
+        items: [
+          {
+            orderLineId: line.id,
+            quantity: 10,
+            amount: amounts.customerAmount,
+          },
+        ],
+      }
+      const service = createQuantityRefundService({ prisma })
+      await service.queue(args)
+      await hold(f.orderId)
+      await service.queue(args)
+      await hold(f.orderId)
+      const payouts = await prisma.payout.findMany({
+        where: { orderId: f.orderId },
+      })
+      expect(payouts.find((p) => p.sellerId === f.sellerIds[0])!.netAmount.toFixed(2)).toBe('0.00')
+      expect(payouts.find((p) => p.sellerId === f.sellerIds[1])!.netAmount.toFixed(2)).toBe(
+        '820.00',
+      )
+      const balance = await prisma.sellerLedgerEntry.aggregate({
+        where: { sellerId: f.sellerIds[0] },
+        _sum: { amount: true },
+      })
+      expect(balance._sum.amount!.toFixed(2)).toBe('0.00')
+      const stored = await prisma.refundTransaction.findUniqueOrThrow({
+        where: { sourceType_sourceId: { sourceType, sourceId: args.sourceId } },
+      })
+      expect(stored.payoutAppliedAt).not.toBeNull()
+    },
+  )
+
+  it.each([true, false])(
+    'full exempt cancellation leaves zero payout (before hold: %s)',
+    async (beforeHold) => {
+      const f = await fixture()
+      await createCommissionExemptionService({ prisma }).exempt({
+        orderLineId: f.lineIds[0]!,
+        adminActorId: f.adminId,
+        reason: 'Phase 2 test',
+      })
+      if (!beforeHold) await hold(f.orderId)
+      const service = createQuantityCancellationService({ prisma })
+      const args = {
+        orderId: f.orderId,
+        customerId: f.adminId,
+        reason: 'Phase 2 cancellation',
+        idempotencyKey: randomUUID(),
+        items: [{ orderLineId: f.lineIds[0]!, quantity: 10 }],
+      }
+      const [operation] = await service.create(args)
+      expect(operation!.sellerAdjustmentAmount.toFixed(2)).toBe('1000.00')
+      expect(operation!.commissionAdjustmentAmount.toFixed(2)).toBe('0.00')
+      await hold(f.orderId)
+      await service.create(args)
+      const payout = await prisma.payout.findFirstOrThrow({
+        where: { orderId: f.orderId },
+      })
+      expect(payout.netAmount.toFixed(2)).toBe('0.00')
+      const line = await prisma.orderLine.findUniqueOrThrow({
+        where: { id: f.lineIds[0] },
+      })
+      expect(line.commissionAmount.toFixed(2)).toBe('180.00')
+      expect(line.netPayoutAmount.toFixed(2)).toBe('820.00')
+    },
+  )
+})
+
+describe('phase 2 quantity lifecycle', () => {
+  it.each([
+    { exempt: false, paid: '94.99', method: 'eft' as const },
+    { exempt: true, paid: '94.99', method: 'eft' as const },
+    { exempt: false, paid: '89.99', method: 'card' as const },
+    { exempt: true, paid: '0.00', method: 'eft' as const },
+  ])(
+    'cancellation, accepted return and dispute reconcile: %j',
+    async ({ exempt, paid, method }) => {
+      const f = await fixture(2)
+      const lineId = f.lineIds[0]!
+      await prisma.orderLine.update({
+        where: { id: lineId },
+        data: {
+          quantity: 3,
+          unitPrice: '33.3333',
+          totalPrice: '100',
+          couponDiscountAmount: '0.01',
+          commissionAmount: '18.01',
+          netPayoutAmount: '81.98',
+          customerPaidProductAmount: paid,
+          deliveryConfirmedAt: new Date(),
+          ...(exempt ? { commissionExemptedAt: new Date() } : {}),
+        },
+      })
+      await prisma.payment.updateMany({
+        where: { orderId: f.orderId },
+        data: { method, provider: method === 'card' ? 'iyzico' : 'manual_eft' },
+      })
+      const cancellations = createQuantityCancellationService({ prisma })
+      await cancellations.create({
+        orderId: f.orderId,
+        customerId: f.adminId,
+        reason: 'One unit cancellation',
+        items: [{ orderLineId: lineId, quantity: 1 }],
+      })
+      await prisma.orderLine.update({
+        where: { id: lineId },
+        data: { shippedQuantity: 2 },
+      })
+      const returns = createQuantityReturnService({ prisma })
+      const [request] = await returns.openRequest({
+        orderId: f.orderId,
+        customerId: f.adminId,
+        reason: 'Return remaining units',
+        items: [{ orderLineId: lineId, quantity: 2 }],
+      })
+      await prisma.returnRequest.update({
+        where: { id: request!.id },
+        data: { status: 'in_transit' },
+      })
+      const decision = {
+        returnRequestId: request!.id,
+        sellerId: f.sellerIds[0]!,
+        decisions: [
+          {
+            returnRequestItemId: request!.items[0]!.id,
+            acceptedQuantity: 1,
+            rejectedQuantity: 1,
+            rejectionReason: 'Disputed unit condition',
+          },
+        ],
+      }
+      await returns.decideReceipt(decision)
+      await returns.decideReceipt(decision)
+      // Payout is created between accepted return and dispute resolution.
+      await hold(f.orderId)
+      const rr = await prisma.returnRequest.findUniqueOrThrow({
+        where: { id: request!.id },
+      })
+      await createDisputeService({ prisma }).resolveDispute({
+        disputeId: rr.disputeId!,
+        adminActorId: f.adminId,
+        resolutionType: 'resolved_for_customer',
+        resolution: 'Refund remaining unit',
+      })
+      await hold(f.orderId)
+      const payouts = await prisma.payout.findMany({
+        where: { orderId: f.orderId },
+      })
+      const own = payouts.find((p) => p.sellerId === f.sellerIds[0])!
+      expect(own.netAmount.toFixed(2)).toBe('0.00')
+      expect(own.refundAmount.toFixed(2)).toBe('100.00')
+      expect(own.commissionAmount.toFixed(2)).toBe('0.00')
+      expect(own.couponShareAmount.toFixed(2)).toBe('0.00')
+      expect(payouts.find((p) => p.sellerId === f.sellerIds[1])!.netAmount.toFixed(2)).toBe(
+        '820.00',
+      )
+      const refunds = await prisma.refundTransaction.findMany({
+        where: { orderId: f.orderId, sellerId: f.sellerIds[0] },
+      })
+      expect(refunds).toHaveLength(3)
+      expect(refunds.reduce((sum, r) => sum.add(r.customerAmount), new Decimal(0)).toFixed(2)).toBe(
+        paid,
+      )
+      expect(
+        refunds.reduce((sum, r) => sum.add(r.sellerAdjustmentAmount), new Decimal(0)).toFixed(2),
+      ).toBe(exempt ? '99.99' : '81.98')
+      const balance = await prisma.sellerLedgerEntry.aggregate({
+        where: { sellerId: f.sellerIds[0] },
+        _sum: { amount: true },
+      })
+      expect(balance._sum.amount!.toFixed(2)).toBe('0.00')
+    },
+  )
+})
+
+
+describe('phase 2 full exempt return', () => {
+  it.each([true, false])('leaves zero payout for a 1000 TRY return (before hold: %s)', async (beforeHold) => {
+    const f = await fixture()
+    const lineId = f.lineIds[0]!
+    await createCommissionExemptionService({ prisma }).exempt({ orderLineId: lineId, adminActorId: f.adminId, reason: 'Exempt full return' })
+    await prisma.orderLine.update({ where: { id: lineId }, data: { shippedQuantity: 10, deliveryConfirmedAt: new Date() } })
+    if (!beforeHold) await hold(f.orderId)
+    const returns = createQuantityReturnService({ prisma })
+    const [request] = await returns.openRequest({ orderId: f.orderId, customerId: f.adminId, reason: 'Full return', items: [{ orderLineId: lineId, quantity: 10 }] })
+    await prisma.returnRequest.update({ where: { id: request!.id }, data: { status: 'in_transit' } })
+    const decision = { returnRequestId: request!.id, sellerId: f.sellerIds[0]!, decisions: [{ returnRequestItemId: request!.items[0]!.id, acceptedQuantity: 10, rejectedQuantity: 0 }] }
+    await returns.decideReceipt(decision)
+    if (beforeHold) {
+      const failing = prisma.$extends({ query: { refundTransaction: { async updateMany({ args, query }) {
+        if (args.data.payoutAppliedAt) throw new Error('injected refund marker failure')
+        return query(args)
+      } } } }) as unknown as PrismaClient
+      await expect(hold(f.orderId, failing)).rejects.toThrow('injected refund marker failure')
+      expect(await prisma.payout.count({ where: { orderId: f.orderId } })).toBe(0)
+      const pending = await prisma.refundTransaction.findFirstOrThrow({ where: { orderId: f.orderId } })
+      expect(pending.payoutAppliedAt).toBeNull()
+    }
+    await hold(f.orderId)
+    await returns.decideReceipt(decision)
+    await hold(f.orderId)
+    const payout = await prisma.payout.findFirstOrThrow({ where: { orderId: f.orderId } })
+    expect(payout.netAmount.toFixed(2)).toBe('0.00')
+    expect(payout.commissionAmount.toFixed(2)).toBe('0.00')
+    expect(payout.refundAmount.toFixed(2)).toBe('1000.00')
+    const refund = await prisma.refundTransaction.findFirstOrThrow({ where: { orderId: f.orderId } })
+    expect(refund.sellerAdjustmentAmount.toFixed(2)).toBe('1000.00')
+    expect(refund.commissionAdjustmentAmount.toFixed(2)).toBe('0.00')
+    expect(await prisma.refundTransaction.count({ where: { orderId: f.orderId } })).toBe(1)
   })
 })
