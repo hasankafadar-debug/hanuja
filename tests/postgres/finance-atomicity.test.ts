@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { createPayoutService } from '../../api/services/payout.service'
@@ -12,6 +13,7 @@ import { createQuantityCancellationService } from '../../api/services/quantity-c
 import { createQuantityReturnService } from '../../api/services/quantity-return.service'
 import { createDisputeService } from '../../api/services/dispute.service'
 import { createPayoutRepository } from '../../api/repositories/payout.repository'
+import { createReadyPayoutBatch } from '../../api/services/payout-batch.service'
 
 vi.mock('../../api/jobs/notification-dispatch.job', () => ({ enqueueNotification: vi.fn(async () => undefined) }))
 
@@ -63,6 +65,10 @@ async function fixture(sellerCount = 1) {
     const seller = await prisma.seller.create({ data: {
       userId: sellerUser.id, slug: `seller-${i}-${tag}`, displayName: 'Finance test', status: 'active',
     } })
+    await prisma.sellerBankDetail.create({ data: {
+      sellerId: seller.id, iban: 'TR00000000000000000000000000', accountHolder: 'Finance test',
+      bankName: 'Test bank', status: 'ACTIVE', isActive: true, isVerified: true,
+    } })
     const product = await prisma.product.create({ data: {
       sellerId: seller.id, name: 'Finance test product', slug: `product-${i}-${tag}`, price: 1000,
     } })
@@ -82,6 +88,191 @@ async function fixture(sellerCount = 1) {
 
 const hold = (orderId: string, client = prisma) =>
   createPayoutService({ prisma: client }).activateHold({ orderId, deliveryConfirmedAt: confirmedAt })
+
+async function readyFixture(sellerCount = 1) {
+  const f = await fixture(sellerCount)
+  const payouts = await hold(f.orderId)
+  const service = createPayoutService({ prisma })
+  for (const payout of payouts) await service.reevaluate(payout.id)
+  const payoutId = payouts[0]!.id
+  const context = await service.paymentContext(payoutId)
+  return { ...f, payoutId, payouts, service, pay: {
+    payoutId, adminActorId: f.adminId, expectedSnapshot: context.snapshot,
+    transferDate: new Date('2026-09-14T12:00:00Z'), transferReference: randomUUID(),
+  } }
+}
+
+describe('phase 3 payout eligibility', () => {
+  it('automatically recovers a bank block after verification', async () => {
+    const f = await readyFixture()
+    await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: false } })
+    const blocked = await f.service.reevaluate(f.payoutId)
+    expect(blocked.payout.status).toBe('payout_blocked')
+    expect(blocked.payout.manualBlockedAt).toBeNull()
+    expect(blocked.automaticReason).toContain('banka')
+    expect((await createPayoutRepository(prisma).findReadyForRelease()).map((p) => p.id)).toContain(f.payoutId)
+    await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: true } })
+    expect((await f.service.reevaluate(f.payoutId)).payout.status).toBe('payout_ready')
+  })
+
+  it('retains manual blocks and requires reasoned authorized release without bypassing bank or hold', async () => {
+    const f = await readyFixture()
+    await f.service.block({ payoutId: f.payoutId, adminActorId: f.adminId, reason: 'Manual review needed' })
+    await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: false } })
+    const check = await f.service.reevaluate(f.payoutId)
+    expect(check.manualReason).toBe('Manual review needed')
+    expect(check.automaticReason).toContain('banka')
+    await expect(f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId })).rejects.toThrow('açıkça')
+    await expect(f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true })).rejects.toThrow('gerekçesi')
+    const seller = await prisma.seller.findUniqueOrThrow({ where: { id: f.sellerIds[0] } })
+    await expect(f.service.release({ payoutId: f.payoutId, adminActorId: seller.userId, clearManualBlock: true, reason: 'Review cleared' })).rejects.toThrow()
+    const released = await f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true, reason: 'Review cleared' })
+    expect(released.manualBlockedAt).toBeNull()
+    expect(released.status).toBe('payout_blocked')
+    await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: true } })
+    await prisma.order.update({ where: { id: f.orderId }, data: { deliveryConfirmedAt: new Date() } })
+    expect((await f.service.reevaluate(f.payoutId)).payout.status).toBe('hold_active')
+    await expect(f.service.markPaid(f.pay)).rejects.toThrow()
+  })
+
+  it.each(['open', 'under_review'] as const)('rejects payment when a %s dispute opens after the screen was read', async (status) => {
+    const f = await readyFixture()
+    await prisma.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId, reason: 'New dispute', status } })
+    await expect(f.service.markPaid(f.pay)).rejects.toThrow('uyuşmazlık')
+    expect(await prisma.sellerLedgerEntry.count({ where: { referenceId: f.payoutId, type: 'payout' } })).toBe(0)
+  })
+
+  it('only blocks the affected seller for an escalated return dispute', async () => {
+    const f = await readyFixture(2)
+    const dispute = await prisma.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId, reason: 'Seller two dispute', status: 'under_review' } })
+    await prisma.returnRequest.create({ data: { orderId: f.orderId, customerId: f.adminId, sellerId: f.sellerIds[1], reason: 'Return dispute', status: 'rejected', disputeId: dispute.id, isWithinWindow: true } })
+    expect((await f.service.checkReadiness(f.payoutId)).ready).toBe(true)
+    expect((await f.service.checkReadiness(f.payouts[1]!.id)).ready).toBe(false)
+    await prisma.returnRequest.updateMany({ where: { disputeId: dispute.id }, data: { sellerId: null } })
+    expect((await f.service.checkReadiness(f.payoutId)).ready).toBe(false)
+    await prisma.dispute.update({ where: { id: dispute.id }, data: { status: 'resolved_for_customer', payoutBlocked: true } })
+    expect((await f.service.checkReadiness(f.payoutId)).ready).toBe(false)
+  })
+
+  it.each(['amount', 'bank', 'missing'] as const)('rejects a stale or missing payment snapshot: %s', async (change) => {
+    const f = await readyFixture()
+    if (change === 'amount') await prisma.payout.update({ where: { id: f.payoutId }, data: { netAmount: 700 } })
+    if (change === 'bank') await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { iban: 'TR11111111111111111111111111' } })
+    const params = change === 'missing' ? { ...f.pay, expectedSnapshot: undefined } : f.pay
+    await expect(f.service.markPaid(params)).rejects.toMatchObject({ code: 'PAYOUT_SNAPSHOT_CHANGED', details: { current: { amount: change === 'amount' ? '700.00' : '820.00' } } })
+    expect((await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })).status).toBe('payout_ready')
+    const fresh = await f.service.paymentContext(f.payoutId)
+    await f.service.markPaid({ ...f.pay, expectedSnapshot: fresh.snapshot })
+    expect((await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })).status).toBe('payout_paid')
+  })
+
+  it.each(['seller', 'bank', 'pending-bank', 'return', 'refund'] as const)('revalidates %s at payment time', async (blocker) => {
+    const f = await readyFixture()
+    if (blocker === 'seller') await prisma.seller.update({ where: { id: f.sellerIds[0] }, data: { status: 'suspended' } })
+    if (blocker === 'bank') await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: false } })
+    if (blocker === 'pending-bank') await prisma.sellerBankDetail.create({ data: { sellerId: f.sellerIds[0]!, iban: 'TR22222222222222222222222222', bankName: 'Changed', accountHolder: 'Test', status: 'PENDING_ACTIVATION' } })
+    if (blocker === 'return') await prisma.returnRequest.create({ data: { orderId: f.orderId, sellerId: f.sellerIds[0], customerId: f.adminId, reason: 'New return', isWithinWindow: true } })
+    if (blocker === 'refund') await refund(f, 100, randomUUID())
+    await expect(f.service.markPaid(f.pay)).rejects.toMatchObject({ code: 'PAYOUT_BLOCKED' })
+    expect(await prisma.sellerLedgerEntry.count({ where: { referenceId: f.payoutId, type: 'payout' } })).toBe(0)
+  })
+
+  it('keeps batch totals synchronized through concurrent refunds, manual blocks and releases', async () => {
+    const f = await readyFixture(2)
+    const results = await Promise.all([createReadyPayoutBatch(prisma), createReadyPayoutBatch(prisma)])
+    const assigned = await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })
+    expect(assigned.batchId).not.toBeNull()
+    expect(results.filter((r) => r.batchCreated)).toHaveLength(1)
+    const batchId = assigned.batchId!
+    const initial = await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })
+    // Other fixtures may be ready too; isolate changes relative to the stored total.
+    await Promise.all([refund(f, 100, randomUUID()), refund(f, 200, randomUUID())])
+    expect((await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(2)).toBe(initial.totalAmount.sub(246).toFixed(2))
+    await f.service.block({ payoutId: f.payoutId, adminActorId: f.adminId, reason: 'Batch manual review' })
+    expect((await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(2)).toBe(initial.totalAmount.sub(820).toFixed(2))
+    await prisma.refundTransaction.updateMany({ where: { orderId: f.orderId }, data: { status: 'completed' } })
+    await f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true, reason: 'Batch review done' })
+    expect((await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(2)).toBe(initial.totalAmount.sub(246).toFixed(2))
+  })
+
+  it('sees a concurrent dispute insert that started before the payment lock', async () => {
+    const f = await readyFixture()
+    let inserted!: () => void
+    let finish!: () => void
+    const insertion = new Promise<void>((resolve) => { inserted = resolve })
+    const gate = new Promise<void>((resolve) => { finish = resolve })
+    const change = prisma.$transaction(async (tx) => {
+      await tx.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId, reason: 'Concurrent dispute' } })
+      inserted()
+      await gate
+    })
+    await insertion
+    const payment = f.service.markPaid(f.pay)
+    const result = expect(payment).rejects.toMatchObject({ code: 'PAYOUT_BLOCKED' })
+    finish()
+    await change
+    await result
+  })
+
+  it('keeps a resolved customer dispute blocked until its refund is complete', async () => {
+    const f = await readyFixture()
+    const dispute = await prisma.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId, reason: 'Customer resolution', status: 'resolved_for_customer', payoutBlocked: true } })
+    expect((await f.service.checkReadiness(f.payoutId)).ready).toBe(false)
+    await createQuantityRefundService({ prisma }).queue({ orderId: f.orderId, sellerId: f.sellerIds[0]!,
+      sourceType: 'dispute', sourceId: dispute.id, customerAmount: new Decimal(100),
+      grossProductAmount: new Decimal(100), sellerAdjustmentAmount: new Decimal(82), commissionAdjustmentAmount: new Decimal(18),
+      items: [{ orderLineId: f.lineIds[0]!, quantity: 1, amount: new Decimal(100) }],
+    })
+    expect((await f.service.reevaluate(f.payoutId)).ready).toBe(false)
+    await prisma.refundTransaction.updateMany({ where: { sourceId: dispute.id }, data: { status: 'completed' } })
+    expect((await f.service.reevaluate(f.payoutId)).ready).toBe(true)
+  })
+
+  it('releases a completed legacy whole-return dispute without a quantity refund record', async () => {
+    const f = await readyFixture()
+    const dispute = await prisma.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId,
+      reason: 'Legacy customer resolution', status: 'resolved_for_customer', payoutBlocked: true } })
+    const returned = await prisma.returnRequest.create({ data: { orderId: f.orderId,
+      sellerId: f.sellerIds[0], customerId: f.adminId, reason: 'Legacy return',
+      status: 'rejected', disputeId: dispute.id, isWithinWindow: true } })
+    expect((await f.service.reevaluate(f.payoutId)).ready).toBe(false)
+    await prisma.returnRequest.update({ where: { id: returned.id },
+      data: { status: 'refund_completed', refundedAt: new Date() } })
+    expect((await f.service.reevaluate(f.payoutId)).ready).toBe(true)
+  })
+
+  it('rolls back manual release if its audit fails', async () => {
+    const f = await readyFixture()
+    await f.service.block({ payoutId: f.payoutId, adminActorId: f.adminId, reason: 'Manual review' })
+    const failing = prisma.$extends({ query: { adminAuditLog: { async create() { throw new Error('audit failed') } } } }) as unknown as PrismaClient
+    await expect(createPayoutService({ prisma: failing }).release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true, reason: 'Review done' })).rejects.toThrow('audit failed')
+    const payout = await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })
+    expect(payout.status).toBe('payout_blocked')
+    expect(payout.manualBlockedReason).toBe('Manual review')
+  })
+
+  it('migrates only identifiable automatic blocks and preserves audited or unknown manual blocks', async () => {
+    const migration = readFileSync(resolve('../db/schema/migrations/20260914130000_payout_block_sources/migration.sql'), 'utf8')
+    await prisma.$transaction(async (tx) => {
+      // Transaction-local shadow tables exercise the actual migration without
+      // changing the schema used by the other tests or any persistent records.
+      await tx.$executeRawUnsafe('CREATE TEMP TABLE payouts (id TEXT, status TEXT, "blockedReason" TEXT, "updatedAt" TIMESTAMP DEFAULT now()) ON COMMIT DROP')
+      await tx.$executeRawUnsafe('CREATE TEMP TABLE admin_audit_logs ("targetType" TEXT, "targetId" TEXT, "actionType" TEXT) ON COMMIT DROP')
+      await tx.$executeRawUnsafe(`INSERT INTO payouts (id,status,"blockedReason") VALUES
+        ('auto','payout_blocked','Doğrulanmış aktif banka hesabı bulunamadı'),
+        ('admin','payout_blocked','Doğrulanmış aktif banka hesabı bulunamadı'),
+        ('unknown','payout_blocked','Özel inceleme'), ('paid','payout_paid',NULL)`)
+      await tx.$executeRawUnsafe(`INSERT INTO admin_audit_logs VALUES ('payout','admin','payout_blocked')`)
+      for (const statement of migration.split(';').filter((part) => part.trim())) await tx.$executeRawUnsafe(statement)
+      const rows = await tx.$queryRawUnsafe<Array<{ id: string; manualBlockedAt: Date | null; automaticBlockReason: string | null }>>('SELECT id,"manualBlockedAt","automaticBlockReason" FROM payouts')
+      expect(rows.find((r) => r.id === 'auto')!.manualBlockedAt).toBeNull()
+      expect(rows.find((r) => r.id === 'auto')!.automaticBlockReason).toContain('banka')
+      expect(rows.find((r) => r.id === 'admin')!.manualBlockedAt).not.toBeNull()
+      expect(rows.find((r) => r.id === 'unknown')!.manualBlockedAt).not.toBeNull()
+      expect(rows.find((r) => r.id === 'paid')!.manualBlockedAt).toBeNull()
+    })
+  })
+})
 
 function refund(f: Awaited<ReturnType<typeof fixture>>, amount: number, key: string, client = prisma) {
   return createQuantityRefundService({ prisma: client }).queue({
@@ -165,7 +356,8 @@ describe('finance atomicity on PostgreSQL', () => {
     const [payout] = await hold(f.orderId)
     await prisma.payout.update({ where: { id: payout!.id }, data: { status: 'payout_ready' } })
     const params = { payoutId: payout!.id, adminActorId: f.adminId,
-      transferDate: new Date('2026-03-01T12:00:00Z'), transferReference: 'test-transfer' }
+      transferDate: new Date('2026-03-01T12:00:00Z'), transferReference: 'test-transfer',
+      expectedSnapshot: (await createPayoutService({ prisma }).paymentContext(payout!.id)).snapshot }
     const failing = prisma.$extends({ query: { adminAuditLog: { async create() {
       throw new Error('injected audit failure')
     } } } }) as unknown as PrismaClient

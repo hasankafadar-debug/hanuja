@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-09-14
 # Durum: taslak v1
 
 # Payout Lifecycle — Satıcı Ödeme Döngüsü
@@ -110,7 +110,44 @@ Aşağıdaki koşullardan herhangi biri karşılandığında payout `payout_bloc
 | Negatif bakiye mahsup bekleniyor | `SellerLedgerEntry` hesaplaması |
 | Tutarsız finans kaydı | Reconciliation job uyarısı |
 
-Tüm koşullar temizlendiğinde BullMQ payout-maturity job'ı `payout_ready` durumuna geçirir.
+Otomatik koşullar temizlendiğinde BullMQ payout-maturity job'ı kaydı yeniden değerlendirir.
+Manuel bloke varsa yetkili yönetici gerekçeli olarak kaldırana kadar ödeme açılmaz.
+
+### Faz 3: bloke kaynağı ve ödeme anı kontrolü
+
+`manualBlockedAt`, `manualBlockedBy`, `manualBlockedReason` yönetici blokesini;
+`automaticBlockReason` güncel otomatik engelleri saklar. `blockedReason` uyumluluk
+için korunur. Maturity taraması süresi dolmuş blocked/ready/scheduled kayıtları da
+kontrol eder. Manuel bloke otomatik olarak kaldırılmaz.
+
+Ödeme kaydı sırasında satıcı aktifliği, doğrulanmış ACTIVE banka, bekleyen banka
+değişikliği, satıcıya ait açık iade/uyuşmazlık, tamamlanmamış iadeler, pozitif tutar
+ve teslim onayından sonraki 30 gün yeniden kontrol edilir. Müşteri lehine çözülmüş
+uyuşmazlığın iadesi tamamlanana kadar ödeme açılmaz. Satıcısı belirli olmayan
+iade/uyuşmazlık siparişin tüm satıcılarını korumalı olarak bloke eder.
+
+Yetkili admin ödeme penceresini açarken `GET /api/admin/payouts/:id/release`
+güncel tutar, banka ve `snapshot` döndürür. Ödeme POST isteği bu değeri
+`expectedSnapshot` olarak gönderir. Tutar/banka değişmişse 409
+`PAYOUT_SNAPSHOT_CHANGED` ve güncel bilgiler döner; yeniden inceleme ve onay gerekir.
+Bu kontrol bankaya transfer başlatmaz; yapılmış transferin kayıt ekranını korur.
+
+Batch hazırlama güncel uygunluğu aynı transaction içinde kontrol eder. İade,
+bloke, serbest bırakma ve ödeme değişikliklerinde batch toplamı ve sayıları,
+ready/scheduled/paid üyeler üzerinden kilit altında yeniden hesaplanır.
+
+Migration `20260914130000_payout_block_sources` dört nullable kolon ekler.
+Eski blokeler varsayılan olarak manuel korunur; yalnız bilinen eski otomatik
+gerekçeler ve yönetici bloke audit kaydı olmayanlar otomatik sınıflanır.
+Geçmiş tutarlar ve ekstre hareketleri değiştirilmez.
+
+Deploy: push öncesi dört Coolify uygulamasında **Advanced → Deployment → Auto
+deploy** kapalı olmalıdır. Önce worker deploy edilir; migration başarısı ve BullMQ
+başlangıcı doğrulandıktan sonra admin, seller ve web sırayla deploy edilir.
+Üç uygulamada `/api/health` ve admin hakediş ekranı kontrol edilir. Yeni migration
+uygulandıktan sonra kolonları silmeyin; uygulama rollback'i gerekirse manuel
+blokelerin eski sürüm davranışını ayrıca değerlendirin. Backup/retention ayarları
+bu fazın kapsamı dışındadır.
 
 ---
 
@@ -174,11 +211,11 @@ Her kayıt `balanceAfter` alanını günceller. Ledger overwrite yapılmaz.
 Hanuja satıcıları haftalık, iki haftalık veya aylık batch döngüleriyle ödeyebilir.
 
 ### Batch Oluşturma
-1. BullMQ payout-maturity job'ı `holdUntil <= now` ve `status = hold_active` olan kayıtları tarar
+1. BullMQ payout-maturity job'ı `holdUntil <= now` olan ödenmemiş kayıtları tarar
 2. Bloke koşulları yoksa `status = payout_ready` yapılır
 3. Admin payout-ready batch adaylarını listeler
 4. Admin batch oluşturur (`PayoutBatch` kaydı, `reference` numarasıyla)
-5. `Payout.status = payout_scheduled`, `Payout.batchId` atanır
+5. `Payout.batchId` atanır; ödeme kaydı için `payout_ready` durumu korunur
 
 ### Batch Onaylama
 1. Admin batch'i gözden geçirir: toplam tutar, satıcı sayısı, bloke durumlar
@@ -204,8 +241,8 @@ Adımlar:
 1. Admin `payout_hold_released` aksiyonunu uygular
 2. Gerekçe zorunludur (metin alanı)
 3. `AdminAuditLog` kaydı oluşturulur: aktör, zaman, önceki durum, yeni durum, gerekçe
-4. Payout `payout_ready` durumuna geçer
-5. Sonraki batch döngüsüne dahil edilir
+4. Manuel bloke kaldırılır; tüm otomatik koşullar tekrar kontrol edilir
+5. Yalnız koşullar uygunsa `payout_ready` olur; aksi halde kalan gerekçe gösterilir
 
 Manual override için sadece yüksek yetkili admin (`finance_admin` veya `super_admin`) aksiyonu uygulayabilir.
 

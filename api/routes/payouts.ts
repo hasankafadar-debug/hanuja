@@ -13,6 +13,14 @@ function getPayoutService() {
   return createPayoutService({ prisma: createPrismaForRoute() })
 }
 
+export async function getPayoutPaymentContext(payoutId: string) {
+  try {
+    return ok(await getPayoutService().paymentContext(payoutId))
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
 // GET /api/seller/payouts
 export async function listSellerPayouts(req: NextRequest, sellerId: string) {
   try {
@@ -79,6 +87,8 @@ export async function releasePayout(
       transferBankName: z.string().trim().optional(),
       transferNote: z.string().trim().optional(),
       batchId: z.string().trim().optional(),
+      expectedSnapshot: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+      clearManualBlock: z.boolean().optional(),
     }).parse(body)
 
     const result = parsed.transferDate
@@ -86,6 +96,7 @@ export async function releasePayout(
           payoutId,
           adminActorId,
           transferDate: new Date(parsed.transferDate),
+          ...(parsed.expectedSnapshot ? { expectedSnapshot: parsed.expectedSnapshot } : {}),
           ...(parsed.batchId !== undefined ? { batchId: parsed.batchId } : {}),
           ...(parsed.transferReference !== undefined ? { transferReference: parsed.transferReference } : {}),
           ...(parsed.transferBankName !== undefined ? { transferBankName: parsed.transferBankName } : {}),
@@ -94,6 +105,7 @@ export async function releasePayout(
       : await svc.release({
           payoutId,
           adminActorId,
+          ...(parsed.clearManualBlock !== undefined ? { clearManualBlock: parsed.clearManualBlock } : {}),
           ...(parsed.reason !== undefined ? { reason: parsed.reason } : {}),
         })
     return ok(result)
@@ -127,18 +139,20 @@ export async function markPayoutPaid(
 ) {
   try {
     const body = await req.json()
-    const { batchId, transferDate, transferReference, transferBankName, transferNote } = z.object({
+    const { batchId, transferDate, transferReference, transferBankName, transferNote, expectedSnapshot } = z.object({
       batchId: z.string().optional(),
       transferDate: z.string().datetime(),
       transferReference: z.string().trim().optional(),
       transferBankName: z.string().trim().optional(),
       transferNote: z.string().trim().optional(),
+      expectedSnapshot: z.string().regex(/^[a-f0-9]{64}$/),
     }).parse(body)
     const svc = getPayoutService()
     const result = await svc.markPaid({
       payoutId,
       adminActorId,
       transferDate: new Date(transferDate),
+      expectedSnapshot,
       ...(batchId !== undefined ? { batchId } : {}),
       ...(transferReference !== undefined ? { transferReference } : {}),
       ...(transferBankName !== undefined ? { transferBankName } : {}),

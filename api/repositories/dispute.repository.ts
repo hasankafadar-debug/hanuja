@@ -194,7 +194,7 @@ export function createDisputeRepository(prisma: PrismaClient) {
       return prisma.dispute.count({
         where: {
           orderId,
-          status: 'open',
+            status: { in: ['open', 'under_review'] },
           OR: [
             { escalatedFromReturn: { sellerId } },
             { escalatedFromReturn: null },

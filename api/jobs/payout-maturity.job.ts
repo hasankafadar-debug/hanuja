@@ -68,22 +68,9 @@ async function processPayoutMaturity(_job: Job<PayoutMaturityJobData>) {
   let skipped = 0
 
   for (const payout of readyCandidates) {
-    const readiness = await payoutSvc.checkReadiness(payout.id)
-
-    if (readiness.ready) {
-      await payoutSvc.release({
-        payoutId: payout.id,
-        adminActorId: 'system:payout-maturity-job',
-        reason: 'Hold süresi doldu, otomatik serbest bırakma',
-      })
-      released++
-    } else {
-      // Mark as blocked so it doesn't keep appearing in the ready query
-      if (readiness.reason && payout.status === 'hold_active') {
-        await payoutRepo.block(payout.id, readiness.reason)
-      }
-      skipped++
-    }
+    const readiness = await payoutSvc.reevaluate(payout.id)
+    if (readiness.ready) released++
+    else skipped++
   }
 
   console.log(`[payout-maturity] Released: ${released}, Skipped/blocked: ${skipped}`)

@@ -5,12 +5,12 @@ import { auth } from '@/lib/auth'
 import { UnauthorizedError, ForbiddenError, NotFoundError } from '@hanuja/api/lib/errors'
 import { handleError, ok } from '@hanuja/api/lib/response'
 import { createPayoutRepository } from '@hanuja/api/repositories/payout.repository'
-import { createAdminAuditLogRepository } from '@hanuja/api/repositories/admin-audit-log.repository'
+import { createPayoutService } from '@hanuja/api/services/payout.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 const bodySchema = z.object({
-  reason: z.string().min(3, 'Gerekçe en az 3 karakter olmalı'),
+  reason: z.string().trim().min(5, 'Gerekçe en az 5 karakter olmalı'),
 })
 
 export async function POST(
@@ -30,23 +30,14 @@ export async function POST(
 
     const prisma = createPrismaForRoute()
     const payouts = createPayoutRepository(prisma)
-    const auditLog = createAdminAuditLogRepository(prisma)
-
-    const payout = await payouts.findByOrderId(orderId)
-    if (!payout) throw new NotFoundError('Payout', orderId)
-
-    const prevStatus = payout.status
-    await payouts.block(payout.id, reason)
-
-    await auditLog.createEntry({
-      actorId: session.user.id,
-      actionType: 'payout_blocked',
-      targetType: 'payout',
-      targetId: payout.id,
-      previousData: { status: prevStatus },
-      newData: { status: 'payout_blocked', blockedReason: reason },
-      reason,
-    })
+    const orderPayouts = await payouts.findManyByOrderId(orderId)
+    if (!orderPayouts.length) throw new NotFoundError('Payout', orderId)
+    const service = createPayoutService({ prisma })
+    for (const payout of orderPayouts) {
+      if (payout.status !== 'payout_paid') {
+        await service.block({ payoutId: payout.id, adminActorId: session.user.id, reason })
+      }
+    }
 
     return ok({ blocked: true })
   } catch (err) {

@@ -26,6 +26,15 @@ interface ReleasePayoutButtonProps {
   defaultBankName: string
 }
 
+type PaymentContext = {
+  ready: boolean
+  reason: string | null
+  amount: string
+  currency: string
+  snapshot: string
+  bank: { iban: string; accountHolder: string; bankName: string } | null
+}
+
 export function ReleasePayoutButton({
   payoutId,
   orderNumber,
@@ -42,8 +51,26 @@ export function ReleasePayoutButton({
   const [transferReference, setTransferReference] = useState('')
   const [transferBankName, setTransferBankName] = useState(defaultBankName)
   const [transferNote, setTransferNote] = useState('')
+  const [context, setContext] = useState<PaymentContext | null>(null)
+
+  async function openPayment() {
+    setOpen(true)
+    setLoading(true)
+    setContext(null)
+    setError(null)
+    try {
+      const response = await csrfFetch(`/api/admin/payouts/${payoutId}/release`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) { setError(getApiErrorMessage(payload, 'Ödeme bilgileri alınamadı.')); return }
+      setContext(payload.data)
+      setTransferBankName(payload.data.bank?.bankName ?? '')
+      if (!payload.data.ready) setError(payload.data.reason || 'Hakediş ödemeye uygun değil.')
+    } catch { setError('Ödeme bilgileri alınamadı. Tekrar deneyin.') }
+    finally { setLoading(false) }
+  }
 
   async function handleRelease() {
+    if (!context?.ready || !context.bank) return
     if (!transferDate) {
       setError('Transfer date is required.')
       return
@@ -57,6 +84,7 @@ export function ReleasePayoutButton({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          expectedSnapshot: context.snapshot,
           transferDate: new Date(`${transferDate}T12:00:00.000Z`).toISOString(),
           transferReference: transferReference.trim() || undefined,
           transferBankName: transferBankName.trim() || undefined,
@@ -67,6 +95,13 @@ export function ReleasePayoutButton({
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
         setError(getApiErrorMessage(payload, 'Payment could not be recorded.'))
+        if (payload.code === 'PAYOUT_SNAPSHOT_CHANGED' && payload.details?.current) {
+          setContext({ ...payload.details.current, ready: true, reason: null })
+          setTransferBankName(payload.details.current.bank?.bankName ?? '')
+        } else {
+          setContext((current) => current ? { ...current, ready: false } : null)
+        }
+        router.refresh()
         return
       }
 
@@ -81,14 +116,14 @@ export function ReleasePayoutButton({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-        Ode
+      <Button size="sm" variant="outline" onClick={() => void openPayment()}>
+        Ödeme kaydet
       </Button>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Record payout transfer</DialogTitle>
+          <DialogTitle>Satıcı ödemesini kaydet</DialogTitle>
           <DialogDescription>
-            Confirm the bank transfer details before moving this payout into the paid list.
+            Güncel tutarı ve banka hesabını kontrol ederek yaptığınız transferi kaydedin.
           </DialogDescription>
         </DialogHeader>
 
@@ -100,15 +135,15 @@ export function ReleasePayoutButton({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="payout-net-amount">Net amount</Label>
-              <Input id="payout-net-amount" value={netAmount} readOnly />
+              <Input id="payout-net-amount" value={context ? `${context.amount} ${context.currency}` : netAmount} readOnly />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="payout-iban">IBAN</Label>
-              <Input id="payout-iban" value={iban} readOnly />
+              <Input id="payout-iban" value={context ? context.bank?.iban ?? 'Doğrulanmış hesap yok' : iban} readOnly />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="payout-account-holder">Account holder</Label>
-              <Input id="payout-account-holder" value={accountHolder} readOnly />
+              <Input id="payout-account-holder" value={context ? context.bank?.accountHolder ?? '—' : accountHolder} readOnly />
             </div>
           </div>
 
@@ -161,8 +196,8 @@ export function ReleasePayoutButton({
           <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={() => void handleRelease()} disabled={loading}>
-            {loading ? 'Saving...' : 'Save payout'}
+          <Button onClick={() => void handleRelease()} disabled={loading || !context?.ready}>
+            {loading ? 'Kontrol ediliyor...' : 'Ödemeyi kaydet'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -189,14 +189,8 @@ export function createPayoutRepository(prisma: PrismaClient | Prisma.Transaction
     findReadyForRelease(now = new Date()) {
       return prisma.payout.findMany({
         where: {
-          status: 'hold_active',
+          status: { in: ['hold_active', 'payout_blocked', 'payout_ready', 'payout_scheduled'] },
           holdUntil: { lte: now },
-          order: {
-            returnRequests: {
-              none: { status: { notIn: ['rejected', 'refund_completed'] } },
-            },
-            disputes: { none: { status: 'open' } },
-          },
         },
         include: { seller: true, bankDetail: true },
       })

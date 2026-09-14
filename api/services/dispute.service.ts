@@ -12,6 +12,7 @@
  */
 import type { PrismaClient } from '@prisma/client'
 import { allocateProductRefund } from '../domain/quantity-allocation'
+import { createPayoutService } from './payout.service'
 import { NotFoundError, ConflictError, ForbiddenError } from '../lib/errors'
 import { createDisputeRepository } from '../repositories/dispute.repository'
 import { isPersistableDisputeAuthorRole, type DisputeViewer } from '../lib/dispute-authorization'
@@ -127,10 +128,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
           : orderPayouts
         for (const payout of affectedPayouts) {
           if (payout.status !== 'payout_paid' && payout.status !== 'payout_blocked') {
-            await payouts.block(
-              payout.id,
-              `Uyuşmazlık müşteri lehine çözüldü: ${params.resolution}`,
-            )
+            await createPayoutService({ prisma }).reevaluate(payout.id)
           }
         }
       }

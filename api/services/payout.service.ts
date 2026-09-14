@@ -4,20 +4,20 @@
  * INVARIANTS:
  * - Payout countdown starts from delivery_confirmed ONLY.
  * - 30-day hold is mandatory after delivery_confirmed.
- * - Open return or dispute BLOCKS payout — no exceptions without admin override.
+ * - Open return or dispute BLOCKS payout; manual release never bypasses eligibility.
  * - All payout state changes are auditable.
  */
-import type { PrismaClient } from '@prisma/client'
+import { Prisma, type PrismaClient, type Payout } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
-import { NotFoundError, PayoutBlockedError, ConflictError } from '../lib/errors'
+import { NotFoundError, PayoutBlockedError, ConflictError, DomainError, ValidationError } from '../lib/errors'
 import { lockSellerFinance } from '../lib/seller-finance-lock'
 import { createPayoutRepository } from '../repositories/payout.repository'
-import { createSellerRepository } from '../repositories/seller.repository'
-import { createReturnRequestRepository } from '../repositories/return-request.repository'
-import { createDisputeRepository } from '../repositories/dispute.repository'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
-import { calculateHoldUntil, isHoldExpired, sumPayoutSnapshot } from '../domain/payout-calculator'
+import { calculateHoldUntil, sumPayoutSnapshot } from '../domain/payout-calculator'
+import { lockPayoutEligibility, manualPayoutBlock, readPayoutEligibility } from './payout-eligibility'
+import { syncPayoutBatch } from '../lib/payout-batch-totals'
+import { assertRoleCan } from '../lib/authorize'
 
 interface PayoutServiceDeps {
   prisma: PrismaClient
@@ -25,10 +25,42 @@ interface PayoutServiceDeps {
 
 export function createPayoutService({ prisma }: PayoutServiceDeps) {
   const payouts = createPayoutRepository(prisma)
-  const sellers = createSellerRepository(prisma)
-  const returnRequests = createReturnRequestRepository(prisma)
-  const disputes = createDisputeRepository(prisma)
-  const auditLog = createAdminAuditLogRepository(prisma)
+  async function withLockedPayout<T>(id: string, work: (tx: Prisma.TransactionClient, payout: Payout) => Promise<T>) {
+    const owner = await prisma.payout.findUnique({ where: { id }, select: { sellerId: true } })
+    if (!owner) throw new NotFoundError('Payout', id)
+    return prisma.$transaction(async (tx) => {
+      await lockSellerFinance(tx, [owner.sellerId])
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM payouts WHERE id = ${id} FOR UPDATE`)
+      const payout = await tx.payout.findUniqueOrThrow({ where: { id } })
+      await lockPayoutEligibility(tx, payout)
+      return work(tx, payout)
+    }, { timeout: 30_000 })
+  }
+
+  async function refreshState(tx: Prisma.TransactionClient, payout: Payout) {
+    const eligibility = await readPayoutEligibility(tx, payout)
+    if (payout.status === 'payout_paid') return { ...eligibility, payout }
+    const status = eligibility.manualReason ? 'payout_blocked'
+      : !eligibility.holdExpired ? 'hold_active'
+      : eligibility.automaticReason ? 'payout_blocked' : 'payout_ready'
+    const blockedReason = eligibility.manualReason || eligibility.automaticReason
+    const changed = payout.status !== status || payout.blockedReason !== blockedReason ||
+      payout.automaticBlockReason !== eligibility.automaticReason
+    const updated = changed ? await tx.payout.update({
+      where: { id: payout.id },
+      data: { status, blockedReason, automaticBlockReason: eligibility.automaticReason },
+    }) : payout
+    if (changed) await createAdminAuditLogRepository(tx).createEntry({
+      actorId: 'system:payout-eligibility',
+      actionType: status === 'payout_ready' ? 'payout_released' : 'payout_blocked',
+      targetType: 'payout', targetId: payout.id,
+      previousData: { status: payout.status, automaticBlockReason: payout.automaticBlockReason },
+      newData: { status, automaticBlockReason: eligibility.automaticReason, manualBlockedReason: eligibility.manualReason },
+      reason: blockedReason || 'Güncel ödeme koşulları uygun',
+    })
+    await syncPayoutBatch(tx, payout.batchId)
+    return { ...eligibility, payout: updated }
+  }
 
   return {
     async activateHold(params: { orderId: string; deliveryConfirmedAt: Date }) {
@@ -239,106 +271,76 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
     },
 
     async checkReadiness(payoutId: string) {
-      const payout = await payouts.findById(payoutId)
-      if (!payout) throw new NotFoundError('Payout', payoutId)
-
-      if (payout.status === 'payout_paid') return { ready: false, reason: 'already_paid' }
-      if (payout.status === 'payout_blocked') {
-        return { ready: false, reason: payout.blockedReason ?? 'blocked' }
-      }
-
-      if (!payout.holdUntil || !isHoldExpired(payout.holdUntil)) {
-        return {
-          ready: false,
-          reason: `Hold süresi dolmadı. Bitiş: ${payout.holdUntil?.toISOString()}`,
-        }
-      }
-
-      if (await returnRequests.countOpenByOrderAndSeller(payout.orderId, payout.sellerId)) {
-        return { ready: false, reason: 'Açık iade talebi var' }
-      }
-
-      if (await disputes.countOpenByOrderAndSeller(payout.orderId, payout.sellerId)) {
-        return { ready: false, reason: 'Açık uyuşmazlık var' }
-      }
-
-      const seller = await sellers.findActiveById(payout.sellerId)
-      if (!seller) {
-        return { ready: false, reason: 'Satıcı hesabı aktif değil' }
-      }
-
-      const activeBankDetail = await prisma.sellerBankDetail.findFirst({
-        where: {
-          sellerId: payout.sellerId,
-          isActive: true,
-          status: 'ACTIVE',
-          isVerified: true,
-        },
-        select: { id: true },
-      })
-      if (!activeBankDetail) {
-        return {
-          ready: false,
-          reason: 'Doğrulanmış aktif banka hesabı bulunamadı',
-        }
-      }
-
-      const pendingOrBlockedChange = await prisma.sellerBankDetail.findFirst({
-        where: {
-          sellerId: payout.sellerId,
-          status: { in: ['PENDING_ACTIVATION', 'BLOCKED'] },
-        },
-        select: { status: true },
-      })
-      if (pendingOrBlockedChange) {
-        return {
-          ready: false,
-          reason: `Banka hesabı değişikliği incelemede: ${pendingOrBlockedChange.status}`,
-        }
-      }
-
-      return { ready: true, payout }
+      return withLockedPayout(payoutId, async (tx, payout) => ({
+        ...await readPayoutEligibility(tx, payout), payout,
+      }))
     },
 
-    async release(params: { payoutId: string; adminActorId: string; reason?: string }) {
-      const readiness = await this.checkReadiness(params.payoutId)
-      if (!readiness.ready) {
-        throw new PayoutBlockedError(readiness.reason as string)
-      }
+    async reevaluate(payoutId: string) {
+      return withLockedPayout(payoutId, refreshState)
+    },
 
-      const payout = readiness.payout!
-      const updated = await payouts.updateStatus(params.payoutId, 'payout_ready')
-
-      await auditLog.createEntry({
-        actorId: params.adminActorId,
-        actionType: 'payout_released',
-        targetType: 'payout',
-        targetId: params.payoutId,
-        previousData: { status: payout.status },
-        newData: { status: 'payout_ready' },
-        ...(params.reason !== undefined ? { reason: params.reason } : {}),
+    async paymentContext(payoutId: string) {
+      return withLockedPayout(payoutId, async (tx, payout) => {
+        const current = await readPayoutEligibility(tx, payout)
+        return {
+          ready: current.ready && payout.status === 'payout_ready',
+          reason: current.reason || (payout.status !== 'payout_ready' ? 'Ödeme uygunluğunu yeniden değerlendirin' : null),
+          manualReason: current.manualReason, automaticReason: current.automaticReason,
+          amount: current.amount, currency: current.currency, snapshot: current.snapshot,
+          bank: current.bank ? {
+            id: current.bank.id, iban: current.bank.iban,
+            accountHolder: current.bank.accountHolder, bankName: current.bank.bankName,
+          } : null,
+        }
       })
+    },
 
-      return updated
+    async release(params: { payoutId: string; adminActorId: string; reason?: string; clearManualBlock?: boolean }) {
+      return withLockedPayout(params.payoutId, async (tx, original) => {
+        let payout = original
+        if (manualPayoutBlock(payout)) {
+          if (!params.clearManualBlock) throw new PayoutBlockedError('Manuel bloke açıkça kaldırılmalı')
+          const actor = await tx.user.findUnique({ where: { id: params.adminActorId }, select: { role: true } })
+          assertRoleCan(actor?.role || '', 'payout:release')
+          if ((params.reason?.trim().length ?? 0) < 5) throw new ValidationError('Bloke kaldırma gerekçesi en az 5 karakter olmalı')
+          // Reset legacy status too, otherwise its compatibility fallback remains manual.
+          payout = await tx.payout.update({
+            where: { id: payout.id },
+            data: { manualBlockedAt: null, manualBlockedBy: null, manualBlockedReason: null,
+              status: 'hold_active', blockedReason: null },
+          })
+        }
+        const result = await refreshState(tx, payout)
+        await createAdminAuditLogRepository(tx).createEntry({
+          actorId: params.adminActorId, actionType: 'payout_released', targetType: 'payout', targetId: payout.id,
+          previousData: { status: original.status, manualBlockedReason: manualPayoutBlock(original) },
+          newData: { status: result.payout.status, automaticBlockReason: result.automaticReason,
+            manualBlockCleared: Boolean(params.clearManualBlock) },
+          ...(params.reason ? { reason: params.reason.trim() } : {}),
+        })
+        return result.payout
+      })
     },
 
     async block(params: { payoutId: string; adminActorId: string; reason: string }) {
-      const payout = await payouts.findById(params.payoutId)
-      if (!payout) throw new NotFoundError('Payout', params.payoutId)
-
-      const updated = await payouts.block(params.payoutId, params.reason)
-
-      await auditLog.createEntry({
-        actorId: params.adminActorId,
-        actionType: 'payout_blocked',
-        targetType: 'payout',
-        targetId: params.payoutId,
-        previousData: { status: payout.status },
-        newData: { status: 'payout_blocked', reason: params.reason },
-        reason: params.reason,
+      if (params.reason.trim().length < 5) throw new ValidationError('Bloke gerekçesi en az 5 karakter olmalı')
+      return withLockedPayout(params.payoutId, async (tx, payout) => {
+        if (payout.status === 'payout_paid') throw new ConflictError('Ödenmiş hakediş bloke edilemez')
+        const updated = await tx.payout.update({ where: { id: payout.id }, data: {
+          status: 'payout_blocked', blockedReason: params.reason.trim(),
+          manualBlockedAt: new Date(), manualBlockedBy: params.adminActorId,
+          manualBlockedReason: params.reason.trim(),
+        } })
+        await syncPayoutBatch(tx, payout.batchId)
+        await createAdminAuditLogRepository(tx).createEntry({
+          actorId: params.adminActorId, actionType: 'payout_blocked', targetType: 'payout', targetId: payout.id,
+          previousData: { status: payout.status },
+          newData: { status: updated.status, manualBlockedReason: updated.manualBlockedReason },
+          reason: params.reason.trim(),
+        })
+        return updated
       })
-
-      return updated
     },
 
     async markPaid(params: {
@@ -349,6 +351,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
       transferDate: Date
       transferBankName?: string
       transferNote?: string
+      expectedSnapshot?: string
     }) {
       const owner = await prisma.payout.findUnique({
         where: { id: params.payoutId },
@@ -361,6 +364,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
           const payouts = createPayoutRepository(tx)
           const ledger = createSellerLedgerRepository(tx)
           const auditLog = createAdminAuditLogRepository(tx)
+          await tx.$queryRaw(Prisma.sql`SELECT id FROM payouts WHERE id = ${params.payoutId} FOR UPDATE`)
           const payout = await payouts.findById(params.payoutId)
           if (!payout) throw new NotFoundError('Payout', params.payoutId)
           if (payout.status === 'payout_paid') {
@@ -378,15 +382,21 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
           if (payout.status !== 'payout_ready') {
             throw new ConflictError(`Ödeme hazır değil: ${payout.status}`)
           }
-
-          const activeBankDetail = await tx.sellerBankDetail.findFirst({
-            where: {
-              sellerId: payout.sellerId,
-              isActive: true,
-              status: 'ACTIVE',
-            },
-            orderBy: { updatedAt: 'desc' },
-          })
+          await lockPayoutEligibility(tx, payout)
+          const eligibility = await readPayoutEligibility(tx, payout)
+          if (!eligibility.ready) throw new PayoutBlockedError(eligibility.reason || 'Ödeme uygun değil')
+          const activeBankDetail = eligibility.bank!
+          if (!params.expectedSnapshot || params.expectedSnapshot !== eligibility.snapshot) {
+            throw new DomainError('Tutar veya banka bilgisi değişti. Güncel bilgileri kontrol ederek yeniden onaylayın.',
+              'PAYOUT_SNAPSHOT_CHANGED', 409, { current: {
+                amount: eligibility.amount, currency: eligibility.currency, snapshot: eligibility.snapshot,
+                bank: { id: activeBankDetail.id, iban: activeBankDetail.iban,
+                  accountHolder: activeBankDetail.accountHolder, bankName: activeBankDetail.bankName },
+              } })
+          }
+          if (params.batchId !== undefined && params.batchId !== payout.batchId) {
+            throw new ConflictError('Hakedişin ödeme partisi değişti')
+          }
 
           const updated = await payouts.markPaidWithTransfer(params.payoutId, {
             transferDate: params.transferDate,
@@ -497,6 +507,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
             },
           })
 
+          await syncPayoutBatch(tx, payout.batchId)
           return updated
         },
         { timeout: 30_000 },
@@ -516,7 +527,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
       return payouts.findByIdForSeller(payoutId, sellerId)
     },
 
-    listForAdmin(params: Parameters<typeof payouts.listForAdmin>[0]) {
+    async listForAdmin(params: Parameters<typeof payouts.listForAdmin>[0]) {
       return payouts.listForAdmin(params)
     },
 

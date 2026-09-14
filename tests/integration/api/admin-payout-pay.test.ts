@@ -7,9 +7,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   getSessionMock,
   releasePayoutMock,
+  paymentContextMock,
 } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   releasePayoutMock: vi.fn(),
+  paymentContextMock: vi.fn(),
 }))
 
 vi.mock('next/headers', () => ({
@@ -22,12 +24,14 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@hanuja/api/routes/payouts', () => ({
   releasePayout: releasePayoutMock,
+  getPayoutPaymentContext: paymentContextMock,
 }))
 
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
   releasePayoutMock.mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+  paymentContextMock.mockResolvedValue(new Response(JSON.stringify({ amount: '820.00', snapshot: 'fresh' }), { status: 200 }))
 })
 
 function buildRequest(body: Record<string, unknown>) {
@@ -39,6 +43,20 @@ function buildRequest(body: Record<string, unknown>) {
 }
 
 const ctx = { params: Promise.resolve({ id: 'p1' }) }
+
+describe('GET payout payment context — authorization', () => {
+  it.each([
+    [null, 401],
+    [{ user: { id: 'seller-1', role: 'seller' } }, 403],
+    [{ user: { id: 'admin-1', role: 'admin' } }, 200],
+  ])('only an authorized administrator can read bank and amount details', async (session, status) => {
+    getSessionMock.mockResolvedValue(session)
+    const route = await import('../../../apps/admin-panel/src/app/api/admin/payouts/[id]/release/route')
+    const response = await route.GET(buildRequest({}), ctx)
+    expect(response.status).toBe(status)
+    expect(paymentContextMock).toHaveBeenCalledTimes(status === 200 ? 1 : 0)
+  })
+})
 
 describe('POST /api/admin/payouts/[id]/release — auth', () => {
   it('returns 401 when no session present', async () => {

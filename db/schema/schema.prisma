@@ -1587,6 +1587,10 @@ model Payout {
   holdStartedAt DateTime? // deliveryConfirmedAt ile aynı
   holdUntil     DateTime? // holdStartedAt + 30 gün
   blockedReason String? // Neden bloke — görünür olmalı
+  manualBlockedAt DateTime?
+  manualBlockedBy String?
+  manualBlockedReason String?
+  automaticBlockReason String?
 
   batchId               String? // PayoutBatch ilişkisi
   paidAt                DateTime?

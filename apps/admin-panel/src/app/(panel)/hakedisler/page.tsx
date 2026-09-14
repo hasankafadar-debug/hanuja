@@ -4,6 +4,7 @@ import { StatusBadge, PageHeader, StatCard } from '@hanuja/ui'
 import { Wallet, Clock, Lock, CheckCircle } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { ReleasePayoutButton } from '@/components/release-payout-button'
+import { PayoutReadinessButton } from '@/components/payout-readiness-button'
 import { createPayoutService } from '@hanuja/api/services/payout.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
@@ -36,6 +37,9 @@ type PayoutRow = {
   status: string
   netAmount: { toNumber(): number } | number
   blockedReason: string | null
+  manualBlockedAt: Date | null
+  manualBlockedReason: string | null
+  automaticBlockReason: string | null
   seller: {
     displayName: string | null
     profile: { storeName: string | null } | null
@@ -57,8 +61,8 @@ type PayoutRow = {
 
 function formatAmount(value: number) {
   const formatted = value.toLocaleString('tr-TR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })
   return `${formatted} TL`
 }
@@ -245,7 +249,11 @@ export default async function PayoutsAdminPage({
                       {formatDate(payout.order?.deliveryConfirmedAt)}
                     </td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-destructive)' }}>
-                      {payout.blockedReason ?? '—'}
+                      <div className="max-w-xs whitespace-normal space-y-1">
+                        {payout.manualBlockedAt && <p>Manuel: {payout.manualBlockedReason ?? payout.blockedReason}</p>}
+                        {payout.automaticBlockReason && <p>Otomatik: {payout.automaticBlockReason}</p>}
+                        {!payout.manualBlockedAt && !payout.automaticBlockReason && (payout.blockedReason ?? '—')}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={payout.status as never} />
@@ -260,6 +268,10 @@ export default async function PayoutsAdminPage({
                           accountHolder={bankDetail?.accountHolder ?? storeName}
                           defaultBankName={bankDetail?.bankName ?? ''}
                         />
+                      )}
+                      {['hold_active', 'payout_blocked'].includes(payout.status) && (
+                        <PayoutReadinessButton payoutId={payout.id}
+                          manual={Boolean(payout.manualBlockedAt || (payout.status === 'payout_blocked' && !payout.automaticBlockReason))} />
                       )}
                     </td>
                   </tr>

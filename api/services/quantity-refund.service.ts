@@ -3,6 +3,7 @@ import { Decimal } from '@prisma/client/runtime/client'
 import { ConflictError, NotFoundError } from '../lib/errors'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 import { lockSellerFinance } from '../lib/seller-finance-lock'
+import { syncPayoutBatch } from '../lib/payout-batch-totals'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { getManualEftRefundCompletion } from '../domain/manual-eft-refund'
 import { enqueueRefundProcessing } from '../jobs/refund-processing.job'
@@ -322,6 +323,7 @@ export function createQuantityRefundService({
               ),
             },
           })
+          await syncPayoutBatch(tx, payout.batchId)
         }
       }
 
