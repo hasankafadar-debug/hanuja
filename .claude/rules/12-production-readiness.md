@@ -414,6 +414,28 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   ("tek paylaşılan auth backend" ifadesi — gerçekte üç ayrı `betterAuth()` örneği, ortak DB ve
   secret).
 
+### 27. Yedekleme: tar yarış hatası + çalışmayan saklama politikası (yeni — 2026-09-14)
+
+- **Belirti:** `hanuja-backup@full` 06:41 koşusu `exit 1` ile düştü, alarm maili geldi. Journal:
+  `tar: data/coolify/sentinel/metrics.sqlite: file changed as we read it`. Coolify sentinel bu
+  dosyayı sürekli yazar; GNU tar exit 1 döner, `set -e` tüm koşuyu düşürür. Tek koşu etkilendi;
+  sonraki `full` (12:41) ve tüm saatlik `db` koşuları başarılı, Drive'da doğrulandı.
+- **Düzeltme:** `collect_host` sentinel metrics + `ssh/mux` soketlerini arşiv dışı bırakır ve tar
+  exit 1'i uyarı sayar (exit 2 hâlâ koşuyu düşürür).
+- **Yol boyunca bulunan ikinci sorun:** her koşu farklı `run-<ts>-<mode>` dizini yedeklediği için
+  restic varsayılan `host,paths` gruplaması her snapshot'ı ayrı grup sayıyordu → `forget` hiçbir
+  şey silmiyordu (Drive'da 16 Temmuz'dan beri her saatlik snapshot duruyor) ve `--latest 1`
+  doğrulaması hep aynı eski snapshot'ı "doğruluyordu". Betik artık `--group-by host,tags`
+  kullanır; doğrulama `backup --json` özetindeki gerçek `snapshot_id` ile yapılır; `prune-dry-run`
+  modu eklendi.
+- **Depo konumu:** gerçek restic deposu Drive'da `Hanuja-Backups/restic/`; `backup.env.example`'daki
+  `hanuja-production` yalnızca placeholder.
+- **Kurulum (kullanıcı, SSH):** betik `/usr/local/sbin/hanuja-backup` yerine kopyalanır, `notify-test`
+  ile doğrulanır, sonra `prune-dry-run` çıktısı görülüp bir sonraki haftalık `prune` beklenir (ya da
+  elle `hanuja-backup prune`). İlk prune yüzlerce snapshot sileceği için uzun sürebilir. Not:
+  `restic backup --group-by` restic ≥ 0.14 ister; kurulumda `restic version` kontrol edilir.
+- **Migration YOK, redeploy YOK** — yalnız host betiği.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

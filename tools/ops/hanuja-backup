@@ -8,6 +8,12 @@ readonly LOG_ROOT=/var/log/hanuja-backup
 readonly LOCK_FILE=/run/lock/hanuja-backup.lock
 readonly RESTIC_RCLONE_ARGS='serve restic --stdio --b2-hard-delete --tpslimit 2 --tpslimit-burst 1 --drive-pacer-min-sleep 500ms'
 readonly RESTIC_RCLONE_TIMEOUT='5m'
+# Every run stages under a fresh run-<timestamp>-<mode> directory, so restic's
+# default host+paths grouping treats each snapshot as its own group: forget then
+# keeps everything and --latest picks an arbitrary group. Group by host+tags
+# (db-hourly / full-6h) for parent lookup, retention and latest-snapshot queries.
+readonly RESTIC_GROUP_BY='host,tags'
+readonly RESTIC_RETENTION=(--keep-within 7d --keep-daily 30 --keep-weekly 12 --keep-monthly 12)
 
 [[ -r "$CONFIG" ]] || { echo "Missing $CONFIG" >&2; exit 2; }
 # shellcheck source=/dev/null
@@ -277,8 +283,23 @@ SQL
 }
 
 collect_host() {
+  local rc
   log "Collecting Coolify and host recovery configuration"
-  tar --xattrs --acls -cpf "$stage/private/data-coolify.tar" -C / data/coolify
+  # Coolify's sentinel rewrites metrics.sqlite continuously and ssh/mux holds live
+  # sockets; neither is recovery data. Exclude them, and treat GNU tar exit 1
+  # ("file changed as we read it") as a warning: on 2026-09-14 that alone failed
+  # an otherwise complete full backup. Exit 2 (fatal) still fails the run.
+  rc=0
+  tar --xattrs --acls -cpf "$stage/private/data-coolify.tar" -C / \
+    --exclude='data/coolify/sentinel/metrics.sqlite*' \
+    --exclude='data/coolify/ssh/mux' \
+    data/coolify || rc=$?
+  if (( rc == 1 )); then
+    log "tar reported files changed while archiving /data/coolify; archive kept"
+  elif (( rc != 0 )); then
+    log "Archiving /data/coolify failed with tar exit $rc"
+    return "$rc"
+  fi
   tar --ignore-failed-read --xattrs --acls -cpf "$stage/private/host-config.tar" -C / \
     etc/ssh etc/ufw etc/docker etc/fail2ban root/.ssh var/spool/cron 2>/dev/null || true
   dpkg-query -W -f='${binary:Package}|${Version}\n' >"$stage/manifest/packages.txt"
@@ -312,15 +333,15 @@ seal_manifest() {
 }
 
 upload_stage() {
-  local tag="$1" result latest
+  local tag="$1" result snapshot_id
   result="/tmp/hanuja-restic-$mode-$$.json"
   log "Uploading encrypted Restic snapshot: $tag"
-  restic_cmd backup "$stage" --host "$(hostname)" --tag "$tag" --json >"$result"
-  jq -e 'select(.message_type=="summary") | .snapshot_id' "$result" >/dev/null
-  latest="$(restic_cmd snapshots --latest 1 --json --tag "$tag" | jq -r '.[0].short_id // empty')"
-  [[ -n "$latest" ]]
-  restic_cmd ls "$latest" >/dev/null
-  log "Restic snapshot verified: $latest"
+  restic_cmd backup "$stage" --host "$(hostname)" --tag "$tag" --group-by "$RESTIC_GROUP_BY" --json >"$result"
+  # Verify the snapshot this run wrote, not whatever --latest happens to return.
+  snapshot_id="$(jq -r 'select(.message_type=="summary") | .snapshot_id // empty' "$result" | tail -1)"
+  [[ -n "$snapshot_id" ]]
+  restic_cmd ls "$snapshot_id" >/dev/null
+  log "Restic snapshot verified: ${snapshot_id:0:8}"
   rm -f "$result"
 }
 
@@ -356,16 +377,22 @@ case "$mode" in
   prune)
     log "Checking repository before retention/prune"
     restic_cmd check
-    restic_cmd forget --tag db-hourly --keep-within 7d --keep-daily 30 --keep-weekly 12 --keep-monthly 12
-    restic_cmd forget --tag full-6h --keep-within 7d --keep-daily 30 --keep-weekly 12 --keep-monthly 12
+    restic_cmd forget --tag db-hourly --group-by "$RESTIC_GROUP_BY" "${RESTIC_RETENTION[@]}"
+    restic_cmd forget --tag full-6h --group-by "$RESTIC_GROUP_BY" "${RESTIC_RETENTION[@]}"
     restic_cmd prune
+    completed=1
+    ;;
+  prune-dry-run)
+    log "Retention preview (no snapshot is removed)"
+    restic_cmd forget --dry-run --tag db-hourly --group-by "$RESTIC_GROUP_BY" "${RESTIC_RETENTION[@]}"
+    restic_cmd forget --dry-run --tag full-6h --group-by "$RESTIC_GROUP_BY" "${RESTIC_RETENTION[@]}"
     completed=1
     ;;
   notify-test)
     send_alert "Hanuja backup alert test" "Hanuja yedekleme hata bildirimi testi baÅarÄ±lÄ±dÄ±r. Host: $(hostname). Time: $(date --iso-8601=seconds)"
     completed=1
     ;;
-  *) echo "Usage: $0 {db|full|check-daily|check-weekly|check-monthly|prune|notify-test}" >&2; exit 2 ;;
+  *) echo "Usage: $0 {db|full|check-daily|check-weekly|check-monthly|prune|prune-dry-run|notify-test}" >&2; exit 2 ;;
 esac
 
 (( completed == 1 ))
