@@ -38,6 +38,28 @@ Aşağıdaki durumlar payout sayacını **başlatmaz**:
 - `holdStartedAt = deliveryConfirmedAt`
 - `holdUntil = deliveryConfirmedAt + 30 gün`
 
+### Faz 1: işlem bütünlüğü ve kurtarma (2026-09-14)
+
+- Hakediş ve satış/kupon/komisyon hareketleri aynı transaction içinde oluşturulur.
+- İade muhasebesi, ödeme kaydı ve komisyon muafiyeti finansal değerleri okumadan önce
+  aynı satıcı advisory lock anahtarını alır. Birden fazla satıcı kilidi ID sırasıyla alınır.
+- Ödendi durumu, ödeme ekstre hareketi ve admin denetim kaydı birlikte commit edilir.
+  Aynı transfer bilgileriyle tekrar istek yeni hareket üretmez; farklı bilgiler 409 döndürür.
+- Maturity taraması yalnız hiç hakedişi olmayan siparişleri değil, eksik satıcı hakedişi
+  veya satış/kupon/komisyon hareketi bulunan teslim onaylı siparişleri de bulur.
+  Mevcut hakediş tutarlarını yeniden hesaplamaz, doğru hareketleri değiştirmez.
+- Bu faz geçmiş deneme siparişlerini silmez veya toplu finansal düzeltme yapmaz.
+
+Gerçek PostgreSQL kabul testleri için yalnız yerel, ayrılmış `hanuja_finance_test`
+veritabanını kullanın. `FINANCE_TEST_DATABASE_URL` ayarlandıktan sonra
+`pnpm --filter @hanuja/tests test:postgres` çalıştırın. Testler her çalışmada ayrı
+bir şema oluşturup yalnız bu şemayı temizler; production URL'leri reddedilir.
+Testler sağlayıcıya para iadesi göndermez. Eşzamanlı işlemler, hata enjeksiyonu,
+tekrar istek ve eksik kayıt kurtarması gerçek Prisma client üzerinden sınanır.
+
+Şema migration'ı yoktur. Geri dönüş gerekirse etkilenen dört servisin önceki
+başarılı sürümüne dönülür; ekstre kayıtları geri alınmaz veya silinmez.
+
 ---
 
 ## 3. 30 Günlük Bekleme Dönemi

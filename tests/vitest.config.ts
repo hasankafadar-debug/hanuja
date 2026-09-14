@@ -8,7 +8,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['**/*.test.ts'],
-    exclude: ['node_modules', 'e2e/**'],
+    exclude: ['node_modules', 'e2e/**', 'postgres/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

@@ -26,14 +26,21 @@ function buildActivateHoldPrisma(lines: FakeLine[]) {
   const createdPayouts: Array<Record<string, unknown>> = []
 
   const prisma: Record<string, unknown> = {
+    $queryRaw: vi.fn(async () => []),
     order: {
-      findUnique: vi.fn(async () => ({ id: 'o1', status: 'delivery_confirmed' })),
+      findUnique: vi.fn(async () => ({
+        id: 'o1',
+        status: 'delivery_confirmed',
+      })),
     },
     payout: {
       findFirst: vi.fn(async () => null),
       findMany: vi.fn(async () => []),
       create: vi.fn(async (args: { data: Record<string, unknown> }) => {
-        const payout = { id: `payout-${createdPayouts.length + 1}`, ...args.data }
+        const payout = {
+          id: `payout-${createdPayouts.length + 1}`,
+          ...args.data,
+        }
         createdPayouts.push(payout)
         return payout
       }),
@@ -45,11 +52,19 @@ function buildActivateHoldPrisma(lines: FakeLine[]) {
       findFirst: vi.fn(async () => null),
       findUnique: vi.fn(async () => null),
       aggregate: vi.fn(async () => ({ _sum: { amount: new Decimal(0) } })),
-      create: vi.fn(async (args: { data: Record<string, unknown> }) => ({ id: 'ledger-1', ...args.data })),
+      create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
+        id: 'ledger-1',
+        ...args.data,
+      })),
     },
   }
 
-  return { prisma: prisma as unknown as import('@prisma/client').PrismaClient, createdPayouts }
+  prisma.$transaction = vi.fn(async (run: (tx: unknown) => Promise<unknown>) => run(prisma))
+
+  return {
+    prisma: prisma as unknown as import('@prisma/client').PrismaClient,
+    createdPayouts,
+  }
 }
 
 const DELIVERY_CONFIRMED_AT = new Date('2026-05-01T00:00:00Z')
@@ -76,7 +91,10 @@ describe('activateHold — satıcı kuponu payı payout snapshot', () => {
     const { prisma, createdPayouts } = buildActivateHoldPrisma(lines)
     const svc = createPayoutService({ prisma })
 
-    await svc.activateHold({ orderId: 'o1', deliveryConfirmedAt: DELIVERY_CONFIRMED_AT })
+    await svc.activateHold({
+      orderId: 'o1',
+      deliveryConfirmedAt: DELIVERY_CONFIRMED_AT,
+    })
 
     const payout = createdPayouts[0] as {
       grossAmount: InstanceType<typeof Decimal>
@@ -116,9 +134,14 @@ describe('activateHold — satıcı kuponu payı payout snapshot', () => {
     const { prisma, createdPayouts } = buildActivateHoldPrisma(lines)
     const svc = createPayoutService({ prisma })
 
-    await svc.activateHold({ orderId: 'o1', deliveryConfirmedAt: DELIVERY_CONFIRMED_AT })
+    await svc.activateHold({
+      orderId: 'o1',
+      deliveryConfirmedAt: DELIVERY_CONFIRMED_AT,
+    })
 
-    const payout = createdPayouts[0] as { couponShareAmount: InstanceType<typeof Decimal> }
+    const payout = createdPayouts[0] as {
+      couponShareAmount: InstanceType<typeof Decimal>
+    }
     expect(payout.couponShareAmount.toNumber()).toBe(100)
   })
 
@@ -138,9 +161,14 @@ describe('activateHold — satıcı kuponu payı payout snapshot', () => {
     const { prisma, createdPayouts } = buildActivateHoldPrisma(lines)
     const svc = createPayoutService({ prisma })
 
-    await svc.activateHold({ orderId: 'o1', deliveryConfirmedAt: DELIVERY_CONFIRMED_AT })
+    await svc.activateHold({
+      orderId: 'o1',
+      deliveryConfirmedAt: DELIVERY_CONFIRMED_AT,
+    })
 
-    const payout = createdPayouts[0] as { couponShareAmount: InstanceType<typeof Decimal> }
+    const payout = createdPayouts[0] as {
+      couponShareAmount: InstanceType<typeof Decimal>
+    }
     expect(payout.couponShareAmount.toNumber()).toBe(0)
   })
 })

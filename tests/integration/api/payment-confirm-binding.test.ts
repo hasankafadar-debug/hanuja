@@ -42,6 +42,7 @@ function buildPrismaMock(options: {
   })
 
   Object.assign(prisma, {
+    $queryRaw: vi.fn(async () => []),
     payment: {
       findFirst: paymentFindFirst,
       update: vi.fn(async () => ({ ...options.payment, status: 'confirmed' })),

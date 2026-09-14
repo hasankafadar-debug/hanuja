@@ -9,6 +9,7 @@
     "test:coverage": "vitest run --coverage",
     "test:unit": "vitest run unit",
     "test:integration": "vitest run integration",
+    "test:postgres": "vitest run --config vitest.postgres.config.ts",
     "test:security": "vitest run security",
     "test:e2e": "playwright test"
   },

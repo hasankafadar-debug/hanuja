@@ -37,6 +37,7 @@ function buildPrisma(lines: Array<{
     }),
   }
   const prisma = {
+    $queryRaw: vi.fn(async () => []),
     orderLine: { findMany: vi.fn(async () => lines) },
     sellerLedgerEntry,
   }

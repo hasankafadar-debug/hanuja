@@ -17,11 +17,10 @@ export interface PayoutMaturityJobData {
 }
 
 /**
- * Safety-net sweep: finds orders stuck at delivery_confirmed with no Payout
- * record (activateHold chain interrupted — e.g. a crash between
- * setDeliveryConfirmed and activateHold) and self-heals them.
+ * Safety-net sweep: finds missing seller payouts and accrual entries on
+ * delivery-confirmed orders, including partially completed multi-seller orders.
  *
- * Idempotent (activateHold no-ops if a payout already exists) and resilient —
+ * Idempotent (existing snapshots/entries remain unchanged) and resilient —
  * a failure on one order is logged and does not stop the sweep from
  * processing the rest. See .claude/rules/12-production-readiness.md §9,
  * repair-missing-payouts.ts (one-off backfill for pre-existing gaps).

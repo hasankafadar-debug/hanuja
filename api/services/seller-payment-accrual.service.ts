@@ -2,6 +2,7 @@ import { type Prisma, type PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 import { ConflictError } from '../lib/errors'
+import { lockSellerFinance } from '../lib/seller-finance-lock'
 
 interface PaymentAccrualParams {
   prisma: PrismaClient
@@ -25,6 +26,14 @@ export async function postPaymentConfirmedSellerAccruals({
   effectiveAt,
   actorId,
 }: PaymentAccrualParams) {
+  const owners = await tx.orderLine.findMany({
+    where: { orderId },
+    select: { sellerId: true },
+  })
+  await lockSellerFinance(
+    tx,
+    owners.map((line) => line.sellerId),
+  )
   const lines = await tx.orderLine.findMany({
     where: { orderId },
     select: {
@@ -37,19 +46,14 @@ export async function postPaymentConfirmedSellerAccruals({
     throw new ConflictError('Ödeme onayı için satıcı sipariş kalemi bulunamadı')
   }
 
-  const bySeller = new Map<
-    string,
-    { grossProductAmount: Decimal; sellerCouponAmount: Decimal }
-  >()
+  const bySeller = new Map<string, { grossProductAmount: Decimal; sellerCouponAmount: Decimal }>()
   for (const line of lines) {
     const current = bySeller.get(line.sellerId) ?? {
       grossProductAmount: new Decimal(0),
       sellerCouponAmount: new Decimal(0),
     }
     current.grossProductAmount = current.grossProductAmount.add(line.totalPrice)
-    current.sellerCouponAmount = current.sellerCouponAmount.add(
-      line.couponDiscountAmount,
-    )
+    current.sellerCouponAmount = current.sellerCouponAmount.add(line.couponDiscountAmount)
     bySeller.set(line.sellerId, current)
   }
 

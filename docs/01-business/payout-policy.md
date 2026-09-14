@@ -222,6 +222,13 @@ Relevant entry types for payout flows:
 The `balanceAfter` field on each entry records the running seller balance at the time of the
 entry, making it possible to reconstruct history at any point in time.
 
+Payout creation and its accrual entries must commit together. Recording a bank
+transfer must atomically commit the paid status, payout ledger debit and admin audit
+record. Repeating the same transfer metadata is a no-op; conflicting transfer metadata
+is rejected. Seller finance locks are acquired before reading mutable financial state,
+in sorted seller-ID order for multi-seller transactions. Recovery may append missing
+accruals but must not overwrite existing payout snapshots or valid ledger entries.
+
 ---
 
 ## 8. Batch Payout Operations

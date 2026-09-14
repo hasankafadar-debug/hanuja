@@ -1,7 +1,7 @@
-import type { PayoutStatus, PrismaClient } from '@prisma/client'
+import { Prisma, type PayoutStatus, type PrismaClient } from '@prisma/client'
 import type { Decimal } from '@prisma/client/runtime/client'
 
-export function createPayoutRepository(prisma: PrismaClient) {
+export function createPayoutRepository(prisma: PrismaClient | Prisma.TransactionClient) {
   return {
     findById(id: string) {
       return prisma.payout.findUnique({ where: { id } })
@@ -123,32 +123,66 @@ export function createPayoutRepository(prisma: PrismaClient) {
           transferDate: data.transferDate,
           paidByAdminId: data.paidByAdminId,
           ...(data.batchId !== undefined ? { batchId: data.batchId } : {}),
-          ...(data.transferReference !== undefined ? { transferReference: data.transferReference } : {}),
-          ...(data.transferBankName !== undefined ? { transferBankName: data.transferBankName } : {}),
+          ...(data.transferReference !== undefined
+            ? { transferReference: data.transferReference }
+            : {}),
+          ...(data.transferBankName !== undefined
+            ? { transferBankName: data.transferBankName }
+            : {}),
           ...(data.transferNote !== undefined ? { transferNote: data.transferNote } : {}),
           ...(data.ibanSnapshot !== undefined ? { ibanSnapshot: data.ibanSnapshot } : {}),
-          ...(data.accountHolderSnapshot !== undefined ? { accountHolderSnapshot: data.accountHolderSnapshot } : {}),
+          ...(data.accountHolderSnapshot !== undefined
+            ? { accountHolderSnapshot: data.accountHolderSnapshot }
+            : {}),
           ...(data.bankDetailId !== undefined ? { bankDetailId: data.bankDetailId } : {}),
         },
       })
     },
 
-    /**
-     * Safety-net sweep: orders that reached delivery_confirmed but have no
-     * Payout record at all (the activateHold chain was interrupted — e.g. a
-     * crash between setDeliveryConfirmed and activateHold). Consumed by the
-     * payout-maturity job sweep and the one-off repair-missing-payouts script.
-     * See .claude/rules/12-production-readiness.md — sipariş #231655 kök neden.
-     */
+    /** Missing seller payouts or accruals, including partially created orders. */
     findDeliveryConfirmedOrdersMissingPayout() {
-      return prisma.order.findMany({
-        where: {
-          status: 'delivery_confirmed',
-          deliveryConfirmedAt: { not: null },
-          payouts: { none: {} },
-        },
-        select: { id: true, publicNumber: true, deliveryConfirmedAt: true, updatedAt: true },
-      })
+      return prisma.$queryRaw<
+        Array<{
+          id: string
+          publicNumber: number | null
+          deliveryConfirmedAt: Date
+          updatedAt: Date
+        }>
+      >(Prisma.sql`
+        SELECT o.id, o."publicNumber", o."deliveryConfirmedAt", o."updatedAt"
+        FROM orders o
+        WHERE o.status = 'delivery_confirmed' AND o."deliveryConfirmedAt" IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM order_lines l
+          LEFT JOIN payouts p ON p."orderId" = o.id AND p."sellerId" = l."sellerId"
+          WHERE l."orderId" = o.id AND (
+            p.id IS NULL
+            OR ((p."commissionAmount" > 0 OR EXISTS (
+              SELECT 1 FROM seller_ledger_entries reversal
+              JOIN refund_transactions r ON r.id = reversal."referenceId"
+              WHERE r."orderId" = o.id AND r."sellerId" = l."sellerId"
+                AND reversal."sellerId" = l."sellerId"
+                AND reversal.type = 'commission' AND reversal.amount > 0
+                AND reversal."referenceType" = 'refund_transaction'
+            )) AND NOT EXISTS (
+              SELECT 1 FROM seller_ledger_entries e
+              WHERE e."sellerId" = l."sellerId" AND e.type = 'commission'
+                AND e."referenceType" = 'payout' AND e."referenceId" = p.id
+            ))
+            OR NOT EXISTS (
+              SELECT 1 FROM seller_ledger_entries e
+              WHERE e."sellerId" = l."sellerId" AND e.type = 'sale'
+                AND e."referenceType" = 'order' AND e."referenceId" = o.id
+            )
+            OR (l."couponDiscountAmount" > 0 AND NOT EXISTS (
+              SELECT 1 FROM seller_ledger_entries e
+              WHERE e."sellerId" = l."sellerId" AND e.type = 'coupon_share'
+                AND e."referenceType" = 'order' AND e."referenceId" = o.id
+            ))
+          )
+        )
+        ORDER BY o."deliveryConfirmedAt", o.id
+      `)
     },
 
     /** Find payouts where hold period has expired and no blocking issues */
@@ -158,7 +192,9 @@ export function createPayoutRepository(prisma: PrismaClient) {
           status: 'hold_active',
           holdUntil: { lte: now },
           order: {
-            returnRequests: { none: { status: { notIn: ['rejected', 'refund_completed'] } } },
+            returnRequests: {
+              none: { status: { notIn: ['rejected', 'refund_completed'] } },
+            },
             disputes: { none: { status: 'open' } },
           },
         },

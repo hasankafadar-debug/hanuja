@@ -2,6 +2,7 @@ import type { PrismaClient, RefundSourceType } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { ConflictError, NotFoundError } from '../lib/errors'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
+import { lockSellerFinance } from '../lib/seller-finance-lock'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { getManualEftRefundCompletion } from '../domain/manual-eft-refund'
 import { enqueueRefundProcessing } from '../jobs/refund-processing.job'
@@ -28,11 +29,6 @@ export function createQuantityRefundService({
     items?: Array<{ orderLineId: string; quantity: number; amount: Decimal }>
     shippingAmount?: Decimal
   }) {
-    const payment = await prisma.payment.findFirst({
-      where: { orderId: params.orderId, status: 'confirmed' },
-      orderBy: { confirmedAt: 'desc' },
-    })
-
     const commissionAdjustmentAmount =
       params.commissionAdjustmentAmount ?? new Decimal(0)
     const couponAdjustmentAmount =
@@ -65,6 +61,11 @@ export function createQuantityRefundService({
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      if (params.sellerId) await lockSellerFinance(tx, [params.sellerId])
+      const payment = await tx.payment.findFirst({
+        where: { orderId: params.orderId, status: 'confirmed' },
+        orderBy: { confirmedAt: 'desc' },
+      })
       let refund = await tx.refundTransaction.findUnique({
         where: {
           sourceType_sourceId: {

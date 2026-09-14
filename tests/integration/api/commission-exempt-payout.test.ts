@@ -32,14 +32,21 @@ function buildActivateHoldPrisma(lines: FakeLine[]) {
   const createdLedgerEntries: Array<Record<string, unknown>> = []
 
   const prisma: Record<string, unknown> = {
+    $queryRaw: vi.fn(async () => []),
     order: {
-      findUnique: vi.fn(async () => ({ id: 'o1', status: 'delivery_confirmed' })),
+      findUnique: vi.fn(async () => ({
+        id: 'o1',
+        status: 'delivery_confirmed',
+      })),
     },
     payout: {
       findFirst: vi.fn(async () => null),
       findMany: vi.fn(async () => []),
       create: vi.fn(async (args: { data: Record<string, unknown> }) => {
-        const payout = { id: `payout-${createdPayouts.length + 1}`, ...args.data }
+        const payout = {
+          id: `payout-${createdPayouts.length + 1}`,
+          ...args.data,
+        }
         createdPayouts.push(payout)
         return payout
       }),
@@ -57,6 +64,8 @@ function buildActivateHoldPrisma(lines: FakeLine[]) {
       }),
     },
   }
+
+  prisma.$transaction = vi.fn(async (run: (tx: unknown) => Promise<unknown>) => run(prisma))
 
   return {
     prisma: prisma as unknown as import('@prisma/client').PrismaClient,
@@ -224,12 +233,11 @@ describe('activateHold — komisyon muafiyeti payout snapshot', () => {
 
 // ─── Rota: payout kaydı varken muafiyet 409 ──────────────────────────────────
 
-const {
-  getSessionMock,
-  prismaMock,
-} = vi.hoisted(() => ({
+const { getSessionMock, prismaMock } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   prismaMock: {
+    $queryRaw: vi.fn(async () => []),
+    $transaction: vi.fn(),
     orderLine: { findUnique: vi.fn(), update: vi.fn() },
     payout: { findFirst: vi.fn() },
   },
@@ -261,8 +269,11 @@ const ctx = { params: Promise.resolve({ id: 'line-1' }) }
 
 describe('POST /api/admin/order-lines/[id]/commission-exempt — payout guard', () => {
   beforeEach(() => {
+    prismaMock.$transaction.mockImplementation(async (run) => run(prismaMock))
     vi.clearAllMocks()
-    getSessionMock.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } })
+    getSessionMock.mockResolvedValue({
+      user: { id: 'admin-1', role: 'admin' },
+    })
     prismaMock.orderLine.findUnique.mockResolvedValue({
       id: 'line-1',
       orderId: 'o1',
@@ -270,15 +281,17 @@ describe('POST /api/admin/order-lines/[id]/commission-exempt — payout guard', 
       commissionInvoiceId: null,
       commissionExemptedAt: null,
     })
-    prismaMock.orderLine.update.mockResolvedValue({ id: 'line-1', commissionExemptedAt: new Date() })
+    prismaMock.orderLine.update.mockResolvedValue({
+      id: 'line-1',
+      commissionExemptedAt: new Date(),
+    })
   })
 
   it('payout kaydı varsa 409 döner ve muafiyet yazılmaz', async () => {
     prismaMock.payout.findFirst.mockResolvedValue({ id: 'payout-1' })
 
-    const route = await import(
-      '../../../apps/admin-panel/src/app/api/admin/order-lines/[id]/commission-exempt/route'
-    )
+    const route =
+      await import('../../../apps/admin-panel/src/app/api/admin/order-lines/[id]/commission-exempt/route')
     const response = await route.POST(buildRequest({ reason: 'sistem hatası' }), ctx)
 
     expect(response.status).toBe(409)
@@ -290,9 +303,8 @@ describe('POST /api/admin/order-lines/[id]/commission-exempt — payout guard', 
   it('payout kaydı yoksa muafiyet uygulanır', async () => {
     prismaMock.payout.findFirst.mockResolvedValue(null)
 
-    const route = await import(
-      '../../../apps/admin-panel/src/app/api/admin/order-lines/[id]/commission-exempt/route'
-    )
+    const route =
+      await import('../../../apps/admin-panel/src/app/api/admin/order-lines/[id]/commission-exempt/route')
     const response = await route.POST(buildRequest({ reason: 'sistem hatası' }), ctx)
 
     expect(response.status).toBe(200)

@@ -72,6 +72,7 @@ function buildQueuePrisma(payoutStatus?: 'payout_ready' | 'payout_paid') {
   const payoutUpdate = vi.fn(async () => payout)
 
   const prisma: Record<string, any> = {
+    $queryRaw: vi.fn(async () => []),
     payment: { findFirst: vi.fn(async () => payment) },
     refundTransaction: {
       findUnique: vi.fn(async () => refund),

@@ -1,5 +1,6 @@
-import { Prisma, type LedgerEntryType, type PrismaClient } from '@prisma/client'
+import { type Prisma, type LedgerEntryType, type PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
+import { lockSellerFinance } from '../lib/seller-finance-lock'
 
 type DecimalLike = Decimal | number | string | null | undefined
 
@@ -9,7 +10,7 @@ export function coerceDecimal(value: DecimalLike): Decimal {
   return new Decimal(value)
 }
 
-export function createSellerLedgerRepository(prisma: PrismaClient) {
+export function createSellerLedgerRepository(prisma: PrismaClient | Prisma.TransactionClient) {
   type LedgerClient = PrismaClient | Prisma.TransactionClient
   type EntryInput = {
     sellerId: string
@@ -32,12 +33,7 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
     // balanceAfter is an append chain. A transaction-scoped advisory lock makes
     // aggregate + insert atomic for one seller without blocking other sellers.
     if (typeof client.$queryRaw === 'function') {
-      await client.$queryRaw(
-        // PostgreSQL returns `void` for pg_advisory_xact_lock. Prisma cannot
-        // deserialize `void`, so cast the selected value while preserving the
-        // transaction-scoped lock side effect.
-        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${data.sellerId}, 0))::text`,
-      )
+      await lockSellerFinance(client, [data.sellerId])
     }
 
     if (data.eventKey) {
@@ -65,7 +61,8 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
     const referenceType =
       data.referenceType ??
       (data.orderId ? 'order' : data.payoutId ? 'payout' : data.penaltyId ? 'penalty' : 'manual')
-    const referenceId = data.referenceId ?? data.orderId ?? data.payoutId ?? data.penaltyId ?? 'manual'
+    const referenceId =
+      data.referenceId ?? data.orderId ?? data.payoutId ?? data.penaltyId ?? 'manual'
     const description = data.description ?? data.note
 
     return client.sellerLedgerEntry.create({
@@ -91,7 +88,7 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
      */
     createEntry(data: EntryInput, tx?: Prisma.TransactionClient | PrismaClient) {
       if (tx) return appendEntry(tx, data)
-      if (typeof prisma.$transaction === 'function') {
+      if ('$transaction' in prisma && typeof prisma.$transaction === 'function') {
         return prisma.$transaction((transaction) => appendEntry(transaction, data))
       }
       return appendEntry(prisma, data)
@@ -101,9 +98,7 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
      * Sum all ledger entries for a seller to compute current balance.
      * Credits are positive, debits are negative amounts.
      */
-    async computeBalance(
-      sellerId: string,
-    ): Promise<{ balance: Decimal; entries: number }> {
+    async computeBalance(sellerId: string): Promise<{ balance: Decimal; entries: number }> {
       const result = await prisma.sellerLedgerEntry.aggregate({
         where: { sellerId },
         _sum: { amount: true },
@@ -128,8 +123,10 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
         where: {
           sellerId: params.sellerId,
           ...(params.type !== undefined ? { type: params.type } : {}),
-          ...(params.visibleToSeller !== undefined ? { visibleToSeller: params.visibleToSeller } : {}),
-          ...((params.from !== undefined || params.to !== undefined)
+          ...(params.visibleToSeller !== undefined
+            ? { visibleToSeller: params.visibleToSeller }
+            : {}),
+          ...(params.from !== undefined || params.to !== undefined
             ? {
                 createdAt: {
                   ...(params.from !== undefined ? { gte: params.from } : {}),
@@ -144,7 +141,11 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
       })
     },
 
-    async getOpeningBalance(sellerId: string, before: Date, options?: { visibleToSeller?: boolean }) {
+    async getOpeningBalance(
+      sellerId: string,
+      before: Date,
+      options?: { visibleToSeller?: boolean },
+    ) {
       const result = await prisma.sellerLedgerEntry.aggregate({
         where: {
           sellerId,
@@ -163,10 +164,7 @@ export function createSellerLedgerRepository(prisma: PrismaClient) {
       const result = await prisma.sellerLedgerEntry.aggregate({
         where: {
           sellerId,
-          OR: [
-            { type: 'penalty' },
-            { referenceType: 'penalty' },
-          ],
+          OR: [{ type: 'penalty' }, { referenceType: 'penalty' }],
         },
         _sum: { amount: true },
       })
