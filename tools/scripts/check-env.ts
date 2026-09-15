@@ -275,9 +275,20 @@ function main() {
   const args = parseArgs()
   const isProd = args['env'] === 'prod' || args['env'] === 'production'
   const appFilter = args['app']
+  if (appFilter && !['web', 'seller-panel', 'admin-panel', 'api', 'worker'].includes(appFilter)) {
+    console.error(`Unknown app scope: ${appFilter}`)
+    process.exit(1)
+  }
 
   const filtered = appFilter
-    ? ENV_VARS.filter((v) => v.apps.includes('all') || v.apps.includes(appFilter as 'web'))
+    ? ENV_VARS.filter((v) => {
+        // Workers use API integrations (SMTP, storage, queues, payments) but
+        // never verify browser challenges. Keep all shared production checks.
+        if (appFilter === 'worker') {
+          return v.key !== 'TURNSTILE_SECRET_KEY' && (v.apps.includes('all') || v.apps.includes('api'))
+        }
+        return v.apps.includes('all') || v.apps.includes(appFilter as 'web')
+      })
     : ENV_VARS
 
   const env = isProd ? 'production' : 'development'

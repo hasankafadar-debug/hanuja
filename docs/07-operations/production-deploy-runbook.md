@@ -101,6 +101,11 @@ Tüm değişkenler Coolify panelinden her servise ayrı ayrı girilir — **hiç
 pnpm check-env --env=prod
 ```
 
+Servis bazlı kontrolde worker için `pnpm check-env --env=prod --app=worker`,
+paneller için `--app=admin-panel` / `--app=seller-panel`, storefront için `--app=web`
+kullanın. Worker kapsamı API entegrasyonlarını ve ortak üretim URL kontrollerini
+korur; tarayıcı isteği doğrulamayan worker için Turnstile anahtarı istemez.
+
 Bu komut **YEŞİL (exit 0)** dönmeden deploy'a devam edilmez. Placeholder değer tespit edilirse (`your-`, `changeme`, `example.com` gibi kalıplar) `sensitiveInProd` işaretli değişkenler için FAIL üretir.
 
 ---
