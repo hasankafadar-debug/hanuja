@@ -48,6 +48,7 @@ function fixture() {
     sourceType: 'cancellation',
     sourceId: 'c1',
     customerAmount: new Decimal('38560.50'),
+    failureReason: null as string | null,
     providerReference: null as string | null,
     completedAt: null as Date | null,
     updatedAt: new Date('2026-09-03T00:00:00Z'),
@@ -162,6 +163,16 @@ function fixture() {
 
 describe('manual EFT refund completion', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('blocks payment confirmation while a legacy financial snapshot still needs review', async () => {
+    const f = fixture()
+    f.refund.failureReason =
+      'Eski sipariş finansal incelemesi: ürün net hakediş snapshot’ı doğrulanamadı'
+
+    await expect(f.complete()).rejects.toThrow('Eski sipariş finansal incelemesi')
+    expect(f.prisma.refundTransaction.updateMany).not.toHaveBeenCalled()
+    expect(f.prisma.payment.updateMany).not.toHaveBeenCalled()
+  })
 
   it('completes only this partial cancellation; records an audit and removes manual-queue eligibility', async () => {
     const f = fixture()

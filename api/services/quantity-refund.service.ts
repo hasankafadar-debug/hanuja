@@ -30,6 +30,7 @@ export function createQuantityRefundService({
     platformFundedAmount?: Decimal
     items?: Array<{ orderLineId: string; quantity: number; amount: Decimal }>
     shippingAmount?: Decimal
+    manualReviewReason?: string
   }) {
     const commissionAdjustmentAmount =
       params.commissionAdjustmentAmount ?? new Decimal(0)
@@ -90,7 +91,10 @@ export function createQuantityRefundService({
             sellerAdjustmentAmount: params.sellerAdjustmentAmount,
             commissionAdjustmentAmount,
             platformFundedAmount,
-            status: 'pending',
+            status: params.manualReviewReason ? 'manual_required' : 'pending',
+            ...(params.manualReviewReason
+              ? { failureReason: params.manualReviewReason }
+              : {}),
           },
         })
       } else if (
@@ -131,7 +135,9 @@ export function createQuantityRefundService({
           : []
         const itemSpecs = requestedItems.length > 0
           ? requestedItems
-          : [{ kind: 'product' as const, amount: params.customerAmount }]
+          : params.customerAmount.gt(0)
+            ? [{ kind: 'product' as const, amount: params.customerAmount }]
+            : []
         for (const spec of itemSpecs) {
           const providerItem = providerItems.find((candidate) =>
             spec.kind === 'shipping'
@@ -163,7 +169,12 @@ export function createQuantityRefundService({
                 : {}),
               kind: spec.kind,
               amount: spec.amount,
-              ...(spec.amount.eq(0)
+              ...(params.manualReviewReason
+                ? {
+                    status: 'manual_required' as const,
+                    failureReason: params.manualReviewReason,
+                  }
+                : spec.amount.eq(0)
                 ? { status: 'completed' as const, completedAt: new Date() }
                 : !providerItem || (payment?.method === 'card' && !providerItem.providerTransactionId)
                 ? {
@@ -188,7 +199,11 @@ export function createQuantityRefundService({
       })
       // Zero customer payment still reverses seller accounting, but must never
       // enqueue a zero-value provider transfer or require a bank refund.
-      if (refund.customerAmount.eq(0) && refund.status !== 'completed') {
+      if (
+        refund.customerAmount.eq(0) &&
+        refund.status !== 'completed' &&
+        !params.manualReviewReason
+      ) {
         await tx.refundTransactionItem.updateMany({
           where: { refundTransactionId: refund.id },
           data: {
@@ -216,9 +231,9 @@ export function createQuantityRefundService({
           data: {
             status: 'manual_required',
             failureReason:
-              payment?.method === 'eft'
+              params.manualReviewReason ?? (payment?.method === 'eft'
                 ? 'EFT/havale iadesi banka üzerinden manuel tamamlanmalıdır'
-                : 'Sağlayıcı kalem işlem eşleşmesi eksik; manuel müdahale gerekli',
+                : 'Sağlayıcı kalem işlem eşleşmesi eksik; manuel müdahale gerekli'),
           },
         })
       }
@@ -229,7 +244,12 @@ export function createQuantityRefundService({
           })
         : null
 
-      if (refund.sellerId && refund.grossProductAmount.gt(0) && !refund.ledgerAppliedAt) {
+      if (
+        !params.manualReviewReason &&
+        refund.sellerId &&
+        refund.grossProductAmount.gt(0) &&
+        !refund.ledgerAppliedAt
+      ) {
         const appliedAt = new Date()
         const claimed = await tx.refundTransaction.updateMany({
           where: { id: refund.id, ledgerAppliedAt: null },
@@ -300,7 +320,7 @@ export function createQuantityRefundService({
         }
       }
 
-      if (payout && !refund.payoutAppliedAt) {
+      if (!params.manualReviewReason && payout && !refund.payoutAppliedAt) {
         const claimed = await tx.refundTransaction.updateMany({
           where: { id: refund.id, payoutAppliedAt: null },
           data: { payoutAppliedAt: new Date() },
@@ -333,7 +353,11 @@ export function createQuantityRefundService({
         include: { items: true, payment: true },
       })
     })
-    if (result.payment?.method === 'card' && result.status !== 'completed') {
+    if (
+      !params.manualReviewReason &&
+      result.payment?.method === 'card' &&
+      result.status !== 'completed'
+    ) {
       void enqueueRefundProcessing(result.id).catch((error) =>
         console.error('[quantity-refund] Otomatik iade kuyruğa eklenemedi:', error),
       )

@@ -17,7 +17,7 @@ import { addBusinessDays } from '../domain/business-days'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
 import { createOrderDocumentService } from './order-document.service'
 import { postPaymentConfirmedSellerAccruals } from './seller-payment-accrual.service'
-import { createQuantityRefundService } from './quantity-refund.service'
+import { createRefundService } from './refund.service'
 import { formatMoney } from '@hanuja/security/money'
 import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
@@ -139,7 +139,7 @@ interface PaymentServiceDeps {
 export function createPaymentService({ prisma }: PaymentServiceDeps) {
   const payments = createPaymentRepository(prisma)
   const orders = createOrderRepository(prisma)
-  const quantityRefunds = createQuantityRefundService({ prisma })
+  const legacyRefunds = createRefundService({ prisma })
   const auditLog = createAdminAuditLogRepository(prisma)
 
   async function stampFulfillmentDueDates(tx: PrismaClient, orderId: string, sourceAt: Date) {
@@ -572,42 +572,12 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         throw new ConflictError(`İade edilebilir onaylı ödeme yok: ${payment.status}`)
       }
 
-      const order = await prisma.order.findUniqueOrThrow({
-        where: { id: params.orderId },
-        include: { lines: { where: { sellerId: params.sellerId } } },
-      })
-      const grossProductAmount = order.lines.reduce(
-        (sum, line) => sum.add(line.totalPrice),
-        new Decimal(0),
-      )
-      const couponAdjustmentAmount = order.lines.reduce(
-        (sum, line) => sum.add(line.couponDiscountAmount),
-        new Decimal(0),
-      )
-      const sellerAdjustmentAmount = order.lines.reduce(
-        (sum, line) => sum.add(line.netPayoutAmount),
-        new Decimal(0),
-      )
-      const commissionAdjustmentAmount = order.lines.reduce(
-        (sum, line) => sum.add(line.commissionAmount),
-        new Decimal(0),
-      )
-      return quantityRefunds.queue({
+      return legacyRefunds.queueLegacyRefund({
         orderId: params.orderId,
         sellerId: params.sellerId,
         sourceType: 'cancellation',
         sourceId: `legacy-order:${params.orderId}:${params.sellerId}`,
-        customerAmount: params.refundAmount,
-        grossProductAmount,
-        couponAdjustmentAmount,
-        sellerAdjustmentAmount,
-        commissionAdjustmentAmount,
-        platformFundedAmount: Decimal.max(
-          new Decimal(0),
-          params.refundAmount
-            .sub(sellerAdjustmentAmount)
-            .sub(commissionAdjustmentAmount),
-        ),
+        requestedCustomerAmount: params.refundAmount,
       })
     },
 

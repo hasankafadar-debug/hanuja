@@ -294,6 +294,22 @@ tolerans yoktur. Bkz. `.claude/rules/12-production-readiness.md` §12,
 
 ## 12. Admin İade Ödeme Takibi — Ortak Sorgu Altyapısı
 
+### Eski sipariş iade koruması (Faz 6, 2026-09-15)
+
+`quantityLifecycleVersion = 1` siparişlerde tam iade tutarları güncel komisyon
+ayarlarından hesaplanmaz. Sistem tek doğrulanmış ödeme ile sipariş toplamını ve
+ürün satırlarındaki brüt, satıcı kuponu, tarihî komisyon ve net hakediş
+snapshot'larını doğrular. Müşteri iadesi doğrulanmış ödemenin kalanını aşamaz;
+satıcı düzeltmesi ve komisyon/kupon ters kayıtları kendi alanlarında tutulur.
+
+Birden çok satıcı/ödeme, önceki iadenin ürünlere dağıtılamaması, kısmi tutarın
+kalemlere bağlanamaması veya finans snapshot'larının uyuşmaması halinde kayıt
+`manual_required` olur ve gerekçe `failureReason` alanında saklanır. Bu kayıt için
+otomatik sağlayıcı çağrısı, satıcı ledger hareketi veya hakediş değişikliği
+üretilmez. Snapshot mutabakatı tamamlanmadan EFT manuel tamamlama işlemi de
+engellenir. Geçmiş Mosaiss kayıtları bu koruma kapsamında topluca değiştirilmez
+veya silinmez.
+
 `api/services/admin-refund-query.service.ts` yalnızca mevcut `RefundTransaction`
 kayıtlarını okur. Destek başvurusu veya henüz değerlendirilmekte olan iade talebi,
 tek başına ödeme bekleyen iade değildir. 14 gün sonrası destek/resim/belge süreci

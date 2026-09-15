@@ -1,9 +1,11 @@
 import { Decimal } from '@prisma/client/runtime/client'
+import { LEGACY_FINANCIAL_REVIEW_PREFIX } from './legacy-refund-allocation'
 
 interface ManualEftRefund {
   orderId: string
   status: string
   customerAmount: Decimal
+  failureReason?: string | null
   payment: {
     orderId: string
     method: string
@@ -24,6 +26,9 @@ export function getManualEftRefundCompletion(refund: ManualEftRefund) {
   const blocked = (blockedReason: string) => ({ outstandingAmount, blockedReason })
 
   if (refund.status !== 'manual_required') return blocked('Bu iade manuel ödeme onayı beklemiyor.')
+  if (refund.failureReason?.startsWith(LEGACY_FINANCIAL_REVIEW_PREFIX)) {
+    return blocked(refund.failureReason)
+  }
   if (!refund.payment) return blocked('Ödeme kaydı bulunamadı. Önce ödeme kaydı doğrulanmalıdır.')
   if (refund.payment.method !== 'eft' || refund.payment.provider !== 'manual_eft') {
     return blocked(

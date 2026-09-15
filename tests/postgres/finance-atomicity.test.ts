@@ -19,6 +19,7 @@ import { createPayoutRepository } from '../../api/repositories/payout.repository
 import { createReadyPayoutBatch } from '../../api/services/payout-batch.service'
 import { createSellerLedgerRepository } from '../../api/repositories/seller-ledger.repository'
 import { outstandingPayoutDebts } from '../../api/services/payout-debt.service'
+import { createRefundService } from '../../api/services/refund.service'
 
 vi.mock('../../api/jobs/notification-dispatch.job', () => ({ enqueueNotification: vi.fn(async () => undefined) }))
 
@@ -917,6 +918,87 @@ describe('phase 2 full exempt return', () => {
     expect(refund.sellerAdjustmentAmount.toFixed(2)).toBe('1000.00')
     expect(refund.commissionAdjustmentAmount.toFixed(2)).toBe('0.00')
     expect(await prisma.refundTransaction.count({ where: { orderId: f.orderId } })).toBe(1)
+  })
+})
+
+describe('phase 6 legacy refund safeguards', () => {
+  it('caps a full customer refund to the confirmed payment and reverses stored finance components', async () => {
+    const f = await fixture()
+    await prisma.order.update({
+      where: { id: f.orderId },
+      data: { quantityLifecycleVersion: 1, totalAmount: '950.00' },
+    })
+    await prisma.payment.updateMany({
+      where: { orderId: f.orderId },
+      data: { amount: '950.00' },
+    })
+    await prisma.orderLine.update({
+      where: { id: f.lineIds[0] },
+      data: {
+        couponDiscountAmount: '100.00',
+        commissionAmount: '162.00',
+        netPayoutAmount: '738.00',
+      },
+    })
+    const [payout] = await hold(f.orderId)
+
+    const refund = await createRefundService({ prisma }).queueLegacyRefund({
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: 'return_request',
+      sourceId: randomUUID(),
+      requestedCustomerAmount: new Decimal('1000.00'),
+    })
+
+    expect(refund.customerAmount.toFixed(2)).toBe('950.00')
+    expect(refund.grossProductAmount.toFixed(2)).toBe('1000.00')
+    expect(refund.couponAdjustmentAmount.toFixed(2)).toBe('100.00')
+    expect(refund.commissionAdjustmentAmount.toFixed(2)).toBe('162.00')
+    expect(refund.sellerAdjustmentAmount.toFixed(2)).toBe('738.00')
+    expect(refund.status).toBe('manual_required')
+
+    const adjustedPayout = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
+    expect(adjustedPayout.netAmount.toFixed(2)).toBe('0.00')
+    expect(adjustedPayout.commissionAmount.toFixed(2)).toBe('0.00')
+    expect(adjustedPayout.couponShareAmount.toFixed(2)).toBe('0.00')
+    expect(adjustedPayout.refundAmount.toFixed(2)).toBe('1000.00')
+  })
+
+  it('creates review evidence but no ledger or payout mutation for an inconsistent snapshot', async () => {
+    const f = await fixture()
+    await prisma.order.update({
+      where: { id: f.orderId },
+      data: { quantityLifecycleVersion: 1 },
+    })
+    await prisma.orderLine.update({
+      where: { id: f.lineIds[0] },
+      data: { netPayoutAmount: '999.00' },
+    })
+    const [payout] = await hold(f.orderId)
+    const beforeLedger = await prisma.sellerLedgerEntry.count({
+      where: { sellerId: f.sellerIds[0]! },
+    })
+    const beforePayout = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
+
+    const refund = await createRefundService({ prisma }).queueLegacyRefund({
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: 'return_request',
+      sourceId: randomUUID(),
+      requestedCustomerAmount: new Decimal('1000.00'),
+    })
+
+    expect(refund.status).toBe('manual_required')
+    expect(refund.failureReason).toContain('net hakediş snapshot')
+    expect(refund.grossProductAmount.toFixed(2)).toBe('0.00')
+    expect(refund.sellerAdjustmentAmount.toFixed(2)).toBe('0.00')
+    expect(refund.ledgerAppliedAt).toBeNull()
+    expect(refund.payoutAppliedAt).toBeNull()
+    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0]! } })).toBe(
+      beforeLedger,
+    )
+    const afterPayout = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
+    expect(afterPayout.updatedAt).toEqual(beforePayout.updatedAt)
   })
 })
 

@@ -14,6 +14,8 @@ import type { PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { createReturnRequestRepository } from '../repositories/return-request.repository'
 import { createQuantityRefundService } from './quantity-refund.service'
+import { allocateLegacyFullRefund } from '../domain/legacy-refund-allocation'
+import { ConflictError } from '../lib/errors'
 
 interface RefundServiceDeps {
   prisma: PrismaClient
@@ -22,6 +24,85 @@ interface RefundServiceDeps {
 export function createRefundService({ prisma }: RefundServiceDeps) {
   const returnRequests = createReturnRequestRepository(prisma)
   const quantityRefunds = createQuantityRefundService({ prisma })
+
+  async function queueLegacyRefund(params: {
+    orderId: string
+    sellerId: string
+    sourceType: 'cancellation' | 'return_request' | 'dispute'
+    sourceId: string
+    requestedCustomerAmount: Decimal
+  }) {
+    const existing = await prisma.refundTransaction.findUnique({
+      where: {
+        sourceType_sourceId: {
+          sourceType: params.sourceType,
+          sourceId: params.sourceId,
+        },
+      },
+      include: { items: true, payment: true },
+    })
+    if (existing) return existing
+
+    const order = await prisma.order.findUniqueOrThrow({
+      where: { id: params.orderId },
+      select: {
+        quantityLifecycleVersion: true,
+        grossAmount: true,
+        totalAmount: true,
+        lines: {
+          select: {
+            sellerId: true,
+            quantity: true,
+            totalPrice: true,
+            couponDiscountAmount: true,
+            commissionAmount: true,
+            netPayoutAmount: true,
+            commissionExemptedAt: true,
+          },
+        },
+        payments: {
+          where: { status: 'confirmed' },
+          select: { id: true, amount: true, refundedAmount: true },
+        },
+      },
+    })
+    if (order.quantityLifecycleVersion === 2) {
+      throw new ConflictError('Adet bazlı sipariş eski iade akışıyla işlenemez')
+    }
+
+    const paymentIds = order.payments.map((payment) => payment.id)
+    const otherRefunds = paymentIds.length
+      ? await prisma.refundTransaction.aggregate({
+          where: { paymentId: { in: paymentIds } },
+          _sum: { customerAmount: true },
+        })
+      : null
+    const allocation = allocateLegacyFullRefund({
+      sellerId: params.sellerId,
+      requestedCustomerAmount: params.requestedCustomerAmount,
+      orderGrossAmount: order.grossAmount,
+      orderTotalAmount: order.totalAmount,
+      lines: order.lines,
+      confirmedPayments: order.payments,
+      otherRefundAmount: otherRefunds?._sum.customerAmount ?? new Decimal(0),
+    })
+
+    return quantityRefunds.queue({
+      orderId: params.orderId,
+      sellerId: params.sellerId,
+      sourceType: params.sourceType,
+      sourceId: params.sourceId,
+      customerAmount: allocation.customerAmount,
+      grossProductAmount: allocation.grossProductAmount,
+      couponAdjustmentAmount: allocation.couponAdjustmentAmount,
+      sellerAdjustmentAmount: allocation.sellerAdjustmentAmount,
+      commissionAdjustmentAmount: allocation.commissionAdjustmentAmount,
+      platformFundedAmount: allocation.platformFundedAmount,
+      ...(allocation.manualReviewReason
+        ? { manualReviewReason: allocation.manualReviewReason }
+        : {}),
+    })
+  }
 
   return {
     /**
@@ -42,21 +123,18 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
         return fresh // already refunded — idempotent no-op
       }
 
-      // Legacy returns do not have a trustworthy order-line/provider-item
-      // allocation. Queue a manually resolvable refund and never substitute the
-      // top-level Iyzico payment id for a basket-item transaction id.
-      await quantityRefunds.queue({
+      // Resolve customer and seller amounts from immutable checkout snapshots.
+      // Incomplete historical data is recorded for review without money movement.
+      await queueLegacyRefund({
         orderId: params.orderId,
         sellerId: params.sellerId,
         sourceType: 'return_request',
         sourceId: params.returnRequestId,
-        customerAmount: params.refundAmount,
-        grossProductAmount: params.refundAmount,
-        sellerAdjustmentAmount: params.refundAmount,
-        platformFundedAmount: new Decimal(0),
+        requestedCustomerAmount: params.refundAmount,
       })
       return fresh
     },
+    queueLegacyRefund,
   }
 }
 

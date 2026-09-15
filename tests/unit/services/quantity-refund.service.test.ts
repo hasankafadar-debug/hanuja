@@ -212,6 +212,59 @@ describe('quantity refund accounting', () => {
     expect(refundEntries.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('-45.00')
   })
 
+  it('records a reasoned manual review without ledger, payout, or worker side effects', async () => {
+    const { prisma, ledgerEntries, payoutUpdate } = buildQueuePrisma('payout_ready')
+
+    const refund = await createQuantityRefundService({ prisma }).queue({
+      orderId: 'order-1',
+      sellerId: 'seller-1',
+      sourceType: 'return_request',
+      sourceId: 'legacy-return-1',
+      customerAmount: new Decimal('100.00'),
+      grossProductAmount: new Decimal(0),
+      couponAdjustmentAmount: new Decimal(0),
+      sellerAdjustmentAmount: new Decimal(0),
+      commissionAdjustmentAmount: new Decimal(0),
+      platformFundedAmount: new Decimal(0),
+      manualReviewReason: 'Eski sipariş finansal incelemesi: ürün snapshot’ı eksik',
+    })
+
+    expect(refund.status).toBe('manual_required')
+    expect(refund.failureReason).toContain('ürün snapshot’ı eksik')
+    expect(refund.items).toEqual([
+      expect.objectContaining({
+        status: 'manual_required',
+        failureReason: expect.stringContaining('ürün snapshot’ı eksik'),
+      }),
+    ])
+    expect(ledgerEntries).toHaveLength(0)
+    expect(payoutUpdate).not.toHaveBeenCalled()
+    expect(enqueueRefundProcessing).not.toHaveBeenCalled()
+  })
+
+  it('keeps a missing-payment review itemless and unresolved', async () => {
+    const { prisma, ledgerEntries, payoutUpdate } = buildQueuePrisma('payout_ready')
+    ;(prisma.payment.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+
+    const refund = await createQuantityRefundService({ prisma }).queue({
+      orderId: 'order-1',
+      sellerId: 'seller-1',
+      sourceType: 'return_request',
+      sourceId: 'legacy-return-missing-payment',
+      customerAmount: new Decimal(0),
+      grossProductAmount: new Decimal(0),
+      sellerAdjustmentAmount: new Decimal(0),
+      manualReviewReason: 'Eski sipariş finansal incelemesi: doğrulanmış ödeme eksik',
+    })
+
+    expect(refund.status).toBe('manual_required')
+    expect(refund.items).toEqual([])
+    expect(refund.completedAt).toBeNull()
+    expect(ledgerEntries).toHaveLength(0)
+    expect(payoutUpdate).not.toHaveBeenCalled()
+    expect(enqueueRefundProcessing).not.toHaveBeenCalled()
+  })
+
   it('reduces an unpaid payout without creating a negative payout amount', async () => {
     const { prisma, payoutUpdate } = buildQueuePrisma('payout_ready')
 
