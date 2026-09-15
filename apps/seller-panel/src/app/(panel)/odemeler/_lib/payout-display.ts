@@ -23,6 +23,7 @@ export interface PayoutStatusDisplay {
  * blocked reason görünür olmalı).
  */
 export function payoutStatusDisplay(status: string): PayoutStatusDisplay {
+  if (status === 'payout_offset') return { badgeStatus: 'payout_offset', label: 'Mahsupla kapandı' }
   if (status === 'payout_paid') return { badgeStatus: 'payout_paid', label: 'Tamamlandı' }
   if (status === 'payout_blocked') return { badgeStatus: 'payout_blocked', label: 'Bloke' }
   // hold_active, payout_ready, payout_scheduled → hepsi "Bekliyor" (warning)

@@ -307,7 +307,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
     const payoutAgg = await prisma.payout.groupBy({
       by: ['sellerId', 'status'],
       where: { sellerId: { in: sellerIds } },
-      _sum: { netAmount: true },
+      _sum: { netAmount: true, offsetAmount: true },
     })
 
     // Aggregate penalty deductions per seller
@@ -324,7 +324,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
     const bySellerStatus = new Map<string, Map<string, number>>()
     for (const p of payoutAgg) {
       if (!bySellerStatus.has(p.sellerId)) bySellerStatus.set(p.sellerId, new Map())
-      bySellerStatus.get(p.sellerId)!.set(p.status, Number(p._sum.netAmount ?? 0))
+      bySellerStatus.get(p.sellerId)!.set(p.status, Number(p._sum.netAmount ?? 0) - Number(p._sum.offsetAmount ?? 0))
     }
 
     const rows = pagedBalanceAgg.map((b) => {

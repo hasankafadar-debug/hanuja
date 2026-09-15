@@ -14,6 +14,8 @@ import { createQuantityReturnService } from '../../api/services/quantity-return.
 import { createDisputeService } from '../../api/services/dispute.service'
 import { createPayoutRepository } from '../../api/repositories/payout.repository'
 import { createReadyPayoutBatch } from '../../api/services/payout-batch.service'
+import { createSellerLedgerRepository } from '../../api/repositories/seller-ledger.repository'
+import { outstandingPayoutDebts } from '../../api/services/payout-debt.service'
 
 vi.mock('../../api/jobs/notification-dispatch.job', () => ({ enqueueNotification: vi.fn(async () => undefined) }))
 
@@ -101,6 +103,231 @@ async function readyFixture(sellerCount = 1) {
     transferDate: new Date('2026-09-14T12:00:00Z'), transferReference: randomUUID(),
   } }
 }
+
+describe('phase 4 source debt offsets', () => {
+  async function offsetFixture() {
+    const f = await fixture()
+    await prisma.orderLine.updateMany({ where: { orderId: f.orderId }, data: { commissionAmount: 0, netPayoutAmount: 1000 } })
+    const [payout] = await hold(f.orderId)
+    const service = createPayoutService({ prisma })
+    await service.reevaluate(payout!.id)
+    return { ...f, payoutId: payout!.id, service }
+  }
+  async function debt(f: Awaited<ReturnType<typeof offsetFixture>>, amount: number, effectiveAt = confirmedAt) {
+    return createSellerLedgerRepository(prisma).createEntry({ sellerId: f.sellerIds[0]!, type: 'penalty',
+      amount: new Decimal(-amount), referenceType: 'penalty', referenceId: randomUUID(), effectiveAt })
+  }
+  async function nextPayout(f: Awaited<ReturnType<typeof offsetFixture>>) {
+    const line = await prisma.orderLine.findUniqueOrThrow({ where: { id: f.lineIds[0] } })
+    const order = await prisma.order.create({ data: { customerId: f.adminId, status: 'delivery_confirmed',
+      grossAmount: 1000, totalAmount: 1000, deliveryConfirmedAt: confirmedAt, paymentConfirmedAt: confirmedAt,
+      lines: { create: { sellerId: f.sellerIds[0]!, productId: line.productId, productName: 'Next sale',
+        quantity: 1, unitPrice: 1000, totalPrice: 1000, commissionAmount: 0, netPayoutAmount: 1000 } } } })
+    const [payout] = await hold(order.id)
+    await f.service.reevaluate(payout!.id)
+    return payout!.id
+  }
+  async function close(f: Awaited<ReturnType<typeof offsetFixture>>, payoutId = f.payoutId) {
+    const context = await f.service.paymentContext(payoutId)
+    return f.service.markPaid({ payoutId, adminActorId: f.adminId, expectedSnapshot: context.snapshot,
+      transferDate: new Date(), settleWithoutTransfer: context.amount === '0.00' })
+  }
+  it('deducts 300 from 1000 once without writing another debt movement', async () => {
+    const f = await offsetFixture()
+    const source = await debt(f, 300)
+    const before = await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })
+    const context = await f.service.paymentContext(f.payoutId)
+    expect(context).toMatchObject({ amount: '700.00', offsetAmount: '300.00', remainingDebt: '0.00' })
+    const params = { payoutId: f.payoutId, adminActorId: f.adminId, expectedSnapshot: context.snapshot, transferDate: new Date() }
+    await f.service.markPaid(params)
+    await f.service.markPaid(params)
+    expect(await prisma.payoutDebtOffset.count({ where: { ledgerEntryId: source.id } })).toBe(1)
+    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })).toBe(before + 1)
+    const payment = await prisma.sellerLedgerEntry.findFirstOrThrow({ where: { referenceId: f.payoutId, type: 'payout' } })
+    expect(payment.amount.toFixed(2)).toBe('-700.00')
+    expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
+  })
+  it('closes 1000 against 1200 debt without a transfer and carries 200 to the next payout', async () => {
+    const f = await offsetFixture()
+    await debt(f, 1200)
+    const closed = await close(f)
+    expect(closed.status).toBe('payout_offset')
+    expect(closed.paidAt).toBeNull()
+    expect(closed.transferDate).toBeNull()
+    expect(closed.ibanSnapshot).toBeNull()
+    expect(closed.offsetAmount.toFixed(2)).toBe('1000.00')
+    expect(await prisma.sellerLedgerEntry.count({ where: { referenceId: f.payoutId, type: 'payout' } })).toBe(0)
+    await f.service.markPaid({ payoutId: f.payoutId, adminActorId: f.adminId, transferDate: new Date(), settleWithoutTransfer: true })
+    expect(await prisma.payoutDebtOffset.count({ where: { payoutId: f.payoutId } })).toBe(1)
+    const next = await nextPayout(f)
+    expect(await f.service.paymentContext(next)).toMatchObject({ offsetAmount: '200.00', amount: '800.00' })
+    await close(f, next)
+    expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
+    expect((await f.service.reevaluate(f.payoutId)).payout.status).toBe('payout_offset')
+  })
+  it('uses oldest debts first and ignores an unmatured sale credit', async () => {
+    const f = await offsetFixture()
+    const old = await debt(f, 800, new Date('2025-01-01'))
+    const recent = await debt(f, 500, new Date('2025-02-01'))
+    await createSellerLedgerRepository(prisma).createEntry({ sellerId: f.sellerIds[0]!, type: 'sale',
+      amount: new Decimal(10000), referenceType: 'order', referenceId: randomUUID() })
+    await close(f)
+    const offsets = await prisma.payoutDebtOffset.findMany({ where: { payoutId: f.payoutId } })
+    expect(offsets.find(o => o.ledgerEntryId === old.id)?.amount.toFixed(2)).toBe('800.00')
+    expect(offsets.find(o => o.ledgerEntryId === recent.id)?.amount.toFixed(2)).toBe('200.00')
+    expect((await outstandingPayoutDebts(prisma, f.sellerIds[0]!))[0]?.remaining.toFixed(2)).toBe('300.00')
+  })
+  it('rejects stale debt information and rolls allocations back on audit failure', async () => {
+    const f = await offsetFixture()
+    const stale = await f.service.paymentContext(f.payoutId)
+    await debt(f, 300)
+    await expect(f.service.markPaid({ payoutId: f.payoutId, adminActorId: f.adminId,
+      transferDate: new Date(), expectedSnapshot: stale.snapshot })).rejects.toMatchObject({ code: 'PAYOUT_SNAPSHOT_CHANGED' })
+    const fresh = await f.service.paymentContext(f.payoutId)
+    const failing = prisma.$extends({ query: { adminAuditLog: { async create() { throw new Error('audit failed') } } } }) as unknown as PrismaClient
+    await expect(createPayoutService({ prisma: failing }).markPaid({ payoutId: f.payoutId, adminActorId: f.adminId,
+      transferDate: new Date(), expectedSnapshot: fresh.snapshot })).rejects.toThrow('audit failed')
+    expect(await prisma.payoutDebtOffset.count({ where: { payoutId: f.payoutId } })).toBe(0)
+    expect((await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })).status).toBe('payout_ready')
+  })
+  it('serializes two payouts so one debt cannot be consumed twice', async () => {
+    const f = await offsetFixture()
+    const source = await debt(f, 300)
+    const next = await nextPayout(f)
+    const contexts = await Promise.all([f.service.paymentContext(f.payoutId), f.service.paymentContext(next)])
+    const results = await Promise.allSettled([f.payoutId, next].map((id, index) => f.service.markPaid({ payoutId: id,
+      adminActorId: f.adminId, transferDate: new Date(), expectedSnapshot: contexts[index]!.snapshot })))
+    expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1)
+    expect(await prisma.payoutDebtOffset.count({ where: { ledgerEntryId: source.id } })).toBe(1)
+    const pending = await prisma.payout.findFirstOrThrow({ where: { sellerId: f.sellerIds[0], status: 'payout_ready' } })
+    expect((await f.service.paymentContext(pending.id)).amount).toBe('1000.00')
+    await close(f, pending.id)
+  })
+  it('collects only the net seller liability of a post-payment refund', async () => {
+    const f = await readyFixture()
+    await close(f)
+    await createQuantityRefundService({ prisma }).queue({ orderId: f.orderId, sellerId: f.sellerIds[0]!,
+      sourceType: 'cancellation', sourceId: randomUUID(), customerAmount: new Decimal(100),
+      grossProductAmount: new Decimal(100), sellerAdjustmentAmount: new Decimal(82), commissionAdjustmentAmount: new Decimal(18),
+      items: [{ orderLineId: f.lineIds[0]!, quantity: 1, amount: new Decimal(100) }] })
+    const next = await nextPayout(f)
+    expect(await f.service.paymentContext(next)).toMatchObject({ offsetAmount: '82.00', amount: '918.00' })
+    await close(f, next)
+    expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
+  })
+  it('keeps mandatory holds and manual blocks even when debt covers the entire payout', async () => {
+    const f = await offsetFixture()
+    await debt(f, 1200)
+    await f.service.block({ payoutId: f.payoutId, adminActorId: f.adminId, reason: 'Manual risk review' })
+    await expect(close(f)).rejects.toThrow()
+    await prisma.order.update({ where: { id: f.orderId }, data: { deliveryConfirmedAt: new Date() } })
+    await f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true, reason: 'Manual review done' })
+    await expect(close(f)).rejects.toThrow()
+    expect(await prisma.payoutDebtOffset.count({ where: { payoutId: f.payoutId } })).toBe(0)
+  })
+  it('requires the correct transfer or no-transfer action', async () => {
+    const f = await offsetFixture()
+    const positive = await f.service.paymentContext(f.payoutId)
+    await expect(f.service.markPaid({ payoutId: f.payoutId, adminActorId: f.adminId, transferDate: new Date(),
+      expectedSnapshot: positive.snapshot, settleWithoutTransfer: true })).rejects.toThrow('pozitif')
+    await debt(f, 1200)
+    const zeroContext = await f.service.paymentContext(f.payoutId)
+    await expect(f.service.markPaid({ payoutId: f.payoutId, adminActorId: f.adminId, transferDate: new Date(),
+      expectedSnapshot: zeroContext.snapshot })).rejects.toThrow('Sıfır')
+    expect(await prisma.payoutDebtOffset.count({ where: { payoutId: f.payoutId } })).toBe(0)
+  })
+  it('uses valid manual debt and its credit in kuruş, without including another seller or future entries', async () => {
+    const f = await offsetFixture()
+    const ledger = createSellerLedgerRepository(prisma)
+    const referenceId = randomUUID()
+    await ledger.createEntry({ sellerId: f.sellerIds[0]!, type: 'manual_adjustment', amount: new Decimal('-300.03'),
+      createdBy: f.adminId, referenceType: 'manual', referenceId })
+    await ledger.createEntry({ sellerId: f.sellerIds[0]!, type: 'manual_adjustment', amount: new Decimal('0.02'),
+      createdBy: f.adminId, referenceType: 'manual', referenceId })
+    await ledger.createEntry({ sellerId: f.sellerIds[0]!, type: 'manual_adjustment', amount: new Decimal(-500),
+      referenceType: 'manual', referenceId: randomUUID() })
+    await debt(f, 999, new Date('2099-01-01'))
+    const other = await offsetFixture()
+    await debt(other, 500)
+    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({ offsetAmount: '300.01', amount: '699.99' })
+    await close(f)
+    expect((await f.service.paymentContext(f.payoutId)).amount).toBe('699.99')
+  })
+  it('treats a refund after offset closure as new debt without reopening the closed payout', async () => {
+    const f = await offsetFixture()
+    await debt(f, 1000)
+    await close(f)
+    await createQuantityRefundService({ prisma }).queue({ orderId: f.orderId, sellerId: f.sellerIds[0]!,
+      sourceType: 'return_request', sourceId: randomUUID(), customerAmount: new Decimal(100),
+      grossProductAmount: new Decimal(100), sellerAdjustmentAmount: new Decimal(100),
+      items: [{ orderLineId: f.lineIds[0]!, quantity: 1, amount: new Decimal(100) }] })
+    const closed = await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })
+    expect(closed.status).toBe('payout_offset')
+    expect(closed.netAmount.toFixed(2)).toBe('1000.00')
+    expect(closed.offsetAmount.toFixed(2)).toBe('1000.00')
+    const next = await nextPayout(f)
+    expect(await f.service.paymentContext(next)).toMatchObject({ offsetAmount: '100.00', amount: '900.00' })
+  })
+  it('keeps batch forecast and completed transfer total consistent', async () => {
+    const f = await offsetFixture()
+    await debt(f, 300)
+    await createReadyPayoutBatch(prisma)
+    const payout = await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })
+    const before = await prisma.payoutBatch.findUniqueOrThrow({ where: { id: payout.batchId! } })
+    await close(f)
+    const after = await prisma.payoutBatch.findUniqueOrThrow({ where: { id: payout.batchId! } })
+    expect(after.totalAmount.toFixed(2)).toBe(before.totalAmount.toFixed(2))
+    expect(after.payoutCount).toBe(before.payoutCount)
+  })
+  it('does not collect an explicitly offset legacy penalty again', async () => {
+    const f = await offsetFixture()
+    const penalty = await prisma.penalty.create({ data: { sellerId: f.sellerIds[0]!, orderId: f.orderId,
+      reason: 'other', baseAmount: 1000, rate: '0.3', penaltyAmount: 300,
+      status: 'offset', offsetPayoutId: f.payoutId } })
+    await createSellerLedgerRepository(prisma).createEntry({ sellerId: f.sellerIds[0]!, type: 'penalty',
+      amount: new Decimal(-300), referenceType: 'penalty', referenceId: penalty.id })
+    expect((await f.service.paymentContext(f.payoutId)).amount).toBe('1000.00')
+  })
+  it('does not turn a pre-settlement refund into debt after that payout closes', async () => {
+    const f = await offsetFixture()
+    const refund = await createQuantityRefundService({ prisma }).queue({ orderId: f.orderId, sellerId: f.sellerIds[0]!,
+      sourceType: 'return_request', sourceId: randomUUID(), customerAmount: new Decimal(100),
+      grossProductAmount: new Decimal(100), sellerAdjustmentAmount: new Decimal(100),
+      items: [{ orderLineId: f.lineIds[0]!, quantity: 1, amount: new Decimal(100) }] })
+    await prisma.refundTransaction.update({ where: { id: refund.id }, data: { status: 'completed' } })
+    await f.service.reevaluate(f.payoutId)
+    expect((await f.service.paymentContext(f.payoutId)).amount).toBe('900.00')
+    await close(f)
+    const next = await nextPayout(f)
+    expect(await f.service.paymentContext(next)).toMatchObject({ offsetAmount: '0.00', amount: '1000.00' })
+  })
+  it('retains source credits when a group contains already collected debt movements', async () => {
+    const f = await offsetFixture()
+    const ledger = createSellerLedgerRepository(prisma)
+    const referenceId = randomUUID()
+    for (const amount of [800, 500]) await ledger.createEntry({ sellerId: f.sellerIds[0]!,
+      type: 'manual_adjustment', amount: new Decimal(-amount), createdBy: f.adminId, referenceType: 'manual', referenceId })
+    await close(f)
+    await ledger.createEntry({ sellerId: f.sellerIds[0]!, type: 'manual_adjustment', amount: new Decimal(200),
+      createdBy: f.adminId, referenceType: 'manual', referenceId })
+    const next = await nextPayout(f)
+    expect(await f.service.paymentContext(next)).toMatchObject({ offsetAmount: '100.00', amount: '900.00' })
+    await close(f, next)
+    expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
+  })
+  it('refreshes another batch when the shared seller debt was collected in the first', async () => {
+    const f = await offsetFixture()
+    await debt(f, 300)
+    await createReadyPayoutBatch(prisma)
+    const next = await nextPayout(f)
+    await createReadyPayoutBatch(prisma)
+    const pending = await prisma.payout.findUniqueOrThrow({ where: { id: next } })
+    const before = await prisma.payoutBatch.findUniqueOrThrow({ where: { id: pending.batchId! } })
+    await close(f)
+    const after = await prisma.payoutBatch.findUniqueOrThrow({ where: { id: pending.batchId! } })
+    expect(after.totalAmount.toFixed(2)).toBe(before.totalAmount.add(300).toFixed(2))
+  })
+})
 
 describe('phase 3 payout eligibility', () => {
   it('automatically recovers a bank block after verification', async () => {

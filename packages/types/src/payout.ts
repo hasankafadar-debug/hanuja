@@ -4,6 +4,7 @@ export type PayoutStatus =
   | 'payout_ready'
   | 'payout_scheduled'
   | 'payout_paid'
+  | 'payout_offset'
 
 export type SellerLedgerEntryType =
   | 'sale'
@@ -25,6 +26,8 @@ export type Payout = {
   sellerId: string
   orderId: string
   netAmount: number
+  offsetAmount: number
+  settledAt: Date | null
   status: PayoutStatus
   holdUntil: Date | null
   paidAt: Date | null

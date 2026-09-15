@@ -32,6 +32,10 @@ type PaymentContext = {
   amount: string
   currency: string
   snapshot: string
+  grossAmount: string
+  netAmount: string
+  offsetAmount: string
+  remainingDebt: string
   bank: { iban: string; accountHolder: string; bankName: string } | null
 }
 
@@ -71,7 +75,7 @@ export function ReleasePayoutButton({
 
   async function handleRelease() {
     if (!context?.ready || !context.bank) return
-    if (!transferDate) {
+    if (context.amount !== '0.00' && !transferDate) {
       setError('Transfer date is required.')
       return
     }
@@ -85,10 +89,12 @@ export function ReleasePayoutButton({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           expectedSnapshot: context.snapshot,
+          ...(context.amount === '0.00' ? { settleWithoutTransfer: true } : {
           transferDate: new Date(`${transferDate}T12:00:00.000Z`).toISOString(),
           transferReference: transferReference.trim() || undefined,
           transferBankName: transferBankName.trim() || undefined,
           transferNote: transferNote.trim() || undefined,
+          }),
         }),
       })
 
@@ -123,18 +129,26 @@ export function ReleasePayoutButton({
         <DialogHeader>
           <DialogTitle>Satıcı ödemesini kaydet</DialogTitle>
           <DialogDescription>
-            Güncel tutarı ve banka hesabını kontrol ederek yaptığınız transferi kaydedin.
+            {context?.amount === '0.00' ? 'Hakedişin tamamı borca mahsup edilecek. Banka transferi kaydedilmez.'
+              : 'Güncel mahsup, transfer tutarı ve banka hesabını kontrol ederek yaptığınız transferi kaydedin.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          {context && <div className="rounded border p-3 text-sm space-y-1">
+            <p>Brüt hakediş: {context.grossAmount} {context.currency}</p>
+            <p>Kesintiler sonrası hakediş: {context.netAmount} {context.currency}</p>
+            <p>Borç mahsubu: {context.offsetAmount} {context.currency}</p>
+            <p>Bankadan gönderilecek: {context.amount} {context.currency}</p>
+            <p>Mahsup sonrası kalan borç: {context.remainingDebt} {context.currency}</p>
+          </div>}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="payout-order-number">Order</Label>
               <Input id="payout-order-number" value={orderNumber} readOnly />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="payout-net-amount">Net amount</Label>
+              <Label htmlFor="payout-net-amount">Banka transfer tutarı</Label>
               <Input id="payout-net-amount" value={context ? `${context.amount} ${context.currency}` : netAmount} readOnly />
             </div>
             <div className="space-y-1.5">
@@ -147,6 +161,7 @@ export function ReleasePayoutButton({
             </div>
           </div>
 
+          {context?.amount !== '0.00' && <>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="transfer-date">Transfer date</Label>
@@ -184,6 +199,7 @@ export function ReleasePayoutButton({
               onChange={(event) => setTransferNote(event.target.value)}
             />
           </div>
+          </>}
 
           {error ? (
             <p role="alert" className="text-sm" style={{ color: 'var(--color-destructive)' }}>
@@ -197,7 +213,7 @@ export function ReleasePayoutButton({
             Cancel
           </Button>
           <Button onClick={() => void handleRelease()} disabled={loading || !context?.ready}>
-            {loading ? 'Kontrol ediliyor...' : 'Ödemeyi kaydet'}
+            {loading ? 'Kontrol ediliyor...' : context?.amount === '0.00' ? 'Transfer yapmadan mahsupla kapat' : 'Ödemeyi kaydet'}
           </Button>
         </DialogFooter>
       </DialogContent>

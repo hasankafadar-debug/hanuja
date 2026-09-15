@@ -293,7 +293,9 @@ test.describe('ödemeler — hold/ready/paid ayırımı', () => {
       await expect(page.getByRole('columnheader', { name: 'Sipariş No' })).toBeVisible()
       await expect(page.getByRole('columnheader', { name: /Bloke Süresi/i })).toBeVisible()
       await expect(page.getByRole('columnheader', { name: 'Ödeme Durumu' })).toBeVisible()
-      await expect(page.getByRole('columnheader', { name: /Satıcı Hakediş Tutarı/i })).toBeVisible()
+      await expect(page.getByRole('columnheader', { name: 'Net Hakediş', exact: true })).toBeVisible()
+      await expect(page.getByRole('columnheader', { name: 'Uygulanan Mahsup', exact: true })).toBeVisible()
+      await expect(page.getByRole('columnheader', { name: 'Banka Transferi', exact: true })).toBeVisible()
     }
   })
 

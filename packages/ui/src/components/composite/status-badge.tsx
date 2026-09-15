@@ -71,6 +71,7 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   payout_ready:                 { label: "Ödemeye Hazır",       variant: "success" },
   payout_scheduled:             { label: "Ödeme Planlandı",     variant: "info" },
   payout_paid:                  { label: "Ödendi",              variant: "success" },
+  payout_offset:                { label: "Mahsupla kapandı",    variant: "success" },
   penalty_applied:              { label: "Ceza Uygulandı",      variant: "destructive" },
   adjustment_applied:           { label: "Düzeltme Yapıldı",    variant: "secondary" },
 

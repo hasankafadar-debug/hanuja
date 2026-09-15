@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-09-14
+# Son güncelleme: 2026-09-15
 # Durum: taslak v1
 
 # Payout Lifecycle — Satıcı Ödeme Döngüsü
@@ -90,6 +90,7 @@ Bu süre toplu ödeme tarihiyle kısaltılamaz. Satıcı haftalık/aylık batch 
 | `payout_ready` | Tüm kontroller geçti; batch'e alınabilir |
 | `payout_scheduled` | Toplu ödeme batch'ine dahil edildi |
 | `payout_paid` | Banka transferi gerçekleşti |
+| `payout_offset` | Tamamı kaynak borçlara mahsup edildi; banka transferi yapılmadı |
 
 Bir payout `payout_blocked` durumuna düşerse `blockedReason` alanı doldurulur ve satıcı panelinde görünür hale gelir.
 
@@ -166,7 +167,9 @@ net_amount = gross_amount
            ± adjustment_amount   (admin manuel düzeltme)
 ```
 
-Negatif bakiye carryover varsa `adjustment_amount` alanı eksi değer alır.
+Faz 4 itibarıyla devreden kaynak borçlar `offsetAmount` ve `PayoutDebtOffset`
+üzerinden tahsil edilir. Banka transferi `netAmount - offsetAmount` olur;
+aynı borç `adjustmentAmount` alanına yeniden kesinti olarak yazılmaz.
 
 Hiçbir kalem "genel kesinti" başlığı altında gizlenemez. Her satır `SellerLedgerEntry`'de ayrı bir kayıt olarak tutulur.
 
@@ -270,6 +273,52 @@ Satıcı tek bir cüzdan bakiyesi değil, aşamalı ayrıştırılmış görün�
 ---
 
 ## 11. Negatif Bakiye Yönetimi
+
+### Faz 4: kaynak hareket bazlı mahsup (2026-09-15)
+
+Mahsup cüzdan bakiyesinden hesaplanmaz. Kaynaklar, negatif ceza hareketleri,
+aktörü belli negatif manuel düzeltmeler ve kapanmış hakedişten **sonra** oluşan
+iadelerin net satıcı payıdır. İade öncesi hakediş kesintisi ikinci kez tahsil
+edilmez; brüt iade yerine `RefundTransaction.sellerAdjustmentAmount` kullanılır.
+Aynı kaynağa bağlı geçerli pozitif manuel düzeltmeler borcu azaltır. Gelecek
+tarihli hareketler ve vadesi gelmemiş satış alacakları borcu kapatmaz.
+
+`PayoutDebtOffset` her tahsilatı orijinal `SellerLedgerEntry` ve `Payout` ile
+eşleştirir. Kalan borç, kaynak tutarından düzeltmeler ve önceki mahsuplar çıkarılarak
+bulunur. Açıkça `Penalty.status = offset` olarak kaydedilmiş eski tahsilatlar
+yeniden alınmaz. Geçmiş deneme verilerinin doğruluğunu onarma bu faza dahil değildir.
+
+Ödeme penceresi güncel borçları en eski `effectiveAt`, sonra `createdAt` ve ID
+sırasıyla okur; mahsup ve transferi gösterir. Önizleme borcu tahsil etmez veya
+rezervasyon oluşturmaz. Kaydetme sırasında satıcı finans kilidi altında bütün
+koşullar ve borç snapshot'ı tekrar kontrol edilir. Borç değişmişse ekran 409 ile
+güncellenir; eski tutarla kayıt yapılamaz.
+
+`netAmount` satış kesintileri sonrası, borç mahsubu öncesi tutardır.
+`offsetAmount` uygulanan borç mahsubudur. Banka transferi bunların farkıdır.
+Mahsup bağlantıları, kapanış, yalnız gerçek transfer kadar ödeme ledger hareketi
+ve denetim kaydı tek transaction'da yazılır. Mahsup için ikinci kesinti hareketi
+yazılmaz. Aynı kapanışın tekrarı yeni tahsilat oluşturmaz.
+
+Tamamı borca giden hakediş `settleWithoutTransfer: true` ile açıkça kapatılır:
+durum `payout_offset`, kapanış `settledAt`, transfer alanları ve `paidAt` boş kalır.
+Bu işlem 30 günlük beklemeyi, manuel blokeyi veya diğer ödeme koşullarını aşmaz.
+Sonradan gelen iadeler kapanmış hakedişi değiştirmez; sonraki ödemeye borç olur.
+
+Örnekler: 1.000 TL hakediş / 300 TL borç → 300 TL mahsup + 700 TL transfer.
+1.000 TL hakediş / 1.200 TL borç → 1.000 TL mahsup + 0 TL transfer + 200 TL devir.
+Batch tutarı açık üyeler için borç sonrası tahmindir; kaynak tahsilatı yalnız
+ödeme kaydında kesinleşir ve toplam yeniden hesaplanır.
+
+Migration: `20260915010000_payout_debt_offsets`. Dört servis manuel deploy modunda
+kalır. Önce worker migration'ı uygulayıp başlamalı; sonra admin, satıcı ve web
+sırayla deploy edilir. Yeni kapanış durumunu tanımayan eski worker/iade koduna
+geri dönmek, kapatılmış hakedişi yeniden değiştirebilir; kapanışlar başladıktan
+sonra geriye dönmek yerine düzeltme sürümü tercih edilir. Bağlantılar silinmez.
+
+Ceza tutarı değiştirme/muafiyet işlemlerinin kaynak bağlantılarını ve fazla
+tahsilat düzeltmesini yönetmesi Faz 5 kapsamındadır; bu faz mevcut hareketleri
+yeniden yazmaz veya geçmiş tutarları onarmaz.
 
 Negatif bakiye aşağıdaki durumlarda oluşur:
 

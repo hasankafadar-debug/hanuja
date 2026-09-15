@@ -16,8 +16,9 @@ import { createSellerLedgerRepository } from '../repositories/seller-ledger.repo
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { calculateHoldUntil, sumPayoutSnapshot } from '../domain/payout-calculator'
 import { lockPayoutEligibility, manualPayoutBlock, readPayoutEligibility } from './payout-eligibility'
-import { syncPayoutBatch } from '../lib/payout-batch-totals'
+import { syncPayoutBatch, syncSellerPayoutBatches } from '../lib/payout-batch-totals'
 import { assertRoleCan } from '../lib/authorize'
+import { isPayoutSettled, previewPayoutOffset, recordPayoutOffsets } from './payout-debt.service'
 
 interface PayoutServiceDeps {
   prisma: PrismaClient
@@ -39,7 +40,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
 
   async function refreshState(tx: Prisma.TransactionClient, payout: Payout) {
     const eligibility = await readPayoutEligibility(tx, payout)
-    if (payout.status === 'payout_paid') return { ...eligibility, payout }
+    if (isPayoutSettled(payout.status)) return { ...eligibility, payout }
     const status = eligibility.manualReason ? 'payout_blocked'
       : !eligibility.holdExpired ? 'hold_active'
       : eligibility.automaticReason ? 'payout_blocked' : 'payout_ready'
@@ -245,7 +246,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
                 referenceType: 'payout',
                 referenceId: payout.id,
                 description: 'Platform komisyonu (fatura kesilince satıcı ekstresinde görünür)',
-                visibleToSeller: payout.status === 'payout_paid',
+                visibleToSeller: isPayoutSettled(payout.status),
               })
             }
 
@@ -283,11 +284,14 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
     async paymentContext(payoutId: string) {
       return withLockedPayout(payoutId, async (tx, payout) => {
         const current = await readPayoutEligibility(tx, payout)
+        const offset = await previewPayoutOffset(tx, payout, current.snapshot)
         return {
           ready: current.ready && payout.status === 'payout_ready',
           reason: current.reason || (payout.status !== 'payout_ready' ? 'Ödeme uygunluğunu yeniden değerlendirin' : null),
           manualReason: current.manualReason, automaticReason: current.automaticReason,
-          amount: current.amount, currency: current.currency, snapshot: current.snapshot,
+          amount: offset.transferAmount.toFixed(2), currency: current.currency, snapshot: offset.snapshot,
+          grossAmount: payout.grossAmount.toFixed(2), netAmount: current.amount,
+          offsetAmount: offset.offsetAmount.toFixed(2), remainingDebt: offset.remainingDebt.toFixed(2),
           bank: current.bank ? {
             id: current.bank.id, iban: current.bank.iban,
             accountHolder: current.bank.accountHolder, bankName: current.bank.bankName,
@@ -326,7 +330,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
     async block(params: { payoutId: string; adminActorId: string; reason: string }) {
       if (params.reason.trim().length < 5) throw new ValidationError('Bloke gerekçesi en az 5 karakter olmalı')
       return withLockedPayout(params.payoutId, async (tx, payout) => {
-        if (payout.status === 'payout_paid') throw new ConflictError('Ödenmiş hakediş bloke edilemez')
+        if (isPayoutSettled(payout.status)) throw new ConflictError('Kapanmış hakediş bloke edilemez')
         const updated = await tx.payout.update({ where: { id: payout.id }, data: {
           status: 'payout_blocked', blockedReason: params.reason.trim(),
           manualBlockedAt: new Date(), manualBlockedBy: params.adminActorId,
@@ -352,6 +356,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
       transferBankName?: string
       transferNote?: string
       expectedSnapshot?: string
+      settleWithoutTransfer?: boolean
     }) {
       const owner = await prisma.payout.findUnique({
         where: { id: params.payoutId },
@@ -367,7 +372,12 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
           await tx.$queryRaw(Prisma.sql`SELECT id FROM payouts WHERE id = ${params.payoutId} FOR UPDATE`)
           const payout = await payouts.findById(params.payoutId)
           if (!payout) throw new NotFoundError('Payout', params.payoutId)
+          if (payout.status === 'payout_offset') {
+            if (params.settleWithoutTransfer) return payout
+            throw new ConflictError('Hakediş banka transferi olmadan mahsupla kapatılmış')
+          }
           if (payout.status === 'payout_paid') {
+            if (params.settleWithoutTransfer) throw new ConflictError('Hakediş banka transferiyle zaten ödenmiş')
             const sameTransfer =
               payout.transferDate?.getTime() === params.transferDate.getTime() &&
               (payout.transferReference ?? '') === (params.transferReference ?? '') &&
@@ -386,19 +396,33 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
           const eligibility = await readPayoutEligibility(tx, payout)
           if (!eligibility.ready) throw new PayoutBlockedError(eligibility.reason || 'Ödeme uygun değil')
           const activeBankDetail = eligibility.bank!
-          if (!params.expectedSnapshot || params.expectedSnapshot !== eligibility.snapshot) {
-            throw new DomainError('Tutar veya banka bilgisi değişti. Güncel bilgileri kontrol ederek yeniden onaylayın.',
+          const offset = await previewPayoutOffset(tx, payout, eligibility.snapshot)
+          if (!params.expectedSnapshot || params.expectedSnapshot !== offset.snapshot) {
+            throw new DomainError('Borç, tutar veya banka bilgisi değişti. Güncel bilgileri kontrol ederek yeniden onaylayın.',
               'PAYOUT_SNAPSHOT_CHANGED', 409, { current: {
-                amount: eligibility.amount, currency: eligibility.currency, snapshot: eligibility.snapshot,
+                amount: offset.transferAmount.toFixed(2), currency: eligibility.currency, snapshot: offset.snapshot,
+                grossAmount: payout.grossAmount.toFixed(2), netAmount: eligibility.amount,
+                offsetAmount: offset.offsetAmount.toFixed(2), remainingDebt: offset.remainingDebt.toFixed(2),
                 bank: { id: activeBankDetail.id, iban: activeBankDetail.iban,
                   accountHolder: activeBankDetail.accountHolder, bankName: activeBankDetail.bankName },
               } })
+          }
+          if (offset.transferAmount.isZero() !== Boolean(params.settleWithoutTransfer)) {
+            throw new ValidationError('Sıfır transfer için mahsupla kapatma, pozitif tutar için ödeme kaydı seçilmeli')
           }
           if (params.batchId !== undefined && params.batchId !== payout.batchId) {
             throw new ConflictError('Hakedişin ödeme partisi değişti')
           }
 
-          const updated = await payouts.markPaidWithTransfer(params.payoutId, {
+          await recordPayoutOffsets(tx, payout.id, offset.allocations)
+          await tx.payout.update({ where: { id: payout.id }, data: {
+            offsetAmount: offset.offsetAmount, settledAt: new Date(),
+          } })
+          const updated = params.settleWithoutTransfer
+            ? await tx.payout.update({ where: { id: payout.id }, data: {
+                status: 'payout_offset', paidByAdminId: params.adminActorId,
+              } })
+            : await payouts.markPaidWithTransfer(params.payoutId, {
             transferDate: params.transferDate,
             paidByAdminId: params.adminActorId,
             ...(params.batchId !== undefined ? { batchId: params.batchId } : {}),
@@ -431,10 +455,10 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
             const referenceSuffix = params.transferReference?.trim()
               ? ` (Ref: ${params.transferReference.trim()})`
               : ''
-            await ledger.createEntry({
+            if (offset.transferAmount.gt(0)) await ledger.createEntry({
               sellerId: payout.sellerId,
               type: 'payout',
-              amount: payout.netAmount.negated(),
+              amount: offset.transferAmount.negated(),
               eventKey: `payout:paid:${payout.id}`,
               effectiveAt: params.transferDate,
               referenceType: 'payout',
@@ -488,8 +512,10 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
             targetType: 'payout',
             targetId: params.payoutId,
             newData: {
-              paidAt: new Date(),
-              transferDate: params.transferDate.toISOString(),
+              status: updated.status,
+              offsetAmount: offset.offsetAmount.toFixed(2),
+              transferAmount: offset.transferAmount.toFixed(2),
+              ...(params.settleWithoutTransfer ? {} : { paidAt: new Date(), transferDate: params.transferDate.toISOString() }),
               ...(params.transferReference !== undefined
                 ? { transferReference: params.transferReference }
                 : {}),
@@ -507,7 +533,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
             },
           })
 
-          await syncPayoutBatch(tx, payout.batchId)
+          await syncSellerPayoutBatches(tx, payout.sellerId)
           return updated
         },
         { timeout: 30_000 },

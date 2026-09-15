@@ -27,6 +27,7 @@ export function createPayoutRepository(prisma: PrismaClient | Prisma.Transaction
       return prisma.payout.findFirst({
         where: { id, sellerId },
         include: {
+          debtOffsets: { include: { ledgerEntry: { select: { type: true, description: true, effectiveAt: true } } } },
           order: {
             select: {
               id: true,
@@ -276,7 +277,7 @@ export function createPayoutRepository(prisma: PrismaClient | Prisma.Transaction
       const grouped = await prisma.payout.groupBy({
         by: ['status'],
         where: { sellerId },
-        _sum: { netAmount: true },
+        _sum: { netAmount: true, offsetAmount: true },
       })
       return grouped
     },

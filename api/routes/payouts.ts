@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { ok, handleError } from '../lib/response'
 import { createPayoutService } from '../services/payout.service'
 import { createPrismaForRoute } from '../lib/prisma'
+import { ValidationError } from '../lib/errors'
 
 function getPayoutService() {
   return createPayoutService({ prisma: createPrismaForRoute() })
@@ -89,13 +90,18 @@ export async function releasePayout(
       batchId: z.string().trim().optional(),
       expectedSnapshot: z.string().regex(/^[a-f0-9]{64}$/).optional(),
       clearManualBlock: z.boolean().optional(),
+      settleWithoutTransfer: z.boolean().optional(),
     }).parse(body)
 
-    const result = parsed.transferDate
+    if (parsed.settleWithoutTransfer && (parsed.transferDate || parsed.transferReference || parsed.transferBankName)) {
+      throw new ValidationError('Mahsupla kapatma isteği banka transferi bilgisi içeremez')
+    }
+    const result = parsed.transferDate || parsed.settleWithoutTransfer
       ? await svc.markPaid({
           payoutId,
           adminActorId,
-          transferDate: new Date(parsed.transferDate),
+          transferDate: parsed.transferDate ? new Date(parsed.transferDate) : new Date(),
+          ...(parsed.settleWithoutTransfer ? { settleWithoutTransfer: true } : {}),
           ...(parsed.expectedSnapshot ? { expectedSnapshot: parsed.expectedSnapshot } : {}),
           ...(parsed.batchId !== undefined ? { batchId: parsed.batchId } : {}),
           ...(parsed.transferReference !== undefined ? { transferReference: parsed.transferReference } : {}),

@@ -50,6 +50,7 @@ export default async function PayoutDetailPage({ params }: Props) {
   const refund = toNum(payout.refundAmount)
   const adjustment = toNum(payout.adjustmentAmount)
   const net = toNum(payout.netAmount)
+  const offset = toNum(payout.offsetAmount)
 
   const isPaid = payout.status === 'payout_paid'
   const isBlocked = payout.status === 'payout_blocked'
@@ -171,11 +172,18 @@ export default async function PayoutDetailPage({ params }: Props) {
             className="mt-3 flex items-center justify-between border-t pt-3 text-base font-semibold"
             style={{ borderColor: 'var(--color-border)' }}
           >
-            <dt style={{ color: 'var(--color-primary)' }}>Net Hakediş</dt>
+            <dt style={{ color: 'var(--color-primary)' }}>Mahsup Öncesi Net Hakediş</dt>
             <dd style={{ color: net < 0 ? 'var(--color-destructive)' : 'var(--color-primary)' }}>
               {formatMoney(net)}
             </dd>
           </div>
+          <BreakdownRow label="Uygulanan borç mahsubu" value={formatMoney(offset)} />
+          <BreakdownRow label="Banka transferi" value={['payout_paid', 'payout_offset'].includes(payout.status)
+            ? formatMoney(net - offset) : 'Ödeme kaydında hesaplanır'} />
+          {payout.status === 'payout_offset' && <BreakdownRow label="Mahsupla kapanış" value={formatTrDate(payout.settledAt)} />}
+          {payout.debtOffsets.map(item => <BreakdownRow key={item.id}
+            label={`${formatTrDate(item.ledgerEntry.effectiveAt)} — ${item.ledgerEntry.description ?? item.ledgerEntry.type}`}
+            value={formatMoney(toNum(item.amount))} />)}
         </dl>
       </section>
 

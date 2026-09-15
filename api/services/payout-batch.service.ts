@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { PrismaClient } from '@prisma/client'
-import { Decimal } from '@prisma/client/runtime/client'
+import { projectedBatchTransfer } from './payout-debt.service'
 import { lockSellerFinance } from '../lib/seller-finance-lock'
 import { lockPayoutEligibility, readPayoutEligibility } from './payout-eligibility'
 
@@ -27,7 +27,7 @@ export async function createReadyPayoutBatch(prisma: PrismaClient, dryRun = fals
     if (dryRun || ready.length === 0) return { batchCreated: false, count: ready.length }
     const reference = `BATCH-${randomUUID()}`
     const batch = await tx.payoutBatch.create({ data: {
-      reference, totalAmount: ready.reduce((sum, p) => sum.add(p.netAmount), new Decimal(0)),
+      reference, totalAmount: await projectedBatchTransfer(tx, ready),
       sellerCount: new Set(ready.map((p) => p.sellerId)).size, payoutCount: ready.length,
     } })
     await tx.payout.updateMany({

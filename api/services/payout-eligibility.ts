@@ -1,6 +1,7 @@
 import { Prisma, type Payout } from '@prisma/client'
 import { calculateHoldUntil } from '../domain/payout-calculator'
 import { payoutPaymentSnapshot } from '../domain/payout-payment-snapshot'
+import { isPayoutSettled } from './payout-debt.service'
 
 export function manualPayoutBlock(payout: Payout) {
   // Also protect blocks written by an older worker during a rolling deployment.
@@ -76,8 +77,8 @@ export async function readPayoutEligibility(tx: Prisma.TransactionClient, payout
   const manualReason = manualPayoutBlock(payout)
   const automaticReason = reasons.join('; ') || null
   return {
-    ready: payout.status !== 'payout_paid' && !manualReason && !automaticReason,
-    reason: payout.status === 'payout_paid' ? 'already_paid' : manualReason || automaticReason,
+    ready: !isPayoutSettled(payout.status) && !manualReason && !automaticReason,
+    reason: isPayoutSettled(payout.status) ? 'already_settled' : manualReason || automaticReason,
     manualReason, automaticReason, holdExpired, bank,
     snapshot: payoutPaymentSnapshot(payout, bank),
     amount: payout.netAmount.toFixed(2), currency: payout.currency,

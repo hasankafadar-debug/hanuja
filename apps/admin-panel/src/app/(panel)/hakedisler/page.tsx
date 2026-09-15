@@ -21,6 +21,7 @@ const STATUS_OPTIONS = [
   { value: 'hold_active', label: 'Hold aktif' },
   { value: 'payout_blocked', label: 'Bloklu' },
   { value: 'payout_paid', label: 'Odenenler' },
+  { value: 'payout_offset', label: 'Mahsupla kapananlar' },
 ]
 
 const TAB_CONFIG = [
@@ -28,6 +29,7 @@ const TAB_CONFIG = [
   { key: 'hold_active', label: 'Hold Aktif' },
   { key: 'payout_blocked', label: 'Bloklu' },
   { key: 'payout_paid', label: 'Odenenler' },
+  { key: 'payout_offset', label: 'Mahsupla kapananlar' },
 ] as const
 
 type PayoutRow = {
@@ -36,6 +38,8 @@ type PayoutRow = {
   sellerId: string
   status: string
   netAmount: { toNumber(): number } | number
+  grossAmount: { toNumber(): number } | number
+  offsetAmount: { toNumber(): number } | number
   blockedReason: string | null
   manualBlockedAt: Date | null
   manualBlockedReason: string | null
@@ -101,7 +105,7 @@ export default async function PayoutsAdminPage({
       prisma.payout.aggregate({ where: { status: 'payout_ready' }, _sum: { netAmount: true } }),
       prisma.payout.aggregate({ where: { status: 'hold_active' }, _sum: { netAmount: true } }),
       prisma.payout.aggregate({ where: { status: 'payout_blocked' }, _sum: { netAmount: true } }),
-      prisma.payout.aggregate({ where: { status: 'payout_paid' }, _sum: { netAmount: true } }),
+      prisma.payout.aggregate({ where: { status: 'payout_paid' }, _sum: { netAmount: true, offsetAmount: true } }),
       prisma.payout.count({ where: { status: selectedStatus as never, ...buildDateRange(params) } }),
     ]),
   ])
@@ -132,7 +136,7 @@ export default async function PayoutsAdminPage({
         />
         <StatCard
           title="Odenenler"
-          value={formatAmount(Number(paidAgg._sum.netAmount ?? 0))}
+          value={formatAmount(Number(paidAgg._sum.netAmount ?? 0) - Number(paidAgg._sum.offsetAmount ?? 0))}
           icon={<Wallet className="h-5 w-5" />}
         />
       </div>
@@ -184,7 +188,7 @@ export default async function PayoutsAdminPage({
           <table className="w-full text-sm whitespace-nowrap">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Satici', 'Siparis No', 'Siparis Tarihi', 'Sevk Tarihi', 'Siparis Tutari', 'Net Tutar', 'Teslim Onayi', 'Blok Sebebi', 'Durum', ''].map((heading) => (
+                {['Satici', 'Siparis No', 'Siparis Tarihi', 'Sevk Tarihi', 'Brüt Hakediş', 'Kesintiler', 'Net Hakediş', 'Uygulanan Mahsup', 'Banka Transferi', 'Teslim Onayi', 'Blok Sebebi', 'Durum', ''].map((heading) => (
                   <th
                     key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
@@ -198,11 +202,9 @@ export default async function PayoutsAdminPage({
             <tbody>
               {rows.map((payout) => {
                 const netAmount = typeof payout.netAmount === 'number' ? payout.netAmount : payout.netAmount.toNumber()
-                const grossAmount = payout.order
-                  ? (typeof payout.order.totalAmount === 'number'
-                    ? payout.order.totalAmount
-                    : payout.order.totalAmount.toNumber())
-                  : 0
+                const grossAmount = Number(payout.grossAmount)
+                const offsetAmount = Number(payout.offsetAmount)
+                const settled = ['payout_paid', 'payout_offset'].includes(payout.status)
                 const storeName = payout.seller?.profile?.storeName ?? payout.seller?.displayName ?? payout.sellerId.slice(0, 8)
                 const bankDetail = payout.seller?.bankDetails[0] ?? null
                 const orderLabel = payout.order
@@ -242,9 +244,12 @@ export default async function PayoutsAdminPage({
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
                       {formatAmount(grossAmount)}
                     </td>
+                    <td className="px-4 py-3">{formatAmount(grossAmount - netAmount)}</td>
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
                       {formatAmount(netAmount)}
                     </td>
+                    <td className="px-4 py-3">{formatAmount(offsetAmount)}</td>
+                    <td className="px-4 py-3">{settled ? formatAmount(netAmount - offsetAmount) : 'Ödeme kaydında hesaplanır'}</td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
                       {formatDate(payout.order?.deliveryConfirmedAt)}
                     </td>

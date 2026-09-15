@@ -4,7 +4,7 @@ import { Button, PageHeader, StatCard, StatusBadge } from '@hanuja/ui'
 import { CheckCircle, Clock, Download, Lock, Wallet } from 'lucide-react'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createPayoutRepository } from '@hanuja/api/repositories/payout.repository'
-import { createSellerLedgerRepository } from '@hanuja/api/repositories/seller-ledger.repository'
+import { outstandingPayoutDebts } from '@hanuja/api/services/payout-debt.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { formatMoney } from '@hanuja/security'
@@ -18,11 +18,10 @@ export default async function PayoutsPage() {
   const { seller } = await getSellerFromSession({ allowSuspended: true })
   const prisma = createPrismaForRoute()
   const payoutRepo = createPayoutRepository(prisma)
-  const sellerLedgerRepo = createSellerLedgerRepository(prisma)
-  const [payouts, summary, penaltyDeductedDecimal] = await Promise.all([
+  const [payouts, summary, debts] = await Promise.all([
     payoutRepo.listBySeller({ sellerId: seller.id, skip: 0, take: 50 }),
     payoutRepo.getSummaryBySeller(seller.id),
-    sellerLedgerRepo.getPenaltyDeducted(seller.id),
+    outstandingPayoutDebts(prisma, seller.id),
   ])
 
   type PayoutRow = {
@@ -32,12 +31,13 @@ export default async function PayoutsPage() {
     grossAmount: { toNumber(): number } | number
     commissionAmount: { toNumber(): number } | number
     netAmount: { toNumber(): number } | number
+    offsetAmount: { toNumber(): number } | number
     status: string
     holdStartedAt: Date | null
     holdUntil: Date | null
   }
 
-  type SummaryRow = { status: string; _sum: { netAmount: unknown } }
+  type SummaryRow = { status: string; _sum: { netAmount: unknown; offsetAmount: unknown } }
 
   const rows = payouts as unknown as PayoutRow[]
   const summaryRows = summary as unknown as SummaryRow[]
@@ -58,13 +58,13 @@ export default async function PayoutsPage() {
     .reduce((sum, item) => sum + toNum(item._sum.netAmount), 0)
   const paidAmount = summaryRows
     .filter((item) => item.status === 'payout_paid')
-    .reduce((sum, item) => sum + toNum(item._sum.netAmount), 0)
+    .reduce((sum, item) => sum + toNum(item._sum.netAmount) - toNum(item._sum.offsetAmount), 0)
   const blockedAmount = summaryRows
     .filter((item) => item.status === 'payout_blocked')
     .reduce((sum, item) => sum + toNum(item._sum.netAmount), 0)
-  const penaltyDeducted = toNum(penaltyDeductedDecimal)
+  const remainingDebt = debts.reduce((sum, debt) => sum + debt.remaining.toNumber(), 0)
 
-  const availableBalance = readyAmount - blockedAmount - penaltyDeducted
+  const availableBalance = Math.max(0, readyAmount - remainingDebt)
 
   return (
     <div className="space-y-8" data-testid="seller-payouts-page">
@@ -86,7 +86,7 @@ export default async function PayoutsPage() {
         <StatCard title="Ödeme Hazır" value={formatMoney(readyAmount)} icon={<CheckCircle className="h-5 w-5" />} />
         <StatCard title="Toplam Ödendi" value={formatMoney(paidAmount)} icon={<Wallet className="h-5 w-5" />} />
         <StatCard
-          title="Kullanılabilir Bakiye"
+          title="Mahsup Sonrası Tahmini Ödeme"
           value={formatMoney(availableBalance)}
           icon={<Lock className="h-5 w-5" />}
         />
@@ -118,8 +118,8 @@ export default async function PayoutsPage() {
           <span style={{ color: 'var(--color-primary)' }}>-{formatMoney(blockedAmount)}</span>
         </div>
         <div className="mt-2 flex items-center justify-between">
-          <span style={{ color: 'var(--color-muted-fg)' }}>Cezalar</span>
-          <span style={{ color: 'var(--color-destructive)' }}>-{formatMoney(penaltyDeducted)}</span>
+          <span style={{ color: 'var(--color-muted-fg)' }}>Tahsil edilmemiş borç (ceza, iade, düzeltme)</span>
+          <span style={{ color: 'var(--color-destructive)' }}>{formatMoney(remainingDebt)}</span>
         </div>
       </div>
 
@@ -139,7 +139,7 @@ export default async function PayoutsPage() {
             <table className="w-full whitespace-nowrap text-sm">
               <thead style={{ backgroundColor: 'var(--color-muted)' }}>
                 <tr>
-                  {['Tarih', 'Sipariş No', 'Bloke Süresi (gün)', 'Ödeme Durumu', 'Satıcı Hakediş Tutarı', ''].map(
+                  {['Tarih', 'Sipariş No', 'Bloke Süresi (gün)', 'Ödeme Durumu', 'Brüt Hakediş', 'Kesintiler', 'Net Hakediş', 'Uygulanan Mahsup', 'Banka Transferi', ''].map(
                     (header) => (
                       <th
                         key={header || 'detay'}
@@ -178,8 +178,13 @@ export default async function PayoutsPage() {
                         className="px-4 py-3 font-medium"
                         style={{ color: net < 0 ? 'var(--color-destructive)' : 'var(--color-primary)' }}
                       >
-                        {formatMoney(net)}
+                        {formatMoney(toNum(payout.grossAmount))}
                       </td>
+                      <td className="px-4 py-3">{formatMoney(toNum(payout.grossAmount) - net)}</td>
+                      <td className="px-4 py-3">{formatMoney(net)}</td>
+                      <td className="px-4 py-3">{formatMoney(toNum(payout.offsetAmount))}</td>
+                      <td className="px-4 py-3">{['payout_paid', 'payout_offset'].includes(payout.status)
+                        ? formatMoney(net - toNum(payout.offsetAmount)) : 'Ödeme kaydında hesaplanır'}</td>
                       <td className="px-4 py-3 text-right">
                         <Button asChild size="sm" variant="outline">
                           <Link href={`/odemeler/${payout.id}`}>Detay</Link>

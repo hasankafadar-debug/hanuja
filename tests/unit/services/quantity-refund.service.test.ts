@@ -114,7 +114,7 @@ function buildQueuePrisma(payoutStatus?: 'payout_ready' | 'payout_paid') {
       }),
     },
     paymentProviderItem: { findMany: vi.fn(async () => [providerItem]) },
-    payout: { findFirst: vi.fn(async () => payout), update: payoutUpdate },
+    payout: { findFirst: vi.fn(async () => payout), findMany: vi.fn(async () => []), update: payoutUpdate },
     sellerLedgerEntry: {
       findUnique: vi.fn(async ({ where }: { where: { eventKey: string } }) =>
         ledgerEntries.find((entry) => entry.eventKey === where.eventKey) ?? null,

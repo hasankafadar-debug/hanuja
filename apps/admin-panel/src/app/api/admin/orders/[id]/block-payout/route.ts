@@ -34,7 +34,7 @@ export async function POST(
     if (!orderPayouts.length) throw new NotFoundError('Payout', orderId)
     const service = createPayoutService({ prisma })
     for (const payout of orderPayouts) {
-      if (payout.status !== 'payout_paid') {
+      if (!['payout_paid', 'payout_offset'].includes(payout.status)) {
         await service.block({ payoutId: payout.id, adminActorId: session.user.id, reason })
       }
     }
