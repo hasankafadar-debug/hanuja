@@ -5,13 +5,14 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
-import { ForbiddenError, UnauthorizedError, ValidationError } from '@hanuja/api/lib/errors'
+import { ForbiddenError, UnauthorizedError } from '@hanuja/api/lib/errors'
+import { createPenaltyService } from '@hanuja/api/services/penalty.service'
 import { handleError, ok } from '@hanuja/api/lib/response'
 
 const updatePenaltySchema = z
   .object({
     amount: z.union([z.string(), z.number()]).optional(),
-    reason: z.string().trim().min(3).max(5000).optional(),
+    reason: z.string().trim().min(3).max(5000),
   })
   .refine((data) => data.amount !== undefined || data.reason !== undefined, {
     message: 'En az bir alan guncellenmeli.',
@@ -30,57 +31,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const body = updatePenaltySchema.parse(await req.json())
     const prisma = createPrismaForRoute()
 
-    const current = await prisma.penalty.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        status: true,
-        reason: true,
-        baseAmount: true,
-        rate: true,
-        penaltyAmount: true,
-      },
-    })
-
-    if (!current) {
-      throw new ValidationError('Ceza bulunamadi.')
-    }
-    if (current.status === 'waived') {
-      throw new ValidationError('Muaf tutulmus cezalar duzenlenemez.')
-    }
-
-    const nextPenaltyAmount =
-      body.amount !== undefined ? new Decimal(body.amount) : current.penaltyAmount
-    if (nextPenaltyAmount.lessThanOrEqualTo(0)) {
-      throw new ValidationError('Ceza tutari sifirdan buyuk olmalidir.')
-    }
-
-    const nextRate = current.baseAmount.greaterThan(0)
-      ? nextPenaltyAmount.div(current.baseAmount).toDecimalPlaces(4)
-      : current.rate
-
-    const updated = await prisma.penalty.update({
-      where: { id },
-      data: {
-        penaltyAmount: nextPenaltyAmount,
-        rate: nextRate,
-        ...(body.reason !== undefined ? { reason: body.reason as typeof current.reason } : {}),
-      },
-    })
-
-    console.info('[admin][penalty.updated]', {
-      actorId: session.user.id,
+    const updated = await createPenaltyService({ prisma }).update({
       penaltyId: id,
-      previousValues: {
-        reason: current.reason,
-        rate: current.rate.toString(),
-        penaltyAmount: current.penaltyAmount.toString(),
-      },
-      newValues: {
-        reason: updated.reason,
-        rate: updated.rate.toString(),
-        penaltyAmount: updated.penaltyAmount.toString(),
-      },
+      adminActorId: session.user.id,
+      ...(body.amount !== undefined ? { amount: new Decimal(body.amount) } : {}),
+      reason: body.reason,
     })
 
     return ok({ penalty: updated })

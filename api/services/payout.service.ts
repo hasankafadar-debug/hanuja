@@ -237,6 +237,10 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
                 : null
             const missingCommission = payout.commissionAmount.plus(reversals?._sum.amount ?? zero)
             if (!commissionEntry && missingCommission.gt(0)) {
+              const issuedInvoice = await tx.sellerInvoice.findFirst({
+                where: { sellerId, sourceOrderId: params.orderId, type: 'commission' },
+                select: { id: true },
+              })
               await ledger.createEntry({
                 sellerId,
                 type: 'commission',
@@ -246,7 +250,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
                 referenceType: 'payout',
                 referenceId: payout.id,
                 description: 'Platform komisyonu (fatura kesilince satıcı ekstresinde görünür)',
-                visibleToSeller: isPayoutSettled(payout.status),
+                visibleToSeller: isPayoutSettled(payout.status) || Boolean(issuedInvoice),
               })
             }
 

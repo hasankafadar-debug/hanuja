@@ -2,6 +2,7 @@ import type { PrismaClient, SellerInvoiceType } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { roundMoney } from '@hanuja/security/money'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors'
+import { lockSellerFinance } from '../lib/seller-finance-lock'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 
 // Commission invoices carry 20% VAT; penalty invoices carry 0% VAT (default rates).
@@ -45,6 +46,9 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
       }
 
       const vatRate = params.vatRate ?? DEFAULT_VAT_RATE[params.type]
+      if (!vatRate.isFinite() || vatRate.lt(0) || vatRate.gt(1)) {
+        throw new ValidationError('Geçersiz KDV oranı.')
+      }
 
       // Resolve amounts: admin enters KDV-inclusive total, service derives net.
       let grossInvoiceAmount: Decimal
@@ -63,92 +67,118 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
         throw new ValidationError('Either grossInvoiceAmount or amount must be provided.')
       }
 
-      if (grossInvoiceAmount.lessThanOrEqualTo(0)) {
+      if (!grossInvoiceAmount.isFinite() || grossInvoiceAmount.decimalPlaces() > 2 || grossInvoiceAmount.lessThanOrEqualTo(0)) {
         throw new ValidationError('Invoice amount must be greater than zero.')
       }
 
-      const seller = await prisma.seller.findUnique({
-        where: { id: params.sellerId },
-        select: { id: true },
-      })
-      if (!seller) throw new NotFoundError('Seller', params.sellerId)
-
-      let orderPublicNumber: number | null = null
-      if (params.sourceOrderId) {
-        const order = await prisma.order.findUnique({
-          where: { id: params.sourceOrderId },
-          select: { id: true, publicNumber: true },
-        })
-        if (!order) throw new NotFoundError('Order', params.sourceOrderId)
-        orderPublicNumber = order.publicNumber
-      }
-
-      if (params.sourcePenaltyId) {
-        const penalty = await prisma.penalty.findUnique({
-          where: { id: params.sourcePenaltyId },
-          select: { id: true, status: true, orderId: true },
-        })
-        if (!penalty) throw new NotFoundError('Penalty', params.sourcePenaltyId)
-        if (penalty.status === 'waived') {
-          throw new ValidationError('Waived penalties cannot be invoiced.')
-        }
-        if (!orderPublicNumber && penalty.orderId) {
-          const order = await prisma.order.findUnique({
-            where: { id: penalty.orderId },
-            select: { publicNumber: true },
-          })
-          orderPublicNumber = order?.publicNumber ?? null
-        }
-      }
-
-      const duplicate = await prisma.sellerInvoice.findUnique({
-        where: { invoiceNumber },
-        select: { id: true },
-      })
-      if (duplicate) {
-        throw new ConflictError(`This invoice number is already in use: ${invoiceNumber}`)
-      }
-
-      const ledgerEntryType =
-        params.type === 'commission' ? 'commission_invoice_issued' : 'penalty_invoice_issued'
-
-      const orderLabel = orderPublicNumber !== null ? `#${orderPublicNumber}` : null
-      const typeLabel = params.type === 'commission' ? 'Komisyon' : 'Ceza'
-      const vatPctLabel = vatRate.mul(100).toDecimalPlaces(0).toString()
-      const vatLineDescription = orderLabel
-        ? `${typeLabel} faturası #${invoiceNumber} KDV (%${vatPctLabel}) — Sipariş ${orderLabel}`
-        : `${typeLabel} faturası #${invoiceNumber} KDV (%${vatPctLabel})`
-
-      // Resolve payout IDs that correspond to the source order so we can unhide
-      // commission accrual entries (which reference payoutId, not orderId).
-      let linkedPayoutIds: string[] = []
-      let alreadyAccruedCommissionAmount = new Decimal(0)
-      if (params.type === 'commission' && params.sourceOrderId) {
-        const payouts = await prisma.payout.findMany({
-          where: { orderId: params.sourceOrderId },
-          select: { id: true, commissionAmount: true },
-        })
-        linkedPayoutIds = payouts.map((p) => p.id)
-        // KDV çifte-ekleme kontrolü (07-marketplace-finance-rules.md — komisyon
-        // tabanı KDV dahil): commissionVatRate cutover'ından (2026-07-09) sonra
-        // oluşturulan siparişlerde Payout.commissionAmount / OrderLine.commissionAmount
-        // ARTIK KDV DAHİL — accrual anında (payout.service.activateHold) yazılan
-        // `commission` ledger entry zaten tam KDV'li tutarı içerir. Cutover
-        // öncesi (tarihi) siparişlerde ise bu tutar KDV'siz (net) idi ve KDV
-        // ayrıca bu fatura akışında eklenirdi. Aşağıdaki `alreadyAccruedCommissionAmount`
-        // her iki rejimde de doğru sonuç verir çünkü ledger'a yazılacak tutar
-        // grossInvoiceAmount'tan bu değer düşülerek (residual/top-up yöntemi)
-        // hesaplanır — accrual'da KDV dahil yazılmışsa top-up ~0'a yakın çıkar,
-        // KDV'siz yazılmışsa top-up tam KDV payını tamamlar. Böylece iki adımın
-        // (accrual + fatura) toplamı her zaman grossInvoiceAmount'a eşitlenir,
-        // KDV asla iki kez eklenmez.
-        alreadyAccruedCommissionAmount = payouts.reduce(
-          (sum, p) => sum.plus(p.commissionAmount),
-          new Decimal(0),
-        )
-      }
-
       return prisma.$transaction(async (tx) => {
+        await lockSellerFinance(tx, [params.sellerId])
+        const seller = await tx.seller.findUnique({
+          where: { id: params.sellerId },
+          select: { id: true },
+        })
+        if (!seller) throw new NotFoundError('Seller', params.sellerId)
+
+        let orderPublicNumber: number | null = null
+        if (params.sourceOrderId) {
+          const order = await tx.order.findUnique({
+            where: { id: params.sourceOrderId },
+            select: { id: true, publicNumber: true },
+          })
+          if (!order) throw new NotFoundError('Order', params.sourceOrderId)
+          orderPublicNumber = order.publicNumber
+        }
+
+        if (params.sourcePenaltyId) {
+          const penalty = await tx.penalty.findUnique({
+            where: { id: params.sourcePenaltyId },
+            select: { id: true, status: true, orderId: true, sellerId: true },
+          })
+          if (!penalty) throw new NotFoundError('Penalty', params.sourcePenaltyId)
+          if (penalty.sellerId !== params.sellerId || (params.sourceOrderId && penalty.orderId !== params.sourceOrderId)) {
+            throw new ValidationError('Ceza satıcı veya sipariş ile eşleşmiyor.')
+          }
+          if (penalty.status === 'waived') {
+            throw new ValidationError('Waived penalties cannot be invoiced.')
+          }
+          if (!orderPublicNumber && penalty.orderId) {
+            const order = await tx.order.findUnique({
+              where: { id: penalty.orderId },
+              select: { publicNumber: true },
+            })
+            orderPublicNumber = order?.publicNumber ?? null
+          }
+        }
+
+        const duplicate = await tx.sellerInvoice.findUnique({
+          where: { invoiceNumber },
+          select: { id: true },
+        })
+        if (duplicate) {
+          throw new ConflictError(`This invoice number is already in use: ${invoiceNumber}`)
+        }
+
+        const ledgerEntryType =
+          params.type === 'commission' ? 'commission_invoice_issued' : 'penalty_invoice_issued'
+
+        const orderLabel = orderPublicNumber !== null ? `#${orderPublicNumber}` : null
+        const typeLabel = params.type === 'commission' ? 'Komisyon' : 'Ceza'
+        const vatPctLabel = vatRate.mul(100).toDecimalPlaces(0).toString()
+        const vatLineDescription = orderLabel
+          ? `${typeLabel} faturası #${invoiceNumber} KDV (%${vatPctLabel}) — Sipariş ${orderLabel}`
+          : `${typeLabel} faturası #${invoiceNumber} KDV (%${vatPctLabel})`
+
+        // Resolve payout IDs that correspond to the source order so we can unhide
+        // commission accrual entries (which reference payoutId, not orderId).
+        let linkedPayoutIds: string[] = []
+        let alreadyAccruedCommissionAmount = new Decimal(0)
+        if (params.type === 'commission' && params.sourceOrderId) {
+          const payouts = await tx.payout.findMany({
+            where: { orderId: params.sourceOrderId, sellerId: params.sellerId },
+            select: { id: true, commissionAmount: true },
+          })
+          linkedPayoutIds = payouts.map((p) => p.id)
+          // Use the original debit, not the payout's refund-reduced commission.
+          // Otherwise issuing an invoice after a refund charges the refunded VAT again.
+          const accrued = await tx.sellerLedgerEntry.aggregate({
+            where: { sellerId: params.sellerId, type: 'commission', amount: { lt: 0 },
+              referenceType: 'payout', referenceId: { in: linkedPayoutIds } },
+            _sum: { amount: true },
+          })
+          alreadyAccruedCommissionAmount = (accrued._sum.amount ?? new Decimal(0)).negated()
+          const snapshot = await tx.orderLine.aggregate({
+            where: { orderId: params.sourceOrderId, sellerId: params.sellerId, commissionExemptedAt: null },
+            _sum: { commissionAmount: true },
+          })
+          alreadyAccruedCommissionAmount = Decimal.max(
+            alreadyAccruedCommissionAmount, snapshot._sum.commissionAmount ?? 0,
+          )
+
+        }
+
+        let lineCommission: Decimal | null = null
+        if (params.sourceOrderLineId) {
+          const line = await tx.orderLine.findUnique({ where: { id: params.sourceOrderLineId } })
+          if (!line || line.sellerId !== params.sellerId || line.orderId !== params.sourceOrderId) {
+            throw new ValidationError('Fatura satırı satıcı veya sipariş ile eşleşmiyor.')
+          }
+          if (line.commissionInvoiceId || line.commissionExemptedAt) {
+            throw new ConflictError('Satır zaten faturalandırılmış veya komisyondan muaf.')
+          }
+          lineCommission = line.commissionAmount
+        }
+        if (params.payoutId) {
+          const payout = await tx.payout.findUnique({ where: { id: params.payoutId } })
+          if (!payout || payout.sellerId !== params.sellerId || payout.orderId !== params.sourceOrderId) {
+            throw new ValidationError('Hakediş satıcı veya sipariş ile eşleşmiyor.')
+          }
+        }
+        if (params.type === 'commission' && params.sourceOrderId) {
+          const sellerLine = await tx.orderLine.findFirst({
+            where: { orderId: params.sourceOrderId, sellerId: params.sellerId }, select: { id: true },
+          })
+          if (!sellerLine) throw new ValidationError('Sipariş bu satıcıya ait ürün içermiyor.')
+        }
         const invoice = await tx.sellerInvoice.create({
           data: {
             sellerId: params.sellerId,
@@ -173,11 +203,15 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
         // debited at order / penalty time — invoice issuance only unhides those
         // entries. The VAT component is debited below as a separate ledger row.
         if (params.type === 'commission' && params.sourceOrderId) {
+          const refunds = await tx.refundTransaction.findMany({
+            where: { orderId: params.sourceOrderId, sellerId: params.sellerId }, select: { id: true },
+          })
           await tx.sellerLedgerEntry.updateMany({
             where: {
               sellerId: params.sellerId,
               visibleToSeller: false,
               OR: [
+                { type: 'commission' as const, referenceType: 'refund_transaction', referenceId: { in: refunds.map(r => r.id) } },
                 ...(linkedPayoutIds.length > 0
                   ? [{ type: 'commission' as const, referenceType: 'payout', referenceId: { in: linkedPayoutIds } }]
                   : []),
@@ -193,7 +227,7 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
             where: {
               sellerId: params.sellerId,
               visibleToSeller: false,
-              type: 'penalty',
+              type: { in: ['penalty', 'manual_adjustment'] },
               referenceType: 'penalty',
               referenceId: params.sourcePenaltyId,
             },
@@ -209,25 +243,38 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
           })
         }
 
-        // Ledger top-up entry — debits the seller for whatever portion of
-        // grossInvoiceAmount was NOT already debited at accrual time (residual
-        // / "top-up" method, not a blind vatAmount debit — see the KDV
-        // double-counting comment above `alreadyAccruedCommissionAmount`).
-        //
-        // - Commission invoices WITH a sourceOrderId: ledgerTopUp = grossInvoiceAmount
-        //   − alreadyAccruedCommissionAmount. Post-cutover orders already accrued
-        //   the full KDV-inclusive commission at payout.activateHold time, so this
-        //   is ~0 (no double VAT debit). Pre-cutover (historical) orders accrued
-        //   only the KDV-exclusive net, so this correctly resolves to the VAT
-        //   portion — unchanged behavior for historical records.
-        // - Commission invoices WITHOUT a sourceOrderId (ad-hoc) and all penalty
-        //   invoices: nothing was accrued elsewhere for this invoice, so the
-        //   pre-existing vatAmount-only debit is preserved (0 for penalties by
-        //   default, per DEFAULT_VAT_RATE).
-        const ledgerTopUpAmount =
-          params.type === 'commission' && params.sourceOrderId
-            ? roundMoney(grossInvoiceAmount.minus(alreadyAccruedCommissionAmount))
-            : vatAmount
+        // Invoices describe an existing commission, including its VAT. For a
+        // linked line use its own snapshot, never another line/seller's commission.
+        // Historical VAT top-ups are counted once across all invoices of the order.
+        let ledgerTopUpAmount = vatAmount
+        if (params.type === 'commission' && params.sourceOrderId) {
+          const previousInvoices = await tx.sellerInvoice.findMany({
+            where: { sellerId: params.sellerId, type: 'commission', sourceOrderId: params.sourceOrderId,
+              id: { not: invoice.id } }, select: { id: true, grossInvoiceAmount: true,
+                orderLines: { where: { sellerId: params.sellerId }, select: { commissionAmount: true } },
+              },
+          })
+          const previousTopUps = await tx.sellerLedgerEntry.aggregate({
+            where: { sellerId: params.sellerId, type: 'commission_invoice_issued',
+              referenceType: 'seller_invoice', referenceId: { in: previousInvoices.map(i => i.id) } },
+            _sum: { amount: true },
+          })
+          // Order-wide invoices and individual line invoices can overlap. Charge
+          // the larger required top-up, never their sum; subtract prior postings.
+          let lineTopUp = lineCommission !== null
+            ? Decimal.max(0, grossInvoiceAmount.minus(lineCommission)) : new Decimal(0)
+          let orderTopUp = lineCommission === null
+            ? Decimal.max(0, grossInvoiceAmount.minus(alreadyAccruedCommissionAmount)) : new Decimal(0)
+          for (const previous of previousInvoices) {
+            if (previous.orderLines.length) {
+              const base = previous.orderLines.reduce((sum, line) => sum.plus(line.commissionAmount), new Decimal(0))
+              lineTopUp = lineTopUp.plus(Decimal.max(0, previous.grossInvoiceAmount.minus(base)))
+            } else {
+              orderTopUp = Decimal.max(orderTopUp, previous.grossInvoiceAmount.minus(alreadyAccruedCommissionAmount))
+            }
+          }
+          ledgerTopUpAmount = roundMoney(Decimal.max(lineTopUp, orderTopUp).plus(previousTopUps._sum.amount ?? 0))
+        }
         const vatLedgerAmount = ledgerTopUpAmount.greaterThan(0)
           ? ledgerTopUpAmount.negated()
           : new Decimal(0)

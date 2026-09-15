@@ -6,6 +6,9 @@ import { readFileSync } from 'node:fs'
 import { PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { createPayoutService } from '../../api/services/payout.service'
+import { createPenaltyService } from '../../api/services/penalty.service'
+import { createSellerFinanceService } from '../../api/services/seller-finance.service'
+import { createSellerInvoiceService } from '../../api/services/seller-invoice.service'
 import { createQuantityRefundService } from '../../api/services/quantity-refund.service'
 import { createCommissionExemptionService } from '../../api/services/commission-exemption.service'
 import { allocateProductRefund } from '../../api/domain/quantity-allocation'
@@ -102,6 +105,43 @@ async function readyFixture(sellerCount = 1) {
     payoutId, adminActorId: f.adminId, expectedSnapshot: context.snapshot,
     transferDate: new Date('2026-09-14T12:00:00Z'), transferReference: randomUUID(),
   } }
+}
+
+async function phase5PayoutFixture() {
+  const f = await fixture()
+  await prisma.orderLine.updateMany({
+    where: { orderId: f.orderId },
+    data: { commissionAmount: 0, netPayoutAmount: 1000 },
+  })
+  const [payout] = await hold(f.orderId)
+  const service = createPayoutService({ prisma })
+  await service.reevaluate(payout!.id)
+  return { ...f, payoutId: payout!.id, service }
+}
+
+async function phase5PenaltyFixture(amount: number) {
+  const f = await phase5PayoutFixture()
+  const penalty = await prisma.penalty.create({
+    data: {
+      sellerId: f.sellerIds[0]!,
+      orderId: f.orderId,
+      reason: 'other',
+      baseAmount: 1000,
+      rate: new Decimal(amount).div(1000),
+      penaltyAmount: amount,
+    },
+  })
+  await createSellerLedgerRepository(prisma).createEntry({
+    sellerId: f.sellerIds[0]!,
+    type: 'penalty',
+    amount: new Decimal(amount).negated(),
+    orderId: f.orderId,
+    penaltyId: penalty.id,
+    referenceType: 'penalty',
+    referenceId: penalty.id,
+    visibleToSeller: true,
+  })
+  return { ...f, penalty }
 }
 
 describe('phase 4 source debt offsets', () => {
@@ -877,5 +917,466 @@ describe('phase 2 full exempt return', () => {
     expect(refund.sellerAdjustmentAmount.toFixed(2)).toBe('1000.00')
     expect(refund.commissionAdjustmentAmount.toFixed(2)).toBe('0.00')
     expect(await prisma.refundTransaction.count({ where: { orderId: f.orderId } })).toBe(1)
+  })
+})
+
+describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', () => {
+  it('reveals the original commission and refund reversal when the first invoice follows both hidden entries', async () => {
+    const f = await fixture()
+    const [payout] = await hold(f.orderId)
+    const hiddenBeforeRefund = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: f.sellerIds[0]!, type: 'commission', referenceType: 'payout', referenceId: payout!.id },
+    })
+    expect(hiddenBeforeRefund).toHaveLength(1)
+    expect(hiddenBeforeRefund[0]!.amount.toFixed(2)).toBe('-180.00')
+    expect(hiddenBeforeRefund[0]!.visibleToSeller).toBe(false)
+
+    const refund = await createQuantityRefundService({ prisma }).queue({
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: 'cancellation',
+      sourceId: randomUUID(),
+      customerAmount: new Decimal(500),
+      grossProductAmount: new Decimal(500),
+      sellerAdjustmentAmount: new Decimal(410),
+      commissionAdjustmentAmount: new Decimal(90),
+      items: [{ orderLineId: f.lineIds[0]!, quantity: 5, amount: new Decimal(500) }],
+    })
+    const hiddenAfterRefund = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: f.sellerIds[0]!, type: 'commission', referenceType: { in: ['payout', 'refund_transaction'] },
+        OR: [{ referenceId: payout!.id }, { referenceId: refund.id }] },
+    })
+    expect(hiddenAfterRefund).toHaveLength(2)
+    expect(hiddenAfterRefund.every((entry) => !entry.visibleToSeller)).toBe(true)
+
+    const invoice = await createSellerInvoiceService({ prisma }).create({
+      sellerId: f.sellerIds[0]!,
+      type: 'commission',
+      invoiceNumber: `PH5-HIDDEN-${randomUUID()}`,
+      invoiceDate: new Date('2026-01-02T00:00:00Z'),
+      grossInvoiceAmount: new Decimal(180),
+      sourceOrderId: f.orderId,
+      createdByAdminId: f.adminId,
+    })
+    expect(invoice.amount.toFixed(2)).toBe('150.00')
+    expect(invoice.vatAmount.toFixed(2)).toBe('30.00')
+
+    const commission = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: f.sellerIds[0]!, type: 'commission', referenceType: { in: ['payout', 'refund_transaction'] },
+        OR: [{ referenceId: payout!.id }, { referenceId: refund.id }] },
+    })
+    expect(commission).toHaveLength(2)
+    expect(commission.every((entry) => entry.visibleToSeller)).toBe(true)
+    expect(commission.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('-90.00')
+    const topUps = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: f.sellerIds[0]!, type: 'commission_invoice_issued', referenceId: invoice.id },
+    })
+    expect(topUps).toHaveLength(1)
+    expect(topUps[0]!.amount.toFixed(2)).toBe('0.00')
+  })
+
+  it('caps overlapping order and line invoices at one 30 TRY commission VAT top-up', async () => {
+    const f = await fixture()
+    const lineId = f.lineIds[0]!
+    await prisma.orderLine.update({
+      where: { id: lineId },
+      data: { commissionAmount: 150, netPayoutAmount: 850 },
+    })
+    const invoiceService = createSellerInvoiceService({ prisma })
+    const orderInvoice = await invoiceService.create({
+      sellerId: f.sellerIds[0]!,
+      type: 'commission',
+      invoiceNumber: `PH5-OVERLAP-ORDER-${randomUUID()}`,
+      invoiceDate: new Date('2026-01-03T00:00:00Z'),
+      grossInvoiceAmount: new Decimal(180),
+      sourceOrderId: f.orderId,
+      createdByAdminId: f.adminId,
+    })
+    expect(orderInvoice.amount.toFixed(2)).toBe('150.00')
+    const lineInvoice = await invoiceService.create({
+      sellerId: f.sellerIds[0]!,
+      type: 'commission',
+      invoiceNumber: `PH5-OVERLAP-LINE-${randomUUID()}`,
+      invoiceDate: new Date('2026-01-04T00:00:00Z'),
+      grossInvoiceAmount: new Decimal(180),
+      sourceOrderId: f.orderId,
+      sourceOrderLineId: lineId,
+      createdByAdminId: f.adminId,
+    })
+    expect(lineInvoice.amount.toFixed(2)).toBe('150.00')
+
+    const topUps = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: f.sellerIds[0]!, type: 'commission_invoice_issued',
+        referenceType: 'seller_invoice', referenceId: { in: [orderInvoice.id, lineInvoice.id] } },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(topUps).toHaveLength(2)
+    expect(topUps.map((entry) => entry.amount.toFixed(2))).toEqual(['-30.00', '0.00'])
+    expect(topUps.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('-30.00')
+    expect((await prisma.orderLine.findUniqueOrThrow({ where: { id: lineId } })).commissionInvoiceId).toBe(lineInvoice.id)
+  })
+
+  it('preserves partial and full payout debt offsets when a penalty is reduced or waived afterward', async () => {
+    const partial = await phase5PenaltyFixture(1200)
+    const service = createPenaltyService({ prisma })
+    const partialContext = await partial.service.paymentContext(partial.payoutId)
+    expect(partialContext).toMatchObject({ amount: '0.00', offsetAmount: '1000.00', remainingDebt: '200.00' })
+    await partial.service.markPaid({
+      payoutId: partial.payoutId,
+      adminActorId: partial.adminId,
+      expectedSnapshot: partialContext.snapshot,
+      transferDate: new Date('2026-01-05T00:00:00Z'),
+      settleWithoutTransfer: true,
+    })
+    const partialOffset = await prisma.payoutDebtOffset.findFirstOrThrow({ where: { payoutId: partial.payoutId } })
+    expect(partialOffset.amount.toFixed(2)).toBe('1000.00')
+
+    await service.update({
+      penaltyId: partial.penalty.id,
+      adminActorId: partial.adminId,
+      amount: new Decimal(100),
+      reason: 'Mahsupla sonrası kısmi ceza indirimi',
+    })
+    expect(await outstandingPayoutDebts(prisma, partial.sellerIds[0]!)).toEqual([])
+    const partialEntries = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: partial.sellerIds[0]!, referenceType: 'penalty', referenceId: partial.penalty.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(partialEntries.map((entry) => entry.amount.toFixed(2))).toEqual(['-1200.00', '1100.00'])
+    expect((await partial.service.paymentContext(partial.payoutId)).remainingDebt).toBe('0.00')
+
+    const full = await phase5PenaltyFixture(300)
+    const fullContext = await full.service.paymentContext(full.payoutId)
+    expect(fullContext).toMatchObject({ amount: '700.00', offsetAmount: '300.00', remainingDebt: '0.00' })
+    await full.service.markPaid({
+      payoutId: full.payoutId,
+      adminActorId: full.adminId,
+      expectedSnapshot: fullContext.snapshot,
+      transferDate: new Date('2026-01-06T00:00:00Z'),
+      transferReference: randomUUID(),
+    })
+    const fullOffset = await prisma.payoutDebtOffset.findFirstOrThrow({ where: { payoutId: full.payoutId } })
+    expect(fullOffset.amount.toFixed(2)).toBe('300.00')
+    await service.waive({
+      penaltyId: full.penalty.id,
+      adminActorId: full.adminId,
+      waiverReason: 'Mahsupla sonrası ceza tamamen kaldırıldı',
+    })
+    expect(await outstandingPayoutDebts(prisma, full.sellerIds[0]!)).toEqual([])
+    const fullEntries = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: full.sellerIds[0]!, referenceType: 'penalty', referenceId: full.penalty.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(fullEntries.map((entry) => entry.amount.toFixed(2))).toEqual(['-300.00', '300.00'])
+    expect((await prisma.penalty.findUniqueOrThrow({ where: { id: full.penalty.id } })).status).toBe('waived')
+  })
+
+  it('keeps seller-scoped commission, refund reversal, and invoice VAT visible once', async () => {
+    const f = await fixture(2)
+    await prisma.orderLine.update({
+      where: { id: f.lineIds[1]! },
+      data: { commissionAmount: 360, netPayoutAmount: 640 },
+    })
+
+    const invoiceService = createSellerInvoiceService({ prisma })
+    const first = await invoiceService.create({
+      sellerId: f.sellerIds[0]!,
+      type: 'commission',
+      invoiceNumber: `PH5-LINE-${randomUUID()}`,
+      invoiceDate: new Date('2026-01-02T00:00:00Z'),
+      grossInvoiceAmount: new Decimal(180),
+      sourceOrderId: f.orderId,
+      sourceOrderLineId: f.lineIds[0]!,
+      createdByAdminId: f.adminId,
+    })
+    expect(first.amount.toFixed(2)).toBe('150.00')
+    expect(first.vatAmount.toFixed(2)).toBe('30.00')
+
+    const payouts = await hold(f.orderId)
+    const ownPayout = payouts.find((payout) => payout.sellerId === f.sellerIds[0])!
+    const otherPayout = payouts.find((payout) => payout.sellerId === f.sellerIds[1])!
+    expect(ownPayout.commissionAmount.toFixed(2)).toBe('180.00')
+    expect(otherPayout.commissionAmount.toFixed(2)).toBe('360.00')
+
+    // A second invoice intentionally uses a different gross amount to prove
+    // that payout/commission aggregates remain scoped to the invoiced seller.
+    const second = await invoiceService.create({
+      sellerId: f.sellerIds[0]!,
+      type: 'commission',
+      invoiceNumber: `PH5-ORDER-${randomUUID()}`,
+      invoiceDate: new Date('2026-01-03T00:00:00Z'),
+      grossInvoiceAmount: new Decimal(200),
+      sourceOrderId: f.orderId,
+      createdByAdminId: f.adminId,
+    })
+    expect(second.grossInvoiceAmount.toFixed(2)).toBe('200.00')
+
+    const refund = await createQuantityRefundService({ prisma }).queue({
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: 'cancellation',
+      sourceId: randomUUID(),
+      customerAmount: new Decimal(500),
+      grossProductAmount: new Decimal(500),
+      sellerAdjustmentAmount: new Decimal(410),
+      commissionAdjustmentAmount: new Decimal(90),
+      items: [{ orderLineId: f.lineIds[0]!, quantity: 5, amount: new Decimal(500) }],
+    })
+    expect(refund.commissionAdjustmentAmount.toFixed(2)).toBe('90.00')
+
+    // Reissuing the same order-level invoice after the refund must not add VAT
+    // again. The first line invoice was created before payout and before refund.
+    await invoiceService.create({
+      sellerId: f.sellerIds[0]!,
+      type: 'commission',
+      invoiceNumber: `PH5-RETRY-${randomUUID()}`,
+      invoiceDate: new Date('2026-01-04T00:00:00Z'),
+      grossInvoiceAmount: new Decimal(200),
+      sourceOrderId: f.orderId,
+      createdByAdminId: f.adminId,
+    })
+
+    const ownCommission = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: f.sellerIds[0]!, type: 'commission' },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(ownCommission).toHaveLength(2)
+    expect(ownCommission.every((entry) => entry.visibleToSeller)).toBe(true)
+    expect(ownCommission.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('-90.00')
+
+    const otherCommission = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: f.sellerIds[1]!, type: 'commission' },
+    })
+    expect(otherCommission).toHaveLength(1)
+    expect(otherCommission[0]!.amount.toFixed(2)).toBe('-360.00')
+    expect(otherCommission[0]!.visibleToSeller).toBe(false)
+
+    const invoiceTopUps = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: f.sellerIds[0]!, type: 'commission_invoice_issued' },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(invoiceTopUps).toHaveLength(3)
+    expect(invoiceTopUps.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('-20.00')
+    expect(await prisma.sellerLedgerEntry.count({
+      where: { sellerId: f.sellerIds[1]!, type: 'commission_invoice_issued' },
+    })).toBe(0)
+  })
+
+  it('records only the penalty delta and keeps retries append-only', async () => {
+    const f = await phase5PenaltyFixture(100)
+    const service = createPenaltyService({ prisma })
+    const params = {
+      penaltyId: f.penalty.id,
+      adminActorId: f.adminId,
+      amount: new Decimal(200),
+      reason: 'Ceza tutarı düzeltmesi',
+    }
+
+    const updated = await service.update(params)
+    await service.update(params)
+
+    expect(updated.penaltyAmount.toFixed(2)).toBe('200.00')
+    expect(updated.rate.toFixed(4)).toBe('0.2000')
+    const sourceEntries = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: f.sellerIds[0]!, referenceType: 'penalty', referenceId: f.penalty.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(sourceEntries.filter((entry) => entry.type === 'penalty')).toHaveLength(1)
+    expect(sourceEntries.filter((entry) => entry.type === 'manual_adjustment')).toHaveLength(1)
+    expect(sourceEntries.map((entry) => entry.amount.toFixed(2))).toEqual(['-100.00', '-100.00'])
+    expect(sourceEntries.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('-200.00')
+    expect(await prisma.adminAuditLog.count({ where: { targetType: 'penalty', targetId: f.penalty.id } })).toBe(2)
+  })
+
+  it('credits reduced or waived penalties before debt offset and preserves retries', async () => {
+    const reduced = await phase5PenaltyFixture(300)
+    const service = createPenaltyService({ prisma })
+    await service.update({
+      penaltyId: reduced.penalty.id,
+      adminActorId: reduced.adminId,
+      amount: new Decimal(100),
+      reason: 'Kısmi ceza indirimi',
+    })
+
+    const context = await reduced.service.paymentContext(reduced.payoutId)
+    expect(context).toMatchObject({ amount: '900.00', offsetAmount: '100.00', remainingDebt: '0.00' })
+    await reduced.service.markPaid({
+      payoutId: reduced.payoutId,
+      adminActorId: reduced.adminId,
+      expectedSnapshot: context.snapshot,
+      transferDate: new Date('2026-01-03T00:00:00Z'),
+    })
+    await reduced.service.markPaid({
+      payoutId: reduced.payoutId,
+      adminActorId: reduced.adminId,
+      expectedSnapshot: context.snapshot,
+      transferDate: new Date('2026-01-03T00:00:00Z'),
+    })
+    expect(await prisma.payoutDebtOffset.count({ where: { payoutId: reduced.payoutId } })).toBe(1)
+    expect(await outstandingPayoutDebts(prisma, reduced.sellerIds[0]!)).toEqual([])
+
+    const waived = await phase5PenaltyFixture(300)
+    await service.waive({
+      penaltyId: waived.penalty.id,
+      adminActorId: waived.adminId,
+      waiverReason: 'Ceza tamamen kaldırıldı',
+    })
+    await service.waive({
+      penaltyId: waived.penalty.id,
+      adminActorId: waived.adminId,
+      waiverReason: 'Ceza tamamen kaldırıldı',
+    })
+    const waivedContext = await waived.service.paymentContext(waived.payoutId)
+    expect(waivedContext).toMatchObject({ amount: '1000.00', offsetAmount: '0.00', remainingDebt: '0.00' })
+    const waivedEntries = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: waived.sellerIds[0]!, referenceType: 'penalty', referenceId: waived.penalty.id },
+    })
+    expect(waivedEntries.map((entry) => entry.amount.toFixed(2))).toEqual(['-300.00', '300.00'])
+    expect(await prisma.payoutDebtOffset.count({ where: { payoutId: waived.payoutId } })).toBe(0)
+  })
+
+  it('serializes concurrent update, waive, and payment, then permits one safe retry', async () => {
+    const f = await phase5PenaltyFixture(300)
+    const penaltyService = createPenaltyService({ prisma })
+    const initial = await f.service.paymentContext(f.payoutId)
+    const results = await Promise.allSettled([
+      penaltyService.update({
+        penaltyId: f.penalty.id,
+        adminActorId: f.adminId,
+        amount: new Decimal(100),
+        reason: 'Eşzamanlı kısmi düzeltme',
+      }),
+      penaltyService.waive({
+        penaltyId: f.penalty.id,
+        adminActorId: f.adminId,
+        waiverReason: 'Eşzamanlı muafiyet',
+      }),
+      f.service.markPaid({
+        payoutId: f.payoutId,
+        adminActorId: f.adminId,
+        expectedSnapshot: initial.snapshot,
+        transferDate: new Date('2026-01-04T00:00:00Z'),
+      }),
+    ])
+
+    const current = await prisma.penalty.findUniqueOrThrow({ where: { id: f.penalty.id } })
+    expect(current.status === 'waived' || current.penaltyAmount.toFixed(2) === '100.00').toBe(true)
+    const sourceEntries = await prisma.sellerLedgerEntry.findMany({
+      where: { sellerId: f.sellerIds[0]!, referenceType: 'penalty', referenceId: f.penalty.id },
+    })
+    expect(sourceEntries.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('0.00')
+
+    const payout = await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })
+    if (payout.status === 'payout_ready') {
+      const fresh = await f.service.paymentContext(f.payoutId)
+      await f.service.markPaid({
+        payoutId: f.payoutId,
+        adminActorId: f.adminId,
+        expectedSnapshot: fresh.snapshot,
+        transferDate: new Date('2026-01-04T00:00:00Z'),
+      })
+      await f.service.markPaid({
+        payoutId: f.payoutId,
+        adminActorId: f.adminId,
+        expectedSnapshot: fresh.snapshot,
+        transferDate: new Date('2026-01-04T00:00:00Z'),
+      })
+    }
+    const successful = results.filter((result) => result.status === 'fulfilled')
+    expect(successful.length).toBeGreaterThanOrEqual(1)
+    expect(await prisma.sellerLedgerEntry.count({
+      where: { sellerId: f.sellerIds[0]!, type: 'payout', referenceId: f.payoutId },
+    })).toBeLessThanOrEqual(1)
+  })
+
+  it('rolls back penalty correction and waiver when the audit write fails', async () => {
+    const f = await phase5PenaltyFixture(100)
+    const failing = prisma.$extends({
+      query: {
+        adminAuditLog: {
+          async create() {
+            throw new Error('injected penalty audit failure')
+          },
+        },
+      },
+    }) as unknown as PrismaClient
+    const service = createPenaltyService({ prisma: failing })
+
+    await expect(service.update({
+      penaltyId: f.penalty.id,
+      adminActorId: f.adminId,
+      amount: new Decimal(200),
+      reason: 'Audit geri alma testi',
+    })).rejects.toThrow('injected penalty audit failure')
+    await expect(service.waive({
+      penaltyId: f.penalty.id,
+      adminActorId: f.adminId,
+      waiverReason: 'Audit muafiyet geri alma testi',
+    })).rejects.toThrow('injected penalty audit failure')
+
+    const penalty = await prisma.penalty.findUniqueOrThrow({ where: { id: f.penalty.id } })
+    expect(penalty.status).toBe('applied')
+    expect(penalty.penaltyAmount.toFixed(2)).toBe('100.00')
+    expect(await prisma.sellerLedgerEntry.count({
+      where: { sellerId: f.sellerIds[0]!, type: 'manual_adjustment', referenceType: 'penalty', referenceId: f.penalty.id },
+    })).toBe(0)
+    expect(await prisma.adminAuditLog.count({ where: { targetType: 'penalty', targetId: f.penalty.id } })).toBe(0)
+  })
+
+  it('keeps Decimal screen, CSV, and XLSX export closing balances identical', async () => {
+    const f = await fixture()
+    const ledger = createSellerLedgerRepository(prisma)
+    const sellerId = f.sellerIds[0]!
+    const from = new Date('2026-02-01T12:00:00Z')
+    const to = new Date('2026-02-28T12:00:00Z')
+    const reference = () => randomUUID()
+
+    await ledger.createEntry({
+      sellerId,
+      type: 'manual_adjustment',
+      amount: new Decimal('1000.01'),
+      referenceType: 'manual',
+      referenceId: reference(),
+      effectiveAt: new Date('2026-01-31T12:00:00Z'),
+      visibleToSeller: true,
+    })
+    for (const [amount, effectiveAt] of [
+      ['0.10', '2026-02-02T12:00:00Z'],
+      ['-0.03', '2026-02-03T12:00:00Z'],
+      ['0.01', '2026-02-04T12:00:00Z'],
+      ['-999.99', '2026-02-05T12:00:00Z'],
+    ] as const) {
+      await ledger.createEntry({
+        sellerId,
+        type: 'manual_adjustment',
+        amount: new Decimal(amount),
+        referenceType: 'manual',
+        referenceId: reference(),
+        effectiveAt: new Date(effectiveAt),
+        visibleToSeller: true,
+      })
+    }
+
+    const service = createSellerFinanceService({ prisma })
+    const statement = await service.getStatement({ sellerId, from, to })
+    expect(statement.openingBalance.toFixed(2)).toBe('1000.01')
+    expect(statement.closingBalance.toFixed(2)).toBe('0.10')
+    expect(statement.rows.at(-1)!.balance.toFixed(2)).toBe('0.10')
+
+    const exportRows = service.buildStatementExportRows({
+      from,
+      openingBalance: statement.openingBalance,
+      rows: statement.rows,
+    })
+    expect(exportRows[0]!.Bakiye).toBe('1.000,01')
+    expect(exportRows.at(-1)!.Bakiye).toBe('0,10')
+
+    const csv = service.buildStatementCsv({
+      from,
+      openingBalance: statement.openingBalance,
+      rows: statement.rows,
+    })
+    const csvLines = csv.split('\r\n')
+    expect(csvLines.at(-1)!.split(';')[6]).toBe('"0,10"')
   })
 })

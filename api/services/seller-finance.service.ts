@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { Decimal } from '@prisma/client/runtime/client'
 import {
   type SellerStatementRow,
   getSellerStatementDescription,
@@ -120,19 +121,12 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
         }
       }
 
-      let runningBalance = Number(
-        typeof openingBalanceRaw === 'object' && 'toNumber' in openingBalanceRaw
-          ? openingBalanceRaw.toNumber()
-          : openingBalanceRaw,
-      )
+      const openingBalance = new Decimal(openingBalanceRaw.toString())
+      let runningBalance = openingBalance
 
       const rows = entries.map<SellerStatementRow>((entry) => {
-        const amount = Number(
-          typeof entry.amount === 'object' && 'toNumber' in entry.amount
-            ? entry.amount.toNumber()
-            : entry.amount,
-        )
-        runningBalance += amount
+        const amount = new Decimal(entry.amount.toString())
+        runningBalance = runningBalance.plus(amount)
 
         const orderId = resolveOrderId(entry)
         const refundSourceType =
@@ -152,19 +146,15 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
           ...(refundSourceType ? { refundSourceType } : {}),
           topic: getSellerStatementTopic(entry.type, refundSourceType),
           description: entry.description?.trim() || getSellerStatementDescription(entry.type),
-          credit: amount > 0 ? amount : 0,
-          debit: amount < 0 ? Math.abs(amount) : 0,
-          balance: runningBalance,
+          credit: amount.gt(0) ? amount.toNumber() : 0,
+          debit: amount.lt(0) ? amount.negated().toNumber() : 0,
+          balance: runningBalance.toNumber(),
         }
       })
 
       return {
-        openingBalance: Number(
-          typeof openingBalanceRaw === 'object' && 'toNumber' in openingBalanceRaw
-            ? openingBalanceRaw.toNumber()
-            : openingBalanceRaw,
-        ),
-        closingBalance: runningBalance,
+        openingBalance: openingBalance.toNumber(),
+        closingBalance: runningBalance.toNumber(),
         rows,
       }
     },

@@ -181,14 +181,14 @@ export function EditInvoiceDialog({
 export function EditPenaltyDialog({
   penaltyId,
   amount,
-  reason,
+  reason: _reason,
   disabled = false,
 }: EditPenaltyDialogProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [form, setForm] = useState({ amount, reason })
+  const [form, setForm] = useState({ amount, reason: '' })
 
   async function handleSubmit() {
     setLoading(true)
@@ -244,7 +244,7 @@ export function EditPenaltyDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`penalty-reason-${penaltyId}`}>Sebep</Label>
+              <Label htmlFor={`penalty-reason-${penaltyId}`}>Düzeltme gerekçesi</Label>
               <Textarea
                 id={`penalty-reason-${penaltyId}`}
                 rows={4}

@@ -36,7 +36,8 @@ export async function outstandingPayoutDebts(tx: FinanceReader, sellerId: string
     const source = entries.find(entry => entry.type === 'penalty' &&
       ((entry.referenceType === 'penalty' && entry.referenceId === penalty.id) ||
         (entry.referenceType === 'order' && entry.referenceId === penalty.orderId)))
-    if (source) {
+    if (source && !entries.some(entry => entry.referenceType === source.referenceType &&
+      entry.referenceId === source.referenceId && entry.debtOffsets.length > 0)) {
       const key = `${source.referenceType}:${source.referenceId}`
       credits.set(key, (credits.get(key) ?? zero()).add(penalty.penaltyAmount))
     }

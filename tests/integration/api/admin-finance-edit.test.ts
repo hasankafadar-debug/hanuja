@@ -4,6 +4,8 @@ import { Decimal } from '@prisma/client/runtime/client'
 const {
   getSessionMock,
   createPrismaForRouteMock,
+  createPenaltyServiceMock,
+  penaltyUpdateServiceMock,
   penaltyFindUniqueMock,
   penaltyUpdateMock,
   sellerInvoiceFindUniqueMock,
@@ -11,6 +13,8 @@ const {
 } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   createPrismaForRouteMock: vi.fn(),
+  createPenaltyServiceMock: vi.fn(),
+  penaltyUpdateServiceMock: vi.fn(),
   penaltyFindUniqueMock: vi.fn(),
   penaltyUpdateMock: vi.fn(),
   sellerInvoiceFindUniqueMock: vi.fn(),
@@ -29,6 +33,10 @@ vi.mock('@hanuja/api/lib/prisma', () => ({
   createPrismaForRoute: createPrismaForRouteMock,
 }))
 
+vi.mock('@hanuja/api/services/penalty.service', () => ({
+  createPenaltyService: createPenaltyServiceMock,
+}))
+
 describe('admin finance edit routes', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -36,6 +44,7 @@ describe('admin finance edit routes', () => {
     vi.spyOn(console, 'info').mockImplementation(() => {})
 
     getSessionMock.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } })
+    createPenaltyServiceMock.mockReturnValue({ update: penaltyUpdateServiceMock })
     createPrismaForRouteMock.mockReturnValue({
       penalty: {
         findUnique: penaltyFindUniqueMock,
@@ -49,15 +58,7 @@ describe('admin finance edit routes', () => {
   })
 
   it('recomputes penalty rate when the amount is edited', async () => {
-    penaltyFindUniqueMock.mockResolvedValue({
-      id: 'pen-1',
-      status: 'applied',
-      reason: 'late_shipment_daily_accrual',
-      baseAmount: new Decimal(500),
-      rate: new Decimal('0.0200'),
-      penaltyAmount: new Decimal(10),
-    })
-    penaltyUpdateMock.mockResolvedValue({
+    penaltyUpdateServiceMock.mockResolvedValue({
       id: 'pen-1',
       reason: 'late_shipment_daily_accrual',
       rate: new Decimal('0.0300'),
@@ -69,42 +70,52 @@ describe('admin finance edit routes', () => {
       new Request('http://localhost/api/admin/penalties/pen-1', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: '15.00' }),
+        body: JSON.stringify({ amount: '15.00', reason: 'Tutar düzeltmesi' }),
       }) as never,
       { params: Promise.resolve({ id: 'pen-1' }) },
     )
 
     expect(res.status).toBe(200)
-    const penaltyUpdateArgs = penaltyUpdateMock.mock.calls[0]?.[0]
-    expect(penaltyUpdateArgs.where).toEqual({ id: 'pen-1' })
-    expect(typeof penaltyUpdateArgs.data.penaltyAmount?.toString).toBe('function')
-    expect(typeof penaltyUpdateArgs.data.rate?.toString).toBe('function')
-    expect(penaltyUpdateArgs.data.penaltyAmount.toString()).toBe('15')
-    expect(penaltyUpdateArgs.data.rate.toString()).toBe('0.03')
+    expect(createPenaltyServiceMock).toHaveBeenCalledWith(expect.anything())
+    expect(penaltyUpdateServiceMock).toHaveBeenCalledTimes(1)
+    const penaltyUpdateArgs = penaltyUpdateServiceMock.mock.calls[0]?.[0]
+    expect(penaltyUpdateArgs.penaltyId).toBe('pen-1')
+    expect(penaltyUpdateArgs.adminActorId).toBe('admin-1')
+    expect(penaltyUpdateArgs.reason).toBe('Tutar düzeltmesi')
+    expect(typeof penaltyUpdateArgs.amount?.toString).toBe('function')
+    expect(penaltyUpdateArgs.amount.toString()).toBe('15')
   })
 
   it('rejects edits for waived penalties', async () => {
-    penaltyFindUniqueMock.mockResolvedValue({
-      id: 'pen-2',
-      status: 'waived',
-      reason: 'other',
-      baseAmount: new Decimal(500),
-      rate: new Decimal('0.0100'),
-      penaltyAmount: new Decimal(5),
-    })
+    penaltyUpdateServiceMock.mockRejectedValue(new (await import('../../../api/lib/errors')).ValidationError('Muaf tutulmuş ceza düzenlenemez.'))
 
     const route = await import('../../../apps/admin-panel/src/app/api/admin/penalties/[id]/route')
     const res = await route.PUT(
       new Request('http://localhost/api/admin/penalties/pen-2', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: '20.00' }),
+        body: JSON.stringify({ amount: '20.00', reason: 'Düzeltme denemesi' }),
       }) as never,
       { params: Promise.resolve({ id: 'pen-2' }) },
     )
 
     expect(res.status).toBe(422)
-    expect(penaltyUpdateMock).not.toHaveBeenCalled()
+    expect(penaltyUpdateServiceMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('requires a reason for every penalty edit', async () => {
+    const route = await import('../../../apps/admin-panel/src/app/api/admin/penalties/[id]/route')
+    const res = await route.PUT(
+      new Request('http://localhost/api/admin/penalties/pen-3', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: '20.00' }),
+      }) as never,
+      { params: Promise.resolve({ id: 'pen-3' }) },
+    )
+
+    expect(res.status).toBe(422)
+    expect(penaltyUpdateServiceMock).not.toHaveBeenCalled()
   })
 
   it('recomputes invoice net and vat when only gross is edited', async () => {
