@@ -29,6 +29,14 @@ const allocate = (overrides: Record<string, unknown> = {}) =>
   })
 
 describe('legacy full refund allocation', () => {
+  it('requires reconciliation instead of guessing money remaining after historical refunds', () => {
+    const result = allocate({ hasHistoricalRefundEvidence: true })
+    expect(result.manualReviewReason).toContain('tarihî iade kanıtı')
+    expect(result.customerAmount.toFixed(2)).toBe('0.00')
+    expect(result.grossProductAmount.toFixed(2)).toBe('0.00')
+    expect(result.sellerAdjustmentAmount.toFixed(2)).toBe('0.00')
+  })
+
   it('separates the collected customer amount from stored seller finance snapshots', () => {
     const result = allocate()
 

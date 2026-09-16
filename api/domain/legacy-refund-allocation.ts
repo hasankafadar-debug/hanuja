@@ -58,7 +58,11 @@ export function allocateLegacyFullRefund(params: {
   lines: LegacyLineSnapshot[]
   confirmedPayments: LegacyPaymentSnapshot[]
   otherRefundAmount: Decimal
+  hasHistoricalRefundEvidence?: boolean
 }): LegacyRefundAllocation {
+  if (params.hasHistoricalRefundEvidence) {
+    return manual('tarihî iade kanıtı var; kalan gerçek ödeme mutabakatla doğrulanmalıdır')
+  }
   if (params.confirmedPayments.length !== 1) {
     return manual('tek ve doğrulanmış ödeme snapshot’ı bulunamadı')
   }

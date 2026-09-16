@@ -922,6 +922,98 @@ describe('phase 2 full exempt return', () => {
 })
 
 describe('phase 6 legacy refund safeguards', () => {
+  it('rolls the legacy allocation back with its ledger and allows a clean retry', async () => {
+    const f = await fixture()
+    await prisma.order.update({ where: { id: f.orderId }, data: { quantityLifecycleVersion: 1 } })
+    const [payout] = await hold(f.orderId)
+    const beforePayout = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
+    const beforeLedger = await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })
+    const failing = prisma.$extends({ query: { payout: { async update() {
+      throw new Error('injected legacy refund failure')
+    } } } }) as unknown as PrismaClient
+    const request = { orderId: f.orderId, sellerId: f.sellerIds[0]!,
+      sourceType: 'cancellation' as const, sourceId: randomUUID(), requestedCustomerAmount: new Decimal(1000) }
+    await expect(createRefundService({ prisma: failing }).queueLegacyRefund(request)).rejects.toThrow('injected legacy refund failure')
+    expect(await prisma.refundTransaction.count({ where: { orderId: f.orderId } })).toBe(0)
+    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })).toBe(beforeLedger)
+    expect(await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })).toEqual(beforePayout)
+    const refunds = await Promise.all([1, 2].map(() => createRefundService({ prisma }).queueLegacyRefund(request)))
+    expect(refunds[0]!.id).toBe(refunds[1]!.id)
+    expect(refunds[0]!.customerAmount.toFixed(2)).toBe('1000.00')
+  })
+
+  it('serializes different legacy sources and preserves same-source retries', async () => {
+    const f = await fixture()
+    await prisma.order.update({ where: { id: f.orderId }, data: { quantityLifecycleVersion: 1 } })
+    const [payout] = await hold(f.orderId)
+    const service = createRefundService({ prisma })
+    const requests = ['return_request', 'dispute'].map((sourceType) => ({
+      orderId: f.orderId, sellerId: f.sellerIds[0]!,
+      sourceType: sourceType as 'return_request' | 'dispute', sourceId: randomUUID(),
+      requestedCustomerAmount: new Decimal(1000),
+    }))
+    const refunds = await Promise.all(requests.map((request) => service.queueLegacyRefund(request)))
+    expect(refunds.map((refund) => refund.customerAmount.toNumber()).sort((a, b) => a - b)).toEqual([0, 1000])
+    expect(refunds.filter((refund) => refund.ledgerAppliedAt)).toHaveLength(1)
+    const retries = await Promise.all(requests.map((request) => service.queueLegacyRefund(request)))
+    expect(retries.map((refund) => refund.id)).toEqual(refunds.map((refund) => refund.id))
+    const after = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
+    expect(after.refundAmount.toFixed(2)).toBe('1000.00')
+    expect(after.netAmount.toFixed(2)).toBe('0.00')
+    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0], type: 'refund' } })).toBe(1)
+  })
+
+  it.each(['return_timestamp', 'return_status', 'payment_timestamp', 'payment_status',
+    'refund_initiated', 'refund_recorded', 'order_timestamp', 'order_status', 'order_ledger', 'return_ledger'])
+  ('blocks new money allocation for historical evidence: %s', async (evidence) => {
+    const f = await fixture()
+    await prisma.order.update({ where: { id: f.orderId }, data: { quantityLifecycleVersion: 1 } })
+    const [payout] = await hold(f.orderId)
+    const payment = await prisma.payment.findFirstOrThrow({ where: { orderId: f.orderId } })
+    if (evidence.startsWith('return_')) {
+      const request = await prisma.returnRequest.create({ data: {
+        orderId: f.orderId, customerId: f.adminId, sellerId: f.sellerIds[0], reason: 'Historical refund',
+        isWithinWindow: true, refundAmount: 400,
+        ...(evidence === 'return_timestamp' ? { refundedAt: confirmedAt } : {}),
+        ...(evidence === 'return_status' ? { status: 'refund_completed' as const } : {}),
+      } })
+      if (evidence === 'return_ledger') await prisma.sellerLedgerEntry.create({ data: {
+        sellerId: f.sellerIds[0]!, type: 'refund', amount: -400, balanceAfter: 420,
+        referenceType: 'return_request', referenceId: request.id,
+      } })
+    }
+    if (evidence === 'payment_timestamp' || evidence === 'payment_status') {
+      await prisma.payment.update({ where: { id: payment.id }, data:
+        evidence === 'payment_timestamp' ? { refundedAt: confirmedAt } : { status: 'refunded' } })
+    }
+    if (evidence.startsWith('refund_')) await prisma.paymentEvent.create({ data: {
+      paymentId: payment.id, eventType: evidence, payload: { amount: 400 },
+    } })
+    if (evidence === 'order_timestamp' || evidence === 'order_status') {
+      await prisma.order.update({ where: { id: f.orderId }, data:
+        evidence === 'order_timestamp' ? { refundCompletedAt: confirmedAt } : { status: 'refund_completed' } })
+    }
+    if (evidence === 'order_ledger') await prisma.sellerLedgerEntry.create({ data: {
+      sellerId: f.sellerIds[0]!, type: 'refund', amount: -400, balanceAfter: 420,
+      referenceType: 'order', referenceId: f.orderId,
+    } })
+    const beforeLedger = await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })
+    const beforePayout = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
+    const refund = await createRefundService({ prisma }).queueLegacyRefund({
+      orderId: f.orderId, sellerId: f.sellerIds[0]!, sourceType: 'cancellation',
+      sourceId: randomUUID(), requestedCustomerAmount: new Decimal(1000),
+    })
+    expect(refund.customerAmount.toFixed(2)).toBe('0.00')
+    expect(refund.failureReason).toContain('tarihî iade kanıtı')
+    expect(refund.status).toBe('manual_required')
+    expect(refund.items).toHaveLength(0)
+    expect(refund.accountingAppliedAt).toBeNull()
+    expect(refund.ledgerAppliedAt).toBeNull()
+    expect(refund.payoutAppliedAt).toBeNull()
+    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })).toBe(beforeLedger)
+    expect(await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })).toEqual(beforePayout)
+  })
+
   it('caps a full customer refund to the confirmed payment and reverses stored finance components', async () => {
     const f = await fixture()
     await prisma.order.update({

@@ -10,12 +10,13 @@
  *   - card → Iyzico; EFT → manual (no provider call)
  *   - always writes a negative seller ledger entry so payout reconciles
  */
-import type { PrismaClient } from '@prisma/client'
+import { Prisma, type PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { createReturnRequestRepository } from '../repositories/return-request.repository'
 import { createQuantityRefundService } from './quantity-refund.service'
 import { allocateLegacyFullRefund } from '../domain/legacy-refund-allocation'
 import { ConflictError } from '../lib/errors'
+import { lockSellerFinance } from '../lib/seller-finance-lock'
 
 interface RefundServiceDeps {
   prisma: PrismaClient
@@ -32,76 +33,109 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
     sourceId: string
     requestedCustomerAmount: Decimal
   }) {
-    const existing = await prisma.refundTransaction.findUnique({
-      where: {
-        sourceType_sourceId: {
-          sourceType: params.sourceType,
-          sourceId: params.sourceId,
-        },
-      },
-      include: { items: true, payment: true },
-    })
-    if (existing) return existing
-
-    const order = await prisma.order.findUniqueOrThrow({
-      where: { id: params.orderId },
-      select: {
-        quantityLifecycleVersion: true,
-        grossAmount: true,
-        totalAmount: true,
-        lines: {
-          select: {
-            sellerId: true,
-            quantity: true,
-            totalPrice: true,
-            couponDiscountAmount: true,
-            commissionAmount: true,
-            netPayoutAmount: true,
-            commissionExemptedAt: true,
+    return prisma.$transaction(async (tx) => {
+      await lockSellerFinance(tx, [params.sellerId])
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM orders WHERE id = ${params.orderId} FOR UPDATE`)
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM payments WHERE "orderId" = ${params.orderId} ORDER BY id FOR UPDATE`)
+      const existing = await tx.refundTransaction.findUnique({
+        where: {
+          sourceType_sourceId: {
+            sourceType: params.sourceType,
+            sourceId: params.sourceId,
           },
         },
-        payments: {
-          where: { status: 'confirmed' },
-          select: { id: true, amount: true, refundedAmount: true },
+        include: { items: true, payment: true },
+      })
+      if (existing) {
+        if (existing.orderId !== params.orderId || existing.sellerId !== params.sellerId) {
+          throw new ConflictError('İade anahtarı başka sipariş veya satıcıya ait')
+        }
+        return existing
+      }
+
+      const order = await tx.order.findUniqueOrThrow({
+        where: { id: params.orderId },
+        select: {
+          quantityLifecycleVersion: true,
+          grossAmount: true,
+          totalAmount: true,
+          refundCompletedAt: true,
+          status: true,
+          lines: {
+            select: {
+              sellerId: true,
+              quantity: true,
+              totalPrice: true,
+              couponDiscountAmount: true,
+              commissionAmount: true,
+              netPayoutAmount: true,
+              commissionExemptedAt: true,
+            },
+          },
+          payments: {
+            where: { status: 'confirmed' },
+            select: { id: true, amount: true, refundedAmount: true },
+          },
         },
-      },
-    })
-    if (order.quantityLifecycleVersion === 2) {
-      throw new ConflictError('Adet bazlı sipariş eski iade akışıyla işlenemez')
-    }
+      })
+      if (order.quantityLifecycleVersion === 2) {
+        throw new ConflictError('Adet bazlı sipariş eski iade akışıyla işlenemez')
+      }
 
-    const paymentIds = order.payments.map((payment) => payment.id)
-    const otherRefunds = paymentIds.length
-      ? await prisma.refundTransaction.aggregate({
-          where: { paymentId: { in: paymentIds } },
-          _sum: { customerAmount: true },
-        })
-      : null
-    const allocation = allocateLegacyFullRefund({
-      sellerId: params.sellerId,
-      requestedCustomerAmount: params.requestedCustomerAmount,
-      orderGrossAmount: order.grossAmount,
-      orderTotalAmount: order.totalAmount,
-      lines: order.lines,
-      confirmedPayments: order.payments,
-      otherRefundAmount: otherRefunds?._sum.customerAmount ?? new Decimal(0),
-    })
+      const otherRefunds = await tx.refundTransaction.aggregate({
+        where: { orderId: params.orderId },
+        _sum: { customerAmount: true },
+      })
+      // Old flows recorded refunds outside RefundTransaction and did not maintain
+      // Payment.refundedAmount. Their amounts cannot safely be added or deduplicated.
+      const historicalReturn = await tx.returnRequest.findFirst({
+        where: { orderId: params.orderId, OR: [
+          { refundedAt: { not: null } }, { status: 'refund_completed' },
+        ] }, select: { id: true },
+      })
+      const historicalPayment = await tx.payment.findFirst({
+        where: { orderId: params.orderId, OR: [
+          { refundedAt: { not: null } }, { status: 'refunded' },
+          { events: { some: { eventType: { startsWith: 'refund' } } } },
+        ] }, select: { id: true },
+      })
+      const returns = await tx.returnRequest.findMany({
+        where: { orderId: params.orderId }, select: { id: true },
+      })
+      const historicalLedger = await tx.sellerLedgerEntry.findFirst({
+        where: { type: 'refund', OR: [
+          { referenceType: 'order', referenceId: params.orderId },
+          { referenceType: 'return_request', referenceId: { in: returns.map((r) => r.id) } },
+        ] }, select: { id: true },
+      })
+      const allocation = allocateLegacyFullRefund({
+        sellerId: params.sellerId,
+        requestedCustomerAmount: params.requestedCustomerAmount,
+        orderGrossAmount: order.grossAmount,
+        orderTotalAmount: order.totalAmount,
+        lines: order.lines,
+        confirmedPayments: order.payments,
+        otherRefundAmount: otherRefunds?._sum.customerAmount ?? new Decimal(0),
+        hasHistoricalRefundEvidence: Boolean(order.refundCompletedAt ||
+          order.status === 'refund_completed' || historicalReturn || historicalPayment || historicalLedger),
+      })
 
-    return quantityRefunds.queue({
-      orderId: params.orderId,
-      sellerId: params.sellerId,
-      sourceType: params.sourceType,
-      sourceId: params.sourceId,
-      customerAmount: allocation.customerAmount,
-      grossProductAmount: allocation.grossProductAmount,
-      couponAdjustmentAmount: allocation.couponAdjustmentAmount,
-      sellerAdjustmentAmount: allocation.sellerAdjustmentAmount,
-      commissionAdjustmentAmount: allocation.commissionAdjustmentAmount,
-      platformFundedAmount: allocation.platformFundedAmount,
-      ...(allocation.manualReviewReason
-        ? { manualReviewReason: allocation.manualReviewReason }
-        : {}),
-    })
+      return quantityRefunds.queue({
+        orderId: params.orderId,
+        sellerId: params.sellerId,
+        sourceType: params.sourceType,
+        sourceId: params.sourceId,
+        customerAmount: allocation.customerAmount,
+        grossProductAmount: allocation.grossProductAmount,
+        couponAdjustmentAmount: allocation.couponAdjustmentAmount,
+        sellerAdjustmentAmount: allocation.sellerAdjustmentAmount,
+        commissionAdjustmentAmount: allocation.commissionAdjustmentAmount,
+        platformFundedAmount: allocation.platformFundedAmount,
+        ...(allocation.manualReviewReason
+          ? { manualReviewReason: allocation.manualReviewReason }
+          : {}),
+      }, tx)
+    }, { timeout: 30_000 })
   }
 
   return {

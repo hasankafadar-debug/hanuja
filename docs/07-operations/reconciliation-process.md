@@ -310,6 +310,16 @@ otomatik sağlayıcı çağrısı, satıcı ledger hareketi veya hakediş deği�
 engellenir. Geçmiş Mosaiss kayıtları bu koruma kapsamında topluca değiştirilmez
 veya silinmez.
 
+Eski iadenin hesaplanması ve kaydı tek transaction içinde, satıcı finans kilidi
+ve sipariş/ödeme satır kilitleri alındıktan sonra yapılır. Farklı kaynaklardan
+eşzamanlı gelen talepler aynı ödeme kalanını tekrar ayıramaz.
+Ödeme bağlantısı olmayanlar dahil siparişin tüm `RefundTransaction` tutarları
+kontrole katılır. Tarihî `refundedAt`, tamamlanmış iade durumu, `refund*` ödeme
+olayı veya sipariş/iade talebi referanslı iade ledger kaydı bulunursa kalan
+tutar tahmin edilmez: sıfır tutarlı finansal inceleme kaydı açılır; yeni iade
+kalemi, ledger veya hakediş hareketi üretilmez. Bu kanıtlar birbiriyle örtüşebilir;
+mutabakat olmadan tutarlarını toplamak da güvenli değildir.
+
 `api/services/admin-refund-query.service.ts` yalnızca mevcut `RefundTransaction`
 kayıtlarını okur. Destek başvurusu veya henüz değerlendirilmekte olan iade talebi,
 tek başına ödeme bekleyen iade değildir. 14 gün sonrası destek/resim/belge süreci

@@ -1,4 +1,4 @@
-import type { PrismaClient, RefundSourceType } from '@prisma/client'
+import type { Prisma, PrismaClient, RefundSourceType } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { ConflictError, NotFoundError } from '../lib/errors'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
@@ -31,7 +31,7 @@ export function createQuantityRefundService({
     items?: Array<{ orderLineId: string; quantity: number; amount: Decimal }>
     shippingAmount?: Decimal
     manualReviewReason?: string
-  }) {
+  }, transaction?: Prisma.TransactionClient) {
     const commissionAdjustmentAmount =
       params.commissionAdjustmentAmount ?? new Decimal(0)
     const couponAdjustmentAmount =
@@ -63,7 +63,7 @@ export function createQuantityRefundService({
       throw new ConflictError('İade kalem toplamı müşteri iade tutarıyla uyuşmuyor')
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const write = async (tx: Prisma.TransactionClient) => {
       if (params.sellerId) await lockSellerFinance(tx, [params.sellerId])
       const payment = await tx.payment.findFirst({
         where: { orderId: params.orderId, status: 'confirmed' },
@@ -352,8 +352,12 @@ export function createQuantityRefundService({
         where: { id: refund.id },
         include: { items: true, payment: true },
       })
-    })
+    }
+    const result = transaction ? await write(transaction) : await prisma.$transaction(write)
+    // An outer transaction has not committed yet. Its caller owns post-commit
+    // dispatch; legacy refunds use this path and require manual processing.
     if (
+      !transaction &&
       !params.manualReviewReason &&
       result.payment?.method === 'card' &&
       result.status !== 'completed'
