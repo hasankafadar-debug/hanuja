@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
+import { LegacyRefundReview } from './legacy-refund-review'
 import type { AdminRefundQueueRow } from '@hanuja/api/services/admin-refund-query.service'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { refundQueueHref, type RefundQueueParams } from '../../../../lib/admin-refund-list-params'
@@ -231,6 +232,9 @@ export function RefundPaymentQueue({ params, result }: Props) {
                           )} · {refund.id}
                         </span>
                       </Link>
+                      {refund.failureReason?.startsWith('Eski sipariş finansal incelemesi:') && (
+                        <LegacyRefundReview refundId={refund.id} updatedAt={refund.updatedAt.toISOString()} />
+                      )}
                     </td>
                   </tr>
                 ))}

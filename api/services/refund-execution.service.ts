@@ -5,6 +5,7 @@ import {
   type RefundProcessor,
 } from './refund-processor'
 import { enqueueCustomerRefundCompletedNotification } from './refund-notification.service'
+import { LEGACY_FINANCIAL_REVIEW_PREFIX } from '../domain/legacy-refund-allocation'
 
 type ProcessorFactory = ReturnType<typeof createRefundProcessor> extends infer T
   ? (provider: import('@prisma/client').PaymentProvider) => T
@@ -23,6 +24,9 @@ export function createRefundExecutionService({
         where: { id: refundTransactionId },
         include: { items: true, payment: true },
       })
+      if (refund.failureReason?.startsWith(LEGACY_FINANCIAL_REVIEW_PREFIX)) {
+        return { updated: refund, allCompleted: false }
+      }
       const statuses = refund.items.map((item) => item.status)
       const completed = statuses.filter((status) => status === 'completed').length
       const allCompleted = statuses.length > 0 && completed === statuses.length
@@ -152,6 +156,7 @@ export function createRefundExecutionService({
       },
     })
     if (!refund || refund.status === 'completed') return refund
+    if (refund.failureReason?.startsWith(LEGACY_FINANCIAL_REVIEW_PREFIX)) return refund
     if (!refund.payment) {
       await Promise.all(
         refund.items

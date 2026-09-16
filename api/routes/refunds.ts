@@ -3,6 +3,17 @@ import { z } from 'zod'
 import { createPrismaForRoute } from '../lib/prisma'
 import { handleError, ok } from '../lib/response'
 import { createQuantityRefundService } from '../services/quantity-refund.service'
+import { createRefundService } from '../services/refund.service'
+
+export async function reassessLegacyRefund(request: NextRequest, refundId: string, actorId: string) {
+  try {
+    const body = z.object({ reason: z.string().trim().min(10).max(1000), expectedUpdatedAt: z.string().datetime() })
+      .parse(await request.json().catch(() => null))
+    const refund = await createRefundService({ prisma: createPrismaForRoute() })
+      .reassessLegacyRefund({ refundId, actorId, ...body })
+    return ok({ id: refund.id, orderId: refund.orderId, status: refund.status })
+  } catch (error) { return handleError(error) }
+}
 
 const manualCompletionSchema = z.object({
   orderId: z.string().trim().min(1).max(100),

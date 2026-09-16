@@ -33,6 +33,7 @@
     "ledger:backfill": "tsx tools/scripts/backfill-seller-ledger.ts",
     "ledger:repair-mosaiss": "tsx tools/scripts/repair-mosaiss-ledger.ts",
     "payout:repair": "tsx tools/scripts/repair-missing-payouts.ts",
+    "finance:reconcile": "tsx tools/scripts/check-finance-reconciliation.ts",
     "launch:clean-data": "tsx tools/scripts/pre-launch-data-clean.ts",
     "worker": "tsx api/worker.ts",
     "worker:dev": "tsx --watch api/worker.ts",

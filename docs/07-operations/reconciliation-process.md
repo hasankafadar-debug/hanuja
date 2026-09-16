@@ -296,6 +296,33 @@ tolerans yoktur. Bkz. `.claude/rules/12-production-readiness.md` §12,
 
 ### Eski sipariş iade koruması (Faz 6, 2026-09-15)
 
+Faz 7: yönetim paneli → İadeler → Manuel ödeme iadeleri bölümündeki
+`Finansal kaydı yeniden değerlendir` işlemi, finansal inceleme gerekçeli eski
+kayıtları yeniden doğrular. Finans yetkisi, CSRF, hız sınırı, gerekçe ve kayıt
+sürümü kontrol edilir. Para gönderilmez; mevcut kayıtlı müşteri tutarı büyütülmez.
+Yalnız henüz muhasebeleşmemiş, sağlayıcıda denenmemiş kayıtlar kabul edilir.
+Kanıt yetersizse veya tarihî iade kanıtı varsa engel korunur. Güvenilir sonuçta
+aynı iade kaydı, finans etkileri ve admin denetim kaydı tek işlemde yazılır.
+Sıfır tutarlı belirsiz kayıtlar için bu işlem tutar icat etmez; kaynak mutabakatı
+gerekliliği devam eder. Kart ödemesi onayı yerine geçmez.
+
+### Salt okunur finans mutabakatı (Faz 7)
+
+`pnpm finance:reconcile` tüm kayıtları; `pnpm finance:reconcile --seller-id=ID`
+tek satıcının kayıtlarını kontrol eder. Ödeme birden çok satıcıyı kapsıyorsa
+ödemenin iade sınırı bütün satıcıların iadeleriyle kontrol edilir.
+Komut Repeatable Read ve PostgreSQL READ ONLY transaction kullanır; kayıt
+onarmaz, kuyruk işi veya sağlayıcı işlemi oluşturmaz.
+
+JSON çıktı kayıt kimliği, kontrol kodu, beklenen/mevcut tutarlar ve taranan kayıt
+sayılarını içerir. Exit 0: fark yok; 1: fark veya açık eski finansal inceleme;
+2: kontrol tamamlanamadı. Kişi, banka ve sağlayıcı kimlik bilgileri çıktıya alınmaz.
+Kontroller: hakediş bileşenleri, satış/komisyon/iade/ödeme ledger bağlantıları,
+mahsup toplamı/kaynağı/satıcı uyumu ve çift tahsilat sınırı, iade kalem toplamı,
+ödemenin tamamlanmış iade toplamı ve tahsilat sınırı. Tarihî eksikler raporlanır;
+otomatik olarak yeni kayıtlarla tamamlanmaz. Bu kontrol sağlayıcı banka mutabakatı
+veya tüm eski kayıtların doğruluğuna dair garanti değildir.
+
 `quantityLifecycleVersion = 1` siparişlerde tam iade tutarları güncel komisyon
 ayarlarından hesaplanmaz. Sistem tek doğrulanmış ödeme ile sipariş toplamını ve
 ürün satırlarındaki brüt, satıcı kuponu, tarihî komisyon ve net hakediş

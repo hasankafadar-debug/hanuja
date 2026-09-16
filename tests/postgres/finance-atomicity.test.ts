@@ -20,6 +20,8 @@ import { createReadyPayoutBatch } from '../../api/services/payout-batch.service'
 import { createSellerLedgerRepository } from '../../api/repositories/seller-ledger.repository'
 import { outstandingPayoutDebts } from '../../api/services/payout-debt.service'
 import { createRefundService } from '../../api/services/refund.service'
+import { reconcileFinance } from '../../api/services/finance-reconciliation.service'
+import { createRefundExecutionService } from '../../api/services/refund-execution.service'
 
 vi.mock('../../api/jobs/notification-dispatch.job', () => ({ enqueueNotification: vi.fn(async () => undefined) }))
 
@@ -27,7 +29,7 @@ vi.mock('../../api/jobs/refund-processing.job', () => ({
   enqueueRefundProcessing: vi.fn(async () => undefined),
 }))
 vi.mock('../../api/services/refund-notification.service', () => ({
-  enqueueCustomerRefundCompletedNotification: vi.fn(),
+  enqueueCustomerRefundCompletedNotification: vi.fn(async () => undefined),
 }))
 
 const testUrl = process.env.FINANCE_TEST_DATABASE_URL
@@ -94,6 +96,90 @@ async function fixture(sellerCount = 1) {
 
 const hold = (orderId: string, client = prisma) =>
   createPayoutService({ prisma: client }).activateHold({ orderId, deliveryConfirmedAt: confirmedAt })
+
+describe('phase 7 integrated reconciliation', () => {
+  it.each(['eft', 'card'] as const)('reconciles %s refund execution, seller isolation and payout records', async (method) => {
+    const f = await fixture(2)
+    const payment = await prisma.payment.findFirstOrThrow({ where: { orderId: f.orderId } })
+    await prisma.payment.update({ where: { id: payment.id }, data: { method,
+      provider: method === 'card' ? 'iyzico' : 'manual_eft', providerPaymentId: `test-${randomUUID()}` } })
+    for (const lineId of f.lineIds) await prisma.paymentProviderItem.create({ data: {
+      paymentId: payment.id, orderLineId: lineId, kind: 'product', providerItemId: `line:${lineId}`,
+      providerTransactionId: `test-${lineId}`, amount: 1000,
+    } })
+    await hold(f.orderId)
+    const service = createQuantityRefundService({ prisma })
+    const refund = await service.queue({ orderId: f.orderId, sellerId: f.sellerIds[0], sourceType: 'cancellation',
+      sourceId: randomUUID(), customerAmount: new Decimal(500), grossProductAmount: new Decimal(500),
+      sellerAdjustmentAmount: new Decimal(410), commissionAdjustmentAmount: new Decimal(90),
+      items: [{ orderLineId: f.lineIds[0]!, quantity: 5, amount: new Decimal(500) }] })
+    if (method === 'eft') {
+      const request = { refundTransactionId: refund.id, orderId: f.orderId, actorId: f.adminId,
+        providerReference: 'TEST-TRANSFER-ONLY', expectedOutstandingAmount: '500.00' }
+      await service.complete(request)
+      await service.complete(request)
+    } else {
+      const provider = { refund: vi.fn(async () => ({ providerReference: 'TEST-REFUND-ONLY' })) }
+      const execution = createRefundExecutionService({ prisma, processorFactory: () => provider })
+      await execution.process(refund.id)
+      await execution.process(refund.id)
+      expect(provider.refund).toHaveBeenCalledTimes(1)
+    }
+    for (const sellerId of f.sellerIds) expect((await reconcileFinance(prisma, sellerId)).findings).toEqual([])
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).refundedAmount.toFixed(2)).toBe('500.00')
+  })
+
+  it('detects payout, ledger and offset drift without changing records', async () => {
+    const f = await fixture()
+    const [payout] = await hold(f.orderId)
+    expect((await reconcileFinance(prisma, f.sellerIds[0])).findings).toEqual([])
+    await prisma.payout.update({ where: { id: payout!.id }, data: { netAmount: 819, offsetAmount: 5 } })
+    await prisma.sellerLedgerEntry.deleteMany({ where: { sellerId: f.sellerIds[0], type: 'commission' } })
+    const before = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
+    const report = await reconcileFinance(prisma, f.sellerIds[0])
+    expect(report.findings.map(finding => finding.code)).toEqual(expect.arrayContaining([
+      'payout_components', 'payout_offsets', 'payout_commission_ledger',
+    ]))
+    expect(await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })).toEqual(before)
+  })
+
+  it('reassesses repaired legacy snapshots once and preserves review for unresolved evidence', async () => {
+    const f = await fixture()
+    await prisma.order.update({ where: { id: f.orderId }, data: { quantityLifecycleVersion: 1 } })
+    await prisma.orderLine.update({ where: { id: f.lineIds[0] }, data: { netPayoutAmount: 999 } })
+    const service = createRefundService({ prisma })
+    const refund = await service.queueLegacyRefund({ orderId: f.orderId, sellerId: f.sellerIds[0]!,
+      sourceType: 'return_request', sourceId: randomUUID(), requestedCustomerAmount: new Decimal(1000) })
+    const request = { refundId: refund.id, actorId: f.adminId, reason: 'Original checkout snapshot verified', expectedUpdatedAt: refund.updatedAt.toISOString() }
+    await createRefundExecutionService({ prisma }).process(refund.id)
+    await createRefundExecutionService({ prisma }).refreshParent(refund.id)
+    expect((await prisma.refundTransaction.findUniqueOrThrow({ where: { id: refund.id } })).failureReason).toBe(refund.failureReason)
+    await expect(service.reassessLegacyRefund(request)).rejects.toThrow()
+    expect((await reconcileFinance(prisma, f.sellerIds[0])).findings.map(f => f.code)).toContain('unresolved_legacy_review')
+    await prisma.orderLine.update({ where: { id: f.lineIds[0] }, data: { netPayoutAmount: 820 } })
+    const historicalEvent = await prisma.paymentEvent.create({ data: {
+      paymentId: (await prisma.payment.findFirstOrThrow({ where: { orderId: f.orderId } })).id,
+      eventType: 'refund_recorded', payload: { amount: 400 },
+    } })
+    await expect(service.reassessLegacyRefund(request)).rejects.toThrow('tarihî iade kanıtı')
+    // Delete only this isolated test's injected evidence, never production history.
+    await prisma.paymentEvent.delete({ where: { id: historicalEvent.id } })
+    await prisma.order.update({ where: { id: f.orderId }, data: { totalAmount: 1100 } })
+    await prisma.payment.updateMany({ where: { orderId: f.orderId }, data: { amount: 1100 } })
+    await expect(service.reassessLegacyRefund(request)).rejects.toThrow('artıramaz')
+    await prisma.order.update({ where: { id: f.orderId }, data: { totalAmount: 1000 } })
+    await prisma.payment.updateMany({ where: { orderId: f.orderId }, data: { amount: 1000 } })
+    const failing = prisma.$extends({ query: { adminAuditLog: { async create() { throw new Error('review audit failure') } } } }) as unknown as PrismaClient
+    await expect(createRefundService({ prisma: failing }).reassessLegacyRefund(request)).rejects.toThrow('review audit failure')
+    expect((await prisma.refundTransaction.findUniqueOrThrow({ where: { id: refund.id } })).ledgerAppliedAt).toBeNull()
+    const results = await Promise.allSettled([service.reassessLegacyRefund(request), service.reassessLegacyRefund(request)])
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+    const updated = await prisma.refundTransaction.findUniqueOrThrow({ where: { id: refund.id } })
+    expect(updated.ledgerAppliedAt).not.toBeNull()
+    expect(await prisma.adminAuditLog.count({ where: { targetId: refund.id } })).toBe(1)
+    expect((await reconcileFinance(prisma, f.sellerIds[0])).findings).toEqual([])
+  })
+})
 
 async function readyFixture(sellerCount = 1) {
   const f = await fixture(sellerCount)
@@ -187,6 +273,7 @@ describe('phase 4 source debt offsets', () => {
     const payment = await prisma.sellerLedgerEntry.findFirstOrThrow({ where: { referenceId: f.payoutId, type: 'payout' } })
     expect(payment.amount.toFixed(2)).toBe('-700.00')
     expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
+    expect((await reconcileFinance(prisma, f.sellerIds[0])).findings).toEqual([])
   })
   it('closes 1000 against 1200 debt without a transfer and carries 200 to the next payout', async () => {
     const f = await offsetFixture()
@@ -205,6 +292,7 @@ describe('phase 4 source debt offsets', () => {
     await close(f, next)
     expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
     expect((await f.service.reevaluate(f.payoutId)).payout.status).toBe('payout_offset')
+    expect((await reconcileFinance(prisma, f.sellerIds[0])).findings).toEqual([])
   })
   it('uses oldest debts first and ignores an unmatured sale credit', async () => {
     const f = await offsetFixture()

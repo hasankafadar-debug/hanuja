@@ -34,6 +34,7 @@ const refundSelect = {
   customerAmount: true,
   failureReason: true,
   createdAt: true,
+  updatedAt: true,
   order: {
     select: {
       publicNumber: true,

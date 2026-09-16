@@ -14,9 +14,10 @@ import { Prisma, type PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { createReturnRequestRepository } from '../repositories/return-request.repository'
 import { createQuantityRefundService } from './quantity-refund.service'
-import { allocateLegacyFullRefund } from '../domain/legacy-refund-allocation'
+import { allocateLegacyFullRefund, LEGACY_FINANCIAL_REVIEW_PREFIX } from '../domain/legacy-refund-allocation'
 import { ConflictError } from '../lib/errors'
 import { lockSellerFinance } from '../lib/seller-finance-lock'
+import { assertRoleCan } from '../lib/authorize'
 
 interface RefundServiceDeps {
   prisma: PrismaClient
@@ -32,7 +33,7 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
     sourceType: 'cancellation' | 'return_request' | 'dispute'
     sourceId: string
     requestedCustomerAmount: Decimal
-  }) {
+  }, review?: { actorId: string; reason: string; expectedUpdatedAt: string }) {
     return prisma.$transaction(async (tx) => {
       await lockSellerFinance(tx, [params.sellerId])
       await tx.$queryRaw(Prisma.sql`SELECT id FROM orders WHERE id = ${params.orderId} FOR UPDATE`)
@@ -50,8 +51,18 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
         if (existing.orderId !== params.orderId || existing.sellerId !== params.sellerId) {
           throw new ConflictError('İade anahtarı başka sipariş veya satıcıya ait')
         }
-        return existing
+        if (!review) return existing
+        const actor = await tx.user.findUniqueOrThrow({ where: { id: review.actorId }, select: { role: true } })
+        assertRoleCan(actor.role, 'finance:adjust_manual')
+        if (review.reason.trim().length < 10 || review.reason.length > 1000) throw new ConflictError('İnceleme gerekçesi 10–1000 karakter olmalı')
+        if (existing.updatedAt.toISOString() !== review.expectedUpdatedAt || existing.status !== 'manual_required' ||
+          !existing.failureReason?.startsWith(LEGACY_FINANCIAL_REVIEW_PREFIX) ||
+          existing.accountingAppliedAt || existing.ledgerAppliedAt || existing.payoutAppliedAt || existing.providerReference ||
+          existing.items.length > 1 || existing.items.some(i => i.status !== 'manual_required' || i.attemptCount > 0 || i.providerReference || i.paymentProviderItemId)) {
+          throw new ConflictError('İade değişmiş veya güvenli yeniden değerlendirmeye uygun değil; sayfayı yenileyin')
+        }
       }
+      if (review && !existing) throw new ConflictError('İncelenecek iade bulunamadı')
 
       const order = await tx.order.findUniqueOrThrow({
         where: { id: params.orderId },
@@ -83,7 +94,7 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
       }
 
       const otherRefunds = await tx.refundTransaction.aggregate({
-        where: { orderId: params.orderId },
+        where: { orderId: params.orderId, ...(review && existing ? { id: { not: existing.id } } : {}) },
         _sum: { customerAmount: true },
       })
       // Old flows recorded refunds outside RefundTransaction and did not maintain
@@ -120,6 +131,28 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
           order.status === 'refund_completed' || historicalReturn || historicalPayment || historicalLedger),
       })
 
+      if (review && existing) {
+        if (allocation.manualReviewReason) throw new ConflictError(allocation.manualReviewReason)
+        if (allocation.customerAmount.gt(existing.customerAmount)) {
+          throw new ConflictError('Yeniden değerlendirme kayıtlı müşteri iade tutarını artıramaz')
+        }
+        const data = {
+          customerAmount: allocation.customerAmount, grossProductAmount: allocation.grossProductAmount,
+          couponAdjustmentAmount: allocation.couponAdjustmentAmount, sellerAdjustmentAmount: allocation.sellerAdjustmentAmount,
+          commissionAdjustmentAmount: allocation.commissionAdjustmentAmount, platformFundedAmount: allocation.platformFundedAmount,
+          paymentId: order.payments[0]!.id, failureReason: null,
+        }
+        await tx.refundTransaction.update({ where: { id: existing.id }, data })
+        // Only an unattempted, unmapped legacy placeholder can reach this path.
+        if (existing.items.length) await tx.refundTransactionItem.update({ where: { id: existing.items[0]!.id },
+          data: { amount: allocation.customerAmount, failureReason: 'Finansal inceleme tamamlandı; manuel ödeme doğrulaması gerekli' } })
+        await tx.adminAuditLog.create({ data: {
+          actorId: review.actorId, actionType: 'manual_ledger_adjustment', targetType: 'refund_transaction', targetId: existing.id,
+          reason: review.reason.trim(), previousData: { customerAmount: existing.customerAmount.toFixed(2), failureReason: existing.failureReason },
+          newData: { operation: 'legacy_refund_reassessment', customerAmount: allocation.customerAmount.toFixed(2),
+            sellerAdjustmentAmount: allocation.sellerAdjustmentAmount.toFixed(2), paymentId: order.payments[0]!.id },
+        } })
+      }
       return quantityRefunds.queue({
         orderId: params.orderId,
         sellerId: params.sellerId,
@@ -139,6 +172,13 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
   }
 
   return {
+    async reassessLegacyRefund(params: { refundId: string; actorId: string; reason: string; expectedUpdatedAt: string }) {
+      const refund = await prisma.refundTransaction.findUniqueOrThrow({ where: { id: params.refundId } })
+      if (!refund.sellerId) throw new ConflictError('Satıcı eşleşmesi eksik')
+      // Reuse the amount already recorded; never infer a larger refund from a full order.
+      return queueLegacyRefund({ orderId: refund.orderId, sellerId: refund.sellerId,
+        sourceType: refund.sourceType, sourceId: refund.sourceId, requestedCustomerAmount: refund.customerAmount }, params)
+    },
     /**
      * Execute the refund for a return request. Idempotent on refundedAt.
      * Returns the (possibly already-refunded) return request.
