@@ -191,6 +191,19 @@ export default async function AdminOrderDetailPage({ params }: Props) {
   const grossAmount = moneyToNumber(order.grossAmount)
   const shippingAmount = moneyToNumber(order.shippingAmount)
   const eftDiscountAmount = moneyToNumber(order.eftDiscountAmount)
+  const eftDiscountRatePercent = order.eftDiscountRateSnapshot
+    ? Number((moneyToNumber(order.eftDiscountRateSnapshot) * 100).toFixed(2))
+    : 0
+  // Order.discountAmount = checkout kuponu + EFT onayında admin'in girdiği manuel
+  // indirim (Payment.eftDiscountAmount); ikisi ayrı satırda gösterilir.
+  const manualEftDiscountAmount = order.payments.reduce(
+    (sum, payment) => sum + moneyToNumber(payment.eftDiscountAmount),
+    0,
+  )
+  const couponDiscountAmount = Math.max(
+    0,
+    moneyToNumber(order.discountAmount) - manualEftDiscountAmount,
+  )
 
   const { originalQuantity, currentQuantity, cancelledQuantity, shippedQuantity } =
     summarizeOrderQuantities(order.lines)
@@ -393,8 +406,29 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                 label: 'İptal edilen brüt ürün',
                 value: formatMoney(cancelledGrossProductAmount),
               },
+              ...(couponDiscountAmount > 0
+                ? [
+                    {
+                      label: `Kupon indirimi${order.couponCode ? ` (${order.couponCode})` : ''}`,
+                      value: `-${formatMoney(couponDiscountAmount)}`,
+                    },
+                  ]
+                : []),
               ...(eftDiscountAmount > 0
-                ? [{ label: 'EFT indirimi', value: `-${formatMoney(eftDiscountAmount)}` }]
+                ? [
+                    {
+                      label: `EFT indirimi${eftDiscountRatePercent > 0 ? ` (%${eftDiscountRatePercent})` : ''}`,
+                      value: `-${formatMoney(eftDiscountAmount)}`,
+                    },
+                  ]
+                : []),
+              ...(manualEftDiscountAmount > 0
+                ? [
+                    {
+                      label: 'Ek indirim (EFT onayı)',
+                      value: `-${formatMoney(manualEftDiscountAmount)}`,
+                    },
+                  ]
                 : []),
               {
                 label: 'Kargo',

@@ -205,6 +205,16 @@ export default async function OrderDetailPage({ params }: Props) {
   const grossAmount = moneyToNumber(order.grossAmount)
   const shippingAmount = moneyToNumber(order.shippingAmount)
   const eftDiscount = moneyToNumber(order.eftDiscountAmount)
+  const eftDiscountRatePercent = order.eftDiscountRateSnapshot
+    ? Number((moneyToNumber(order.eftDiscountRateSnapshot) * 100).toFixed(2))
+    : 0
+  // Order.discountAmount = checkout kuponu + admin EFT onayında girilen manuel
+  // indirim (Payment.eftDiscountAmount). İkisi ayrı satırda gösterilir.
+  const manualDiscount = order.payments.reduce(
+    (sum, payment) => sum + moneyToNumber(payment.eftDiscountAmount),
+    0,
+  )
+  const couponDiscount = Math.max(0, moneyToNumber(order.discountAmount) - manualDiscount)
   const totalAmount = moneyToNumber(order.totalAmount)
 
   const CUSTOMER_CANCELLABLE_STATUSES = new Set([
@@ -396,10 +406,22 @@ export default async function OrderDetailPage({ params }: Props) {
             <span>Ürünler</span>
             <span>{formatMoney(grossAmount)}</span>
           </div>
+          {couponDiscount > 0 ? (
+            <div className="flex justify-between" style={{ color: 'var(--color-success, #16a34a)' }}>
+              <span>Kupon indirimi{order.couponCode ? ` (${order.couponCode})` : ''}</span>
+              <span>-{formatMoney(couponDiscount)}</span>
+            </div>
+          ) : null}
           {eftDiscount > 0 ? (
             <div className="flex justify-between" style={{ color: 'var(--color-success, #16a34a)' }}>
-              <span>EFT indirimi</span>
+              <span>EFT indirimi{eftDiscountRatePercent > 0 ? ` (%${eftDiscountRatePercent})` : ''}</span>
               <span>-{formatMoney(eftDiscount)}</span>
+            </div>
+          ) : null}
+          {manualDiscount > 0 ? (
+            <div className="flex justify-between" style={{ color: 'var(--color-success, #16a34a)' }}>
+              <span>Ek indirim</span>
+              <span>-{formatMoney(manualDiscount)}</span>
             </div>
           ) : null}
           <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
