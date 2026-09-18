@@ -23,6 +23,12 @@ import { createProductReviewService } from '@hanuja/api/services/product-review.
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { NotFoundError } from '@hanuja/api/lib/errors'
 import { buildPublicProductWhere } from '@hanuja/api/domain/product-visibility'
+import {
+  formatProductColors,
+  formatProductDimensions,
+  getProductColorLabels,
+  getProductMaterialLabel,
+} from '@hanuja/api/domain/product-characteristics'
 import AddToCartButton from './add-to-cart-button'
 import { ReviewStars } from './_components/review-stars'
 import { ReviewList } from './_components/review-list'
@@ -155,28 +161,18 @@ export default async function ProductDetailPage({ params }: Props) {
 
   const price = Number(product.price)
   const compareAtPrice = product.compareAtPrice ? Number(product.compareAtPrice) : null
-  // Tek üründe birden çok renk sortOrder'a göre sıralanıp " - " ile birleştirilir
-  // (Renk 1 → 0, Renk 2 → 1) → mağazada "Renk: Siyah - Beyaz".
-  const colorValue =
-    ((product.attributeValues as
-      | Array<{ sortOrder?: number; option?: { type?: string; label?: string } }>
-      | undefined) ?? [])
-      .filter((attribute) => attribute.option?.type === 'color')
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-      .map((attribute) => attribute.option?.label)
-      .filter((label): label is string => Boolean(label))
-      .join(' - ') || null
-  const materialValue =
-    (product.attributeValues as Array<{ option?: { type?: string; label?: string } }> | undefined)?.find(
-      (attribute) => attribute.option?.type === 'material',
-    )?.option?.label ?? null
-  // Ölçüler (cm) — yalnız girilenler gösterilir; hiçbiri yoksa satır render edilmez.
-  const dimensionParts = [
-    product.dimensionWidth != null ? `En: ${Number(product.dimensionWidth)} cm` : null,
-    product.dimensionLength != null ? `Boy: ${Number(product.dimensionLength)} cm` : null,
-    product.dimensionHeight != null ? `Yükseklik: ${Number(product.dimensionHeight)} cm` : null,
-  ].filter((part): part is string => part !== null)
-  const dimensionText = dimensionParts.length > 0 ? dimensionParts.join(' · ') : null
+  // Renk / malzeme / ölçü metinleri hukuki belgelerle ortak kaynaktan gelir
+  // (api/domain/product-characteristics.ts): "Renk: Siyah - Beyaz", "En: 100 cm · Boy: …".
+  const productAttributeValues = product.attributeValues as
+    | Array<{ sortOrder?: number; option?: { type?: string; label?: string } }>
+    | undefined
+  const colorValue = formatProductColors(getProductColorLabels(productAttributeValues))
+  const materialValue = getProductMaterialLabel(productAttributeValues)
+  const dimensionText = formatProductDimensions({
+    widthCm: product.dimensionWidth != null ? Number(product.dimensionWidth) : null,
+    lengthCm: product.dimensionLength != null ? Number(product.dimensionLength) : null,
+    heightCm: product.dimensionHeight != null ? Number(product.dimensionHeight) : null,
+  })
   const visualSiblings = product.modelCode?.trim() && category?.id
     ? await getVisualSiblings({ sellerId: product.sellerId, categoryId: category.id, modelCode: product.modelCode.trim() })
     : []

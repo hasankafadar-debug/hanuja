@@ -1,8 +1,15 @@
 import { createHash } from 'node:crypto'
+import {
+  formatProductColors,
+  formatProductDimensions,
+} from '../domain/product-characteristics'
 import { PLATFORM_LEGAL_INFO } from './platform-info'
 
-export const DISTANCE_SALES_DOCUMENT_VERSION = 'distance-sales-2026-09-03-v3'
-export const PRE_INFORMATION_DOCUMENT_VERSION = 'pre-information-2026-09-03-v3'
+// v4 (2026-09-18): kupon / Havale-EFT indirim satırları, sipariş anındaki ürün
+// temel nitelikleri (renk, malzeme, ölçü, SKU/barkod), ürün bazlı sevk süresi
+// ve 30 günlük azami teslim süresinin özel üretim istisnası eklendi.
+export const DISTANCE_SALES_DOCUMENT_VERSION = 'distance-sales-2026-09-18-v4'
+export const PRE_INFORMATION_DOCUMENT_VERSION = 'pre-information-2026-09-18-v4'
 
 export interface LegalBuyerSnapshot {
   fullName: string
@@ -35,6 +42,17 @@ export interface LegalOrderItemSnapshot {
   lineTotal: number
   sellerId: string
   sellerStoreName: string
+  /** Sipariş anındaki temel nitelikler — ürün sayfasına atıf yerine belgeye sabitlenir. */
+  sku: string | null
+  barcode: string | null
+  /** Renk 1 → Renk 2 sırasıyla. */
+  colors: string[]
+  material: string | null
+  dimensionWidthCm: number | null
+  dimensionLengthCm: number | null
+  dimensionHeightCm: number | null
+  /** Satıcının ürün bazında taahhüt ettiği sevk süresi (iş günü). */
+  promisedFulfillmentDays: number
 }
 
 export interface LegalContractContext {
@@ -45,6 +63,12 @@ export interface LegalContractContext {
   orderDate: Date
   paymentMethod: 'card' | 'eft'
   subtotalAmount: number
+  /** Kupon indirimi (platform veya satıcı kuponu); 0 ise satır basılmaz. */
+  couponCode: string | null
+  couponDiscountAmount: number
+  /** Havale / EFT kanal indirimi; 0 ise satır basılmaz. Yüzde sipariş anındaki oran (ör. 3). */
+  eftDiscountAmount: number
+  eftDiscountRatePercent: number
   shippingAmount: number
   taxAmount: number
   totalAmount: number
@@ -86,6 +110,43 @@ function formatDate(value: Date) {
     month: '2-digit',
     year: 'numeric',
   })
+}
+
+function formatPercent(value: number) {
+  return `%${value.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`
+}
+
+function formatFulfillmentDays(days: number) {
+  return `${days} iş günü`
+}
+
+/**
+ * Siparişin sevk taahhüdü: birden fazla ürün varsa en uzun sevk süresi esas
+ * alınır. Hiçbir satırda süre yoksa (public örnek belge) ürün sayfasına atıf.
+ */
+function resolvePromisedFulfillmentDays(items: LegalOrderItemSnapshot[]) {
+  return items.reduce((max, item) => Math.max(max, item.promisedFulfillmentDays), 0)
+}
+
+function formatOrderFulfillmentCommitment(items: LegalOrderItemSnapshot[]) {
+  const days = resolvePromisedFulfillmentDays(items)
+  return days > 0 ? formatFulfillmentDays(days) : 'ürün sayfasında belirtilen sevk süresi'
+}
+
+function formatItemCharacteristics(item: LegalOrderItemSnapshot) {
+  const colors = formatProductColors(item.colors)
+  const dimensions = formatProductDimensions({
+    widthCm: item.dimensionWidthCm,
+    lengthCm: item.dimensionLengthCm,
+    heightCm: item.dimensionHeightCm,
+  })
+  return [
+    colors ? `Renk: ${colors}` : null,
+    item.material ? `Materyal: ${item.material}` : null,
+    dimensions,
+    item.sku ? `SKU: ${item.sku}` : null,
+    item.barcode ? `Barkod: ${item.barcode}` : null,
+  ].filter((part): part is string => part !== null)
 }
 
 function paymentMethodLabel(paymentMethod: 'card' | 'eft') {
@@ -132,6 +193,11 @@ function renderDocumentStyles() {
         margin: 16px 0;
       }
       .muted { color: #4b5563; }
+      .item-attributes {
+        color: #4b5563;
+        font-size: 12px;
+        margin-top: 4px;
+      }
       .summary-row {
         display: flex;
         justify-content: space-between;
@@ -169,28 +235,38 @@ function renderSellerList(sellers: LegalSellerSnapshot[]) {
 
 function renderItemsTable(items: LegalOrderItemSnapshot[]) {
   const rows = items
-    .map(
-      (item) => `
+    .map((item) => {
+      const characteristics = formatItemCharacteristics(item)
+      const characteristicsHtml =
+        characteristics.length > 0
+          ? `<div class="item-attributes">${characteristics.map(escapeHtml).join(' · ')}</div>`
+          : ''
+      return `
         <tr>
-          <td>${escapeHtml(item.productName)}${item.variantName ? ` <small>(${escapeHtml(item.variantName)})</small>` : ''}</td>
+          <td>
+            ${escapeHtml(item.productName)}${item.variantName ? ` <small>(${escapeHtml(item.variantName)})</small>` : ''}
+            ${characteristicsHtml}
+          </td>
           <td>${escapeHtml(item.sellerStoreName)}</td>
           <td>${item.quantity}</td>
           <td>${formatCurrency(item.unitPrice)} (KDV Dahil)</td>
           <td>${formatCurrency(item.lineTotal)} (KDV Dahil)</td>
+          <td>${item.promisedFulfillmentDays > 0 ? formatFulfillmentDays(item.promisedFulfillmentDays) : '-'}</td>
         </tr>
-      `,
-    )
+      `
+    })
     .join('')
 
   return `
     <table>
       <thead>
         <tr>
-          <th>Ürün / Hizmet</th>
+          <th>Ürün / Hizmet ve Temel Nitelikleri</th>
           <th>Satıcı</th>
           <th>Adet</th>
           <th>Birim Fiyat</th>
           <th>Satır Toplamı</th>
+          <th>Sevk Süresi</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -235,6 +311,7 @@ function renderOrderSummary(context: LegalContractContext) {
         <strong>Ürünler Toplamı</strong>
         <span>${formatCurrency(context.subtotalAmount)} (KDV Dahil)</span>
       </div>
+      ${renderDiscountRows(context)}
       <div class="summary-row">
         <strong>Kargo</strong>
         <span>${formatCurrency(context.shippingAmount)}</span>
@@ -243,9 +320,55 @@ function renderOrderSummary(context: LegalContractContext) {
         <strong>Toplam Sipariş Bedeli</strong>
         <span>${formatCurrency(context.totalAmount)} (KDV Dahil)</span>
       </div>
-      <p class="muted">Teslimat, ürün sayfasında veya sipariş sırasında daha kısa bir süre belirtilmedikçe ve mevzuattaki azami süre saklı kalmak üzere en geç 30 gün içinde tamamlanır.</p>
+      <div class="summary-row">
+        <strong>Taahhüt Edilen Sevk Süresi</strong>
+        <span>${escapeHtml(formatOrderFulfillmentCommitment(context.items))}</span>
+      </div>
+      <p class="muted">
+        Siparişe konu ürünler, ödemenin onaylanmasından itibaren yukarıda belirtilen sevk süresi içinde kargoya
+        verilir; birden fazla ürün bulunan siparişlerde en uzun sevk süresi esas alınır ve süre iş günü olarak
+        hesaplanır. Tüketicinin istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan mallara ilişkin
+        sözleşmeler hariç olmak üzere, mal satışlarında teslimat süresi her hâlükârda mevzuattaki azami süre olan
+        30 günü geçemez.
+      </p>
     </div>
   `
+}
+
+/**
+ * Müşterinin ödediği tutarı düşüren indirimler ayrı satırlarda gösterilir; aksi
+ * hâlde "Ürünler Toplamı + Kargo" ile "Toplam Sipariş Bedeli" arasındaki fark
+ * belgede açıklanmaz. Sıfır olan indirim satırı basılmaz.
+ */
+function renderDiscountRows(context: LegalContractContext) {
+  const rows: string[] = []
+
+  if (context.couponDiscountAmount > 0) {
+    const label = context.couponCode
+      ? `Kupon İndirimi (${escapeHtml(context.couponCode)})`
+      : 'Kupon İndirimi'
+    rows.push(`
+      <div class="summary-row">
+        <strong>${label}</strong>
+        <span>-${formatCurrency(context.couponDiscountAmount)}</span>
+      </div>
+    `)
+  }
+
+  if (context.eftDiscountAmount > 0) {
+    const label =
+      context.eftDiscountRatePercent > 0
+        ? `Havale / EFT İndirimi (${formatPercent(context.eftDiscountRatePercent)})`
+        : 'Havale / EFT İndirimi'
+    rows.push(`
+      <div class="summary-row">
+        <strong>${label}</strong>
+        <span>-${formatCurrency(context.eftDiscountAmount)}</span>
+      </div>
+    `)
+  }
+
+  return rows.join('')
 }
 
 function renderRightOfWithdrawalExceptions() {
@@ -274,6 +397,13 @@ function renderPersonalizedGoodsWithdrawalNotice() {
         Tüketicinin istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan mallara ilişkin
         sözleşmeler, Mesafeli Sözleşmeler Yönetmeliği'ndeki cayma hakkı istisnaları arasında yer alır.
         Ürün bu nitelikteyse ve mevzuattaki koşullar oluşmuşsa cayma hakkı kullanılamayabilir.
+      </p>
+      <p>
+        Alıcı'nın Satıcı'dan mevcut bir üründe değişiklik, ölçü/renk/malzeme uyarlaması veya özel üretim
+        talep etmesi hâlinde, bu talep ve Satıcı'nın kabulü platform üzerindeki yazışma ve sipariş
+        kayıtlarıyla ispat edilir; bu nitelikteki ürünler tüketicinin istekleri veya kişisel ihtiyaçları
+        doğrultusunda hazırlanan mal sayılır ve mevzuattaki koşullar oluşmuşsa cayma hakkı istisnası ile
+        30 günlük azami teslim süresi istisnası uygulanabilir.
       </p>
       <p>
         Ayıplı veya sözleşmeye aykırı ürünlere ilişkin tüketicinin mevzuattan doğan seçimlik ve diğer
@@ -392,8 +522,10 @@ function renderDistanceSales(context: LegalContractContext) {
           bilgisinden doğan gecikme, teslim edilememe, ek maliyet ve iletişim problemlerinden Alıcı sorumludur.
         </p>
         <p>
-          Satıcı, ürünü taahhüt edilen sürede ve her halde mevzuattaki azami süreye uygun şekilde teslim etmekle
-          yükümlüdür. Malın tüketiciye veya tüketicinin belirlediği üçüncü kişiye teslimine kadar oluşan kayıp
+          Satıcı, ürünü sipariş özetinde belirtilen sevk süresi içinde kargoya vermek ve, tüketicinin istekleri
+          veya kişisel ihtiyaçları doğrultusunda hazırlanan mallar hariç olmak üzere, her hâlde mevzuattaki azami
+          süreye (30 gün) uygun şekilde teslim etmekle yükümlüdür. Malın tüketiciye veya tüketicinin belirlediği
+          üçüncü kişiye teslimine kadar oluşan kayıp
           ve hasar, mevzuatın öngördüğü çerçevede Satıcı'nın sorumluluğundadır. Alıcı'nın Satıcı'nın belirlediği
           taşıyıcı dışında başka bir taşıyıcı talep ettiği hallerde, ilgili taşıyıcıya teslimden sonraki kayıp ve
           hasar riski mevzuata uygun şekilde Alıcı'ya geçebilir.
@@ -494,7 +626,9 @@ function renderPreInformation(context: LegalContractContext) {
         <h2>4. Ürünlerin Temel Nitelikleri ve Sipariş Özeti</h2>
         <p>
           Ürünlerin temel nitelikleri, marka/model/ölçü/renk/varyant gibi ürün sayfasında gösterilen bilgiler,
-          stok ve satış açıklamaları ilgili Satıcı tarafından sağlanır. Siparişe konu ürünler aşağıdadır.
+          stok ve satış açıklamaları ilgili Satıcı tarafından sağlanır. Siparişe konu ürünler ve sipariş
+          anındaki temel nitelikleri (seçilen varyant, renk, malzeme, ölçü, ürün kodu ve sevk süresi) aşağıda
+          yer alır.
         </p>
         ${renderItemsTable(context.items)}
         ${renderOrderSummary(context)}
@@ -515,8 +649,10 @@ function renderPreInformation(context: LegalContractContext) {
         <h2>6. Teslimat Bilgilendirmesi</h2>
         <p>
           Ürünler seçilen teslimat adresine gönderilir. Birden fazla satıcıdan oluşan siparişlerde ürünler farklı
-          paketler ve farklı taşıyıcılarla sevk edilebilir. Satıcı, teslimatın ilan edilen sürelerde ve mevzuata
-          uygun şekilde yapılmasından sorumludur.
+          paketler ve farklı taşıyıcılarla sevk edilebilir. Satıcı, ürünü sipariş özetinde belirtilen sevk süresi
+          içinde kargoya vermekten ve, tüketicinin istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan
+          mallar hariç olmak üzere, teslimatın her hâlde mevzuattaki azami süreye (30 gün) uygun şekilde
+          yapılmasından sorumludur.
         </p>
         <p>
           Teslimata kadar kayıp ve hasar riski, mevzuatın öngördüğü çerçevede Satıcı'ya aittir. Alıcı'nın yanlış
@@ -616,12 +752,24 @@ export function buildPublicLegalDocumentContext(): LegalContractContext {
         lineTotal: 0,
         sellerId: 'sample-seller',
         sellerStoreName: '[Mağaza Adı]',
+        sku: null,
+        barcode: null,
+        colors: [],
+        material: null,
+        dimensionWidthCm: null,
+        dimensionLengthCm: null,
+        dimensionHeightCm: null,
+        promisedFulfillmentDays: 0,
       },
     ],
     orderNumber: 'Önizleme',
     orderDate: new Date(),
     paymentMethod: 'card',
     subtotalAmount: 0,
+    couponCode: null,
+    couponDiscountAmount: 0,
+    eftDiscountAmount: 0,
+    eftDiscountRatePercent: 0,
     shippingAmount: 0,
     taxAmount: 0,
     totalAmount: 0,

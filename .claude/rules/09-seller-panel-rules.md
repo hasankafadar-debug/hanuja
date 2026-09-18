@@ -388,6 +388,9 @@ birlikte gözden geçirilmelidir.
 **En → `dimensionWidth`, Boy → `dimensionLength`, Yükseklik → `dimensionHeight`** (cm). Girilirse ürün
 detay sayfasında stok/sevk satırının yanında ayrı etiketlerle gösterilir ("En: 100 cm · Boy: 30 cm ·
 Yükseklik: 45 cm"); girilmezse hiç gösterilmez (satıcı kısa açıklamaya yazmış olabilir). Zorunlu değildir.
+Renk / materyal / ölçü metinlerinin tek kaynağı `api/domain/product-characteristics.ts`'tir; mağaza ürün
+sayfası ve sipariş bazlı hukuki belgeler (Mesafeli Satış Sözleşmesi / Ön Bilgilendirme Formu) aynı
+formatlayıcıyı kullanır — biçim değişecekse yalnız orada değiştirilir.
 
 ## Pricing and Inventory Rules
 

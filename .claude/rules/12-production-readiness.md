@@ -436,6 +436,34 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   `restic backup --group-by` restic ≥ 0.14 ister; kurulumda `restic version` kontrol edilir.
 - **Migration YOK, redeploy YOK** — yalnız host betiği.
 
+### 28. Sipariş sözleşmelerinde indirim satırları, ürün nitelikleri ve sevk süresi (yeni — 2026-09-18)
+
+- **Belirti:** Mesafeli Satış Sözleşmesi / Ön Bilgilendirme Formu'nda "Ürünler 58.700 TL, kargo 0, toplam
+  56.939 TL" — %3 Havale/EFT indirimi (1.761 TL) belgede hiç görünmüyordu; ürün yalnız adıyla listeleniyordu;
+  teslim süresi genel "en geç 30 gün" ifadesiydi.
+- **Kök neden:** `buildCheckoutDraft` kupon (`discountAmount`) ve EFT (`eftDiscountAmount`/`eftDiscountRate`)
+  değerlerini hesaplıyor ama `legalContext`'e aktarmıyordu; `renderOrderSummary` yalnız Ürünler/Kargo/Toplam
+  basıyordu. Renk/malzeme `attributeValues` join'i checkout'ta yüklenmiyordu.
+- **Düzeltme:** belge sürümü **v4** (`distance-sales-2026-09-18-v4`, `pre-information-2026-09-18-v4`).
+  Özet bloğuna koşullu `Kupon İndirimi (KOD)` ve `Havale / EFT İndirimi (%N)` satırları; ürün satırına renk /
+  materyal / ölçü / SKU / barkod (`api/domain/product-characteristics.ts` — mağaza ürün sayfasıyla ortak
+  formatlayıcı) ve `Sevk Süresi` sütunu; özette `Taahhüt Edilen Sevk Süresi` = en uzun satır; "30 gün" cümlesi
+  Yönetmelik md. 16 istisnasıyla yeniden yazıldı; bayraktan bağımsız genel özel üretim paragrafı eklendi.
+  Ayrıntı: `docs/08-legal/distance-sales-notes.md` §"Sipariş belgesi içeriği".
+- **Sipariş sayfaları:** müşteri `/siparis/[id]` ve admin sipariş detayı toplam bloğuna `Kupon indirimi (KOD)`
+  satırı eklendi; `Order.discountAmount` içindeki admin EFT-onay manuel indirimi (`Payment.eftDiscountAmount`)
+  ayrı `Ek indirim` satırında gösterilir; EFT satırı sipariş anındaki yüzdeyi (`eftDiscountRateSnapshot`) basar.
+- **EFT %0 şüphesi — yazılım hatası değil.** `PlatformSettings.eftDiscountRate` tek kaynak, canlı okunur,
+  cache/env/seed override yok; admin formu doğru %'ye çevirir. Belgede %3 varken ayarda %0 görünmesi, ayarın
+  siparişten sonra değiştirildiğini gösterir (`Order.eftDiscountRateSnapshot` ve `platform_settings.updatedAt`
+  ile teyit edilir). Kişiye özel üretim bayrağı bilinçli olarak eklenmedi (iş sahibi kararı, 2026-09-18).
+- **Mevcut sipariş belgeleri değişmez** (`OrderLegalSnapshot` hash'li delil); düzeltme yalnız yeni siparişleri
+  etkiler. Public örnek sayfalar (`/mesafeli-satis`, `/on-bilgilendirme`) placeholder ile çalışır.
+- **Migration YOK, env YOK.** Redeploy: **web** (checkout + renderer + sipariş sayfası) ve **admin-panel**
+  (sipariş detayı). Worker/seller-panel etkilenmez; sıra kritik değil.
+- Testler: `tests/unit/legal-documents.test.ts` (17), `tests/unit/domain/product-characteristics.test.ts` (10).
+  Route-seviyesi test yok; `legalContext` eşlemesi typecheck (zorunlu alanlar) ile korunur.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

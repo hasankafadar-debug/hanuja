@@ -21,6 +21,10 @@ import {
 } from '../domain/payout-calculator'
 import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
 import {
+  getProductColorLabels,
+  getProductMaterialLabel,
+} from '../domain/product-characteristics'
+import {
   ConflictError,
   NotFoundError,
   SellerOnVacationError,
@@ -28,7 +32,11 @@ import {
   ValidationError,
 } from '../lib/errors'
 import { createCartRepository } from '../repositories/cart.repository'
-import { hashLegalDocumentHtml, renderLegalDocuments } from '../lib/legal-documents'
+import {
+  hashLegalDocumentHtml,
+  renderLegalDocuments,
+  type LegalOrderItemSnapshot,
+} from '../lib/legal-documents'
 import type { LegalAcceptanceEvidence } from '../lib/legal-acceptance'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
 import { getPlatformBankInfo, getWebBaseUrl } from '../lib/platform-info'
@@ -42,6 +50,21 @@ import { assertPaymentMethodEnabled } from '../lib/payment-capabilities'
 
 // Sistem varsayılan komisyon oranı - proje büyüdükçe commission config tablosuna taşınır
 // Öncelik sırası (CLAUDE.md 15.1): ürün override > kategori > satıcı genel > sistem default
+
+// rawLines/lines eşlemesi bozulursa (olmamalı) belge boş nitelikle üretilir,
+// sipariş oluşturma kırılmaz.
+const EMPTY_LEGAL_CHARACTERISTICS: Pick<
+  LegalOrderItemSnapshot,
+  'sku' | 'barcode' | 'colors' | 'material' | 'dimensionWidthCm' | 'dimensionLengthCm' | 'dimensionHeightCm'
+> = {
+  sku: null,
+  barcode: null,
+  colors: [],
+  material: null,
+  dimensionWidthCm: null,
+  dimensionLengthCm: null,
+  dimensionHeightCm: null,
+}
 
 function applyEffectivePricing(
   basePrice: Decimal,
@@ -200,6 +223,8 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         include: {
           seller: { include: { profile: true } },
           variants: true,
+          // Renk / malzeme: hukuki belgeye sipariş anındaki temel nitelik olarak yazılır.
+          attributeValues: { include: { option: true } },
         },
       }),
       prisma.category.findMany({ select: { id: true, parentId: true, taxRate: true } }),
@@ -225,6 +250,18 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       taxAmount: Decimal
       commissionRate: Decimal
       promisedFulfillmentDays: number
+      // Yalnız hukuki belge snapshot'ı için; OrderLine kolonu değildir, `lines`'a
+      // taşınmaz (draft.lines doğrudan order.create'e verilir).
+      legalCharacteristics: Pick<
+        LegalOrderItemSnapshot,
+        | 'sku'
+        | 'barcode'
+        | 'colors'
+        | 'material'
+        | 'dimensionWidthCm'
+        | 'dimensionLengthCm'
+        | 'dimensionHeightCm'
+      >
     }
     const rawLines: RawLine[] = []
     const sellerMap = new Map<string, ReturnType<typeof buildSellerSnapshot>>()
@@ -294,6 +331,15 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         taxAmount,
         commissionRate,
         promisedFulfillmentDays: product.fulfillmentDays ?? settings.fulfillmentDays,
+        legalCharacteristics: {
+          sku: variant?.sku ?? product.sku ?? null,
+          barcode: variant?.barcode ?? product.barcode ?? null,
+          colors: getProductColorLabels(product.attributeValues),
+          material: getProductMaterialLabel(product.attributeValues),
+          dimensionWidthCm: product.dimensionWidth != null ? Number(product.dimensionWidth) : null,
+          dimensionLengthCm: product.dimensionLength != null ? Number(product.dimensionLength) : null,
+          dimensionHeightCm: product.dimensionHeight != null ? Number(product.dimensionHeight) : null,
+        },
       })
     }
 
@@ -435,7 +481,9 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           billingAddress: formattedBillingAddress,
         },
         sellers: Array.from(sellerMap.values()),
-        items: lines.map((line) => ({
+        // `lines` ve `rawLines` aynı sıra/uzunluktadır; belgeye özgü nitelikler
+        // rawLines'tan alınır, OrderLine'a yazılmaz.
+        items: lines.map((line, index) => ({
           productId: line.productId,
           productName: line.productName,
           variantName: line.variantName,
@@ -445,10 +493,17 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           sellerId: line.sellerId,
           sellerStoreName:
             sellerMap.get(line.sellerId)?.storeName ?? 'Satıcı Mağazası',
+          ...(rawLines[index]?.legalCharacteristics ?? EMPTY_LEGAL_CHARACTERISTICS),
+          promisedFulfillmentDays: line.promisedFulfillmentDays,
         })),
         orderDate: new Date(),
         paymentMethod: params.paymentMethod,
         subtotalAmount: decimalToNumber(grossAmount),
+        // İndirimler belgede ayrı satır olarak gösterilir (toplam farkı açıklanır).
+        couponCode: discountAmount.gt(0) ? couponCode : null,
+        couponDiscountAmount: decimalToNumber(discountAmount),
+        eftDiscountAmount: decimalToNumber(eftDiscountAmount),
+        eftDiscountRatePercent: Number(eftDiscountRate.mul(100).toFixed(2)),
         shippingAmount: decimalToNumber(shippingAmount),
         taxAmount: decimalToNumber(taxAmount),
         totalAmount: decimalToNumber(totalAmount),
