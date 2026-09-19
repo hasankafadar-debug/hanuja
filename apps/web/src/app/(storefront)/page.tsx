@@ -13,14 +13,14 @@ import {
   Package,
   Layers,
 } from 'lucide-react'
-import { createCatalogService } from '@hanuja/api/services/catalog.service'
-import { createHomeCmsService } from '@hanuja/api/services/home-cms.service'
-import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { VIRTUAL_COLLECTION_MAP } from '@/config/storefront-nav'
-import { getCustomerVisibleCategories } from '@/lib/customer-visible-categories'
 import FeaturedProductsCarousel from '@/components/storefront/featured-products-carousel'
-import type { StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
+import { getHomepageShowcaseData, type HomepageShowcaseData } from '@/lib/homepage-showcase-data'
 
+// Stays dynamic on purpose: a `revalidate` export would prerender this page at
+// build time (DB unreachable in the Coolify build) and bake an empty homepage
+// into the image. Freshness/cost is handled by the 60 s data cache in
+// `@/lib/homepage-showcase-data` instead — see that module's header.
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
@@ -50,148 +50,49 @@ const FEATURED_CATEGORIES: Array<{
   { label: 'Tekstil', description: 'Sıcaklık ve konfor', href: '/kategori/ev-tekstil', Icon: Layers, visibilitySlugs: ['ev-tekstil'] },
 ]
 
-const HOMEPAGE_FEATURED_GROUPS = [
-  ['ev-mobilya', 'ofis-mobilya'],
-  ['ev-aydinlatma', 'ofis-aydinlatma'],
-  ['ev-aksesuar', 'ofis-aksesuar'],
-  ['ev-mutfak'],
-  ['ev-dekorasyon'],
-  ['ev-tekstil'],
-  ['ev'],
-  ['ofis'],
-] as const
-
-function collectCategoryIds(
-  rootIds: string[],
-  categories: Array<{ id: string; slug: string; parentId: string | null }>,
-) {
-  const collected = new Set<string>(rootIds)
-  let changed = true
-
-  while (changed) {
-    changed = false
-    for (const category of categories) {
-      if (category.parentId && collected.has(category.parentId) && !collected.has(category.id)) {
-        collected.add(category.id)
-        changed = true
-      }
-    }
-  }
-
-  return Array.from(collected)
+// Rendered when the showcase data could not be loaded at all (DB outage on a cold
+// cache). Deliberately distinct from the genuinely-empty-catalog copy below so an
+// incident never reads as "no products yet".
+const EMPTY_SHOWCASE_DATA: HomepageShowcaseData = {
+  featuredProducts: [],
+  weeklyFavoriteProducts: [],
+  campaignDiscountProducts: [],
+  slides: [],
+  topPromo: null,
+  bottomPromo: null,
+  visibleCategorySlugs: [],
 }
 
-function resolveDiscoveryHref(href: string, ...content: Array<string | null | undefined>) {
-  const lookup = [href, ...content].filter(Boolean).join(' ').toLocaleLowerCase('tr-TR')
-
-  if (lookup.includes('favori')) return '/urunler?vitrin=favorited&siralama=favorited'
-  if (lookup.includes('yeni')) return '/urunler?vitrin=newest&siralama=newest'
-  if (lookup.includes('indirim')) return '/urunler?vitrin=discounts&indirimli=1'
-
-  return href
-}
-
-type ProductRow = {
-  id: string
-  name: string
-  slug: string
-  price: { toNumber(): number } | number
-  compareAtPrice?: { toNumber(): number } | number | null
-  images: Array<{ url: string }>
-  seller: { displayName: string; slug: string } | null
-}
-
-function toGridProduct(product: ProductRow): StorefrontGridProduct {
-  return {
-    id: product.id,
-    title: product.name,
-    slug: product.slug,
-    price: typeof product.price === 'object' ? product.price.toNumber() : Number(product.price),
-    comparePrice:
-      product.compareAtPrice && typeof product.compareAtPrice === 'object'
-        ? product.compareAtPrice.toNumber()
-        : (product.compareAtPrice ?? null),
-    imageUrl: product.images?.[0]?.url ?? null,
-    imageUrls: product.images?.map((image) => image.url) ?? [],
-    ...(product.seller
-      ? { sellerName: product.seller.displayName, sellerSlug: product.seller.slug }
-      : {}),
-  }
-}
-
-async function getPageData() {
-  const prisma = createPrismaForRoute()
-  const catalogSvc = createCatalogService({ prisma })
-  const cmsSvc = createHomeCmsService({ prisma })
-
-  const [allCategories, slides, topPromo, bottomPromo] = await Promise.all([
-    getCustomerVisibleCategories().catch(() => []),
-    cmsSvc.getActiveSlides().catch(() => []),
-    cmsSvc.getActivePromo('TOP_RIGHT').catch(() => null),
-    cmsSvc.getActivePromo('BOTTOM_RIGHT').catch(() => null),
-  ])
-
-  const featuredGroups = HOMEPAGE_FEATURED_GROUPS.map((group) => {
-    const rootIds = allCategories
-      .filter((category) => group.some((slug) => slug === category.slug))
-      .map((category) => category.id)
-
-    return {
-      key: group.join('-'),
-      categoryIds: collectCategoryIds(rootIds, allCategories),
-    }
-  }).filter((group) => group.categoryIds.length > 0)
-
-  const [featuredProducts, weeklyFavorites, campaignDiscounts] = await Promise.all([
-    catalogSvc.getHomepageFeaturedProducts(featuredGroups).catch(() => []),
-    catalogSvc.getWeeklyFavoriteShowcase(featuredGroups, 20).catch(() => []),
-    catalogSvc.getCampaignDiscountProducts(25).catch(() => []),
-  ])
-
-  const visibleCategorySlugs = new Set(allCategories.map((category) => category.slug))
-
-  return {
-    featuredProducts,
-    weeklyFavorites,
-    campaignDiscounts,
-    slides,
-    topPromo,
-    bottomPromo,
-    visibleCategorySlugs,
+async function loadHomepageShowcase(): Promise<{
+  data: HomepageShowcaseData
+  showcaseUnavailable: boolean
+}> {
+  try {
+    return { data: await getHomepageShowcaseData(), showcaseUnavailable: false }
+  } catch (error) {
+    // Not cached — only this request degrades; the next one retries the load.
+    console.error('[storefront] homepage showcase load failed', error)
+    return { data: EMPTY_SHOWCASE_DATA, showcaseUnavailable: true }
   }
 }
 
 export default async function HomePage() {
   const {
-    featuredProducts,
-    weeklyFavorites,
-    campaignDiscounts,
-    slides,
-    topPromo,
-    bottomPromo,
-    visibleCategorySlugs,
-  } = await getPageData()
-  const weeklyFavoriteProducts = (weeklyFavorites as unknown as ProductRow[]).map(toGridProduct)
-  const campaignDiscountProducts = (campaignDiscounts as unknown as ProductRow[]).map(toGridProduct)
+    data: {
+      featuredProducts,
+      weeklyFavoriteProducts,
+      campaignDiscountProducts,
+      slides: heroSlides,
+      topPromo: resolvedTopPromo,
+      bottomPromo: resolvedBottomPromo,
+      visibleCategorySlugs,
+    },
+    showcaseUnavailable,
+  } = await loadHomepageShowcase()
+  const visibleCategorySlugSet = new Set(visibleCategorySlugs)
   const visibleFeaturedCategories = FEATURED_CATEGORIES.filter((cat) =>
-    cat.visibilitySlugs.some((slug) => visibleCategorySlugs.has(slug)),
+    cat.visibilitySlugs.some((slug) => visibleCategorySlugSet.has(slug)),
   )
-  const heroSlides = slides.map((slide) => ({
-    ...slide,
-    ctaHref: resolveDiscoveryHref(slide.ctaHref, slide.title, slide.body, slide.ctaLabel),
-  }))
-  const resolvedTopPromo = topPromo
-    ? {
-        ...topPromo,
-        ctaHref: resolveDiscoveryHref(topPromo.ctaHref, topPromo.title, topPromo.subtitle),
-      }
-    : null
-  const resolvedBottomPromo = bottomPromo
-    ? {
-        ...bottomPromo,
-        ctaHref: resolveDiscoveryHref(bottomPromo.ctaHref, bottomPromo.title, bottomPromo.subtitle),
-      }
-    : null
   const hasPromo = resolvedTopPromo !== null || resolvedBottomPromo !== null
 
   return (
@@ -313,14 +214,20 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          {featuredProducts.length === 0 ? (
+          {showcaseUnavailable ? (
+            <p
+              role="status"
+              className="text-center text-sm py-10"
+              style={{ color: 'var(--color-muted-fg)' }}
+            >
+              Ürünler şu anda yüklenemiyor. Lütfen kısa süre sonra tekrar deneyin.
+            </p>
+          ) : featuredProducts.length === 0 ? (
             <p className="text-center text-sm py-10" style={{ color: 'var(--color-muted-fg)' }}>
               Henüz ürün eklenmemiş.
             </p>
           ) : (
-            <FeaturedProductsCarousel
-              products={(featuredProducts as unknown as ProductRow[]).map(toGridProduct)}
-            />
+            <FeaturedProductsCarousel products={featuredProducts} />
           )}
         </div>
       </section>

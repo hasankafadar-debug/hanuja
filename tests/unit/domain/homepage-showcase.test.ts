@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   selectCampaignDiscountShowcase,
+  selectHomepageFeaturedProducts,
   selectWeeklyFavoriteShowcase,
   type ShowcaseGroup,
   type ShowcaseProduct,
@@ -15,6 +16,7 @@ function product(overrides: Partial<ShowcaseProduct> & { id: string }): Showcase
     categoryId: null,
     name: overrides.id,
     salesCount: 0,
+    isOnSale: false,
     rankingDate: new Date('2026-01-01'),
     price: dec(100),
     compareAtPrice: null,
@@ -26,6 +28,75 @@ function product(overrides: Partial<ShowcaseProduct> & { id: string }): Showcase
 function counts(entries: Array<[string, number]>): Map<string, number> {
   return new Map(entries)
 }
+
+describe('selectHomepageFeaturedProducts', () => {
+  const groups: ShowcaseGroup[] = [
+    { key: 'mobilya', categoryIds: ['cat-mobilya', 'cat-mobilya-sehpa'] },
+    { key: 'aydinlatma', categoryIds: ['cat-aydinlatma'] },
+  ]
+
+  it('picks the best-selling product of each group, in group order', () => {
+    const products = [
+      product({ id: 'sehpa', categoryId: 'cat-mobilya-sehpa', salesCount: 3 }),
+      product({ id: 'koltuk', categoryId: 'cat-mobilya', salesCount: 9 }),
+      product({ id: 'lamba', categoryId: 'cat-aydinlatma', salesCount: 1 }),
+    ]
+    expect(selectHomepageFeaturedProducts(products, groups).map((p) => p.id)).toEqual([
+      'koltuk',
+      'lamba',
+    ])
+  })
+
+  it('prefers on-sale products when sales are tied', () => {
+    const products = [
+      product({ id: 'normal', categoryId: 'cat-mobilya', salesCount: 2 }),
+      product({ id: 'indirimli', categoryId: 'cat-mobilya', salesCount: 2, isOnSale: true }),
+    ]
+    expect(selectHomepageFeaturedProducts(products, groups).map((p) => p.id)).toEqual(['indirimli'])
+  })
+
+  it('breaks remaining ties by recency, then Turkish name order', () => {
+    const products = [
+      product({ id: 'eski', categoryId: 'cat-mobilya', rankingDate: new Date('2026-01-01') }),
+      product({ id: 'yeni', categoryId: 'cat-mobilya', rankingDate: new Date('2026-03-01') }),
+    ]
+    expect(selectHomepageFeaturedProducts(products, groups).map((p) => p.id)).toEqual(['yeni'])
+
+    const sameDay = [
+      product({ id: 'b', name: 'Şezlong', categoryId: 'cat-mobilya' }),
+      product({ id: 'a', name: 'Sandalye', categoryId: 'cat-mobilya' }),
+    ]
+    expect(selectHomepageFeaturedProducts(sameDay, groups).map((p) => p.id)).toEqual(['a'])
+  })
+
+  it('never picks the same product for two overlapping groups', () => {
+    const overlapping: ShowcaseGroup[] = [
+      { key: 'sehpa', categoryIds: ['cat-mobilya-sehpa'] },
+      { key: 'ev', categoryIds: ['cat-mobilya', 'cat-mobilya-sehpa'] },
+    ]
+    const products = [
+      product({ id: 'sehpa', categoryId: 'cat-mobilya-sehpa', salesCount: 9 }),
+      product({ id: 'koltuk', categoryId: 'cat-mobilya', salesCount: 1 }),
+    ]
+    expect(selectHomepageFeaturedProducts(products, overlapping).map((p) => p.id)).toEqual([
+      'sehpa',
+      'koltuk',
+    ])
+  })
+
+  it('skips groups with no eligible product and ignores uncategorized products', () => {
+    const products = [
+      product({ id: 'kategorisiz', categoryId: null, salesCount: 99 }),
+      product({ id: 'lamba', categoryId: 'cat-aydinlatma' }),
+    ]
+    expect(selectHomepageFeaturedProducts(products, groups).map((p) => p.id)).toEqual(['lamba'])
+  })
+
+  it('returns an empty list for no groups or no products', () => {
+    expect(selectHomepageFeaturedProducts([], groups)).toEqual([])
+    expect(selectHomepageFeaturedProducts([product({ id: 'x', categoryId: 'cat-mobilya' })], [])).toEqual([])
+  })
+})
 
 describe('selectWeeklyFavoriteShowcase', () => {
   const groups: ShowcaseGroup[] = [

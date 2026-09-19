@@ -143,4 +143,50 @@ describe('catalog.service product creation', () => {
       code: 'NOT_FOUND',
     })
   })
+
+  // A homepage card can be up to ~60 s stale (showcase data cache); the product
+  // page must still hide what is no longer sellable at click time.
+  it('does not expose a product that is no longer published', async () => {
+    const prisma = {
+      product: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'prod-unlisted',
+          slug: 'yayindan-kalkan-urun',
+          status: 'unlisted',
+          seller: { id: 'seller-1', status: 'active', vacationModeEnabled: false },
+          images: [],
+          variants: [],
+          category: null,
+          attributeValues: [],
+        }),
+      },
+    } as never
+
+    const service = createCatalogService({ prisma })
+    await expect(service.getProductBySlug('yayindan-kalkan-urun')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+  })
+
+  it('does not expose a published product whose seller is in Tatil Modu', async () => {
+    const prisma = {
+      product: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'prod-vacation',
+          slug: 'tatildeki-satici-urunu',
+          status: 'published',
+          seller: { id: 'seller-1', status: 'active', vacationModeEnabled: true },
+          images: [],
+          variants: [],
+          category: null,
+          attributeValues: [],
+        }),
+      },
+    } as never
+
+    const service = createCatalogService({ prisma })
+    await expect(service.getProductBySlug('tatildeki-satici-urunu')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+  })
 })

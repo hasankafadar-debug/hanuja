@@ -464,6 +464,62 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - Testler: `tests/unit/legal-documents.test.ts` (17), `tests/unit/domain/product-characteristics.test.ts` (10).
   Route-seviyesi test yok; `legalContext` eşlemesi typecheck (zorunlu alanlar) ile korunur.
 
+### 29. Ana sayfa yavaşlığı: vitrin tek yükleme + 60 sn veri önbelleği (yeni — 2026-09-19)
+
+- **Belirti:** `/hesabim/*` veya `/urun/[slug]`'dan header logosuna tıklayınca ana sayfa geç geliyordu
+  (bazen 12 sn). **Kök neden:** `2c33ddd` (tatil modu, 2026-08-14) ana sayfayı `revalidate = 300`'den
+  `force-dynamic`'e çevirmişti; her istekte `getHomepageFeaturedProducts` (8 grup × sıralı tam katalog
+  yükleme + enrich), `getWeeklyFavoriteShowcase` ve `getCampaignDiscountProducts` (her biri ayrı tam
+  tarama) çalışıyordu — ölçülen 68 sıralı ifade (yalnız vitrin), ~10 tam katalog taraması. Eşzamanlı dinamik render'lar
+  Prisma havuzunda kuyruğa girince süre 12 sn'ye çıkıyordu. `catalog.service` yorumu hâlâ "ISR 300"
+  varsayıyordu (`.agents/rapor.md` 2026-09-04 denetimi aynı tam-tarama kalıbını işaretlemişti).
+- **Düzeltme (2 katman):** (1) `catalog.service.getHomepageShowcase(groups, limits)` — katalog **bir**
+  kez yüklenir, **bir** kez enrich edilir, üç vitrin `api/domain/homepage-showcase.ts` saf seçicileriyle
+  bellekte türetilir (`selectHomepageFeaturedProducts` yeni). **Ölçüm (yerel DB, 20 yayınlanmış ürün,
+  PG statement log):** vitrin hesabı 68 ifade / 165 ms → **9 ifade / 20 ms**; kategori + CMS slide/promo
+  ile birlikte tek tam hesaplama ≈ 18 ifade (eskiden ≈ 77). Eski/yeni seçim sonuçları aynı DB'de birebir
+  aynı (featured 7/7, haftalık 19/19). Eski üç metot kaldırıldı (tek tüketici ana sayfaydı).
+  (2) `apps/web/src/lib/homepage-showcase-data.ts` — sonuç
+  `unstable_cache` ile **60 sn** önbelleklenir (`tags: ['storefront-homepage']`), önünde süreç-içi
+  tek-uçuş (`apps/web/src/lib/single-flight.ts`) var: soğuk önbellekte eşzamanlı istekler tek hesaplamayı
+  paylaşır (`unstable_cache` boş önbellekte eşzamanlı çağrıları tekilleştirmez).
+- **Sayfa `force-dynamic` KALDI (bilinçli).** `revalidate` export'u sayfayı build anında prerender
+  ettirir; Coolify build'inde DB erişilemediği için boş ana sayfa image'a gömülürdü (§4 kuralı).
+  Tazelik/maliyet veri önbelleğinden gelir; sayfa render'ı önbellek isabetinde DB'ye gitmez.
+- **Eskime penceresi — iş kararı (2026-09-19, geçersizleştirme altyapısı YOK):** vitrin kartları (fiyat,
+  biten kampanya, yayından kaldırma, satıcı askıya alma, tatil modu, CMS slide/promo) en fazla ~60 sn
+  eski kalabilir. **Doğru ifade:** "60 sn dolduktan sonraki ilk istek yenilemeyi tetikler; yenileme
+  tamamlanana kadar eski veri gösterilir; yenileme hata verirse Next hatayı loglar, eski veri korunur ve
+  bu süre uzar." Deploy sonrası önbellek boşken ilk istek hesaplamayı bekler. "≈18 ifade" tek hesaplamanın
+  maliyetidir, küresel üst sınır değil: layout kategori sorguları (tam sayfa yüklemede istek başına 2 SQL,
+  `StorefrontNav`/`SiteFooter`), birden fazla kopya ve soğuk önbellekteki paralel istekler ayrıca sayılır.
+  **Yerel production-mod ölçümleri (2026-09-19):** soğuk önbellek + 21 eşzamanlı istek → 1 hesaplama;
+  süresi dolmuş girdi + 20 eşzamanlı istek → 1 hesaplama (tek-uçuş); sıcak girdi + 20 istek → 0 vitrin
+  sorgusu (yalnız layout 2×20); logo tıklamasında `/` RSC isteği 13 ms, tam sayfa TTFB 69 ms. Kesinti
+  sırasında her isteğin ~4 sn sürmesi layout'un kendi DB bağlantı zaman aşımıdır (bu işten bağımsız).
+  Tıklama sonrası her yüzey güncel: `/urun/[slug]` (`getProductBySlug` → yayında değil / satıcı pasif /
+  tatilde → `notFound`), `cart.service.addItem` (fiyat DB'den, istemciden fiyat alınmaz; yayında olmayan,
+  askıdaki, tatildeki satıcı ve stoksuz ürün reddi), `getCart` (kalemler her açılışta yeniden fiyatlanır).
+  Yöneticinin kaldırdığı içeriğin **anında** kaybolması şartı doğarsa: `revalidateTag('storefront-homepage')`
+  + secret korumalı internal route (3 servise env, ~8 tetik noktası) ayrı iş olarak ele alınır.
+- **Arıza ≠ boş katalog:** kategori/vitrin yükleme hataları önbellek fonksiyonunda yutulmaz
+  (`unstable_cache` fırlatılan sonucu saklamaz → kesinti 60 sn boş vitrin olarak donmaz). Sayfa hatayı
+  `console.error('[storefront] homepage showcase load failed')` ile loglar ve "Ürünler şu anda yüklenemiyor.
+  Lütfen kısa süre sonra tekrar deneyin." gösterir; "Henüz ürün eklenmemiş." yalnız yükleme başarılı ve
+  katalog gerçekten boşken görünür. Slide/promo hataları kritik değil, `.catch` ile boş düşer.
+- **Migration YOK, env YOK.** Zorunlu redeploy yalnız **web**. `api/` değişikliği yalnız web'in tükettiği
+  metotları etkiler; seller/admin panel redeploy gerekmez.
+- **Testler:** `tests/unit/domain/homepage-showcase.test.ts` (+6 featured seçici), yeni
+  `tests/unit/services/catalog-homepage-showcase.service.test.ts` (tek `product.findMany`, boş katalog,
+  hata yayılımı), yeni `tests/unit/single-flight.test.ts`, yeni
+  `tests/unit/services/cart-price-freshness.service.test.ts` (fiyat DB'den, askıdaki/tatildeki satıcı ve
+  yayında olmayan ürün reddi), `catalog-product.service.test.ts` (+2 `getProductBySlug` gizleme).
+- **Açık takip işleri (bu işte dokunulmadı):** (i) `/kategori/[...slug]`, `/urunler`, `/urun/[slug]` aynı
+  commit'te `force-dynamic` yapıldı ve `listPublishedCurated` tam-tarama + bellekte sayfalama yapıyor
+  (`.agents/rapor.md` DB bulgusu) — katalog büyüdükçe aynı sınıf sorun; (ii) layout kategori sorguları
+  önbelleksiz; (iii) `unstable_cache` Next 16'da `'use cache'` lehine kaldırılacak — sürüm yükseltmede
+  bu modül gözden geçirilmeli.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

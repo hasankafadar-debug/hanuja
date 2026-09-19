@@ -1,7 +1,10 @@
 /**
  * Homepage showcase selection — pure business rules, no persistence access.
  *
- * Two supplementary discovery sections on the storefront homepage:
+ * Three discovery sections on the storefront homepage, all derived from ONE
+ * enriched published-catalog snapshot (see catalog.service.getHomepageShowcase):
+ * - "Öne Çıkan Ürünler": the single best-selling product of each homepage
+ *   featured group, no product repeated across groups.
  * - "Haftanın Favorileri": most-favorited products of the last 7 days,
  *   one per homepage featured group first, then filled to the limit.
  * - "Özel Kampanyalı Ürünler": products whose active DiscountRule campaign
@@ -16,6 +19,7 @@ export interface ShowcaseProduct {
   categoryId: string | null
   name: string
   salesCount: number
+  isOnSale: boolean
   rankingDate: Date
   price: { toNumber(): number }
   compareAtPrice: { toNumber(): number } | null
@@ -33,6 +37,47 @@ function compareByRecencyThenName(left: ShowcaseProduct, right: ShowcaseProduct)
     right.rankingDate.getTime() - left.rankingDate.getTime() ||
     left.name.localeCompare(right.name, 'tr')
   )
+}
+
+/**
+ * Selects the featured-products showcase: one product per homepage featured group.
+ *
+ * For each group, among not-yet-picked products whose categoryId belongs to the
+ * group: best seller first, then on-sale products, then recency, then Turkish name
+ * order. A group with no eligible product contributes nothing; the same product is
+ * never picked for two groups (groups may overlap, e.g. `['ev']` spans the whole
+ * "Ev" subtree).
+ */
+export function selectHomepageFeaturedProducts<T extends ShowcaseProduct>(
+  products: readonly T[],
+  groups: ReadonlyArray<ShowcaseGroup>,
+): T[] {
+  const picks: T[] = []
+  const pickedIds = new Set<string>()
+
+  for (const group of groups) {
+    const categoryIds = new Set(group.categoryIds)
+    const best = products
+      .filter(
+        (product) =>
+          !pickedIds.has(product.id) &&
+          product.categoryId !== null &&
+          categoryIds.has(product.categoryId),
+      )
+      .sort(
+        (left, right) =>
+          right.salesCount - left.salesCount ||
+          Number(right.isOnSale) - Number(left.isOnSale) ||
+          compareByRecencyThenName(left, right),
+      )[0]
+
+    if (best) {
+      picks.push(best)
+      pickedIds.add(best.id)
+    }
+  }
+
+  return picks
 }
 
 /**

@@ -21,7 +21,12 @@ import { buildSlugWithSuffix, isValidSlug, normalizeSlug } from '../domain/slug'
 import { computeCustomerVisibleCategoryIds } from '../domain/category-visibility'
 import { assertLeafCategory } from '../domain/category-selection'
 import { buildPublicProductWhere } from '../domain/product-visibility'
-import { selectCampaignDiscountShowcase, selectWeeklyFavoriteShowcase } from '../domain/homepage-showcase'
+import {
+  selectCampaignDiscountShowcase,
+  selectHomepageFeaturedProducts,
+  selectWeeklyFavoriteShowcase,
+  type ShowcaseGroup,
+} from '../domain/homepage-showcase'
 import { enqueueCategorySync, enqueueProductSync } from '../jobs/search-index-sync.job'
 import { deleteObject } from '../lib/r2'
 import { requireModelCode } from '../domain/model-code'
@@ -1162,47 +1167,29 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return leaves
     },
 
-    async getHomepageFeaturedProducts(groups: Array<{ key: string; categoryIds: string[] }>) {
-      const picks: Array<Awaited<ReturnType<typeof enrichPublishedProducts>>[number]> = []
-      const pickedIds = new Set<string>()
-
-      for (const group of groups) {
-        const candidates = await loadPublishedCandidates({
-          categoryIds: group.categoryIds,
-        })
-        const enriched = await enrichPublishedProducts(candidates)
-        const best = [...enriched]
-          .filter((item) => !pickedIds.has(item.id))
-          .sort((left, right) => {
-            return (
-              right.salesCount - left.salesCount ||
-              Number(right.isOnSale) - Number(left.isOnSale) ||
-              right.rankingDate.getTime() - left.rankingDate.getTime() ||
-              left.name.localeCompare(right.name, 'tr')
-            )
-          })[0]
-
-        if (best) {
-          picks.push(best)
-          pickedIds.add(best.id)
-        }
-      }
-
-      return picks
-    },
-
     /**
-     * "Haftanın Favorileri" — most-favorited products of the last 7 calendar days.
-     * One product per homepage featured group first, then filled to `limit`
-     * (see selectWeeklyFavoriteShowcase for the fill rules).
+     * All three homepage showcases from ONE published-catalog load + ONE enrichment.
      *
-     * Not: tüm yayınlanmış katalog üzerinde tek tam-tarama yapar (mevcut
-     * getHomepageFeaturedProducts ile benzer maliyet profili); anasayfa
-     * revalidate=300 (5 dk ISR) olduğundan kabul edilebilir.
+     * Previously each section (and each of the 8 featured groups) re-loaded and
+     * re-enriched the catalog — measured 68 statements / 165 ms per homepage render
+     * on a 20-product catalog. Now 9 statements / 20 ms: 1 product findMany (+ includes),
+     * 1 discount-rule lookup, favorite/sales groupBys, and the weekly-favorite groupBy.
+     * Selection rules live in `domain/homepage-showcase.ts`.
+     *
+     * Not: bu sonuç web tarafında `unstable_cache` ile 60 sn önbelleklenir
+     * (`apps/web/src/lib/homepage-showcase-data.ts`); tüm katalog üzerinde tek
+     * tam-tarama olduğundan o pencerede kabul edilebilir. Hatalar yutulmaz —
+     * çağıran karar verir (önbelleğe boş vitrin yazılmaması için).
      */
-    async getWeeklyFavoriteShowcase(groups: Array<{ key: string; categoryIds: string[] }>, limit = 20) {
+    async getHomepageShowcase(
+      groups: ReadonlyArray<ShowcaseGroup>,
+      limits: { weeklyFavorites: number; campaignDiscounts: number },
+    ) {
       const sevenDaysAgo = new Date()
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+      const campaignCutoffDate = new Date()
+      campaignCutoffDate.setMonth(campaignCutoffDate.getMonth() - 3)
 
       const [candidates, weeklyFavoriteRows] = await Promise.all([
         loadPublishedCandidates({}),
@@ -1218,22 +1205,20 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         weeklyFavoriteRows.map((row) => [row.productId, row._count.productId]),
       )
 
-      return selectWeeklyFavoriteShowcase(enriched, weeklyFavoriteCountByProductId, groups, limit)
-    },
-
-    /**
-     * "Özel Kampanyalı Ürünler" — active DiscountRule campaigns started within
-     * the last 3 calendar months, ranked by highest discount percent against the
-     * real sale price. No filler when fewer qualify (intentional).
-     */
-    async getCampaignDiscountProducts(limit = 25) {
-      const cutoffDate = new Date()
-      cutoffDate.setMonth(cutoffDate.getMonth() - 3)
-
-      const candidates = await loadPublishedCandidates({})
-      const enriched = await enrichPublishedProducts(candidates)
-
-      return selectCampaignDiscountShowcase(enriched, cutoffDate, limit)
+      return {
+        featured: selectHomepageFeaturedProducts(enriched, groups),
+        weeklyFavorites: selectWeeklyFavoriteShowcase(
+          enriched,
+          weeklyFavoriteCountByProductId,
+          groups,
+          limits.weeklyFavorites,
+        ),
+        campaignDiscounts: selectCampaignDiscountShowcase(
+          enriched,
+          campaignCutoffDate,
+          limits.campaignDiscounts,
+        ),
+      }
     },
   }
 }

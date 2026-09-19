@@ -60,6 +60,31 @@ Server components must never:
 
 These operations belong in `api/services/` and `api/domain/`.
 
+### Storefront read caching (homepage showcase)
+
+DB-backed storefront pages stay `force-dynamic`. A page-level `revalidate` export would
+prerender them at build time, where the database is unreachable in the Coolify build, and
+bake an empty page into the image (see `.claude/rules/12-production-readiness.md` §4, §29).
+
+Expensive, public, request-independent reads are cached at the **data** layer instead.
+The homepage showcase (`apps/web/src/lib/homepage-showcase-data.ts`) is the reference
+pattern:
+
+- one service call (`catalog.service.getHomepageShowcase`) loads and enriches the catalog
+  once; selection rules are pure functions in `api/domain/homepage-showcase.ts`
+- the result is wrapped in `unstable_cache` with `revalidate: 60` and a tag
+  (`storefront-homepage`) and must be plain JSON (no Prisma `Decimal`/`Date`/`Set`)
+- a process-local single-flight (`apps/web/src/lib/single-flight.ts`) sits in front of the
+  cached callback so a cold cache does not run the computation once per concurrent request
+- load errors are **not** swallowed inside the cached function (a thrown result is never
+  stored); the page logs and renders an "unavailable" state distinct from "empty catalog"
+
+Staleness wording — this is not a freshness guarantee: the first request after the window
+expires triggers a background refresh and is served the previous data; if the refresh fails
+the previous data is kept and the window stretches. Anything that must be correct at click
+time (price, availability, seller status) is re-derived by the product page and the cart
+service from the database.
+
 ---
 
 ## Client Components
