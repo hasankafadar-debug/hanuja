@@ -324,19 +324,19 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
       <PageHeader title="Kontrol Paneli" description="Mağaza performansına genel bakış" />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Link href="/siparisler?status=seller_queue_ready,seller_reviewing" className="block">
+        <Link href="/siparisler?tab=acik" prefetch={false} className="block">
           <StatCard title="Bekleyen Sipariş" value={pendingOrders} icon={<ShoppingBag className="h-5 w-5" />} className="transition-shadow hover:shadow-sm" />
         </Link>
-        <Link href="/odemeler?status=hold_active" className="block">
+        <Link href="/odemeler?status=hold_active" prefetch={false} className="block">
           <StatCard title="Bekleyen Hakediş" value={formatMoney(holdAmount)} icon={<Clock className="h-5 w-5" />} className="transition-shadow hover:shadow-sm" />
         </Link>
-        <Link href="/odemeler?status=payout_ready" className="block">
+        <Link href="/odemeler?status=payout_ready" prefetch={false} className="block">
           <StatCard title="Ödeme Hazır" value={formatMoney(readyAmount)} icon={<CheckCircle className="h-5 w-5" />} className="transition-shadow hover:shadow-sm" />
         </Link>
-        <Link href="/iadeler" className="block">
+        <Link href="/iadeler" prefetch={false} className="block">
           <StatCard title="Açık İade" value={openReturns} icon={<AlertTriangle className="h-5 w-5" />} className="transition-shadow hover:shadow-sm" />
         </Link>
-        <Link href="/siparisler?tab=tum&filter=late" className="block">
+        <Link href="/siparisler?tab=tum&filter=late" prefetch={false} className="block">
           <StatCard
             title="Gecikenler"
             value={delayedOrders}
