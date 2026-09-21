@@ -11,6 +11,8 @@ import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { AdminListControls } from '@/components/admin-list-controls'
 import { IssueSellerInvoiceButton } from '@/components/issue-seller-invoice-button'
 import { UrlPagination } from '@/components/url-pagination'
+import { pendingSellerNames, formatApprovalWait, formatPaymentConfirmedAt } from '@/lib/seller-approval-presentation'
+import { buildOrderExportHref } from '@/lib/admin-order-export'
 import { formatMoney } from '@hanuja/security'
 import {
   buildDateRange,
@@ -65,25 +67,6 @@ const INVOICE_OPTIONS = [
   { value: 'present', label: 'Faturasi olanlar' },
 ]
 
-function buildExportHref(params: {
-  q: string
-  status: string[]
-  invoice: string
-  seller: string
-  from: string
-  to: string
-}) {
-  const search = new URLSearchParams()
-  if (params.q) search.set('q', params.q)
-  if (params.status.length > 0) search.set('status', params.status.join(','))
-  if (params.invoice) search.set('invoice', params.invoice)
-  if (params.seller) search.set('seller', params.seller)
-  if (params.from) search.set('from', params.from)
-  if (params.to) search.set('to', params.to)
-  search.set('format', 'csv')
-  return `/api/admin/orders?${search.toString()}`
-}
-
 function normalizeInvoiceFilter(value: string): 'missing' | 'present' | undefined {
   return value === 'missing' || value === 'present' ? value : undefined
 }
@@ -117,6 +100,15 @@ export default async function AdminOrdersPage({
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const params = parseAdminListParams(resolvedSearchParams, { pageSize: 20 })
   const activeTab = readTab(resolvedSearchParams)
+  const rawOverdue = resolvedSearchParams?.sellerApprovalOverdue
+  const sellerApprovalOverdue = (Array.isArray(rawOverdue) ? rawOverdue[0] : rawOverdue) === '1'
+  const clearOverdueParams = new URLSearchParams()
+  for (const [key, value] of Object.entries(resolvedSearchParams ?? {})) {
+    if (key === 'sellerApprovalOverdue' || key === 'page' || value == null) continue
+    for (const entry of Array.isArray(value) ? value : [value]) clearOverdueParams.append(key, entry)
+  }
+  const clearOverdueHref = `/siparisler${clearOverdueParams.size ? `?${clearOverdueParams.toString()}` : ''}`
+  const now = new Date()
 
   // "İptal Edilenler" sekmesi tüm cancelled statusleri override eder
   const effectiveStatuses: OrderStatus[] =
@@ -132,6 +124,7 @@ export default async function AdminOrdersPage({
   const invoiceFilter = normalizeInvoiceFilter(params.invoice)
   const billingFilter = readBillingFilter(resolvedSearchParams)
   const result = await svc.listForAdmin({
+    ...(sellerApprovalOverdue ? { sellerApprovalOverdue: true } : {}),
     ...(effectiveStatuses.length > 0 ? { status: effectiveStatuses } : {}),
     ...(params.q ? { query: params.q } : {}),
     ...(params.seller ? { sellerId: params.seller } : {}),
@@ -145,6 +138,8 @@ export default async function AdminOrdersPage({
     id: string
     publicNumber?: number | null
     createdAt: Date
+    paymentConfirmedAt?: Date | null
+    sellerApprovalOverdue?: { orderId: string; waitingSince: Date; sellerIds: string[] } | null
     status: string
     totalAmount: { toNumber(): number } | number
     lines: Array<{
@@ -164,13 +159,13 @@ export default async function AdminOrdersPage({
 
   const rows = result.rows as unknown as OrderRow[]
   const totalPages = Math.max(1, Math.ceil(result.total / params.pageSize))
-  const exportHref = buildExportHref(params)
+  const exportHref = buildOrderExportHref({ ...params, status: effectiveStatuses, billing: billingFilter ?? '', sellerApprovalOverdue })
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Siparisler"
-        description={`${result.total} siparis`}
+        title={sellerApprovalOverdue ? 'Satıcı Onayı Bekleyenler' : 'Siparisler'}
+        description={sellerApprovalOverdue ? `24 saati aşan siparişler · ${result.total} sipariş` : `${result.total} siparis`}
         actions={
           <Link href={exportHref}>
             <Button variant="outline" size="sm">
@@ -180,6 +175,12 @@ export default async function AdminOrdersPage({
           </Link>
         }
       />
+
+      {sellerApprovalOverdue && (
+        <Link href={clearOverdueHref} className="inline-block text-sm underline" style={{ color: 'var(--color-accent)' }}>
+          Satıcı onayı gecikme filtresini kaldır
+        </Link>
+      )}
 
       <AdminListControls
         searchValue={params.q}
@@ -205,6 +206,7 @@ export default async function AdminOrdersPage({
         ].map((tab) => {
           const next = new URLSearchParams()
           next.set(tab.paramType, tab.key)
+          if (sellerApprovalOverdue) next.set('sellerApprovalOverdue', '1')
           if (params.q) next.set('q', params.q)
           if (tab.paramType !== 'tab' && params.status.length > 0) next.set('status', params.status.join(','))
           if (params.seller) next.set('seller', params.seller)
@@ -237,13 +239,13 @@ export default async function AdminOrdersPage({
       >
         {rows.length === 0 ? (
           <p className="p-6 text-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Siparis yok.
+            {sellerApprovalOverdue ? 'Seçili filtrelerde 24 saati aşan satıcı onayı bekleyen sipariş yok.' : 'Siparis yok.'}
           </p>
         ) : (
           <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Siparis No', 'Satici', 'Tutar', 'Durum', 'Fatura', 'Tarih', ''].map((heading) => (
+                {['Siparis No', sellerApprovalOverdue ? 'Onayı Bekleyen Satıcılar' : 'Satici', ...(sellerApprovalOverdue ? ['Ödeme Onayı (İstanbul)', 'Bekleme Süresi'] : []), 'Tutar', 'Durum', 'Fatura', 'Tarih', ''].map((heading) => (
                   <th
                     key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
@@ -296,8 +298,16 @@ export default async function AdminOrdersPage({
                       )}
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                      {sellerName}
+                      {sellerApprovalOverdue ? pendingSellerNames(order.lines, order.sellerApprovalOverdue?.sellerIds ?? []) : sellerName}
                     </td>
+                    {sellerApprovalOverdue && (
+                      <>
+                        <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>{formatPaymentConfirmedAt(order.paymentConfirmedAt)}</td>
+                        <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
+                          {order.sellerApprovalOverdue ? formatApprovalWait(order.sellerApprovalOverdue.waitingSince, now) : '-'}
+                        </td>
+                      </>
+                    )}
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-primary)' }}>
                       {formatMoney(amount)}
                     </td>

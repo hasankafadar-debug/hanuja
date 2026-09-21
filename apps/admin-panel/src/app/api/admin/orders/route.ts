@@ -146,9 +146,13 @@ export async function GET(req: NextRequest) {
     const take = Math.min(Math.max(1, Number(url.searchParams.get('take') ?? '20') || 20), 500)
     const status = readStatuses(url)
     const invoice = normalizeInvoiceFilter(url.searchParams.get('invoice'))
+    const sellerApprovalOverdue = url.searchParams.get('sellerApprovalOverdue') === '1'
+    const financeInvoice = normalizeInvoiceFilter(url.searchParams.get('billing'))
 
     const service = createOrderService({ prisma: createPrismaForRoute() })
     const filters = {
+      ...(sellerApprovalOverdue ? { sellerApprovalOverdue: true } : {}),
+      ...(financeInvoice ? { financeInvoice } : {}),
       ...(status.length > 0 ? { status } : {}),
       ...(q ? { query: q } : {}),
       ...(seller ? { sellerId: seller } : {}),

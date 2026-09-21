@@ -19,6 +19,7 @@ import {
 import { getAdminSession } from '@/lib/admin-session'
 import { createAdminAnalyticsService } from '@hanuja/api/services/admin-analytics.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { createSellerApprovalQueryService } from '@hanuja/api/services/seller-approval-query.service'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { createFulfillmentRiskService } from '@hanuja/api/services/fulfillment-risk.service'
 import { createAdminRefundQueryService } from '@hanuja/api/services/admin-refund-query.service'
@@ -38,12 +39,13 @@ export default async function AdminDashboardPage() {
   const fulfillmentRiskSvc = createFulfillmentRiskService({ prisma })
   const refundQuery = createAdminRefundQueryService({ prisma })
 
-  const [stats, recentOrdersResult, fulfillmentRisks, manualRefunds, failedCardRefunds] = await Promise.all([
+  const [stats, recentOrdersResult, fulfillmentRisks, manualRefunds, failedCardRefunds, overdueSellerApprovals] = await Promise.all([
     analytics.getDashboardStats(),
     orderSvc.listForAdmin({ skip: 0, take: 5 }),
     fulfillmentRiskSvc.listActiveForAdmin({ take: 5 }),
     refundQuery.listManualRequiredForAdmin({ take: 5 }),
     refundQuery.listFailedCardForAdmin({ take: 5 }),
+    createSellerApprovalQueryService({ prisma }).listOverdueForAdmin(),
   ])
 
   type OrderRow = {
@@ -150,6 +152,14 @@ export default async function AdminDashboardPage() {
       value: String(stats.payments.pendingEftApprovals),
       attention: stats.payments.pendingEftApprovals > 0,
       icon: <CreditCard className="h-5 w-5" />,
+    },
+    {
+      href: '/siparisler?sellerApprovalOverdue=1',
+      title: 'Satıcı Onayı Bekleyenler',
+      description: '24 saati aşan siparişler',
+      value: String(overdueSellerApprovals.total),
+      attention: overdueSellerApprovals.total > 0,
+      icon: <Clock className="h-5 w-5" />,
     },
     {
       // Use each preview's own total so its counter and rows share one snapshot.
@@ -276,13 +286,18 @@ export default async function AdminDashboardPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {statCards.map((card) => {
           const content = (
-            <StatCard
-              title={card.title}
-              value={card.value}
-              icon={card.icon}
-              tone={card.attention ? 'attention' : 'default'}
-              {...(card.href ? { className: 'transition-shadow hover:shadow-sm' } : {})}
-            />
+            <>
+              <StatCard
+                title={card.title}
+                value={card.value}
+                icon={card.icon}
+                tone={card.attention ? 'attention' : 'default'}
+                {...(card.href ? { className: 'transition-shadow hover:shadow-sm' } : {})}
+              />
+              {'description' in card && (
+                <p className="mt-1 px-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>{card.description}</p>
+              )}
+            </>
           )
           return card.href ? (
             <Link key={card.title} href={card.href} className="block">

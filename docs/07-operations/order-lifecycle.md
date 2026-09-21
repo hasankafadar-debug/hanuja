@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-09-02
+# Son güncelleme: 2026-09-21
 # Durum: taslak v1
 
 # Order Lifecycle — Sipariş Yaşam Döngüsü
@@ -60,6 +60,27 @@ Satıcıya yalnızca `payment_confirmed` ve `bank_transfer_confirmed` durumları
 | `seller_rejected` | Satıcı reddetti — ceza değerlendirmesi açılır |
 | `preparing` | Ürün hazırlanıyor |
 | `awaiting_shipment` | Kargoya teslim bekleniyor |
+
+#### Admin: 24 saat içinde satıcı onayı gelmeyen siparişler
+
+Kart ödemesi sağlayıcı tarafından doğrulandığında sipariş admin ödeme onayı
+beklemeden satıcı kuyruğuna geçer. EFT/havale ise admin ödeme onayından sonra
+satıcıya iletilir; onay öncesinde mevcut **EFT Onay Bekleyen** kartında izlenir.
+
+**Satıcı Onayı Bekleyenler** kartı, satıcı kuyruğuna girişten itibaren kesintisiz
+24 saati doldurmuş ve hâlâ satıcı onayı bekleyen benzersiz siparişleri sayar.
+Başlangıç `sellerQueueReadyAt`, bu alan eksikse `paymentConfirmedAt` olur;
+ikisi de eksik kayıtlar sayılmaz. Değer sıfırdan büyükse kart yeşile boyanır.
+Kart `/siparisler?sellerApprovalOverdue=1` filtreli listesini açar. En uzun
+bekleyen sipariş önce gösterilir; satırdan sipariş detayına geçilir. Arama,
+sayfalama ve CSV dışa aktarımı gecikme filtresini korur.
+
+`quantityLifecycleVersion=2` siparişlerde her satıcının `queue_ready` veya
+`reviewing` durumundaki gönderisi ayrı değerlendirilir; bir satıcının onayı
+diğerini gizlemez. İptal edilen veya sevk edilecek aktif adedi kalmayan satıcı
+bölümleri sayılmaz. Eski modelde `seller_queue_ready` / `seller_reviewing`
+sipariş durumları kullanılır. Onay veya iptal sonrası kayıt, sonraki sayfa
+yüklemesinde uyarıdan çıkar. Bu uyarı otomatik iptal, ceza veya bildirim üretmez.
 
 ### C. Kargo ve Teslimat
 

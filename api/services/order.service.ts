@@ -12,6 +12,7 @@ import { createPenaltyService } from './penalty.service'
 import { createPaymentService } from './payment.service'
 import { isWithinReturnWindow } from '../domain/penalty-calculator'
 import { createQuantityCancellationService } from './quantity-cancellation.service'
+import { createSellerApprovalQueryService } from './seller-approval-query.service'
 
 interface OrderServiceDeps {
   prisma: PrismaClient
@@ -397,8 +398,25 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       return orders.countForSellerQueue(params)
     },
 
-    listForAdmin(params: Parameters<typeof orders.listForAdmin>[0]) {
-      return orders.listForAdmin(params)
+    async listForAdmin(params: Parameters<typeof orders.listForAdmin>[0] & {
+      sellerApprovalOverdue?: boolean
+    }) {
+      const { sellerApprovalOverdue, ...filters } = params
+      const overdue = sellerApprovalOverdue
+        ? await createSellerApprovalQueryService({ prisma }).listOverdueForAdmin()
+        : null
+      const overdueById = new Map(overdue?.rows.map((row) => [row.orderId, row]))
+      const result = await orders.listForAdmin({
+        ...filters,
+        ...(overdue ? { orderedOrderIds: overdue.rows.map((row) => row.orderId) } : {}),
+      })
+      return {
+        ...result,
+        rows: result.rows.map((row) => ({
+          ...row,
+          sellerApprovalOverdue: overdueById.get(row.id) ?? null,
+        })),
+      }
     },
   }
 }

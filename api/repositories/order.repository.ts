@@ -310,6 +310,7 @@ export function createOrderRepository(prisma: PrismaClient) {
     },
 
     async listForAdmin(params: {
+      orderedOrderIds?: string[]
       status?: OrderStatus[]
       sellerId?: string
       customerId?: string
@@ -323,6 +324,7 @@ export function createOrderRepository(prisma: PrismaClient) {
     }) {
       const normalizedQuery = params.query?.trim()
       const where: Prisma.OrderWhereInput = {
+        ...(params.orderedOrderIds !== undefined ? { id: { in: params.orderedOrderIds } } : {}),
         ...(params.status !== undefined && params.status.length > 0
           ? { status: { in: params.status } }
           : {}),
@@ -389,9 +391,19 @@ export function createOrderRepository(prisma: PrismaClient) {
           : {}),
       }
 
+      // Apply all filters before paginating the externally ranked overdue queue.
+      // Sorting only one createdAt page would hide the longest-waiting orders.
+      const rank = new Map(params.orderedOrderIds?.map((id, index) => [id, index]))
+      const matchingIds = params.orderedOrderIds !== undefined
+        ? (await prisma.order.findMany({ where, select: { id: true } }))
+          .map((row) => row.id)
+          .sort((a, b) => rank.get(a)! - rank.get(b)!)
+        : undefined
+      const pageIds = matchingIds?.slice(params.skip ?? 0, (params.skip ?? 0) + (params.take ?? 20))
+
       const [rows, total] = await Promise.all([
         prisma.order.findMany({
-          where,
+          where: pageIds !== undefined ? { AND: [where, { id: { in: pageIds } }] } : where,
           include: {
             lines: {
               include: {
@@ -439,12 +451,13 @@ export function createOrderRepository(prisma: PrismaClient) {
             address: true,
           },
           orderBy: { createdAt: 'desc' },
-          ...(params.skip !== undefined ? { skip: params.skip } : {}),
+          ...(pageIds === undefined && params.skip !== undefined ? { skip: params.skip } : {}),
           take: params.take ?? 20,
         }),
-        prisma.order.count({ where }),
+        matchingIds !== undefined ? Promise.resolve(matchingIds.length) : prisma.order.count({ where }),
       ])
 
+      if (matchingIds !== undefined) rows.sort((a, b) => rank.get(a.id)! - rank.get(b.id)!)
       return { rows, total }
     },
 
