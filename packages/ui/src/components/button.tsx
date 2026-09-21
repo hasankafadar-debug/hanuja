@@ -1,6 +1,6 @@
 /**
  * Button component — primary interactive element.
- * CVA variants: default, secondary, outline, ghost, destructive, warning.
+ * CVA variants: default, secondary, outline, ghost, destructive, warning, success.
  * Sizes: sm, md, lg. Supports loading state and asChild via Radix Slot.
  */
 "use client"
@@ -28,6 +28,8 @@ const buttonVariants = cva(
           "bg-destructive text-destructive-fg hover:bg-destructive/90",
         warning:
           "bg-yellow-400 text-black hover:bg-yellow-500 active:bg-yellow-600",
+        success:
+          "bg-success text-white hover:bg-success/90",
       },
       size: {
         sm: "h-8 px-3 text-xs",

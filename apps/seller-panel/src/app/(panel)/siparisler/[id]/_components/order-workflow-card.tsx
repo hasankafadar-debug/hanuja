@@ -169,6 +169,7 @@ export default function OrderWorkflowCard({
           </p>
           <div className={`grid gap-3 ${actionColumns}`}>
             <Button
+              variant="success"
               loading={loadingAction === 'accept'}
               className="w-full"
               onClick={() => postAction('accept')}
