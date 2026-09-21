@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { Minus, Plus } from 'lucide-react'
 import {
   Button,
   Dialog,
@@ -99,7 +100,16 @@ export function CancelOrderButton({ orderId, lines }: Props) {
             {lines ? (
               <div className="divide-y rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
                 {lines.map((line) => {
-                  const selected = (quantities[line.id] ?? 0) > 0
+                  const quantity = quantities[line.id] ?? 0
+                  const selected = quantity > 0
+                  const stepQuantity = (delta: number) =>
+                    setQuantities((current) => ({
+                      ...current,
+                      [line.id]: Math.max(
+                        1,
+                        Math.min(line.availableQuantity, (current[line.id] ?? 1) + delta),
+                      ),
+                    }))
                   return (
                     <div key={line.id} className="flex items-center gap-3 px-3 py-3">
                       <input
@@ -113,27 +123,45 @@ export function CancelOrderButton({ orderId, lines }: Props) {
                         }
                         className="h-4 w-4 accent-[var(--color-accent)]"
                       />
-                      <span className="min-w-0 flex-1 text-sm font-medium">{line.name}</span>
-                      <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                        Adet
-                        <input
-                          type="number"
-                          min={1}
-                          max={line.availableQuantity}
-                          disabled={!selected}
-                          value={selected ? quantities[line.id] : 1}
-                          onChange={(event) => {
-                            const quantity = Math.max(
-                              1,
-                              Math.min(line.availableQuantity, Number(event.target.value) || 1),
-                            )
-                            setQuantities((current) => ({ ...current, [line.id]: quantity }))
-                          }}
-                          className="h-9 w-16 rounded-md border bg-transparent px-2 text-center text-sm disabled:opacity-40"
-                          style={{ borderColor: 'var(--color-border)' }}
-                        />
-                        / {line.availableQuantity}
-                      </label>
+                      <span
+                        className="min-w-0 flex-1 text-sm font-medium"
+                        style={{ color: 'var(--color-primary)' }}
+                      >
+                        {line.name}
+                      </span>
+                      {/* Sepet sayfasındaki −/+ adet deseniyle aynı; satır seçili değilken soluk ve etkileşimsiz */}
+                      <div
+                        className={`flex items-center gap-2 ${selected ? '' : 'pointer-events-none opacity-40'}`}
+                        aria-hidden={!selected}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => stepQuantity(-1)}
+                          disabled={!selected || quantity <= 1}
+                          className="flex h-7 w-7 items-center justify-center rounded-full border transition-colors hover:bg-[var(--color-muted)] disabled:opacity-40 disabled:hover:bg-transparent"
+                          style={{ borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
+                          aria-label="Adet azalt"
+                        >
+                          <Minus className="h-3 w-3" />
+                        </button>
+                        <span
+                          className="w-6 text-center text-sm font-semibold tabular-nums"
+                          style={{ color: 'var(--color-primary)' }}
+                          aria-live="polite"
+                        >
+                          {selected ? quantity : 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => stepQuantity(1)}
+                          disabled={!selected || quantity >= line.availableQuantity}
+                          className="flex h-7 w-7 items-center justify-center rounded-full border transition-colors hover:bg-[var(--color-muted)] disabled:opacity-40 disabled:hover:bg-transparent"
+                          style={{ borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
+                          aria-label="Adet artır"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                   )
                 })}

@@ -74,6 +74,18 @@ Amac, hangi admin akisinda hangi veri, yetki ve audit beklentisinin oldugunu sab
 - Kart hatası görünürlüğü otomatik denemelerin tükendiği anlamına gelmez; yeni bir
   ödeme öncesinde sipariş kayıtları ve sağlayıcı sonucu kontrol edilmelidir.
 
+### Journey 5c: Müşteri iptal nedeni görünürlüğü
+
+- Giriş noktası: sipariş detay sayfası (`/siparisler/[id]`).
+- Müşterinin ürün/adet bazlı iptalde seçtiği neden `OrderCancellation.reason` ve
+  `OrderStatusHistory.reason` alanlarında saklanır; sipariş detayında iki yerde görünür:
+  **İptal kayıtları** bloğu (tarih, satıcı, neden, iptal edilen kalemler × adet, müşteri iade tutarı,
+  iade durumu rozeti) ve **Olay Geçmişi** satırı (`Adet bazlı iptal: N adet — <neden>`).
+- Kısmi iptalde (sipariş tamamen iptal olmadıysa) neden yalnız **İptal kayıtları** bloğunda görünür;
+  tam iptalde ayrıca **İptal Detayı** kartı enum etiketini (ör. "Müşteri isteğiyle iptal") gösterir.
+- Neden bazlı toplu rapor/liste ekranı yoktur; veri `order_cancellations` tablosunda olduğu için
+  ileride ayrı bir iş olarak eklenebilir.
+
 ## Journey 6: Seller denetim ve askiya alma
 
 - Giris noktasi: `/admin-panel/saticilar` ve satici detay sayfasi

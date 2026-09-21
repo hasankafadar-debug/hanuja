@@ -51,6 +51,17 @@ function refundStatusLabel(status: string) {
   return REFUND_STATUS_LABELS[status] ?? status
 }
 
+// OrderCancellationStatus → etiket; rozet stili için refund durumlarına eşlenir.
+const CANCELLATION_STATUS_LABELS: Record<string, string> = {
+  refund_pending: 'İade bekliyor',
+  completed: 'İade tamamlandı',
+  refund_failed: 'İade başarısız',
+}
+
+function cancellationStatusStyle(status: string) {
+  return refundStatusStyle(status === 'refund_failed' ? 'failed' : status)
+}
+
 function refundStatusStyle(status: string) {
   if (status === 'completed') {
     return {
@@ -138,7 +149,12 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
+          sellerId: true,
+          reason: true,
           status: true,
+          items: {
+            select: { id: true, orderLineId: true, quantity: true, customerRefundAmount: true },
+          },
           customerRefundAmount: true,
           grossProductAmount: true,
           couponAdjustmentAmount: true,
@@ -279,6 +295,11 @@ export default async function AdminOrderDetailPage({ params }: Props) {
   const shipment = order.shipments[0] ?? null
   const sellerName = order.lines[0]?.seller?.displayName ?? '—'
   const sellerId = order.lines[0]?.seller?.id ?? null
+  // İptal kayıtları satıcı/ürün adını satırlar üzerinden çözer (OrderCancellation'da seller ilişkisi yok).
+  const sellerNameById = new Map(
+    order.lines.flatMap((line) => (line.seller ? [[line.seller.id, line.seller.displayName]] : [])),
+  )
+  const productNameByLineId = new Map(order.lines.map((line) => [line.id, line.productName]))
   const sellerLineTotal = order.lines
     .filter((line) => line.seller?.id === sellerId)
     .reduce((sum, line) => {
@@ -474,6 +495,68 @@ export default async function AdminOrderDetailPage({ params }: Props) {
               </div>
             ))}
           </div>
+
+          {order.cancellations.length > 0 ? (
+            <div
+              data-testid="admin-cancellation-records"
+              className="mt-5 border-t pt-4"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                İptal kayıtları
+              </h3>
+              <div className="space-y-3">
+                {order.cancellations.map((cancellation) => (
+                  <div
+                    key={cancellation.id}
+                    data-testid={`admin-cancellation-${cancellation.id}`}
+                    className="rounded-lg border p-3"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                          {new Date(cancellation.createdAt).toLocaleString('tr-TR')} ·{' '}
+                          {sellerNameById.get(cancellation.sellerId) ?? cancellation.sellerId}
+                        </p>
+                        <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                          Müşteri iptal nedeni:{' '}
+                          <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                            {cancellation.reason}
+                          </span>
+                        </p>
+                      </div>
+                      <span
+                        className="inline-flex w-fit shrink-0 rounded-full border px-2 py-1 text-xs font-medium"
+                        style={cancellationStatusStyle(cancellation.status)}
+                      >
+                        {CANCELLATION_STATUS_LABELS[cancellation.status] ?? cancellation.status}
+                      </span>
+                    </div>
+                    <ul
+                      className="mt-3 space-y-1 border-t pt-3 text-xs"
+                      style={{ borderColor: 'var(--color-border)' }}
+                    >
+                      {cancellation.items.map((item) => (
+                        <li key={item.id} className="flex justify-between gap-4">
+                          <span style={{ color: 'var(--color-primary)' }}>
+                            {productNameByLineId.get(item.orderLineId) ?? item.orderLineId} × {item.quantity}
+                          </span>
+                          <span style={{ color: 'var(--color-muted-fg)' }}>
+                            {formatMoney(moneyToNumber(item.customerRefundAmount))}
+                          </span>
+                        </li>
+                      ))}
+                      <li className="flex justify-between gap-4 font-medium" style={{ color: 'var(--color-primary)' }}>
+                        <span>Müşteri iadesi (kargo dahil)</span>
+                        <span>{formatMoney(moneyToNumber(cancellation.customerRefundAmount))}</span>
+                      </li>
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div
               data-testid="admin-refund-summary"
@@ -674,7 +757,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
-                      {event.note ? ` · ${event.note}` : ''}
+                      {event.note ?? event.reason ? ` · ${event.note ?? event.reason}` : ''}
                     </p>
                   </div>
                 </li>

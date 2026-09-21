@@ -520,6 +520,26 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   önbelleksiz; (iii) `unstable_cache` Next 16'da `'use cache'` lehine kaldırılacak — sürüm yükseltmede
   bu modül gözden geçirilmeli.
 
+### 30. Müşteri iptal modalı adet stepper'ı + admin'de iptal nedeni (yeni — 2026-09-21)
+
+- **Belirti:** `/siparis/[id]` "Ürün / Adet İptal Et" modalında Adet etiketi, sayı kutusu ve `/ N`
+  metni aynı soluk renkteydi (`--color-muted-fg`, şeffaf zemin); seçilen adet okunmuyordu.
+- **Düzeltme (web):** sayı kutusu sepet sayfasındaki −/+ stepper deseniyle değiştirildi; rakam
+  `--color-primary`, `−` 1'de ve `+` `availableQuantity`'de pasif, seçilmemiş satırda stepper soluk ve
+  etkileşimsiz. `/ N` metni kaldırıldı (iş sahibi kararı: sipariş adedi satırda zaten görünür).
+  API sözleşmesi (`POST /api/orders/:id/cancellations`, `items[].quantity`) değişmedi.
+- **İptal nedeni nerede:** v2 iptalde `order_cancellations.reason` (seçilen metin aynen) ve
+  `order_status_history.reason` (`Adet bazlı iptal: N adet — <neden>`). Satıcı paneli zaman çizelgesi
+  zaten gösteriyordu; **admin sipariş detayı** `reason`'ı basmıyordu — artık "Olay Geçmişi"
+  `note ?? reason` basar ve yeni **İptal kayıtları** bloğu her `OrderCancellation` kaydını
+  (satıcı, neden, kalemler, iade tutarı, durum) listeler. Legacy `/cancel` yolu nedeni `note`'a yazar;
+  aynı satır onu da kapsar.
+- Nedenler serbest metindir (enum değil); UI'daki 7 seçenek sabit olduğu için gruplanabilir. "Diğer"
+  için ek açıklama alınmaz (iş sahibi kararı, 2026-09-21).
+- **Migration YOK, env YOK.** Redeploy: **web** + **admin-panel**; sıra kritik değil.
+- **Açık takip işi:** admin'de neden bazlı iptal raporu/listesi yok (tarih/satıcı filtresi, neden
+  bazlı adet ve iade tutarı); veri tabloda mevcut.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
