@@ -232,3 +232,13 @@ All admin routes require `role === 'admin'`. High-impact actions log to `AdminAu
 | `SELLER_NOT_ACTIVE` | Seller account is suspended or pending |
 | `PAYOUT_BLOCKED` | Payout cannot be released while block is active |
 | `INTERNAL_ERROR` | Unhandled server error; no internal detail exposed |
+
+## Notification operations — 2026-09-22
+
+Admin page /e-posta lists paginated deliveries and pending/failed outbox entries.
+POST /api/admin/email-deliveries/:id/retry accepts {kind: "delivery" | "outbox", reason: string}
+with 10–500 trimmed characters. Requires admin session, CSRF and server-side eligibility;
+returns the standard success envelope with {queued: true}. Successful or uncertain deliveries
+cannot be replayed. POST /api/webhooks/resend accepts signed raw provider events (64 KiB max);
+it has no session requirement and uses Svix signature + timestamp verification instead.
+RESEND_WEBHOOK_SECRET is web runtime only. See [operations report](../07-operations/email-phase-1-report.md).

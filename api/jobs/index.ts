@@ -5,7 +5,11 @@
 import { startPayoutMaturityWorker } from './payout-maturity.job'
 import { startDeliverySilentConfirmWorker } from './delivery-silent-confirmation.job'
 import { startSearchIndexSyncWorker } from './search-index-sync.job'
-import { startNotificationDispatchWorker } from './notification-dispatch.job'
+import {
+  startNotificationDispatchWorker,
+  startNotificationBulkWorker,
+} from './notification-dispatch.job'
+import { startNotificationOutboxWorker } from './notification-outbox.job'
 import { startPayoutBatchWorker } from './payout-batch.job'
 import { startMediaProcessingWorker } from './media-processing.job'
 import { startFulfillmentRiskWorker } from './fulfillment-risk.job'
@@ -20,6 +24,8 @@ export function startAllWorkers() {
     startDeliverySilentConfirmWorker(),
     startSearchIndexSyncWorker(),
     startNotificationDispatchWorker(),
+    startNotificationBulkWorker(),
+    startNotificationOutboxWorker(),
     startPayoutBatchWorker(),
     startMediaProcessingWorker(),
     startFulfillmentRiskWorker(),
@@ -33,7 +39,9 @@ export function startAllWorkers() {
   return workers
 }
 
-export async function gracefulShutdown(workers: Awaited<ReturnType<typeof startAllWorkers>>) {
+export async function gracefulShutdown(
+  workers: Awaited<ReturnType<typeof startAllWorkers>>,
+) {
   console.log('[workers] Shutting down gracefully...')
   await Promise.all(workers.map((w) => w.close()))
   console.log('[workers] All workers stopped')

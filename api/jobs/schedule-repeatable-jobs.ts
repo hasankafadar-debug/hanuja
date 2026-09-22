@@ -29,9 +29,19 @@ import {
   ibanActivationQueue,
   seoContentQueue,
   campaignDiscountQueue,
+  notificationOutboxQueue,
 } from '../lib/queue'
 
 export async function scheduleRepeatableJobs(): Promise<void> {
+  await notificationOutboxQueue.add(
+    'relay',
+    {},
+    {
+      repeat: { every: 15_000 },
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  )
   // ── 1. Payout maturity — daily at 02:00 UTC ─────────────────────────────────
   await payoutMaturityQueue.add(
     'payout-maturity-daily',
@@ -116,6 +126,7 @@ export async function scheduleRepeatableJobs(): Promise<void> {
   )
 
   console.log('[scheduler] Repeatable jobs registered:')
+  console.log('  - notification-outbox relay     → every 15 sec')
   console.log('  - payout-maturity-daily         → 02:00 UTC daily')
   console.log('  - delivery-silent-confirm        → every 30 min')
   console.log('  - fulfillment-risk-daily         → 08:00 UTC daily')

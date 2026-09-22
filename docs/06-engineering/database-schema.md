@@ -296,3 +296,11 @@ cart-audience lookup (users with a given product in their cart) without a full t
 | `seller_bank_details(sellerId, isActive)` | Payout job bank detail lookup |
 | `admin_audit_logs(targetType, targetId)` | Per-entity audit investigation |
 | `admin_audit_logs(actionType, createdAt)` | Action-type audit queries |
+
+## Notification reliability additions — 2026-09-22
+
+Migration 20260922000000_notification_reliability adds NotificationOutbox (unique user/type/event),
+EmailProviderEvent (unique provider webhook ID), and delivery lease, payload, SMTP acceptance,
+provider identifier and transport status fields. Historical email deliveredAt timestamps move
+to smtpAcceptedAt because they represented SMTP acceptance. notification_retry_requested is
+an additive AdminActionType. See [operations report](../07-operations/email-phase-1-report.md).

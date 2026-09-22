@@ -72,3 +72,12 @@ plus the existing store-follower discount notice. It runs two job types on one q
 Cross-reference: `docs/06-engineering/database-schema.md` (`MarketingConsent`,
 `CampaignEmailDispatch` models), `docs/06-engineering/integrations.md` §6 (Resend sender
 categories), `docs/05-security/audit-logging-plan.md` (consent trail note).
+
+## Notification reliability — 2026-09-22
+
+Notification producers now persist NotificationOutbox before Redis. A 15-second relay feeds
+notification-dispatch (transactional) and notification-bulk (marketing). Both have bounded
+BullMQ retries; exhausted events require audited admin retry. Business-transaction adoption
+is phased: use recordNotification(tx, payload) when migrating an event producer. See
+[phase 1 operations report](../07-operations/email-phase-1-report.md) for claims, crash recovery,
+provider receipt semantics and rollout.

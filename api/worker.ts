@@ -18,8 +18,12 @@
  */
 import 'dotenv/config'
 import { startAllWorkers, gracefulShutdown } from './jobs'
+import { scheduleRepeatableJobs } from './jobs/schedule-repeatable-jobs'
+import { assertProductionMailConfig } from './lib/mailer'
 
 async function main() {
+  assertProductionMailConfig()
+  await scheduleRepeatableJobs()
   console.log('[worker] Starting Hanuja BullMQ workers...')
 
   const workers = startAllWorkers()

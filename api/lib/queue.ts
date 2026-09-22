@@ -8,6 +8,8 @@ export const QUEUE_NAMES = {
   FULFILLMENT_RISK: 'fulfillment-risk',
   SEARCH_INDEX_SYNC: 'search-index-sync',
   NOTIFICATION_DISPATCH: 'notification-dispatch',
+  NOTIFICATION_BULK: 'notification-bulk',
+  NOTIFICATION_OUTBOX: 'notification-outbox',
   MEDIA_PROCESSING: 'media-processing',
   PAYOUT_BATCH: 'payout-batch',
   IBAN_ACTIVATION: 'iban-activation',
@@ -48,14 +50,34 @@ function createQueueProxy(name: QueueName): Queue {
 // All queues use the same Redis connection.
 // Workers are defined separately in api/jobs/.
 export const payoutMaturityQueue = createQueueProxy(QUEUE_NAMES.PAYOUT_MATURITY)
-export const deliverySilentConfirmQueue = createQueueProxy(QUEUE_NAMES.DELIVERY_SILENT_CONFIRM)
+export const deliverySilentConfirmQueue = createQueueProxy(
+  QUEUE_NAMES.DELIVERY_SILENT_CONFIRM,
+)
 export const reconciliationQueue = createQueueProxy(QUEUE_NAMES.RECONCILIATION)
-export const searchIndexSyncQueue = createQueueProxy(QUEUE_NAMES.SEARCH_INDEX_SYNC)
-export const notificationDispatchQueue = createQueueProxy(QUEUE_NAMES.NOTIFICATION_DISPATCH)
-export const mediaProcessingQueue = createQueueProxy(QUEUE_NAMES.MEDIA_PROCESSING)
+export const searchIndexSyncQueue = createQueueProxy(
+  QUEUE_NAMES.SEARCH_INDEX_SYNC,
+)
+export const notificationDispatchQueue = createQueueProxy(
+  QUEUE_NAMES.NOTIFICATION_DISPATCH,
+)
+export const notificationBulkQueue = createQueueProxy(
+  QUEUE_NAMES.NOTIFICATION_BULK,
+)
+export const notificationOutboxQueue = createQueueProxy(
+  QUEUE_NAMES.NOTIFICATION_OUTBOX,
+)
+export const mediaProcessingQueue = createQueueProxy(
+  QUEUE_NAMES.MEDIA_PROCESSING,
+)
 export const payoutBatchQueue = createQueueProxy(QUEUE_NAMES.PAYOUT_BATCH)
-export const fulfillmentRiskQueue = createQueueProxy(QUEUE_NAMES.FULFILLMENT_RISK)
+export const fulfillmentRiskQueue = createQueueProxy(
+  QUEUE_NAMES.FULFILLMENT_RISK,
+)
 export const ibanActivationQueue = createQueueProxy(QUEUE_NAMES.IBAN_ACTIVATION)
 export const seoContentQueue = createQueueProxy(QUEUE_NAMES.SEO_CONTENT)
-export const campaignDiscountQueue = createQueueProxy(QUEUE_NAMES.CAMPAIGN_DISCOUNT)
-export const refundProcessingQueue = createQueueProxy(QUEUE_NAMES.REFUND_PROCESSING)
+export const campaignDiscountQueue = createQueueProxy(
+  QUEUE_NAMES.CAMPAIGN_DISCOUNT,
+)
+export const refundProcessingQueue = createQueueProxy(
+  QUEUE_NAMES.REFUND_PROCESSING,
+)

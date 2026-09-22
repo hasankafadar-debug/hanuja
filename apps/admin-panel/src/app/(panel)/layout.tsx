@@ -81,6 +81,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Sistem',
     items: [
       { label: 'Ayarlar', href: '/ayarlar', icon: <Settings className="h-4 w-4" /> },
+      { label: 'E-posta Gönderimleri', href: '/e-posta', icon: <MessageSquare className="h-4 w-4" /> },
     ],
   },
 ]

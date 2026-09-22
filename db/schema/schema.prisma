@@ -359,6 +359,7 @@ enum AdminActionType {
   extension_request_decision
   seo_content_run_triggered
   security_step_up_verified
+  notification_retry_requested
 }
 
 enum ExtensionRequestStatus {
@@ -2398,6 +2399,15 @@ model NotificationDelivery {
   lastAttemptAt  DateTime?
   lastError      String?
   deliveredAt    DateTime?
+  leaseExpiresAt DateTime?
+  leaseToken     String?
+  smtpAcceptedAt DateTime?
+  messageId      String? @unique
+  providerMessageId String?
+  // unknown, delivered, bounced, complained, simulated, uncertain, skipped
+  transportStatus String @default("unknown")
+  providerEventAt DateTime?
+  payload        Json?
   createdAt      DateTime                   @default(now())
   updatedAt      DateTime                   @updatedAt
 
@@ -2407,7 +2417,42 @@ model NotificationDelivery {
   @@unique([recipient, channel, eventKey])
   @@index([status, createdAt])
   @@index([userId, createdAt])
+  @@index([providerMessageId])
+  @@index([status, leaseExpiresAt])
   @@map("notification_deliveries")
+}
+
+// Durable queue intent. Can be written using the business transaction client.
+model NotificationOutbox {
+  id          String @id @default(cuid())
+  eventKey    String
+  userId      String
+  type        String
+  payload     Json
+  lane        String @default("transactional")
+  status      String @default("pending")
+  generation  Int @default(0)
+  queuedAt    DateTime?
+  lastError   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, type, eventKey])
+  @@index([status, queuedAt])
+  @@map("notification_outbox")
+}
+
+model EmailProviderEvent {
+  id String @id
+  providerMessageId String
+  messageId String?
+  type String
+  occurredAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([providerMessageId])
+  @@index([messageId])
+  @@map("email_provider_events")
 }
 
 model StoreDiscountDispatch {

@@ -5,9 +5,11 @@
 import { validateEnv } from '@hanuja/config/env'
 import { startAllWorkers, gracefulShutdown } from './index'
 import { scheduleRepeatableJobs } from './schedule-repeatable-jobs'
+import { assertProductionMailConfig } from '../lib/mailer'
 
 async function main() {
   validateEnv()
+  assertProductionMailConfig()
   console.log('[worker] Starting Hanuja BullMQ workers...')
 
   // Register repeatable (cron) jobs before starting workers.

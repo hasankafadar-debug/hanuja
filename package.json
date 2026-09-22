@@ -24,6 +24,7 @@
     "validate-brand": "tsx tools/validators/validate-brand.ts",
     "brand-swap": "tsx tools/scripts/brand-swap.ts",
     "check-env": "tsx tools/scripts/check-env.ts",
+    "notification:diagnose": "tsx tools/scripts/check-notification-delivery.ts",
     "check-duplicate-payments": "tsx tools/scripts/check-duplicate-provider-payment-ids.ts",
     "check-barcode-registry-ready": "tsx tools/scripts/check-barcode-registry-ready.ts",
     "check-turnstile-egress": "tsx tools/scripts/check-turnstile-egress.ts",
