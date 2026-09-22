@@ -11,7 +11,11 @@ import {
   isQuantityFullyClosed,
 } from '../domain/quantity-allocation'
 import { isWithinReturnWindow } from '../domain/penalty-calculator'
-import { createQuantityRefundService } from './quantity-refund.service'
+import {
+  createQuantityRefundService,
+  dispatchRefundProcessingAfterCommit,
+} from './quantity-refund.service'
+import type { RefundOutcome } from '../lib/email-templates/types'
 import { recordNotification } from './notification-outbox.service'
 import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
@@ -44,6 +48,30 @@ function validateSelections(items: ReturnSelection[]) {
     if (seen.has(item.orderLineId))
       throw new ValidationError('Aynı sipariş satırı iki kez seçilemez')
     seen.add(item.orderLineId)
+  }
+}
+
+/**
+ * What the customer is told about the money, derived from the persisted refund
+ * record. `null` (no record) means nothing was started; unmapped states are
+ * never presented as a started payment.
+ */
+function refundOutcomeOf(
+  refund: { status: string; customerAmount: Decimal } | null,
+): RefundOutcome {
+  if (!refund) return 'awaiting_return'
+  switch (refund.status) {
+    case 'pending':
+    case 'processing':
+      return 'processing'
+    case 'manual_required':
+      return 'manual_review'
+    case 'completed':
+      return refund.customerAmount.lte(0) ? 'no_refund_due' : 'completed'
+    case 'partially_completed':
+    case 'failed':
+    default:
+      return 'under_review'
   }
 }
 
@@ -266,7 +294,11 @@ export function createQuantityReturnService({
       rejectedQuantity: number
       rejectionReason?: string | undefined
     }>,
-    outcome: { refundAmount: Decimal; disputeOpened: boolean },
+    outcome: {
+      refundAmount: Decimal
+      disputeOpened: boolean
+      refundOutcome: RefundOutcome
+    },
   ) {
     const order = await tx.order.findUnique({
       where: { id: request.orderId },
@@ -321,7 +353,7 @@ export function createQuantityReturnService({
               .filter((item) => item.rejectedQuantity > 0)
               .map((item) => `${item.productName}: ${item.rejectionReason ?? 'gerekçe belirtilmedi'}`)
               .join(', ')
-          : `${formatMoney(outcome.refundAmount.toNumber())} geri ödeme kuyruğuna alındı`,
+          : `Onaylanan iade tutarı: ${formatMoney(outcome.refundAmount.toNumber())}`,
       data: {
         operationId: request.id,
         returnRequestId: request.id,
@@ -330,6 +362,7 @@ export function createQuantityReturnService({
         customerName:
           order.customer.name?.trim() || order.address?.fullName?.trim() || 'Değerli Müşterimiz',
         decision,
+        refundOutcome: outcome.refundOutcome,
         disputeOpened: outcome.disputeOpened,
         ...(outcome.refundAmount.gt(0)
           ? { refundAmount: formatMoney(outcome.refundAmount.toNumber()) }
@@ -795,13 +828,54 @@ export function createQuantityReturnService({
             },
           })
 
+          // The durable refund record is created here, inside the decision
+          // transaction, so the customer e-mail below can describe its real
+          // state instead of claiming a job that may never be written.
+          let refundTransaction = null
+          if (acceptedCustomerAmount.gt(0) || acceptedGrossProductAmount.gt(0)) {
+            refundTransaction = await refunds.queue(
+              {
+                orderId: request.orderId,
+                sellerId: params.sellerId,
+                sourceType: 'return_request',
+                sourceId: request.id,
+                customerAmount: acceptedCustomerAmount,
+                grossProductAmount: acceptedGrossProductAmount,
+                couponAdjustmentAmount: acceptedCouponAdjustmentAmount,
+                sellerAdjustmentAmount: acceptedSellerAmount,
+                commissionAdjustmentAmount: acceptedCommissionAmount,
+                platformFundedAmount: Decimal.max(
+                  new Decimal(0),
+                  acceptedCustomerAmount
+                    .sub(acceptedSellerAmount)
+                    .sub(acceptedCommissionAmount),
+                ),
+                items: refundItems,
+                shippingAmount: acceptedShippingAmount,
+              },
+              tx,
+            )
+            if (refundTransaction.status === 'completed') {
+              await tx.returnRequest.update({
+                where: { id: request.id },
+                data: {
+                  status: 'refund_completed',
+                  refundAmount: acceptedCustomerAmount,
+                  refundedAt: new Date(),
+                },
+              })
+            }
+          }
+
           await recordReturnDecisionNotification(tx, request, params.decisions, {
             refundAmount: acceptedCustomerAmount,
             disputeOpened: Boolean(disputeId),
+            refundOutcome: refundOutcomeOf(refundTransaction),
           })
 
           return {
             request,
+            refundTransaction,
             acceptedCustomerAmount,
             acceptedGrossProductAmount,
             acceptedCouponAdjustmentAmount,
@@ -823,41 +897,9 @@ export function createQuantityReturnService({
         throw error
       })
 
-    let refundTransaction = null
-    if (
-      result.acceptedCustomerAmount.gt(0) ||
-      result.acceptedGrossProductAmount.gt(0)
-    ) {
-      refundTransaction = await refunds.queue({
-        orderId: result.request.orderId,
-        sellerId: params.sellerId,
-        sourceType: 'return_request',
-        sourceId: result.request.id,
-        customerAmount: result.acceptedCustomerAmount,
-        grossProductAmount: result.acceptedGrossProductAmount,
-        couponAdjustmentAmount: result.acceptedCouponAdjustmentAmount,
-        sellerAdjustmentAmount: result.acceptedSellerAmount,
-        commissionAdjustmentAmount: result.acceptedCommissionAmount,
-        platformFundedAmount: Decimal.max(
-          new Decimal(0),
-          result.acceptedCustomerAmount
-            .sub(result.acceptedSellerAmount)
-            .sub(result.acceptedCommissionAmount),
-        ),
-        items: result.refundItems,
-        shippingAmount: result.acceptedShippingAmount,
-      })
-      if (refundTransaction.status === 'completed') {
-        await prisma.returnRequest.update({
-          where: { id: result.request.id },
-          data: {
-            status: 'refund_completed',
-            refundAmount: result.acceptedCustomerAmount,
-            refundedAt: new Date(),
-          },
-        })
-      }
-    }
+    const refundTransaction = result.refundTransaction
+    // Provider work only; the refund record already survived the commit.
+    if (refundTransaction) await dispatchRefundProcessingAfterCommit(refundTransaction)
 
     return prisma.returnRequest
       .findUnique({

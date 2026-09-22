@@ -13,7 +13,10 @@
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { createReturnRequestRepository } from '../repositories/return-request.repository'
-import { createQuantityRefundService } from './quantity-refund.service'
+import {
+  createQuantityRefundService,
+  dispatchRefundProcessingAfterCommit,
+} from './quantity-refund.service'
 import { allocateLegacyFullRefund, LEGACY_FINANCIAL_REVIEW_PREFIX } from '../domain/legacy-refund-allocation'
 import { ConflictError } from '../lib/errors'
 import { lockSellerFinance } from '../lib/seller-finance-lock'
@@ -27,14 +30,25 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
   const returnRequests = createReturnRequestRepository(prisma)
   const quantityRefunds = createQuantityRefundService({ prisma })
 
-  async function queueLegacyRefund(params: {
-    orderId: string
-    sellerId: string
-    sourceType: 'cancellation' | 'return_request' | 'dispute'
-    sourceId: string
-    requestedCustomerAmount: Decimal
-  }, review?: { actorId: string; reason: string; expectedUpdatedAt: string }) {
-    return prisma.$transaction(async (tx) => {
+  /**
+   * Same work as queueLegacyRefund, but on a caller-supplied transaction client
+   * so the durable RefundTransaction commits together with the business change
+   * (status transition, history, notification outbox) instead of afterwards.
+   * Never performs a provider call: quantityRefunds.queue skips provider dispatch
+   * when a transaction client is passed, and the caller dispatches after commit.
+   */
+  async function queueLegacyRefundInTransaction(
+    tx: Prisma.TransactionClient,
+    params: {
+      orderId: string
+      sellerId: string
+      sourceType: 'cancellation' | 'return_request' | 'dispute'
+      sourceId: string
+      requestedCustomerAmount: Decimal
+    },
+    review?: { actorId: string; reason: string; expectedUpdatedAt: string },
+  ) {
+    {
       await lockSellerFinance(tx, [params.sellerId])
       await tx.$queryRaw(Prisma.sql`SELECT id FROM orders WHERE id = ${params.orderId} FOR UPDATE`)
       await tx.$queryRaw(Prisma.sql`SELECT id FROM payments WHERE "orderId" = ${params.orderId} ORDER BY id FOR UPDATE`)
@@ -168,7 +182,22 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
           ? { manualReviewReason: allocation.manualReviewReason }
           : {}),
       }, tx)
-    }, { timeout: 30_000 })
+    }
+  }
+
+  async function queueLegacyRefund(params: {
+    orderId: string
+    sellerId: string
+    sourceType: 'cancellation' | 'return_request' | 'dispute'
+    sourceId: string
+    requestedCustomerAmount: Decimal
+  }, review?: { actorId: string; reason: string; expectedUpdatedAt: string }) {
+    const refund = await prisma.$transaction(
+      (tx) => queueLegacyRefundInTransaction(tx, params, review),
+      { timeout: 30_000 },
+    )
+    await dispatchRefundProcessingAfterCommit(refund)
+    return refund
   }
 
   return {
@@ -178,6 +207,37 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
       // Reuse the amount already recorded; never infer a larger refund from a full order.
       return queueLegacyRefund({ orderId: refund.orderId, sellerId: refund.sellerId,
         sourceType: refund.sourceType, sourceId: refund.sourceId, requestedCustomerAmount: refund.customerAmount }, params)
+    },
+    /**
+     * Execute the refund for a return request on the caller's transaction.
+     * Returns the persisted RefundTransaction (or null when the return was
+     * already refunded) so the caller can describe the real state to the
+     * customer and dispatch the provider job after commit.
+     */
+    async executeReturnRefundInTransaction(
+      tx: Prisma.TransactionClient,
+      params: {
+        returnRequestId: string
+        orderId: string
+        sellerId: string
+        refundAmount: Decimal
+      },
+    ) {
+      const fresh = await tx.returnRequest.findUnique({
+        where: { id: params.returnRequestId },
+        select: { refundedAt: true },
+      })
+      if (fresh?.refundedAt) return null // already refunded — idempotent no-op
+
+      // Resolve customer and seller amounts from immutable checkout snapshots.
+      // Incomplete historical data is recorded for review without money movement.
+      return queueLegacyRefundInTransaction(tx, {
+        orderId: params.orderId,
+        sellerId: params.sellerId,
+        sourceType: 'return_request',
+        sourceId: params.returnRequestId,
+        requestedCustomerAmount: params.refundAmount,
+      })
     },
     /**
      * Execute the refund for a return request. Idempotent on refundedAt.
@@ -197,8 +257,6 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
         return fresh // already refunded — idempotent no-op
       }
 
-      // Resolve customer and seller amounts from immutable checkout snapshots.
-      // Incomplete historical data is recorded for review without money movement.
       await queueLegacyRefund({
         orderId: params.orderId,
         sellerId: params.sellerId,
@@ -209,6 +267,7 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
       return fresh
     },
     queueLegacyRefund,
+    queueLegacyRefundInTransaction,
   }
 }
 

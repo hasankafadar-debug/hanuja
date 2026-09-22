@@ -32,6 +32,7 @@ import {
   type EmailOrderLineInput,
   type OrderAmountSummary,
   type OrderContractLinks,
+  type RefundOutcome,
   type ReturnDecisionLine,
 } from '../lib/email-templates'
 
@@ -93,6 +94,15 @@ export function resolveNotificationType(
     null
   )
 }
+
+const REFUND_OUTCOMES: readonly RefundOutcome[] = [
+  'awaiting_return',
+  'processing',
+  'manual_review',
+  'no_refund_due',
+  'completed',
+  'under_review',
+]
 
 type EmailData = Record<string, unknown>
 
@@ -283,10 +293,16 @@ async function buildEmailPayload(
       const decision = str(data, 'decision')
       if (decision !== 'approved' && decision !== 'partial' && decision !== 'rejected')
         return null
+      const outcome = str(data, 'refundOutcome')
       return returnDecisionTemplate({
         customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
         orderNumber: str(data, 'orderNumber'),
         decision,
+        // Unknown/legacy payloads fall back to the conservative wording rather
+        // than claiming a refund is being processed.
+        refundOutcome: REFUND_OUTCOMES.includes(outcome as RefundOutcome)
+          ? (outcome as RefundOutcome)
+          : 'under_review',
         items: lines<ReturnDecisionLine>(data),
         ...(optStr(data, 'refundAmount') ? { refundAmount: optStr(data, 'refundAmount')! } : {}),
         disputeOpened: data['disputeOpened'] === true,

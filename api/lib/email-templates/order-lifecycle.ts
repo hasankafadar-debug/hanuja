@@ -153,6 +153,33 @@ const DECISION_TITLES: Record<CustomerReturnDecisionEmailInput['decision'], stri
   rejected: 'İade Talebiniz Reddedildi',
 }
 
+/**
+ * Money copy comes from the persisted refund record. No branch claims a refund
+ * job exists unless one really does; an unmapped state falls back to the
+ * conservative "being reviewed" wording rather than "processing".
+ */
+function refundCopy(params: CustomerReturnDecisionEmailInput): string {
+  const amount =
+    params.refundAmount === undefined
+      ? ''
+      : ` <strong>${escapeHtml(amountText(params.refundAmount))}</strong> tutarındaki`
+  switch (params.refundOutcome) {
+    case 'awaiting_return':
+      return 'Ürünü iade kargo bilgileriyle gönderin; kargo bilgisi henüz iletilmediyse sipariş sayfanıza eklenecek. Ürün satıcıya ulaşıp kontrol edildikten sonra geri ödeme başlatılır ve tamamlandığında size ayrıca e-posta göndereceğiz.'
+    case 'processing':
+      return `${amount ? `${amount.trim()} geri ödeme işleminiz` : 'Geri ödeme işleminiz'} oluşturuldu; bankanıza aktarıldığında size ayrıca e-posta göndereceğiz.`
+    case 'manual_review':
+      return `${amount ? `${amount.trim()} geri ödemeniz` : 'Geri ödemeniz'} ekibimizin manuel kontrolü sonrasında yapılacak; tamamlandığında size e-posta göndereceğiz.`
+    case 'no_refund_due':
+      return 'Bu talep kapsamında geri ödenecek tutar bulunmuyor.'
+    case 'completed':
+      return `${amount ? `${amount.trim()} geri ödemeniz` : 'Geri ödemeniz'} tamamlandı; ayrıca bir onay e-postası alacaksınız.`
+    case 'under_review':
+    default:
+      return 'Geri ödemenizin durumu ekibimizce izleniyor; sonuç netleştiğinde size e-posta göndereceğiz.'
+  }
+}
+
 function renderDecisionRows(items: readonly ReturnDecisionLine[]): string {
   const TD =
     'padding:10px 4px;border-bottom:1px solid #f0f0f0;font-size:13px;color:#333;vertical-align:top;'
@@ -191,7 +218,10 @@ function renderDecisionRows(items: readonly ReturnDecisionLine[]): string {
 
 /** Line-level return decision (approved / partially approved / rejected). */
 export function returnDecisionTemplate(params: CustomerReturnDecisionEmailInput): EmailTemplate {
-  const title = DECISION_TITLES[params.decision]
+  const title =
+    params.decision === 'approved' && params.refundOutcome === 'awaiting_return'
+      ? 'İade Talebiniz Kabul Edildi — Ürünü Kargoya Verin'
+      : DECISION_TITLES[params.decision]
   const note = params.reviewNote?.trim()
   const nextStep =
     params.decision === 'rejected'
@@ -199,12 +229,12 @@ export function returnDecisionTemplate(params: CustomerReturnDecisionEmailInput)
         ? 'Kararı kabul etmiyorsanız endişelenmeyin: talebiniz otomatik olarak Hanuja uyuşmazlık incelemesine taşındı. Sipariş sayfasındaki iade konuşmasından açıklama ve fotoğraf ekleyebilirsiniz; inceleme sonucu size e-posta ile bildirilecektir.'
         : 'Kararla ilgili sorularınız için sipariş sayfasındaki iade konuşmasından bize yazabilirsiniz.'
       : params.decision === 'partial'
-        ? `Kabul edilen ürünler için${params.refundAmount === undefined ? '' : ` <strong>${escapeHtml(amountText(params.refundAmount))}</strong> tutarındaki`} geri ödeme kuyruğa alındı; tamamlandığında ayrıca e-posta göndereceğiz.${
+        ? `Kabul edilen ürünler için ${refundCopy(params)}${
             params.disputeOpened
               ? ' Reddedilen ürünler için talebiniz otomatik olarak Hanuja uyuşmazlık incelemesine taşındı; sipariş sayfasındaki iade konuşmasından açıklama ekleyebilirsiniz.'
               : ''
           }`
-        : `${params.refundAmount === undefined ? 'Geri ödemeniz' : `<strong>${escapeHtml(amountText(params.refundAmount))}</strong> tutarındaki geri ödemeniz`} kuyruğa alındı; tamamlandığında size ayrıca e-posta göndereceğiz.`
+        : refundCopy(params)
   const body = `
     ${heading(title)}
     ${greeting(params.customerName)}

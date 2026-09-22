@@ -21,7 +21,7 @@ kullanıcı deploy sonrası yapar.
 | 7 | Admin kopyaları (`return_requested`, `order_canceled`) rol politikasına takılıp **başarısız** kayıt üretiyordu | Dispatch: `emailTo` açıkça verilmemiş ve rol eşleşmiyorsa e-posta bacağı hiç açılmaz (uygulama içi bildirim yine oluşur); açık `emailTo` + rol uyuşmazlığı hâlâ hata |
 | 8 | Fatura maili `publicNumber` yerine `id.slice(-8)` kullanıyor, satıcı/ürün/fatura linki yoktu | `formatOrderNumber`, satıcı adı, satıcının satırları ve yetkili "Faturayı Görüntüle" linki |
 | 9 | Kargo mailinde adet **kümülatif** `shippedQuantity` idi; takip linki yoktu; teslim şablonu HTML kaçışsızdı | Yalnız o sevkiyatın adetleri; doğrulanmış taşıyıcılar için takip linki; tüm şablonlar `escapeHtml` |
-| 10 | Hiçbir üretici `recordNotification(tx)` kullanmıyordu (commit sonrası fire-and-forget) | Dokunulan üreticilerin tamamı iş transaction'ı içinde yazıyor (istisnalar §5) |
+| 10 | Hiçbir üretici `recordNotification(tx)` kullanmıyordu (commit sonrası fire-and-forget) | Dokunulan üreticilerin tamamı iş transaction'ı içinde yazıyor (istisnalar §5; legacy iade servisi §11'de kapatıldı) |
 
 ## 2. Olay → e-posta kataloğu (Faz 2 sonrası)
 
@@ -40,8 +40,8 @@ kullanıcı deploy sonrası yapar.
 | EFT reddi | `order_cancelled` | Siparişiniz İptal Edilmiştir — #N | `payment.service.rejectEftPayment` (tx) | `order:{id}:cancelled:payment_failure` |
 | İade talebi açıldı | `return_requested` | İade Talebiniz Alındı — #N | `quantity-return` (tx) + `return.service` (legacy) | `return:{rrId}:customer:requested` |
 | Satıcı iade kargo bilgisini iletti | `return_status_changed` (`stage: cargo_info_ready`) | İade Talebiniz Kabul Edildi — Ürünü Kargoya Verin — #N | `return.service.provideSellerCargoInfo` | `return:{rrId}:customer:cargo-info` |
-| İade kararı (tam/kısmi kabul) | `order_return_approved` | İade Talebiniz Kabul Edildi / Kısmen Kabul Edildi — #N | `quantity-return.decideReceipt` (tx), `confirmReceiptBySeller`, admin `reviewRequest` / `markItemReceived` | `return:{rrId}:customer:decision` |
-| İade kararı (red) | `order_return_rejected` | İade Talebiniz Reddedildi — #N | aynı + `rejectReceiptBySeller` | `return:{rrId}:customer:decision` |
+| İade kararı (tam/kısmi kabul) | `order_return_approved` | İade Talebiniz Kabul Edildi / Kısmen Kabul Edildi — #N (admin ilk onayı: "— Ürünü Kargoya Verin") | `quantity-return.decideReceipt` (tx), `confirmReceiptBySeller`, admin `reviewRequest` / `markItemReceived` | aşama bazlı, §11.3 |
+| İade kararı (red) | `order_return_rejected` | İade Talebiniz Reddedildi — #N | aynı + `rejectReceiptBySeller` | aşama bazlı, §11.3 |
 | Geri ödeme tamamlandı | `refund_completed` | Geri Ödemeniz Yapılmıştır — #N | `refund-notification.service` | `refund:{id}:customer:completed` |
 
 ### Satıcı
@@ -126,11 +126,13 @@ bağlantıları yer alır. Kategori adına bakarak otomatik "iade edilemez" kara
 `quantity-return.openRequest`, `quantity-return.decideReceipt`, `order-document` fatura yükleme
 (manuel + Postmark).
 
+Legacy `return.service` de (yedi metot) deploy öncesi incelemeden sonra transaction'a alındı — §11.
+
 Hâlâ commit sonrası olanlar ve nedeni:
 - `refund-notification.service` — geri ödemenin tamamlandığı, sağlayıcı yanıtı alındıktan sonra belli
   olur. Deterministik `eventKey` (`refund:{id}:customer:completed`) tekrar üretimde çift mail önler.
-- `return.service` (legacy v1 akışı) — bu servis ardışık yazımlar kullanıyor, tek `$transaction`
-  yok. Payload ve `eventKey`'ler düzeltildi; transaction'a taşınması ayrı bir iştir.
+- Sağlayıcı kuyruğuna yazma (`enqueueRefundProcessing`) — kalıcı `RefundTransaction` transaction
+  içinde yazıldığı için dispatch kaçsa bile kayıt durur ve kurtarılabilir (§11.4).
 
 ## 6. Testler
 
@@ -217,4 +219,106 @@ yeni tipteki bekleyen outbox kayıtları `EMAIL_TEMPLATE_UNSUPPORTED` ile başar
   gider.
 - `markDelivered` (`delivered` durumu) hâlâ hiçbir route tarafından çağrılmıyor; `order_delivered`
   tipi kullanılmıyor. Müşteriye teslim maili `delivery_confirmed` anında gider.
-- `return.service` (legacy) bildirimleri transaction dışında kalmaya devam ediyor (§5).
+- (Düzeltildi, §11) `return.service` (legacy) bildirimleri artık iş transaction'ı içinde yazılıyor.
+- Kart ödemeli, sağlayıcı kalem eşleşmesi olan iadelerde sağlayıcı dispatch'i kaçarsa kurtarma yalnız
+  worker job'ına ait; admin tetikleyici bir route yok (§11.4).
+
+## 11. Deploy öncesi inceleme düzeltmeleri (22 Eylül 2026)
+
+Faz 2 commit'i (`8a63853`) dala push edildikten sonra, deploy öncesi incelemede legacy iade akışında
+üç kusur bulundu ve dört ek şart getirildi. Hepsi bu ek çalışmada kapatıldı.
+
+### 11.1 Bulgular
+
+| # | Kusur | Düzeltme |
+|---|---|---|
+| P1 | İade kargo bildirimi kaybolabiliyordu: durum + geçmiş yazıldıktan sonra bildirim ayrı yazılıyordu; arada çökme e-postayı yok ediyor, yeniden deneme de durum guard'ına takılıyordu | Legacy `return.service`'in **yedi** mutasyon metodu tek transaction'a alındı |
+| P2 | Admin'in ilk iade onayı hiçbir `RefundTransaction` oluşturmadığı hâlde şablon "Geri ödemeniz kuyruğa alındı" diyordu | Metin artık kalıcı kayıttan türetiliyor; kayıt yoksa geri ödeme iddiası yok |
+| P3 | Tüm karar yolları tek `eventKey` kullandığı için ilk onay, sonraki gerçek geri ödeme kararını outbox tekilleştirmesiyle yutuyordu | Aşama bazlı anahtarlar (§11.3) |
+
+### 11.2 Transaction kapsamı
+
+Tek `$transaction` (30 sn timeout) içinde: iş durumu + `OrderStatusHistory` + `AdminAuditLog` +
+(varsa) `Dispute` + **kalıcı `RefundTransaction`** + `NotificationOutbox` satırı.
+
+Kapsanan metotlar: `openRequest`, `provideSellerCargoInfo`, `submitCustomerShipment`,
+`confirmReceiptBySeller`, `rejectReceiptBySeller`, `reviewRequest`, `markItemReceived`.
+
+- `refund.service` ayrıştırıldı: `queueLegacyRefundInTransaction(tx, …)` /
+  `executeReturnRefundInTransaction(tx, …)` dış transaction client'ını kabul eder; eski imzalar
+  (`queueLegacyRefund`, `executeReturnRefund`) kendi transaction'larını açmaya devam eder.
+- Sağlayıcı çağrısı **transaction dışında**: `dispatchRefundProcessingAfterCommit(refund)`
+  (`quantity-refund.service`) yalnız kart + `pending`/`processing` kayıtlar için kuyruğa yazar.
+- Adet bazlı akışta da `refunds.queue(..., tx)` karar transaction'ına alındı; `completed` dönen
+  iade için `ReturnRequest.status = refund_completed` güncellemesi aynı transaction'da yapılır.
+- Sahiplik koşulu sadeleştirilmedi: `sellerScopedReturnWhere(id, sellerId)`
+  (`return-request.repository.ts`) `sellerId: null` olan eski iadeleri sipariş satırlarının satıcısı
+  üzerinden yetkilendiren iki dallı koşulu tek kaynakta tutar; hem repository okuması hem transaction
+  içi yeniden okuma onu kullanır.
+- Eşzamanlılık: sahiplik tx içinde doğrulandıktan sonra `updateMany({ where: { id, status } })`
+  ile atomik claim yapılır; kaybeden istek `ConflictError` alır. `openRequest` ayrıca Serializable
+  izolasyon + üç denemeyle çalışır ("bir siparişte tek açık iade" kuralının unique index'i yok).
+
+### 11.3 Aşama bazlı olay anahtarları
+
+| Üretici | eventKey |
+|---|---|
+| `reviewRequest` (admin ilk kararı) | `return:{id}:customer:review:{approved\|rejected}` |
+| `confirmReceiptBySeller` | `return:{id}:customer:receipt-approved` |
+| `rejectReceiptBySeller` | `return:{id}:customer:receipt-rejected` |
+| `markItemReceived` (admin) | `return:{id}:customer:admin-refund` |
+| `quantity-return.decideReceipt` (değişmedi) | `return:{id}:customer:decision` |
+
+### 11.4 Metin artık kayıt durumundan türüyor
+
+`refundOutcome` alanı `RefundTransaction`'dan hesaplanır (`refundOutcomeOf`); çağıran metni seçmez.
+`RefundTransactionStatus`'un altı değeri de açıkça eşlenir, bilinmeyen durum asla "işlem başladı"
+sayılmaz:
+
+| Kayıt | `refundOutcome` | Müşteriye söylenen |
+|---|---|---|
+| Kayıt yok | `awaiting_return` | "Ürünü iade kargo bilgileriyle gönderin… geri ödeme başlatılır ve tamamlandığında size ayrıca e-posta göndereceğiz." (tutar/iddia yok) |
+| `pending`, `processing` | `processing` | "…geri ödeme işleminiz oluşturuldu; bankanıza aktarıldığında size ayrıca e-posta göndereceğiz." |
+| `manual_required` | `manual_review` | "…geri ödemeniz ekibimizin manuel kontrolü sonrasında yapılacak…" |
+| `completed` + tutar 0 | `no_refund_due` | "Bu talep kapsamında geri ödenecek tutar bulunmuyor." |
+| `completed` + tutar | `completed` | "…geri ödemeniz tamamlandı; ayrıca bir onay e-postası alacaksınız." |
+| `partially_completed`, `failed`, eşlenmemiş | `under_review` | "Geri ödemenizin durumu ekibimizce izleniyor…" |
+
+"Kuyruğa alındı" ifadesi tüm şablonlardan ve üretici gövde metinlerinden kaldırıldı. Eski/eksik
+payload'lar `under_review`'a düşer.
+
+**Kurtarma yolları (testle kanıtlandı, §11.5):**
+- **Worker yolu** — kart ödemesi + sağlayıcı kalem eşleşmesi olan (adet bazlı) iadeler `pending`
+  kalır; `refund-processing` job'ının çağırdığı `createRefundExecutionService(...).process(id)` aynı
+  kaydı tamamlar. Bu kayıtlar için **admin tetikleyici bir route bugün yoktur** — kurtarma worker'a
+  aittir. (Açık takip işi.)
+- **Admin yolu** — EFT ve sağlayıcı kalem eşleşmesi olmayan **legacy** kart iadeleri `manual_required`
+  olur (legacy `queueLegacyRefund` kalem listesi göndermediği için eşleşme kurulamaz); admin
+  `POST /api/admin/refunds/{id}/complete` → `quantityRefunds.complete(...)` ile tamamlar.
+
+### 11.5 Testler
+
+- Yeni `tests/unit/services/return.service.notifications.test.ts` (5 test): aşama bazlı anahtarlar,
+  admin ilk onayında tutarsız `awaiting_return`, sekiz farklı kayıt durumu için `refundOutcome`
+  eşlemesi (bilinmeyen durum dahil), sağlayıcı dispatch'inin commit sonrası olması, claim
+  kaybedildiğinde hiçbir yazımın yapılmaması, `sellerId: null` legacy sahiplik koşulu.
+- Yeni `tests/postgres/return-notification-atomicity.test.ts` (8 senaryo, gerçek PostgreSQL):
+  1. yedi akışın tamamında outbox hatasında tam rollback + operatörün tekrar deneyebilmesi,
+  2. geri ödeme kaydı yazılamazsa teslim kararının tamamen geri alınması,
+  3. dispatch hiç çalışmazsa kaydın ve outbox satırının kalması + worker yolunun aynı kaydı **bir kez**
+     tamamlaması (`Payment.refundedAmount` yalnız bir kez artar, ikinci `process` para hareketi üretmez),
+  4. legacy kart iadesinin `manual_required` olarak işaretlenmesi ve otomatik ödeme iddiası içermemesi,
+  5. admin yolunun (`quantityRefunds.complete`) manuel iadeyi tekrar çağrılsa da tek kez tamamlaması,
+  6. eşzamanlı iki satıcı kararında tek durum geçişi / tek uyuşmazlık / tek outbox satırı,
+  7. ilk admin onayının sonraki geri ödeme kararını engellememesi (iki ayrı outbox satırı),
+  8. `sellerId: null` legacy iadede sipariş satırı sahibinin yetkili, başka satıcının yetkisiz olması.
+
+**Yerel çalıştırma sonuçları (22 Eylül 2026):** `pnpm lint` 7/7, `pnpm typecheck` 8/8,
+`pnpm test` **2066 geçti / 2 atlandı / 0 başarısız** (207 dosya), `pnpm build` üç app başarılı.
+PostgreSQL paketi (`vitest.postgres.config.ts`): **3 dosya / 91 test geçti** — bu çalışma için
+oluşturulan geçici yerel rol ve test şemaları iş sonunda silindi.
+
+### 11.6 Deploy etkisi
+
+Migration yok, yeni env yok. Etkilenen servisler ve sıra değişmedi:
+**worker → admin-panel → seller-panel → web**.

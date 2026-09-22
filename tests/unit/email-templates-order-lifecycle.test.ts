@@ -292,6 +292,7 @@ describe('return templates', () => {
       ...base,
       decision: 'partial',
       refundAmount: '4.850 TL',
+      refundOutcome: 'processing',
       disputeOpened: true,
       items: [
         { ...line, acceptedQuantity: 1, rejectedQuantity: 1, rejectionReason: 'Ürün kullanılmış' },
@@ -318,10 +319,40 @@ describe('return templates', () => {
       ...base,
       decision: 'approved',
       refundAmount: '9.700 TL',
+      refundOutcome: 'processing',
       items: [{ ...line, acceptedQuantity: 2, rejectedQuantity: 0 }],
     })
     expect(approved.subject).toBe('İade Talebiniz Kabul Edildi — #26050042')
-    expect(approved.html).toContain('tamamlandığında size ayrıca e-posta')
+    expect(approved.html).toContain('9.700 TL')
+    expect(approved.html).toContain('bankanıza aktarıldığında size ayrıca e-posta')
+  })
+
+  it('derives the money wording from the persisted refund state and never claims a queued job', () => {
+    const items = [{ ...line, acceptedQuantity: 2, rejectedQuantity: 0 }]
+    const render = (refundOutcome: Parameters<typeof returnDecisionTemplate>[0]['refundOutcome']) =>
+      returnDecisionTemplate({ ...base, decision: 'approved', refundAmount: '9.700 TL', refundOutcome, items })
+
+    // No refund record yet: the item has not come back, so no refund claim.
+    const awaiting = render('awaiting_return')
+    expect(awaiting.subject).toBe('İade Talebiniz Kabul Edildi — Ürünü Kargoya Verin — #26050042')
+    expect(awaiting.html).toContain('Ürünü iade kargo bilgileriyle gönderin')
+    expect(awaiting.html).not.toContain('9.700 TL')
+    expect(awaiting.html).not.toContain('oluşturuldu')
+
+    expect(render('processing').html).toContain('bankanıza aktarıldığında')
+    expect(render('manual_review').html).toContain('manuel kontrolü sonrasında')
+    expect(render('manual_review').html).not.toContain('oluşturuldu')
+    expect(render('no_refund_due').html).toContain('Bu talep kapsamında geri ödenecek tutar bulunmuyor')
+    expect(render('completed').html).toContain('tamamlandı')
+    expect(render('under_review').html).toContain('ekibimizce izleniyor')
+
+    // Legacy payloads without an outcome must not claim a started payment.
+    const legacy = returnDecisionTemplate({ ...base, decision: 'approved', items })
+    expect(legacy.html).toContain('ekibimizce izleniyor')
+    for (const outcome of ['awaiting_return', 'processing', 'manual_review', 'no_refund_due', 'completed', 'under_review'] as const) {
+      expect(render(outcome).html).not.toContain('kuyruğa alındı')
+      expect(render(outcome).text).not.toContain('kuyruğa alındı')
+    }
   })
 })
 

@@ -569,10 +569,23 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - **Cayma hakkı istisna listesi tek kaynak:** `RIGHT_OF_WITHDRAWAL_EXCEPTIONS`
   (`api/lib/legal-documents.ts`) — sözleşme, ön bilgilendirme formu ve sipariş e-postası aynı metni
   kullanır.
+- **Deploy öncesi inceleme düzeltmesi (aynı gün):** legacy `return.service`'in yedi mutasyon metodu
+  (`openRequest`, `provideSellerCargoInfo`, `submitCustomerShipment`, `confirmReceiptBySeller`,
+  `rejectReceiptBySeller`, `reviewRequest`, `markItemReceived`) tek transaction'a alındı; **kalıcı
+  `RefundTransaction` de aynı transaction'da** yazılır (`refund.service.queueLegacyRefundInTransaction`
+  / `executeReturnRefundInTransaction`). Sağlayıcı çağrısı commit sonrası kalır
+  (`dispatchRefundProcessingAfterCommit`). Karar e-postasının para metni kalıcı kayıttan türetilir
+  (`refundOutcome`); kayıt yoksa geri ödeme iddiası yoktur ve "kuyruğa alındı" ifadesi tüm
+  şablonlardan kaldırıldı. Karar e-postaları aşama bazlı `eventKey` kullanır; ilk admin onayı artık
+  sonraki geri ödeme kararını yutmaz. Eşzamanlılık: sahiplik tx içinde doğrulanır ve durum geçişi
+  atomik claim ile yapılır. Legacy `sellerId: null` iadelerin sipariş satırı üzerinden yetkilendirmesi
+  `sellerScopedReturnWhere` ile tek kaynakta korunur.
+- **Kurtarma:** kart + sağlayıcı kalem eşleşmesi olan iadeler `pending` kalır, kurtarma
+  `refund-processing` worker job'ına aittir (**admin tetikleyici route yok** — açık takip işi). EFT ve
+  legacy kart iadeleri `manual_required` olur; admin `POST /api/admin/refunds/{id}/complete` ile
+  tamamlar. İkisi de testle kanıtlandı (aynı kayıt, çift ödeme yok).
 - **Açık uçlar (blocking değil):** admin operasyon e-postaları Faz 3'te; uyuşmazlık sonucu için ayrı
-  e-posta yok; `markDelivered` (`order_delivered`) hâlâ hiçbir route tarafından çağrılmıyor; legacy
-  `return.service` bildirimleri transaction dışında; `tests/postgres/*` bu oturumda çalıştırılamadı
-  (yerel test DB parolası yoktu) — deploy öncesi çalıştırılması önerilir.
+  e-posta yok; `markDelivered` (`order_delivered`) hâlâ hiçbir route tarafından çağrılmıyor.
 
 ## Operasyonel Not
 

@@ -10,6 +10,24 @@ import { getManualEftRefundCompletion } from '../domain/manual-eft-refund'
 import { enqueueRefundProcessing } from '../jobs/refund-processing.job'
 import { enqueueCustomerRefundCompletedNotification } from './refund-notification.service'
 
+/**
+ * Provider dispatch for a refund that is already persisted. Safe to call after
+ * the owning transaction committed — the RefundTransaction survives a failed or
+ * missed dispatch and can be processed again by the refund-processing job.
+ * Manual-review and EFT refunds are completed by an admin instead.
+ */
+export async function dispatchRefundProcessingAfterCommit(refund: {
+  id: string
+  status: string
+  payment?: { method: string } | null
+}) {
+  if (refund.payment?.method !== 'card') return
+  if (refund.status === 'completed' || refund.status === 'manual_required') return
+  await enqueueRefundProcessing(refund.id).catch((error) =>
+    console.error('[quantity-refund] Otomatik iade kuyruğa eklenemedi:', error),
+  )
+}
+
 export function createQuantityRefundService({
   prisma,
 }: {
@@ -356,16 +374,7 @@ export function createQuantityRefundService({
     const result = transaction ? await write(transaction) : await prisma.$transaction(write)
     // An outer transaction has not committed yet. Its caller owns post-commit
     // dispatch; legacy refunds use this path and require manual processing.
-    if (
-      !transaction &&
-      !params.manualReviewReason &&
-      result.payment?.method === 'card' &&
-      result.status !== 'completed'
-    ) {
-      void enqueueRefundProcessing(result.id).catch((error) =>
-        console.error('[quantity-refund] Otomatik iade kuyruğa eklenemedi:', error),
-      )
-    }
+    if (!transaction) await dispatchRefundProcessingAfterCommit(result)
     return result
   }
 

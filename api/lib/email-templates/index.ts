@@ -67,6 +67,7 @@ export type {
   LegacyEmailOrderLine,
   OrderAmountSummary,
   OrderContractLinks,
+  RefundOutcome,
   ReturnDecision,
   ReturnDecisionLine,
   SellerCancellationEmailInput,

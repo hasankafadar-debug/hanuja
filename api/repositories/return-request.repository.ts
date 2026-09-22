@@ -1,4 +1,4 @@
-import type { PrismaClient, ReturnRequestStatus } from '@prisma/client'
+import type { Prisma, PrismaClient, ReturnRequestStatus } from '@prisma/client'
 import type { Decimal } from '@prisma/client/runtime/client'
 
 const messageInclude = {
@@ -10,6 +10,27 @@ const messageInclude = {
   escalatedDispute: true,
   items: { include: { orderLine: true } },
 } as const
+
+type ReturnRequestClient = Pick<Prisma.TransactionClient, 'returnRequest'>
+
+/**
+ * Seller authorisation for a return request. Legacy rows carry no sellerId and
+ * are authorised through the order lines the seller owns — both branches must
+ * stay together everywhere the seller scope is enforced, including inside
+ * transactions.
+ */
+export function sellerScopedReturnWhere(
+  id: string,
+  sellerId: string,
+): Prisma.ReturnRequestWhereInput {
+  return {
+    id,
+    OR: [
+      { sellerId },
+      { sellerId: null, order: { lines: { some: { sellerId } } } },
+    ],
+  }
+}
 
 export function createReturnRequestRepository(prisma: PrismaClient) {
   return {
@@ -40,15 +61,9 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
      * Seller-scoped detail — only resolves when the order has a line owned by
      * this seller. Enforces seller data isolation (05-security-rules.md).
      */
-    findByIdForSeller(id: string, sellerId: string) {
-      return prisma.returnRequest.findFirst({
-        where: {
-          id,
-          OR: [
-            { sellerId },
-            { sellerId: null, order: { lines: { some: { sellerId } } } },
-          ],
-        },
+    findByIdForSeller(id: string, sellerId: string, tx?: ReturnRequestClient) {
+      return (tx ?? prisma).returnRequest.findFirst({
+        where: sellerScopedReturnWhere(id, sellerId),
         include: {
           ...messageInclude,
           order: {
@@ -68,27 +83,30 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
       })
     },
 
-    create(data: {
-      orderId: string
-      customerId: string
-      reason: string
-      description?: string
-      isWithinWindow: boolean
-    }) {
-      return prisma.returnRequest.create({ data })
+    create(
+      data: {
+        orderId: string
+        customerId: string
+        reason: string
+        description?: string
+        isWithinWindow: boolean
+      },
+      tx?: ReturnRequestClient,
+    ) {
+      return (tx ?? prisma).returnRequest.create({ data })
     },
 
-    updateStatus(id: string, status: ReturnRequestStatus, tx?: PrismaClient) {
-      const client = tx ?? prisma
-      return client.returnRequest.update({ where: { id }, data: { status } })
+    updateStatus(id: string, status: ReturnRequestStatus, tx?: ReturnRequestClient) {
+      return (tx ?? prisma).returnRequest.update({ where: { id }, data: { status } })
     },
 
     /** Seller provides return cargo instructions → status requested → approved. */
     setSellerCargoInfo(
       id: string,
       params: { address: string; carrier: string; instructions?: string },
+      tx?: ReturnRequestClient,
     ) {
-      return prisma.returnRequest.update({
+      return (tx ?? prisma).returnRequest.update({
         where: { id },
         data: {
           status: 'approved',
@@ -106,8 +124,9 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
     setCustomerShipment(
       id: string,
       params: { carrier: string; trackingNumber?: string },
+      tx?: ReturnRequestClient,
     ) {
-      return prisma.returnRequest.update({
+      return (tx ?? prisma).returnRequest.update({
         where: { id },
         data: {
           status: 'in_transit',
@@ -121,8 +140,8 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
     },
 
     /** Seller confirms physical receipt → status in_transit → received. */
-    setSellerReceived(id: string) {
-      return prisma.returnRequest.update({
+    setSellerReceived(id: string, tx?: ReturnRequestClient) {
+      return (tx ?? prisma).returnRequest.update({
         where: { id },
         data: { status: 'received', sellerReceivedAt: new Date() },
       })
@@ -132,8 +151,9 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
     setSellerRejected(
       id: string,
       params: { reason: string; description?: string },
+      tx?: ReturnRequestClient,
     ) {
-      return prisma.returnRequest.update({
+      return (tx ?? prisma).returnRequest.update({
         where: { id },
         data: {
           status: 'rejected',
@@ -147,8 +167,8 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
     },
 
     /** Link the auto-created escalation dispute (1-1). */
-    linkDispute(id: string, disputeId: string) {
-      return prisma.returnRequest.update({
+    linkDispute(id: string, disputeId: string, tx?: ReturnRequestClient) {
+      return (tx ?? prisma).returnRequest.update({
         where: { id },
         data: { disputeId },
       })
@@ -161,8 +181,9 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
         reviewedBy: string
         reviewNote?: string
       },
+      tx?: ReturnRequestClient,
     ) {
-      return prisma.returnRequest.update({
+      return (tx ?? prisma).returnRequest.update({
         where: { id },
         data: {
           status: params.status,

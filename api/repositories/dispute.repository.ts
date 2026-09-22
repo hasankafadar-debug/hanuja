@@ -153,8 +153,11 @@ export function createDisputeRepository(prisma: PrismaClient) {
       })
     },
 
-    create(data: { orderId: string; openedById: string; reason: string; description?: string }) {
-      return prisma.dispute.create({ data })
+    create(
+      data: { orderId: string; openedById: string; reason: string; description?: string },
+      tx?: Pick<Prisma.TransactionClient, 'dispute'>,
+    ) {
+      return (tx ?? prisma).dispute.create({ data })
     },
 
     resolve(

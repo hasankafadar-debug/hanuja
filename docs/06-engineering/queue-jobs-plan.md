@@ -91,9 +91,14 @@ after commit cannot lose the e-mail: `checkout.createOrder` (EFT only), `payment
 `order.sellerReject`, `quantity-return.openRequest`, `quantity-return.decideReceipt` and the invoice
 upload paths in `order-document.service`.
 
+The legacy `return.service` flow joined them in the pre-deploy fix: its seven mutations each run in
+one transaction that also writes the durable `RefundTransaction`, so no e-mail claims a refund job
+that does not exist. Provider dispatch (`enqueueRefundProcessing`) stays outside the transaction via
+`dispatchRefundProcessingAfterCommit`; a missed dispatch leaves a recoverable record rather than
+nothing.
+
 Still post-commit by design: `refund-notification.service` (the refund outcome is only known after the
-provider answers; its deterministic eventKey prevents a duplicate) and the legacy `return.service`
-flow, which has no single transaction yet.
+provider answers; its deterministic eventKey prevents a duplicate).
 
 Card orders no longer e-mail at checkout — the single "Siparişiniz Alındı" is produced when the
 payment is confirmed. Event types added to the e-mail policy: `order_cancelled`,

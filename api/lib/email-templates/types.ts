@@ -170,6 +170,20 @@ export interface ReturnDecisionLine extends EmailOrderLine {
 
 export type ReturnDecision = 'approved' | 'partial' | 'rejected'
 
+/**
+ * What the customer is told about the money, derived from the persisted
+ * RefundTransaction — never from the caller's intent. `awaiting_return` means no
+ * refund record exists yet (the item has not come back), so the e-mail must not
+ * claim a refund was started.
+ */
+export type RefundOutcome =
+  | 'awaiting_return'
+  | 'processing'
+  | 'manual_review'
+  | 'no_refund_due'
+  | 'completed'
+  | 'under_review'
+
 export interface CustomerReturnDecisionEmailInput {
   customerName: string
   orderNumber: string
@@ -177,6 +191,8 @@ export interface CustomerReturnDecisionEmailInput {
   decision: ReturnDecision
   items: readonly ReturnDecisionLine[]
   refundAmount?: EmailAmount
+  /** Derived from the persisted refund record; defaults to `under_review`. */
+  refundOutcome?: RefundOutcome
   /** A rejection automatically opened a dispute the customer can reply to. */
   disputeOpened?: boolean
   reviewNote?: string | null
