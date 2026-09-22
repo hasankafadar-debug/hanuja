@@ -55,6 +55,16 @@ export class Decimal {
     return new Decimal(Math.abs(this.value))
   }
 
+  isFinite(): boolean {
+    return Number.isFinite(this.value)
+  }
+
+  decimalPlaces(): number {
+    const text = String(this.value)
+    const [, fraction = ''] = text.split('.')
+    return fraction.length
+  }
+
   floor(): Decimal {
     return new Decimal(Math.floor(this.value))
   }

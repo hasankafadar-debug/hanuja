@@ -6,10 +6,11 @@ import {
   isQuantityFullyClosed,
 } from '../domain/quantity-allocation'
 import { createQuantityRefundService } from './quantity-refund.service'
-import { enqueueNotification } from '../jobs/notification-dispatch.job'
+import { recordNotification } from './notification-outbox.service'
 import { formatOrderNumber } from '../lib/order-number'
-import { getSellerPanelUrl } from '../lib/platform-info'
+import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 import { formatMoney } from '@hanuja/security/money'
+import { resolveEmailImageUrl } from '../lib/email-line-items'
 
 interface CancellationSelection {
   orderLineId: string
@@ -46,6 +47,8 @@ export function createQuantityCancellationService({
     reason: string
     idempotencyKey?: string
     actorId?: string
+    /** Who triggered the cancellation; drives the wording of the customer/seller e-mails. */
+    actorRole?: 'customer' | 'seller' | 'admin'
     fullCancellationStatus?:
       | 'cancelled_by_customer'
       | 'cancelled_due_to_seller_rejection'
@@ -102,38 +105,57 @@ export function createQuantityCancellationService({
       )
     }
 
-    const result = operations.map((operation, index) => ({
+    return operations.map((operation, index) => ({
       ...operation,
       refundTransaction: queued[index],
     }))
-    void notifyCancellation(result).catch((error) =>
-      console.error('[quantity-cancellation] Notification failed:', error),
-    )
-    return result
   }
 
-  async function notifyCancellation(
+  /**
+   * Customer / seller / admin notifications for the cancellation operations
+   * created in this transaction. Written through the same client so they roll
+   * back with the business change.
+   */
+  async function recordCancellationNotifications(
+    tx: Prisma.TransactionClient,
+    order: {
+      id: string
+      publicNumber: number
+      customerId: string
+      customer: { email: string | null; name: string | null }
+      address: { fullName: string | null } | null
+      payments: Array<{ method: 'card' | 'eft' }>
+      lines: Array<{ id: string; productId: string; quantity: number }>
+    },
     operations: Array<{
       id: string
-      orderId: string
       sellerId: string
-      customerId: string
       reason: string
+      customerRefundAmount: Decimal
       items: Array<{
         quantity: number
         orderLine: {
+          id: string
+          productId: string
           productName: string
           variantName: string | null
           unitPrice: Decimal
         }
       }>
     }>,
+    context: { actorRole: 'customer' | 'seller' | 'admin'; actorId?: string },
   ) {
-    const sellerIds = [
-      ...new Set(operations.map((operation) => operation.sellerId)),
+    if (operations.length === 0) return
+    const sellerIds = [...new Set(operations.map((operation) => operation.sellerId))]
+    const productIds = [
+      ...new Set(
+        operations.flatMap((operation) =>
+          operation.items.map((item) => item.orderLine.productId),
+        ),
+      ),
     ]
-    const [sellers, admins] = await Promise.all([
-      prisma.seller.findMany({
+    const [sellers, admins, images] = await Promise.all([
+      tx.seller.findMany({
         where: { id: { in: sellerIds } },
         select: {
           id: true,
@@ -141,17 +163,33 @@ export function createQuantityCancellationService({
           user: { select: { id: true, email: true } },
         },
       }),
-      prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } }),
+      tx.user.findMany({ where: { role: 'admin' }, select: { id: true } }),
+      tx.productImage.findMany({
+        where: { productId: { in: productIds } },
+        orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+        select: { productId: true, url: true, isPrimary: true, sortOrder: true },
+      }),
     ])
     const sellerById = new Map(sellers.map((seller) => [seller.id, seller]))
+    const imagesByProduct = new Map<string, typeof images>()
+    for (const image of images) {
+      const bucket = imagesByProduct.get(image.productId) ?? []
+      bucket.push(image)
+      imagesByProduct.set(image.productId, bucket)
+    }
+    const orderNumber = formatOrderNumber(order.publicNumber, order.id)
+    const customerName =
+      order.customer.name?.trim() || order.address?.fullName?.trim() || 'Değerli Müşterimiz'
+    const totalOrderedQuantity = order.lines.reduce((sum, line) => sum + line.quantity, 0)
+    const cancelledNow = operations.reduce(
+      (sum, operation) =>
+        sum + operation.items.reduce((inner, item) => inner + item.quantity, 0),
+      0,
+    )
+    const partial = cancelledNow < totalOrderedQuantity
+    const paymentMethod = order.payments[0]?.method ?? 'card'
 
     for (const operation of operations) {
-      const order = await prisma.order.findUnique({
-        where: { id: operation.orderId },
-        select: { id: true, publicNumber: true },
-      })
-      if (!order) continue
-      const orderNumber = formatOrderNumber(order.publicNumber, order.id)
       const items = operation.items.map((item) => ({
         productName: item.orderLine.productName,
         variantName: item.orderLine.variantName,
@@ -161,6 +199,7 @@ export function createQuantityCancellationService({
         lineTotal: formatMoney(
           item.orderLine.unitPrice.mul(item.quantity).toNumber(),
         ),
+        imageUrl: resolveEmailImageUrl(imagesByProduct.get(item.orderLine.productId)),
       }))
       const summary = items
         .map((item) => `${item.productName} (${item.quantity})`)
@@ -169,21 +208,30 @@ export function createQuantityCancellationService({
         operationId: operation.id,
         orderId: order.id,
         orderNumber,
+        customerName,
         sellerId: operation.sellerId,
+        actorRole: context.actorRole,
+        partial,
+        paymentMethod,
         cancellationReason: operation.reason,
+        refundAmount: formatMoney(operation.customerRefundAmount.toNumber()),
+        orderUrl: `${getWebBaseUrl()}/siparis/${order.id}`,
         items,
       }
-      await enqueueNotification({
+      await recordNotification(tx, {
         eventKey: `cancellation:${operation.id}:customer`,
-        userId: operation.customerId,
+        userId: order.customerId,
+        ...(order.customer.email ? { emailTo: order.customer.email } : {}),
         type: 'order_cancelled',
-        title: 'Ürün iptali tamamlandı',
+        title: partial ? 'Siparişinizin bir kısmı iptal edildi' : 'Siparişiniz iptal edildi',
         body: summary,
         data,
       })
       const seller = sellerById.get(operation.sellerId)
-      if (seller) {
-        await enqueueNotification({
+      // A seller rejecting their own lines already knows; only mail sellers when
+      // someone else cancelled.
+      if (seller && context.actorRole !== 'seller') {
+        await recordNotification(tx, {
           eventKey: `cancellation:${operation.id}:seller`,
           userId: seller.user.id,
           emailTo: seller.user.email,
@@ -198,7 +246,7 @@ export function createQuantityCancellationService({
         })
       }
       for (const admin of admins) {
-        await enqueueNotification({
+        await recordNotification(tx, {
           eventKey: `cancellation:${operation.id}:admin`,
           userId: admin.id,
           type: 'order_canceled',
@@ -218,6 +266,7 @@ export function createQuantityCancellationService({
       reason: string
       idempotencyKey?: string
       actorId?: string
+      actorRole?: 'customer' | 'seller' | 'admin'
       fullCancellationStatus?:
         | 'cancelled_by_customer'
         | 'cancelled_due_to_seller_rejection'
@@ -238,7 +287,12 @@ export function createQuantityCancellationService({
     }
     const order = await tx.order.findFirst({
       where: { id: params.orderId, customerId: params.customerId },
-      include: { lines: true, payments: true },
+      include: {
+        lines: true,
+        payments: true,
+        customer: { select: { email: true, name: true } },
+        address: { select: { fullName: true } },
+      },
     })
     if (!order) throw new NotFoundError('Order', params.orderId)
     if (order.quantityLifecycleVersion !== 2) {
@@ -471,10 +525,20 @@ export function createQuantityCancellationService({
       },
     })
 
+    await recordCancellationNotifications(tx, order, created, {
+      actorRole:
+        params.actorRole ??
+        (params.fullCancellationStatus === 'cancelled_due_to_seller_rejection'
+          ? 'seller'
+          : 'customer'),
+      ...(params.actorId ? { actorId: params.actorId } : {}),
+    })
+
     return created
   }
 
-  return { create }
+  // recordCancellationNotifications is exposed for unit tests of the e-mail payloads.
+  return { create, recordCancellationNotifications }
 }
 
 export type QuantityCancellationService = ReturnType<

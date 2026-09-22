@@ -49,7 +49,7 @@ describe('phase 4 transactional order email templates', () => {
     expect(template.html).toContain('href="https://www.hanuja.com.tr/siparis/order-1"')
     expect(template.html).toContain('Gea Berjer')
     expect(template.html).toContain('Doğal keten')
-    expect(template.html).toContain('Birim Satın Alma Fiyatı')
+    expect(template.html).toContain('Birim Fiyat')
     expect(template.html).toContain('Satır Toplamı')
     expect(template.html).toContain('₺4.850,00')
     expect(template.html).toContain('₺9.700,00')
@@ -75,7 +75,7 @@ describe('phase 4 transactional order email templates', () => {
       cargoCompany: 'Hanuja Kargo',
     })
 
-    expect(template.subject).toBe('Siparişiniz Yolda — #HNJ-1001')
+    expect(template.subject).toBe('Siparişiniz Kargoya Verildi — #HNJ-1001')
     expect(template.html).toContain('Siparişiniz Kargoya Verildi')
     expect(template.html).toContain('TRK-123')
     expect(template.html).toContain('Hanuja Kargo')
@@ -86,12 +86,12 @@ describe('phase 4 transactional order email templates', () => {
   it('keeps the seller order email scoped to the supplied seller lines', () => {
     const template = sellerNewOrderTemplate(sellerOrderInput)
 
-    expect(template.subject).toBe('Yeni Sipariş — Ödemesi Onaylandı — #HNJ-1001')
+    expect(template.subject).toBe('Yeni Sipariş — #HNJ-1001')
     expect(template.html).toContain('Atelier Noa')
     expect(template.html).toContain('Gea Berjer')
     expect(template.html).toContain('href="https://satici.hanuja.com.tr/siparisler/order-1"')
     expect(template.html).toContain('Satıcı Panelinde Görüntüle')
-    expect(template.text).toContain('Birim Satın Alma Fiyatı: ₺4.850,00')
+    expect(template.text).toContain('Birim Fiyat: ₺4.850,00')
   })
 
   it('filters line ownership when a seller id is present in the pure payload', () => {
@@ -118,9 +118,9 @@ describe('phase 4 transactional order email templates', () => {
       cancellationReason: 'Stok adedi güncellendi',
     })
 
-    expect(template.subject).toBe('Ürün / Adet İptali — #HNJ-1001')
-    expect(template.html).toContain('ürün/adet iptali gerçekleşti')
-    expect(template.html).toContain('Adet')
+    expect(template.subject).toBe('Sipariş İptali — #HNJ-1001')
+    expect(template.html).toContain('iptal edildi')
+    expect(template.html).toContain('İptal Adedi')
     expect(template.html).toContain('Stok adedi güncellendi')
     expect(template.text).toContain('https://satici.hanuja.com.tr/siparisler/order-1')
   })
@@ -131,8 +131,8 @@ describe('phase 4 transactional order email templates', () => {
       returnReason: 'Ürün beklediğim gibi değil',
     })
 
-    expect(requested.subject).toBe('Yeni İade Talebi — #HNJ-1001')
-    expect(requested.html).toContain('iade talebi oluşturuldu')
+    expect(requested.subject).toBe('İade Talebi — #HNJ-1001')
+    expect(requested.html).toContain('iade talebi oluşturdu')
     expect(requested.html).toContain('Ürün beklediğim gibi değil')
   })
 
@@ -143,7 +143,7 @@ describe('phase 4 transactional order email templates', () => {
       orderUrl: 'javascript:alert(1)',
     })
 
-    expect(template.html).toContain('İadeniz Tamamlandı')
+    expect(template.html).toContain('Geri Ödemeniz Yapılmıştır')
     expect(template.html).toContain('İade Tutarı: 4.850,00 TL')
     expect(template.html).not.toContain('javascript:alert(1)')
     expect(template.html).not.toMatch(/href="javascript:/i)
@@ -201,7 +201,7 @@ describe('invoiceUploadedTemplate', () => {
       orderUrl: 'https://www.hanuja.com.tr/siparis/order-1',
     })
 
-    expect(template.subject).toBe('Faturanız Hazır — #ABC12345')
+    expect(template.subject).toBe('Faturanız Oluşturuldu — #ABC12345')
     expect(template.html).toContain('Siparişimi Görüntüle')
     expect(template.html).toContain('href="https://www.hanuja.com.tr/siparis/order-1"')
     expect(template.text).toContain('https://www.hanuja.com.tr/siparis/order-1')

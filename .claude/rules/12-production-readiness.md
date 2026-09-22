@@ -540,6 +540,40 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - **Açık takip işi:** admin'de neden bazlı iptal raporu/listesi yok (tarih/satıcı filtresi, neden
   bazlı adet ve iade tutarı); veri tabloda mevcut.
 
+### 31. E-posta Faz 1 (dayanıklı gönderim) ve Faz 2 (sipariş e-postaları) (yeni — 2026-09-22)
+
+- **Faz 1 (`fc19165`, dört servis canlıda):** bildirim üreticileri artık önce PostgreSQL
+  `NotificationOutbox`'a yazar; 15 sn'lik relay `notification-dispatch` (işlemsel) ve
+  `notification-bulk` (kampanya) kuyruklarını besler. Üretimde eksik/bozuk SMTP yapılandırması
+  başlangıçta hata verir (JSON transport'a düşmez); admin `/e-posta` ekranı gönderim durumu ve
+  gerekçeli tekrar deneme sunar; Resend webhook'u SMTP kabulü ile gerçek teslimi ayırır.
+  Ayrıntı: `docs/07-operations/email-phase-1-report.md`.
+- **Faz 2 (bu iş):** müşteri ve satıcı sipariş e-postalarının tamamı. **Migration YOK, env YOK.**
+  Kapsanan olaylar ve şablonlar: `docs/07-operations/email-phase-2-report.md`.
+- **Davranış değişikliği — kart siparişi:** "Siparişiniz Alındı" artık checkout'ta değil, **ödeme
+  onaylandığında** gider. Kart reddedilirse müşteri hiç mail almaz. EFT akışı iki maildir: sipariş
+  anında "Ödeme Bekleniyor" (banka blokları), admin onayında "Ödemeniz Onaylandı".
+- **Atomiklik:** dokunulan üreticiler outbox kaydını iş transaction'ı içinde yazar
+  (`recordNotification(tx, …)`). İstisnalar: `refund-notification.service` (sonuç sağlayıcı
+  yanıtından sonra belli olur, deterministik eventKey ile korunur) ve legacy `return.service`
+  (tek transaction'ı yok).
+- **Rol kapsamı:** bir e-posta politikası tek role aittir. Aynı olayın başka role giden kopyası
+  (ör. admin) artık `emailTo` açıkça verilmedikçe e-posta bacağı açmaz — eskiden başarısız
+  `NotificationDelivery` kaydı üretiyordu.
+- **Redeploy: dört servis de.** Sıra **worker → admin-panel → seller-panel → web**; worker önce
+  olmalı, aksi halde yeni tipler (`order_cancelled`, `order_return_approved/rejected`, stage'li
+  `return_status_changed`) eski worker'da `EMAIL_TEMPLATE_UNSUPPORTED` ile düşer.
+- **Kargo takip linki** yalnız doğrulanmış taşıyıcı sayfaları için üretilir
+  (`api/domain/cargo-tracking.ts`): Yurtiçi, Aras, Sürat, MNG→DHL eCommerce, UPS, FedEx, DHL.
+  PTT ve bilinmeyen taşıyıcıda link basılmaz. Taşıyıcı listesi değişirse bu dosya güncellenmeli.
+- **Cayma hakkı istisna listesi tek kaynak:** `RIGHT_OF_WITHDRAWAL_EXCEPTIONS`
+  (`api/lib/legal-documents.ts`) — sözleşme, ön bilgilendirme formu ve sipariş e-postası aynı metni
+  kullanır.
+- **Açık uçlar (blocking değil):** admin operasyon e-postaları Faz 3'te; uyuşmazlık sonucu için ayrı
+  e-posta yok; `markDelivered` (`order_delivered`) hâlâ hiçbir route tarafından çağrılmıyor; legacy
+  `return.service` bildirimleri transaction dışında; `tests/postgres/*` bu oturumda çalıştırılamadı
+  (yerel test DB parolası yoktu) — deploy öncesi çalıştırılması önerilir.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

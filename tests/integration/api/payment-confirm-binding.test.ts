@@ -57,14 +57,21 @@ function buildPrismaMock(options: {
         ) {
           return { totalAmount: options.order.totalAmount }
         }
-        // transaction içi + bildirim yolu
+        // transaction içi + bildirim yolu (e-posta anlık görüntüsü tutar alanlarını da okur)
         return {
           id: options.payment?.orderId ?? 'o1',
           publicNumber: null,
           status: 'payment_pending',
           customerId: 'c1',
           totalAmount: options.order.totalAmount,
+          grossAmount: options.order.totalAmount,
+          discountAmount: new Decimal(0),
+          eftDiscountAmount: new Decimal(0),
+          eftDiscountRateSnapshot: null,
+          shippingAmount: new Decimal(0),
+          couponCode: null,
           customer: { email: 'customer@example.com', name: 'Test Customer' },
+          address: { fullName: 'Test Customer' },
           payments: [],
           lines: [],
         }
@@ -72,6 +79,8 @@ function buildPrismaMock(options: {
       update: vi.fn(async () => ({})),
     },
     paymentEvent: { create: vi.fn(async () => ({})) },
+    // Notifications are written through the confirming transaction.
+    notificationOutbox: { upsert: vi.fn(async () => ({ id: 'outbox-1' })) },
     paymentProviderItem: {
       findMany: vi.fn(async () => []),
       update: vi.fn(async () => ({})),

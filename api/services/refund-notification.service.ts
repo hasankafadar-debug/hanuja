@@ -3,6 +3,7 @@ import { formatMoney } from '@hanuja/security/money'
 import { enqueueNotification } from '../jobs/notification-dispatch.job'
 import { formatOrderNumber } from '../lib/order-number'
 import { getWebBaseUrl } from '../lib/platform-info'
+import { EMAIL_LINE_IMAGE_SELECT, resolveEmailImageUrl } from '../lib/email-line-items'
 
 export async function enqueueCustomerRefundCompletedNotification(
   prisma: PrismaClient,
@@ -11,6 +12,7 @@ export async function enqueueCustomerRefundCompletedNotification(
   const refund = await prisma.refundTransaction.findUnique({
     where: { id: refundTransactionId },
     include: {
+      payment: { select: { method: true } },
       order: {
         select: {
           id: true,
@@ -26,6 +28,7 @@ export async function enqueueCustomerRefundCompletedNotification(
               productName: true,
               variantName: true,
               unitPrice: true,
+              product: { select: EMAIL_LINE_IMAGE_SELECT },
             },
           },
         },
@@ -44,6 +47,7 @@ export async function enqueueCustomerRefundCompletedNotification(
       quantity: item.quantity ?? 1,
       unitPrice: formatMoney(item.orderLine!.unitPrice.toNumber()),
       lineTotal: formatMoney(item.amount.toNumber()),
+      imageUrl: resolveEmailImageUrl(item.orderLine!.product?.images),
     }))
   const customerItems = [
     ...productItems,
@@ -63,13 +67,14 @@ export async function enqueueCustomerRefundCompletedNotification(
     userId: refund.order.customerId,
     emailTo: refund.order.customer.email,
     type: 'refund_completed',
-    title: 'İadeniz Tamamlandı',
-    body: `${formatMoney(refund.customerAmount.toNumber())} tutarındaki iadeniz tamamlandı.`,
+    title: 'Geri ödemeniz yapıldı',
+    body: `${formatMoney(refund.customerAmount.toNumber())} tutarındaki geri ödemeniz yapıldı.`,
     data: {
       refundTransactionId: refund.id,
       orderId: refund.order.id,
       orderNumber,
       customerName: refund.order.customer.name ?? 'Değerli Müşterimiz',
+      ...(refund.payment ? { paymentMethod: refund.payment.method } : {}),
       refundAmount: formatMoney(refund.customerAmount.toNumber()),
       orderUrl: `${getWebBaseUrl()}/siparis/${refund.order.id}`,
       items: customerItems,

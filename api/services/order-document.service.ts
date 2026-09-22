@@ -12,8 +12,11 @@ import {
   isPrivateDocumentStorageKey,
   type PrivateDocumentStorage,
 } from '../lib/private-document-storage'
-import { enqueueNotification } from '../jobs/notification-dispatch.job'
+import type { Prisma } from '@prisma/client'
+import { recordNotification } from './notification-outbox.service'
 import { getWebBaseUrl } from '../lib/platform-info'
+import { formatOrderNumber } from '../lib/order-number'
+import { EMAIL_LINE_IMAGE_SELECT, toEmailOrderLine } from '../lib/email-line-items'
 import { toSellerSafeLegalSnapshot } from '../lib/seller-legal-snapshot'
 
 interface OrderDocumentServiceDeps {
@@ -100,6 +103,75 @@ function normalizeEmail(value: string | null | undefined) {
 
 function buildOrderUrl(orderId: string) {
   return `${getWebBaseUrl()}/siparis/${orderId}`
+}
+
+function buildInvoiceUrl(orderId: string, sellerId: string) {
+  return `${getWebBaseUrl()}/api/orders/${orderId}/documents/invoices/${sellerId}`
+}
+
+/**
+ * "Faturanız Oluşturuldu" for the customer. Written through the caller's
+ * transaction client; a re-upload (replace) is a new event on purpose so the
+ * customer learns the invoice changed.
+ */
+async function recordInvoiceUploadedNotification(
+  tx: Pick<Prisma.TransactionClient, 'order' | 'seller' | 'notificationOutbox'>,
+  params: { orderId: string; sellerId: string; uploadedAt: Date },
+) {
+  const [order, seller] = await Promise.all([
+    tx.order.findUnique({
+      where: { id: params.orderId },
+      select: {
+        id: true,
+        publicNumber: true,
+        customerId: true,
+        customer: { select: { email: true, name: true } },
+        address: { select: { fullName: true } },
+        lines: {
+          where: { sellerId: params.sellerId },
+          select: {
+            productName: true,
+            variantName: true,
+            sellerId: true,
+            unitPrice: true,
+            totalPrice: true,
+            quantity: true,
+            cancelledQuantity: true,
+            product: { select: EMAIL_LINE_IMAGE_SELECT },
+          },
+        },
+      },
+    }),
+    tx.seller.findUnique({ where: { id: params.sellerId }, select: { displayName: true } }),
+  ])
+  if (!order) return
+  await recordNotification(tx, {
+    eventKey: `invoice:${params.orderId}:${params.sellerId}:${params.uploadedAt.getTime()}`,
+    userId: order.customerId,
+    type: 'invoice_uploaded',
+    title: 'Faturanız oluşturuldu',
+    body: 'Siparişiniz için satıcı faturası yüklendi.',
+    data: {
+      orderId: params.orderId,
+      sellerId: params.sellerId,
+      ...(seller ? { sellerName: seller.displayName } : {}),
+      customerName:
+        order.customer.name?.trim() || order.address?.fullName?.trim() || 'Değerli Müşterimiz',
+      orderNumber: formatOrderNumber(order.publicNumber, order.id),
+      orderUrl: buildOrderUrl(params.orderId),
+      invoiceUrl: buildInvoiceUrl(params.orderId, params.sellerId),
+      items: order.lines
+        .filter((line) => line.quantity - line.cancelledQuantity > 0)
+        .map((line) =>
+          toEmailOrderLine(line, line.quantity - line.cancelledQuantity, {
+            lineTotal: line.totalPrice
+              .div(line.quantity)
+              .mul(line.quantity - line.cancelledQuantity),
+          }),
+        ),
+    },
+    ...(order.customer.email ? { emailTo: order.customer.email } : {}),
+  })
 }
 
 function buildAliasEmail(localPart: string) {
@@ -458,59 +530,49 @@ export function createOrderDocumentService({
     const previousKey = order.sellerInvoices[0]?.fileKey ?? null
 
     try {
-      const invoice = await prisma.orderSellerInvoice.upsert({
-        where: {
-          orderId_sellerId: {
+      const uploadedAt = new Date()
+      // Invoice record and customer notification commit together.
+      const invoice = await prisma.$transaction(async (tx) => {
+        const saved = await tx.orderSellerInvoice.upsert({
+          where: {
+            orderId_sellerId: {
+              orderId: params.orderId,
+              sellerId: params.sellerId,
+            },
+          },
+          create: {
             orderId: params.orderId,
             sellerId: params.sellerId,
+            fileUrl: 'private://seller-invoice',
+            fileKey: uploaded.key,
+            fileName: params.fileName,
+            mimeType: params.mimeType,
+            sizeBytes: params.sizeBytes,
+            source: 'manual',
+            uploadedAt,
           },
-        },
-        create: {
+          update: {
+            fileUrl: 'private://seller-invoice',
+            fileKey: uploaded.key,
+            fileName: params.fileName,
+            mimeType: params.mimeType,
+            sizeBytes: params.sizeBytes,
+            source: 'manual',
+            uploadedAt,
+          },
+          select: invoiceSummarySelect,
+        })
+        await recordInvoiceUploadedNotification(tx, {
           orderId: params.orderId,
           sellerId: params.sellerId,
-          fileUrl: 'private://seller-invoice',
-          fileKey: uploaded.key,
-          fileName: params.fileName,
-          mimeType: params.mimeType,
-          sizeBytes: params.sizeBytes,
-          source: 'manual',
-          uploadedAt: new Date(),
-        },
-        update: {
-          fileUrl: 'private://seller-invoice',
-          fileKey: uploaded.key,
-          fileName: params.fileName,
-          mimeType: params.mimeType,
-          sizeBytes: params.sizeBytes,
-          source: 'manual',
-          uploadedAt: new Date(),
-        },
-        select: invoiceSummarySelect,
+          uploadedAt,
+        })
+        return saved
       })
 
       if (previousKey && previousKey !== uploaded.key) {
         await deleteInvoiceFile(previousKey).catch(() => null)
       }
-
-      // Notify the customer their invoice is ready. A re-upload (replace) sends
-      // again on purpose so the customer knows the invoice changed. Enqueue
-      // failure must not fail the upload.
-      await enqueueNotification({
-        userId: order.customerId,
-        type: 'invoice_uploaded',
-        title: 'Faturanız hazır',
-        body: 'Siparişiniz için satıcı faturası yüklendi.',
-        data: {
-          orderId: params.orderId,
-          sellerId: params.sellerId,
-          customerName: order.customer.name ?? '',
-          orderNumber: params.orderId.slice(-8).toUpperCase(),
-          orderUrl: buildOrderUrl(params.orderId),
-        },
-        emailTo: order.customer.email,
-      }).catch((error) => {
-        console.error('[invoice-upload] customer notification failed:', error)
-      })
 
       return invoice
     } catch (error) {
@@ -589,6 +651,7 @@ export function createOrderDocumentService({
     const uploaded = await storage().write(body)
 
     try {
+      const uploadedAt = new Date()
       const { inboundEmail, invoice } = await prisma.$transaction(async (tx) => {
         const inboundEmail = await tx.inboundEmail.create({
           data: {
@@ -624,7 +687,7 @@ export function createOrderDocumentService({
             mimeType,
             sizeBytes,
             source: 'inbound_email',
-            uploadedAt: new Date(),
+            uploadedAt,
           },
           update: {
             inboundEmailId: inboundEmail.id,
@@ -634,7 +697,7 @@ export function createOrderDocumentService({
             mimeType,
             sizeBytes,
             source: 'inbound_email',
-            uploadedAt: new Date(),
+            uploadedAt,
           },
           select: invoiceSummarySelect,
         })
@@ -644,35 +707,17 @@ export function createOrderDocumentService({
           data: { lastInboundAt: new Date() },
         })
 
+        await recordInvoiceUploadedNotification(tx, {
+          orderId: alias.orderId,
+          sellerId: alias.sellerId,
+          uploadedAt,
+        })
+
         return { inboundEmail, invoice }
       })
 
       if (previous?.fileKey && previous.fileKey !== uploaded.key) {
         await deleteInvoiceFile(previous.fileKey).catch(() => null)
-      }
-
-      const customer = await prisma.order.findUnique({
-        where: { id: alias.orderId },
-        select: { customerId: true, customer: { select: { email: true, name: true } } },
-      })
-
-      if (customer) {
-        await enqueueNotification({
-          userId: customer.customerId,
-          type: 'invoice_uploaded',
-          title: 'Faturanız hazır',
-          body: 'Siparişiniz için satıcı faturası yüklendi.',
-          data: {
-            orderId: alias.orderId,
-            sellerId: alias.sellerId,
-            customerName: customer.customer.name ?? '',
-            orderNumber: alias.orderId.slice(-8).toUpperCase(),
-            orderUrl: buildOrderUrl(alias.orderId),
-          },
-          emailTo: customer.customer.email,
-        }).catch((error) => {
-          console.error('[invoice-alias] customer notification failed:', error)
-        })
       }
 
       return { status: 'processed' as const, inboundEmail, invoice }

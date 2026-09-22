@@ -5,6 +5,11 @@ type EmailPolicy = {
   role: 'customer' | 'seller'
   category: EmailFromCategory
   required: readonly string[]
+  /**
+   * Some in-app event types are reused for several stages; only the listed
+   * `stage` values produce e-mail, the rest stay in-app (delivery is `skipped`).
+   */
+  emailStages?: readonly string[]
 }
 
 // New business events are added here together with their templates in later phases.
@@ -17,22 +22,43 @@ export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
   order_payment_confirmed: {
     role: 'customer',
     category: 'noreply',
-    required: ['orderNumber'],
+    required: ['orderNumber', 'items'],
   },
   order_shipped: {
     role: 'customer',
     category: 'noreply',
-    required: ['orderNumber'],
+    required: ['orderNumber', 'items'],
   },
   order_delivery_confirmed: {
     role: 'customer',
     category: 'noreply',
-    required: ['orderNumber'],
+    required: ['orderNumber', 'items'],
+  },
+  order_cancelled: {
+    role: 'customer',
+    category: 'noreply',
+    required: ['orderNumber', 'items', 'actorRole'],
   },
   return_requested: {
     role: 'customer',
     category: 'noreply',
     required: ['orderNumber'],
+  },
+  return_status_changed: {
+    role: 'customer',
+    category: 'noreply',
+    required: ['orderNumber', 'stage'],
+    emailStages: ['cargo_info_ready'],
+  },
+  order_return_approved: {
+    role: 'customer',
+    category: 'noreply',
+    required: ['orderNumber', 'items', 'decision'],
+  },
+  order_return_rejected: {
+    role: 'customer',
+    category: 'noreply',
+    required: ['orderNumber', 'items', 'decision'],
   },
   order_canceled: {
     role: 'seller',
@@ -90,6 +116,16 @@ export function notificationLane(type: string): 'transactional' | 'bulk' {
   return EMAIL_POLICIES[type as NotificationType]?.category === 'kampanya'
     ? 'bulk'
     : 'transactional'
+}
+
+/** True when the event stage is one that has an e-mail template (or the type has no stage gating). */
+export function isEmailStage(
+  type: NotificationType,
+  data: Record<string, unknown> | undefined,
+): boolean {
+  const policy = EMAIL_POLICIES[type]
+  if (!policy?.emailStages) return true
+  return policy.emailStages.includes(String(data?.['stage'] ?? ''))
 }
 
 export function validateEmailData(

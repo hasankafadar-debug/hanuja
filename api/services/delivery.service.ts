@@ -11,7 +11,10 @@ import { createOrderRepository } from '../repositories/order.repository'
 import { createShipmentRepository } from '../repositories/shipment.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { assertTransition } from '../domain/order-state-machine'
-import { enqueueNotification } from '../jobs/notification-dispatch.job'
+import { recordNotification } from './notification-outbox.service'
+import { EMAIL_LINE_IMAGE_SELECT, toEmailOrderLine } from '../lib/email-line-items'
+import { buildCargoTrackingUrl, cargoProviderLabel } from '../domain/cargo-tracking'
+import { createHash } from 'node:crypto'
 import {
   buildCustomerConfirmation,
   buildAdminConfirmation,
@@ -22,7 +25,6 @@ import { calculateHoldUntil } from '../domain/payout-calculator'
 import { createPayoutService } from './payout.service'
 import { formatOrderNumber } from '../lib/order-number'
 import { getWebBaseUrl } from '../lib/platform-info'
-import { formatMoney } from '@hanuja/security/money'
 
 interface DeliveryServiceDeps {
   prisma: PrismaClient
@@ -33,55 +35,153 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
   const shipments = createShipmentRepository(prisma)
   const auditLog = createAdminAuditLogRepository(prisma)
 
-  async function notifyShipped(params: {
-    orderId: string
-    sellerId: string
-    trackingNumber: string
-    cargoProvider?: string
-  }) {
-    const order = await prisma.order.findUnique({
+  type NotificationClient = Pick<
+    Prisma.TransactionClient,
+    'order' | 'orderLine' | 'seller' | 'notificationOutbox'
+  >
+
+  /**
+   * "Siparişiniz Kargoya Verildi" — written inside the shipping transaction with
+   * exactly the quantities handed to cargo in this event (not the cumulative
+   * shipped quantity of the line).
+   */
+  async function recordShippedNotification(
+    tx: NotificationClient,
+    params: {
+      orderId: string
+      sellerId: string
+      trackingNumber: string
+      cargoProvider?: string
+      shippedLines: Array<{ orderLineId: string; quantity: number }>
+    },
+  ) {
+    if (params.shippedLines.length === 0) return
+    const order = await tx.order.findUnique({
       where: { id: params.orderId },
       select: {
         id: true,
         publicNumber: true,
         customerId: true,
         customer: { select: { email: true, name: true } },
+        address: { select: { fullName: true } },
         lines: {
-          where: { sellerId: params.sellerId, shippedQuantity: { gt: 0 } },
+          where: { id: { in: params.shippedLines.map((line) => line.orderLineId) } },
           select: {
+            id: true,
             productName: true,
             variantName: true,
-            shippedQuantity: true,
+            sellerId: true,
             unitPrice: true,
+            product: { select: EMAIL_LINE_IMAGE_SELECT },
           },
         },
       },
     })
     if (!order) return
-    await enqueueNotification({
+    const seller = await tx.seller.findUnique({
+      where: { id: params.sellerId },
+      select: { displayName: true },
+    })
+    const quantityByLine = new Map(
+      params.shippedLines.map((line) => [line.orderLineId, line.quantity]),
+    )
+    await recordNotification(tx, {
       eventKey: `order:${order.id}:shipped:${params.sellerId}:${params.trackingNumber}`,
       userId: order.customerId,
       type: 'order_shipped',
-      emailTo: order.customer.email ?? undefined,
+      ...(order.customer.email ? { emailTo: order.customer.email } : {}),
       title: 'Siparişiniz Kargoya Verildi',
       body: `Takip numaranız: ${params.trackingNumber}`,
       data: {
         orderId: params.orderId,
         orderNumber: formatOrderNumber(order.publicNumber, order.id),
         trackingNumber: params.trackingNumber,
-        cargoCompany: params.cargoProvider ?? 'Kargo',
-        customerName: order.customer.name ?? 'Değerli Müşterimiz',
+        cargoCompany: cargoProviderLabel(params.cargoProvider),
+        trackingUrl: buildCargoTrackingUrl(params.cargoProvider, params.trackingNumber),
+        customerName:
+          order.customer.name?.trim() || order.address?.fullName?.trim() || 'Değerli Müşterimiz',
         sellerId: params.sellerId,
+        ...(seller ? { sellerName: seller.displayName } : {}),
         orderUrl: `${getWebBaseUrl()}/siparis/${order.id}`,
-        items: order.lines.map((line) => ({
-          productName: line.productName,
-          variantName: line.variantName,
-          quantity: line.shippedQuantity,
-          unitPrice: formatMoney(line.unitPrice.toNumber()),
-          lineTotal: formatMoney(
-            line.unitPrice.mul(line.shippedQuantity).toNumber(),
+        items: order.lines.map((line) =>
+          toEmailOrderLine(line, quantityByLine.get(line.id) ?? 0),
+        ),
+      },
+    })
+  }
+
+  /**
+   * "Siparişiniz Teslim Edilmiştir" — one e-mail per confirmation batch (the lines
+   * stamped in this event). Partial confirmations say so explicitly.
+   */
+  async function recordDeliveryConfirmedNotification(
+    tx: NotificationClient,
+    params: {
+      orderId: string
+      confirmedLineIds: string[]
+      confirmedAt: Date
+      partial: boolean
+    },
+  ) {
+    if (params.confirmedLineIds.length === 0) return
+    const order = await tx.order.findUnique({
+      where: { id: params.orderId },
+      select: {
+        id: true,
+        publicNumber: true,
+        customerId: true,
+        customer: { select: { email: true, name: true } },
+        address: { select: { fullName: true } },
+        lines: {
+          where: { id: { in: params.confirmedLineIds } },
+          select: {
+            id: true,
+            productName: true,
+            variantName: true,
+            sellerId: true,
+            unitPrice: true,
+            quantity: true,
+            cancelledQuantity: true,
+            shippedQuantity: true,
+            product: { select: EMAIL_LINE_IMAGE_SELECT },
+          },
+        },
+      },
+    })
+    if (!order) return
+    const batchKey = createHash('sha256')
+      .update([...params.confirmedLineIds].sort().join(','))
+      .digest('hex')
+      .slice(0, 16)
+    await recordNotification(tx, {
+      eventKey: `order:${order.id}:delivery-confirmed:${batchKey}`,
+      userId: order.customerId,
+      ...(order.customer.email ? { emailTo: order.customer.email } : {}),
+      type: 'order_delivery_confirmed',
+      title: params.partial ? 'Siparişinizin bir kısmı teslim edildi' : 'Siparişiniz teslim edildi',
+      body: 'Teslimatınız onaylandı. Sorun yaşarsanız 14 gün içinde iade talebi oluşturabilirsiniz.',
+      data: {
+        orderId: order.id,
+        orderNumber: formatOrderNumber(order.publicNumber, order.id),
+        customerName:
+          order.customer.name?.trim() || order.address?.fullName?.trim() || 'Değerli Müşterimiz',
+        partial: params.partial,
+        confirmedAt: params.confirmedAt.toLocaleDateString('tr-TR', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+          timeZone: 'Europe/Istanbul',
+        }),
+        orderUrl: `${getWebBaseUrl()}/siparis/${order.id}`,
+        items: order.lines.map((line) =>
+          toEmailOrderLine(
+            line,
+            // Legacy orders never increment shippedQuantity; fall back to the active quantity.
+            line.shippedQuantity > 0
+              ? line.shippedQuantity
+              : Math.max(0, line.quantity - line.cancelledQuantity),
           ),
-        })),
+        ),
       },
     })
   }
@@ -200,6 +300,13 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
                 `Satıcı gönderisi kargoya verildi: ${params.trackingNumber}`,
                 tx as unknown as PrismaClient,
               )
+              await recordShippedNotification(tx, {
+                ...params,
+                shippedLines: activeLines.map((item) => ({
+                  orderLineId: item.line.id,
+                  quantity: item.quantity,
+                })),
+              })
               return currentShipment
             },
             { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -218,9 +325,6 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
             throw error
           })
 
-        void notifyShipped(params).catch((error) =>
-          console.error('[delivery] Shipped notification failed:', error),
-        )
         return shipment
       }
 
@@ -275,12 +379,20 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
             tx as unknown as PrismaClient,
           )
 
-          return shipment
-        })
-        .then((shipment) => {
-          void notifyShipped(params).catch((error) =>
-            console.error('[delivery] Shipped notification failed:', error),
-          )
+          const legacyLines = await (tx as PrismaClient).orderLine.findMany({
+            where: { orderId: params.orderId, sellerId: params.sellerId },
+            select: { id: true, quantity: true, cancelledQuantity: true },
+          })
+          await recordShippedNotification(tx, {
+            ...params,
+            shippedLines: legacyLines
+              .map((line) => ({
+                orderLineId: line.id,
+                quantity: line.quantity - line.cancelledQuantity,
+              }))
+              .filter((line) => line.quantity > 0),
+          })
+
           return shipment
         })
     },
@@ -532,6 +644,13 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
           )
         }
 
+        await recordDeliveryConfirmedNotification(tx, {
+          orderId,
+          confirmedLineIds: stampedIds,
+          confirmedAt: confirmation.confirmedAt,
+          partial: !allLinesConfirmed,
+        })
+
         return {
           orderId,
           confirmedAt: confirmation.confirmedAt,
@@ -547,21 +666,6 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
           orderId,
           deliveryConfirmedAt: txResult.confirmedAt,
         })
-
-        // Notify customer about delivery confirmation (fire-and-forget)
-        void prisma.order.findUnique({
-          where: { id: orderId },
-          select: { customerId: true },
-        }).then((o) => {
-          if (!o) return
-          return enqueueNotification({
-            userId: o.customerId,
-            type: 'order_delivery_confirmed',
-            title: 'Teslimat Onaylandı',
-            body: 'Siparişinizin teslim alındığı onaylandı.',
-            data: { orderId },
-          })
-        }).catch((err) => console.error('[delivery] Delivery confirmed notification failed:', err))
       }
 
       return txResult

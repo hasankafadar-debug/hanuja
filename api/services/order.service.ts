@@ -13,6 +13,7 @@ import { createPaymentService } from './payment.service'
 import { isWithinReturnWindow } from '../domain/penalty-calculator'
 import { createQuantityCancellationService } from './quantity-cancellation.service'
 import { createSellerApprovalQueryService } from './seller-approval-query.service'
+import { recordWholeOrderCancellationNotifications } from './order-email-payload'
 
 interface OrderServiceDeps {
   prisma: PrismaClient
@@ -95,6 +96,17 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
         previousData: { status: order.status, cancellationReason: order.cancellationReason ?? null },
         newData: { status: params.toStatus, cancellationReason: params.cancellationReason },
         ...(params.auditReason ? { reason: params.auditReason } : {}),
+      })
+
+      await recordWholeOrderCancellationNotifications(tx, params.orderId, {
+        actorRole:
+          params.toStatus === 'cancelled_by_admin'
+            ? 'admin'
+            : params.toStatus === 'cancelled_by_customer'
+              ? 'customer'
+              : 'system',
+        reason: params.auditReason ?? params.note,
+        eventSuffix: params.toStatus,
       })
     })
 
@@ -235,13 +247,19 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
           },
         })
 
-        return orders.appendStatusHistory(
+        const history = await orders.appendStatusHistory(
           params.orderId,
           'cancelled_due_to_seller_rejection',
           params.sellerId,
           'İptal edildi. Ceza değerlendiriliyor.',
           tx as PrismaClient,
         )
+        await recordWholeOrderCancellationNotifications(tx, params.orderId, {
+          actorRole: 'seller',
+          reason: params.reason,
+          eventSuffix: 'cancelled_due_to_seller_rejection',
+        })
+        return history
       })
 
       await penalties.applyForCancellation({

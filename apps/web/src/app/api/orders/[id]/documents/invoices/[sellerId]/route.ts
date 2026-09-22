@@ -1,11 +1,11 @@
 import { headers } from 'next/headers'
-import { type NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { UnauthorizedError } from '@hanuja/api/lib/errors'
 import { handleError } from '@hanuja/api/lib/response'
 import { createBinaryFileResponse } from '@hanuja/api/lib/file-response'
 import { createOrderDocumentService } from '@hanuja/api/services/order-document.service'
+import { loginRedirectUrl } from '@/lib/login-redirect'
 
 interface Context {
   params: Promise<{ id: string; sellerId: string }>
@@ -13,10 +13,15 @@ interface Context {
 
 export async function GET(req: NextRequest, ctx: Context) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() })
-    if (!session?.user) throw new UnauthorizedError()
-
     const { id, sellerId } = await ctx.params
+    const session = await auth.api.getSession({ headers: await headers() })
+    // Linked from invoice e-mails: send a signed-out reader through login and back here.
+    if (!session?.user) {
+      return NextResponse.redirect(
+        loginRedirectUrl(req, `/api/orders/${id}/documents/invoices/${sellerId}${new URL(req.url).search}`),
+      )
+    }
+
     const download = new URL(req.url).searchParams.get('download') === '1'
     const service = createOrderDocumentService({ prisma: createPrismaForRoute() })
     const invoice = await service.getInvoiceForCustomer(id, session.user.id, sellerId)

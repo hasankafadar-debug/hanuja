@@ -23,7 +23,11 @@ import { createRefundService } from './refund.service'
 import { isWithinReturnWindow } from '../domain/penalty-calculator'
 import { assertTransition } from '../domain/order-state-machine'
 import { assertNoContactSharing } from './contact-sharing-guard.service'
-import { roundMoney } from '@hanuja/security/money'
+import { formatMoney, roundMoney } from '@hanuja/security/money'
+import { formatOrderNumber } from '../lib/order-number'
+import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
+import { resolveEmailImageUrl } from '../lib/email-line-items'
+import type { ReturnDecision } from '../lib/email-templates/types'
 
 interface ReturnServiceDeps {
   prisma: PrismaClient
@@ -56,6 +60,145 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
     await prisma.mediaAsset.updateMany({
       where: { id: { in: assetIds }, uploadedBy: ownerUserId },
       data: { ...patch, type: 'return_evidence' },
+    })
+  }
+
+  type ReturnEmailRequest = {
+    id: string
+    orderId: string
+    customerId: string
+    reason: string
+    sellerId?: string | null
+    items: Array<{
+      id: string
+      requestedQuantity: number
+      orderLine: { productId: string; productName: string; variantName: string | null; unitPrice: Decimal }
+    }>
+    order: {
+      id: string
+      publicNumber: number
+      lines: Array<{
+        id: string
+        sellerId: string
+        productId: string
+        productName: string
+        variantName: string | null
+        unitPrice: Decimal
+        quantity: number
+        cancelledQuantity: number
+      }>
+    }
+  }
+
+  /**
+   * Common e-mail payload for return notifications: customer identity, order
+   * number, and the returned lines (quantity-based items when present, otherwise
+   * the active lines of the seller on legacy requests).
+   */
+  async function buildReturnEmailContext(rr: ReturnEmailRequest, sellerId?: string) {
+    const customer = await prisma.user.findUnique({
+      where: { id: rr.customerId },
+      select: { email: true, name: true },
+    })
+    const sourceLines =
+      rr.items.length > 0
+        ? rr.items.map((item) => ({
+            productId: item.orderLine.productId,
+            productName: item.orderLine.productName,
+            variantName: item.orderLine.variantName,
+            unitPrice: item.orderLine.unitPrice,
+            quantity: item.requestedQuantity,
+            itemId: item.id,
+          }))
+        : rr.order.lines
+            .filter((line) => !sellerId || line.sellerId === sellerId)
+            .map((line) => ({
+              productId: line.productId,
+              productName: line.productName,
+              variantName: line.variantName,
+              unitPrice: line.unitPrice,
+              quantity: Math.max(0, line.quantity - line.cancelledQuantity),
+              itemId: line.id,
+            }))
+            .filter((line) => line.quantity > 0)
+    const images = await prisma.productImage.findMany({
+      where: { productId: { in: [...new Set(sourceLines.map((line) => line.productId))] } },
+      orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+      select: { productId: true, url: true, isPrimary: true, sortOrder: true },
+    })
+    const imagesByProduct = new Map<string, typeof images>()
+    for (const image of images) {
+      const bucket = imagesByProduct.get(image.productId) ?? []
+      bucket.push(image)
+      imagesByProduct.set(image.productId, bucket)
+    }
+    const items = sourceLines.map((line) => ({
+      itemId: line.itemId,
+      productName: line.productName,
+      variantName: line.variantName,
+      quantity: line.quantity,
+      unitPrice: formatMoney(new Decimal(line.unitPrice).toNumber()),
+      lineTotal: formatMoney(new Decimal(line.unitPrice).mul(line.quantity).toNumber()),
+      imageUrl: resolveEmailImageUrl(imagesByProduct.get(line.productId)),
+    }))
+    return {
+      customerEmail: customer?.email ?? undefined,
+      customerName: customer?.name?.trim() || 'Değerli Müşterimiz',
+      orderNumber: formatOrderNumber(rr.order.publicNumber, rr.order.id),
+      orderUrl: `${getWebBaseUrl()}/siparis/${rr.order.id}`,
+      items,
+    }
+  }
+
+  /** Customer decision e-mail for the legacy (non quantity) flow and admin overrides. */
+  async function notifyCustomerReturnDecision(
+    rr: ReturnEmailRequest,
+    decision: ReturnDecision,
+    options: {
+      sellerId?: string
+      refundAmount?: Decimal
+      disputeOpened?: boolean
+      reviewNote?: string
+      rejectionReason?: string
+    },
+  ) {
+    const context = await buildReturnEmailContext(rr, options.sellerId)
+    await notifications.send({
+      eventKey: `return:${rr.id}:customer:decision`,
+      userId: rr.customerId,
+      ...(context.customerEmail ? { emailTo: context.customerEmail } : {}),
+      type: decision === 'rejected' ? 'order_return_rejected' : 'order_return_approved',
+      title:
+        decision === 'approved'
+          ? 'İadeniz kabul edildi'
+          : decision === 'partial'
+            ? 'İadeniz kısmen kabul edildi'
+            : options.disputeOpened
+              ? 'İadeniz reddedildi — uyuşmazlık açıldı'
+              : 'İadeniz reddedildi',
+      body:
+        decision === 'rejected'
+          ? (options.rejectionReason ?? options.reviewNote ?? 'İade talebiniz reddedildi.')
+          : options.refundAmount
+            ? `${formatMoney(options.refundAmount.toNumber())} geri ödeme kuyruğuna alındı.`
+            : 'İade talebiniz kabul edildi.',
+      data: {
+        returnRequestId: rr.id,
+        orderId: rr.orderId,
+        orderNumber: context.orderNumber,
+        customerName: context.customerName,
+        decision,
+        disputeOpened: options.disputeOpened ?? false,
+        ...(options.refundAmount ? { refundAmount: formatMoney(options.refundAmount.toNumber()) } : {}),
+        ...(options.reviewNote ? { reviewNote: options.reviewNote } : {}),
+        orderUrl: context.orderUrl,
+        items: context.items.map((item) => ({
+          ...item,
+          acceptedQuantity: decision === 'rejected' ? 0 : item.quantity,
+          rejectedQuantity: decision === 'rejected' ? item.quantity : 0,
+          rejectionReason: decision === 'rejected' ? (options.rejectionReason ?? null) : null,
+        })),
+      },
     })
   }
 
@@ -135,17 +278,59 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         `İade talebi: ${params.reason}`,
       )
 
+      const emailRequest: ReturnEmailRequest = {
+        id: returnRequest.id,
+        orderId: params.orderId,
+        customerId: params.customerId,
+        reason: params.reason,
+        items: [],
+        order,
+      }
+      const customerContext = await buildReturnEmailContext(emailRequest)
+      await notifications.send({
+        eventKey: `return:${returnRequest.id}:customer:requested`,
+        userId: params.customerId,
+        ...(customerContext.customerEmail ? { emailTo: customerContext.customerEmail } : {}),
+        type: 'return_requested',
+        title: 'İade talebiniz alındı',
+        body: `#${customerContext.orderNumber} siparişi için iade talebiniz alındı.`,
+        data: {
+          returnRequestId: returnRequest.id,
+          orderId: params.orderId,
+          orderNumber: customerContext.orderNumber,
+          customerName: customerContext.customerName,
+          returnReason: params.reason,
+          orderUrl: customerContext.orderUrl,
+          items: customerContext.items,
+        },
+      })
+
       // Notify seller(s) that own lines on this order
       const sellerIds = [...new Set(order.lines.map((l) => l.sellerId))]
       for (const sid of sellerIds) {
-        const uid = await sellerUserId(sid)
-        if (uid) {
+        const seller = await prisma.seller.findUnique({
+          where: { id: sid },
+          select: { userId: true, displayName: true, user: { select: { email: true } } },
+        })
+        if (seller) {
+          const sellerContext = await buildReturnEmailContext(emailRequest, sid)
           await notifications.send({
-            userId: uid,
+            eventKey: `return:${returnRequest.id}:seller:requested:${sid}`,
+            userId: seller.userId,
+            emailTo: seller.user.email,
             type: 'seller_return_request',
             title: 'Yeni İade Talebi',
             body: `#${order.publicNumber} siparişi için iade talebi açıldı. İade kargo bilgisini girmeniz bekleniyor.`,
-            data: { orderId: params.orderId, returnRequestId: returnRequest.id },
+            data: {
+              orderId: params.orderId,
+              returnRequestId: returnRequest.id,
+              orderNumber: sellerContext.orderNumber,
+              sellerId: sid,
+              sellerName: seller.displayName,
+              returnReason: params.reason,
+              panelUrl: `${getSellerPanelUrl()}/iadeler/${returnRequest.id}`,
+              items: sellerContext.items.map((item) => ({ ...item, sellerId: sid })),
+            },
           })
         }
       }
@@ -189,12 +374,26 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         'Satıcı iade kargo bilgilerini iletti',
       )
 
+      const context = await buildReturnEmailContext(rr, params.sellerId)
       await notifications.send({
+        eventKey: `return:${rr.id}:customer:cargo-info`,
         userId: rr.customerId,
+        ...(context.customerEmail ? { emailTo: context.customerEmail } : {}),
         type: 'return_status_changed',
         title: 'İade Kargo Bilgileri Hazır',
         body: 'Satıcı iade kargo bilgilerini iletti. Ürünü kargoya verip kargo bilgilerini girebilirsiniz.',
-        data: { orderId: rr.orderId, returnRequestId: rr.id },
+        data: {
+          stage: 'cargo_info_ready',
+          orderId: rr.orderId,
+          returnRequestId: rr.id,
+          orderNumber: context.orderNumber,
+          customerName: context.customerName,
+          cargoAddress: params.address,
+          cargoCarrier: params.carrier,
+          ...(params.instructions ? { cargoInstructions: params.instructions } : {}),
+          orderUrl: context.orderUrl,
+          items: context.items,
+        },
       })
 
       return updated
@@ -251,11 +450,12 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
       const uid = await sellerUserId(sid)
       if (uid) {
         await notifications.send({
+          eventKey: `return:${rr.id}:seller:in-transit`,
           userId: uid,
           type: 'return_status_changed',
           title: 'İade Kargoya Verildi',
           body: 'Müşteri iade ürününü kargoya verdi. Ürün size ulaştığında onaylayın veya reddedin.',
-          data: { orderId: rr.orderId, returnRequestId: rr.id },
+          data: { stage: 'customer_shipped', orderId: rr.orderId, returnRequestId: rr.id },
         })
       }
 
@@ -314,6 +514,8 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         })),
         actorRef: `seller_${params.sellerId}`,
       })
+
+      await notifyCustomerReturnDecision(rr, 'approved', { sellerId, refundAmount })
 
       return returnRequests.findById(rr.id)
     },
@@ -382,12 +584,12 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
       )
 
       // Notify customer + admins
-      await notifications.send({
-        userId: rr.customerId,
-        type: 'return_status_changed',
-        title: 'İadeniz Reddedildi — Uyuşmazlık Açıldı',
-        body: `Satıcı iadeyi reddetti: ${params.reason}. Konu admin uyuşmazlık incelemesine taşındı, cevap yazabilirsiniz.`,
-        data: { orderId: rr.orderId, returnRequestId: rr.id, disputeId: dispute.id },
+      await notifyCustomerReturnDecision(rr, 'rejected', {
+        sellerId: params.sellerId,
+        disputeOpened: true,
+        rejectionReason: params.description
+          ? `${params.reason} — ${params.description}`
+          : params.reason,
       })
       const admins = await prisma.user.findMany({
         where: { role: 'admin' },
@@ -457,6 +659,16 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         ...(params.reviewNote !== undefined && { reason: params.reviewNote }),
       })
 
+      const withOrder = await returnRequests.findByIdWithOrder(params.returnRequestId)
+      if (withOrder) {
+        await notifyCustomerReturnDecision(withOrder, params.decision, {
+          ...(params.reviewNote !== undefined ? { reviewNote: params.reviewNote } : {}),
+          ...(params.decision === 'rejected' && params.reviewNote
+            ? { rejectionReason: params.reviewNote }
+            : {}),
+        })
+      }
+
       return updated
     },
 
@@ -502,6 +714,11 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         previousData: { status: rr.status },
         newData: { status: 'refund_pending', refundAmount: params.refundAmount },
         reason: `İade alındı, ${params.refundAmount.toFixed(2)} TRY iade başlatıldı`,
+      })
+
+      await notifyCustomerReturnDecision(rr, 'approved', {
+        sellerId,
+        refundAmount: params.refundAmount,
       })
 
       return returnRequests.findById(rr.id)

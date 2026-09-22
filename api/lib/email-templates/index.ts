@@ -4,28 +4,59 @@
  *
  * Language: Turkish (primary platform language).
  * All amounts are formatted as Turkish Lira (TL) using formatMoney.
+ *
+ * Shared helpers (escaping, layout, line table) live in ./shared; customer
+ * lifecycle templates that were added in the e-mail phase 2 work live in
+ * ./order-lifecycle.
  */
 
-import { DEFAULT_WEB_URL, PLATFORM_LEGAL_INFO } from '../platform-info'
 import type {
+  BankTransferInstruction,
+  CustomerInvoiceEmailInput,
+  CustomerOrderConfirmationEmailInput,
   CustomerOrderEmailInput,
   CustomerPaymentConfirmedEmailInput,
   CustomerRefundCompletedEmailInput,
   CustomerReturnRequestEmailInput,
   CustomerShipmentEmailInput,
   EmailAmount,
-  FlexibleEmailOrderLine,
   EmailOrderLineInput,
   EmailTemplate,
+  OrderAmountSummary,
   SellerCancellationEmailInput,
   SellerOrderEmailInput,
   SellerReturnRequestEmailInput,
 } from './types'
+import {
+  amountText,
+  escapeHtml,
+  greeting,
+  heading,
+  isSafeHttpUrl,
+  layout,
+  paragraph,
+  renderCta,
+  renderInfoBox,
+  renderLineItemsTable,
+  renderLineItemsText,
+  renderLink,
+  renderTotal,
+} from './shared'
+import { renderWithdrawalNotice, renderWithdrawalNoticeText } from './withdrawal-notice'
+import { cancellationActorLabel } from './order-lifecycle'
 
 export type {
+  BankTransferInstruction,
+  CancellationActorRole,
+  CustomerCancellationEmailInput,
+  CustomerDeliveryConfirmedEmailInput,
+  CustomerInvoiceEmailInput,
+  CustomerOrderConfirmationEmailInput,
   CustomerOrderEmailInput,
   CustomerPaymentConfirmedEmailInput,
   CustomerRefundCompletedEmailInput,
+  CustomerReturnCargoInfoEmailInput,
+  CustomerReturnDecisionEmailInput,
   CustomerReturnRequestEmailInput,
   CustomerShipmentEmailInput,
   EmailAmount,
@@ -34,249 +65,196 @@ export type {
   EmailOrderLineInput,
   EmailTemplate,
   LegacyEmailOrderLine,
+  OrderAmountSummary,
+  OrderContractLinks,
+  ReturnDecision,
+  ReturnDecisionLine,
   SellerCancellationEmailInput,
   SellerOrderEmailInput,
   SellerReturnRequestEmailInput,
 } from './types'
 
-/**
- * Escape user/seller-controlled values before interpolating into an HTML email
- * body. Prevents markup/script injection through fields like product or store
- * names. Only for the HTML branch — the text branch stays raw.
- */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+export {
+  customerOrderCancelledTemplate,
+  deliveryConfirmedTemplate,
+  returnCargoInfoReadyTemplate,
+  returnDecisionTemplate,
+} from './order-lifecycle'
+
+function customerOrderUrl(
+  params: Pick<CustomerOrderEmailInput, 'orderUrl' | 'customerOrderUrl' | 'orderLink'>,
+): string | undefined {
+  return params.orderUrl ?? params.customerOrderUrl ?? params.orderLink
 }
 
-/** True only for absolute http(s) URLs — blocks javascript:/data: hrefs. */
-function isSafeHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value.trim())
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
+function sellerOrderUrl(params: SellerOrderEmailInput): string | undefined {
+  return params.panelUrl ?? params.sellerPanelUrl ?? params.panelLink ?? params.orderUrl
 }
 
-function amountText(value: EmailAmount | null | undefined, fallback = '-'): string {
-  if (value === null || value === undefined) return fallback
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) return fallback
-    return `${value.toLocaleString('tr-TR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })} TL`
-  }
-  const text = value.trim()
-  return text || fallback
+function paymentMethodLabel(method: 'card' | 'eft' | null | undefined): string {
+  return method === 'eft' ? 'Havale / EFT' : method === 'card' ? 'Kredi Kartı' : ''
 }
 
-function normalizeLineItem(item: EmailOrderLineInput) {
-  const productName =
-    ('productName' in item ? item.productName : undefined) ??
-    ('product' in item ? item.product : undefined) ??
-    ('name' in item ? item.name : undefined) ??
-    'Ürün'
-  const variantName =
-    ('variantName' in item ? item.variantName : undefined) ??
-    ('variant' in item ? item.variant : undefined) ??
-    null
-  const unitPrice =
-    ('unitPrice' in item ? item.unitPrice : undefined) ??
-    ('unitPurchasePrice' in item ? item.unitPurchasePrice : undefined) ??
-    ('price' in item ? item.price : undefined)
-  return {
-    productName,
-    sellerId: 'sellerId' in item ? item.sellerId : undefined,
-    variantName,
-    quantity: item.quantity,
-    unitPrice,
-    lineTotal: ('lineTotal' in item ? item.lineTotal : undefined) ?? unitPrice,
-  }
-}
-
-function renderLineItems(items: readonly EmailOrderLineInput[]): string {
-  return items
-    .map((item) => {
-      const line = normalizeLineItem(item)
-      const productNameHtml = escapeHtml(line.productName)
-      const variantNameHtml = line.variantName ? escapeHtml(line.variantName) : ''
-      const productHtml = variantNameHtml
-        ? `<span>${productNameHtml}</span><br /><small style="color:#777;font-size:12px;">Varyant: ${variantNameHtml}</small>`
-        : productNameHtml
-
-      return `<tr>
-        <td style="padding:10px 6px 10px 0;border-bottom:1px solid #f0f0f0;font-size:13px;color:#333;vertical-align:top;word-break:break-word;">${productHtml}</td>
-        <td style="padding:10px 4px;border-bottom:1px solid #f0f0f0;font-size:13px;color:#333;text-align:center;vertical-align:top;">${line.quantity}</td>
-        <td style="padding:10px 4px;border-bottom:1px solid #f0f0f0;font-size:13px;color:#333;text-align:right;vertical-align:top;word-break:break-word;">${escapeHtml(amountText(line.unitPrice))}</td>
-        <td style="padding:10px 0 10px 4px;border-bottom:1px solid #f0f0f0;font-size:13px;color:#333;text-align:right;vertical-align:top;word-break:break-word;">${escapeHtml(amountText(line.lineTotal))}</td>
-      </tr>`
-    })
+/** Ara toplam / indirim / kargo / toplam satırları — yalnız sağlanan alanlar basılır. */
+function renderAmountSummary(summary: OrderAmountSummary | undefined, total: EmailAmount): string {
+  const rows: Array<[string, EmailAmount, boolean]> = []
+  if (summary?.subtotal !== undefined) rows.push(['Ürünler', summary.subtotal, false])
+  if (summary?.couponDiscount !== undefined)
+    rows.push([
+      `Kupon İndirimi${summary.couponCode ? ` (${summary.couponCode})` : ''}`,
+      summary.couponDiscount,
+      true,
+    ])
+  if (summary?.eftDiscount !== undefined)
+    rows.push([
+      `Havale / EFT İndirimi${summary.eftDiscountRate ? ` (${summary.eftDiscountRate})` : ''}`,
+      summary.eftDiscount,
+      true,
+    ])
+  if (summary?.additionalDiscount !== undefined)
+    rows.push(['Ek İndirim', summary.additionalDiscount, true])
+  if (summary?.shipping !== undefined) rows.push(['Kargo', summary.shipping, false])
+  const body = rows
+    .map(
+      ([label, value, negative]) => `<tr>
+        <td style="font-size:13px;color:#555;padding:4px 0;text-align:right;">${escapeHtml(label)}</td>
+        <td width="34%" style="font-size:13px;color:#333;padding:4px 0 4px 12px;text-align:right;">${negative ? '−' : ''}${escapeHtml(amountText(value))}</td>
+      </tr>`,
+    )
     .join('')
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 0;"><tbody>${body}
+      <tr>
+        <td style="font-size:15px;font-weight:bold;color:#1a1a1a;padding:10px 0 0;text-align:right;border-top:1px solid #eee;">Toplam</td>
+        <td width="34%" style="font-size:15px;font-weight:bold;color:#1a1a1a;padding:10px 0 0 12px;text-align:right;border-top:1px solid #eee;">${escapeHtml(amountText(total))}</td>
+      </tr></tbody></table>`
 }
 
-function renderLineItemsText(items: readonly EmailOrderLineInput[]): string {
-  return items
-    .map((item) => {
-      const line = normalizeLineItem(item)
-      const variant = line.variantName ? ` / ${line.variantName}` : ''
-      return `${line.productName}${variant} — Adet: ${line.quantity}, Birim Satın Alma Fiyatı: ${amountText(line.unitPrice)}, Satır Toplamı: ${amountText(line.lineTotal)}`
-    })
-    .join('\n')
+function renderAmountSummaryText(summary: OrderAmountSummary | undefined, total: EmailAmount): string {
+  const lines: string[] = []
+  if (summary?.subtotal !== undefined) lines.push(`Ürünler: ${amountText(summary.subtotal)}`)
+  if (summary?.couponDiscount !== undefined)
+    lines.push(
+      `Kupon İndirimi${summary.couponCode ? ` (${summary.couponCode})` : ''}: -${amountText(summary.couponDiscount)}`,
+    )
+  if (summary?.eftDiscount !== undefined)
+    lines.push(
+      `Havale / EFT İndirimi${summary.eftDiscountRate ? ` (${summary.eftDiscountRate})` : ''}: -${amountText(summary.eftDiscount)}`,
+    )
+  if (summary?.additionalDiscount !== undefined)
+    lines.push(`Ek İndirim: -${amountText(summary.additionalDiscount)}`)
+  if (summary?.shipping !== undefined) lines.push(`Kargo: ${amountText(summary.shipping)}`)
+  lines.push(`Toplam: ${amountText(total)}`)
+  return lines.join('\n')
 }
 
-function renderCta(label: string, url: string | undefined): string {
-  if (!url || !isSafeHttpUrl(url)) return ''
-  return `<p style="margin:0 0 24px;">
-    <a href="${escapeHtml(url.trim())}" style="display:inline-block;background:#135854;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;">${escapeHtml(label)}</a>
-  </p>`
-}
-
-function renderTotal(totalAmount: EmailAmount | undefined): string {
-  return totalAmount === undefined
-    ? ''
-    : `<p style="margin:20px 0 0;text-align:right;font-size:15px;font-weight:bold;color:#1a1a1a;">Toplam: ${escapeHtml(amountText(totalAmount))}</p>`
-}
-
-/** Shared, table-based wrapper for consistent and mobile-friendly emails. */
-function layout(title: string, body: string): string {
-  const safeTitle = escapeHtml(title)
-  return `<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${safeTitle}</title>
-  <style>
-    @media only screen and (max-width: 620px) {
-      .email-outer { padding: 12px 0 !important; }
-      .email-shell { width: 100% !important; border-radius: 0 !important; }
-      .email-header, .email-content, .email-footer { padding-left: 20px !important; padding-right: 20px !important; }
-      .email-content { padding-top: 24px !important; padding-bottom: 24px !important; }
-      .email-items { font-size: 12px !important; }
-      .email-items th, .email-items td { font-size: 12px !important; }
+function renderBankInstructions(
+  instructions: CustomerOrderConfirmationEmailInput['bankTransferInstructions'],
+  orderNumber: string,
+): { html: string; text: string } {
+  const list: readonly BankTransferInstruction[] = Array.isArray(instructions)
+    ? instructions
+    : instructions
+      ? [instructions as BankTransferInstruction]
+      : []
+  const usable = list.filter((entry) => !entry.missing && entry.iban?.trim())
+  if (usable.length === 0) {
+    return {
+      html: paragraph(
+        'Banka bilgileri için lütfen destek ekibimizle iletişime geçin.',
+        'margin:16px 0 0;font-size:14px;color:#555;',
+      ),
+      text: 'Banka bilgileri için lütfen destek ekibimizle iletişime geçin.',
     }
-  </style>
-</head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-  <table class="email-outer" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 12px;">
-    <tr><td align="center">
-      <table class="email-shell" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:580px;background:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr>
-          <td class="email-header" style="background:#1a1a1a;padding:22px 32px;">
-            <a href="${DEFAULT_WEB_URL}" aria-label="Hanuja" style="display:inline-flex;align-items:center;color:#e8e2d4;text-decoration:none;font-size:20px;font-weight:500;letter-spacing:4px;line-height:1;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 44 44" fill="none" aria-hidden="true" style="display:block;margin-right:12px;">
-                <rect x="2" y="2" width="22" height="14" fill="#e8e2d4" opacity=".92" />
-                <rect x="28" y="2" width="14" height="14" fill="none" stroke="#e8e2d4" stroke-width="1.4" />
-                <rect x="2" y="22" width="14" height="5" fill="#c8b89a" />
-                <rect x="20" y="20" width="22" height="22" fill="none" stroke="#e8e2d4" stroke-width="1.4" />
-                <rect x="2" y="32" width="8" height="10" fill="#e8e2d4" opacity=".35" />
-              </svg>
-              <span>HANUJA</span>
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td class="email-content" style="padding:32px;">
-            ${body}
-          </td>
-        </tr>
-        <tr>
-          <td class="email-footer" style="background:#f9f9f9;padding:16px 32px;border-top:1px solid #eeeeee;">
-            <p style="margin:0;font-size:12px;color:#999999;">
-              Bu e-posta Hanuja tarafından otomatik olarak gönderilmiştir.
-              Sorularınız için <a href="mailto:${PLATFORM_LEGAL_INFO.supportEmail}" style="color:#999999;">${PLATFORM_LEGAL_INFO.supportEmail}</a> adresine ulaşabilirsiniz.
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`
+  }
+  const reference = usable[0]?.reference ?? orderNumber
+  const boxes = usable
+    .map((entry) =>
+      renderInfoBox(
+        [
+          ['Banka', entry.bankName],
+          ['Şube', entry.branchName ?? null],
+          ['Hesap Sahibi', entry.accountHolder],
+          ['Not', entry.accountHolderNote ?? null],
+          ['IBAN', entry.iban],
+          ['Açıklama / Referans', entry.reference ?? orderNumber],
+        ],
+        'margin:12px 0 0;',
+      ),
+    )
+    .join('')
+  return {
+    html: `${boxes}${paragraph(
+      'Havale / EFT açıklamasına sipariş numaranızı yazmayı unutmayın. Ödemeniz onaylandıktan sonra siparişiniz hazırlanmaya başlanacak ve size ayrıca bilgi verilecektir.',
+      'margin:16px 0 24px;font-size:14px;color:#555;',
+    )}`,
+    text: usable
+      .map(
+        (entry) =>
+          `${entry.bankName}${entry.branchName ? ` / ${entry.branchName}` : ''} — ${entry.accountHolder} — IBAN: ${entry.iban} — Referans: ${entry.reference ?? orderNumber}`,
+      )
+      .join('\n')
+      .concat(`\nReferans: ${reference}. Ödemeniz onaylandıktan sonra siparişiniz hazırlanmaya başlanacaktır.`),
+  }
 }
 
-/** Order-created confirmation — sent to the customer after an order is saved. */
+/**
+ * "Siparişiniz Alındı" — kart siparişinde yalnız ödeme onaylandıktan sonra,
+ * EFT siparişinde sipariş anında (ödeme bekleniyor) gönderilir. Sözleşme
+ * bağlantıları ve 14 gün cayma hakkı bloğu bu e-postada yer alır.
+ */
 export function orderConfirmationTemplate(
-  params: CustomerOrderEmailInput & {
-    totalAmount: EmailAmount
-    paymentMethod: 'card' | 'eft'
-    bankTransferInstructions?: {
-      bankName: string
-      accountHolder: string
-      iban: string
-      reference: string
-      missing?: boolean
-    }
-  },
+  params: CustomerOrderConfirmationEmailInput,
 ): EmailTemplate {
   const orderUrl = customerOrderUrl(params)
-  const paymentLabel = params.paymentMethod === 'eft' ? 'Havale / EFT' : 'Kredi Kartı'
-  const bankInstructions =
-    params.paymentMethod === 'eft'
-      ? params.bankTransferInstructions?.missing
-        ? `
-    <p style="margin:16px 0 0;font-size:14px;color:#555;">
-      Banka bilgileri için lütfen destek ekibimizle iletişime geçin.
-    </p>
-  `
-        : `
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f9f9;border-radius:6px;padding:16px;margin:16px 0 24px;">
-      <tr>
-        <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Banka:</strong></td>
-        <td style="font-size:14px;color:#333;padding:6px 0;">${escapeHtml(params.bankTransferInstructions?.bankName ?? '-')}</td>
-      </tr>
-      <tr>
-        <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Hesap Sahibi:</strong></td>
-        <td style="font-size:14px;color:#333;padding:6px 0;">${escapeHtml(params.bankTransferInstructions?.accountHolder ?? '-')}</td>
-      </tr>
-      <tr>
-        <td style="font-size:14px;color:#555;padding:6px 0;"><strong>IBAN:</strong></td>
-        <td style="font-size:14px;color:#333;padding:6px 0;"><strong>${escapeHtml(params.bankTransferInstructions?.iban ?? '-')}</strong></td>
-      </tr>
-      <tr>
-        <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Açıklama / Referans:</strong></td>
-        <td style="font-size:14px;color:#333;padding:6px 0;">${escapeHtml(params.bankTransferInstructions?.reference ?? params.orderNumber)}</td>
-      </tr>
-    </table>
-    <p style="margin:0 0 24px;font-size:14px;color:#555;">
-      Ödemeniz onaylandıktan sonra siparişiniz hazırlanmaya başlanacaktır.
-    </p>
-  `
-      : ''
+  const paymentStatus = params.paymentStatus ?? (params.paymentMethod === 'eft' ? 'pending' : 'confirmed')
+  const pending = paymentStatus === 'pending'
+  const paymentLabel = paymentMethodLabel(params.paymentMethod)
+  const title = pending ? 'Siparişiniz Alındı — Ödeme Bekleniyor' : 'Siparişiniz Alındı'
+  const statusCopy = pending
+    ? 'Ödemeniz henüz alınmadı. Aşağıdaki hesaba havale / EFT yaptığınızda ödemeniz kontrol edilip onaylanacaktır.'
+    : 'Ödemeniz alındı ve siparişiniz satıcıya iletildi. Kargoya verildiğinde size ayrıca bilgi vereceğiz.'
+  const bank = pending ? renderBankInstructions(params.bankTransferInstructions, params.orderNumber) : null
+  const contracts = params.contracts ?? {}
+  const contractLinks = [
+    ['Ön Bilgilendirme Formu', contracts.preInformationUrl],
+    ['Mesafeli Satış Sözleşmesi', contracts.distanceSalesUrl],
+  ].filter(([, url]) => isSafeHttpUrl(url))
+  const contractsHtml = contractLinks.length
+    ? paragraph(
+        `Sipariş anında onayladığınız belgeler: ${contractLinks
+          .map(([label, url]) => renderLink(String(label), String(url)))
+          .join(' · ')}`,
+        'margin:0 0 24px;font-size:13px;color:#555;',
+      )
+    : ''
 
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Siparişiniz Alındı</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${escapeHtml(params.customerName)},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişinizi aldık.
-    </p>
-    <p style="margin:0 0 12px;font-size:14px;color:#555;"><strong>Ödeme Yöntemi:</strong> ${paymentLabel}</p>
-    <table class="email-items" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;margin-bottom:24px;">
-      <thead>
-        <tr>
-          <th width="40%" style="width:40%;text-align:left;font-size:12px;color:#888;padding:0 6px 8px 0;border-bottom:2px solid #eee;">Ürün / Varyant</th>
-          <th width="12%" style="width:12%;text-align:center;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Adet</th>
-          <th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Birim Satın Alma Fiyatı</th>
-          <th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 0 8px 4px;border-bottom:2px solid #eee;">Satır Toplamı</th>
-        </tr>
-      </thead>
-      <tbody>${renderLineItems(params.items)}</tbody>
-    </table>
-    ${bankInstructions}
-    ${renderTotal(params.totalAmount)}
+    ${heading(title)}
+    ${greeting(params.customerName)}
+    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişinizi aldık. ${escapeHtml(statusCopy)}`)}
+    ${paragraph(`<strong>Ödeme Yöntemi:</strong> ${paymentLabel}${pending ? ' — <strong>ödeme bekleniyor</strong>' : ' — ödeme alındı'}`, 'margin:0 0 12px;font-size:14px;color:#555;')}
+    ${renderLineItemsTable(params.items, { style: 'margin-bottom:8px;' })}
+    ${renderAmountSummary(params.summary, params.totalAmount)}
+    ${bank ? bank.html : '<div style="height:24px;"></div>'}
     ${renderCta('Siparişimi Görüntüle', orderUrl)}
+    ${contractsHtml}
+    ${renderWithdrawalNotice(contracts)}
   `
 
+  const textLines = [
+    `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişinizi aldık. ${statusCopy}`,
+    `Ödeme yöntemi: ${paymentLabel}${pending ? ' (ödeme bekleniyor)' : ''}.`,
+    renderLineItemsText(params.items),
+    renderAmountSummaryText(params.summary, params.totalAmount),
+    ...(bank ? [bank.text] : []),
+    ...(orderUrl ? [`Sipariş detayı: ${orderUrl}`] : []),
+    renderWithdrawalNoticeText(contracts),
+  ]
+
   return {
-    subject: `Siparişiniz Alındı — #${params.orderNumber}`,
-    html: layout('Siparişiniz Alındı', body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişinizi aldık.\n${renderLineItemsText(params.items)}\nÖdeme yöntemi: ${paymentLabel}. Toplam: ${amountText(params.totalAmount)}${orderUrl ? ` Sipariş detayı: ${orderUrl}` : ''}${params.paymentMethod === 'eft' ? ` Referans: ${params.bankTransferInstructions?.reference ?? params.orderNumber}.` : ''}`,
+    subject: `${title} — #${params.orderNumber}`,
+    html: layout(title, body),
+    text: textLines.join('\n'),
   }
 }
 
@@ -289,20 +267,10 @@ export function orderCreatedTemplate(params: CustomerOrderEmailInput): EmailTemp
   const title = 'Siparişiniz Oluşturuldu'
   const orderUrl = customerOrderUrl(params)
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${title}</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${escapeHtml(params.customerName)},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz oluşturuldu.
-    </p>
-    <table class="email-items" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;margin-bottom:24px;">
-      <thead><tr>
-        <th width="40%" style="width:40%;text-align:left;font-size:12px;color:#888;padding:0 6px 8px 0;border-bottom:2px solid #eee;">Ürün / Varyant</th>
-        <th width="12%" style="width:12%;text-align:center;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Adet</th>
-        <th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Birim Satın Alma Fiyatı</th>
-        <th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 0 8px 4px;border-bottom:2px solid #eee;">Satır Toplamı</th>
-      </tr></thead>
-      <tbody>${renderLineItems(params.items)}</tbody>
-    </table>
+    ${heading(title)}
+    ${greeting(params.customerName)}
+    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz oluşturuldu.`)}
+    ${renderLineItemsTable(params.items)}
     ${renderTotal(params.totalAmount)}
     ${renderCta('Siparişimi Görüntüle', orderUrl)}
   `
@@ -314,35 +282,21 @@ export function orderCreatedTemplate(params: CustomerOrderEmailInput): EmailTemp
   }
 }
 
-/** Customer event sent when the payment for an order is confirmed. */
+/** Customer event sent when an EFT payment is approved by the admin. */
 export function orderPaymentConfirmedTemplate(
   params: CustomerPaymentConfirmedEmailInput,
 ): EmailTemplate {
   const title = 'Ödemeniz Onaylandı'
   const orderUrl = customerOrderUrl(params)
-  const paymentLabel =
-    params.paymentMethod === 'eft'
-      ? 'Havale / EFT'
-      : params.paymentMethod === 'card'
-        ? 'Kredi Kartı'
-        : ''
+  const paymentLabel = paymentMethodLabel(params.paymentMethod)
   const paymentCopy = paymentLabel ? ` (${paymentLabel})` : ''
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${title}</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${escapeHtml(params.customerName)},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişinizin ödemesi onaylandı${paymentCopy}.
-      Siparişiniz hazırlık sürecine alındı.
-    </p>
-    <table class="email-items" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;margin-bottom:24px;">
-      <thead><tr>
-        <th width="40%" style="width:40%;text-align:left;font-size:12px;color:#888;padding:0 6px 8px 0;border-bottom:2px solid #eee;">Ürün / Varyant</th>
-        <th width="12%" style="width:12%;text-align:center;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Adet</th>
-        <th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Birim Satın Alma Fiyatı</th>
-        <th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 0 8px 4px;border-bottom:2px solid #eee;">Satır Toplamı</th>
-      </tr></thead>
-      <tbody>${renderLineItems(params.items)}</tbody>
-    </table>
+    ${heading(title)}
+    ${greeting(params.customerName)}
+    ${paragraph(
+      `<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişinizin ödemesi onaylandı${escapeHtml(paymentCopy)}. Siparişiniz satıcıya iletildi ve hazırlık sürecine alındı; kargoya verildiğinde size ayrıca bilgi vereceğiz.`,
+    )}
+    ${renderLineItemsTable(params.items)}
     ${renderTotal(params.totalAmount)}
     ${renderCta('Siparişimi Görüntüle', orderUrl)}
   `
@@ -362,39 +316,39 @@ export const customerOrderCreatedTemplate = orderCreatedTemplate
 export const customerPaymentConfirmedTemplate = orderPaymentConfirmedTemplate
 export const paymentConfirmedTemplate = orderPaymentConfirmedTemplate
 
-/** Shipment notification — sent to customer when order is shipped */
+/** Shipment notification — sent to customer when (part of) the order is handed to cargo. */
 export function shipmentNotificationTemplate(params: CustomerShipmentEmailInput): EmailTemplate {
   const items = params.items ?? []
   const orderUrl = customerOrderUrl(params)
-  const trackingCopy = params.trackingNumber
-    ? `<strong>${escapeHtml(params.trackingNumber)}</strong>`
-    : 'Henüz paylaşılmadı'
-  const cargoCopy = params.cargoCompany ? escapeHtml(params.cargoCompany) : 'Belirtilmedi'
+  const title = 'Siparişiniz Kargoya Verildi'
+  const trackingNumber = params.trackingNumber?.trim() || ''
+  const cargoCompany = params.cargoCompany?.trim() || 'Belirtilmedi'
+  const trackingUrl = isSafeHttpUrl(params.trackingUrl) ? params.trackingUrl.trim() : null
+  const sellerCopy = params.sellerName
+    ? ` <strong>${escapeHtml(params.sellerName)}</strong> tarafından gönderilen ürünler aşağıdadır.`
+    : ''
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Siparişiniz Kargoya Verildi</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${escapeHtml(params.customerName)},</p>
-    <p style="margin:0 0 16px;font-size:15px;color:#555;">
-      <strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz kargoya verildi.
-    </p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f9f9;border-radius:6px;padding:16px;margin-bottom:24px;">
-      <tr>
-        <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Kargo Firması:</strong></td>
-        <td style="font-size:14px;color:#333;padding:6px 0;">${cargoCopy}</td>
-      </tr>
-      <tr>
-        <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Takip Numarası:</strong></td>
-        <td style="font-size:14px;color:#333;padding:6px 0;">${trackingCopy}</td>
-      </tr>
-    </table>
-    ${items.length ? `<table class="email-items" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;margin-bottom:24px;"><thead><tr><th width="40%" style="width:40%;text-align:left;font-size:12px;color:#888;padding:0 6px 8px 0;border-bottom:2px solid #eee;">Ürün / Varyant</th><th width="12%" style="width:12%;text-align:center;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Adet</th><th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Birim Satın Alma Fiyatı</th><th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 0 8px 4px;border-bottom:2px solid #eee;">Satır Toplamı</th></tr></thead><tbody>${renderLineItems(items)}</tbody></table>` : ''}
+    ${heading(title)}
+    ${greeting(params.customerName)}
+    ${paragraph(
+      `<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişinizdeki ürünler kargoya verildi.${sellerCopy}`,
+      'margin:0 0 16px;font-size:15px;color:#555;',
+    )}
+    ${renderInfoBox([
+      ['Kargo Firması', cargoCompany],
+      ['Takip Numarası', trackingNumber || 'Henüz paylaşılmadı'],
+    ])}
+    ${trackingUrl ? renderCta('Kargomu Takip Et', trackingUrl) : ''}
+    ${items.length ? renderLineItemsTable(items, { quantityLabel: 'Gönderilen Adet' }) : ''}
     ${renderTotal(params.totalAmount)}
     ${renderCta('Siparişimi Görüntüle', orderUrl)}
+    ${paragraph('Ürün elinize ulaştığında sipariş sayfasından teslimatı onaylayabilirsiniz.', 'margin:0;font-size:13px;color:#777;')}
   `
 
   return {
-    subject: `Siparişiniz Yolda — #${params.orderNumber}`,
-    html: layout('Siparişiniz Kargoya Verildi', body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} siparişiniz kargoya verildi. Takip no: ${params.trackingNumber ?? 'Henüz paylaşılmadı'} (${params.cargoCompany ?? 'Belirtilmedi'}).${items.length ? `\n${renderLineItemsText(items)}` : ''}${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
+    subject: `${title} — #${params.orderNumber}`,
+    html: layout(title, body),
+    text: `Merhaba ${params.customerName}, #${params.orderNumber} siparişinizdeki ürünler kargoya verildi.${params.sellerName ? ` Gönderen: ${params.sellerName}.` : ''} Kargo firması: ${cargoCompany}. Takip no: ${trackingNumber || 'Henüz paylaşılmadı'}.${trackingUrl ? `\nKargo takip: ${trackingUrl}` : ''}${items.length ? `\n${renderLineItemsText(items, { quantityLabel: 'Gönderilen Adet' })}` : ''}${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
   }
 }
 
@@ -402,49 +356,30 @@ export const orderShippedTemplate = shipmentNotificationTemplate
 export const orderShippedEmailTemplate = shipmentNotificationTemplate
 export const customerOrderShippedTemplate = shipmentNotificationTemplate
 
-/** Delivery confirmation — sent to customer when delivery is confirmed */
-export function deliveryConfirmedTemplate(params: {
-  customerName: string
-  orderNumber: string
-}): EmailTemplate {
+/** Invoice uploaded — sent to customer when the seller's product invoice is available. */
+export function invoiceUploadedTemplate(params: CustomerInvoiceEmailInput): EmailTemplate {
+  const title = 'Faturanız Oluşturuldu'
+  const items = params.items ?? []
+  const invoiceCta = renderCta('Faturayı Görüntüle', params.invoiceUrl)
+  const orderCta = renderCta('Siparişimi Görüntüle', params.orderUrl)
+  const sellerCopy = params.sellerName
+    ? `<strong>${escapeHtml(params.sellerName)}</strong> mağazası`
+    : 'satıcı'
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Siparişiniz Teslim Edildi</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${params.customerName},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${params.orderNumber}</strong> numaralı siparişiniz teslim edildi olarak işaretlendi.
-      Ürünlerinizden memnun değilseniz, teslimattan itibaren 14 gün içinde iade talebinde bulunabilirsiniz.
-    </p>
+    ${heading(title)}
+    ${greeting(params.customerName)}
+    ${paragraph(
+      `<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz için ${sellerCopy} tarafından ürün faturası oluşturuldu. Faturanızı hesabınıza giriş yaparak görüntüleyebilir ve indirebilirsiniz.`,
+    )}
+    ${items.length ? renderLineItemsTable(items) : ''}
+    ${invoiceCta}
+    ${orderCta}
   `
 
   return {
-    subject: `Siparişiniz Teslim Edildi — #${params.orderNumber}`,
-    html: layout('Siparişiniz Teslim Edildi', body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} siparişiniz teslim edildi. 14 gün içinde iade talebinde bulunabilirsiniz.`,
-  }
-}
-
-/** Invoice uploaded — sent to customer when seller invoice is added */
-export function invoiceUploadedTemplate(params: {
-  customerName: string
-  orderNumber: string
-  orderUrl?: string
-}): EmailTemplate {
-  const cta = renderCta('Siparişimi Görüntüle', params.orderUrl)
-
-  const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Faturanız Hazır</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${escapeHtml(params.customerName)},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz için satıcı faturası yüklendi.
-      Faturanızı hesabınıza giriş yaparak sipariş detayınızdan görüntüleyebilirsiniz.
-    </p>
-    ${cta}
-  `
-
-  return {
-    subject: `Faturanız Hazır — #${params.orderNumber}`,
-    html: layout('Faturanız Hazır', body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişiniz için satıcı faturası yüklendi. Faturanızı hesabınıza giriş yaparak sipariş detayınızdan görüntüleyebilirsiniz.${params.orderUrl ? ` Sipariş detayı: ${params.orderUrl}` : ''}`,
+    subject: `${title} — #${params.orderNumber}`,
+    html: layout(title, body),
+    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişiniz için ${params.sellerName ? `${params.sellerName} mağazası` : 'satıcı'} tarafından ürün faturası oluşturuldu. Faturanızı hesabınıza giriş yaparak görüntüleyebilirsiniz.${items.length ? `\n${renderLineItemsText(items)}` : ''}${isSafeHttpUrl(params.invoiceUrl) ? `\nFatura: ${params.invoiceUrl.trim()}` : ''}${isSafeHttpUrl(params.orderUrl) ? `\nSipariş detayı: ${params.orderUrl.trim()}` : ''}`,
   }
 }
 
@@ -452,42 +387,45 @@ export function returnRequestTemplate(params: CustomerReturnRequestEmailInput): 
   const items = params.items ?? []
   const orderUrl = customerOrderUrl(params)
   const returnReason = params.returnReason?.trim() || 'Belirtilmedi'
+  const title = 'İade Talebiniz Alındı'
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">İade Talebiniz Alındı</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${escapeHtml(params.customerName)},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${escapeHtml(params.orderNumber)}</strong> numaralı sipariş için iade talebinizi aldık.
-    </p>
-    <p style="margin:0 0 8px;font-size:14px;color:#555;"><strong>İade Sebebi:</strong></p>
-    <p style="margin:0 0 24px;font-size:14px;color:#333;background:#f9f9f9;padding:12px;border-radius:4px;">${escapeHtml(returnReason)}</p>
-    <p style="margin:0;font-size:14px;color:#555;">
-      Talebiniz incelenecek ve size en kısa sürede geri dönüş yapılacaktır.
-    </p>
-    ${items.length ? `<table class="email-items" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;margin-top:24px;"><thead><tr><th width="40%" style="width:40%;text-align:left;font-size:12px;color:#888;padding:0 6px 8px 0;border-bottom:2px solid #eee;">Ürün / Varyant</th><th width="12%" style="width:12%;text-align:center;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Adet</th><th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Birim Satın Alma Fiyatı</th><th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 0 8px 4px;border-bottom:2px solid #eee;">Satır Toplamı</th></tr></thead><tbody>${renderLineItems(items)}</tbody></table>` : ''}
-    ${renderCta('Siparişimi Görüntüle', orderUrl)}
+    ${heading(title)}
+    ${greeting(params.customerName)}
+    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz için iade talebinizi aldık.`)}
+    ${items.length ? renderLineItemsTable(items, { quantityLabel: 'İade Adedi' }) : ''}
+    ${paragraph('<strong>İade Sebebi:</strong>', 'margin:0 0 8px;font-size:14px;color:#555;')}
+    ${paragraph(escapeHtml(returnReason), 'margin:0 0 24px;font-size:14px;color:#333;background:#f9f9f9;padding:12px;border-radius:4px;')}
+    ${paragraph('Satıcı talebinizi inceleyip iade kargo bilgilerini iletecek; ürünü kargoya verebilmeniz için size ayrıca e-posta göndereceğiz. Talebinizin durumunu sipariş sayfasından takip edebilirsiniz.', 'margin:0 0 24px;font-size:14px;color:#555;')}
+    ${renderCta('İade Talebimi Görüntüle', orderUrl)}
   `
 
   return {
-    subject: `İade Talebiniz Alındı — #${params.orderNumber}`,
-    html: layout('İade Talebiniz Alındı', body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} için iade talebinizi aldık. Sebep: ${returnReason}${items.length ? `\n${renderLineItemsText(items)}` : ''}${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
+    subject: `${title} — #${params.orderNumber}`,
+    html: layout(title, body),
+    text: `Merhaba ${params.customerName}, #${params.orderNumber} için iade talebinizi aldık. Sebep: ${returnReason}${items.length ? `\n${renderLineItemsText(items, { quantityLabel: 'İade Adedi' })}` : ''}\nSatıcı iade kargo bilgilerini iletince size ayrıca e-posta göndereceğiz.${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
   }
 }
 
-/** Customer event emitted once the return refund is finalised. */
+/** Customer event emitted once the refund money movement is finalised. */
 export function refundCompletedTemplate(params: CustomerRefundCompletedEmailInput): EmailTemplate {
   const items = params.items ?? []
   const orderUrl = customerOrderUrl(params)
-  const refundAmount =
-    params.refundAmount === undefined ? '' : ` ${amountText(params.refundAmount)} tutarındaki`
-  const title = 'İadeniz Tamamlandı'
+  const title = 'Geri Ödemeniz Yapılmıştır'
+  const method =
+    params.paymentMethod === 'card'
+      ? 'ödeme yaptığınız karta'
+      : params.paymentMethod === 'eft'
+        ? 'bildirdiğiniz IBAN hesabına'
+        : 'ödeme yönteminize'
+  const amountCopy =
+    params.refundAmount === undefined ? '' : ` <strong>${escapeHtml(amountText(params.refundAmount))}</strong> tutarındaki`
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${title}</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${escapeHtml(params.customerName)},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz için${refundAmount} iade kesinleşti ve ödeme iade sürecine alındı.
-    </p>
-    ${items.length ? `<table class="email-items" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;margin-bottom:24px;"><thead><tr><th width="40%" style="width:40%;text-align:left;font-size:12px;color:#888;padding:0 6px 8px 0;border-bottom:2px solid #eee;">Ürün / Varyant</th><th width="12%" style="width:12%;text-align:center;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Adet</th><th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Birim Satın Alma Fiyatı</th><th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 0 8px 4px;border-bottom:2px solid #eee;">Satır Toplamı</th></tr></thead><tbody>${renderLineItems(items)}</tbody></table>` : ''}
+    ${heading(title)}
+    ${greeting(params.customerName)}
+    ${paragraph(
+      `<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz için${amountCopy} geri ödeme ${method} aktarıldı. Bankanıza bağlı olarak tutarın hesabınıza yansıması birkaç iş günü sürebilir.`,
+    )}
+    ${items.length ? renderLineItemsTable(items, { quantityLabel: 'Adet' }) : ''}
     ${params.refundAmount === undefined ? '' : `<p style="margin:0 0 24px;text-align:right;font-size:15px;font-weight:bold;color:#1a1a1a;">İade Tutarı: ${escapeHtml(amountText(params.refundAmount))}</p>`}
     ${renderCta('Siparişimi Görüntüle', orderUrl)}
   `
@@ -495,18 +433,8 @@ export function refundCompletedTemplate(params: CustomerRefundCompletedEmailInpu
   return {
     subject: `${title} — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişiniz için${refundAmount} iade kesinleşti ve ödeme iade sürecine alındı.${params.refundAmount === undefined ? '' : ` İade tutarı: ${amountText(params.refundAmount)}.`}${items.length ? `\n${renderLineItemsText(items)}` : ''}${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
+    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişiniz için${params.refundAmount === undefined ? '' : ` ${amountText(params.refundAmount)} tutarındaki`} geri ödeme ${method} aktarıldı. Tutarın hesabınıza yansıması birkaç iş günü sürebilir.${items.length ? `\n${renderLineItemsText(items)}` : ''}${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
   }
-}
-
-function customerOrderUrl(
-  params: Pick<CustomerOrderEmailInput, 'orderUrl' | 'customerOrderUrl' | 'orderLink'>,
-): string | undefined {
-  return params.orderUrl ?? params.customerOrderUrl ?? params.orderLink
-}
-
-function sellerOrderUrl(params: SellerOrderEmailInput): string | undefined {
-  return params.panelUrl ?? params.sellerPanelUrl ?? params.panelLink ?? params.orderUrl
 }
 
 /**
@@ -522,33 +450,16 @@ function sellerScopedItems(params: SellerOrderEmailInput): readonly EmailOrderLi
   return linesWithOwnership.filter((item) => item.sellerId === params.sellerId)
 }
 
-function sellerItemsTable(
-  items: readonly EmailOrderLineInput[],
-  margin = 'margin-bottom:24px;',
-): string {
-  return `<table class="email-items" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;${margin}">
-    <thead><tr>
-      <th width="40%" style="width:40%;text-align:left;font-size:12px;color:#888;padding:0 6px 8px 0;border-bottom:2px solid #eee;">Ürün / Varyant</th>
-      <th width="12%" style="width:12%;text-align:center;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Adet</th>
-      <th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 4px 8px;border-bottom:2px solid #eee;">Birim Satın Alma Fiyatı</th>
-      <th width="24%" style="width:24%;text-align:right;font-size:12px;color:#888;padding:0 0 8px 4px;border-bottom:2px solid #eee;">Satır Toplamı</th>
-    </tr></thead>
-    <tbody>${renderLineItems(items)}</tbody>
-  </table>`
-}
-
 /** Seller event sent after the order payment is confirmed. */
 export function sellerNewOrderTemplate(params: SellerOrderEmailInput): EmailTemplate {
-  const title = 'Yeni Sipariş — Ödemesi Onaylandı'
+  const title = 'Yeni Sipariş'
   const orderUrl = sellerOrderUrl(params)
   const items = sellerScopedItems(params)
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${title}</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${escapeHtml(params.sellerName)},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişte ödemeniz onaylanmış yeni kalemleriniz var.
-    </p>
-    ${sellerItemsTable(items)}
+    ${heading(title)}
+    ${greeting(params.sellerName)}
+    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişte ödemesi onaylanmış yeni kalemleriniz var. Lütfen siparişi satıcı panelinden onaylayıp sevk süresi içinde kargoya verin.`)}
+    ${renderLineItemsTable(items)}
     ${renderTotal(params.totalAmount)}
     ${renderCta('Satıcı Panelinde Görüntüle', orderUrl)}
   `
@@ -556,26 +467,26 @@ export function sellerNewOrderTemplate(params: SellerOrderEmailInput): EmailTemp
   return {
     subject: `${title} — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı siparişte ödemeniz onaylanmış yeni kalemleriniz var.\n${renderLineItemsText(items)}${params.totalAmount === undefined ? '' : `\nToplam: ${amountText(params.totalAmount)}`}${orderUrl ? `\nSatıcı paneli: ${orderUrl}` : ''}`,
+    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı siparişte ödemesi onaylanmış yeni kalemleriniz var.\n${renderLineItemsText(items)}${params.totalAmount === undefined ? '' : `\nToplam: ${amountText(params.totalAmount)}`}${orderUrl ? `\nSatıcı paneli: ${orderUrl}` : ''}`,
   }
 }
 
-/** Seller event for a product/quantity cancellation. */
+/** Seller event for a product/quantity cancellation made by the customer or admin. */
 export function sellerOrderCancellationTemplate(
   params: SellerCancellationEmailInput,
 ): EmailTemplate {
-  const title = 'Ürün / Adet İptali'
+  const title = 'Sipariş İptali'
   const orderUrl = sellerOrderUrl(params)
   const items = sellerScopedItems(params)
   const reason = params.cancellationReason?.trim()
+  const actor = params.actorRole ? cancellationActorLabel(params.actorRole) : null
+  const scope = params.partial ? 'aşağıdaki ürün/adetler' : 'size ait kalemler'
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${title}</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${escapeHtml(params.sellerName)},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişte ürün/adet iptali gerçekleşti.
-    </p>
-    ${sellerItemsTable(items)}
-    ${reason ? `<p style="margin:0 0 24px;font-size:14px;color:#555;"><strong>İptal Nedeni:</strong> ${escapeHtml(reason)}</p>` : ''}
+    ${heading(title)}
+    ${greeting(params.sellerName)}
+    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişte ${scope}${actor ? ` ${escapeHtml(actor)} tarafından` : ''} iptal edildi. İptal edilen ürünleri kargoya vermeyin.`)}
+    ${renderLineItemsTable(items, { quantityLabel: 'İptal Adedi' })}
+    ${reason ? paragraph(`<strong>İptal Nedeni:</strong> ${escapeHtml(reason)}`, 'margin:0 0 24px;font-size:14px;color:#555;') : ''}
     ${renderTotal(params.totalAmount)}
     ${renderCta('Satıcı Panelinde Görüntüle', orderUrl)}
   `
@@ -583,32 +494,30 @@ export function sellerOrderCancellationTemplate(
   return {
     subject: `${title} — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı siparişte ürün/adet iptali gerçekleşti.\n${renderLineItemsText(items)}${reason ? `\nİptal nedeni: ${reason}` : ''}${orderUrl ? `\nSatıcı paneli: ${orderUrl}` : ''}`,
+    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı siparişte ${scope}${actor ? ` ${actor} tarafından` : ''} iptal edildi.\n${renderLineItemsText(items, { quantityLabel: 'İptal Adedi' })}${reason ? `\nİptal nedeni: ${reason}` : ''}${orderUrl ? `\nSatıcı paneli: ${orderUrl}` : ''}`,
   }
 }
 
 /** Seller event for a newly opened return request. */
 export function sellerReturnRequestTemplate(params: SellerReturnRequestEmailInput): EmailTemplate {
-  const title = 'Yeni İade Talebi'
+  const title = 'İade Talebi'
   const orderUrl = sellerOrderUrl(params)
   const items = sellerScopedItems(params)
   const reason = params.returnReason?.trim()
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${title}</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${escapeHtml(params.sellerName)},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${escapeHtml(params.orderNumber)}</strong> numaralı sipariş için iade talebi oluşturuldu.
-    </p>
-    ${sellerItemsTable(items)}
-    ${reason ? `<p style="margin:0 0 24px;font-size:14px;color:#555;"><strong>İade Nedeni:</strong> ${escapeHtml(reason)}</p>` : ''}
-    <p style="margin:0 0 24px;font-size:14px;color:#555;">Talebi satıcı panelinden inceleyip gerekli işlemi başlatabilirsiniz.</p>
+    ${heading(title)}
+    ${greeting(params.sellerName)}
+    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı sipariş için müşteri iade talebi oluşturdu.`)}
+    ${renderLineItemsTable(items, { quantityLabel: 'İade Adedi' })}
+    ${reason ? paragraph(`<strong>İade Nedeni:</strong> ${escapeHtml(reason)}`, 'margin:0 0 24px;font-size:14px;color:#555;') : ''}
+    ${paragraph('Talebi satıcı panelinden inceleyip iade kargo bilgilerini müşteriye iletin. Ürün size ulaştığında teslim kararını panelden verebilirsiniz.', 'margin:0 0 24px;font-size:14px;color:#555;')}
     ${renderCta('İade Talebini İncele', orderUrl)}
   `
 
   return {
     subject: `${title} — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı sipariş için iade talebi oluşturuldu.\n${renderLineItemsText(items)}${reason ? `\nİade nedeni: ${reason}` : ''}${orderUrl ? `\nSatıcı paneli: ${orderUrl}` : ''}`,
+    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı sipariş için iade talebi oluşturuldu.\n${renderLineItemsText(items, { quantityLabel: 'İade Adedi' })}${reason ? `\nİade nedeni: ${reason}` : ''}${orderUrl ? `\nSatıcı paneli: ${orderUrl}` : ''}`,
   }
 }
 
@@ -631,24 +540,20 @@ export function payoutProcessedTemplate(params: {
   periodDescription: string
 }): EmailTemplate {
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Ödemeniz Gerçekleşti</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${params.sellerName},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>${params.periodDescription}</strong> dönemi için satıcı ödemeniz gerçekleştirildi.
-    </p>
+    ${heading('Ödemeniz Gerçekleşti')}
+    ${greeting(params.sellerName)}
+    ${paragraph(`<strong>${escapeHtml(params.periodDescription)}</strong> dönemi için satıcı ödemeniz gerçekleştirildi.`)}
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f9f9;border-radius:6px;padding:16px;margin-bottom:24px;">
       <tr>
         <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Net Ödeme Tutarı:</strong></td>
-        <td style="font-size:16px;color:#1a1a1a;font-weight:bold;padding:6px 0;">${params.payoutAmount}</td>
+        <td style="font-size:16px;color:#1a1a1a;font-weight:bold;padding:6px 0;">${escapeHtml(params.payoutAmount)}</td>
       </tr>
       <tr>
         <td style="font-size:14px;color:#555;padding:6px 0;"><strong>İşlem Tarihi:</strong></td>
-        <td style="font-size:14px;color:#333;padding:6px 0;">${params.payoutDate}</td>
+        <td style="font-size:14px;color:#333;padding:6px 0;">${escapeHtml(params.payoutDate)}</td>
       </tr>
     </table>
-    <p style="margin:0;font-size:14px;color:#555;">
-      Detayları satıcı panelinizden görüntüleyebilirsiniz.
-    </p>
+    ${paragraph('Detayları satıcı panelinizden görüntüleyebilirsiniz.', 'margin:0;font-size:14px;color:#555;')}
   `
 
   return {
@@ -666,24 +571,20 @@ export function penaltyAppliedTemplate(params: {
   penaltyReason: string
 }): EmailTemplate {
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Ceza Uygulandı</h2>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${params.sellerName},</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>#${params.orderNumber}</strong> numaralı sipariş için hesabınıza ceza uygulandı.
-    </p>
+    ${heading('Ceza Uygulandı')}
+    ${greeting(params.sellerName)}
+    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı sipariş için hesabınıza ceza uygulandı.`)}
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff5f5;border:1px solid #fecaca;border-radius:6px;padding:16px;margin-bottom:24px;">
       <tr>
         <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Ceza Tutarı:</strong></td>
-        <td style="font-size:16px;color:#dc2626;font-weight:bold;padding:6px 0;">${params.penaltyAmount}</td>
+        <td style="font-size:16px;color:#dc2626;font-weight:bold;padding:6px 0;">${escapeHtml(params.penaltyAmount)}</td>
       </tr>
       <tr>
         <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Ceza Sebebi:</strong></td>
-        <td style="font-size:14px;color:#333;padding:6px 0;">${params.penaltyReason}</td>
+        <td style="font-size:14px;color:#333;padding:6px 0;">${escapeHtml(params.penaltyReason)}</td>
       </tr>
     </table>
-    <p style="margin:0;font-size:14px;color:#555;">
-      Ceza tutarı bir sonraki ödemenizden mahsup edilecektir. Detaylar için satıcı panelinizi inceleyebilirsiniz.
-    </p>
+    ${paragraph('Ceza tutarı bir sonraki ödemenizden mahsup edilecektir. Detaylar için satıcı panelinizi inceleyebilirsiniz.', 'margin:0;font-size:14px;color:#555;')}
   `
 
   return {
@@ -754,7 +655,7 @@ export function productDiscountTemplate(params: {
   unsubscribeUrl: string
 }): EmailTemplate {
   const isFavorite = params.context === 'favorite'
-  const heading = isFavorite
+  const title = isFavorite
     ? 'Favorinizdeki Ürün Şimdi İndirimde'
     : 'Sepetinizdeki Ürün Şimdi İndirimde'
 
@@ -782,7 +683,7 @@ export function productDiscountTemplate(params: {
     : 'abonelikten çıkın'
 
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${heading}</h2>
+    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${title}</h2>
     <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${customerNameHtml},</p>
     <p style="margin:0 0 24px;font-size:15px;color:#555;">${lead}</p>
     <p style="margin:0 0 24px;">
@@ -799,8 +700,8 @@ export function productDiscountTemplate(params: {
     : `Sepetinizdeki ${params.productName} ürünü, ${params.sellerName} mağazasında şimdi indirimde.`
 
   return {
-    subject: heading,
-    html: layout(heading, body),
+    subject: title,
+    html: layout(title, body),
     text: `Merhaba ${params.customerName}, ${textLead} Ürünü incele: ${params.productUrl} Abonelikten çıkış: ${params.unsubscribeUrl}`,
   }
 }

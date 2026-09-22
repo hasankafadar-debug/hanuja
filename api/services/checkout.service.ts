@@ -38,8 +38,12 @@ import {
   type LegalOrderItemSnapshot,
 } from '../lib/legal-documents'
 import type { LegalAcceptanceEvidence } from '../lib/legal-acceptance'
-import { enqueueNotification } from '../jobs/notification-dispatch.job'
-import { getPlatformBankInfo, getWebBaseUrl } from '../lib/platform-info'
+import { recordNotification } from './notification-outbox.service'
+import {
+  customerOrderEmailData,
+  loadOrderEmailSnapshot,
+} from './order-email-payload'
+import { getPlatformBankInfo } from '../lib/platform-info'
 import { createPlatformBankAccountService } from './platform-bank-account.service'
 import { formatOrderNumber, formatOrderDisplayNumber } from '../lib/order-number'
 import { createPlatformSettingsService } from './platform-settings.service'
@@ -613,6 +617,24 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
     }) {
       const draft = await buildCheckoutDraft(params)
 
+      const bankTransferInstructions =
+        params.paymentMethod === 'eft'
+          ? await createPlatformBankAccountService({ prisma })
+              .listActive()
+              .then((accounts) =>
+                accounts.length > 0
+                  ? accounts.map((account) => ({
+                      bankName: account.bankName,
+                      accountHolder: account.accountHolder,
+                      accountHolderNote: account.accountHolderNote,
+                      iban: account.iban,
+                      branchName: account.branchName,
+                    }))
+                  : null,
+              )
+              .catch(() => null)
+          : undefined
+
       const result = await prisma.$transaction(async (tx) => {
         const unavailableSeller = await tx.seller.findFirst({
           where: {
@@ -792,58 +814,43 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           })
         }
 
+        // "Siparişiniz Alındı" is written in the same transaction so a crash after
+        // commit cannot lose it. Card orders are mailed only once the payment is
+        // confirmed (payment.service), so nothing is recorded for them here.
+        if (params.paymentMethod === 'eft') {
+          const snapshot = await loadOrderEmailSnapshot(tx, order.id)
+          if (snapshot) {
+            const resolvedBankInstructions =
+              bankTransferInstructions ?? getPlatformBankInfo(order.id)
+            await recordNotification(tx, {
+              eventKey: `order:${order.id}:created:customer`,
+              userId: params.userId,
+              emailTo: draft.customer.email,
+              type: 'order_placed',
+              title: `Siparişiniz Alındı - ${formatOrderDisplayNumber(order.publicNumber, order.id)}`,
+              body: 'Siparişiniz alındı. Havale/EFT ödemeniz onaylandığında hazırlanmaya başlanacak.',
+              data: {
+                ...customerOrderEmailData(snapshot, {
+                  paymentMethod: 'eft',
+                  paymentStatus: 'pending',
+                }),
+                bankTransferInstructions: resolvedBankInstructions,
+              },
+            })
+          }
+        }
+
         return { order, payment, lines: order.lines }
       })
 
-      const bankTransferInstructions =
+      const resolvedBankInstructions =
         params.paymentMethod === 'eft'
-          ? await createPlatformBankAccountService({ prisma })
-              .listActive()
-              .then((accounts) =>
-                accounts.length > 0
-                  ? accounts.map((account) => ({
-                      bankName: account.bankName,
-                      accountHolder: account.accountHolder,
-                      accountHolderNote: account.accountHolderNote,
-                      iban: account.iban,
-                      branchName: account.branchName,
-                    }))
-                  : getPlatformBankInfo(result.order.id),
-              )
-              .catch(() => getPlatformBankInfo(result.order.id))
+          ? (bankTransferInstructions ?? getPlatformBankInfo(result.order.id))
           : undefined
-
-      void enqueueNotification({
-        eventKey: `order:${result.order.id}:created:customer`,
-        userId: params.userId,
-        emailTo: draft.customer.email,
-        type: 'order_placed',
-        title: `Siparişiniz Alındı - ${formatOrderDisplayNumber(result.order.publicNumber, result.order.id)}`,
-        body: 'Siparişiniz başarıyla alındı.',
-        data: {
-          orderId: result.order.id,
-          orderNumber: formatOrderNumber(result.order.publicNumber, result.order.id),
-          paymentMethod: params.paymentMethod,
-          items: result.lines.map((line) => ({
-            productName: line.productName,
-            variantName: line.variantName,
-            sellerId: line.sellerId,
-            quantity: line.quantity,
-            unitPrice: formatMoney(line.unitPrice),
-            lineTotal: formatMoney(
-              line.customerPaidProductAmount ?? line.totalPrice,
-            ),
-          })),
-          totalAmount: formatMoney(result.order.totalAmount),
-          customerName: draft.customer.name ?? draft.address.fullName,
-          orderUrl: `${getWebBaseUrl()}/siparis/${result.order.id}`,
-          ...(bankTransferInstructions ? { bankTransferInstructions } : {}),
-        },
-      }).catch((err) => console.error('[checkout] Order confirmation notification failed:', err))
 
       return {
         ...result,
-        ...(bankTransferInstructions ? { bankTransferInstructions } : {}),
+        ...(resolvedBankInstructions ? { bankTransferInstructions: resolvedBankInstructions } : {}),
       }
     },
 

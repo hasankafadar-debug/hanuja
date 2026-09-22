@@ -371,20 +371,28 @@ function renderDiscountRows(context: LegalContractContext) {
   return rows.join('')
 }
 
+/**
+ * Mesafeli Sözleşmeler Yönetmeliği md. 15 cayma hakkı istisnaları. Sözleşme/ön bilgilendirme
+ * belgeleri ve sipariş e-postaları aynı listeyi kullanır; metin yalnız burada değiştirilir.
+ */
+export const RIGHT_OF_WITHDRAWAL_EXCEPTIONS: readonly string[] = [
+  'Fiyatı finansal piyasalardaki dalgalanmalara bağlı olarak değişen ve satıcı veya sağlayıcının kontrolünde olmayan ürün ve hizmetler.',
+  'Tüketicinin istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan mallara ilişkin sözleşmeler.',
+  'Çabuk bozulabilen veya son kullanma tarihi geçebilecek ürünler.',
+  'Tesliminden sonra ambalaj, bant, mühür veya koruyucu unsurları açılmış olan ve sağlık/hijyen açısından iadesi uygun olmayan ürünler.',
+  'Tesliminden sonra başka ürünlerle karışan ve doğası gereği ayrıştırılması mümkün olmayan ürünler.',
+  'Ambalajı açılmış kitap, dijital içerik ve bilgisayar sarf malzemeleri.',
+  'Abonelik sözleşmesi kapsamında sağlananlar dışında gazete ve dergi gibi süreli yayınlar.',
+  'Belirli bir tarihte veya dönemde yapılması gereken konaklama, taşıma, araç kiralama, yiyecek-içecek tedariki ve boş zamanın değerlendirilmesine ilişkin hizmetler.',
+  'Elektronik ortamda anında ifa edilen hizmetler veya tüketiciye anında teslim edilen gayrimaddi mallar.',
+  'Cayma hakkı süresi sona ermeden önce tüketicinin onayı ile ifasına başlanan hizmetler.',
+  'Mevzuatta cayma hakkı dışında bırakılan diğer ürün ve hizmetler.',
+]
+
 function renderRightOfWithdrawalExceptions() {
   return `
     <ul>
-      <li>Fiyatı finansal piyasalardaki dalgalanmalara bağlı olarak değişen ve satıcı veya sağlayıcının kontrolünde olmayan ürün ve hizmetler.</li>
-      <li>Tüketicinin istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan mallara ilişkin sözleşmeler.</li>
-      <li>Çabuk bozulabilen veya son kullanma tarihi geçebilecek ürünler.</li>
-      <li>Tesliminden sonra ambalaj, bant, mühür veya koruyucu unsurları açılmış olan ve sağlık/hijyen açısından iadesi uygun olmayan ürünler.</li>
-      <li>Tesliminden sonra başka ürünlerle karışan ve doğası gereği ayrıştırılması mümkün olmayan ürünler.</li>
-      <li>Ambalajı açılmış kitap, dijital içerik ve bilgisayar sarf malzemeleri.</li>
-      <li>Abonelik sözleşmesi kapsamında sağlananlar dışında gazete ve dergi gibi süreli yayınlar.</li>
-      <li>Belirli bir tarihte veya dönemde yapılması gereken konaklama, taşıma, araç kiralama, yiyecek-içecek tedariki ve boş zamanın değerlendirilmesine ilişkin hizmetler.</li>
-      <li>Elektronik ortamda anında ifa edilen hizmetler veya tüketiciye anında teslim edilen gayrimaddi mallar.</li>
-      <li>Cayma hakkı süresi sona ermeden önce tüketicinin onayı ile ifasına başlanan hizmetler.</li>
-      <li>Mevzuatta cayma hakkı dışında bırakılan diğer ürün ve hizmetler.</li>
+${RIGHT_OF_WITHDRAWAL_EXCEPTIONS.map((item) => `      <li>${item}</li>`).join('\n')}
     </ul>
   `
 }

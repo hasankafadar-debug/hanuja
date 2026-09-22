@@ -12,10 +12,11 @@ import {
 } from '../domain/quantity-allocation'
 import { isWithinReturnWindow } from '../domain/penalty-calculator'
 import { createQuantityRefundService } from './quantity-refund.service'
-import { enqueueNotification } from '../jobs/notification-dispatch.job'
+import { recordNotification } from './notification-outbox.service'
 import { formatOrderNumber } from '../lib/order-number'
-import { getSellerPanelUrl } from '../lib/platform-info'
+import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 import { formatMoney } from '@hanuja/security/money'
+import { resolveEmailImageUrl } from '../lib/email-line-items'
 
 interface ReturnSelection {
   orderLineId: string
@@ -104,22 +105,45 @@ export function createQuantityReturnService({
       })
     }
 
-    void notifyReturnOpened(operations).catch((error) =>
-      console.error('[quantity-return] Notification failed:', error),
-    )
     return operations
   }
 
-  async function notifyReturnOpened(
+  async function loadProductImages(tx: Prisma.TransactionClient, productIds: string[]) {
+    const images = await tx.productImage.findMany({
+      where: { productId: { in: [...new Set(productIds)] } },
+      orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+      select: { productId: true, url: true, isPrimary: true, sortOrder: true },
+    })
+    const byProduct = new Map<string, typeof images>()
+    for (const image of images) {
+      const bucket = byProduct.get(image.productId) ?? []
+      bucket.push(image)
+      byProduct.set(image.productId, bucket)
+    }
+    return byProduct
+  }
+
+  /**
+   * Customer / seller / admin notifications for the return requests created in
+   * this transaction (one request per seller).
+   */
+  async function recordReturnOpenedNotifications(
+    tx: Prisma.TransactionClient,
+    order: {
+      id: string
+      publicNumber: number
+      customerId: string
+      customer: { email: string | null; name: string | null }
+      address: { fullName: string | null } | null
+    },
     operations: Array<{
       id: string
-      orderId: string
       sellerId: string | null
-      customerId: string
       reason: string
       items: Array<{
         requestedQuantity: number
         orderLine: {
+          productId: string
           productName: string
           variantName: string | null
           unitPrice: Decimal
@@ -127,11 +151,12 @@ export function createQuantityReturnService({
       }>
     }>,
   ) {
+    if (operations.length === 0) return
     const sellerIds = operations
       .map((operation) => operation.sellerId)
       .filter((sellerId): sellerId is string => Boolean(sellerId))
-    const [sellers, admins] = await Promise.all([
-      prisma.seller.findMany({
+    const [sellers, admins, imagesByProduct] = await Promise.all([
+      tx.seller.findMany({
         where: { id: { in: sellerIds } },
         select: {
           id: true,
@@ -139,16 +164,19 @@ export function createQuantityReturnService({
           user: { select: { id: true, email: true } },
         },
       }),
-      prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } }),
+      tx.user.findMany({ where: { role: 'admin' }, select: { id: true } }),
+      loadProductImages(
+        tx,
+        operations.flatMap((operation) =>
+          operation.items.map((item) => item.orderLine.productId),
+        ),
+      ),
     ])
     const sellerById = new Map(sellers.map((seller) => [seller.id, seller]))
+    const orderNumber = formatOrderNumber(order.publicNumber, order.id)
+    const customerName =
+      order.customer.name?.trim() || order.address?.fullName?.trim() || 'Değerli Müşterimiz'
     for (const operation of operations) {
-      const order = await prisma.order.findUnique({
-        where: { id: operation.orderId },
-        select: { id: true, publicNumber: true },
-      })
-      if (!order) continue
-      const orderNumber = formatOrderNumber(order.publicNumber, order.id)
       const items = operation.items.map((item) => ({
         productName: item.orderLine.productName,
         variantName: item.orderLine.variantName,
@@ -158,21 +186,26 @@ export function createQuantityReturnService({
         lineTotal: formatMoney(
           item.orderLine.unitPrice.mul(item.requestedQuantity).toNumber(),
         ),
+        imageUrl: resolveEmailImageUrl(imagesByProduct.get(item.orderLine.productId)),
       }))
       const summary = items
         .map((item) => `${item.productName} (${item.quantity})`)
         .join(', ')
       const data = {
         operationId: operation.id,
+        returnRequestId: operation.id,
         orderId: order.id,
         orderNumber,
+        customerName,
         sellerId: operation.sellerId,
         returnReason: operation.reason,
+        orderUrl: `${getWebBaseUrl()}/siparis/${order.id}`,
         items,
       }
-      await enqueueNotification({
+      await recordNotification(tx, {
         eventKey: `return:${operation.id}:customer:requested`,
-        userId: operation.customerId,
+        userId: order.customerId,
+        ...(order.customer.email ? { emailTo: order.customer.email } : {}),
         type: 'return_requested',
         title: 'İade talebiniz alındı',
         body: summary,
@@ -181,7 +214,7 @@ export function createQuantityReturnService({
       if (operation.sellerId) {
         const seller = sellerById.get(operation.sellerId)
         if (seller) {
-          await enqueueNotification({
+          await recordNotification(tx, {
             eventKey: `return:${operation.id}:seller:requested`,
             userId: seller.user.id,
             emailTo: seller.user.email,
@@ -197,7 +230,7 @@ export function createQuantityReturnService({
         }
       }
       for (const admin of admins) {
-        await enqueueNotification({
+        await recordNotification(tx, {
           eventKey: `return:${operation.id}:admin:requested`,
           userId: admin.id,
           type: 'return_requested',
@@ -207,6 +240,104 @@ export function createQuantityReturnService({
         })
       }
     }
+  }
+
+  /** Line-level receipt decision e-mail (approved / partially approved / rejected). */
+  async function recordReturnDecisionNotification(
+    tx: Prisma.TransactionClient,
+    request: {
+      id: string
+      orderId: string
+      customerId: string
+      items: Array<{
+        id: string
+        requestedQuantity: number
+        orderLine: {
+          productId: string
+          productName: string
+          variantName: string | null
+          unitPrice: Decimal
+        }
+      }>
+    },
+    decisions: Array<{
+      returnRequestItemId: string
+      acceptedQuantity: number
+      rejectedQuantity: number
+      rejectionReason?: string | undefined
+    }>,
+    outcome: { refundAmount: Decimal; disputeOpened: boolean },
+  ) {
+    const order = await tx.order.findUnique({
+      where: { id: request.orderId },
+      select: {
+        id: true,
+        publicNumber: true,
+        customer: { select: { email: true, name: true } },
+        address: { select: { fullName: true } },
+      },
+    })
+    if (!order) return
+    const imagesByProduct = await loadProductImages(
+      tx,
+      request.items.map((item) => item.orderLine.productId),
+    )
+    const decisionById = new Map(
+      decisions.map((decision) => [decision.returnRequestItemId, decision]),
+    )
+    const items = request.items.map((item) => {
+      const decision = decisionById.get(item.id)
+      return {
+        productName: item.orderLine.productName,
+        variantName: item.orderLine.variantName,
+        quantity: item.requestedQuantity,
+        unitPrice: formatMoney(item.orderLine.unitPrice.toNumber()),
+        lineTotal: formatMoney(
+          item.orderLine.unitPrice.mul(item.requestedQuantity).toNumber(),
+        ),
+        imageUrl: resolveEmailImageUrl(imagesByProduct.get(item.orderLine.productId)),
+        acceptedQuantity: decision?.acceptedQuantity ?? 0,
+        rejectedQuantity: decision?.rejectedQuantity ?? 0,
+        rejectionReason: decision?.rejectionReason?.trim() || null,
+      }
+    })
+    const accepted = items.reduce((sum, item) => sum + item.acceptedQuantity, 0)
+    const rejected = items.reduce((sum, item) => sum + item.rejectedQuantity, 0)
+    const decision = rejected === 0 ? 'approved' : accepted === 0 ? 'rejected' : 'partial'
+    await recordNotification(tx, {
+      eventKey: `return:${request.id}:customer:decision`,
+      userId: request.customerId,
+      ...(order.customer.email ? { emailTo: order.customer.email } : {}),
+      type: decision === 'rejected' ? 'order_return_rejected' : 'order_return_approved',
+      title:
+        decision === 'approved'
+          ? 'İadeniz kabul edildi'
+          : decision === 'partial'
+            ? 'İadeniz kısmen kabul edildi'
+            : 'İadeniz reddedildi — uyuşmazlık açıldı',
+      body:
+        decision === 'rejected'
+          ? items
+              .filter((item) => item.rejectedQuantity > 0)
+              .map((item) => `${item.productName}: ${item.rejectionReason ?? 'gerekçe belirtilmedi'}`)
+              .join(', ')
+          : `${formatMoney(outcome.refundAmount.toNumber())} geri ödeme kuyruğuna alındı`,
+      data: {
+        operationId: request.id,
+        returnRequestId: request.id,
+        orderId: order.id,
+        orderNumber: formatOrderNumber(order.publicNumber, order.id),
+        customerName:
+          order.customer.name?.trim() || order.address?.fullName?.trim() || 'Değerli Müşterimiz',
+        decision,
+        disputeOpened: outcome.disputeOpened,
+        ...(outcome.refundAmount.gt(0)
+          ? { refundAmount: formatMoney(outcome.refundAmount.toNumber()) }
+          : {}),
+        orderUrl: `${getWebBaseUrl()}/siparis/${order.id}`,
+        items,
+      },
+    })
   }
 
   async function openInTransaction(
@@ -234,7 +365,11 @@ export function createQuantityReturnService({
     }
     const order = await tx.order.findFirst({
       where: { id: params.orderId, customerId: params.customerId },
-      include: { lines: true },
+      include: {
+        lines: true,
+        customer: { select: { email: true, name: true } },
+        address: { select: { fullName: true } },
+      },
     })
     if (!order) throw new NotFoundError('Order', params.orderId)
     if (order.quantityLifecycleVersion !== 2)
@@ -333,6 +468,7 @@ export function createQuantityReturnService({
         reason: `Adet bazlı iade talebi: ${params.items.reduce((sum, item) => sum + item.quantity, 0)} adet`,
       },
     })
+    await recordReturnOpenedNotifications(tx, order, created)
     return created
   }
 
@@ -659,6 +795,11 @@ export function createQuantityReturnService({
             },
           })
 
+          await recordReturnDecisionNotification(tx, request, params.decisions, {
+            refundAmount: acceptedCustomerAmount,
+            disputeOpened: Boolean(disputeId),
+          })
+
           return {
             request,
             acceptedCustomerAmount,
@@ -718,25 +859,6 @@ export function createQuantityReturnService({
       }
     }
 
-    void enqueueNotification({
-      userId: result.request.customerId,
-      type:
-        result.rejectedDescriptions.length > 0
-          ? 'order_return_rejected'
-          : 'return_status_changed',
-      title:
-        result.rejectedDescriptions.length > 0
-          ? 'İade kararınız güncellendi'
-          : 'İadeniz kabul edildi',
-      body:
-        result.rejectedDescriptions.length > 0
-          ? result.rejectedDescriptions.join(', ')
-          : `${result.acceptedCustomerAmount.toFixed(2)} TRY iade kuyruğuna alındı`,
-      data: { operationId: result.request.id, sellerId: params.sellerId },
-    }).catch((error) =>
-      console.error('[quantity-return] Decision notification failed:', error),
-    )
-
     return prisma.returnRequest
       .findUnique({
         where: { id: params.returnRequestId },
@@ -753,7 +875,13 @@ export function createQuantityReturnService({
       .then((request) => ({ request, refundTransaction }))
   }
 
-  return { openRequest, decideReceipt }
+  // The record* helpers are exposed for unit tests of the e-mail payloads.
+  return {
+    openRequest,
+    decideReceipt,
+    recordReturnOpenedNotifications,
+    recordReturnDecisionNotification,
+  }
 }
 
 export type QuantityReturnService = ReturnType<

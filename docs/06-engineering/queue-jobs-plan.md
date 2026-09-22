@@ -81,3 +81,23 @@ BullMQ retries; exhausted events require audited admin retry. Business-transacti
 is phased: use recordNotification(tx, payload) when migrating an event producer. See
 [phase 1 operations report](../07-operations/email-phase-1-report.md) for claims, crash recovery,
 provider receipt semantics and rollout.
+
+### Phase 2 producers inside the business transaction — 2026-09-22
+
+Order lifecycle producers now write their outbox rows through the transaction client, so a crash
+after commit cannot lose the e-mail: `checkout.createOrder` (EFT only), `payment.confirmCardPayment`,
+`payment.approveEftPayment`, `payment.rejectEftPayment`, `delivery.enterTracking`,
+`delivery._applyDeliveryConfirmation`, `quantity-cancellation.create`, `order.cancelOrder`,
+`order.sellerReject`, `quantity-return.openRequest`, `quantity-return.decideReceipt` and the invoice
+upload paths in `order-document.service`.
+
+Still post-commit by design: `refund-notification.service` (the refund outcome is only known after the
+provider answers; its deterministic eventKey prevents a duplicate) and the legacy `return.service`
+flow, which has no single transaction yet.
+
+Card orders no longer e-mail at checkout — the single "Siparişiniz Alındı" is produced when the
+payment is confirmed. Event types added to the e-mail policy: `order_cancelled`,
+`order_return_approved`, `order_return_rejected` and `return_status_changed` (stage-gated: only
+`cargo_info_ready` produces e-mail). A policy now targets one role — copies of the same event sent to
+another role stay in-app unless the producer passes an explicit `emailTo`. See
+[phase 2 operations report](../07-operations/email-phase-2-report.md).

@@ -36,11 +36,16 @@ export function createBinaryFileResponse(params: {
 export function createHtmlDownloadResponse(params: {
   html: string
   fileName: string
+  /** `inline` renders the contract in the browser (e-mail links); default downloads it. */
+  disposition?: 'attachment' | 'inline'
 }) {
   return new Response(params.html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Content-Disposition': buildContentDisposition(params.fileName, 'attachment'),
+      'Content-Disposition': buildContentDisposition(
+        params.fileName,
+        params.disposition ?? 'attachment',
+      ),
       'Cache-Control': 'private, no-store',
     },
   })

@@ -8,6 +8,7 @@ const {
   rejectEftMock,
   createPlatformSettingsServiceMock,
   getSessionMock,
+  updatePenaltyMock,
   moderateReviewMock,
   platformSettingsGetMock,
   platformSettingsUpdateMock,
@@ -18,7 +19,7 @@ const {
 } = vi.hoisted(() => {
   const platformSettingsGetMock = vi.fn()
   const platformSettingsUpdateMock = vi.fn()
-  const prismaMock = {
+  const prismaMock: Record<string, unknown> = {
     penalty: {
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -37,6 +38,7 @@ const {
       update: platformSettingsUpdateMock,
     })),
     getSessionMock: vi.fn(),
+    updatePenaltyMock: vi.fn(),
     moderateReviewMock: vi.fn(),
     platformSettingsGetMock,
     platformSettingsUpdateMock,
@@ -48,13 +50,28 @@ const {
 })
 
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }))
-vi.mock('@prisma/client', () => ({
-  PrismaClient: class PrismaClient {
-    constructor() {
-      return prismaMock
-    }
-  },
+vi.mock('@hanuja/api/services/penalty.service', () => ({
+  // The CSRF suite only asserts that a valid token pair reaches the business
+  // call; penalty finance behaviour is covered by the penalty service tests.
+  createPenaltyService: () => ({ update: updatePenaltyMock }),
 }))
+vi.mock('@prisma/client', async () => {
+  // Route modules pull in the notification stack, which reads NotificationType at
+  // import time. Only that enum is taken from the shared mock so this file keeps
+  // its own PrismaClient and the real Decimal used by the penalty routes.
+  const { NotificationType, Prisma } = await vi.importActual<
+    typeof import('../__mocks__/prisma-client')
+  >('../__mocks__/prisma-client')
+  return {
+    NotificationType,
+    Prisma,
+    PrismaClient: class PrismaClient {
+      constructor() {
+        return prismaMock
+      }
+    },
+  }
+})
 vi.mock('@/lib/auth', () => ({
   auth: {
     api: {
@@ -131,7 +148,7 @@ beforeEach(() => {
   checkUserRateLimitMock.mockResolvedValue({ allowed: true, response: null })
   setPasswordMock.mockResolvedValue(undefined)
   revokeTrustedDevicesMock.mockResolvedValue(undefined)
-  prismaMock.user.update.mockResolvedValue(undefined)
+  ;(prismaMock['user'] as { update: ReturnType<typeof vi.fn> }).update.mockResolvedValue(undefined)
 
   const currentPenalty = {
     id: 'penalty-1',
@@ -141,8 +158,13 @@ beforeEach(() => {
     rate: new Decimal(0.1),
     penaltyAmount: new Decimal(10),
   }
-  prismaMock.penalty.findUnique.mockResolvedValue(currentPenalty)
-  prismaMock.penalty.update.mockResolvedValue(currentPenalty)
+  const penaltyModel = prismaMock['penalty'] as {
+    findUnique: ReturnType<typeof vi.fn>
+    update: ReturnType<typeof vi.fn>
+  }
+  penaltyModel.findUnique.mockResolvedValue(currentPenalty)
+  penaltyModel.update.mockResolvedValue(currentPenalty)
+  updatePenaltyMock.mockResolvedValue(currentPenalty)
 
   platformSettingsGetMock.mockResolvedValue({
     defaultTaxRate: new Decimal(0.2),
@@ -217,7 +239,7 @@ const adminTargets: AdminTarget[] = [
         'valid',
         'PUT',
       ),
-    businessSpy: prismaMock.penalty.findUnique,
+    businessSpy: updatePenaltyMock,
   },
   {
     name: 'platform settings update',

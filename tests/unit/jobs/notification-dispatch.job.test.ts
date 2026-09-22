@@ -253,9 +253,15 @@ describe('durable notification delivery', () => {
       email: 'customer@example.test',
       role: 'seller',
     })
-    await expect(processNotificationDispatch(job())).rejects.toThrow(
-      'EMAIL_RECIPIENT_ROLE_MISMATCH',
-    )
+    // Implicit recipient of another role: in-app copy only, no e-mail attempt.
+    mocks.records.clear()
+    await processNotificationDispatch(job())
+    expect([...mocks.records.values()].some((r) => r.channel === 'email')).toBe(false)
+    expect(mocks.send).not.toHaveBeenCalled()
+    // Explicitly requested address for the wrong role is still an observable failure.
+    await expect(
+      processNotificationDispatch(job({ emailTo: 'seller@example.test' })),
+    ).rejects.toThrow('EMAIL_RECIPIENT_ROLE_MISMATCH')
     expect(mocks.send).not.toHaveBeenCalled()
   })
   it('refuses unsupported email templates instead of discarding requested delivery', async () => {
@@ -322,5 +328,90 @@ describe('durable notification delivery', () => {
       job({ type: 'product_discount_favorited' }),
     )
     expect(mocks.send).not.toHaveBeenCalled()
+  })
+  it('e-mails only the cargo-info stage of return_status_changed and keeps other stages in-app', async () => {
+    const item = { productName: 'Gea', quantity: 1, unitPrice: '10 TL', lineTotal: '10 TL' }
+    await processNotificationDispatch(
+      job({
+        eventKey: 'return:r1:seller:in-transit',
+        type: 'return_status_changed',
+        data: { stage: 'customer_shipped', orderNumber: '123', items: [item] },
+      }),
+    )
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect([...mocks.records.values()].some((r) => r.channel === 'email')).toBe(false)
+    await processNotificationDispatch(
+      job({
+        eventKey: 'return:r1:customer:cargo-info',
+        type: 'return_status_changed',
+        data: {
+          stage: 'cargo_info_ready',
+          orderNumber: '123',
+          customerName: 'Ayşe',
+          cargoAddress: 'Kadıköy',
+          cargoCarrier: 'Aras',
+          items: [item],
+        },
+      }),
+    )
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'İade Talebiniz Kabul Edildi — Ürünü Kargoya Verin — #123',
+      }),
+    )
+  })
+  it('renders the phase 2 customer lifecycle templates', async () => {
+    const item = { productName: 'Gea', quantity: 1, unitPrice: '10 TL', lineTotal: '10 TL' }
+    const cases: Array<[string, Record<string, unknown>, string]> = [
+      [
+        'order_cancelled',
+        { orderNumber: '123', customerName: 'Ayşe', actorRole: 'admin', partial: false, items: [item] },
+        'Siparişiniz İptal Edilmiştir — #123',
+      ],
+      [
+        'order_delivery_confirmed',
+        { orderNumber: '123', customerName: 'Ayşe', partial: true, items: [item] },
+        'Siparişinizin Bir Kısmı Teslim Edildi — #123',
+      ],
+      [
+        'order_return_approved',
+        {
+          orderNumber: '123',
+          customerName: 'Ayşe',
+          decision: 'partial',
+          items: [{ ...item, acceptedQuantity: 1, rejectedQuantity: 0 }],
+        },
+        'İade Talebiniz Kısmen Kabul Edildi — #123',
+      ],
+      [
+        'order_return_rejected',
+        {
+          orderNumber: '123',
+          customerName: 'Ayşe',
+          decision: 'rejected',
+          disputeOpened: true,
+          items: [{ ...item, acceptedQuantity: 0, rejectedQuantity: 1, rejectionReason: 'Kullanılmış' }],
+        },
+        'İade Talebiniz Reddedildi — #123',
+      ],
+    ]
+    for (const [type, data, subject] of cases) {
+      mocks.records.clear()
+      mocks.send.mockClear()
+      await processNotificationDispatch(job({ eventKey: `case:${type}`, type, data }))
+      expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ subject }))
+    }
+  })
+  it('fails observably when a decision e-mail has an unknown decision value', async () => {
+    await expect(
+      processNotificationDispatch(
+        job({
+          eventKey: 'bad-decision',
+          type: 'order_return_approved',
+          data: { orderNumber: '123', decision: 'maybe', items: [{ productName: 'x', quantity: 1 }] },
+        }),
+      ),
+    ).rejects.toThrow('EMAIL_TEMPLATE_UNSUPPORTED')
+    expect(emailRecord().status).toBe('failed')
   })
 })

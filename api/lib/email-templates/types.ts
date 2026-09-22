@@ -26,6 +26,8 @@ export interface EmailOrderLine {
   quantity: number
   unitPrice: EmailAmount
   lineTotal: EmailAmount
+  /** Absolute https product image URL; omitted/null renders an empty image cell. */
+  imageUrl?: string | null
 }
 
 /**
@@ -40,6 +42,7 @@ export interface LegacyEmailOrderLine {
   price: EmailAmount
   variantName?: string | null
   lineTotal?: EmailAmount
+  imageUrl?: string | null
 }
 
 /**
@@ -58,6 +61,7 @@ export interface FlexibleEmailOrderLine {
   unitPurchasePrice?: EmailAmount
   price?: EmailAmount
   lineTotal?: EmailAmount
+  imageUrl?: string | null
 }
 
 export type EmailOrderLineInput = EmailOrderLine | LegacyEmailOrderLine | FlexibleEmailOrderLine
@@ -83,6 +87,99 @@ export interface CustomerShipmentEmailInput extends Omit<CustomerOrderEmailInput
   items?: readonly EmailOrderLineInput[]
   trackingNumber?: string
   cargoCompany?: string
+  /** Verified https carrier tracking page; omitted when the carrier is unknown. */
+  trackingUrl?: string | null
+  sellerName?: string
+}
+
+export interface BankTransferInstruction {
+  bankName: string
+  accountHolder: string
+  iban: string
+  reference?: string
+  branchName?: string | null
+  accountHolderNote?: string | null
+  missing?: boolean
+}
+
+/** Optional money breakdown shown under the line table. Values are display-formatted. */
+export interface OrderAmountSummary {
+  subtotal?: EmailAmount
+  couponCode?: string | null
+  couponDiscount?: EmailAmount
+  eftDiscount?: EmailAmount
+  eftDiscountRate?: string | null
+  additionalDiscount?: EmailAmount
+  shipping?: EmailAmount
+}
+
+export interface OrderContractLinks {
+  distanceSalesUrl?: string | null
+  preInformationUrl?: string | null
+}
+
+export interface CustomerOrderConfirmationEmailInput extends CustomerOrderEmailInput {
+  totalAmount: EmailAmount
+  paymentMethod: 'card' | 'eft'
+  /** Card orders are only mailed after confirmation; EFT orders while payment is pending. */
+  paymentStatus?: 'confirmed' | 'pending'
+  bankTransferInstructions?: BankTransferInstruction | readonly BankTransferInstruction[]
+  summary?: OrderAmountSummary
+  contracts?: OrderContractLinks
+}
+
+export interface CustomerDeliveryConfirmedEmailInput extends CustomerOrderEmailInput {
+  /** True when only some lines of the order were confirmed in this event. */
+  partial: boolean
+  /** Display-formatted confirmation date (tr-TR). */
+  confirmedAt?: string
+}
+
+export interface CustomerInvoiceEmailInput {
+  customerName: string
+  orderNumber: string
+  orderUrl?: string
+  invoiceUrl?: string | null
+  sellerName?: string
+  items?: readonly EmailOrderLineInput[]
+}
+
+export type CancellationActorRole = 'customer' | 'seller' | 'admin' | 'system' | 'payment_failure'
+
+export interface CustomerCancellationEmailInput extends CustomerOrderEmailInput {
+  partial: boolean
+  actorRole: CancellationActorRole
+  reason?: string | null
+  /** Amount to be refunded to the customer (product + shipping share); omitted when nothing was collected. */
+  refundAmount?: EmailAmount
+  paymentMethod?: 'card' | 'eft' | null
+}
+
+export interface CustomerReturnCargoInfoEmailInput extends Omit<CustomerOrderEmailInput, 'items'> {
+  items?: readonly EmailOrderLineInput[]
+  cargoAddress?: string | null
+  cargoCarrier?: string | null
+  cargoInstructions?: string | null
+}
+
+export interface ReturnDecisionLine extends EmailOrderLine {
+  acceptedQuantity: number
+  rejectedQuantity: number
+  rejectionReason?: string | null
+}
+
+export type ReturnDecision = 'approved' | 'partial' | 'rejected'
+
+export interface CustomerReturnDecisionEmailInput {
+  customerName: string
+  orderNumber: string
+  orderUrl?: string
+  decision: ReturnDecision
+  items: readonly ReturnDecisionLine[]
+  refundAmount?: EmailAmount
+  /** A rejection automatically opened a dispute the customer can reply to. */
+  disputeOpened?: boolean
+  reviewNote?: string | null
 }
 
 export interface SellerOrderEmailInput {
@@ -103,6 +200,8 @@ export interface SellerOrderEmailInput {
 
 export interface SellerCancellationEmailInput extends SellerOrderEmailInput {
   cancellationReason?: string
+  actorRole?: CancellationActorRole
+  partial?: boolean
 }
 
 export interface SellerReturnRequestEmailInput extends SellerOrderEmailInput {
@@ -118,4 +217,5 @@ export interface CustomerReturnRequestEmailInput extends Omit<CustomerOrderEmail
 export interface CustomerRefundCompletedEmailInput extends Omit<CustomerOrderEmailInput, 'items'> {
   items?: readonly EmailOrderLineInput[]
   refundAmount?: EmailAmount
+  paymentMethod?: 'card' | 'eft' | null
 }

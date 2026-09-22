@@ -7,6 +7,7 @@ const {
   confirmPaymentMock,
   findPaymentMock,
   postAccrualsMock,
+  recordNotificationMock,
   updateOrderStatusMock,
 } = vi.hoisted(() => ({
   appendStatusHistoryMock: vi.fn(),
@@ -14,6 +15,7 @@ const {
   confirmPaymentMock: vi.fn(),
   findPaymentMock: vi.fn(),
   postAccrualsMock: vi.fn(),
+  recordNotificationMock: vi.fn(),
   updateOrderStatusMock: vi.fn(),
 }))
 
@@ -38,8 +40,8 @@ vi.mock('../../../api/services/seller-payment-accrual.service', () => ({
 vi.mock('../../../api/services/quantity-refund.service', () => ({
   createQuantityRefundService: vi.fn(() => ({})),
 }))
-vi.mock('../../../api/jobs/notification-dispatch.job', () => ({
-  enqueueNotification: vi.fn(),
+vi.mock('../../../api/services/notification-outbox.service', () => ({
+  recordNotification: recordNotificationMock,
 }))
 vi.mock('../../../api/services/order-document.service', () => ({
   createOrderDocumentService: vi.fn(() => ({ ensureInvoiceAliasesForOrder: vi.fn() })),
@@ -57,12 +59,17 @@ describe('EFT payment approval transaction', () => {
   it('confirms payment, advances the order and posts seller accruals on the same transaction client', async () => {
     const tx = {
       order: {
-        findUnique: vi.fn(async () => ({
-          id: 'order-1',
-          customerId: 'customer-1',
-          totalAmount: new Decimal('100.00'),
-          lines: [{ sellerId: 'seller-1' }],
-        })),
+        findUnique: vi
+          .fn()
+          .mockResolvedValueOnce({
+            id: 'order-1',
+            customerId: 'customer-1',
+            totalAmount: new Decimal('100.00'),
+            lines: [{ sellerId: 'seller-1' }],
+          })
+          // Second read is the e-mail snapshot; null keeps this test focused on the
+          // finance transaction (payload assertions live in payment.service.notifications).
+          .mockResolvedValueOnce(null),
         update: vi.fn(),
       },
       orderLine: { findMany: vi.fn(async () => []), update: vi.fn() },

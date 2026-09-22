@@ -15,6 +15,9 @@ import {
   deliveryConfirmedTemplate,
   invoiceUploadedTemplate,
   returnRequestTemplate,
+  returnCargoInfoReadyTemplate,
+  returnDecisionTemplate,
+  customerOrderCancelledTemplate,
   payoutProcessedTemplate,
   penaltyAppliedTemplate,
   storeDiscountFollowedSellerTemplate,
@@ -24,6 +27,12 @@ import {
   sellerOrderCancellationTemplate,
   sellerReturnRequestTemplate,
   refundCompletedTemplate,
+  type BankTransferInstruction,
+  type CancellationActorRole,
+  type EmailOrderLineInput,
+  type OrderAmountSummary,
+  type OrderContractLinks,
+  type ReturnDecisionLine,
 } from '../lib/email-templates'
 
 type CanonicalNotificationType =
@@ -46,6 +55,7 @@ export interface NotificationDispatchJobData {
 
 import {
   EMAIL_POLICIES,
+  isEmailStage,
   validateEmailData,
   notificationErrorCode,
 } from '../lib/notification-policy'
@@ -84,224 +94,255 @@ export function resolveNotificationType(
   )
 }
 
+type EmailData = Record<string, unknown>
+
+function str(data: EmailData, key: string, fallback = ''): string {
+  const value = data[key]
+  return value === undefined || value === null ? fallback : String(value)
+}
+
+function optStr(data: EmailData, key: string): string | undefined {
+  const value = data[key]
+  return value === undefined || value === null || value === '' ? undefined : String(value)
+}
+
+function lines<T = EmailOrderLineInput>(data: EmailData, key = 'items'): T[] {
+  const value = data[key]
+  return Array.isArray(value) ? (value as T[]) : []
+}
+
+function paymentMethod(data: EmailData): 'card' | 'eft' | undefined {
+  const value = data['paymentMethod']
+  return value === 'eft' ? 'eft' : value === 'card' ? 'card' : undefined
+}
+
+function amountSummary(data: EmailData): OrderAmountSummary | undefined {
+  const value = data['summary']
+  return value && typeof value === 'object' ? (value as OrderAmountSummary) : undefined
+}
+
+function contractLinks(data: EmailData): OrderContractLinks {
+  const value = data['contracts']
+  return value && typeof value === 'object' ? (value as OrderContractLinks) : {}
+}
+
 async function buildEmailPayload(
   type: CanonicalNotificationType,
-  data: Record<string, unknown> | undefined,
+  data: EmailData | undefined,
 ): Promise<{ subject: string; html: string; text: string } | null> {
   if (!data) return null
 
   switch (type) {
-    case NotificationTypeEnum.order_placed:
+    case NotificationTypeEnum.order_placed: {
+      const method = paymentMethod(data) ?? 'card'
+      const summary = amountSummary(data)
       return orderConfirmationTemplate({
-        customerName: String(data['customerName'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
-        totalAmount: String(data['totalAmount'] ?? ''),
-        items:
-          (data['items'] as Array<{
-            productName: string
-            variantName?: string | null
-            quantity: number
-            unitPrice: string
-            lineTotal: string
-          }>) ?? [],
-        ...(data['orderUrl'] ? { orderUrl: String(data['orderUrl']) } : {}),
-        paymentMethod: data['paymentMethod'] === 'eft' ? 'eft' : 'card',
-        ...((data['bankTransferInstructions'] as
-          | {
-              bankName: string
-              accountHolder: string
-              iban: string
-              reference: string
-              missing?: boolean
-            }
-          | undefined)
+        customerName: str(data, 'customerName'),
+        orderNumber: str(data, 'orderNumber'),
+        totalAmount: str(data, 'totalAmount'),
+        items: lines(data),
+        ...(optStr(data, 'orderUrl') ? { orderUrl: optStr(data, 'orderUrl')! } : {}),
+        paymentMethod: method,
+        paymentStatus:
+          data['paymentStatus'] === 'confirmed'
+            ? 'confirmed'
+            : method === 'eft'
+              ? 'pending'
+              : 'confirmed',
+        ...(data['bankTransferInstructions']
           ? {
-              bankTransferInstructions: data['bankTransferInstructions'] as {
-                bankName: string
-                accountHolder: string
-                iban: string
-                reference: string
-                missing?: boolean
-              },
+              bankTransferInstructions: data['bankTransferInstructions'] as
+                | BankTransferInstruction
+                | BankTransferInstruction[],
             }
           : {}),
+        ...(summary ? { summary } : {}),
+        contracts: contractLinks(data),
       })
+    }
 
     case NotificationTypeEnum.order_payment_confirmed:
       return orderPaymentConfirmedTemplate({
-        customerName: String(data['customerName'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
-        items:
-          (data['items'] as Array<{
-            productName: string
-            variantName?: string | null
-            quantity: number
-            unitPrice: string
-            lineTotal: string
-          }>) ?? [],
-        ...(data['totalAmount'] !== undefined
-          ? { totalAmount: String(data['totalAmount']) }
-          : {}),
-        ...(data['orderUrl'] ? { orderUrl: String(data['orderUrl']) } : {}),
-        paymentMethod: data['paymentMethod'] === 'eft' ? 'eft' : 'card',
+        customerName: str(data, 'customerName'),
+        orderNumber: str(data, 'orderNumber'),
+        items: lines(data),
+        ...(optStr(data, 'totalAmount') ? { totalAmount: optStr(data, 'totalAmount')! } : {}),
+        ...(optStr(data, 'orderUrl') ? { orderUrl: optStr(data, 'orderUrl')! } : {}),
+        ...(paymentMethod(data) ? { paymentMethod: paymentMethod(data)! } : {}),
       })
 
     case NotificationTypeEnum.seller_order_received:
       return sellerNewOrderTemplate({
-        sellerName: String(data['sellerName'] ?? ''),
-        sellerId: String(data['sellerId'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
-        items:
-          (data['items'] as Array<{
-            productName: string
-            sellerId?: string
-            variantName?: string | null
-            quantity: number
-            unitPrice: string
-            lineTotal: string
-          }>) ?? [],
-        ...(data['totalAmount'] !== undefined
-          ? { totalAmount: String(data['totalAmount']) }
-          : {}),
-        ...(data['panelUrl'] ? { panelUrl: String(data['panelUrl']) } : {}),
+        sellerName: str(data, 'sellerName'),
+        sellerId: str(data, 'sellerId'),
+        orderNumber: str(data, 'orderNumber'),
+        items: lines(data),
+        ...(optStr(data, 'totalAmount') ? { totalAmount: optStr(data, 'totalAmount')! } : {}),
+        ...(optStr(data, 'panelUrl') ? { panelUrl: optStr(data, 'panelUrl')! } : {}),
       })
 
     case NotificationTypeEnum.order_canceled:
       return sellerOrderCancellationTemplate({
-        sellerName: String(data['sellerName'] ?? ''),
-        sellerId: String(data['sellerId'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
-        items:
-          (data['items'] as Array<{
-            productName: string
-            sellerId?: string
-            variantName?: string | null
-            quantity: number
-            unitPrice: string
-            lineTotal: string
-          }>) ?? [],
-        ...(data['cancellationReason']
-          ? { cancellationReason: String(data['cancellationReason']) }
+        sellerName: str(data, 'sellerName'),
+        sellerId: str(data, 'sellerId'),
+        orderNumber: str(data, 'orderNumber'),
+        items: lines(data),
+        ...(optStr(data, 'cancellationReason')
+          ? { cancellationReason: optStr(data, 'cancellationReason')! }
           : {}),
-        ...(data['panelUrl'] ? { panelUrl: String(data['panelUrl']) } : {}),
+        ...(optStr(data, 'actorRole')
+          ? { actorRole: str(data, 'actorRole') as CancellationActorRole }
+          : {}),
+        partial: data['partial'] === true,
+        ...(optStr(data, 'panelUrl') ? { panelUrl: optStr(data, 'panelUrl')! } : {}),
+      })
+
+    case NotificationTypeEnum.order_cancelled:
+      return customerOrderCancelledTemplate({
+        customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
+        orderNumber: str(data, 'orderNumber'),
+        items: lines(data),
+        partial: data['partial'] === true,
+        actorRole: str(data, 'actorRole', 'system') as CancellationActorRole,
+        ...(optStr(data, 'cancellationReason')
+          ? { reason: optStr(data, 'cancellationReason')! }
+          : {}),
+        ...(optStr(data, 'refundAmount') ? { refundAmount: optStr(data, 'refundAmount')! } : {}),
+        ...(paymentMethod(data) ? { paymentMethod: paymentMethod(data)! } : {}),
+        ...(optStr(data, 'orderUrl') ? { orderUrl: optStr(data, 'orderUrl')! } : {}),
       })
 
     case NotificationTypeEnum.seller_return_request:
       return sellerReturnRequestTemplate({
-        sellerName: String(data['sellerName'] ?? ''),
-        sellerId: String(data['sellerId'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
-        items:
-          (data['items'] as Array<{
-            productName: string
-            sellerId?: string
-            variantName?: string | null
-            quantity: number
-            unitPrice: string
-            lineTotal: string
-          }>) ?? [],
-        ...(data['returnReason']
-          ? { returnReason: String(data['returnReason']) }
-          : {}),
-        ...(data['panelUrl'] ? { panelUrl: String(data['panelUrl']) } : {}),
+        sellerName: str(data, 'sellerName'),
+        sellerId: str(data, 'sellerId'),
+        orderNumber: str(data, 'orderNumber'),
+        items: lines(data),
+        ...(optStr(data, 'returnReason') ? { returnReason: optStr(data, 'returnReason')! } : {}),
+        ...(optStr(data, 'panelUrl') ? { panelUrl: optStr(data, 'panelUrl')! } : {}),
       })
 
     case NotificationTypeEnum.refund_completed:
       return refundCompletedTemplate({
-        customerName: String(data['customerName'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
-        items:
-          (data['items'] as Array<{
-            productName: string
-            variantName?: string | null
-            quantity: number
-            unitPrice: string
-            lineTotal: string
-          }>) ?? [],
-        ...(data['refundAmount'] !== undefined
-          ? { refundAmount: String(data['refundAmount']) }
-          : {}),
-        ...(data['orderUrl'] ? { orderUrl: String(data['orderUrl']) } : {}),
+        customerName: str(data, 'customerName'),
+        orderNumber: str(data, 'orderNumber'),
+        items: lines(data),
+        ...(optStr(data, 'refundAmount') ? { refundAmount: optStr(data, 'refundAmount')! } : {}),
+        ...(paymentMethod(data) ? { paymentMethod: paymentMethod(data)! } : {}),
+        ...(optStr(data, 'orderUrl') ? { orderUrl: optStr(data, 'orderUrl')! } : {}),
       })
 
     case NotificationTypeEnum.order_shipped:
       return shipmentNotificationTemplate({
-        customerName: String(data['customerName'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
-        trackingNumber: String(data['trackingNumber'] ?? ''),
-        cargoCompany: String(data['cargoCompany'] ?? ''),
-        items:
-          (data['items'] as Array<{
-            productName: string
-            variantName?: string | null
-            quantity: number
-            unitPrice: string
-            lineTotal: string
-          }>) ?? [],
-        ...(data['totalAmount'] !== undefined
-          ? { totalAmount: String(data['totalAmount']) }
-          : {}),
-        ...(data['orderUrl'] ? { orderUrl: String(data['orderUrl']) } : {}),
+        customerName: str(data, 'customerName'),
+        orderNumber: str(data, 'orderNumber'),
+        trackingNumber: str(data, 'trackingNumber'),
+        cargoCompany: str(data, 'cargoCompany'),
+        ...(optStr(data, 'trackingUrl') ? { trackingUrl: optStr(data, 'trackingUrl')! } : {}),
+        ...(optStr(data, 'sellerName') ? { sellerName: optStr(data, 'sellerName')! } : {}),
+        items: lines(data),
+        ...(optStr(data, 'totalAmount') ? { totalAmount: optStr(data, 'totalAmount')! } : {}),
+        ...(optStr(data, 'orderUrl') ? { orderUrl: optStr(data, 'orderUrl')! } : {}),
       })
 
     case NotificationTypeEnum.order_delivery_confirmed:
       return deliveryConfirmedTemplate({
-        customerName: String(data['customerName'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
+        customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
+        orderNumber: str(data, 'orderNumber'),
+        items: lines(data),
+        partial: data['partial'] === true,
+        ...(optStr(data, 'confirmedAt') ? { confirmedAt: optStr(data, 'confirmedAt')! } : {}),
+        ...(optStr(data, 'orderUrl') ? { orderUrl: optStr(data, 'orderUrl')! } : {}),
       })
 
     case NotificationTypeEnum.return_requested:
       return returnRequestTemplate({
-        customerName: String(data['customerName'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
-        returnReason: String(data['returnReason'] ?? ''),
+        customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
+        orderNumber: str(data, 'orderNumber'),
+        returnReason: str(data, 'returnReason'),
+        items: lines(data),
+        ...(optStr(data, 'orderUrl') ? { orderUrl: optStr(data, 'orderUrl')! } : {}),
       })
+
+    case NotificationTypeEnum.return_status_changed:
+      if (data['stage'] !== 'cargo_info_ready') return null
+      return returnCargoInfoReadyTemplate({
+        customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
+        orderNumber: str(data, 'orderNumber'),
+        items: lines(data),
+        ...(optStr(data, 'cargoAddress') ? { cargoAddress: optStr(data, 'cargoAddress')! } : {}),
+        ...(optStr(data, 'cargoCarrier') ? { cargoCarrier: optStr(data, 'cargoCarrier')! } : {}),
+        ...(optStr(data, 'cargoInstructions')
+          ? { cargoInstructions: optStr(data, 'cargoInstructions')! }
+          : {}),
+        ...(optStr(data, 'orderUrl') ? { orderUrl: optStr(data, 'orderUrl')! } : {}),
+      })
+
+    case NotificationTypeEnum.order_return_approved:
+    case NotificationTypeEnum.order_return_rejected: {
+      const decision = str(data, 'decision')
+      if (decision !== 'approved' && decision !== 'partial' && decision !== 'rejected')
+        return null
+      return returnDecisionTemplate({
+        customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
+        orderNumber: str(data, 'orderNumber'),
+        decision,
+        items: lines<ReturnDecisionLine>(data),
+        ...(optStr(data, 'refundAmount') ? { refundAmount: optStr(data, 'refundAmount')! } : {}),
+        disputeOpened: data['disputeOpened'] === true,
+        ...(optStr(data, 'reviewNote') ? { reviewNote: optStr(data, 'reviewNote')! } : {}),
+        ...(optStr(data, 'orderUrl') ? { orderUrl: optStr(data, 'orderUrl')! } : {}),
+      })
+    }
 
     case NotificationTypeEnum.payout_paid:
     case NotificationTypeEnum.seller_payout_paid:
       return payoutProcessedTemplate({
-        sellerName: String(data['sellerName'] ?? ''),
-        payoutAmount: String(data['payoutAmount'] ?? ''),
-        payoutDate: String(data['payoutDate'] ?? ''),
-        periodDescription: String(data['periodDescription'] ?? ''),
+        sellerName: str(data, 'sellerName'),
+        payoutAmount: str(data, 'payoutAmount'),
+        payoutDate: str(data, 'payoutDate'),
+        periodDescription: str(data, 'periodDescription'),
       })
 
     case NotificationTypeEnum.penalty_applied:
     case NotificationTypeEnum.seller_penalty_applied:
       return penaltyAppliedTemplate({
-        sellerName: String(data['sellerName'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
-        penaltyAmount: String(data['penaltyAmount'] ?? ''),
-        penaltyReason: String(data['penaltyReason'] ?? ''),
+        sellerName: str(data, 'sellerName'),
+        orderNumber: str(data, 'orderNumber'),
+        penaltyAmount: str(data, 'penaltyAmount'),
+        penaltyReason: str(data, 'penaltyReason'),
       })
 
     case NotificationTypeEnum.invoice_uploaded:
       return invoiceUploadedTemplate({
-        customerName: String(data['customerName'] ?? ''),
-        orderNumber: String(data['orderNumber'] ?? ''),
-        orderUrl: String(data['orderUrl'] ?? ''),
+        customerName: str(data, 'customerName'),
+        orderNumber: str(data, 'orderNumber'),
+        orderUrl: str(data, 'orderUrl'),
+        ...(optStr(data, 'invoiceUrl') ? { invoiceUrl: optStr(data, 'invoiceUrl')! } : {}),
+        ...(optStr(data, 'sellerName') ? { sellerName: optStr(data, 'sellerName')! } : {}),
+        items: lines(data),
       })
 
     case NotificationTypeEnum.store_discount_followed_seller:
       return storeDiscountFollowedSellerTemplate({
-        customerName: String(data['customerName'] ?? 'Değerli Müşterimiz'),
-        sellerName: String(data['sellerName'] ?? 'Takip ettiğiniz mağaza'),
-        storeUrl: String(data['storeUrl'] ?? ''),
-        unsubscribeUrl: String(data['unsubscribeUrl'] ?? ''),
+        customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
+        sellerName: str(data, 'sellerName', 'Takip ettiğiniz mağaza'),
+        storeUrl: str(data, 'storeUrl'),
+        unsubscribeUrl: str(data, 'unsubscribeUrl'),
       })
 
     case NotificationTypeEnum.product_discount_favorited:
     case NotificationTypeEnum.product_discount_in_cart:
       return productDiscountTemplate({
-        customerName: String(data['customerName'] ?? 'Değerli Müşterimiz'),
-        productName: String(data['productName'] ?? ''),
-        productUrl: String(data['productUrl'] ?? ''),
-        sellerName: String(data['sellerName'] ?? ''),
+        customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
+        productName: str(data, 'productName'),
+        productUrl: str(data, 'productUrl'),
+        sellerName: str(data, 'sellerName'),
         context:
           type === NotificationTypeEnum.product_discount_favorited
             ? 'favorite'
             : 'cart',
-        unsubscribeUrl: String(data['unsubscribeUrl'] ?? ''),
+        unsubscribeUrl: str(data, 'unsubscribeUrl'),
       })
 
     default:
@@ -382,6 +423,12 @@ export async function processNotificationDispatch(
   if (!policy && !job.data.emailTo) return
   // Marketing producers intentionally omit emailTo for users who opted out.
   if (policy?.category === 'kampanya' && !job.data.emailTo) return
+  // A policy targets one audience. Copies of the same event sent to another
+  // role (e.g. the admin in-app copy of a customer return) are in-app only unless
+  // the producer explicitly asked for an e-mail address.
+  if (policy && !job.data.emailTo && user.role !== policy.role) return
+  // Stage-gated types (return_status_changed) only e-mail the listed stages.
+  if (policy && !isEmailStage(type, data)) return
   const emailTo = (job.data.emailTo ?? user.email ?? '').trim().toLowerCase()
   const email = await prisma.notificationDelivery.upsert({
     where: {

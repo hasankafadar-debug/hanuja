@@ -6,7 +6,7 @@
  *
  * See: docs/05-security/payment-security.md
  */
-import type { PrismaClient } from '@prisma/client'
+import type { Prisma, PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { NotFoundError, ConflictError } from '../lib/errors'
 import { createPaymentRepository } from '../repositories/payment.repository'
@@ -14,114 +14,99 @@ import { createOrderRepository } from '../repositories/order.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { assertTransition } from '../domain/order-state-machine'
 import { addBusinessDays } from '../domain/business-days'
-import { enqueueNotification } from '../jobs/notification-dispatch.job'
+import { recordNotification } from './notification-outbox.service'
+import {
+  customerDisplayName,
+  customerOrderEmailData,
+  customerOrderLines,
+  customerOrderUrl,
+  loadOrderEmailSnapshot,
+  sellerOrderEmailData,
+} from './order-email-payload'
 import { createOrderDocumentService } from './order-document.service'
 import { postPaymentConfirmedSellerAccruals } from './seller-payment-accrual.service'
 import { createRefundService } from './refund.service'
 import { formatMoney } from '@hanuja/security/money'
 import { formatOrderNumber } from '../lib/order-number'
-import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 
-/** Fire payment-confirmed notifications to customer + seller (fire-and-forget). */
-export async function firePaymentConfirmedNotifications(prisma: PrismaClient, orderId: string) {
-  try {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: {
-        id: true,
-        publicNumber: true,
-        totalAmount: true,
-        customerId: true,
-        customer: { select: { email: true, name: true } },
-        payments: {
-          where: { status: 'confirmed' },
-          orderBy: { confirmedAt: 'desc' },
-          take: 1,
-          select: { method: true },
-        },
-        lines: {
-          select: {
-            sellerId: true,
-            productName: true,
-            variantName: true,
-            quantity: true,
-            unitPrice: true,
-            totalPrice: true,
-            seller: {
-              select: {
-                displayName: true,
-                user: { select: { id: true, email: true } },
-              },
-            },
-          },
-        },
-      },
-    })
-    if (!order) return
-    const orderNumber = formatOrderNumber(order.publicNumber, order.id)
-    const customerItems = order.lines.map((line) => ({
-      productName: line.productName,
-      variantName: line.variantName,
-      sellerId: line.sellerId,
-      quantity: line.quantity,
-      unitPrice: formatMoney(line.unitPrice.toNumber()),
-      lineTotal: formatMoney(line.totalPrice.toNumber()),
-    }))
-    await enqueueNotification({
-      eventKey: `order:${order.id}:payment-confirmed:customer`,
-      userId: order.customerId,
-      emailTo: order.customer.email,
-      type: 'order_payment_confirmed',
-      title: 'Ödemeniz Onaylandı',
-      body: 'Siparişiniz ödeme onayı aldı ve satıcıya iletildi.',
-      data: {
-        orderId,
-        orderNumber,
-        customerName: order.customer.name ?? 'Değerli Müşterimiz',
-        paymentMethod: order.payments[0]?.method ?? 'card',
-        totalAmount: formatMoney(order.totalAmount.toNumber()),
-        orderUrl: `${getWebBaseUrl()}/siparis/${order.id}`,
-        items: customerItems,
-      },
-    })
+type PaymentNotificationClient = Pick<Prisma.TransactionClient, 'order' | 'notificationOutbox'>
 
-    const sellerIds = [...new Set(order.lines.map((line) => line.sellerId))]
-    for (const sellerId of sellerIds) {
-      const sellerLines = order.lines.filter((line) => line.sellerId === sellerId)
-      const seller = sellerLines[0]?.seller
-      if (!seller) continue
-      await enqueueNotification({
-        eventKey: `order:${order.id}:payment-confirmed:seller:${sellerId}`,
-        userId: seller.user.id,
-        emailTo: seller.user.email,
-        type: 'seller_order_received',
-        title: 'Yeni Sipariş',
-        body: 'Ödeme onaylı yeni bir sipariş aldınız.',
-        data: {
-          orderId,
-          orderNumber,
-          sellerId,
-          sellerName: seller.displayName,
-          totalAmount: formatMoney(
-            sellerLines
-              .reduce((sum, line) => sum.add(line.totalPrice), new Decimal(0))
-              .toNumber(),
-          ),
-          panelUrl: `${getSellerPanelUrl()}/siparisler/${order.id}`,
-          items: sellerLines.map((line) => ({
-            productName: line.productName,
-            variantName: line.variantName,
-            sellerId,
-            quantity: line.quantity,
-            unitPrice: formatMoney(line.unitPrice.toNumber()),
-            lineTotal: formatMoney(line.totalPrice.toNumber()),
-          })),
-        },
-      })
-    }
-  } catch (err) {
-    console.error('[payment] Notification enqueue failed:', err)
+/**
+ * Payment-confirmed notifications for the customer and every seller with lines
+ * on the order. Runs inside the confirming transaction so the outbox rows commit
+ * (or roll back) together with the payment state.
+ *
+ * Card: the customer receives the single "Siparişiniz Alındı" e-mail here (no
+ * e-mail was sent at checkout because the card could still fail). EFT: the
+ * customer already received "Siparişiniz Alındı — Ödeme Bekleniyor" at checkout
+ * and now gets "Ödemeniz Onaylandı".
+ */
+export async function firePaymentConfirmedNotifications(
+  client: PaymentNotificationClient,
+  orderId: string,
+) {
+  const order = await loadOrderEmailSnapshot(client, orderId)
+  if (!order) return
+  const paymentMethod = order.payments[0]?.method === 'eft' ? 'eft' : 'card'
+  const orderNumber = formatOrderNumber(order.publicNumber, order.id)
+  const customerData = customerOrderEmailData(order, {
+    paymentMethod,
+    paymentStatus: 'confirmed',
+  })
+
+  await recordNotification(client, {
+    eventKey: `order:${order.id}:payment-confirmed:customer`,
+    userId: order.customerId,
+    emailTo: order.customer.email,
+    type: paymentMethod === 'card' ? 'order_placed' : 'order_payment_confirmed',
+    title: paymentMethod === 'card' ? `Siparişiniz Alındı - #${orderNumber}` : 'Ödemeniz Onaylandı',
+    body:
+      paymentMethod === 'card'
+        ? 'Ödemeniz alındı ve siparişiniz satıcıya iletildi.'
+        : 'Siparişiniz ödeme onayı aldı ve satıcıya iletildi.',
+    data: customerData,
+  })
+
+  for (const seller of sellerOrderEmailData(order)) {
+    await recordNotification(client, {
+      eventKey: `order:${order.id}:payment-confirmed:seller:${seller.sellerId}`,
+      userId: seller.sellerUserId,
+      emailTo: seller.sellerEmail,
+      type: 'seller_order_received',
+      title: 'Yeni Sipariş',
+      body: 'Ödeme onaylı yeni bir sipariş aldınız.',
+      data: seller.data,
+    })
   }
+}
+
+/** EFT rejection cancels the order before any money was collected; the customer is told why. */
+async function recordEftRejectedNotification(
+  client: PaymentNotificationClient,
+  orderId: string,
+  reason: string,
+) {
+  const order = await loadOrderEmailSnapshot(client, orderId)
+  if (!order) return
+  await recordNotification(client, {
+    eventKey: `order:${order.id}:cancelled:payment_failure`,
+    userId: order.customerId,
+    emailTo: order.customer.email,
+    type: 'order_cancelled',
+    title: 'Siparişiniz iptal edildi',
+    body: 'Havale/EFT ödemesi doğrulanamadığı için siparişiniz iptal edildi.',
+    data: {
+      orderId: order.id,
+      orderNumber: formatOrderNumber(order.publicNumber, order.id),
+      customerName: customerDisplayName(order),
+      actorRole: 'payment_failure',
+      partial: false,
+      cancellationReason: reason,
+      paymentMethod: 'eft',
+      orderUrl: customerOrderUrl(order.id),
+      items: customerOrderLines(order),
+    },
+  })
 }
 
 async function fireInvoiceAliasGeneration(prisma: PrismaClient, orderId: string) {
@@ -341,10 +326,11 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           actorId: 'system',
         })
 
+        await firePaymentConfirmedNotifications(tx, params.orderId)
+
         return updated
       }).then((result) => {
         // Fire-and-forget: do not block payment response
-        void firePaymentConfirmedNotifications(prisma, params.orderId)
         void fireInvoiceAliasGeneration(prisma, params.orderId)
         return result
       }).catch((error: unknown) => {
@@ -495,9 +481,10 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           ...(params.evidenceNote !== undefined ? { reason: params.evidenceNote } : {}),
         })
 
+        await firePaymentConfirmedNotifications(tx, params.orderId)
+
         return updated
       }).then((result) => {
-        void firePaymentConfirmedNotifications(prisma, params.orderId)
         void fireInvoiceAliasGeneration(prisma, params.orderId)
         return result
       })
@@ -543,6 +530,8 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           newData: { status: 'failed' },
           reason: params.reason,
         })
+
+        await recordEftRejectedNotification(tx, params.orderId, params.reason)
 
         return updated
       })

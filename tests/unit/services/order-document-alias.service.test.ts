@@ -1,10 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { deleteObjectMock, readObjectMock, enqueueNotificationMock } = vi.hoisted(() => ({
+const { deleteObjectMock, readObjectMock, recordNotificationMock } = vi.hoisted(() => ({
   deleteObjectMock: vi.fn(),
   readObjectMock: vi.fn(),
-  enqueueNotificationMock: vi.fn(),
+  recordNotificationMock: vi.fn(),
 }))
+
+const emailOrderSnapshot = {
+  id: 'order-1',
+  publicNumber: 26050042,
+  customerId: 'customer-1',
+  customer: { email: 'customer@example.com', name: 'Ayşe Yılmaz' },
+  address: { fullName: 'Ayşe Yılmaz' },
+  lines: [
+    {
+      productName: 'Gea Berjer',
+      variantName: null,
+      sellerId: 'seller-1',
+      unitPrice: { toString: () => '10.00' },
+      totalPrice: { div: () => ({ mul: () => '20.00' }) },
+      quantity: 2,
+      cancelledQuantity: 0,
+      product: { images: [] },
+    },
+  ],
+}
 
 vi.mock('../../../api/lib/r2', () => ({
   DOCUMENT_ALLOWED_MIME_TYPES: new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']),
@@ -13,8 +33,8 @@ vi.mock('../../../api/lib/r2', () => ({
   readObject: readObjectMock,
 }))
 
-vi.mock('../../../api/jobs/notification-dispatch.job', () => ({
-  enqueueNotification: enqueueNotificationMock,
+vi.mock('../../../api/services/notification-outbox.service', () => ({
+  recordNotification: recordNotificationMock,
 }))
 
 import { createOrderDocumentService } from '../../../api/services/order-document.service'
@@ -26,8 +46,8 @@ describe('order-document.service invoice aliasing', () => {
     deleteObjectMock.mockReset()
     deleteObjectMock.mockResolvedValue(undefined)
     readObjectMock.mockReset()
-    enqueueNotificationMock.mockReset()
-    enqueueNotificationMock.mockResolvedValue(undefined)
+    recordNotificationMock.mockReset()
+    recordNotificationMock.mockResolvedValue(undefined)
   })
 
   it('creates one stable invoice alias for an order and seller', async () => {
@@ -85,11 +105,9 @@ describe('order-document.service invoice aliasing', () => {
         }),
       },
       order: {
-        findUnique: vi.fn().mockResolvedValue({
-          customerId: 'customer-1',
-          customer: { email: 'customer@example.com', name: 'Ayşe Yılmaz' },
-        }),
+        findUnique: vi.fn().mockResolvedValue(emailOrderSnapshot),
       },
+      seller: { findUnique: vi.fn().mockResolvedValue({ displayName: 'Atelier Noa' }) },
       $transaction: vi.fn((callback) => callback(prisma)),
     }
 
@@ -127,20 +145,22 @@ describe('order-document.service invoice aliasing', () => {
       }),
     )
     expect(deleteObjectMock).toHaveBeenCalledWith('documents/seller-1/old.pdf')
-    expect(enqueueNotificationMock).toHaveBeenCalledWith(
+    expect(recordNotificationMock).toHaveBeenCalledWith(
+      prisma,
       expect.objectContaining({
         userId: 'customer-1',
         type: 'invoice_uploaded',
         emailTo: 'customer@example.com',
+        data: expect.objectContaining({ orderNumber: '26050042', sellerName: 'Atelier Noa' }),
       }),
     )
   })
 
-  it('enqueues an invoice_uploaded notification with orderUrl on manual seller upload', async () => {
+  it('records an invoice_uploaded notification with order, invoice links and seller lines in the upload transaction', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://www.hanuja.com.tr')
     const storage = { write: vi.fn().mockResolvedValue({ key: 'private/v1/aa/manual.bin' }), read: vi.fn(), exists: vi.fn(), delete: vi.fn() }
 
-    const prisma = {
+    const prisma: any = {
       order: {
         findFirst: vi.fn().mockResolvedValue({
           id: 'order-1',
@@ -148,7 +168,9 @@ describe('order-document.service invoice aliasing', () => {
           customer: { email: 'customer@example.com', name: 'Ayşe Yılmaz' },
           sellerInvoices: [],
         }),
+        findUnique: vi.fn().mockResolvedValue(emailOrderSnapshot),
       },
+      seller: { findUnique: vi.fn().mockResolvedValue({ displayName: 'Atelier Noa' }) },
       orderSellerInvoice: {
         upsert: vi.fn().mockResolvedValue({
           id: 'invoice-1',
@@ -157,7 +179,8 @@ describe('order-document.service invoice aliasing', () => {
           fileName: 'fatura.pdf',
         }),
       },
-    } as never
+      $transaction: vi.fn((callback: (client: unknown) => unknown) => callback(prisma)),
+    }
 
     const service = createOrderDocumentService({ prisma, storage })
     await service.uploadInvoiceForSeller({
@@ -169,26 +192,32 @@ describe('order-document.service invoice aliasing', () => {
       body: new Uint8Array([1, 2, 3]),
     })
 
-    expect(enqueueNotificationMock).toHaveBeenCalledWith(
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+    expect(recordNotificationMock).toHaveBeenCalledWith(
+      prisma,
       expect.objectContaining({
         userId: 'customer-1',
         type: 'invoice_uploaded',
         emailTo: 'customer@example.com',
+        eventKey: expect.stringMatching(/^invoice:order-1:seller-1:\d+$/),
         data: expect.objectContaining({
           orderId: 'order-1',
           sellerId: 'seller-1',
+          sellerName: 'Atelier Noa',
+          orderNumber: '26050042',
           orderUrl: 'https://www.hanuja.com.tr/siparis/order-1',
+          invoiceUrl: 'https://www.hanuja.com.tr/api/orders/order-1/documents/invoices/seller-1',
+          items: [expect.objectContaining({ productName: 'Gea Berjer', quantity: 2 })],
         }),
       }),
     )
   })
 
-  it('does not fail the manual upload when the notification enqueue rejects', async () => {
+  it('rolls the upload back and removes the stored file when the notification cannot be recorded', async () => {
     const storage = { write: vi.fn().mockResolvedValue({ key: 'private/v1/aa/manual.bin' }), read: vi.fn(), exists: vi.fn(), delete: vi.fn() }
-    enqueueNotificationMock.mockRejectedValueOnce(new Error('queue down'))
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    recordNotificationMock.mockRejectedValueOnce(new Error('db down'))
 
-    const prisma = {
+    const prisma: any = {
       order: {
         findFirst: vi.fn().mockResolvedValue({
           id: 'order-1',
@@ -196,25 +225,29 @@ describe('order-document.service invoice aliasing', () => {
           customer: { email: 'customer@example.com', name: 'Ayşe Yılmaz' },
           sellerInvoices: [],
         }),
+        findUnique: vi.fn().mockResolvedValue(emailOrderSnapshot),
       },
+      seller: { findUnique: vi.fn().mockResolvedValue({ displayName: 'Atelier Noa' }) },
       orderSellerInvoice: {
         upsert: vi.fn().mockResolvedValue({ id: 'invoice-1', orderId: 'order-1', sellerId: 'seller-1' }),
       },
-    } as never
+      $transaction: vi.fn((callback: (client: unknown) => unknown) => callback(prisma)),
+    }
 
     const service = createOrderDocumentService({ prisma, storage })
-    const invoice = await service.uploadInvoiceForSeller({
-      orderId: 'order-1',
-      sellerId: 'seller-1',
-      fileName: 'fatura.pdf',
-      mimeType: 'application/pdf',
-      sizeBytes: 1024,
-      body: new Uint8Array([1, 2, 3]),
-    })
+    await expect(
+      service.uploadInvoiceForSeller({
+        orderId: 'order-1',
+        sellerId: 'seller-1',
+        fileName: 'fatura.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 1024,
+        body: new Uint8Array([1, 2, 3]),
+      }),
+    ).rejects.toThrow('db down')
 
-    expect(invoice).toMatchObject({ id: 'invoice-1' })
-    expect(deleteObjectMock).not.toHaveBeenCalled()
-    errorSpy.mockRestore()
+    // Fixture key is not a private-storage key, so cleanup goes through R2 deleteObject.
+    expect(deleteObjectMock).toHaveBeenCalledWith('private/v1/aa/manual.bin')
   })
 
   it('logs no_valid_attachment without changing invoice', async () => {

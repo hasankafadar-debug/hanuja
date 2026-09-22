@@ -116,3 +116,19 @@ v4 ile belgeye eklenenler:
 Not (operasyon): sipariş belgesindeki EFT yüzdesi sipariş anındaki orandır. Admin ayarlarındaki
 `PlatformSettings.eftDiscountRate` sonradan değişirse eski siparişlerin belgesi ve `eftDiscountRateSnapshot`'ı
 değişmez; "belgede %3 var, ayarda %0 görünüyor" durumu yazılım hatası değil, sonradan yapılmış ayar değişikliğidir.
+
+## Cayma hakkı istisnaları — tek kaynak (2026-09-22)
+
+Mesafeli Sözleşmeler Yönetmeliği md. 15 istisna listesi artık tek yerde tutulur:
+`RIGHT_OF_WITHDRAWAL_EXCEPTIONS` (`api/lib/legal-documents.ts`). Bu diziyi üç yüzey tüketir:
+
+- Mesafeli Satış Sözleşmesi §10 ve Ön Bilgilendirme Formu §8 (`renderRightOfWithdrawalExceptions`),
+- sipariş onayı e-postasının altındaki cayma hakkı bilgilendirme bloğu
+  (`api/lib/email-templates/withdrawal-notice.ts`).
+
+Metin değişecekse yalnız bu dizi güncellenir; belge sürümü (`DISTANCE_SALES_DOCUMENT_VERSION` /
+`PRE_INFORMATION_DOCUMENT_VERSION`) bump edilir ve e-posta bloğu otomatik olarak aynı metni basar.
+E-posta bloğunun paragraf metni `renderPersonalizedGoodsWithdrawalNotice()` ile uyumlu, genel
+niteliktedir: kategoriye bakarak otomatik "iade edilemez" kararı verilmez; koşullar ürün niteliğiyle
+birlikte değerlendirilir ve ayıplı ürün hakları saklı tutulur. E-postadaki tam metin
+`docs/07-operations/email-phase-2-report.md` §3'te kayıtlıdır.
