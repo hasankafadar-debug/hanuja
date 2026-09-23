@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { Upload, X } from 'lucide-react'
 import { Button } from '@hanuja/ui'
+import { uploadAdminMedia } from '@/lib/admin-media-upload'
 import type { MediaAssetItem } from './types'
 
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -85,60 +86,8 @@ export function MediaUploader({ onSuccess, folder: defaultFolder }: Props) {
     setProgress(10)
 
     try {
-      // 1. Presigned URL al
-      const urlRes = await fetch('/api/admin/media/upload-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          folder: selectedFolder,
-          mimeType: file.type,
-          originalName: file.name,
-        }),
-      })
-      if (!urlRes.ok) {
-        const data = await urlRes.json().catch(() => ({}))
-        throw new Error((data as { message?: string }).message ?? 'Yükleme URL\'i alınamadı.')
-      }
-      const uploadData = (await urlRes.json()) as {
-        data?: { uploadUrl: string; asset?: { id: string }; assetId?: string }
-        uploadUrl?: string
-        asset?: { id: string }
-        assetId?: string
-      }
-      const uploadPayload = uploadData.data ?? uploadData
-      const uploadUrl = uploadPayload.uploadUrl
-      const assetId = uploadPayload.assetId ?? uploadPayload.asset?.id
-      if (!uploadUrl || !assetId) throw new Error('Yükleme URL bilgisi eksik.')
-
-      setProgress(30)
-
-      // 2. R2'ye yükle
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
-      })
-      if (!uploadRes.ok) throw new Error('Dosya yüklenemedi.')
-
-      setProgress(75)
-
-      // 3. Confirm
-      const confirmRes = await fetch(`/api/admin/media/${assetId}/confirm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
-      if (!confirmRes.ok) {
-        const data = await confirmRes.json().catch(() => ({}))
-        throw new Error((data as { message?: string }).message ?? 'Dosya doğrulanamadı.')
-      }
-      const confirmData = (await confirmRes.json()) as {
-        data?: { asset: MediaAssetItem }
-        asset?: MediaAssetItem
-      }
-      const asset = confirmData.data?.asset ?? confirmData.asset
-      if (!asset) throw new Error('Medya kaydı okunamadı.')
-
-      setProgress(100)
+      // Presigned URL → R2 PUT (with progress) → confirm; the admin API calls carry CSRF.
+      const asset = await uploadAdminMedia(file, selectedFolder, setProgress)
       onSuccess(asset)
       reset()
       setOpen(false)

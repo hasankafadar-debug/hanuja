@@ -157,6 +157,11 @@ export function createAdminSellerManagementService(
         await tx.sellerBankDetail.deleteMany({ where: { sellerId: seller.id } })
         await tx.sellerDocument.deleteMany({ where: { sellerId: seller.id } })
         await tx.sellerProfile.deleteMany({ where: { sellerId: seller.id } })
+        // Announcement recipients are send history: keep the frozen row, drop the link.
+        await tx.announcementRecipient.updateMany({
+          where: { sellerId: seller.id },
+          data: { sellerId: null, sellerDeletedAt: new Date() },
+        })
         await tx.seller.delete({ where: { id: seller.id } })
 
         await tx.notification.deleteMany({ where: { userId: seller.user.id } })

@@ -6,9 +6,11 @@ vi.mock('../../../api/lib/queue', () => ({
 }))
 import {
   recordNotification,
+  recordNotifications,
   relayNotifications,
   outboxJobId,
 } from '../../../api/services/notification-outbox.service'
+import { notificationLane } from '../../../api/lib/notification-policy'
 
 describe('notification outbox relay', () => {
   beforeEach(() => {
@@ -95,5 +97,45 @@ describe('notification outbox relay', () => {
   })
   it('uses a different job ID for an explicitly approved retry generation', () => {
     expect(outboxJobId('o1', 0)).not.toBe(outboxJobId('o1', 1))
+  })
+})
+
+describe('announcement outbox rows', () => {
+  it('puts seller announcements on the bulk lane without making them marketing mail', () => {
+    expect(notificationLane('seller_announcement')).toBe('bulk')
+    expect(notificationLane('product_discount_favorited')).toBe('bulk')
+    expect(notificationLane('seller_product_question')).toBe('transactional')
+    expect(notificationLane('order_placed')).toBe('transactional')
+  })
+
+  it('writes a batch with skipDuplicates, keyed by each event key', async () => {
+    const tx = { notificationOutbox: { createMany: vi.fn().mockResolvedValue({ count: 2 }) } }
+    const payloads = ['s1', 's2'].map((sellerId) => ({
+      eventKey: `announcement:a1:seller:${sellerId}`,
+      userId: `u-${sellerId}`,
+      type: 'seller_announcement' as const,
+      title: 'Yeni duyuru',
+      body: 'Kargo kuralı değişti',
+      data: { announcementId: 'a1', sellerName: sellerId, panelUrl: 'https://satici.test/duyurular/a1' },
+    }))
+    await expect(recordNotifications(tx as never, payloads)).resolves.toEqual({ count: 2 })
+    expect(tx.notificationOutbox.createMany).toHaveBeenCalledWith({
+      skipDuplicates: true,
+      data: [
+        expect.objectContaining({ eventKey: 'announcement:a1:seller:s1', userId: 'u-s1', lane: 'bulk' }),
+        expect.objectContaining({ eventKey: 'announcement:a1:seller:s2', userId: 'u-s2', lane: 'bulk' }),
+      ],
+    })
+  })
+
+  it('refuses a batch row without an event key and skips an empty batch', async () => {
+    const tx = { notificationOutbox: { createMany: vi.fn() } }
+    await expect(
+      recordNotifications(tx as never, [
+        { userId: 'u1', type: 'seller_announcement', title: 't', body: 'b' },
+      ]),
+    ).rejects.toThrow('NOTIFICATION_EVENT_KEY_REQUIRED')
+    await expect(recordNotifications(tx as never, [])).resolves.toEqual({ count: 0 })
+    expect(tx.notificationOutbox.createMany).not.toHaveBeenCalled()
   })
 })

@@ -2,7 +2,7 @@
  * Unit tests — media.service.ts
  *
  * Covers: upload flow states (pending → ready), ownership guard on confirm
- * and delete, R2 delete-before-DB-delete ordering, list filters only ready
+ * and delete, DB-delete-before-R2-delete ordering, list filters only ready
  * assets, asset status lifecycle.
  *
  * No DB connection — pure business rule verification.
@@ -71,16 +71,18 @@ describe('Media — ownership guard', () => {
   })
 })
 
-// ── Delete ordering: R2 first, DB second ─────────────────────────────────────
+// ── Delete ordering: DB first, R2 after commit ───────────────────────────────
+// Behaviour is exercised against the real service in
+// media-announcement-upload.service.test.ts ("media delete order").
 
-describe('Media — delete ordering (R2 before DB)', () => {
-  it('R2 object is deleted before DB record is removed', () => {
-    // If R2 deletion fails, the DB record stays intact — recoverable.
-    // If DB deletion fails after R2 succeeds, the file is orphaned but the
-    // risk is lower than having a DB record pointing to a missing file.
-    const deleteOrder = ['r2_delete', 'db_delete']
-    expect(deleteOrder[0]).toBe('r2_delete')
-    expect(deleteOrder[1]).toBe('db_delete')
+describe('Media — delete ordering (DB before R2)', () => {
+  it('the DB record is removed before the R2 object', () => {
+    // A record that references the asset (FK Restrict) blocks the DB delete, so the
+    // file is only removed once nothing can point at it. A failed R2 delete leaves an
+    // orphaned object, never a record pointing to a missing file.
+    const deleteOrder = ['db_delete', 'r2_delete']
+    expect(deleteOrder[0]).toBe('db_delete')
+    expect(deleteOrder[1]).toBe('r2_delete')
   })
 
   it('asset with missing key cannot be deleted safely', () => {

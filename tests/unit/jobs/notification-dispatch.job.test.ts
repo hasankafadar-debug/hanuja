@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   updateMany: vi.fn(),
   outbox: vi.fn(),
   consent: vi.fn(),
+  announcement: vi.fn(),
   records: new Map<
     string,
     Record<string, unknown> & {
@@ -45,6 +46,7 @@ vi.mock('../../../api/lib/prisma', () => {
       ...tx,
       user: { findUnique: mocks.user },
       marketingConsent: { findUnique: mocks.consent },
+      announcement: { findUnique: mocks.announcement },
       notificationOutbox: { upsert: mocks.outbox },
       $transaction: async (fn: (tx: unknown) => unknown) => fn(tx),
     },
@@ -534,5 +536,75 @@ describe('durable notification delivery', () => {
       ),
     ).rejects.toThrow('EMAIL_RECIPIENT_ROLE_MISMATCH')
     expect(mocks.send).not.toHaveBeenCalled()
+  })
+})
+
+describe('seller announcement e-mail', () => {
+  const announcementJob = () =>
+    job({
+      eventKey: 'announcement:a1:seller:s1',
+      type: 'seller_announcement',
+      title: 'Yeni duyuru',
+      body: 'Kargo kuralı değişti',
+      data: {
+        announcementId: 'a1',
+        sellerName: 'Atelier Noa',
+        panelUrl: 'https://satici.hanuja.com.tr/duyurular/a1',
+      },
+    })
+
+  beforeEach(() => {
+    mocks.records.clear()
+    mocks.send.mockClear()
+    mocks.consent.mockClear()
+    mocks.announcement.mockReset()
+    mocks.user.mockResolvedValue({ id: 'u1', email: 'seller@example.test', role: 'seller' })
+  })
+
+  it('sends the content frozen at send time, not the edited panel copy', async () => {
+    mocks.announcement.mockResolvedValue({
+      status: 'sent',
+      sentTitle: 'Kargo kuralı değişti',
+      sentBody: 'Gönderilen metin',
+      mediaAsset: null,
+      posterAsset: null,
+    })
+    await processNotificationDispatch(announcementJob())
+    const query = mocks.announcement.mock.calls[0]![0] as { select: Record<string, unknown> }
+    expect(query.select).toMatchObject({ sentTitle: true, sentBody: true })
+    expect(query.select).not.toHaveProperty('title')
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'seller@example.test',
+        subject: 'Hanuja Duyurusu: Kargo kuralı değişti',
+        fromCategory: 'noreply',
+      }),
+    )
+    const sent = mocks.send.mock.calls[0]![0] as { text: string; headers: Record<string, string> }
+    expect(sent.text).toContain('Gönderilen metin')
+    expect(sent.headers).not.toHaveProperty('List-Unsubscribe')
+    // Not marketing: the consent table is never consulted.
+    expect(mocks.consent).not.toHaveBeenCalled()
+  })
+
+  it('fails instead of sending when the announcement is not sent', async () => {
+    mocks.announcement.mockResolvedValue({
+      status: 'draft',
+      sentTitle: null,
+      sentBody: null,
+      mediaAsset: null,
+      posterAsset: null,
+    })
+    await expect(processNotificationDispatch(announcementJob())).rejects.toThrow(
+      'EMAIL_DATA_MISSING:announcement',
+    )
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+
+  it('does not e-mail a user who is no longer a seller', async () => {
+    mocks.user.mockResolvedValue({ id: 'u1', email: 'customer@example.test', role: 'customer' })
+    await processNotificationDispatch(announcementJob())
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(mocks.announcement).not.toHaveBeenCalled()
   })
 })

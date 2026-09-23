@@ -93,10 +93,15 @@ export type MediaFolder =
   | 'promo'
   | 'general'
   | 'customer-support'
+  | 'announcements'
 
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
 export const SLIDER_VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/webm'])
+
+// Announcement media is also used as an e-mail cover, and Outlook cannot show WebP.
+const ANNOUNCEMENT_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png'])
+export const ANNOUNCEMENT_VIDEO_MAX_SIZE_BYTES = 50 * 1024 * 1024
 
 // Extended mime type list for KYC documents.
 export const DOCUMENT_ALLOWED_MIME_TYPES = new Set([
@@ -122,11 +127,18 @@ export interface PresignedUploadResult {
   expiresIn: number
 }
 
-/** The server verifies this limit after browser-direct uploads and before processing. */
-export function getMediaMaxSizeBytes(folder: MediaFolder): number {
-  return folder === 'documents' || folder === 'customer-support'
-    ? DOCUMENT_MAX_SIZE_BYTES
-    : MAX_FILE_SIZE_BYTES
+/**
+ * The server verifies this limit after browser-direct uploads and before processing.
+ * Without `kind` the image limit applies: callers that read an object into memory
+ * (processing, the media proxy) never pass `video`.
+ */
+export function getMediaMaxSizeBytes(
+  folder: MediaFolder,
+  kind?: 'image' | 'video' | 'document',
+): number {
+  if (folder === 'documents' || folder === 'customer-support') return DOCUMENT_MAX_SIZE_BYTES
+  if (folder === 'announcements' && kind === 'video') return ANNOUNCEMENT_VIDEO_MAX_SIZE_BYTES
+  return MAX_FILE_SIZE_BYTES
 }
 
 export function getAllowedMediaMimeTypes(folder: MediaFolder): Set<string> {
@@ -136,6 +148,10 @@ export function getAllowedMediaMimeTypes(folder: MediaFolder): Set<string> {
 
   if (folder === 'slider') {
     return new Set([...ALLOWED_MIME_TYPES, ...SLIDER_VIDEO_MIME_TYPES])
+  }
+
+  if (folder === 'announcements') {
+    return new Set([...ANNOUNCEMENT_IMAGE_MIME_TYPES, ...SLIDER_VIDEO_MIME_TYPES])
   }
 
   return ALLOWED_MIME_TYPES
@@ -496,6 +512,23 @@ export async function readObject(
     contentType: response.ContentType ?? 'application/octet-stream',
     sizeBytes: body.byteLength,
   }
+}
+
+/**
+ * Read an inclusive byte range of an object (e.g. a file header for signature checks)
+ * without downloading the whole file.
+ */
+export async function readObjectRange(key: string, start: number, end: number): Promise<Uint8Array> {
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) {
+    throw new Error('Gecersiz bayt araligi.')
+  }
+  const { bucketName } = getR2Config()
+  const r2 = createR2Client()
+  const response = await r2.send(
+    new GetObjectCommand({ Bucket: bucketName, Key: key, Range: `bytes=${start}-${end}` }),
+  )
+  if (!response.Body) throw new Error('Dosya icerigi okunamadi.')
+  return readObjectBodyWithinLimit(response.Body as ReadableObjectBody, end - start + 1)
 }
 
 /**

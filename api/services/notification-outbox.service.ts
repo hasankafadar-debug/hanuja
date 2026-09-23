@@ -30,6 +30,31 @@ export async function recordNotification(
   })
 }
 
+/**
+ * Batch form of `recordNotification` for fan-out producers. `skipDuplicates` keeps the
+ * same meaning as the single-row `upsert(update: {})`: an existing
+ * `(userId, type, eventKey)` row is left untouched. Every payload needs its own eventKey.
+ */
+export async function recordNotifications(
+  tx: OutboxClient,
+  payloads: readonly NotificationDispatchJobData[],
+) {
+  if (!payloads.length) return { count: 0 }
+  return tx.notificationOutbox.createMany({
+    data: payloads.map((payload) => {
+      if (!payload.eventKey) throw new Error('NOTIFICATION_EVENT_KEY_REQUIRED')
+      return {
+        eventKey: payload.eventKey,
+        userId: payload.userId,
+        type: payload.type,
+        lane: notificationLane(payload.type),
+        payload: JSON.parse(JSON.stringify(payload)) as Prisma.InputJsonValue,
+      }
+    }),
+    skipDuplicates: true,
+  })
+}
+
 export function outboxJobId(id: string, generation: number) {
   return createHash('sha256').update(`${id}|${generation}`).digest('hex')
 }

@@ -18,6 +18,9 @@ export const PUBLIC_MEDIA_PREFIXES = new Set([
   'slider',
   'promo',
   'general',
+  // Announcement media is public by URL (e-mail covers, direct video playback);
+  // the seller panel's authorization does not protect the file itself.
+  'announcements',
 ])
 
 function trimTrailingSlash(value: string) {

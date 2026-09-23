@@ -266,6 +266,17 @@ async function buildEmailPayload(
         ...opt(data, 'orderNumber'),
       })
 
+    case NotificationTypeEnum.seller_announcement: {
+      // The payload only names the announcement: the frozen content is read at send
+      // time, so thousands of rows do not each carry a copy of the text.
+      const { prisma } = await import('../lib/prisma')
+      const { loadSentAnnouncementEmail } = await import('../services/announcement-content')
+      return loadSentAnnouncementEmail(prisma, str(data, 'announcementId'), {
+        sellerName: str(data, 'sellerName'),
+        panelUrl: str(data, 'panelUrl'),
+      })
+    }
+
     case NotificationTypeEnum.customer_product_question_answered:
       return customerProductQuestionAnsweredTemplate({
         sellerName: str(data, 'sellerName'),

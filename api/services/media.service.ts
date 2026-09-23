@@ -9,7 +9,7 @@
  *
  * Authorization is enforced at the route level — this service trusts ownerId.
  */
-import type { PrismaClient } from '@prisma/client'
+import { Prisma, type PrismaClient } from '@prisma/client'
 import {
   generatePresignedUploadUrl,
   deleteObject,
@@ -17,6 +17,7 @@ import {
   getMediaMaxSizeBytes,
   getObjectMetadata,
   readObject,
+  readObjectRange,
   uploadObject,
   SLIDER_VIDEO_MIME_TYPES,
   type MediaFolder,
@@ -24,6 +25,12 @@ import {
 import { ValidationError } from '../lib/errors'
 import { mediaProcessingQueue } from '../lib/queue'
 import { parseImageMetadata } from '../lib/image-meta'
+import { hasImageSignature, hasVideoSignature } from '../lib/media-signature'
+
+/** Folders that accept video uploads. */
+const VIDEO_FOLDERS: ReadonlySet<MediaFolder> = new Set(['slider', 'announcements'])
+const ANNOUNCEMENT_ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'video/mp4', 'video/webm'])
+const VIDEO_SIGNATURE_BYTES = 64
 
 export interface MediaServiceDeps {
   prisma: PrismaClient
@@ -109,9 +116,13 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
       throw new Error('Yalnızca PNG veya JPEG kabul edilir.')
     }
 
-    // Video MIME types are only accepted for the slider folder
-    if (SLIDER_VIDEO_MIME_TYPES.has(mimeType) && folder !== 'slider') {
-      throw new ValidationError('Video yüklemesi yalnızca slider klasörü için desteklenir.')
+    // Video MIME types are only accepted for the slider and announcement folders
+    if (SLIDER_VIDEO_MIME_TYPES.has(mimeType) && !VIDEO_FOLDERS.has(folder)) {
+      throw new ValidationError('Video yüklemesi yalnızca slider ve duyuru klasörleri için desteklenir.')
+    }
+
+    if (folder === 'announcements' && !ANNOUNCEMENT_ALLOWED_TYPES.has(mimeType)) {
+      throw new ValidationError('Duyuru medyası için yalnızca JPEG, PNG, MP4 veya WebM kabul edilir.')
     }
 
     const { uploadUrl, key, publicUrl, expiresIn } = await generatePresignedUploadUrl({
@@ -166,7 +177,7 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
     }
 
     const folder = (asset.folder as MediaFolder | null) ?? 'general'
-    const maxSizeBytes = getMediaMaxSizeBytes(folder)
+    const maxSizeBytes = getMediaMaxSizeBytes(folder, asset.kind)
     const actualMimeType = normalizeMimeType(objectMetadata.contentType)
     const actualSizeBytes = objectMetadata.contentLength
     const declaredMimeType = normalizeMimeType(asset.mimeType)
@@ -192,19 +203,16 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
       throw new ValidationError('Yuklenen dosya turu dogrulanamadi.')
     }
 
-    // Video-specific validation for slider folder
+    // Video-specific validation. The size limit per folder is enforced above
+    // (slider 10 MB, announcements 50 MB); the duration limit is slider-only.
     if (asset.kind === 'video') {
-      const VIDEO_MAX_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
       const VIDEO_MAX_DURATION_SEC = 15
 
-      if (actualSizeBytes > VIDEO_MAX_SIZE_BYTES) {
-        await rejectUploadedAsset(asset, actualSizeBytes)
-        throw new ValidationError(
-          `Video dosyası 10 MB sınırını aşıyor (yüklenen: ${(actualSizeBytes / 1024 / 1024).toFixed(1)} MB).`,
-        )
-      }
-
-      if (asset.durationSec != null && asset.durationSec > VIDEO_MAX_DURATION_SEC) {
+      if (
+        asset.folder === 'slider' &&
+        asset.durationSec != null &&
+        asset.durationSec > VIDEO_MAX_DURATION_SEC
+      ) {
         await rejectUploadedAsset(asset, actualSizeBytes)
         throw new ValidationError(
           `Video süresi 15 saniyeyi geçemez (yüklenen: ${asset.durationSec} saniye).`,
@@ -238,6 +246,32 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
       }
     }
 
+    if (asset.folder === 'announcements') {
+      try {
+        if (asset.kind === 'video') {
+          const head = await readObjectRange(asset.key, 0, VIDEO_SIGNATURE_BYTES - 1)
+          if (!hasVideoSignature(head, actualMimeType)) {
+            throw new ValidationError('Video dosyası doğrulanamadı. MP4 veya WebM yükleyin.')
+          }
+        } else {
+          const object = await readObject(asset.key, maxSizeBytes)
+          if (!hasImageSignature(object.body, actualMimeType)) {
+            throw new ValidationError('Görsel dosyası doğrulanamadı. JPEG veya PNG yükleyin.')
+          }
+          const metadata = parseImageMetadata(object.body, actualMimeType)
+          if (metadata.width > 6000 || metadata.height > 6000) {
+            throw new ValidationError(
+              `Görsel en fazla 6000×6000 piksel olabilir (yüklenen: ${metadata.width}×${metadata.height}).`,
+            )
+          }
+        }
+      } catch (error) {
+        await rejectUploadedAsset(asset, actualSizeBytes)
+        if (error instanceof ValidationError) throw error
+        throw new ValidationError('Yuklenen dosya dogrulanamadi.')
+      }
+    }
+
     const updated = await prisma.mediaAsset.update({
       where: { id: assetId },
       data: { status: 'ready', sizeBytes: actualSizeBytes },
@@ -256,19 +290,44 @@ export function createMediaService({ prisma }: MediaServiceDeps) {
   /**
    * Delete a media asset — removes DB record and R2 object.
    * Only the owner can delete; route layer must enforce this.
+   *
+   * The DB row goes first, under a row lock: a record that references the asset
+   * (announcement, home slide/promo — FK Restrict) either commits before and blocks
+   * the delete, or waits for it and then fails its own write. The file is removed
+   * only once no reference can exist; a failed R2 delete leaves an orphaned object,
+   * never a record pointing at a missing file.
    */
   async function deleteAsset(assetId: string, ownerId: string): Promise<void> {
-    const asset = await prisma.mediaAsset.findFirst({
-      where: { id: assetId, uploadedBy: ownerId },
-    })
+    let key: string
+    try {
+      key = await prisma.$transaction(async (tx) => {
+        const locked = await tx.$queryRaw<{ id: string; key: string | null }[]>(
+          Prisma.sql`SELECT id, key FROM media_assets WHERE id = ${assetId} AND "uploadedBy" = ${ownerId} FOR UPDATE`,
+        )
+        const asset = locked[0]
+        if (!asset) throw new Error('Medya kaydı bulunamadı.')
+        if (!asset.key) throw new Error('Medya anahtarı eksik, silinemiyor.')
+        const announcementUses = await tx.announcement.count({
+          where: { OR: [{ mediaAssetId: assetId }, { posterAssetId: assetId }] },
+        })
+        if (announcementUses) {
+          throw new ValidationError('Bu medya bir duyuruda kullanılıyor; silinemez.')
+        }
+        await tx.mediaAsset.delete({ where: { id: assetId } })
+        return asset.key
+      })
+    } catch (error) {
+      if ((error as { code?: unknown } | null)?.code === 'P2003') {
+        throw new ValidationError('Bu medya kullanımda olduğu için silinemez.')
+      }
+      throw error
+    }
 
-    if (!asset) throw new Error('Medya kaydı bulunamadı.')
-    if (!asset.key) throw new Error('Medya anahtarı eksik, silinemiyor.')
-
-    // Delete from R2 first — if it fails, DB record stays intact
-    await deleteObject(asset.key)
-
-    await prisma.mediaAsset.delete({ where: { id: assetId } })
+    try {
+      await deleteObject(key)
+    } catch {
+      console.warn('[media] R2 object orphaned after record delete', { assetId, key })
+    }
   }
 
   /**

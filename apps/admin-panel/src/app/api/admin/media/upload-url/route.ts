@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { ForbiddenError, UnauthorizedError } from '@hanuja/api/lib/errors'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { checkUserRateLimit, SENSITIVE_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
@@ -9,12 +10,14 @@ import { handleError, ok } from '@hanuja/api/lib/response'
 import { createMediaService } from '@hanuja/api/services/media.service'
 
 const uploadSchema = z.object({
-  folder: z.enum(['slider', 'promo', 'blog', 'general']),
+  folder: z.enum(['slider', 'promo', 'blog', 'general', 'announcements']),
   mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm']),
   originalName: z.string().trim().max(255).optional(),
 })
 
 export async function POST(req: NextRequest) {
+  const csrfError = checkCsrf(req)
+  if (csrfError) return csrfError
   try {
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()

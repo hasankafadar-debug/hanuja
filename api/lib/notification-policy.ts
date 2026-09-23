@@ -10,6 +10,12 @@ type EmailPolicy = {
    * `stage` values produce e-mail, the rest stay in-app (delivery is `skipped`).
    */
   emailStages?: readonly string[]
+  /**
+   * Queue lane override. Without it `kampanya` mail goes to the bulk lane and
+   * everything else to the transactional lane. A bulk lane only orders and paces
+   * our own sending: the provider's daily quota is still shared with transactional mail.
+   */
+  lane?: 'transactional' | 'bulk'
 }
 
 /**
@@ -111,6 +117,15 @@ export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
     category: 'noreply',
     required: ['sellerName', 'productName', 'messageExcerpt', 'threadUrl'],
   },
+  // Admin → seller operational announcement (phase 5). Sent in volume, so it uses the
+  // bulk lane to keep order e-mails moving, but it is not marketing: no consent gate
+  // and no List-Unsubscribe. The content is loaded from the frozen announcement row.
+  seller_announcement: {
+    role: 'seller',
+    category: 'noreply',
+    lane: 'bulk',
+    required: ['announcementId', 'sellerName', 'panelUrl'],
+  },
   seller_return_request: {
     role: 'seller',
     category: 'noreply',
@@ -196,9 +211,9 @@ export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
 }
 
 export function notificationLane(type: string): 'transactional' | 'bulk' {
-  return EMAIL_POLICIES[type as NotificationType]?.category === 'kampanya'
-    ? 'bulk'
-    : 'transactional'
+  const policy = EMAIL_POLICIES[type as NotificationType]
+  if (policy?.lane) return policy.lane
+  return policy?.category === 'kampanya' ? 'bulk' : 'transactional'
 }
 
 /** True when the event stage is one that has an e-mail template (or the type has no stage gating). */

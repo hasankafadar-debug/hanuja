@@ -72,6 +72,24 @@ describe('R2 media size bounds', () => {
     expect(getMediaMaxSizeBytes('customer-support')).toBe(TWENTY_MIB)
   })
 
+  it('allows 50 MiB only for announcement videos; slider videos stay at 10 MiB', async () => {
+    const { getMediaMaxSizeBytes } = await import('../../api/lib/r2')
+
+    expect(getMediaMaxSizeBytes('announcements', 'video')).toBe(50 * 1024 * 1024)
+    expect(getMediaMaxSizeBytes('announcements', 'image')).toBe(TEN_MIB)
+    // Callers that read an object into memory never pass a kind: image limit.
+    expect(getMediaMaxSizeBytes('announcements')).toBe(TEN_MIB)
+    expect(getMediaMaxSizeBytes('slider', 'video')).toBe(TEN_MIB)
+  })
+
+  it('accepts JPEG, PNG, MP4 and WebM for announcements but not WebP', async () => {
+    const { getAllowedMediaMimeTypes } = await import('../../api/lib/r2')
+    const allowed = getAllowedMediaMimeTypes('announcements')
+
+    expect([...allowed].sort()).toEqual(['image/jpeg', 'image/png', 'video/mp4', 'video/webm'])
+    expect(getAllowedMediaMimeTypes('general').has('video/mp4')).toBe(false)
+  })
+
   it('sets ContentLength for server-side uploads and rejects a +1 byte payload', async () => {
     const { uploadObject } = await import('../../api/lib/r2')
     mocks.send.mockResolvedValue({})

@@ -334,3 +334,15 @@ export interface CustomerProductQuestionAnsweredEmailInput {
   messageExcerpt: string
   threadUrl: string
 }
+
+/** Seller announcement — admin-written operational announcement (phase 5). */
+export interface SellerAnnouncementEmailInput {
+  sellerName: string
+  title: string
+  /** Plain text; escaped by the template, line breaks kept. */
+  body: string
+  /** Absolute URL of the image, or of the poster when the announcement has a video. */
+  coverImageUrl?: string | null
+  isVideo?: boolean
+  panelUrl: string
+}

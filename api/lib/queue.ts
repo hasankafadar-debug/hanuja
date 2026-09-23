@@ -16,6 +16,7 @@ export const QUEUE_NAMES = {
   SEO_CONTENT: 'seo-content',
   CAMPAIGN_DISCOUNT: 'campaign-discount',
   REFUND_PROCESSING: 'refund-processing',
+  ANNOUNCEMENT_DISPATCH: 'announcement-dispatch',
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
@@ -77,6 +78,9 @@ export const ibanActivationQueue = createQueueProxy(QUEUE_NAMES.IBAN_ACTIVATION)
 export const seoContentQueue = createQueueProxy(QUEUE_NAMES.SEO_CONTENT)
 export const campaignDiscountQueue = createQueueProxy(
   QUEUE_NAMES.CAMPAIGN_DISCOUNT,
+)
+export const announcementDispatchQueue = createQueueProxy(
+  QUEUE_NAMES.ANNOUNCEMENT_DISPATCH,
 )
 export const refundProcessingQueue = createQueueProxy(
   QUEUE_NAMES.REFUND_PROCESSING,

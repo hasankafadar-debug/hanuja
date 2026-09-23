@@ -126,6 +126,12 @@ export enum NotificationType {
   product_discount_in_cart = 'product_discount_in_cart',
   seller_product_question = 'seller_product_question',
   customer_product_question_answered = 'customer_product_question_answered',
+  seller_announcement = 'seller_announcement',
+}
+
+export enum AnnouncementStatus {
+  draft = 'draft',
+  sent = 'sent',
 }
 
 export enum CampaignDispatchSource {

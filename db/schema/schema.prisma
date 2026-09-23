@@ -362,6 +362,9 @@ enum AdminActionType {
   notification_retry_requested
   notification_recipient_changed
   product_question_viewed
+  announcement_sent
+  announcement_updated_after_send
+  announcement_retry_requested
 }
 
 enum ExtensionRequestStatus {
@@ -431,6 +434,7 @@ enum NotificationType {
   product_discount_in_cart
   seller_product_question
   customer_product_question_answered
+  seller_announcement
 }
 
 enum NotificationChannel {
@@ -684,6 +688,7 @@ model Seller {
   extensionRequests       FulfillmentExtensionRequest[]
   orderFulfillments       OrderSellerFulfillment[]
   productQuestionThreads  ProductQuestionThread[]
+  announcementRecipients  AnnouncementRecipient[]
 
   @@index([status])
   @@index([slug])
@@ -2251,6 +2256,8 @@ model MediaAsset {
   homeSlideMedia             HomeSlide[]                        @relation("HomeSlideMedia")
   homeSlidePoster            HomeSlide[]                        @relation("HomeSlidePoster")
   homePromoMedia             HomePromo[]                        @relation("HomePromoMedia")
+  announcementMedia          Announcement[]                     @relation("AnnouncementMedia")
+  announcementPoster         Announcement[]                     @relation("AnnouncementPoster")
 
   @@index([uploadedBy])
   @@index([uploadedBy, folder, status])
@@ -2435,6 +2442,7 @@ model NotificationDelivery {
   @@index([userId, createdAt])
   @@index([providerMessageId])
   @@index([status, leaseExpiresAt])
+  @@index([eventKey])
   @@map("notification_deliveries")
 }
 
@@ -2456,6 +2464,78 @@ model NotificationOutbox {
   @@unique([userId, type, eventKey])
   @@index([status, queuedAt])
   @@map("notification_outbox")
+}
+
+enum AnnouncementStatus {
+  draft
+  sent
+}
+
+/// Admin → seller operational announcement (e-mail plan phase 5).
+/// `title/body` hold the current, editable content shown in the seller panel;
+/// `sentTitle/sentBody` are frozen at send time and are what every e-mail —
+/// retries included — renders. Media is locked once the announcement is sent.
+model Announcement {
+  id                String             @id @default(cuid())
+  status            AnnouncementStatus @default(draft)
+  /// Bumped on every draft save; saving and sending carry the version they read.
+  version           Int                @default(1)
+  title             String
+  body              String
+  mediaAssetId      String?
+  /// Required when the media is a video: the e-mail shows it as the cover image.
+  posterAssetId     String?
+  /// Recipient selection (mode, filters, manual ids, exclusions): api/domain/announcement-audience.ts
+  audience          Json
+  /// sha256 of the sorted seller ids frozen at send time.
+  audienceHash      String?
+  recipientCount    Int                @default(0)
+  sentTitle         String?
+  sentBody          String?
+  sentAt            DateTime?
+  sentByAdminId     String?
+  editedAfterSendAt DateTime?
+  createdByAdminId  String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  mediaAsset  MediaAsset?             @relation("AnnouncementMedia", fields: [mediaAssetId], references: [id], onDelete: Restrict)
+  posterAsset MediaAsset?             @relation("AnnouncementPoster", fields: [posterAssetId], references: [id], onDelete: Restrict)
+  recipients  AnnouncementRecipient[]
+
+  @@index([status, createdAt])
+  @@index([mediaAssetId])
+  @@index([posterAssetId])
+  @@map("announcements")
+}
+
+/// One frozen recipient of a sent announcement. The row outlives a seller hard delete
+/// (sellerId → null, sellerDeletedAt set) so the send history and totals stay intact.
+model AnnouncementRecipient {
+  id               String    @id @default(cuid())
+  announcementId   String
+  sellerId         String?
+  sellerDeletedAt  DateTime?
+  userId           String
+  /// Store name at send time.
+  sellerName       String
+  /// "announcement:{announcementId}:seller:{sellerId}" — the outbox and delivery event key.
+  eventKey         String
+  /// Set by the announcement-dispatch sweep once the outbox row exists.
+  outboxWrittenAt  DateTime?
+  /// Set by an admin bulk retry; the sweep requeues the row within its capacity and clears it.
+  retryRequestedAt DateTime?
+  readAt           DateTime?
+  createdAt        DateTime  @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  seller       Seller?      @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+
+  @@unique([announcementId, sellerId])
+  @@index([outboxWrittenAt, createdAt])
+  @@index([retryRequestedAt])
+  @@index([sellerId, readAt])
+  @@map("announcement_recipients")
 }
 
 /// Per-event operations mailbox for admin notifications. One row per event slug.

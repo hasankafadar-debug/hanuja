@@ -79,6 +79,7 @@ export type {
   RefundOutcome,
   ReturnDecision,
   ReturnDecisionLine,
+  SellerAnnouncementEmailInput,
   SellerCancellationEmailInput,
   SellerOrderEmailInput,
   SellerReturnRequestEmailInput,
@@ -107,6 +108,8 @@ export {
   customerProductQuestionAnsweredTemplate,
   sellerProductQuestionTemplate,
 } from './product-questions'
+
+export { sellerAnnouncementTemplate } from './announcements'
 
 function customerOrderUrl(
   params: Pick<CustomerOrderEmailInput, 'orderUrl' | 'customerOrderUrl' | 'orderLink'>,

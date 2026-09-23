@@ -30,11 +30,23 @@ import {
   seoContentQueue,
   campaignDiscountQueue,
   notificationOutboxQueue,
+  announcementDispatchQueue,
 } from '../lib/queue'
 
 export async function scheduleRepeatableJobs(): Promise<void> {
   await notificationOutboxQueue.add(
     'relay',
+    {},
+    {
+      repeat: { every: 15_000 },
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  )
+  // Announcement recipients → outbox, within the bulk lane's capacity. Its own queue
+  // and worker, so the relay above never waits for it.
+  await announcementDispatchQueue.add(
+    'sweep',
     {},
     {
       repeat: { every: 15_000 },
