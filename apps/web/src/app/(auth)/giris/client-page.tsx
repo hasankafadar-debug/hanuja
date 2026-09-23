@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
+import { safeInternalPath } from '@/lib/login-redirect'
 import {
   getTurnstileClientErrorMessage,
   isDatabaseUnavailableError,
@@ -37,7 +38,7 @@ function getLoginErrorMessage(authError: TurnstileClientError | null | undefined
 export function LoginPageClient({ turnstileSiteKey, googleLoginEnabled = false }: LoginPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') ?? searchParams.get('redirect') ?? '/hesabim'
+  const callbackUrl = safeInternalPath(searchParams.get('callbackUrl') ?? searchParams.get('redirect'))
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
