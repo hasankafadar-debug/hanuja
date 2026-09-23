@@ -587,6 +587,35 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - **Açık uçlar (blocking değil):** admin operasyon e-postaları Faz 3'te; uyuşmazlık sonucu için ayrı
   e-posta yok; `markDelivered` (`order_delivered`) hâlâ hiçbir route tarafından çağrılmıyor.
 
+### 32. E-posta Faz 3 — admin operasyon e-postaları (yeni — 2026-09-23)
+
+- **Migration var:** `20260922120000_admin_operation_emails` — üç `NotificationType` değeri
+  (`admin_order_cancellation`, `admin_return_requested`, `admin_seller_application`), bir
+  `AdminActionType` değeri (`notification_recipient_changed`), `notification_deliveries.userId`
+  **nullable**, `sellers.applicationSubmissionSeq`, `admin_notification_recipients` (7 varsayılan
+  satır `admin@hanuja.com.tr`), `fulfillment_risk_notification_states`. **Yeni env yok.**
+- Deploy sırası: `pnpm db:migrate:deploy` → **worker → admin-panel → seller-panel → web**. Worker
+  önce olmalı; eski worker üç yeni tipi `EMAIL_TEMPLATE_UNSUPPORTED` ile düşürür.
+- **Alıcı modeli:** yedi olay için ayrı adres, **Ayarlar → Bildirim Alıcıları** ekranından yönetilir.
+  In-app bildirimler tüm adminlerde kalır; e-posta yalnız yapılandırılmış adrese, olay başına bir
+  kez gider. Alıcı **kayıt anında** çözülür — ayar değişimi kuyruktaki kayıtları etkilemez.
+- **Ops alıcısı:** operasyon posta kutusunun kullanıcı hesabı yoktur. Outbox satırı ayrılmış
+  `OPS_RECIPIENT_ID = 'ops'` taşır (kolonun FK'si yok, tekilleştirme indeksi çalışmaya devam eder),
+  `NotificationDelivery.userId` null'dır ve in-app satır oluşmaz. `'ops'` olmak tek başına rol
+  kontrolünü atlatmaz: yalnız `ADMIN_OPERATION_TYPES` içindeki sekiz tip geçer, diğerleri
+  `EMAIL_OPS_TYPE_NOT_ALLOWED` ile **başarısız** işaretlenir.
+- **Yol boyunca düzeltilen hata:** `notification-operations.service`'teki "SMTP sonucu belirsiz"
+  guard'ı `userId` ile eşleştiği için ops gönderimlerinde sessizce devre dışı kalıyordu; artık
+  `recipient` üzerinden eşleşiyor.
+- **Sevk riski:** tarama aktif riskler ∪ `notifiedStatus ≠ resolved` durum kayıtlarının birleşimidir
+  (aksi hâlde listeden düşen grup eski seviyesinde donar ve yeniden oluşan risk bildirilmez). Geçiş
+  sürüm kontrollü claim ile yazılır; claim kaybedilirse outbox **yazılmaz**, P2002 yarışı yeni bir
+  transaction'da yeniden denenir. Olay anahtarı `transitionSeq` taşır.
+- **Bilinen sınır:** `seller.service.submitOnboarding` ölü bir yoldur (çağıranı yok) ve satıcı kaydı
+  oluşturmasına rağmen operasyon bildirimi yazmaz; canlıya alınırsa bildirim eklenmelidir. Satıcının
+  kendi yeniden başvuru yolu bugün yok — `applicationSubmissionSeq` varsayılan `1`'de kalır.
+- Ayrıntı: `docs/07-operations/email-phase-3-report.md`.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

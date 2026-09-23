@@ -5,8 +5,22 @@ import type {
 } from '@prisma/client'
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../lib/errors'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
+import {
+  adminPanelLink,
+  recordAdminOperationNotification,
+} from './admin-notification.service'
 
 const MAX_ATTACHMENTS = 5
+
+const CUSTOMER_SUPPORT_CATEGORY_LABELS: Record<CustomerSupportCategory, string> = {
+  shipping_delay: 'Kargo gecikmesi',
+  damaged_product: 'Ürün hasarlı',
+  wrong_product: 'Yanlış ürün',
+  invoice_issue: 'Fatura sorunu',
+  payment_issue: 'Ödeme sorunu',
+  return_or_exchange: 'İade & Değişim',
+  other: 'Diğer',
+}
 const customerSupportAttachmentMediaSelect = {
   id: true,
   originalName: true,
@@ -147,6 +161,24 @@ export function createCustomerSupportTicketService({ prisma }: { prisma: PrismaC
           authorRole: 'customer',
           body,
           attachmentAssetIds: assetIds,
+        })
+
+        // Customer tickets had no admin signal at all until phase 3.
+        await recordAdminOperationNotification(tx, {
+          event: 'support_ticket',
+          type: 'admin_customer_support_new',
+          eventKey: `support:${ticket.id}:ops`,
+          title: 'Yeni müşteri destek talebi',
+          body: `"${subject}" başlıklı yeni bir müşteri destek talebi açıldı.`,
+          data: {
+            ticketId: ticket.id,
+            orderId,
+            subject,
+            adminUrl: adminPanelLink(`/musteri-destek/${ticket.id}`),
+            ticketNumber: ticket.id.slice(-8).toUpperCase(),
+            categoryLabel: CUSTOMER_SUPPORT_CATEGORY_LABELS[category] ?? category,
+            message: body,
+          },
         })
 
         return ticket

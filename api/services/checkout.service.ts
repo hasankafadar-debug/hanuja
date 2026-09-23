@@ -40,6 +40,11 @@ import {
 import type { LegalAcceptanceEvidence } from '../lib/legal-acceptance'
 import { recordNotification } from './notification-outbox.service'
 import {
+  adminPanelLink,
+  recordAdminOperationNotification,
+} from './admin-notification.service'
+import {
+  customerDisplayName,
   customerOrderEmailData,
   loadOrderEmailSnapshot,
 } from './order-email-payload'
@@ -835,6 +840,27 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
                   paymentStatus: 'pending',
                 }),
                 bankTransferInstructions: resolvedBankInstructions,
+              },
+            })
+
+            // The order is invisible to the seller until an admin confirms the
+            // transfer, so the operations mailbox is told it is waiting.
+            await recordAdminOperationNotification(tx, {
+              event: 'eft_pending',
+              type: 'admin_bank_transfer_pending',
+              eventKey: `order:${order.id}:eft-pending`,
+              title: `Havale/EFT onayı bekliyor - ${formatOrderDisplayNumber(order.publicNumber, order.id)}`,
+              body: 'Müşteri havale/EFT ile ödeme seçti. Ödeme onaylanana kadar sipariş satıcıya düşmez.',
+              data: {
+                orderNumber: formatOrderDisplayNumber(order.publicNumber, order.id),
+                adminUrl: adminPanelLink('/odemeler'),
+                customerName: customerDisplayName(snapshot),
+                totalAmount: order.totalAmount.toFixed(2),
+                reference: order.id,
+                bankName:
+                  (Array.isArray(resolvedBankInstructions)
+                    ? resolvedBankInstructions[0]?.bankName
+                    : resolvedBankInstructions?.bankName) || undefined,
               },
             })
           }

@@ -2,7 +2,7 @@ import type { NotificationType } from '@prisma/client'
 import type { EmailFromCategory } from './mailer'
 
 type EmailPolicy = {
-  role: 'customer' | 'seller'
+  role: 'customer' | 'seller' | 'admin'
   category: EmailFromCategory
   required: readonly string[]
   /**
@@ -10,6 +10,37 @@ type EmailPolicy = {
    * `stage` values produce e-mail, the rest stay in-app (delivery is `skipped`).
    */
   emailStages?: readonly string[]
+}
+
+/**
+ * Admin operation e-mails are addressed to a configured operations mailbox rather
+ * than to a user account, so their outbox rows carry this reserved id instead of a
+ * user id. `NotificationOutbox.userId` has no foreign key, and the reserved value
+ * keeps the `(userId, type, eventKey)` deduplication index working — a nullable
+ * column would not, because PostgreSQL treats NULLs as distinct.
+ */
+export const OPS_RECIPIENT_ID = 'ops'
+
+/**
+ * The only notification types an ops row may carry. Being addressed to
+ * `OPS_RECIPIENT_ID` is never on its own a licence to skip the user/role checks:
+ * the dispatcher refuses any other type.
+ */
+export const ADMIN_OPERATION_TYPES: ReadonlySet<NotificationType> = new Set<
+  NotificationType
+>([
+  'admin_order_cancellation',
+  'admin_return_requested',
+  'admin_dispute_opened',
+  'admin_support_new_ticket',
+  'admin_customer_support_new',
+  'admin_bank_transfer_pending',
+  'admin_fulfillment_risk',
+  'admin_seller_application',
+])
+
+export function isAdminOperationType(type: NotificationType) {
+  return ADMIN_OPERATION_TYPES.has(type)
 }
 
 // New business events are added here together with their templates in later phases.
@@ -109,6 +140,48 @@ export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
     role: 'customer',
     category: 'kampanya',
     required: ['productUrl', 'unsubscribeUrl'],
+  },
+  // Admin operation events: e-mail goes to the configured operations mailbox only.
+  // Their per-admin in-app copies stay in-app (see the dispatcher's ops branch).
+  admin_order_cancellation: {
+    role: 'admin',
+    category: 'noreply',
+    required: ['orderNumber', 'adminUrl'],
+  },
+  admin_return_requested: {
+    role: 'admin',
+    category: 'noreply',
+    required: ['orderNumber', 'adminUrl'],
+  },
+  admin_dispute_opened: {
+    role: 'admin',
+    category: 'noreply',
+    required: ['orderNumber', 'adminUrl'],
+  },
+  admin_support_new_ticket: {
+    role: 'admin',
+    category: 'noreply',
+    required: ['subject', 'adminUrl'],
+  },
+  admin_customer_support_new: {
+    role: 'admin',
+    category: 'noreply',
+    required: ['subject', 'adminUrl'],
+  },
+  admin_bank_transfer_pending: {
+    role: 'admin',
+    category: 'noreply',
+    required: ['orderNumber', 'adminUrl'],
+  },
+  admin_fulfillment_risk: {
+    role: 'admin',
+    category: 'noreply',
+    required: ['orderNumber', 'riskLevel', 'adminUrl'],
+  },
+  admin_seller_application: {
+    role: 'admin',
+    category: 'noreply',
+    required: ['sellerName', 'adminUrl'],
   },
 }
 

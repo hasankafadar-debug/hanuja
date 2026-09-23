@@ -23,6 +23,10 @@ import {
 import { hasMatchingNormalizedTokens } from '@hanuja/security'
 import { handleError } from '@hanuja/api/lib/response'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
+import {
+  adminPanelLink,
+  recordAdminOperationNotification,
+} from '@hanuja/api/services/admin-notification.service'
 import { ensureSellerEmailOtpFactor } from '@/lib/seller-email-otp-factor'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
@@ -236,6 +240,26 @@ export async function POST(request: NextRequest) {
       })
 
       await ensureSellerEmailOtpFactor(tx, session.user.id)
+
+      // The application waits in the admin queue; tell the operations mailbox.
+      // `applicationSubmissionSeq` keys the event so a future re-submission is a
+      // new notification rather than a deduplicated no-op.
+      await recordAdminOperationNotification(tx, {
+        event: 'seller_application',
+        type: 'admin_seller_application',
+        eventKey: `seller:${seller.id}:application:${seller.applicationSubmissionSeq}`,
+        title: 'Yeni satıcı başvurusu',
+        body: `${magaza.storeName} mağazası başvuru gönderdi.`,
+        data: {
+          sellerId: seller.id,
+          sellerName: magaza.storeName,
+          adminUrl: adminPanelLink(`/saticilar/${seller.id}`),
+          companyName: isletme.companyName,
+          city: isletme.city,
+          taxNumber: isletme.taxNumber,
+          submissionSeq: seller.applicationSubmissionSeq,
+        },
+      })
     })
 
     return NextResponse.json({ success: true }, { status: 201 })

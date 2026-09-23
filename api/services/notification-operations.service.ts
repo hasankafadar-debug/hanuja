@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client'
 import { ForbiddenError, NotFoundError, ValidationError } from '../lib/errors'
+import { OPS_RECIPIENT_ID } from '../lib/notification-policy'
 import { recordNotification } from './notification-outbox.service'
 import type { NotificationDispatchJobData } from '../jobs/notification-dispatch.job'
 
@@ -123,11 +124,24 @@ export function createNotificationOperationsService(prisma: PrismaClient) {
         throw new ValidationError(
           'Bildirim hâlâ kuyrukta; tekrar oluşturulamaz.',
         )
+      // Admin operation deliveries have no user id, so matching on `userId`
+      // alone would silently stop guarding them: identify them by mailbox.
+      const opsRecipient =
+        outbox.userId === OPS_RECIPIENT_ID
+          ? (outbox.payload as unknown as NotificationDispatchJobData | null)
+              ?.emailTo
+              ?.trim()
+              .toLowerCase()
+          : null
       const uncertain = await tx.notificationDelivery.count({
         where: {
           eventKey: outbox.eventKey,
-          userId: outbox.userId,
           transportStatus: 'uncertain',
+          ...(outbox.userId === OPS_RECIPIENT_ID
+            ? opsRecipient
+              ? { recipient: opsRecipient }
+              : { userId: null }
+            : { userId: outbox.userId }),
         },
       })
       if (uncertain)

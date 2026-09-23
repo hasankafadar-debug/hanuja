@@ -106,3 +106,27 @@ payment is confirmed. Event types added to the e-mail policy: `order_cancelled`,
 `cargo_info_ready` produces e-mail). A policy now targets one role — copies of the same event sent to
 another role stay in-app unless the producer passes an explicit `emailTo`. See
 [phase 2 operations report](../07-operations/email-phase-2-report.md).
+
+### Phase 3 — admin operation e-mails — 2026-09-23
+
+Seven operation events now e-mail a configured operations mailbox. The mailbox has no user account,
+so those outbox rows carry the reserved `OPS_RECIPIENT_ID = 'ops'` instead of a user id and their
+`NotificationDelivery.userId` is null; the dispatcher writes no in-app notification for them. Being
+addressed to `'ops'` is not on its own a licence to skip the role check: only the eight types in
+`ADMIN_OPERATION_TYPES` (all with `role: 'admin'`) may take that path, and anything else fails with
+`EMAIL_OPS_TYPE_NOT_ALLOWED` rather than being skipped. A user-bound copy of an admin-policy type
+stays in-app, so the number of admins never changes how many e-mails go out.
+
+Producers (all inside their business transaction): `quantity-cancellation.create`,
+`quantity-return.openRequest`, `return.openRequest`, `dispute.openDispute`,
+`return.rejectReceiptBySeller`, `quantity-return.decideReceipt`, `support-ticket.createForSeller`,
+`customer-support-ticket.createForCustomer`, `checkout.createOrder` (EFT) and the seller-panel
+onboarding route. `support-ticket.service` no longer sends its admin notification after commit.
+
+`fulfillment-risk` gained a notification sweep. It scans the union of the active risk rows and every
+`FulfillmentRiskNotificationState` that is not yet `resolved`, so a group that drops off the active
+list is recorded as resolved and a later recurrence at the same level is notifiable again. Each group
+is handled in one transaction with a version-checked claim — the outbox row is written only when the
+claim wins — and a `P2002` create race is retried in a new transaction. The event id carries the
+state row's `transitionSeq`, which is what makes the recurrence a new event. See
+[phase 3 operations report](../07-operations/email-phase-3-report.md).

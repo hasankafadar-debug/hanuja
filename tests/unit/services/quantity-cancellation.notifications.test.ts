@@ -59,6 +59,9 @@ function buildTx() {
       ]),
     },
     user: { findMany: vi.fn().mockResolvedValue([{ id: 'admin-1' }]) },
+    adminNotificationRecipient: {
+      findUnique: vi.fn().mockResolvedValue({ email: 'admin@hanuja.com.tr' }),
+    },
     productImage: {
       findMany: vi.fn().mockResolvedValue([
         { productId: 'product-a', url: 'https://media.hanuja.tr/products/gea.jpg', isPrimary: true, sortOrder: 0 },
@@ -82,8 +85,9 @@ describe('quantity cancellation notifications', () => {
       actorRole: 'customer',
     })
 
-    const [customerCall, sellerCall, adminCall] = recordNotificationMock.mock.calls.map((call) => call[1])
-    expect(recordNotificationMock).toHaveBeenCalledTimes(3)
+    const [customerCall, sellerCall, adminCall, opsCall] =
+      recordNotificationMock.mock.calls.map((call) => call[1])
+    expect(recordNotificationMock).toHaveBeenCalledTimes(4)
     expect(customerCall).toMatchObject({
       eventKey: 'cancellation:cancel-1:customer',
       userId: 'customer-1',
@@ -121,6 +125,22 @@ describe('quantity cancellation notifications', () => {
     // Admin copy stays in-app: no e-mail address is attached.
     expect(adminCall).toMatchObject({ userId: 'admin-1', type: 'order_canceled' })
     expect(adminCall.emailTo).toBeUndefined()
+
+    // One operations e-mail for the event, regardless of how many admins exist.
+    expect(opsCall).toMatchObject({
+      eventKey: 'cancellation:cancel-1:ops',
+      userId: 'ops',
+      type: 'admin_order_cancellation',
+      emailTo: 'admin@hanuja.com.tr',
+    })
+    expect(opsCall.data).toMatchObject({
+      orderNumber: '26050042',
+      actorLabel: 'Müşteri',
+      sellerName: 'Atelier Noa',
+      refundAmount: '4.850 TL',
+      reason: 'Stok kalmadı',
+      adminUrl: 'https://admin.hanuja.com.tr/siparisler/order-1',
+    })
   })
 
   it('does not mail the seller its own rejection but still tells the customer', async () => {
@@ -131,7 +151,8 @@ describe('quantity cancellation notifications', () => {
     })
 
     const recipients = recordNotificationMock.mock.calls.map((call) => call[1].userId)
-    expect(recipients).toEqual(['customer-1', 'admin-1'])
+    // 'ops' is the operations mailbox row: one e-mail per event, no user account.
+    expect(recipients).toEqual(['customer-1', 'admin-1', 'ops'])
     expect(recordNotificationMock.mock.calls[0]![1].data.actorRole).toBe('seller')
   })
 

@@ -7,6 +7,10 @@ import {
 } from '../domain/quantity-allocation'
 import { createQuantityRefundService } from './quantity-refund.service'
 import { recordNotification } from './notification-outbox.service'
+import {
+  adminPanelLink,
+  recordAdminOperationNotification,
+} from './admin-notification.service'
 import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 import { formatMoney } from '@hanuja/security/money'
@@ -32,6 +36,15 @@ function assertSelections(items: CancellationSelection[]) {
       throw new ValidationError('Aynı sipariş satırı iki kez seçilemez')
     ids.add(item.orderLineId)
   }
+}
+
+const ADMIN_CANCELLATION_ACTOR_LABELS: Record<
+  'customer' | 'seller' | 'admin',
+  string
+> = {
+  customer: 'Müşteri',
+  seller: 'Satıcı',
+  admin: 'Yönetim',
 }
 
 export function createQuantityCancellationService({
@@ -255,6 +268,24 @@ export function createQuantityCancellationService({
           data,
         })
       }
+      // One e-mail to the operations mailbox, whatever the number of admins.
+      await recordAdminOperationNotification(tx, {
+        event: 'order_cancellation',
+        type: 'admin_order_cancellation',
+        eventKey: `cancellation:${operation.id}:ops`,
+        title: 'Adet bazlı iptal oluşturuldu',
+        body: summary,
+        data: {
+          orderNumber,
+          adminUrl: adminPanelLink(`/siparisler/${order.id}`),
+          actorLabel: ADMIN_CANCELLATION_ACTOR_LABELS[context.actorRole],
+          customerName,
+          sellerName: sellerById.get(operation.sellerId)?.displayName,
+          refundAmount: formatMoney(operation.customerRefundAmount.toNumber()),
+          reason: operation.reason,
+          items,
+        },
+      })
     }
   }
 

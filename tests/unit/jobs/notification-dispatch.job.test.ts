@@ -267,13 +267,77 @@ describe('durable notification delivery', () => {
   it('refuses unsupported email templates instead of discarding requested delivery', async () => {
     await expect(
       processNotificationDispatch(
+        // `admin_support_new_ticket` now has a template of its own (phase 3),
+        // so the fixture must be a type that genuinely has none.
         job({
-          type: 'admin_support_new_ticket',
+          type: 'account_verified',
           emailTo: 'admin@example.test',
         }),
       ),
     ).rejects.toThrow('EMAIL_TEMPLATE_UNSUPPORTED')
     expect(emailRecord().status).toBe('failed')
+  })
+  it('sends an operations e-mail without a user account and without an in-app row', async () => {
+    const opsJob = job({
+      userId: 'ops',
+      eventKey: 'dispute:d-1:ops',
+      type: 'admin_dispute_opened',
+      emailTo: 'ops@hanuja.com.tr',
+      data: {
+        orderNumber: '26050042',
+        adminUrl: 'https://admin.hanuja.com.tr/uyusmazliklar/d-1',
+      },
+    })
+
+    await processNotificationDispatch(opsJob)
+
+    // No user lookup, no in-app notification: the per-admin copies are separate.
+    expect(mocks.user).not.toHaveBeenCalled()
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect([...mocks.records.values()].some((r) => r.channel === 'in_app')).toBe(false)
+    const delivery = emailRecord()
+    expect(delivery.userId).toBeNull()
+    expect(delivery.recipient).toBe('ops@hanuja.com.tr')
+    expect(delivery.status).toBe('sent')
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'ops@hanuja.com.tr' }),
+    )
+  })
+  it('refuses an ops row whose type is not a declared operation type', async () => {
+    await expect(
+      processNotificationDispatch(
+        job({
+          userId: 'ops',
+          eventKey: 'invoice:i1:ops',
+          type: 'invoice_uploaded',
+          emailTo: 'ops@hanuja.com.tr',
+        }),
+      ),
+    ).rejects.toThrow('EMAIL_OPS_TYPE_NOT_ALLOWED')
+    // Observable failure rather than a silent skip.
+    expect(emailRecord().status).toBe('failed')
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+  it('keeps an admin user copy of an operation event in-app only', async () => {
+    mocks.user.mockResolvedValue({
+      id: 'admin-1',
+      email: 'admin-user@example.test',
+      role: 'admin',
+    })
+    await processNotificationDispatch(
+      job({
+        userId: 'admin-1',
+        eventKey: 'dispute:d-1:admin',
+        type: 'admin_dispute_opened',
+        data: {
+          orderNumber: '26050042',
+          adminUrl: 'https://admin.hanuja.com.tr/uyusmazliklar/d-1',
+        },
+      }),
+    )
+    expect(mocks.create).toHaveBeenCalledTimes(1)
+    expect([...mocks.records.values()].some((r) => r.channel === 'email')).toBe(false)
+    expect(mocks.send).not.toHaveBeenCalled()
   })
   it('records development simulation separately from SMTP acceptance', async () => {
     mocks.send.mockResolvedValue({

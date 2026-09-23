@@ -42,6 +42,15 @@ vi.mock('../../../api/services/notification.service', () => ({
     notifySellerFulfillmentWarning: notifySellerFulfillmentWarningMock,
   }),
 }))
+// The ops-mailbox sweep has its own tests; the job only has to call it.
+vi.mock('../../../api/services/fulfillment-risk-notification.service', () => ({
+  sweepFulfillmentRiskNotifications: vi.fn().mockResolvedValue({
+    notified: 0,
+    resolved: 0,
+    unchanged: 0,
+    contended: 0,
+  }),
+}))
 vi.mock('../../../api/services/order.service', () => ({
   createOrderService: () => ({ autoCancelForFulfillmentBreach: autoCancelForFulfillmentBreachMock }),
 }))

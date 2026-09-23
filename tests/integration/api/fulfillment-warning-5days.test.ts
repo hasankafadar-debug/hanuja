@@ -29,6 +29,15 @@ vi.mock('../../../api/services/fulfillment-risk.service', () => ({
 vi.mock('../../../api/services/penalty.service', () => ({
   createPenaltyService: () => ({ accrueDailyLateShipment: vi.fn() }),
 }))
+// The ops-mailbox sweep has its own tests; the job only has to call it.
+vi.mock('../../../api/services/fulfillment-risk-notification.service', () => ({
+  sweepFulfillmentRiskNotifications: vi.fn().mockResolvedValue({
+    notified: 0,
+    resolved: 0,
+    unchanged: 0,
+    contended: 0,
+  }),
+}))
 vi.mock('../../../api/services/order.service', () => ({
   createOrderService: () => ({ autoCancelForFulfillmentBreach: vi.fn() }),
 }))

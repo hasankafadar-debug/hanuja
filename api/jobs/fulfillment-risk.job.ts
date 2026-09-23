@@ -19,6 +19,7 @@ import { createFulfillmentRiskService } from '../services/fulfillment-risk.servi
 import { createPenaltyService } from '../services/penalty.service'
 import { createOrderService } from '../services/order.service'
 import { createNotificationService } from '../services/notification.service'
+import { sweepFulfillmentRiskNotifications } from '../services/fulfillment-risk-notification.service'
 
 export interface FulfillmentRiskJobData {
   warnAtDays?: number
@@ -117,8 +118,11 @@ export async function processFulfillmentRisk(job: Job<FulfillmentRiskJobData>) {
     }
   }
 
+  // Operations mailbox: first risk and every level change, per order + seller.
+  const opsNotifications = await sweepFulfillmentRiskNotifications(prisma, asOf)
+
   console.log(
-    `[fulfillment-risk] Breached: ${result.breached}, Warning: ${result.warning}, Resolved: ${result.resolved}, Warned: ${warned}, Accrued: ${accrued}, Auto-cancelled: ${autoCancelled}`,
+    `[fulfillment-risk] Breached: ${result.breached}, Warning: ${result.warning}, Resolved: ${result.resolved}, Warned: ${warned}, Accrued: ${accrued}, Auto-cancelled: ${autoCancelled}, Ops notified: ${opsNotifications.notified}`,
   )
 
   return {
@@ -126,6 +130,7 @@ export async function processFulfillmentRisk(job: Job<FulfillmentRiskJobData>) {
     warned,
     accrued,
     autoCancelled,
+    opsNotifications,
     warnAtDays: job.data.warnAtDays ?? null,
   }
 }

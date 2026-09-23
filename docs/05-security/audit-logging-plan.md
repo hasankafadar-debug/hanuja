@@ -147,6 +147,19 @@ These support admin search by actor, by target entity, and by action type + date
 | Product moderated (approved/rejected) | `catalog.product_moderated` | Recommended |
 | Product hidden | `catalog.product_hidden` | Yes |
 
+### Notification operations
+
+| Event | `actionType` | Reason required |
+|---|---|---|
+| Failed delivery re-queued by an admin | `notification_retry_requested` | Yes |
+| Operations mailbox changed for an event | `notification_recipient_changed` | No (old and new address are recorded) |
+
+The recipient change is logged per event slug: `targetType = "AdminNotificationRecipient"`,
+`targetId = <event slug>`, with the previous and new address in `previousData` / `newData`.
+Only admins may change it (route-level role check plus CSRF); the address is validated in the
+route and again in the service. See
+[e-mail phase 3 report](../07-operations/email-phase-3-report.md).
+
 ---
 
 ## Convenience Builders

@@ -8,6 +8,8 @@ const { getSessionMock, prismaMock, transactionClient, verifyTurnstileMock } =
       sellerBankDetail: { create: vi.fn() },
       user: { update: vi.fn() },
       twoFactor: { upsert: vi.fn() },
+      adminNotificationRecipient: { findUnique: vi.fn() },
+      notificationOutbox: { upsert: vi.fn() },
     }
     return {
       getSessionMock: vi.fn(),
@@ -92,7 +94,14 @@ describe('POST /api/seller/onboarding email OTP readiness', () => {
     })
     verifyTurnstileMock.mockResolvedValue({ success: true })
     prismaMock.seller.findUnique.mockResolvedValue(null)
-    transactionClient.seller.create.mockResolvedValue({ id: 'seller-1' })
+    transactionClient.seller.create.mockResolvedValue({
+      id: 'seller-1',
+      applicationSubmissionSeq: 1,
+    })
+    transactionClient.adminNotificationRecipient.findUnique.mockResolvedValue({
+      email: 'admin@hanuja.com.tr',
+    })
+    transactionClient.notificationOutbox.upsert.mockResolvedValue({ id: 'outbox-1' })
     transactionClient.sellerBankDetail.create.mockResolvedValue({
       id: 'bank-detail-1',
     })
@@ -123,6 +132,26 @@ describe('POST /api/seller/onboarding email OTP readiness', () => {
         backupCodes: '[]',
         verified: false,
       },
+    })
+  })
+
+  it('records the operations notification for the application in the same transaction', async () => {
+    const response = await POST(makeRequest())
+
+    expect(response.status).toBe(201)
+    expect(transactionClient.notificationOutbox.upsert).toHaveBeenCalledTimes(1)
+    const call = transactionClient.notificationOutbox.upsert.mock.calls[0]![0]
+    expect(call.where.userId_type_eventKey).toMatchObject({
+      userId: 'ops',
+      type: 'admin_seller_application',
+      // The submission sequence keys the event so a re-submission is a new one.
+      eventKey: 'seller:seller-1:application:1',
+    })
+    expect(call.create.payload.emailTo).toBe('admin@hanuja.com.tr')
+    expect(call.create.payload.data).toMatchObject({
+      sellerId: 'seller-1',
+      submissionSeq: 1,
+      adminUrl: 'https://admin.hanuja.com.tr/saticilar/seller-1',
     })
   })
 })

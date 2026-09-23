@@ -46,6 +46,13 @@ import { renderWithdrawalNotice, renderWithdrawalNoticeText } from './withdrawal
 import { cancellationActorLabel } from './order-lifecycle'
 
 export type {
+  AdminBankTransferPendingEmailInput,
+  AdminDisputeOpenedEmailInput,
+  AdminFulfillmentRiskEmailInput,
+  AdminOrderCancellationEmailInput,
+  AdminReturnRequestedEmailInput,
+  AdminSellerApplicationEmailInput,
+  AdminSupportTicketEmailInput,
   BankTransferInstruction,
   CancellationActorRole,
   CustomerCancellationEmailInput,
@@ -81,6 +88,18 @@ export {
   returnCargoInfoReadyTemplate,
   returnDecisionTemplate,
 } from './order-lifecycle'
+
+export {
+  adminBankTransferPendingTemplate,
+  adminCustomerSupportTicketTemplate,
+  adminDisputeOpenedTemplate,
+  adminFulfillmentRiskTemplate,
+  adminOrderCancellationTemplate,
+  adminReturnRequestedTemplate,
+  adminSellerApplicationTemplate,
+  adminSellerSupportTicketTemplate,
+  fulfillmentRiskLevelLabel,
+} from './admin-operations'
 
 function customerOrderUrl(
   params: Pick<CustomerOrderEmailInput, 'orderUrl' | 'customerOrderUrl' | 'orderLink'>,

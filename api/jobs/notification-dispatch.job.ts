@@ -27,6 +27,14 @@ import {
   sellerOrderCancellationTemplate,
   sellerReturnRequestTemplate,
   refundCompletedTemplate,
+  adminBankTransferPendingTemplate,
+  adminCustomerSupportTicketTemplate,
+  adminDisputeOpenedTemplate,
+  adminFulfillmentRiskTemplate,
+  adminOrderCancellationTemplate,
+  adminReturnRequestedTemplate,
+  adminSellerApplicationTemplate,
+  adminSellerSupportTicketTemplate,
   type BankTransferInstruction,
   type CancellationActorRole,
   type EmailOrderLineInput,
@@ -55,8 +63,10 @@ export interface NotificationDispatchJobData {
 }
 
 import {
+  ADMIN_OPERATION_TYPES,
   EMAIL_POLICIES,
   isEmailStage,
+  OPS_RECIPIENT_ID,
   validateEmailData,
   notificationErrorCode,
 } from '../lib/notification-policy'
@@ -119,6 +129,17 @@ function optStr(data: EmailData, key: string): string | undefined {
 function lines<T = EmailOrderLineInput>(data: EmailData, key = 'items'): T[] {
   const value = data[key]
   return Array.isArray(value) ? (value as T[]) : []
+}
+
+/** `{ key: value }` when present, `{}` otherwise — keeps optional props exact. */
+function opt(data: EmailData, key: string, as = key): Record<string, string> {
+  const value = optStr(data, key)
+  return value === undefined ? {} : { [as]: value }
+}
+
+function optNum(data: EmailData, key: string): Record<string, number> {
+  const value = data[key]
+  return typeof value === 'number' && Number.isFinite(value) ? { [key]: value } : {}
 }
 
 function paymentMethod(data: EmailData): 'card' | 'eft' | undefined {
@@ -361,6 +382,93 @@ async function buildEmailPayload(
         unsubscribeUrl: str(data, 'unsubscribeUrl'),
       })
 
+    // --- Admin operation e-mails (phase 3) -------------------------------
+    case NotificationTypeEnum.admin_order_cancellation:
+      return adminOrderCancellationTemplate({
+        orderNumber: str(data, 'orderNumber'),
+        adminUrl: str(data, 'adminUrl'),
+        items: lines(data),
+        ...opt(data, 'actorLabel'),
+        ...opt(data, 'sellerName'),
+        ...opt(data, 'customerName'),
+        ...opt(data, 'refundAmount'),
+        ...opt(data, 'reason'),
+      })
+
+    case NotificationTypeEnum.admin_return_requested:
+      return adminReturnRequestedTemplate({
+        orderNumber: str(data, 'orderNumber'),
+        adminUrl: str(data, 'adminUrl'),
+        items: lines(data),
+        ...opt(data, 'sellerName'),
+        ...opt(data, 'customerName'),
+        ...opt(data, 'reason'),
+        ...opt(data, 'flowLabel'),
+      })
+
+    case NotificationTypeEnum.admin_dispute_opened:
+      return adminDisputeOpenedTemplate({
+        orderNumber: str(data, 'orderNumber'),
+        adminUrl: str(data, 'adminUrl'),
+        ...opt(data, 'sellerName'),
+        ...opt(data, 'customerName'),
+        ...opt(data, 'reason'),
+        ...opt(data, 'sourceLabel'),
+      })
+
+    case NotificationTypeEnum.admin_support_new_ticket:
+      return adminSellerSupportTicketTemplate({
+        subject: str(data, 'subject'),
+        adminUrl: str(data, 'adminUrl'),
+        ...opt(data, 'ticketNumber'),
+        ...opt(data, 'requesterName'),
+        ...opt(data, 'categoryLabel'),
+        ...opt(data, 'priorityLabel'),
+        ...opt(data, 'message'),
+      })
+
+    case NotificationTypeEnum.admin_customer_support_new:
+      return adminCustomerSupportTicketTemplate({
+        subject: str(data, 'subject'),
+        adminUrl: str(data, 'adminUrl'),
+        ...opt(data, 'ticketNumber'),
+        ...opt(data, 'requesterName'),
+        ...opt(data, 'categoryLabel'),
+        ...opt(data, 'priorityLabel'),
+        ...opt(data, 'message'),
+      })
+
+    case NotificationTypeEnum.admin_bank_transfer_pending:
+      return adminBankTransferPendingTemplate({
+        orderNumber: str(data, 'orderNumber'),
+        adminUrl: str(data, 'adminUrl'),
+        ...opt(data, 'customerName'),
+        ...opt(data, 'totalAmount'),
+        ...opt(data, 'reference'),
+        ...opt(data, 'bankName'),
+      })
+
+    case NotificationTypeEnum.admin_fulfillment_risk:
+      return adminFulfillmentRiskTemplate({
+        orderNumber: str(data, 'orderNumber'),
+        adminUrl: str(data, 'adminUrl'),
+        riskLevel: str(data, 'riskLevel'),
+        items: lines(data),
+        ...opt(data, 'sellerName'),
+        ...opt(data, 'deadlineLabel'),
+        ...optNum(data, 'overdueDays'),
+      })
+
+    case NotificationTypeEnum.admin_seller_application:
+      return adminSellerApplicationTemplate({
+        sellerName: str(data, 'sellerName'),
+        adminUrl: str(data, 'adminUrl'),
+        ...opt(data, 'companyName'),
+        ...opt(data, 'city'),
+        ...opt(data, 'taxNumber'),
+        ...optNum(data, 'submissionSeq'),
+      })
+
     default:
       return null
   }
@@ -374,78 +482,90 @@ export async function processNotificationDispatch(
   const type = resolveNotificationType(job.data.type)
   if (!type) throw new Error('EMAIL_EVENT_UNKNOWN')
   if (type === NotificationTypeEnum.seller_refund_completed) return
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, email: true, role: true },
-  })
-  if (!user) throw new Error('EMAIL_USER_MISSING')
+  // Admin operation events are addressed to a configured mailbox, not to a user
+  // account: no user row, no in-app notification, e-mail leg only.
+  const isOps = userId === OPS_RECIPIENT_ID
+  const user = isOps
+    ? null
+    : await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true, role: true },
+      })
+  if (!isOps && !user) throw new Error('EMAIL_USER_MISSING')
   const eventKey = job.data.eventKey ?? `legacy-job:${job.id ?? 'unknown'}`
   const payload = JSON.parse(JSON.stringify({ ...job.data, eventKey }))
   const now = new Date()
-  const inApp = await prisma.notificationDelivery.upsert({
-    where: {
-      recipient_channel_eventKey: {
-        recipient: userId,
-        channel: 'in_app',
-        eventKey,
+  const deliveryUserId = isOps ? null : userId
+  if (!isOps) {
+    const inApp = await prisma.notificationDelivery.upsert({
+      where: {
+        recipient_channel_eventKey: {
+          recipient: userId,
+          channel: 'in_app',
+          eventKey,
+        },
       },
-    },
-    update: {},
-    create: {
-      eventKey,
-      userId,
-      type,
-      channel: 'in_app',
-      recipient: userId,
-      payload,
-    },
-  })
-  if (inApp.status !== 'sent') {
-    // Claim + notification + sent marker commit together; crashes roll back the claim.
-    await prisma.$transaction(async (tx) => {
-      const claim = await tx.notificationDelivery.updateMany({
-        where: {
-          id: inApp.id,
-          OR: [
-            { status: { in: ['pending', 'failed'] } },
-            {
-              status: 'processing',
-              OR: [{ leaseExpiresAt: { lt: now } }, { leaseExpiresAt: null }],
-            },
-          ],
-        },
-        data: {
-          status: 'processing',
-          attemptCount: { increment: 1 },
-          lastAttemptAt: now,
-        },
-      })
-      if (!claim.count) return
-      const notification = await tx.notification.create({
-        data: { userId, type, title, body, data: data as never },
-      })
-      await tx.notificationDelivery.update({
-        where: { id: inApp.id },
-        data: {
-          status: 'sent',
-          notificationId: notification.id,
-          deliveredAt: now,
-        },
-      })
+      update: {},
+      create: {
+        eventKey,
+        userId,
+        type,
+        channel: 'in_app',
+        recipient: userId,
+        payload,
+      },
     })
+    if (inApp.status !== 'sent') {
+      // Claim + notification + sent marker commit together; crashes roll back the claim.
+      await prisma.$transaction(async (tx) => {
+        const claim = await tx.notificationDelivery.updateMany({
+          where: {
+            id: inApp.id,
+            OR: [
+              { status: { in: ['pending', 'failed'] } },
+              {
+                status: 'processing',
+                OR: [{ leaseExpiresAt: { lt: now } }, { leaseExpiresAt: null }],
+              },
+            ],
+          },
+          data: {
+            status: 'processing',
+            attemptCount: { increment: 1 },
+            lastAttemptAt: now,
+          },
+        })
+        if (!claim.count) return
+        const notification = await tx.notification.create({
+          data: { userId, type, title, body, data: data as never },
+        })
+        await tx.notificationDelivery.update({
+          where: { id: inApp.id },
+          data: {
+            status: 'sent',
+            notificationId: notification.id,
+            deliveredAt: now,
+          },
+        })
+      })
+    }
   }
   const policy = EMAIL_POLICIES[type]
   // Preserve deliberate in-app-only events; explicitly requested unsupported email is an error.
   if (!policy && !job.data.emailTo) return
   // Marketing producers intentionally omit emailTo for users who opted out.
   if (policy?.category === 'kampanya' && !job.data.emailTo) return
+  // The in-app copy an admin user receives for an operation event stays in-app:
+  // the e-mail leg belongs to the ops row alone, so the number of admin users
+  // never changes how many e-mails go out.
+  if (!isOps && policy?.role === 'admin') return
   // A policy targets one audience. Copies of the same event sent to another
   // role (e.g. the admin in-app copy of a customer return) are in-app only unless
   // the producer explicitly asked for an e-mail address.
-  if (policy && !job.data.emailTo && user.role !== policy.role) return
+  if (user && policy && !job.data.emailTo && user.role !== policy.role) return
   // Stage-gated types (return_status_changed) only e-mail the listed stages.
   if (policy && !isEmailStage(type, data)) return
-  const emailTo = (job.data.emailTo ?? user.email ?? '').trim().toLowerCase()
+  const emailTo = (job.data.emailTo ?? user?.email ?? '').trim().toLowerCase()
   const email = await prisma.notificationDelivery.upsert({
     where: {
       recipient_channel_eventKey: {
@@ -457,7 +577,7 @@ export async function processNotificationDispatch(
     update: {},
     create: {
       eventKey,
-      userId,
+      userId: deliveryUserId,
       type,
       channel: 'email',
       recipient: emailTo || userId,
@@ -505,8 +625,14 @@ export async function processNotificationDispatch(
   let accepted = false
   try {
     const config = validateEmailData(type, data)
-    if (user.role !== config.role)
+    // Being addressed to the ops mailbox is not on its own a licence to skip the
+    // role check: only the declared operation types may take this path.
+    if (isOps) {
+      if (!ADMIN_OPERATION_TYPES.has(type) || config.role !== 'admin')
+        throw new Error('EMAIL_OPS_TYPE_NOT_ALLOWED')
+    } else if (user && user.role !== config.role) {
       throw new Error('EMAIL_RECIPIENT_ROLE_MISMATCH')
+    }
     if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(emailTo))
       throw new Error('EMAIL_RECIPIENT_INVALID')
     if (config.category === 'kampanya') {

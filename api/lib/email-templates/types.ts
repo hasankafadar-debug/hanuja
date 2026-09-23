@@ -235,3 +235,79 @@ export interface CustomerRefundCompletedEmailInput extends Omit<CustomerOrderEma
   refundAmount?: EmailAmount
   paymentMethod?: 'card' | 'eft' | null
 }
+
+/* ---------------------------------------------------------------------------
+ * Admin operation e-mails (phase 3). These are addressed to a configured
+ * operations mailbox; every field is optional except the ones the notification
+ * policy marks as required, so a producer can only omit context, never the link.
+ * ------------------------------------------------------------------------- */
+
+export interface AdminOperationEmailBase {
+  /** Absolute admin panel link for the single action this e-mail asks for. */
+  adminUrl: string
+}
+
+export interface AdminOrderCancellationEmailInput extends AdminOperationEmailBase {
+  orderNumber: string
+  actorLabel?: string
+  sellerName?: string
+  customerName?: string
+  refundAmount?: EmailAmount
+  reason?: string
+  items?: readonly EmailOrderLineInput[]
+}
+
+export interface AdminReturnRequestedEmailInput extends AdminOperationEmailBase {
+  orderNumber: string
+  sellerName?: string
+  customerName?: string
+  reason?: string
+  /** Which return flow produced it (quantity-based or legacy). */
+  flowLabel?: string
+  items?: readonly EmailOrderLineInput[]
+}
+
+export interface AdminDisputeOpenedEmailInput extends AdminOperationEmailBase {
+  orderNumber: string
+  sellerName?: string
+  customerName?: string
+  reason?: string
+  /** Which flow opened the dispute (seller rejection, admin, return receipt). */
+  sourceLabel?: string
+}
+
+export interface AdminSupportTicketEmailInput extends AdminOperationEmailBase {
+  subject: string
+  ticketNumber?: string
+  requesterName?: string
+  categoryLabel?: string
+  priorityLabel?: string
+  message?: string
+}
+
+export interface AdminBankTransferPendingEmailInput extends AdminOperationEmailBase {
+  orderNumber: string
+  customerName?: string
+  totalAmount?: EmailAmount
+  reference?: string
+  bankName?: string
+}
+
+export interface AdminFulfillmentRiskEmailInput extends AdminOperationEmailBase {
+  orderNumber: string
+  /** `warning` or `breached`; rendered through fulfillmentRiskLevelLabel. */
+  riskLevel: string
+  sellerName?: string
+  deadlineLabel?: string
+  overdueDays?: number
+  items?: readonly EmailOrderLineInput[]
+}
+
+export interface AdminSellerApplicationEmailInput extends AdminOperationEmailBase {
+  sellerName: string
+  companyName?: string
+  city?: string
+  taxNumber?: string
+  /** 1 for the first application, higher for a re-submission. */
+  submissionSeq?: number
+}

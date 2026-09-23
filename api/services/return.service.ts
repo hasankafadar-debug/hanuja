@@ -19,6 +19,10 @@ import { createOrderRepository } from '../repositories/order.repository'
 import { createDisputeRepository } from '../repositories/dispute.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { recordNotification } from './notification-outbox.service'
+import {
+  adminPanelLink,
+  recordAdminOperationNotification,
+} from './admin-notification.service'
 import { createRefundService } from './refund.service'
 import { dispatchRefundProcessingAfterCommit } from './quantity-refund.service'
 import { sellerScopedReturnWhere } from '../repositories/return-request.repository'
@@ -450,6 +454,22 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
                 }
               }
 
+              await recordAdminOperationNotification(tx, {
+                event: 'return_requested',
+                type: 'admin_return_requested',
+                eventKey: `return:${returnRequest.id}:ops`,
+                title: 'Yeni iade talebi',
+                body: `#${customerContext.orderNumber} siparişi için iade talebi açıldı.`,
+                data: {
+                  orderNumber: customerContext.orderNumber,
+                  adminUrl: adminPanelLink('/iadeler'),
+                  customerName: customerContext.customerName,
+                  reason: params.reason,
+                  flowLabel: 'Sipariş bazlı iade (eski akış)',
+                  items: customerContext.items,
+                },
+              })
+
               return returnRequest
             },
             { ...TX_OPTIONS, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -772,6 +792,21 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
             data: { orderId: rr.orderId, returnRequestId: rr.id, disputeId: dispute.id },
           })
         }
+        await recordAdminOperationNotification(tx, {
+          event: 'dispute_opened',
+          type: 'admin_dispute_opened',
+          eventKey: `dispute:${dispute.id}:ops`,
+          title: 'Yeni uyuşmazlık (iade reddi)',
+          body: `#${rr.order.publicNumber} siparişinin iadesi satıcı tarafından reddedildi.`,
+          data: {
+            orderNumber: String(rr.order.publicNumber),
+            adminUrl: adminPanelLink(`/uyusmazliklar/${dispute.id}`),
+            reason: params.description
+              ? `${params.reason} — ${params.description}`
+              : params.reason,
+            sourceLabel: 'Satıcı iade teslimini reddetti',
+          },
+        })
       }, TX_OPTIONS)
 
       return returnRequests.findById(params.returnRequestId)

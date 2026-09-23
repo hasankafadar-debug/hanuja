@@ -17,6 +17,10 @@ import {
 } from './quantity-refund.service'
 import type { RefundOutcome } from '../lib/email-templates/types'
 import { recordNotification } from './notification-outbox.service'
+import {
+  adminPanelLink,
+  recordAdminOperationNotification,
+} from './admin-notification.service'
 import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 import { formatMoney } from '@hanuja/security/money'
@@ -267,6 +271,24 @@ export function createQuantityReturnService({
           data,
         })
       }
+      await recordAdminOperationNotification(tx, {
+        event: 'return_requested',
+        type: 'admin_return_requested',
+        eventKey: `return:${operation.id}:ops`,
+        title: 'Yeni adet bazlı iade talebi',
+        body: summary,
+        data: {
+          orderNumber,
+          adminUrl: adminPanelLink('/iadeler'),
+          customerName,
+          sellerName: operation.sellerId
+            ? sellerById.get(operation.sellerId)?.displayName
+            : undefined,
+          reason: operation.reason,
+          flowLabel: 'Adet bazlı iade',
+          items,
+        },
+      })
     }
   }
 
@@ -806,6 +828,22 @@ export function createQuantityReturnService({
               },
             })
             disputeId = dispute.id
+            await recordAdminOperationNotification(tx, {
+              event: 'dispute_opened',
+              type: 'admin_dispute_opened',
+              eventKey: `dispute:${dispute.id}:ops`,
+              title: 'İade teslim reddi nedeniyle uyuşmazlık açıldı',
+              body: rejectedDescriptions.join('\n'),
+              data: {
+                orderNumber: formatOrderNumber(
+                  request.order.publicNumber,
+                  request.orderId,
+                ),
+                adminUrl: adminPanelLink(`/uyusmazliklar/${dispute.id}`),
+                reason: rejectedDescriptions.join('\n'),
+                sourceLabel: 'Satıcı iade teslimini reddetti',
+              },
+            })
           }
 
           await tx.returnRequest.update({

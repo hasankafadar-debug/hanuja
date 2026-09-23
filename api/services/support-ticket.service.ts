@@ -1,6 +1,11 @@
-import type { PrismaClient } from '@prisma/client'
+import type { Prisma, PrismaClient } from '@prisma/client'
 import { ForbiddenError, NotFoundError, ValidationError } from '../lib/errors'
 import { createNotificationService } from './notification.service'
+import { recordNotification } from './notification-outbox.service'
+import {
+  adminPanelLink,
+  recordAdminOperationNotification,
+} from './admin-notification.service'
 
 const supportAttachmentMediaSelect = {
   id: true,
@@ -67,33 +72,59 @@ export function createSupportTicketService({ prisma }: { prisma: PrismaClient })
     return order
   }
 
-  async function notifyAdminsAboutNewTicket(params: {
-    ticketId: string
-    sellerId: string
-    sellerName: string
-    subject: string
-    orderId?: string | null
-  }) {
-    const admins = await prisma.user.findMany({
+  /**
+   * Written on the ticket's own transaction: a crash after commit used to lose
+   * the admin notification entirely (the old call was fire-and-forget).
+   */
+  async function notifyAdminsAboutNewTicket(
+    tx: Prisma.TransactionClient,
+    params: {
+      ticketId: string
+      sellerId: string
+      sellerName: string
+      subject: string
+      body: string
+      orderId?: string | null
+    },
+  ) {
+    const admins = await tx.user.findMany({
       where: { role: 'admin' },
       select: { id: true },
     })
+    const title = 'Yeni destek talebi'
+    const body = `${params.sellerName} mağazası "${params.subject}" başlıklı yeni bir destek talebi açtı.`
+    const data = {
+      ticketId: params.ticketId,
+      sellerId: params.sellerId,
+      orderId: params.orderId ?? null,
+    }
 
-    await Promise.all(
-      admins.map((admin) =>
-        notifications.send({
-          userId: admin.id,
-          type: 'admin_support_new_ticket',
-          title: 'Yeni destek talebi',
-          body: `${params.sellerName} mağazası "${params.subject}" başlıklı yeni bir destek talebi açtı.`,
-          data: {
-            ticketId: params.ticketId,
-            sellerId: params.sellerId,
-            orderId: params.orderId ?? null,
-          },
-        }),
-      ),
-    )
+    for (const admin of admins) {
+      await recordNotification(tx, {
+        eventKey: `support:${params.ticketId}:admin:${admin.id}`,
+        userId: admin.id,
+        type: 'admin_support_new_ticket',
+        title,
+        body,
+        data,
+      })
+    }
+
+    await recordAdminOperationNotification(tx, {
+      event: 'support_ticket',
+      type: 'admin_support_new_ticket',
+      eventKey: `support:${params.ticketId}:ops`,
+      title,
+      body,
+      data: {
+        ...data,
+        subject: params.subject,
+        adminUrl: adminPanelLink(`/destek/${params.ticketId}`),
+        ticketNumber: params.ticketId.slice(-8).toUpperCase(),
+        requesterName: params.sellerName,
+        message: params.body,
+      },
+    })
   }
 
   async function getTicketForSeller(ticketId: string, sellerId: string) {
@@ -264,15 +295,16 @@ export function createSupportTicketService({ prisma }: { prisma: PrismaClient })
           })
         }
 
-        return createdTicket
-      })
+        await notifyAdminsAboutNewTicket(tx, {
+          ticketId: createdTicket.id,
+          sellerId: params.sellerId,
+          sellerName: seller.displayName,
+          subject,
+          body,
+          orderId,
+        })
 
-      await notifyAdminsAboutNewTicket({
-        ticketId: ticket.id,
-        sellerId: params.sellerId,
-        sellerName: seller.displayName,
-        subject,
-        orderId,
+        return createdTicket
       })
 
       return ticket

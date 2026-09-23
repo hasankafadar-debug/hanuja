@@ -37,6 +37,9 @@ function buildTx(extra: Record<string, unknown> = {}) {
       ]),
     },
     user: { findMany: vi.fn().mockResolvedValue([{ id: 'admin-1' }]) },
+    adminNotificationRecipient: {
+      findUnique: vi.fn().mockResolvedValue({ email: 'admin@hanuja.com.tr' }),
+    },
     productImage: { findMany: vi.fn().mockResolvedValue([]) },
     order: { findUnique: vi.fn().mockResolvedValue(order) },
     ...extra,

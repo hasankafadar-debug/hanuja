@@ -22,6 +22,10 @@ import { createReturnRequestRepository } from '../repositories/return-request.re
 import { createPayoutRepository } from '../repositories/payout.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { createRefundService } from './refund.service'
+import {
+  adminPanelLink,
+  recordAdminOperationNotification,
+} from './admin-notification.service'
 import { createQuantityRefundService } from './quantity-refund.service'
 import { assertTransition } from '../domain/order-state-machine'
 import { assertNoContactSharing } from './contact-sharing-guard.service'
@@ -71,23 +75,47 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
         throw new ConflictError('Bu sipariş için zaten açık bir uyuşmazlık var')
       }
 
-      const dispute = await disputes.create({
-        orderId: params.orderId,
-        openedById: params.customerId,
-        reason: params.reason,
-        ...(params.description !== undefined && {
-          description: params.description,
-        }),
+      // Dispute, its history entry and the operations notification commit
+      // together: a crash in between must not leave a dispute nobody is told about.
+      return prisma.$transaction(async (tx) => {
+        const dispute = await disputes.create(
+          {
+            orderId: params.orderId,
+            openedById: params.customerId,
+            reason: params.reason,
+            ...(params.description !== undefined && {
+              description: params.description,
+            }),
+          },
+          tx as PrismaClient,
+        )
+
+        await orders.appendStatusHistory(
+          params.orderId,
+          'dispute_open' as never,
+          params.customerId,
+          `Uyuşmazlık açıldı: ${params.reason}`,
+          tx as PrismaClient,
+        )
+
+        await recordAdminOperationNotification(tx, {
+          event: 'dispute_opened',
+          type: 'admin_dispute_opened',
+          eventKey: `dispute:${dispute.id}:ops`,
+          title: 'Müşteri uyuşmazlık açtı',
+          body: `#${order.publicNumber} siparişi için uyuşmazlık açıldı: ${params.reason}`,
+          data: {
+            orderNumber: String(order.publicNumber),
+            adminUrl: adminPanelLink(`/uyusmazliklar/${dispute.id}`),
+            reason: params.description
+              ? `${params.reason} — ${params.description}`
+              : params.reason,
+            sourceLabel: 'Müşteri uyuşmazlık açtı',
+          },
+        })
+
+        return dispute
       })
-
-      await orders.appendStatusHistory(
-        params.orderId,
-        'dispute_open' as never,
-        params.customerId,
-        `Uyuşmazlık açıldı: ${params.reason}`,
-      )
-
-      return dispute
     },
 
     /**
