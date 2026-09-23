@@ -35,6 +35,8 @@ import {
   adminReturnRequestedTemplate,
   adminSellerApplicationTemplate,
   adminSellerSupportTicketTemplate,
+  sellerProductQuestionTemplate,
+  customerProductQuestionAnsweredTemplate,
   type BankTransferInstruction,
   type CancellationActorRole,
   type EmailOrderLineInput,
@@ -251,6 +253,28 @@ async function buildEmailPayload(
         items: lines(data),
         ...(optStr(data, 'returnReason') ? { returnReason: optStr(data, 'returnReason')! } : {}),
         ...(optStr(data, 'panelUrl') ? { panelUrl: optStr(data, 'panelUrl')! } : {}),
+      })
+
+    case NotificationTypeEnum.seller_product_question:
+      return sellerProductQuestionTemplate({
+        sellerName: str(data, 'sellerName'),
+        productName: str(data, 'productName'),
+        messageExcerpt: str(data, 'messageExcerpt'),
+        panelUrl: str(data, 'panelUrl'),
+        ...opt(data, 'productImageUrl'),
+        ...opt(data, 'customerName'),
+        ...opt(data, 'orderNumber'),
+      })
+
+    case NotificationTypeEnum.customer_product_question_answered:
+      return customerProductQuestionAnsweredTemplate({
+        sellerName: str(data, 'sellerName'),
+        productName: str(data, 'productName'),
+        messageExcerpt: str(data, 'messageExcerpt'),
+        threadUrl: str(data, 'threadUrl'),
+        ...opt(data, 'productImageUrl'),
+        ...opt(data, 'customerName'),
+        ...opt(data, 'orderNumber'),
       })
 
     case NotificationTypeEnum.refund_completed:

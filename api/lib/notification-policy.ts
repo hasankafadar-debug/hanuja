@@ -101,6 +101,16 @@ export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
     category: 'noreply',
     required: ['orderNumber', 'sellerId', 'items'],
   },
+  seller_product_question: {
+    role: 'seller',
+    category: 'noreply',
+    required: ['sellerName', 'productName', 'messageExcerpt', 'panelUrl'],
+  },
+  customer_product_question_answered: {
+    role: 'customer',
+    category: 'noreply',
+    required: ['sellerName', 'productName', 'messageExcerpt', 'threadUrl'],
+  },
   seller_return_request: {
     role: 'seller',
     category: 'noreply',

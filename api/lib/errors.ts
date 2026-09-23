@@ -62,6 +62,25 @@ export class ValidationError extends DomainError {
   }
 }
 
+/** The request body is empty or not valid JSON — a client error, never a 500. */
+export class InvalidJsonBodyError extends DomainError {
+  constructor() {
+    super('İstek gövdesi geçerli bir JSON değil.', 'INVALID_JSON', 400)
+    this.name = 'InvalidJsonBodyError'
+  }
+}
+
+/**
+ * The client closed the connection before the body arrived. Nobody receives the
+ * response; the distinct code (nginx's 499) keeps it out of server-error logs.
+ */
+export class RequestAbortedError extends DomainError {
+  constructor() {
+    super('İstek istemci tarafından kesildi.', 'REQUEST_ABORTED', 499)
+    this.name = 'RequestAbortedError'
+  }
+}
+
 export class PayoutBlockedError extends DomainError {
   constructor(reason: string) {
     super(`Ödeme bloke: ${reason}`, 'PAYOUT_BLOCKED', 409)

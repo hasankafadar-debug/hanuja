@@ -19,6 +19,7 @@ import { CancelOrderButton } from './_components/cancel-order-button'
 import ExtensionRequestDecision from './_components/extension-request-decision'
 import ReturnRequestButton from './_components/return-request-button'
 import { ReturnPanel } from './_components/return-panel'
+import { OrderLineQuestion } from './_components/order-line-question'
 
 export const dynamic = 'force-dynamic'
 
@@ -172,6 +173,8 @@ export default async function OrderDetailPage({ params }: Props) {
   }
 
   const lines = order.lines as unknown as OrderLine[]
+  // Seller-visible (payment confirmed) orders only; the server re-checks order, product and seller together.
+  const canAskSeller = Boolean((order as { paymentConfirmedAt?: Date | null }).paymentConfirmedAt)
   const isQuantityLifecycle = order.quantityLifecycleVersion === 2
   const cancellationLines = isQuantityLifecycle
     ? lines
@@ -355,7 +358,7 @@ export default async function OrderDetailPage({ params }: Props) {
             const image = line.product?.images?.[0]?.url
 
             return (
-              <div key={line.id} className="flex items-center gap-3">
+              <div key={line.id} className="flex items-start gap-3">
                 <div
                   className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg text-xs"
                   style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-muted-fg)' }}
@@ -392,6 +395,9 @@ export default async function OrderDetailPage({ params }: Props) {
                       ? ` · ${line.returnClaimedQuantity} iade sürecinde`
                       : ''}
                   </p>
+                  {canAskSeller && line.product ? (
+                    <OrderLineQuestion orderId={order.id} productId={line.product.id} />
+                  ) : null}
                 </div>
                 <span className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
                   {formatMoney(price * line.quantity)}

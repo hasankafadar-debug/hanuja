@@ -137,3 +137,9 @@ export {
 export { HeroSlider, type HeroSlide, type HeroSliderProps } from './components/hero-slider'
 export { PromoCard, type PromoCardProps } from './components/promo-card'
 export { isManagedMediaProxyUrl, mediaSrcSet, normalizeMediaDisplayUrl } from './lib/media-url'
+export {
+  startReadReceipt,
+  type ReadReceiptHandle,
+  type ReadReceiptOptions,
+  type ReadReceiptOutcome,
+} from './lib/read-receipt'

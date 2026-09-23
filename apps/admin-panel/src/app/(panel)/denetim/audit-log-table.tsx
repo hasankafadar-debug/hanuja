@@ -29,6 +29,7 @@ const ACTION_LABELS: Record<string, string> = {
   refund_issued: 'Iade yapildi',
   category_tax_rate_changed: 'Kategori vergi orani degisti',
   seller_commission_rate_changed: 'Satici komisyonu degisti',
+  product_question_viewed: 'Müşteri sorusu görüntülendi',
 }
 
 const ACTION_COLORS: Record<string, string> = {
@@ -45,6 +46,7 @@ const ACTION_COLORS: Record<string, string> = {
   refund_issued: '#f59e0b',
   category_tax_rate_changed: '#0ea5e9',
   seller_commission_rate_changed: '#8b5cf6',
+  product_question_viewed: '#64748b',
 }
 
 interface AuditLogTableProps {
@@ -64,6 +66,7 @@ const ACTION_OPTIONS = [
   'order_cancelled',
   'category_tax_rate_changed',
   'seller_commission_rate_changed',
+  'product_question_viewed',
 ]
 
 export function AuditLogTable({ initialRows }: AuditLogTableProps) {

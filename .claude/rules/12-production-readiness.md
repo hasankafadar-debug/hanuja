@@ -616,6 +616,38 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   kendi yeniden başvuru yolu bugün yok — `applicationSubmissionSeq` varsayılan `1`'de kalır.
 - Ayrıntı: `docs/07-operations/email-phase-3-report.md`.
 
+### 33. E-posta Faz 4 — "Soru Sor" ve özel müşteri–satıcı konuşmaları (yeni — 2026-09-23)
+
+- **Migration var:** `20260923120000_product_questions` — `product_question_threads` (`threadKey`
+  unique), `product_question_messages`, `ProductQuestionStatus` enum; `NotificationType`
+  `seller_product_question` / `customer_product_question_answered`; `AdminActionType`
+  `product_question_viewed`. Additive. **Yeni env yok.**
+- Deploy sırası: `pnpm db:migrate:deploy` → **worker → admin-panel → seller-panel → web**; worker
+  önce, aksi hâlde eski worker yeni tipleri `EMAIL_TEMPLATE_UNSUPPORTED` ile düşürür.
+- **Açma kuralları ikiye ayrılır:** satış öncesi soru yalnız yayındaki ürüne, aktif ve tatilde olmayan
+  satıcıya; siparişe bağlı soru ürünün yayın durumuna bakmaz, müşteri + sipariş (ödeme onaylı) + ürün +
+  satıcıyı tek sorguda doğrular ve `sellerId`'yi sipariş satırından alır. Askıdaki satıcı mevcut
+  konuşmalara yanıt verebilir.
+- **Mesaj sırası kilit altında:** her mesaj önce konuşmanın `messageSeq` sayacını artırır (satır
+  kilidi); `seq`, tur kararı (e-posta) ve "son mesaj" alanları bu kilit altında yazılır → tur başına tek
+  e-posta, eventKey `turnSeq`'e bağlı. İletişim bilgisi paylaşımı üç yazma yolunda da
+  `assertNoContactSharing` ile engellenir.
+- **Okundu** sıra numarasıyla tutulur (saatle değil); yalnız ekranda gösterilen son mesaj için istemci
+  POST'u ile yazılır; sunucu render'ı ve prefetch okundu üretmez; sınır geri gitmez.
+- Müşteri ve satıcı listeleri 30'luk sayfalıdır (`?sayfa=`).
+- Okundu isteği geçici hatalarda (ağ, 429, 5xx) en çok 3 deneme, artan gecikmeyle tekrarlanır
+  (`packages/ui` `startReadReceipt`). Bu route'larda boş/bozuk JSON gövdesi 400 `INVALID_JSON`, kesilen
+  istek 499 döner; gerçek sunucu hataları 500 kalır.
+- Admin salt okunur; detay her görüntülemede `product_question_viewed` audit satırı yazar, liste mesaj
+  içeriği taşımaz.
+- **Yol boyunca bulunan:** `better-auth/react` `useSession` hook'u web'de SSR'ı kırıyor
+  (`Cannot read properties of null (reading 'useRef')`, ayrı React kopyası). Web istemcisi oturumu
+  hook ile değil, tıklamada `getSession()` ile okur. Aynı hata metni §26'da satıcı konteyner logunda da
+  geçiyor; ilişkisi ayrıca incelenmeli.
+- **Ayrı commit:** giriş sayfası `callbackUrl` artık `safeInternalPath` ile süzülür (açık yönlendirme
+  kapatıldı; kodlu ayraç ve nokta segmentleri reddedilir, normalize çıktı yeniden doğrulanır).
+- Ayrıntı: `docs/07-operations/email-phase-4-report.md`.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

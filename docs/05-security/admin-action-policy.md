@@ -302,6 +302,26 @@ capture reason shown to customer.
 
 ---
 
+### 10. Product Question Viewed (read-only)
+
+**Permission required:** admin role
+**Confirmation step:** none — viewing only. Admin cannot write in customer–seller conversations.
+
+Every render of `/musteri-sorulari/[id]` writes an audit entry in the same transaction as the read.
+The list view carries no message content and its detail links are not prefetched, so only a real
+open produces an entry.
+
+| Field | Value |
+|---|---|
+| `actionType` | `product_question_viewed` |
+| `targetType` | `product_question_thread` |
+| `targetId` | thread ID |
+| `newData` | `{ sellerId, customerId }` |
+| `ipAddress` | first `x-forwarded-for` hop, when present |
+| `actorId` | Admin user ID |
+
+---
+
 ## Permission Matrix Enforcement Status
 
 Historically, `packages/security/src/permission-matrix.ts` defined 75+ actions

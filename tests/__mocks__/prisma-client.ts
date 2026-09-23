@@ -124,6 +124,8 @@ export enum NotificationType {
   product_review_rejected = 'product_review_rejected',
   product_discount_favorited = 'product_discount_favorited',
   product_discount_in_cart = 'product_discount_in_cart',
+  seller_product_question = 'seller_product_question',
+  customer_product_question_answered = 'customer_product_question_answered',
 }
 
 export enum CampaignDispatchSource {

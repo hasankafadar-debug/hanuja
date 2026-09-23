@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Bell, FileText, Heart, LogOut, MapPin, Package, User } from 'lucide-react'
+import { Bell, FileText, Heart, LogOut, MapPin, MessageCircleQuestion, Package, User } from 'lucide-react'
 import { signOut } from '@/lib/auth-client'
 
 const ACCOUNT_NAV = [
@@ -12,6 +12,7 @@ const ACCOUNT_NAV = [
   { label: 'İletişim Tercihleri', href: '/hesabim/iletisim-tercihleri', icon: Bell },
   { label: 'Faturalarım', href: '/faturalarim', icon: FileText },
   { label: 'Siparişlerim', href: '/siparis', icon: Package },
+  { label: 'Sorularım', href: '/hesabim/sorularim', icon: MessageCircleQuestion },
 ] as const
 
 export function AccountNav() {

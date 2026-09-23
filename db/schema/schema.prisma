@@ -361,6 +361,7 @@ enum AdminActionType {
   security_step_up_verified
   notification_retry_requested
   notification_recipient_changed
+  product_question_viewed
 }
 
 enum ExtensionRequestStatus {
@@ -428,6 +429,8 @@ enum NotificationType {
   store_discount_followed_seller
   product_discount_favorited
   product_discount_in_cart
+  seller_product_question
+  customer_product_question_answered
 }
 
 enum NotificationChannel {
@@ -558,6 +561,9 @@ model User {
 
   extensionRequests FulfillmentExtensionRequest[]
 
+  productQuestionThreads  ProductQuestionThread[]  @relation("ProductQuestionThreadCustomer")
+  productQuestionMessages ProductQuestionMessage[] @relation("ProductQuestionMessageAuthor")
+
   @@map("users")
 }
 
@@ -677,6 +683,7 @@ model Seller {
   homeSlides              HomeSlide[]
   extensionRequests       FulfillmentExtensionRequest[]
   orderFulfillments       OrderSellerFulfillment[]
+  productQuestionThreads  ProductQuestionThread[]
 
   @@index([status])
   @@index([slug])
@@ -905,6 +912,7 @@ model Product {
   favoritedBy          FavoriteProduct[]
   analyticsEvents      ProductAnalyticsEvent[]
   barcodeReservation   BarcodeRegistry?        @relation("ProductBarcodeRegistry")
+  questionThreads      ProductQuestionThread[]
 
   @@index([sellerId, status])
   @@index([barcode])
@@ -1190,6 +1198,7 @@ model Order {
   sellerFulfillments     OrderSellerFulfillment[]
   cancellations          OrderCancellation[]
   refundTransactions     RefundTransaction[]
+  productQuestionThreads ProductQuestionThread[]
 
   @@index([customerId, status])
   @@index([status, createdAt])
@@ -2694,6 +2703,67 @@ model CustomerSupportMessageAttachment {
 
   @@unique([messageId, mediaAssetId])
   @@map("customer_support_message_attachments")
+}
+
+enum ProductQuestionStatus {
+  waiting_for_seller
+  waiting_for_customer
+}
+
+/// Private customer ↔ seller conversation about a product (pre-sale) or an
+/// ordered product. Admin can read it (every read is audited) but not write.
+model ProductQuestionThread {
+  id                     String                @id @default(cuid())
+  /// "{customerId}:{productId}:{orderId|presale}" — one thread per key, also when orderId is null.
+  threadKey              String                @unique
+  customerId             String
+  sellerId               String
+  productId              String
+  orderId                String?
+  status                 ProductQuestionStatus @default(waiting_for_seller)
+  /// Incremented on every turn change; the notification eventKey is bound to it.
+  turnSeq                Int                   @default(1)
+  /// Per-thread message counter, incremented under the row lock before a message is written.
+  /// Message order, "last message by side" and read boundaries are all expressed in it.
+  messageSeq             Int                   @default(0)
+  lastCustomerMessageSeq Int                   @default(0)
+  lastSellerMessageSeq   Int                   @default(0)
+  customerLastReadSeq    Int                   @default(0)
+  sellerLastReadSeq      Int                   @default(0)
+  /// Display and list ordering only; never used to decide read/unread.
+  lastMessageAt          DateTime              @default(now())
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  customer User                     @relation("ProductQuestionThreadCustomer", fields: [customerId], references: [id])
+  seller   Seller                   @relation(fields: [sellerId], references: [id])
+  product  Product                  @relation(fields: [productId], references: [id])
+  order    Order?                   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  messages ProductQuestionMessage[]
+
+  @@index([sellerId, status, lastMessageAt])
+  @@index([customerId, lastMessageAt])
+  @@index([productId])
+  @@index([orderId])
+  @@map("product_question_threads")
+}
+
+model ProductQuestionMessage {
+  id         String   @id @default(cuid())
+  threadId   String
+  /// Position in the thread (ProductQuestionThread.messageSeq at write time).
+  seq        Int
+  authorId   String
+  authorRole UserRole
+  body       String   @db.Text
+  createdAt  DateTime @default(now())
+
+  thread ProductQuestionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User                  @relation("ProductQuestionMessageAuthor", fields: [authorId], references: [id])
+
+  @@unique([threadId, seq])
+  @@index([authorId])
+  @@map("product_question_messages")
 }
 
 // =============================================================================

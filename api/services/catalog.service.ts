@@ -854,6 +854,8 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
 
       await prisma.$transaction(async (tx) => {
         await tx.cartItem.deleteMany({ where: { productId: id } })
+        // Pre-sale questions only: a product with order history is never deleted.
+        await tx.productQuestionThread.deleteMany({ where: { productId: id } })
         if (mediaAssets.length > 0) {
           await tx.mediaAsset.deleteMany({
             where: { id: { in: mediaAssets.map((asset) => asset.id) } },

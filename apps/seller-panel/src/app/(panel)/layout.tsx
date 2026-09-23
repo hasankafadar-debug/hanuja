@@ -5,6 +5,7 @@ import {
   Images,
   LayoutDashboard,
   LifeBuoy,
+  MessageCircleQuestion,
   Package,
   Percent,
   ReceiptText,
@@ -18,6 +19,8 @@ import {
   Wallet,
 } from 'lucide-react'
 import { getSellerFromSession } from '@/lib/seller-session'
+import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { createProductQuestionService } from '@hanuja/api/services/product-question.service'
 import { UserMenu } from './_components/user-menu'
 import { MobileNav } from './_components/mobile-nav'
 
@@ -51,6 +54,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Siparişler', href: '/siparisler', icon: <ShoppingBag className="h-4 w-4" /> },
       { label: 'Kargolar', href: '/kargolar', icon: <Truck className="h-4 w-4" /> },
       { label: 'İadeler', href: '/iadeler', icon: <RotateCcw className="h-4 w-4" /> },
+      { label: 'Müşteri Soruları', href: '/musteri-sorulari', icon: <MessageCircleQuestion className="h-4 w-4" /> },
     ],
   },
   {
@@ -69,20 +73,41 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ]
 
+// A suspended seller keeps order, return, question and finance work plus support;
+// filtered by href so adding a menu item never shifts what stays visible.
+const SUSPENDED_SECTION_TITLES = new Set(['Siparişler', 'Finans'])
+
+function suspendedNavSections(sections: NavSection[]): NavSection[] {
+  return sections
+    .map((section) => {
+      if (section.title && SUSPENDED_SECTION_TITLES.has(section.title)) return section
+      if (section.title === 'Mağaza') {
+        return { ...section, items: section.items.filter((item) => item.href === '/destek') }
+      }
+      return null
+    })
+    .filter((section): section is NavSection => section !== null)
+}
+
+function withQuestionBadge(sections: NavSection[], unread: number): NavSection[] {
+  if (unread <= 0) return sections
+  return sections.map((section) => ({
+    ...section,
+    items: section.items.map((item) =>
+      item.href === '/musteri-sorulari' ? { ...item, badge: unread > 99 ? '99+' : unread } : item,
+    ),
+  }))
+}
+
 export default async function SellerPanelLayout({ children }: { children: React.ReactNode }) {
   const { seller } = await getSellerFromSession({ allowSuspended: true })
   const displayName = seller.displayName
   const initial = displayName.charAt(0).toUpperCase()
-  const navSections = seller.status === 'suspended'
-    ? [
-        NAV_SECTIONS[2]!,
-        NAV_SECTIONS[3]!,
-        {
-          ...NAV_SECTIONS[4]!,
-          items: NAV_SECTIONS[4]!.items.filter((item) => item.href === '/destek'),
-        },
-      ]
-    : NAV_SECTIONS
+  const unreadQuestions = await createProductQuestionService({ prisma: createPrismaForRoute() })
+    .countUnreadForSeller(seller.id)
+    .catch(() => 0)
+  const sections = withQuestionBadge(NAV_SECTIONS, unreadQuestions)
+  const navSections = seller.status === 'suspended' ? suspendedNavSections(sections) : sections
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>

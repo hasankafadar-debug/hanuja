@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, useToast } from '@hanuja/ui'
-import { Heart, Share2, ShoppingCart } from 'lucide-react'
+import { Heart, MessageCircleQuestion, Share2, ShoppingCart } from 'lucide-react'
 import { csrfFetch } from '@/lib/csrf-fetch'
+import { getSession } from '@/lib/auth-client'
+import { AskQuestionPanel } from '@/components/product-questions/ask-question-panel'
 
 interface Props {
   productId: string
@@ -51,6 +53,9 @@ export default function AddToCartButton({
   const [favoriteKnown, setFavoriteKnown] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
+  const [questionOpen, setQuestionOpen] = useState(false)
+  const [questionAutoFocus, setQuestionAutoFocus] = useState(false)
+  const [questionChecking, setQuestionChecking] = useState(false)
   const [selectedVariantId, setSelectedVariantId] = useState(variants[0]?.id ?? '')
   const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? null
   const availableStock = selectedVariant?.stockQuantity ?? stock
@@ -175,6 +180,49 @@ export default function AddToCartButton({
       })
     } finally {
       setFavoriteLoading(false)
+    }
+  }
+
+  // Coming back from login (`?soru=1`) re-opens the question form on this product.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('soru') !== '1') return
+    setQuestionOpen(true)
+    setQuestionAutoFocus(true)
+    params.delete('soru')
+    const query = params.toString()
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`,
+    )
+  }, [])
+
+  function questionReturnPath() {
+    return `${window.location.pathname}?soru=1`
+  }
+
+  // Session is read on click (not with the better-auth React hook, which breaks
+  // server rendering here). A signed-out visitor goes to login and comes back
+  // with the form open; an expired session is caught by the 401 on submit.
+  async function handleAskQuestion() {
+    if (questionOpen) {
+      setQuestionOpen(false)
+      return
+    }
+    setQuestionChecking(true)
+    try {
+      const result = (await getSession().catch(() => null)) as {
+        data?: { user?: { id: string } } | null
+      } | null
+      if (result && !result.data?.user) {
+        router.push(`/giris?callbackUrl=${encodeURIComponent(questionReturnPath())}`)
+        return
+      }
+      setQuestionAutoFocus(true)
+      setQuestionOpen(true)
+    } finally {
+      setQuestionChecking(false)
     }
   }
 
@@ -309,10 +357,41 @@ export default function AddToCartButton({
         </Button>
       </div>
 
-      <Button variant="outline" size="lg" loading={shareLoading} onClick={handleShare}>
-        {!shareLoading && <Share2 className="h-5 w-5" />}
-        Ürünü Paylaş
-      </Button>
+      <div className="grid grid-cols-2 gap-3">
+        <Button
+          variant="outline"
+          size="lg"
+          className="min-w-0 px-3"
+          loading={shareLoading}
+          onClick={handleShare}
+        >
+          {!shareLoading && <Share2 className="h-5 w-5 shrink-0" />}
+          <span className="truncate">Ürünü Paylaş</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="lg"
+          className="min-w-0 px-3"
+          aria-expanded={questionOpen}
+          aria-controls="product-question-panel"
+          loading={questionChecking}
+          onClick={handleAskQuestion}
+        >
+          {!questionChecking && <MessageCircleQuestion className="h-5 w-5 shrink-0" />}
+          <span className="truncate">Soru Sor</span>
+        </Button>
+      </div>
+
+      {questionOpen ? (
+        <div id="product-question-panel">
+          <AskQuestionPanel
+            productId={productId}
+            loginReturnPath={questionReturnPath()}
+            autoFocus={questionAutoFocus}
+            onCancel={() => setQuestionOpen(false)}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

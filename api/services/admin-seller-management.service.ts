@@ -143,6 +143,8 @@ export function createAdminSellerManagementService(
         await tx.mediaAsset.deleteMany({
           where: { id: { in: mediaAssets.map((asset) => asset.id) } },
         })
+        // Pre-sale product questions only; a seller with orders is never deleted.
+        await tx.productQuestionThread.deleteMany({ where: { sellerId: seller.id } })
         await tx.cartItem.deleteMany({ where: { productId: { in: productIds } } })
         await tx.coupon.deleteMany({ where: { id: { in: couponIds } } })
         await tx.discountRuleProduct.deleteMany({

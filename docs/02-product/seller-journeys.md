@@ -195,3 +195,31 @@ Source of truth: `.claude/rules/09-seller-panel-rules.md`, `CLAUDE.md` sections 
   (`api/domain/category-selection.ts`). Template *scope* is a separate concern and may be an
   intermediate category.
 - Images must be hosted on the platform CDN. External image URLs are rejected.
+
+---
+
+## Journey 7: Müşteri Soruları (2026-09-23)
+
+**Goal:** Seller answers private product questions from customers without leaving the platform.
+
+### Steps
+
+1. A customer asks from the product page ("Soru Sor") or from an ordered product line on
+   `/siparis/[id]` ("Satıcıya Soru Sor").
+2. When the customer opens a conversation — or writes after the seller's last answer — the seller
+   receives a **Müşteri Sorusu** e-mail and an in-app notification; the menu item **Müşteri Soruları**
+   shows an unread badge.
+3. Seller opens `/musteri-sorulari` (default filter: awaiting reply) and the conversation.
+4. Seller replies in the panel. When the reply turns the conversation over, the customer receives
+   **Sorunuz yanıtlandı**.
+
+### Rules
+
+- Seller sees only their own conversations; customer name is masked, the customer e-mail is never shown.
+- Pre-sale questions only reach an active seller whose product is published and who is not on vacation.
+  Order questions are allowed for paid orders regardless of the product's current sale state.
+- A suspended seller can still answer existing conversations.
+- Contact details (phone, e-mail, IBAN, links, social handles, address) are blocked on every message.
+- Consecutive messages in one turn produce one e-mail; opening the conversation on screen clears the
+  unread badge, writing a reply does not.
+- Admin can read every conversation (read-only, audited) but cannot write.

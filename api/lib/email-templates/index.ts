@@ -16,6 +16,7 @@ import type {
   CustomerOrderConfirmationEmailInput,
   CustomerOrderEmailInput,
   CustomerPaymentConfirmedEmailInput,
+  CustomerProductQuestionAnsweredEmailInput,
   CustomerRefundCompletedEmailInput,
   CustomerReturnRequestEmailInput,
   CustomerShipmentEmailInput,
@@ -25,6 +26,7 @@ import type {
   OrderAmountSummary,
   SellerCancellationEmailInput,
   SellerOrderEmailInput,
+  SellerProductQuestionEmailInput,
   SellerReturnRequestEmailInput,
 } from './types'
 import {
@@ -100,6 +102,11 @@ export {
   adminSellerSupportTicketTemplate,
   fulfillmentRiskLevelLabel,
 } from './admin-operations'
+
+export {
+  customerProductQuestionAnsweredTemplate,
+  sellerProductQuestionTemplate,
+} from './product-questions'
 
 function customerOrderUrl(
   params: Pick<CustomerOrderEmailInput, 'orderUrl' | 'customerOrderUrl' | 'orderLink'>,

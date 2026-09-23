@@ -280,6 +280,19 @@ cart-audience lookup (users with a given product in their cart) without a full t
 
 ---
 
+### ProductQuestionThread / ProductQuestionMessage (2026-09-23)
+
+Private customer ↔ seller conversation about a product, optionally bound to an order.
+`threadKey = "{customerId}:{productId}:{orderId | presale}"` is unique, so a conversation is unique
+also when `orderId` is null. `messageSeq` is the per-thread message counter, incremented under the row
+lock before each message; messages carry `seq` (`@@unique([threadId, seq])`). `status` and `turnSeq`
+drive the one-e-mail-per-turn decision made under that lock. Unread/read state is sequence based:
+`lastCustomerMessageSeq` / `lastSellerMessageSeq` vs `customerLastReadSeq` / `sellerLastReadSeq`, the
+read side only moving forward. `lastMessageAt` is for display and list ordering only.
+Indexes: `(sellerId, status, lastMessageAt)`, `(customerId, lastMessageAt)`, `productId`, `orderId`;
+messages `(threadId, seq)` unique. Product and seller FKs are `RESTRICT`; the admin delete paths for a
+product or seller without order history remove its pre-sale threads explicitly.
+
 ## Index Rationale Summary
 
 | Index | Purpose |

@@ -311,3 +311,26 @@ export interface AdminSellerApplicationEmailInput extends AdminOperationEmailBas
   /** 1 for the first application, higher for a re-submission. */
   submissionSeq?: number
 }
+
+/** Seller "Müşteri Sorusu" — a customer opened or continued a product conversation. */
+export interface SellerProductQuestionEmailInput {
+  sellerName: string
+  productName: string
+  productImageUrl?: string | null
+  /** Masked customer name ("Ahmet Y."); the customer e-mail is never included. */
+  customerName?: string
+  orderNumber?: string
+  messageExcerpt: string
+  panelUrl: string
+}
+
+/** Customer "Sorunuz yanıtlandı" — the seller answered a product conversation. */
+export interface CustomerProductQuestionAnsweredEmailInput {
+  customerName?: string
+  sellerName: string
+  productName: string
+  productImageUrl?: string | null
+  orderNumber?: string
+  messageExcerpt: string
+  threadUrl: string
+}

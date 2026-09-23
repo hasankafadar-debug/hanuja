@@ -424,6 +424,26 @@ Seller may need to participate in return/dispute flows, but not control them uni
 - remove dispute evidence
 - suppress the case from history
 
+## Müşteri Soruları (Customer Questions)
+
+Müşteri ürün sayfasından ("Soru Sor") veya ödenmiş siparişindeki bir ürün satırından satıcıya özel soru
+sorabilir. Satıcı `/musteri-sorulari` ekranından yanıtlar.
+
+- Satıcı yalnız kendi konuşmalarını görür; müşteri adı `maskCustomerName` ile, müşteri e-postası hiç
+  gösterilmez.
+- Askıya alınmış satıcı mevcut konuşmalarına yanıt verebilir (menüde görünür); yeni satış öncesi soru
+  yalnız aktif, tatilde olmayan satıcının yayındaki ürününe gelebilir.
+- İletişim bilgisi paylaşımı (telefon, e-posta, IBAN, bağlantı, sosyal medya, adres) her mesajda
+  engellenir.
+- Okunmamış rozeti ekranda gösterilen son mesaj istemci tarafından bildirildiğinde temizlenir; yanıt
+  yazmak tek başına okundu saymaz.
+- Admin konuşmaları salt okunur görür; her görüntüleme denetim günlüğüne yazılır. Arayüzdeki gizlilik
+  metni buna göre: "Konuşma herkese açık değildir. Siz, ilgili müşteri ve denetim amacıyla yetkili
+  yöneticiler erişebilir."
+- Liste 30'luk sayfalıdır; rozet tüm okunmamış konuşmaları sayar ve her birine sayfalardan ulaşılabilir.
+
+Ayrıntı: `docs/07-operations/email-phase-4-report.md`.
+
 ## Seller Account and Settings Rules
 
 Seller panel may contain account and business settings, but sensitive changes require care.

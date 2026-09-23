@@ -478,4 +478,61 @@ describe('durable notification delivery', () => {
     ).rejects.toThrow('EMAIL_TEMPLATE_UNSUPPORTED')
     expect(emailRecord().status).toBe('failed')
   })
+  it('renders the product question e-mails for the matching recipient role', async () => {
+    mocks.user.mockResolvedValue({ id: 'u1', email: 'seller@example.test', role: 'seller' })
+    await processNotificationDispatch(
+      job({
+        eventKey: 'product-question:t1:seller:turn:1',
+        type: 'seller_product_question',
+        data: {
+          sellerName: 'Atelier Noa',
+          productName: 'Gea Berjer',
+          customerName: 'Ayşe Y.',
+          messageExcerpt: 'Ölçüleri nedir?',
+          panelUrl: 'https://satici.hanuja.com.tr/musteri-sorulari/t1',
+        },
+      }),
+    )
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'seller@example.test', subject: 'Müşteri Sorusu — Gea Berjer' }),
+    )
+
+    mocks.records.clear()
+    mocks.send.mockClear()
+    mocks.user.mockResolvedValue({ id: 'u1', email: 'customer@example.test', role: 'customer' })
+    await processNotificationDispatch(
+      job({
+        eventKey: 'product-question:t1:customer:turn:2',
+        type: 'customer_product_question_answered',
+        data: {
+          sellerName: 'Atelier Noa',
+          productName: 'Gea Berjer',
+          messageExcerpt: '45 cm.',
+          threadUrl: 'https://www.hanuja.com.tr/hesabim/sorularim/t1',
+        },
+      }),
+    )
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'customer@example.test', subject: 'Sorunuz yanıtlandı — Gea Berjer' }),
+    )
+  })
+  it('refuses a seller product question e-mail addressed to a customer account', async () => {
+    mocks.user.mockResolvedValue({ id: 'u1', email: 'customer@example.test', role: 'customer' })
+    await expect(
+      processNotificationDispatch(
+        job({
+          eventKey: 'product-question:t1:seller:turn:1',
+          type: 'seller_product_question',
+          emailTo: 'customer@example.test',
+          data: {
+            sellerName: 'Atelier Noa',
+            productName: 'Gea Berjer',
+            messageExcerpt: 'Soru',
+            panelUrl: 'https://satici.hanuja.com.tr/musteri-sorulari/t1',
+          },
+        }),
+      ),
+    ).rejects.toThrow('EMAIL_RECIPIENT_ROLE_MISMATCH')
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
 })
