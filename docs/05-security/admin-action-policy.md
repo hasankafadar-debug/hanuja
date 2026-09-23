@@ -322,6 +322,44 @@ open produces an entry.
 
 ---
 
+### 11. Announcement Sent
+
+**Permission required:** admin role (route check) + CSRF
+**Confirmation step:** dialog showing the exact recipient count and the shared-quota warning. The send is
+bound to the previewed draft `version` and `audienceHash`; a changed draft or list returns 409.
+
+| Field | Value |
+|---|---|
+| `actionType` | `announcement_sent` |
+| `targetType` | `announcement` |
+| `targetId` | announcement ID |
+| `newData` | `{ title, recipientCount, audienceHash, mediaKind, audience }` |
+| `actorId` | Admin user ID |
+
+### 12. Sent Announcement Edited
+
+Only title and body; media is locked. Never resends e-mail.
+
+| Field | Value |
+|---|---|
+| `actionType` | `announcement_updated_after_send` |
+| `targetType` | `announcement` |
+| `previousData` / `newData` | `{ title, body }` before and after |
+
+### 13. Announcement Retry Requested
+
+**Reason:** mandatory (10–500 characters). Bound to the previewed `eligibleHash`. Only final, certain
+failures of live sellers are flagged; the dispatch sweep requeues them within the bulk capacity.
+
+| Field | Value |
+|---|---|
+| `actionType` | `announcement_retry_requested` |
+| `targetType` | `announcement` |
+| `newData` | `{ requestedCount, eligibleHash }` |
+| `reason` | admin-entered reason |
+
+---
+
 ## Permission Matrix Enforcement Status
 
 Historically, `packages/security/src/permission-matrix.ts` defined 75+ actions

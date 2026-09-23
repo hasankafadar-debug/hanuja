@@ -153,6 +153,9 @@ These support admin search by actor, by target entity, and by action type + date
 |---|---|---|
 | Failed delivery re-queued by an admin | `notification_retry_requested` | Yes |
 | Operations mailbox changed for an event | `notification_recipient_changed` | No (old and new address are recorded) |
+| Seller announcement sent (content and recipients frozen) | `announcement_sent` | No (recipient count, hash and selection are recorded) |
+| Sent announcement's panel copy edited | `announcement_updated_after_send` | No (old and new text are recorded) |
+| Failed announcement recipients flagged for retry | `announcement_retry_requested` | Yes (one entry per request, with the count) |
 
 The recipient change is logged per event slug: `targetType = "AdminNotificationRecipient"`,
 `targetId = <event slug>`, with the previous and new address in `previousData` / `newData`.

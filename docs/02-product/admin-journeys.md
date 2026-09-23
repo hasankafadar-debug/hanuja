@@ -102,6 +102,18 @@ Amac, hangi admin akisinda hangi veri, yetki ve audit beklentisinin oldugunu sab
 - Karar: approve, needs revision, reject, hide
 - Kural: seller'a geri bildirim net, eylem odakli ve tekrar incelenebilir olmalidir
 
+## Journey 8: Satici duyurusu (2026-09-24)
+
+- Giris noktasi: `/duyurular` (Operasyon → Duyuru)
+- Amac: saticilara operasyon duyurusunu (gorsel veya video ile) panelde ve e-posta ile ulastirmak
+- Akis: taslak → alici secimi (tum saticilar / elle secim / filtre) → kesin alici onizlemesi, gerekirse
+  saticiyi listeden cikarma → e-posta ve panel onizlemesi → gonder onayi → ilerleme takibi → gerekirse
+  yalniz basarisizlari gerekceyle yeniden deneme
+- Kural: yalniz aktif ve askidaki saticilar alici olur; gonderim onizlenen listeye baglidir, liste degistiyse
+  yeniden onizleme gerekir. Gonderilmis duyurunun yalniz panel metni duzenlenir, e-posta yeniden gitmez.
+  Medya herkese acik URL'dedir; gizli bilgi iceren medya yuklenmez. Resend gunluk kotasi islemsel
+  e-postalarla ortaktir. Ayrinti: `docs/07-operations/email-phase-5-report.md`
+
 ## UI beklentileri
 
 - Liste ekranlarinda filtre, kuyruk ve durum etiketi zorunludur.

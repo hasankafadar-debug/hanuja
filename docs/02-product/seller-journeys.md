@@ -223,3 +223,22 @@ Source of truth: `.claude/rules/09-seller-panel-rules.md`, `CLAUDE.md` sections 
 - Consecutive messages in one turn produce one e-mail; opening the conversation on screen clears the
   unread badge, writing a reply does not.
 - Admin can read every conversation (read-only, audited) but cannot write.
+
+---
+
+## Journey 8: Duyurular (2026-09-24)
+
+**Goal:** Seller reads Hanuja's operational announcements, including images and videos.
+
+### Steps
+
+1. An admin sends an announcement. The seller receives an e-mail (subject `Hanuja Duyurusu: …`, a cover
+   image and a button to the panel) and an in-app "Yeni duyuru" notification.
+2. The menu item **Duyurular** (Mağaza section) shows an unread badge.
+3. Seller opens `/duyurular` and the announcement; a video plays in the panel.
+
+### Rules
+
+- Only active and suspended sellers receive announcements; a seller sees only announcements addressed to them.
+- Opening the announcement on screen clears the unread badge; a server render or prefetch does not.
+- If the admin later edits the text, the panel shows the new text with a "Güncellendi" label; the e-mail is not resent.

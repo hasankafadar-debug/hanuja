@@ -293,6 +293,21 @@ Indexes: `(sellerId, status, lastMessageAt)`, `(customerId, lastMessageAt)`, `pr
 messages `(threadId, seq)` unique. Product and seller FKs are `RESTRICT`; the admin delete paths for a
 product or seller without order history remove its pre-sale threads explicitly.
 
+### Announcement / AnnouncementRecipient (2026-09-24)
+
+Admin → seller operational announcement. `Announcement.status` is `draft | sent`; `version` is bumped on
+every draft save and checked by save and send. `title/body` are the editable panel copy; `sentTitle/sentBody`
+are frozen at send and are what every e-mail (retries included) renders. `mediaAssetId`/`posterAssetId`
+are `RESTRICT` FKs to `MediaAsset` (media is locked after send). `audience` stores the selection JSON;
+`audienceHash` = sha256 of the sorted frozen seller ids.
+`AnnouncementRecipient` is one frozen recipient: `@@unique([announcementId, sellerId])`, `sellerId` is
+`SET NULL` on seller delete (the delete service also stamps `sellerDeletedAt`), `sellerName` is the store
+name at send time, `eventKey` is the outbox/delivery key, `outboxWrittenAt` / `retryRequestedAt` drive the
+dispatch sweep, `readAt` the seller panel badge. Indexes: `(outboxWrittenAt, createdAt)`,
+`retryRequestedAt`, `(sellerId, readAt)`. `NotificationDelivery` gained `@@index([eventKey])` for the
+progress join. Enum additions: `NotificationType.seller_announcement`, `AdminActionType.announcement_sent`,
+`announcement_updated_after_send`, `announcement_retry_requested`.
+
 ## Index Rationale Summary
 
 | Index | Purpose |

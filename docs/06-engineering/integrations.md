@@ -208,6 +208,14 @@ in the database use this public base. Next.js `<Image>` optimization is permitte
 
 There is no image sitemap in this project, and this hostname migration does not add one.
 
+**Announcement media (2026-09-24).** Folder `announcements` accepts JPEG, PNG (10 MB) and MP4, WebM
+(50 MB; slider videos stay at 10 MB). WebP is not accepted because the image doubles as the e-mail cover.
+On confirm the server checks the file signature (PNG/JPEG header, MP4 `ftyp`, WebM EBML doctype) using a
+64-byte ranged read for video. The folder is a public prefix: the files are public by unguessable URL and
+the seller panel's authorization does not protect them — do not upload confidential media. Videos are
+played straight from `R2_PUBLIC_URL`, because the app's media proxy has no HTTP Range support. When the
+planned public-prefix allowlist (HNJ-SEC-003) is applied on the custom domain, `announcements/` must be on it.
+
 ### Authorization
 
 - Upload: only authenticated sellers may request a presigned upload URL. The server validates

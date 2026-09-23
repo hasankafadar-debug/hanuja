@@ -648,6 +648,28 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   kapatıldı; kodlu ayraç ve nokta segmentleri reddedilir, normalize çıktı yeniden doğrulanır).
 - Ayrıntı: `docs/07-operations/email-phase-4-report.md`.
 
+### 34. E-posta Faz 5 — görsel/video destekli satıcı duyuruları (yeni — 2026-09-24)
+
+- **Migration var:** `20260924090000_seller_announcements` — `announcements`, `announcement_recipients`,
+  `AnnouncementStatus`; `NotificationType.seller_announcement`; üç `AdminActionType` değeri;
+  `notification_deliveries(eventKey)` indeksi. Yalnız ekleme. **Yeni env yok.**
+- Deploy sırası: `pnpm db:migrate:deploy` → **worker → admin-panel → seller-panel → web**. Worker önce:
+  yeni `announcement-dispatch` kuyruğu/sweep'i ve `seller_announcement` şablonu worker'da; eski worker tipi
+  `EMAIL_TEMPLATE_UNSUPPORTED` ile düşürür.
+- **Gönderim yalnız dondurur:** gönder transaction'ı alıcıları ve `sentTitle/sentBody`'yi yazar, outbox'a yazmaz.
+  Outbox satırlarını ayrı kuyruktaki sweep yazar: advisory lock ile tek yazıcı, toplu hatta en çok 100
+  pending+queued, `lock_timeout 2s` / `statement_timeout 5s`. Relay'e dokunulmadı. Toplu yeniden deneme de
+  aynı kapasiteden geçer. Kampanya indirimi üreticileri bu sınıra bağlı değil.
+- **Medya herkese açık URL'de:** `announcements/` öneki; erişim kontrolü yok, gizli bilgi içeren medya
+  yüklenmez. Planlanan Cloudflare public-prefix allowlist'i (HNJ-SEC-003) uygulanırsa `announcements/`
+  listede olmalı, yoksa video ve e-posta kapakları kırılır.
+- **Kota:** ayrı kuyruk Resend kotasını ayırmaz (ücretsiz plan 100/gün); büyük duyuru o gün işlemsel
+  e-postaları durdurabilir. Kodda sınır yok (iş sahibi kararı); gönder onayında uyarı gösterilir.
+- **Davranış değişikliği:** `media.service.deleteAsset` artık önce DB satırını kilit altında siler, sonra
+  R2'yi. Ana sayfa slider/promo'nun zorunlu medyası da bu sayede FK ile korunur. Admin medya `upload-url` ve
+  `confirm` rotaları artık `checkCsrf` uygular.
+- Ayrıntı: `docs/07-operations/email-phase-5-report.md`.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

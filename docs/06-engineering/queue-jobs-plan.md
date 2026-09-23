@@ -141,3 +141,19 @@ message turned the conversation over to the other side, so a burst of messages i
 e-mail; the eventKey `product-question:{threadId}:{seller|customer}:turn:{turnSeq}` is bound to the turn,
 not the message. No new queue, job or schedule. See
 [phase 4 operations report](../07-operations/email-phase-4-report.md).
+
+### Phase 5 — seller announcements — 2026-09-24
+
+One bulk-lane type, `seller_announcement` (seller, `noreply`, no marketing consent, no List-Unsubscribe).
+`EmailPolicy` gained an optional `lane`; `notificationLane` uses it before falling back to "kampanya → bulk".
+
+New queue **`announcement-dispatch`** (repeatable `sweep` every 15 s, worker concurrency 1). Sending an
+announcement only freezes its recipients; this sweep writes their outbox rows. Each tick is one bounded
+transaction: `lock_timeout 2s`, `statement_timeout 5s`, Prisma timeout 10 s; a
+`pg_try_advisory_xact_lock` makes it the only announcement writer; it fills the bulk lane only up to
+**100 pending + queued rows**, first with unwritten recipients (`FOR UPDATE SKIP LOCKED`, batched
+`createMany skipDuplicates`, deterministic eventKey `announcement:{id}:seller:{sellerId}`), then with
+admin-requested bulk retries (same guards as the single-row retry, generation + 1). A lock or statement
+timeout rolls the tick back and leaves the work for the next tick. The relay job is untouched, so order
+e-mails never wait for it. Campaign-discount producers are not bound by the 100 cap. See
+[phase 5 operations report](../07-operations/email-phase-5-report.md).

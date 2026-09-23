@@ -128,5 +128,7 @@ Upstream referansları:
 1. Seller sözleşmesindeki buyer e-postası için varsayılan karar “maskeli”; ad/adres/telefon fulfillment amacıyla açık kalır.
 2. Cookie'lerin host-only mi yoksa parent-domain kapsamlı mı olduğu canlı session response üzerinden doğrulanmalıdır.
 3. R2 custom domain önünde public-prefix Worker/WAF uygulanmadan HNJ-SEC-003 kapatılmış sayılamaz.
+   (2026-09-24) Satıcı duyuruları `announcements/` önekini ekledi; bu önek herkese açık listede olmalıdır
+   (e-posta kapak görselleri ve doğrudan video oynatma). Bkz. `docs/07-operations/email-phase-5-report.md`.
 4. Coolify kontrolü secret değerlerini açmadan yalnız varlık ve uzunluk doğrulamıştır; bu rapor hiçbir secret değerini, müşteri verisini veya private object key'ini kaydetmez.
 5. Uygulama kodu Cloudflare R2 custom domain'ini değiştiremez. Cloudflare oturumu olmadan HNJ-SEC-003 için Worker/WAF veya bucket custom-domain değişikliği uygulanmamış; canlı risk kapalı sayılmaz.

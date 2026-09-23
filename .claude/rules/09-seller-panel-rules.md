@@ -444,6 +444,19 @@ sorabilir. Satıcı `/musteri-sorulari` ekranından yanıtlar.
 
 Ayrıntı: `docs/07-operations/email-phase-4-report.md`.
 
+## Duyurular
+
+Admin'in gönderdiği operasyon duyuruları `/duyurular` ekranında görünür (menü: Mağaza → Duyurular,
+okunmamış rozetiyle).
+
+- Satıcı yalnız kendisine gönderilmiş duyuruları görür; alıcılar gönderim anında dondurulur. Aktif ve askıdaki
+  satıcılar alıcı olabilir, askıdaki satıcı menüde de görür.
+- Okundu bilgisi yalnız ekranda gösterilen duyuru için istemci POST'u ile yazılır; sunucu render'ı okundu saymaz.
+- Admin gönderimden sonra metni düzeltirse panelde "Güncellendi" etiketi görünür; e-posta yeniden gönderilmez.
+- Duyuru videosu doğrudan medya host'undan oynatılır; medya herkese açık URL'dedir, satıcıya özel değildir.
+
+Ayrıntı: `docs/07-operations/email-phase-5-report.md`.
+
 ## Seller Account and Settings Rules
 
 Seller panel may contain account and business settings, but sensitive changes require care.
