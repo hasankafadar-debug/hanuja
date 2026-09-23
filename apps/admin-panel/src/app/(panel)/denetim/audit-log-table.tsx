@@ -30,6 +30,9 @@ const ACTION_LABELS: Record<string, string> = {
   category_tax_rate_changed: 'Kategori vergi orani degisti',
   seller_commission_rate_changed: 'Satici komisyonu degisti',
   product_question_viewed: 'Müşteri sorusu görüntülendi',
+  announcement_sent: 'Duyuru gönderildi',
+  announcement_updated_after_send: 'Gönderilmiş duyuru düzenlendi',
+  announcement_retry_requested: 'Duyuru yeniden deneme istendi',
 }
 
 const ACTION_COLORS: Record<string, string> = {
@@ -47,6 +50,9 @@ const ACTION_COLORS: Record<string, string> = {
   category_tax_rate_changed: '#0ea5e9',
   seller_commission_rate_changed: '#8b5cf6',
   product_question_viewed: '#64748b',
+  announcement_sent: 'var(--color-success)',
+  announcement_updated_after_send: '#0ea5e9',
+  announcement_retry_requested: '#f59e0b',
 }
 
 interface AuditLogTableProps {
@@ -67,6 +73,9 @@ const ACTION_OPTIONS = [
   'category_tax_rate_changed',
   'seller_commission_rate_changed',
   'product_question_viewed',
+  'announcement_sent',
+  'announcement_updated_after_send',
+  'announcement_retry_requested',
 ]
 
 export function AuditLogTable({ initialRows }: AuditLogTableProps) {

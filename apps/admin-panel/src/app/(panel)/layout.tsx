@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Receipt,
   Clock,
+  Megaphone,
 } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { MobileNav } from './_components/mobile-nav'
@@ -63,6 +64,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Operasyon',
     items: [
       { label: 'İadeler', href: '/iadeler', icon: <RotateCcw className="h-4 w-4" /> },
+      { label: 'Duyuru', href: '/duyurular', icon: <Megaphone className="h-4 w-4" /> },
       { label: 'Ek Süre Talepleri', href: '/uzatma-talepleri', icon: <Clock className="h-4 w-4" /> },
       { label: 'Uyuşmazlıklar', href: '/uyusmazliklar', icon: <MessageCircleWarning className="h-4 w-4" /> },
       { label: 'Yorumlar', href: '/yorumlar', icon: <MessageSquare className="h-4 w-4" /> },

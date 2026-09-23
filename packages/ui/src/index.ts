@@ -109,6 +109,11 @@ export { ActionMenu, type ActionItem, type ActionMenuProps } from './components/
 export { LegalDocumentDialog } from './components/composite/legal-document-dialog'
 export { LegalDocumentHtml } from './components/composite/legal-document-html'
 export {
+  AnnouncementContent,
+  type AnnouncementContentMedia,
+  type AnnouncementContentProps,
+} from './components/composite/announcement-content'
+export {
   NotificationBell,
   type NotificationBellProps,
   type Notification,

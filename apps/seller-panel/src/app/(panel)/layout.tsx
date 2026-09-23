@@ -5,6 +5,7 @@ import {
   Images,
   LayoutDashboard,
   LifeBuoy,
+  Megaphone,
   MessageCircleQuestion,
   Package,
   Percent,
@@ -21,6 +22,7 @@ import {
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createProductQuestionService } from '@hanuja/api/services/product-question.service'
+import { createAnnouncementService } from '@hanuja/api/services/announcement.service'
 import { UserMenu } from './_components/user-menu'
 import { MobileNav } from './_components/mobile-nav'
 
@@ -68,6 +70,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Mağaza',
     items: [
       { label: 'Ayarlar', href: '/ayarlar', icon: <Settings className="h-4 w-4" /> },
+      { label: 'Duyurular', href: '/duyurular', icon: <Megaphone className="h-4 w-4" /> },
       { label: 'Destek', href: '/destek', icon: <LifeBuoy className="h-4 w-4" /> },
     ],
   },
@@ -76,26 +79,29 @@ const NAV_SECTIONS: NavSection[] = [
 // A suspended seller keeps order, return, question and finance work plus support;
 // filtered by href so adding a menu item never shifts what stays visible.
 const SUSPENDED_SECTION_TITLES = new Set(['Siparişler', 'Finans'])
+// Suspended sellers keep support and announcements from the Mağaza section.
+const SUSPENDED_STORE_HREFS = new Set(['/destek', '/duyurular'])
 
 function suspendedNavSections(sections: NavSection[]): NavSection[] {
   return sections
     .map((section) => {
       if (section.title && SUSPENDED_SECTION_TITLES.has(section.title)) return section
       if (section.title === 'Mağaza') {
-        return { ...section, items: section.items.filter((item) => item.href === '/destek') }
+        return { ...section, items: section.items.filter((item) => SUSPENDED_STORE_HREFS.has(item.href)) }
       }
       return null
     })
     .filter((section): section is NavSection => section !== null)
 }
 
-function withQuestionBadge(sections: NavSection[], unread: number): NavSection[] {
-  if (unread <= 0) return sections
+/** Unread counters by nav href (customer questions, announcements). */
+function withUnreadBadges(sections: NavSection[], unreadByHref: Record<string, number>): NavSection[] {
   return sections.map((section) => ({
     ...section,
-    items: section.items.map((item) =>
-      item.href === '/musteri-sorulari' ? { ...item, badge: unread > 99 ? '99+' : unread } : item,
-    ),
+    items: section.items.map((item) => {
+      const unread = unreadByHref[item.href] ?? 0
+      return unread > 0 ? { ...item, badge: unread > 99 ? '99+' : unread } : item
+    }),
   }))
 }
 
@@ -103,10 +109,15 @@ export default async function SellerPanelLayout({ children }: { children: React.
   const { seller } = await getSellerFromSession({ allowSuspended: true })
   const displayName = seller.displayName
   const initial = displayName.charAt(0).toUpperCase()
-  const unreadQuestions = await createProductQuestionService({ prisma: createPrismaForRoute() })
-    .countUnreadForSeller(seller.id)
-    .catch(() => 0)
-  const sections = withQuestionBadge(NAV_SECTIONS, unreadQuestions)
+  const prisma = createPrismaForRoute()
+  const [unreadQuestions, unreadAnnouncements] = await Promise.all([
+    createProductQuestionService({ prisma }).countUnreadForSeller(seller.id).catch(() => 0),
+    createAnnouncementService({ prisma }).countUnreadForSeller(seller.id).catch(() => 0),
+  ])
+  const sections = withUnreadBadges(NAV_SECTIONS, {
+    '/musteri-sorulari': unreadQuestions,
+    '/duyurular': unreadAnnouncements,
+  })
   const navSections = seller.status === 'suspended' ? suspendedNavSections(sections) : sections
 
   return (
