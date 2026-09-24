@@ -16,6 +16,7 @@ import { createCategoryRepository } from '../repositories/category.repository'
 import { createSellerRepository } from '../repositories/seller.repository'
 import { createDiscountService } from './discount.service'
 import type { EffectivePriceResult } from './discount.service'
+import { applyEffectivePricing } from '../domain/effective-price'
 import { createContentScannerService } from './content-scanner.service'
 import { buildSlugWithSuffix, isValidSlug, normalizeSlug } from '../domain/slug'
 import { computeCustomerVisibleCategoryIds } from '../domain/category-visibility'
@@ -202,24 +203,6 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
     })
   }
 
-  async function applyEffectivePricingToProduct<
-    T extends {
-      id: string
-      sellerId: string
-      categoryId: string | null
-      price: DecimalLike
-      compareAtPrice: DecimalLike | null
-    },
-  >(product: T): Promise<T> {
-    const pricing = await discounts.resolveEffectivePrice(product, product.sellerId)
-
-    return {
-      ...product,
-      price: pricing.effectivePrice,
-      compareAtPrice: pricing.discountSource ? pricing.originalPrice : product.compareAtPrice,
-    }
-  }
-
   async function applyEffectivePricingToProducts<
     T extends {
       id: string
@@ -331,7 +314,23 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       ) {
         throw new NotFoundError('Product', slug)
       }
-      return applyEffectivePricingToProduct(product)
+      // Variant prices use the same calculation as the cart: the product's rule applied to the
+      // variant's own base price (e-mail plan phase 6). A struck-through variant price is shown
+      // only when a rule applies, and it is that variant's own base price.
+      const pricing = await discounts.resolveEffectivePrice(product, product.sellerId)
+      return {
+        ...product,
+        price: pricing.effectivePrice,
+        compareAtPrice: pricing.discountSource ? pricing.originalPrice : product.compareAtPrice,
+        variants: product.variants.map((variant) => {
+          const basePrice = variant.price ?? product.price
+          return {
+            ...variant,
+            price: applyEffectivePricing(basePrice, pricing),
+            compareAtPrice: pricing.discountSource ? basePrice : null,
+          }
+        }),
+      }
     },
 
     async getProductForSeller(id: string, sellerId: string) {

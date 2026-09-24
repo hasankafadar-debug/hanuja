@@ -20,10 +20,15 @@ interface Props {
   variants?: Array<{
     id: string
     name: string
+    /** Effective price (same calculation as the cart). */
     price: number | null
+    /** The variant's own base price, present only while a discount rule applies. */
+    compareAtPrice?: number | null
     stockQuantity: number
     options: Record<string, string>
   }>
+  /** Variant to show first (e-mail deep link `?varyant=`); must belong to this product. */
+  initialVariantId?: string | null
 }
 
 function getApiMessage(payload: unknown, fallback: string) {
@@ -44,6 +49,7 @@ export default function AddToCartButton({
   stock,
   dimensionText = null,
   variants = [],
+  initialVariantId = null,
 }: Props) {
   const router = useRouter()
   const { toast } = useToast()
@@ -56,11 +62,18 @@ export default function AddToCartButton({
   const [questionOpen, setQuestionOpen] = useState(false)
   const [questionAutoFocus, setQuestionAutoFocus] = useState(false)
   const [questionChecking, setQuestionChecking] = useState(false)
-  const [selectedVariantId, setSelectedVariantId] = useState(variants[0]?.id ?? '')
+  const [selectedVariantId, setSelectedVariantId] = useState(
+    initialVariantId && variants.some((variant) => variant.id === initialVariantId)
+      ? initialVariantId
+      : variants[0]?.id ?? '',
+  )
   const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? null
   const availableStock = selectedVariant?.stockQuantity ?? stock
   const displayPrice = selectedVariant?.price ?? basePrice
-  const displayCompareAtPrice = compareAtPrice && compareAtPrice > displayPrice ? compareAtPrice : null
+  // With a discount rule the variant is struck through at its own base price; without one the
+  // product-level list price is kept as before.
+  const referencePrice = selectedVariant?.compareAtPrice ?? compareAtPrice
+  const displayCompareAtPrice = referencePrice && referencePrice > displayPrice ? referencePrice : null
   const fulfillmentText =
     typeof fulfillmentDays === 'number' ? `Sevk Süresi: ${fulfillmentDays} iş günü` : null
 

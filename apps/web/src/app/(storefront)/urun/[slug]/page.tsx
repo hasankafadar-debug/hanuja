@@ -41,6 +41,8 @@ export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ slug: string }>
+  // `varyant`: UI-only deep link from the lowest-price e-mail; the canonical stays /urun/{slug}.
+  searchParams?: Promise<{ varyant?: string | string[] }>
 }
 
 async function getProduct(slug: string) {
@@ -115,8 +117,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   })
 }
 
-export default async function ProductDetailPage({ params }: Props) {
+export default async function ProductDetailPage({ params, searchParams }: Props) {
   const { slug } = await params
+  const requestedVariant = (await searchParams)?.varyant
   const product = await getProduct(slug)
 
   if (!product) notFound()
@@ -129,10 +132,12 @@ export default async function ProductDetailPage({ params }: Props) {
   const seller = product.seller as { displayName: string; slug: string } | null
   const category = product.category as { id: string; name: string; slug: string } | null
   const images = (product.images ?? []) as Array<{ url: string; altText?: string | null }>
+  // Variant prices arrive as the effective price the cart charges (catalog.service).
   const variants = ((product.variants ?? []) as Array<{
     id: string
     name: string
     price: { toNumber(): number } | number | null
+    compareAtPrice?: { toNumber(): number } | number | null
     stockQuantity: number
     options: unknown
   }>).map((variant) => ({
@@ -144,6 +149,12 @@ export default async function ProductDetailPage({ params }: Props) {
         : typeof variant.price === 'object'
           ? variant.price.toNumber()
           : Number(variant.price),
+    compareAtPrice:
+      variant.compareAtPrice === null || variant.compareAtPrice === undefined
+        ? null
+        : typeof variant.compareAtPrice === 'object'
+          ? variant.compareAtPrice.toNumber()
+          : Number(variant.compareAtPrice),
     stockQuantity: variant.stockQuantity,
     options:
       variant.options && typeof variant.options === 'object'
@@ -316,6 +327,11 @@ export default async function ProductDetailPage({ params }: Props) {
             stock={product.stockQuantity}
             dimensionText={dimensionText}
             variants={variants}
+            initialVariantId={
+              typeof requestedVariant === 'string' && variants.some((variant) => variant.id === requestedVariant)
+                ? requestedVariant
+                : null
+            }
           />
 
           {visualSiblings.length > 1 ? (

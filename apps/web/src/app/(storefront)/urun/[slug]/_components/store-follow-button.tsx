@@ -67,9 +67,8 @@ export function StoreFollowButton({ sellerId }: StoreFollowButtonProps) {
       setKnown(true)
       toast({
         title: nextState ? 'Mağaza takip edildi' : 'Mağaza takibi bırakıldı',
-        description: nextState
-          ? 'Bu mağaza indirim yaptığında size bildirim göndereceğiz.'
-          : 'Bu mağaza için indirim bildirimi almayacaksınız.',
+        // Following a store is not a notification reason (e-mail plan phase 6).
+        description: nextState ? 'Bu mağazayı takip ediyorsunuz.' : 'Bu mağazayı artık takip etmiyorsunuz.',
         variant: 'success',
       })
     } finally {
