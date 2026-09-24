@@ -211,6 +211,7 @@ Worker deploy sonrası doğrulama adımları:
 - [ ] Worker logları aktif ve hata döngüsünde değil (sürekli crash-restart yok)
 - [ ] BullMQ kuyruk durumu incelenmiş — Redis üzerinden bekleyen/başarısız job sayısı makul seviyede (worker'ın HTTP health endpoint'i yok; sağlık Redis/BullMQ kuyruk durumu üzerinden izlenir — bkz. `docs/06-engineering/deployment-environments.md` §"Health Checks")
 - [ ] `schedule-repeatable-jobs` (bkz. `api/jobs/schedule-repeatable-jobs.ts`) ilk worker açılışında tekrarlanan job'ları (fulfillment-risk, payout maturity, vb.) doğru şekilde kaydetmiş
+- [ ] `price-history` kuyruğu (e-posta planı faz 6): ilk tick'ten sonra worker logunda `[price-history] baseline written for N product(s)` görülür; `pnpm price-history:status` başlangıç tarihini ve ilk olası bildirim zamanını (baseline + 15 gün) verir
 
 Worker doğrulanmadan production "tamamlandı" olarak işaretlenmez.
 
@@ -293,6 +294,10 @@ Bu liste tamamlandıktan sonra Iyzico başvurusu yapılır. Onay ve live anahtar
   - `pnpm check-env --env=prod` — salt okunur
   - `pnpm db:migrate:deploy` — Prisma migration'ları idempotent'tir (zaten uygulanmış migration'ı tekrar uygulamaz)
   - Worker/servis deploy'ları — Coolify'ın kendi deploy mekanizması yeniden denemeye uygundur
+- **Veritabanı geri yüklemesi sonrası fiyat geçmişi** (e-posta planı faz 6): fiyat değişikliği tetikleyicileri
+  `pg_restore` veya tetikleyicileri devre dışı bırakan bir geri yükleme sırasında atlanabilir. Geri yüklemeden
+  sonra `pnpm price-history:reset --all --reason restore` worker konteynerinde çalıştırılır; tüm fiyat
+  anahtarları yeniden 15 gün bekler (`docs/07-operations/email-phase-6-report.md` §4).
 - **Güvenle tekrarlanamayacak / dikkat gerektiren adımlar**:
   - Iyzico live anahtar geçişi sonrası gerçek kart testi (gerçek para hareketi olabilir — küçük tutar kullanın)
   - Smoke test sırasında oluşturulan production sipariş kayıtları (test verisi temizliği ayrı bir adım gerektirir, otomatik silinmez)

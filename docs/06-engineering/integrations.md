@@ -416,7 +416,7 @@ These four variables are set identically across all four Coolify services (`web`
 |---|---|---|---|
 | `noreply` | `EMAIL_FROM_NOREPLY` | Default — password reset, order/shipment/delivery, return/dispute, payout/penalty notices | none |
 | `fatura` | `EMAIL_FROM_FATURA` | `invoice_uploaded` (seller invoice notice to customer) | `admin@hanuja.com.tr` |
-| `kampanya` | `EMAIL_FROM_KAMPANYA` | `store_discount_followed_seller`, `product_discount_favorited`, `product_discount_in_cart` | none |
+| `kampanya` | `EMAIL_FROM_KAMPANYA` | `product_discount_in_cart`, `product_price_drop` (phase 6; `store_discount_followed_seller` and `product_discount_favorited` are closed) | none |
 
 Every `EMAIL_FROM_*` address must be at the Resend-verified domain (verifying the
 `hanuja.com.tr` domain covers all addresses at that domain — no separate per-address

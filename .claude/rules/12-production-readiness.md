@@ -165,9 +165,9 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   SMS zaman damgasını set eder, `optOutToken` ile oturumsuz global opt-out) ve
   `CampaignEmailDispatch` (fingerprint + cooldown dedupe) eklendi. `product_discount_favorited`
   / `product_discount_in_cart` e-postaları yalnızca aktif (geri çekilmemiş) rızası olan
-  kullanıcılara gider. **Not:** mağaza takip indirim bildirimleri (`store_discount_followed_seller`)
-  hâlâ eski per-follow opt-out ile yönetiliyor, `MarketingConsent`'e tabi DEĞİL — bu iki rıza
-  mekanizması karıştırılmamalı.
+  kullanıcılara gider. **Güncelleme (2026-09-24, §35):** favori ve mağaza takip "indirim başladı"
+  bildirimleri kapandı; kuyrukta kalanlar gönderim kapısında atlanır. Kalan kampanya e-postaları (sepet,
+  15 günlük fiyat) `MarketingConsent`'e hem kuyruğa yazılırken hem gönderimde tabidir.
 - Migration `20260717120000_campaign_discount_marketing_consent` deploy zincirinin parçasıdır
   (additive). Yeni `campaign-discount` BullMQ kuyruğu (`fan-out` + 15 dakikalık
   `activation-scan`) worker'da çalışıyor olmalı — bkz.
@@ -669,6 +669,30 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   R2'yi. Ana sayfa slider/promo'nun zorunlu medyası da bu sayede FK ile korunur. Admin medya `upload-url` ve
   `confirm` rotaları artık `checkCsrf` uygular.
 - Ayrıntı: `docs/07-operations/email-phase-5-report.md`.
+
+### 35. E-posta Faz 6 — son 15 günün en düşük fiyatı bildirimi (yeni — 2026-09-24)
+
+- **Migration var:** `20260925090000_price_history_lowest_price` — fiyat geçmişi tabloları, fiyat değişikliği
+  tetikleyicileri (`products`, `product_variants`, `discount_rules`, `discount_rule_products`) ve
+  `hanuja_discount_rule_live_status()`; `NotificationType.product_price_drop`,
+  `CampaignDispatchSource.price_drop`; `campaign_email_dispatches` rezervasyon alanları (eski satırlar `sent`).
+  Yalnız ekleme, ödemelere dokunmaz. **Yeni env yok.**
+- Deploy sırası: **worker** (migration gate) → **seller-panel** → **web**. Admin-panel gerekmez (fiyat yazmaz;
+  değişen yollardan `getProductBySlug`, sepet ve checkout admin'de kullanılmaz).
+- **Kitle yalnız favorileyenler.** Favori ve mağaza takip "indirim başladı" bildirimleri kapandı; sepet
+  e-postası sürüyor. Ortak sınır: kullanıcı/ürün başına 7 gün, kullanıcı başına kayan 24 saatte 3 (yalnız
+  `sending|sent|uncertain` sayılır). Aynı anda uygunsa fiyat e-postası sepeti geçer (deterministik).
+- **Geçmiş taramaya bağlı değil:** kancalı yazmalar aynı transaction'da kaydeder, kural başlangıç/bitişleri
+  kural yazıldığında kesin zamanla öngörü olarak yazılır, tetikleyiciler diğer her değişikliği işaretler;
+  açıklanamayan değişiklik anahtarın güvenilirliğini sıfırlar (15 gün yeniden). Gönderim kapısı gönderimden
+  hemen önce izleri işler ve uygunluğu "şimdi" için yeniden değerlendirir.
+- **İlk 15 gün fiyat e-postası gitmez** (beklenen bekleme). `pnpm price-history:status` ilk olası bildirim
+  zamanını gösterir. Veritabanı geri yüklemesinden sonra `pnpm price-history:reset --all --reason restore`.
+- Ürün sayfası varyant fiyatı artık sepetle aynı etkin fiyat (önceden indirimsiz gösteriliyordu);
+  `?varyant={id}` e-posta derin bağlantısı, canonical değişmez.
+- Açık uç (blocking değil): vitrindeki üstü çizili fiyat 1 Ağustos 2026 "son 10 günün en düşük fiyatı"
+  referansına göre hesaplanmıyor — hukuki inceleme ve ayrı iş. Marker/açıklama tabloları için budama yok.
+- Ayrıntı: `docs/07-operations/email-phase-6-report.md`.
 
 ## Operasyonel Not
 

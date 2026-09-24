@@ -17,6 +17,9 @@ Kaynak zinciri: `.claude/rules/04-seo-rules.md` -> `docs/04-seo/seo-url-slug-rul
 - Her public entity icin tek canonical URL vardir.
 - Canonical URL'ler `packages/seo/src/canonical-builder.ts` yardimcilari uzerinden uretilmelidir.
 - Query parametreli varyantlar temiz route'a canonical vermelidir.
+- `?varyant={id}` (2026-09-24, e-posta plani faz 6) yalniz arayuz parametresidir: urun sayfasini ilgili
+  varyant secili acar (15 gunluk fiyat e-postasi baglantisi). Canonical `/urun/{slug}` kalir; sitemap ve
+  internal linklerde kullanilmaz.
 - Cross-type canonical kullanilmaz; urun kategoriye, kategori store'a canonical vermez.
 - Slug degisikligi durumunda once 301 redirect, sonra canonical ve internal link guncellemesi yapilir.
 

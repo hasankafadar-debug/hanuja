@@ -118,7 +118,17 @@ Dispute states: `dispute_open` | `dispute_resolved`
 `draft` | `published` | `archived`
 
 ### CampaignDispatchSource
-`favorite` | `cart` — which audience a `CampaignEmailDispatch` row belongs to.
+`favorite` | `cart` | `price_drop` — which e-mail a `CampaignEmailDispatch` row belongs to. `favorite`
+rows are historical only (the favorite discount e-mail was closed in phase 6).
+
+### CampaignDispatchStatus (2026-09-24)
+`reserved` | `sending` | `sent` | `uncertain` | `released` — reservation lifecycle. Only `sending`,
+`sent` and `uncertain` count toward the shared campaign limits.
+
+### PriceHistorySource / PriceDropEventStatus / PriceDropRecipientStatus (2026-09-24)
+`baseline` | `product_write` | `variant_write` | `discount_rule_write` | `rule_boundary` | `reconcile`;
+`candidate` | `ineligible` | `grouped` | `pending` | `dispatching` | `dispatched` | `cancelled`;
+`awaiting_capacity` | `reserved` | `skipped`.
 
 ### NotificationType additions (2026-07-17)
 `product_discount_favorited` and `product_discount_in_cart` were added alongside the
@@ -257,10 +267,9 @@ channels' `*ConsentAt` at once — a deliberate business decision to keep the ch
 model-separable for future divergence. `consentSource` records where consent was given
 (e.g. `signup`, `hesabim`). `optOutToken` is a unique unguessable token used by the
 unsubscribe link (`/api/marketing/unsubscribe`) so opt-out does not require an
-authenticated session. Campaign email (`product_discount_favorited` /
-`product_discount_in_cart`) is only sent to users with an active (non-revoked)
-`emailConsentAt`. Store-follow discount notices are governed separately by a per-follow
-opt-out, not by this table.
+authenticated session. Campaign email (`product_discount_in_cart`, `product_price_drop`) is only sent to users with
+an active (non-revoked) `emailConsentAt` — checked when queueing and again at the send gate.
+The store-follow discount notice was closed in phase 6 (2026-09-24).
 
 ### CampaignEmailDispatch
 Dedupe and cooldown ledger for campaign discount email. `@@unique([userId,
@@ -273,6 +282,24 @@ independent per-`(user, product)` 7-day cooldown scan
 (`CAMPAIGN_EMAIL_COOLDOWN_DAYS`) that blocks recreate-and-respam abuse regardless of
 fingerprint. `source` (`CampaignDispatchSource`: `favorite` | `cart`) distinguishes which
 audience triggered the row.
+
+Phase 6 (2026-09-24) turned it into a reservation ledger: `status`, `releaseReason`, `sendingAt`,
+`sentAt` and a unique `eventKey` (the outbox/delivery key). Rows are written when the e-mail is queued
+and moved by the send gate; the 7-day and 24-hour limits count `sending | sent | uncertain` by
+`sentAt ?? sendingAt`. Pre-phase-6 rows were backfilled as `sent`.
+
+### Price history (2026-09-24)
+- `ProductPriceHistory` — append-only effective price points per price key (`variant:{id}` or
+  `product:{id}`); `seq` orders rows at the same instant (highest wins), `predicted` rows are rule
+  boundaries written ahead, `cancelledAt` marks predictions or rows superseded by a later write or an
+  unexplained change. Never deleted except by product cascade.
+- `PriceKeyTracking` — per key `trackedSince` (trust start) and the last reset reason.
+- `PriceChangeMarker` — written by the `record_price_change_marker` triggers on `products`,
+  `product_variants`, `discount_rules`, `discount_rule_products`.
+- `PriceChangeExplanation` — `(txId, entityType, entityId)`: what the application recorder recorded in a
+  transaction; a marker without one is an unexplained change.
+- `PriceDropEvent` / `PriceDropRecipient` — decisions and the frozen audience with per-recipient outcome.
+See `docs/07-operations/email-phase-6-report.md`.
 
 ### CartItem index addition
 `CartItem` carries `@@index([productId])` to support the campaign-discount job's

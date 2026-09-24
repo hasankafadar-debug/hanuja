@@ -269,10 +269,13 @@ never inferred.
   requirement (KVKK / Turkish Electronic Commerce Law no. 6563 — commercial electronic
   message consent), not just a UX preference, and must not be weakened to a soft
   best-effort filter.
-- Store-follow discount notices (`store_discount_followed_seller`) remain governed by
-  the separate, pre-existing per-follow opt-out — they are **not** gated by
-  `MarketingConsent`. Do not conflate the two consent surfaces when reviewing or
-  extending campaign email logic.
+- Phase 6 (2026-09-24): the store-follow and favorite discount notices are closed; any
+  still-queued row is skipped at the send gate (`LEGACY_CAMPAIGN_DISABLED`). The two
+  campaign e-mails left — `product_discount_in_cart` and `product_price_drop` — are
+  consent-gated when queued and again at the send gate, and every reservation keeps its
+  outcome (`CampaignEmailDispatch.status` / `releaseReason`) so a skipped or released
+  e-mail is explainable later. The per-follow opt-out token stays valid for links in
+  e-mails sent before the change.
 - The inbound Postmark reply-to-invoice (RET) flow can also revoke global marketing
   consent when a customer replies asking to stop. This trusts the `From` header of the
   inbound email, which is spoofable; the failure direction is fail-safe (consent can be

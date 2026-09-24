@@ -19,59 +19,48 @@ BullMQ job plan for Hanuja asynchronous workflows.
 
 ---
 
-## Active queue: `campaign-discount` (marketing email fan-out)
+## Active queue: `campaign-discount` (cart discount e-mail)
 
-`api/jobs/campaign-discount.job.ts` implements the discount-marketing email flow that
-notifies users about product discounts on items they favorited or have in their cart,
-plus the existing store-follower discount notice. It runs two job types on one queue
-(`CAMPAIGN_DISCOUNT`, see `api/lib/queue.ts`).
+`api/jobs/campaign-discount.job.ts` runs two job types on one queue (`CAMPAIGN_DISCOUNT`, see
+`api/lib/queue.ts`).
+
+> **Phase 6 (2026-09-24):** the favorite discount e-mail (`product_discount_favorited`) and the
+> store-follow discount e-mail (`store_discount_followed_seller`) are closed. Favoriters get the
+> lowest-price-of-15-days e-mail from the `price-history` queue below; following a store is no
+> notification reason. Queued rows of the two old types are skipped at the send gate with
+> `LEGACY_CAMPAIGN_DISABLED`.
 
 ### `fan-out`
 
-- Triggered when a seller creates or updates a discount (`DiscountRule` create/PATCH
-  routes enqueue it) or when `activation-scan` promotes a scheduled rule to active.
-- Notifies two audiences for a single discount campaign: store followers (existing
-  behavior, unchanged in trigger shape) and users who favorited the product or have it
-  in their cart (`NotificationType.product_discount_favorited` /
-  `product_discount_in_cart`).
-- Only sends to users with active `MarketingConsent.emailConsentAt` (favorite/cart audience
-  only — store-follow notices remain governed by the pre-existing per-follow opt-out, not
-  by `MarketingConsent`).
-- Each audience is dispatched independently; if one audience fan-out throws, the job logs
-  the error and continues so the other audience is not blocked. The job only hard-fails if
-  **both** audiences error.
-- Idempotency: `CampaignEmailDispatch` has `@@unique([userId, discountFingerprint, source])`.
-  `discountFingerprint` is built from `discountRuleId + startsAt|createdAt`, so re-running
-  fan-out for the same rule state (e.g. a retried job, or admin re-triggering) does not
-  re-send. A **new** fingerprint (new `startsAt`, i.e. a materially new campaign) is
-  required to re-notify the same user for the same rule.
-- Additional cooldown: per `(userId, productId)`, a repeat campaign email is suppressed for
-  `CAMPAIGN_EMAIL_COOLDOWN_DAYS` (default 7 days) regardless of fingerprint, to stop
-  recreate-and-respam abuse (deleting/recreating a discount rule to bypass the fingerprint
-  dedupe). Enforced via the `(userId, productId, createdAt)` index on
-  `CampaignEmailDispatch`.
+- Triggered when a seller creates a rule that is active at once or PATCHes a rule into ACTIVE (the
+  seller-panel routes enqueue it), or when `activation-scan` promotes a scheduled rule.
+- Audience: users who have a discounted product in their cart and active `MarketingConsent`
+  (`NotificationType.product_discount_in_cart`), excluding the seller's own account.
+- Before deciding, the price pipeline of the rule's products runs inline (markers, due rule
+  boundaries, candidate decisions). A cart holder who also favorited the product and whose product has
+  an eligible lowest-price event of this campaign gets no cart e-mail (`superseded_by_price_drop`) — the
+  priority does not depend on job order.
+- Each cart e-mail is a reservation (`CampaignEmailDispatch`, `status = reserved`) written in the same
+  transaction as its outbox row (`eventKey = campaign-cart:{fingerprint}:user:{userId}`). The shared
+  limits — one e-mail per user and product in 7 days, at most 3 per user in any rolling 24 hours,
+  counted on `sending | sent | uncertain` — are checked when reserving and again at the send gate.
+- `@@unique([userId, discountFingerprint, source])` keeps a retried fan-out idempotent. A failure fails
+  the job so BullMQ retries it.
 
 ### `activation-scan`
 
 - Repeatable job, cron **every 15 minutes**.
-- Scans `DiscountRule` rows: `scheduled → active` transition (past `startsAt`) triggers a
-  `fan-out` for the newly-activated rule; `active → expired` transition (past `endsAt`)
-  is a state-only update with no email.
-- Idempotent by construction — it only acts on rows still in the source state, so a
-  retried or overlapping run cannot double-transition or double-fan-out (fan-out itself is
-  additionally guarded by fingerprint dedupe above).
+- `scheduled → active` (past `startsAt`) enqueues a `fan-out`; `active → expired` (past `endsAt`) is
+  state-only. These flips do not change any price (the live status already follows the clock), so the
+  price-change triggers leave no marker for them.
 
 ### Failure behavior
 
-- Fan-out failures are logged with the `[campaign-discount]` prefix and do not block the
-  discount rule create/update request that triggered them (the enqueue is fire-and-forget
-  from the seller-panel route, rate-limited under `HIGH_RISK`).
-- `activation-scan` failures are retried by BullMQ's standard retry policy; a missed run
-  is self-healing since the next scheduled run re-scans the same state-based query.
+- The seller-panel enqueue is fire-and-forget and rate-limited under `HIGH_RISK`.
+- `activation-scan` failures are retried by BullMQ; a missed run is self-healing.
 
 Cross-reference: `docs/06-engineering/database-schema.md` (`MarketingConsent`,
-`CampaignEmailDispatch` models), `docs/06-engineering/integrations.md` §6 (Resend sender
-categories), `docs/05-security/audit-logging-plan.md` (consent trail note).
+`CampaignEmailDispatch`), `docs/06-engineering/integrations.md` §6, `docs/05-security/audit-logging-plan.md`.
 
 ## Notification reliability — 2026-09-22
 
@@ -157,3 +146,30 @@ admin-requested bulk retries (same guards as the single-row retry, generation + 
 timeout rolls the tick back and leaves the work for the next tick. The relay job is untouched, so order
 e-mails never wait for it. Campaign-discount producers are not bound by the 100 cap. See
 [phase 5 operations report](../07-operations/email-phase-5-report.md).
+
+### Phase 6 — lowest price of the last 15 days — 2026-09-24
+
+New queue **`price-history`** (worker concurrency 1):
+
+- **`tick`** every 15 s, each step its own bounded transaction:
+  1. process price change markers (an unexplained change resets the key's trust before any decision),
+  2. baseline untracked products (first run after deploy, products created by paths without the hook) —
+     including the future rule boundaries,
+  3. materialize predicted rule boundaries whose time has come (drops become candidates),
+  4. decide candidates (products with unprocessed markers wait),
+  5. release reservations not sent within 24 hours,
+  6. advance one lowest-price event: freeze the audience once (favoriters only), then reserve and write
+     outbox rows within the bulk lane's room (same 100 cap as announcements). A recipient refused by a
+     limit is skipped for good; one waiting for capacity waits.
+- **`reconcile`** hourly (`17 * * * *` UTC): the latest recorded price of every key must equal the
+  computed one; a mismatch resets that key's trust.
+
+New bulk-lane type `product_price_drop` (`kampanya`, List-Unsubscribe). The send gate in
+`notification-dispatch` runs before both legs for `product_price_drop` and `product_discount_in_cart`: it
+processes the product's pending markers inline, re-runs the full eligibility for "now", and re-checks the
+shared limits atomically under a per-user advisory lock; the reservation then moves `sending → sent`,
+back to `reserved` on a definite failure, or to `uncertain` (counted, never retried automatically).
+
+The history itself does not depend on this queue: every hooked write records in its own transaction, rule
+boundaries are written ahead with their exact times, and database triggers mark every other change. See
+[phase 6 operations report](../07-operations/email-phase-6-report.md).
