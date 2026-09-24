@@ -52,7 +52,9 @@ import { getPlatformBankInfo } from '../lib/platform-info'
 import { createPlatformBankAccountService } from './platform-bank-account.service'
 import { formatOrderNumber, formatOrderDisplayNumber } from '../lib/order-number'
 import { createPlatformSettingsService } from './platform-settings.service'
-import { createDiscountService, type EffectivePriceResult } from './discount.service'
+import { createDiscountService } from './discount.service'
+// The one effective price calculation shared with the product page and the price history.
+import { applyEffectivePricing } from '../domain/effective-price'
 import { createCouponService } from './coupon.service'
 import { roundMoney, formatMoney as baseFormatMoney } from '@hanuja/security/money'
 import { assertPaymentMethodEnabled } from '../lib/payment-capabilities'
@@ -73,21 +75,6 @@ const EMPTY_LEGAL_CHARACTERISTICS: Pick<
   dimensionWidthCm: null,
   dimensionLengthCm: null,
   dimensionHeightCm: null,
-}
-
-function applyEffectivePricing(
-  basePrice: Decimal,
-  pricing: EffectivePriceResult | undefined | null,
-): Decimal {
-  if (!pricing?.discountSource) return basePrice
-  const src = pricing.discountSource
-  if (src.type === 'PERCENT') {
-    return Decimal.max(
-      basePrice.mul(new Decimal(100).minus(src.value)).div(100),
-      new Decimal(0),
-    ).toDecimalPlaces(2)
-  }
-  return Decimal.max(basePrice.minus(src.value), new Decimal(0)).toDecimalPlaces(2)
 }
 
 interface CheckoutServiceDeps {

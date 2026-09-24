@@ -110,6 +110,7 @@ export {
 } from './product-questions'
 
 export { sellerAnnouncementTemplate } from './announcements'
+export { productPriceDropTemplate, PRICE_DROP_SUBJECT } from './product-price-drop'
 
 function customerOrderUrl(
   params: Pick<CustomerOrderEmailInput, 'orderUrl' | 'customerOrderUrl' | 'orderLink'>,

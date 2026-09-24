@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   outbox: vi.fn(),
   consent: vi.fn(),
   announcement: vi.fn(),
+  gate: vi.fn(),
+  mark: vi.fn(),
   records: new Map<
     string,
     Record<string, unknown> & {
@@ -32,6 +34,15 @@ vi.mock('../../../api/lib/mailer', () => ({ sendEmail: mocks.send }))
 vi.mock('../../../api/services/email-provider-event.service', () => ({
   reconcileEmailProviderEvents: vi.fn(),
 }))
+// The campaign gate has its own tests (campaign-send-gate.test.ts); here it is controlled so
+// the dispatcher's use of it — before both legs — and the reservation transitions are tested.
+vi.mock('../../../api/services/campaign-send-gate', () => ({
+  RESERVED_CAMPAIGN_TYPES: new Set(['product_discount_in_cart', 'product_price_drop']),
+  runCampaignSendGate: mocks.gate,
+}))
+vi.mock('../../../api/services/campaign-email-reservation', () => ({
+  markCampaignReservation: mocks.mark,
+}))
 vi.mock('../../../api/lib/prisma', () => {
   const tx = {
     notification: { create: mocks.create },
@@ -47,6 +58,7 @@ vi.mock('../../../api/lib/prisma', () => {
       user: { findUnique: mocks.user },
       marketingConsent: { findUnique: mocks.consent },
       announcement: { findUnique: mocks.announcement },
+      campaignEmailDispatch: { updateMany: vi.fn(async () => ({ count: 1 })) },
       notificationOutbox: { upsert: mocks.outbox },
       $transaction: async (fn: (tx: unknown) => unknown) => fn(tx),
     },
@@ -96,6 +108,12 @@ describe('durable notification delivery', () => {
       emailConsentAt: new Date(),
       emailRevokedAt: null,
     })
+    mocks.gate.mockImplementation(async (_prisma: unknown, { type }: { type: string }) =>
+      type === 'product_discount_favorited' || type === 'store_discount_followed_seller'
+        ? { proceed: false, reason: 'LEGACY_CAMPAIGN_DISABLED' }
+        : { proceed: true },
+    )
+    mocks.mark.mockResolvedValue({ count: 1 })
     mocks.create.mockResolvedValue({ id: 'n1' })
     mocks.outbox.mockImplementation(async ({ create }) => ({
       id: 'o1',
@@ -361,7 +379,8 @@ describe('durable notification delivery', () => {
   })
   it('rechecks marketing permission and includes unsubscribe headers', async () => {
     const task = job({
-      type: 'product_discount_favorited',
+      eventKey: 'campaign-cart:rule-1:2026-07-10T00:00:00.000Z:user:u1',
+      type: 'product_discount_in_cart',
       emailTo: 'customer@example.test',
       data: {
         productName: 'Sehpa',
@@ -389,6 +408,89 @@ describe('durable notification delivery', () => {
     expect(mocks.send).not.toHaveBeenCalled()
     expect(emailRecord().transportStatus).toBe('skipped')
   })
+  it('skips queued legacy favorite/store-follow discount notifications with a reason, before either leg', async () => {
+    for (const type of ['product_discount_favorited', 'store_discount_followed_seller']) {
+      mocks.records.clear()
+      await processNotificationDispatch(
+        job({
+          eventKey: `legacy:${type}`,
+          type,
+          emailTo: 'customer@example.test',
+          data: {
+            productName: 'Sehpa',
+            productUrl: 'https://www.hanuja.com.tr/urun/sehpa',
+            storeUrl: 'https://www.hanuja.com.tr/magaza/x',
+            unsubscribeUrl: 'https://www.hanuja.com.tr/api/marketing/unsubscribe?token=test',
+          },
+        }),
+      )
+      expect(mocks.send).not.toHaveBeenCalled()
+      expect(mocks.create).not.toHaveBeenCalled()
+      expect(emailRecord()).toMatchObject({
+        status: 'sent',
+        transportStatus: 'skipped',
+        lastError: 'LEGACY_CAMPAIGN_DISABLED',
+      })
+      expect([...mocks.records.values()].some((record) => record.channel === 'in_app')).toBe(false)
+    }
+  })
+
+  const priceDropJob = (override: Record<string, unknown> = {}) =>
+    job({
+      eventKey: 'price-drop:e1:user:u1',
+      type: 'product_price_drop',
+      title: 'Favorilediğiniz ürün son 15 günün en düşük fiyatında',
+      body: 'Sehpa şimdi 1.249,90 TL.',
+      emailTo: 'customer@example.test',
+      data: {
+        priceDropEventId: 'e1',
+        customerName: 'Ayşe',
+        productName: 'Sehpa',
+        variantName: 'Meşe',
+        productUrl: 'https://www.hanuja.com.tr/urun/sehpa?varyant=v1',
+        priceText: '1.249,90 TL',
+        unsubscribeUrl: 'https://www.hanuja.com.tr/api/marketing/unsubscribe?token=test',
+      },
+      ...override,
+    })
+
+  it('a refused campaign gate produces neither the in-app nor the e-mail leg', async () => {
+    mocks.gate.mockResolvedValueOnce({ proceed: false, reason: 'CAMPAIGN_RELEASED:price_changed' })
+    await processNotificationDispatch(priceDropJob())
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect(emailRecord()).toMatchObject({ transportStatus: 'skipped', lastError: 'CAMPAIGN_RELEASED:price_changed' })
+  })
+
+  it('sends the lowest-price e-mail and marks the reservation sent', async () => {
+    await processNotificationDispatch(priceDropJob())
+    expect(mocks.gate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ type: 'product_price_drop', eventKey: 'price-drop:e1:user:u1', userId: 'u1' }),
+    )
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Favorilediğiniz ürün son 15 günün en düşük fiyatında',
+        fromCategory: 'kampanya',
+        headers: expect.objectContaining({ 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }),
+      }),
+    )
+    expect(mocks.mark).toHaveBeenCalledWith(expect.anything(), 'price-drop:e1:user:u1', 'sent')
+  })
+
+  it('returns the reservation to the queue after a definite send failure', async () => {
+    mocks.send.mockRejectedValueOnce(Object.assign(new Error('rejected'), { responseCode: 550 }))
+    await expect(processNotificationDispatch(priceDropJob())).rejects.toThrow()
+    expect(mocks.mark).toHaveBeenCalledWith(expect.anything(), 'price-drop:e1:user:u1', 'failed')
+    expect(mocks.mark).not.toHaveBeenCalledWith(expect.anything(), 'price-drop:e1:user:u1', 'sent')
+  })
+
+  it('keeps an uncertain SMTP outcome as uncertain (it may have been sent)', async () => {
+    mocks.send.mockRejectedValueOnce(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT', command: 'DATA' }))
+    await expect(processNotificationDispatch(priceDropJob())).rejects.toThrow()
+    expect(mocks.mark).toHaveBeenCalledWith(expect.anything(), 'price-drop:e1:user:u1', 'uncertain')
+  })
+
   it('preserves deliberately in-app-only marketing notifications', async () => {
     await processNotificationDispatch(
       job({ type: 'product_discount_favorited' }),

@@ -1,70 +1,98 @@
 /**
- * Integration test — campaign discount cross-source dedupe end to end.
+ * Integration test — cart discount e-mail vs. the lowest-price e-mail (e-mail plan phase 6).
  *
- * Invariant (campaign-discount.service resolveTargets contract): a user who both
- * favorited AND has-in-cart the same discounted product is a single human and
- * must be notified exactly once, under the 'favorite' source (favorite wins over
- * cart). This test drives the full notify path — resolveTargets → dispatch row →
- * notification send — and asserts the collapse survives all the way to the
- * emitted notification type, not just the intermediate target list.
+ * Contract:
+ *   - favoriting alone no longer earns a discount e-mail; the cart e-mail goes to cart holders;
+ *   - a user who favorited AND has the product in the cart gets the lowest-price e-mail when this
+ *     campaign produced an eligible price drop — the cart e-mail gives way, deterministically;
+ *   - without an eligible drop (e.g. the first 15 days of history) the cart e-mail still goes;
+ *   - reservations go through the real reservation module (shared limits, idempotency).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaClient } from '@prisma/client'
 
-// See note in campaign-consent-enforcement.test.ts — intercept the transitive
-// prisma-singleton import pulled in by createNotificationService.
 vi.mock('../../api/jobs/notification-dispatch.job', () => ({
   enqueueNotification: vi.fn(),
+}))
+vi.mock('../../api/services/price-change-reconcile.service', () => ({
+  processPriceChangeMarkers: vi.fn(async () => ({ explained: 0, reset: 0, ignored: 0, resetProducts: 0 })),
+}))
+vi.mock('../../api/services/price-drop-evaluation.service', () => ({
+  materializeDuePredictions: vi.fn(async () => ({ materialized: 0, candidates: 0 })),
+  evaluatePriceDropCandidates: vi.fn(async () => ({ products: 0, pending: 0, ineligible: 0, grouped: 0 })),
+}))
+const outbox = vi.hoisted(() => ({ rows: [] as Array<{ userId: string; type: string; eventKey?: string }> }))
+vi.mock('../../api/services/notification-outbox.service', () => ({
+  recordNotification: vi.fn(async (_tx: unknown, payload: { userId: string; type: string; eventKey?: string }) => {
+    outbox.rows.push(payload)
+  }),
+  recordNotifications: vi.fn(),
 }))
 
 import { createCampaignDiscountService } from '../../api/services/campaign-discount.service'
 
-interface MockUser {
+const CONSENT_AT = new Date('2026-07-01T00:00:00.000Z')
+const NOW = new Date('2026-07-17T12:00:00.000Z')
+
+interface DispatchRow {
   id: string
-  email: string
-  name: string | null
+  userId: string
+  productId: string | null
+  discountFingerprint: string
+  source: string
+  status: string
+  eventKey: string | null
+  sentAt: Date | null
+  sendingAt: Date | null
+  createdAt: Date
 }
 
-const CONSENT_AT = new Date('2026-07-01T00:00:00.000Z')
+function matchesDispatch(row: DispatchRow, where: Record<string, unknown>): boolean {
+  for (const [key, condition] of Object.entries(where)) {
+    if (key === 'OR') {
+      const options = condition as Array<Record<string, unknown>>
+      if (!options.some((option) => matchesDispatch(row, option))) return false
+      continue
+    }
+    const value = (row as unknown as Record<string, unknown>)[key]
+    if (condition === null) {
+      if (value !== null) return false
+    } else if (typeof condition === 'object' && condition !== null) {
+      const c = condition as { in?: unknown[]; gte?: Date; not?: unknown }
+      if (c.in && !c.in.includes(value)) return false
+      if (c.gte && !(value instanceof Date && value.getTime() >= c.gte.getTime())) return false
+      if ('not' in c && value === c.not) return false
+    } else if (value !== condition) {
+      return false
+    }
+  }
+  return true
+}
 
-/**
- * Fixture: a single-product PRODUCT-scope rule on product-1, with
- *   - user-dual : favorites product-1 AND has product-1 in cart → dedupe target
- *   - user-cart : only has product-1 in cart                    → 'cart' source
- * both fully opted-in, so the only collapse under test is the source dedupe.
- */
-function createDedupePrisma() {
-  const product = { id: 'product-1', name: 'Rattan Salıncak', slug: 'rattan-salincak' }
-
-  const users: MockUser[] = [
+function createPrisma(options: { dropEvent?: 'pending' | 'ineligible' | null } = {}) {
+  const product = { id: 'product-1', sellerId: 'seller-1', name: 'Rattan Salıncak', slug: 'rattan-salincak' }
+  const users = [
     { id: 'user-dual', email: 'nazli.dual@example.com', name: 'Nazlı Ünal' },
     { id: 'user-cart', email: 'kerem.cart@example.com', name: 'Kerem Bal' },
-    { id: 'seller-user-1', email: 'magaza@example.com', name: 'Mağaza Sahibi' },
   ]
-
   const consents = [
     { userId: 'user-dual', emailConsentAt: CONSENT_AT, emailRevokedAt: null, optOutToken: 'token-dual' },
     { userId: 'user-cart', emailConsentAt: CONSENT_AT, emailRevokedAt: null, optOutToken: 'token-cart' },
-    { userId: 'seller-user-1', emailConsentAt: CONSENT_AT, emailRevokedAt: null, optOutToken: 'token-seller' },
   ]
-
-  const favorites = [{ userId: 'user-dual', createdAt: new Date('2026-07-06') }]
-
+  const favorites = [{ userId: 'user-dual', productId: 'product-1' }]
   const cartItems = [
     { productId: 'product-1', cart: { userId: 'user-dual' } },
     { productId: 'product-1', cart: { userId: 'user-cart' } },
   ]
-
-  const dispatches: Array<{
-    userId: string
-    productId: string | null
-    discountFingerprint: string
-    source: string
-    createdAt: Date
-  }> = []
+  const events = options.dropEvent
+    ? [{ productId: 'product-1', status: options.dropEvent, changeAt: new Date('2026-07-10T00:00:05.000Z') }]
+    : []
+  const dispatches: DispatchRow[] = []
 
   const prisma = {
     _dispatches: dispatches,
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
+    $executeRaw: vi.fn(async () => 1),
     discountRule: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
         where.id === 'rule-product'
@@ -81,16 +109,17 @@ function createDedupePrisma() {
           : null,
       ),
     },
-    product: {
-      findMany: vi.fn(async () => [{ id: product.id, name: product.name, slug: product.slug }]),
-    },
+    product: { findMany: vi.fn(async () => [product]) },
     favoriteProduct: {
-      findMany: vi.fn(async () =>
-        favorites.map((favorite) => ({
-          userId: favorite.userId,
-          user: users.find((user) => user.id === favorite.userId)!,
-          product,
-        })),
+      findMany: vi.fn(async ({ where }: { where: { userId: { in: string[] }; productId: { in: string[] } } }) =>
+        favorites.filter((row) => where.userId.in.includes(row.userId) && where.productId.in.includes(row.productId)),
+      ),
+    },
+    priceDropEvent: {
+      findMany: vi.fn(async ({ where }: { where: { status: { in: string[] }; changeAt: { gte: Date } } }) =>
+        events
+          .filter((event) => where.status.in.includes(event.status) && event.changeAt >= where.changeAt.gte)
+          .map((event) => ({ productId: event.productId })),
       ),
     },
     cartItem: {
@@ -104,118 +133,94 @@ function createDedupePrisma() {
       ),
     },
     marketingConsent: {
-      findMany: vi.fn(
-        async ({
-          where,
-        }: {
-          where: { userId: { in: string[] }; emailConsentAt?: { not: null }; emailRevokedAt?: null }
-        }) =>
-          consents.filter((consent) => {
-            if (!where.userId.in.includes(consent.userId)) return false
-            if (where.emailConsentAt && consent.emailConsentAt === null) return false
-            if ('emailRevokedAt' in where && consent.emailRevokedAt !== null) return false
-            return true
-          }),
+      findMany: vi.fn(async ({ where }: { where: { userId: { in: string[] } } }) =>
+        consents.filter((consent) => where.userId.in.includes(consent.userId)),
       ),
     },
     campaignEmailDispatch: {
-      findMany: vi.fn(
-        async ({
-          where,
-        }: {
-          where: { userId: { in: string[] }; productId: { in: Array<string | null> }; createdAt: { gte: Date } }
-        }) =>
-          dispatches
-            .filter(
-              (dispatch) =>
-                where.userId.in.includes(dispatch.userId) &&
-                dispatch.productId !== null &&
-                where.productId.in.includes(dispatch.productId) &&
-                dispatch.createdAt.getTime() >= where.createdAt.gte.getTime(),
-            )
-            .map((dispatch) => ({ userId: dispatch.userId, productId: dispatch.productId })),
+      findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+        const map: Record<string, unknown> = { ...where }
+        if ('discountFingerprint' in map) {
+          return dispatches.find((row) => matchesDispatch(row, map)) ?? null
+        }
+        return null
+      }),
+      count: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
+        dispatches.filter((row) => matchesDispatch(row, where)).length,
       ),
-      create: vi.fn(
-        async ({
-          data,
-        }: {
-          data: { userId: string; productId?: string | null; discountFingerprint: string; source: string }
-        }) => {
-          const exists = dispatches.some(
-            (dispatch) =>
-              dispatch.userId === data.userId &&
-              dispatch.discountFingerprint === data.discountFingerprint &&
-              dispatch.source === data.source,
-          )
-          if (exists) throw new Error('Unique constraint violation')
-          dispatches.push({
-            userId: data.userId,
-            productId: data.productId ?? null,
-            discountFingerprint: data.discountFingerprint,
-            source: data.source,
-            createdAt: new Date(),
-          })
-          return { id: `dispatch-${dispatches.length}`, ...data }
-        },
+      findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
+        dispatches.filter((row) => matchesDispatch(row, where)),
       ),
+      updateMany: vi.fn(async () => ({ count: 0 })),
+      create: vi.fn(async ({ data }: { data: Omit<DispatchRow, 'id' | 'sentAt' | 'sendingAt' | 'createdAt'> }) => {
+        const row: DispatchRow = {
+          ...data,
+          productId: data.productId ?? null,
+          eventKey: data.eventKey ?? null,
+          id: `dispatch-${dispatches.length + 1}`,
+          sentAt: null,
+          sendingAt: null,
+          createdAt: NOW,
+        }
+        dispatches.push(row)
+        return { id: row.id }
+      }),
     },
   }
-
   return prisma
 }
 
-describe('campaign discount — cross-source dedupe (favorite over cart)', () => {
-  let prisma: ReturnType<typeof createDedupePrisma>
-  let sendMock: ReturnType<typeof vi.fn>
-  let service: ReturnType<typeof createCampaignDiscountService>
-
+describe('campaign discount — cart e-mail vs. lowest-price e-mail', () => {
   beforeEach(() => {
-    prisma = createDedupePrisma()
-    sendMock = vi.fn()
-    service = createCampaignDiscountService({
-      prisma: prisma as unknown as PrismaClient,
-      notifications: { send: sendMock } as never,
-    })
+    outbox.rows.length = 0
   })
 
-  it('resolves the dual-source user once, as a favorite', async () => {
-    const targets = await service.resolveTargets('rule-product')
+  function serviceFor(prisma: ReturnType<typeof createPrisma>) {
+    return createCampaignDiscountService({ prisma: prisma as unknown as PrismaClient })
+  }
 
-    const dualEntries = targets.filter((target) => target.userId === 'user-dual')
-    expect(dualEntries).toHaveLength(1)
-    expect(dualEntries[0]?.source).toBe('favorite')
+  const params = {
+    discountRuleId: 'rule-product',
+    discountFingerprint: 'rule-product:2026-07-10T00:00:00.000Z',
+    sellerName: 'Atölye Kuzey',
+    now: NOW,
+  }
 
-    // The cart-only user still surfaces, under 'cart'.
-    const cartEntry = targets.find((target) => target.userId === 'user-cart')
-    expect(cartEntry?.source).toBe('cart')
+  it('without an eligible price drop, both cart holders get one cart e-mail each (favoriting changes nothing)', async () => {
+    const prisma = createPrisma({ dropEvent: null })
+    const result = await serviceFor(prisma).notifyDiscountAudience(params)
+
+    expect(result).toEqual({ notified: 2, superseded: 0, skipped: 0 })
+    expect(outbox.rows.map((row) => row.type)).toEqual(['product_discount_in_cart', 'product_discount_in_cart'])
+    expect(prisma._dispatches.map((row) => [row.userId, row.source, row.status])).toEqual([
+      ['user-dual', 'cart', 'reserved'],
+      ['user-cart', 'cart', 'reserved'],
+    ])
   })
 
-  it('sends the dual-source user exactly one notification, typed as product_discount_favorited', async () => {
-    const result = await service.notifyDiscountAudience({
-      discountRuleId: 'rule-product',
-      discountFingerprint: 'rule-product:2026-07-10T00:00:00.000Z',
-      sellerName: 'Atölye Kuzey',
-    })
+  it('an eligible price drop of this campaign wins for the favoriter; the cart-only user still gets the cart e-mail', async () => {
+    const prisma = createPrisma({ dropEvent: 'pending' })
+    const result = await serviceFor(prisma).notifyDiscountAudience(params)
 
-    // 2 distinct humans: user-dual (favorite) + user-cart (cart).
-    expect(result).toEqual({ notified: 2 })
+    expect(result).toEqual({ notified: 1, superseded: 1, skipped: 0 })
+    expect(outbox.rows.map((row) => row.userId)).toEqual(['user-cart'])
+    expect(prisma._dispatches.some((row) => row.userId === 'user-dual')).toBe(false)
+  })
 
-    const dualSends = sendMock.mock.calls
-      .map((call) => call[0] as { userId: string; type: string })
-      .filter((payload) => payload.userId === 'user-dual')
-    expect(dualSends).toHaveLength(1)
-    expect(dualSends[0]?.type).toBe('product_discount_favorited')
+  it('an ineligible price drop (e.g. history under 15 days) does not suppress the cart e-mail', async () => {
+    const prisma = createPrisma({ dropEvent: 'ineligible' })
+    const result = await serviceFor(prisma).notifyDiscountAudience(params)
 
-    // Exactly one dispatch row for the dual user, under the favorite source.
-    const dualDispatches = prisma._dispatches.filter((dispatch) => dispatch.userId === 'user-dual')
-    expect(dualDispatches).toHaveLength(1)
-    expect(dualDispatches[0]?.source).toBe('favorite')
+    expect(result).toEqual({ notified: 2, superseded: 0, skipped: 0 })
+  })
 
-    // The cart-only user is dispatched under 'cart' — the collapse is per-user, not global.
-    const cartSends = sendMock.mock.calls
-      .map((call) => call[0] as { userId: string; type: string })
-      .filter((payload) => payload.userId === 'user-cart')
-    expect(cartSends).toHaveLength(1)
-    expect(cartSends[0]?.type).toBe('product_discount_in_cart')
+  it('running the same campaign again writes nothing new (reservation idempotency)', async () => {
+    const prisma = createPrisma({ dropEvent: null })
+    const service = serviceFor(prisma)
+    await service.notifyDiscountAudience(params)
+    const second = await service.notifyDiscountAudience(params)
+
+    expect(second).toEqual({ notified: 0, superseded: 0, skipped: 2 })
+    expect(outbox.rows).toHaveLength(2)
   })
 })

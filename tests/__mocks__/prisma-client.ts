@@ -127,6 +127,7 @@ export enum NotificationType {
   seller_product_question = 'seller_product_question',
   customer_product_question_answered = 'customer_product_question_answered',
   seller_announcement = 'seller_announcement',
+  product_price_drop = 'product_price_drop',
 }
 
 export enum AnnouncementStatus {
@@ -137,6 +138,40 @@ export enum AnnouncementStatus {
 export enum CampaignDispatchSource {
   favorite = 'favorite',
   cart = 'cart',
+  price_drop = 'price_drop',
+}
+
+export enum CampaignDispatchStatus {
+  reserved = 'reserved',
+  sending = 'sending',
+  sent = 'sent',
+  uncertain = 'uncertain',
+  released = 'released',
+}
+
+export enum PriceHistorySource {
+  baseline = 'baseline',
+  product_write = 'product_write',
+  variant_write = 'variant_write',
+  discount_rule_write = 'discount_rule_write',
+  rule_boundary = 'rule_boundary',
+  reconcile = 'reconcile',
+}
+
+export enum PriceDropEventStatus {
+  candidate = 'candidate',
+  ineligible = 'ineligible',
+  grouped = 'grouped',
+  pending = 'pending',
+  dispatching = 'dispatching',
+  dispatched = 'dispatched',
+  cancelled = 'cancelled',
+}
+
+export enum PriceDropRecipientStatus {
+  awaiting_capacity = 'awaiting_capacity',
+  reserved = 'reserved',
+  skipped = 'skipped',
 }
 
 // No-op PrismaClient — prevents accidental DB calls in unit tests
@@ -151,6 +186,7 @@ export const Prisma = {
   sql(strings: TemplateStringsArray, ...values: unknown[]) {
     return { strings: Array.from(strings), values }
   },
+  empty: { strings: [''], values: [] },
 }
 
 export class PrismaClient {

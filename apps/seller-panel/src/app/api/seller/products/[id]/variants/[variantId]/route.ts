@@ -4,6 +4,7 @@ import { Decimal } from '@prisma/client/runtime/client'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { recordPriceChanges } from '@hanuja/api/services/price-history.service'
 
 const updateVariantSchema = z
   .object({
@@ -75,6 +76,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
             data: { stockQuantity: stock._sum.stockQuantity ?? 0 },
             select: { id: true, stockQuantity: true },
           })
+
+          // Variant price history in the same transaction (e-mail plan phase 6).
+          await recordPriceChanges(tx, { productIds: [productId], source: 'variant_write' })
 
           return { variant, product }
         },

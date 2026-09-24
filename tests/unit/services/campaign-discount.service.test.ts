@@ -1,19 +1,94 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// campaign-discount.service.ts imports createNotificationService as a default-param
-// fallback. That module transitively imports api/jobs/notification-dispatch.job,
-// which imports the api/lib/prisma singleton (`new PrismaClient()` at module load).
-// Every test here overrides `notifications`, but the import chain still runs at
-// module-load time, so it must be intercepted the same way other service tests do.
+// campaign-discount.service.ts transitively imports modules that load the api/lib/prisma
+// singleton; intercept them the same way other service tests do.
 vi.mock('../../../api/jobs/notification-dispatch.job', () => ({
   enqueueNotification: vi.fn(),
 }))
 
+// Phase 6: the price pipeline runs inline before the cart decision, and each cart e-mail is a
+// reservation written with its outbox row. Those modules have their own tests; here they are
+// controlled so the service's audience, priority and idempotency logic is tested in isolation.
+const pipeline = vi.hoisted(() => ({
+  calls: [] as string[],
+  processMarkers: vi.fn(),
+  materialize: vi.fn(),
+  evaluate: vi.fn(),
+}))
+vi.mock('../../../api/services/price-change-reconcile.service', () => ({
+  processPriceChangeMarkers: pipeline.processMarkers,
+}))
+vi.mock('../../../api/services/price-drop-evaluation.service', () => ({
+  materializeDuePredictions: pipeline.materialize,
+  evaluatePriceDropCandidates: pipeline.evaluate,
+}))
+
+const outbox = vi.hoisted(() => ({ recordNotification: vi.fn() }))
+vi.mock('../../../api/services/notification-outbox.service', () => ({
+  recordNotification: outbox.recordNotification,
+  recordNotifications: vi.fn(),
+}))
+
+const reservations = vi.hoisted(() => ({
+  rows: [] as Array<{ userId: string; productId: string; fingerprint: string; source: string; createdAt: Date }>,
+  forced: new Map<string, string>(),
+  reserveCampaignEmail: vi.fn(),
+}))
+vi.mock('../../../api/services/campaign-email-reservation', () => ({
+  CAMPAIGN_EMAIL_COOLDOWN_DAYS: 7,
+  reserveCampaignEmail: reservations.reserveCampaignEmail,
+}))
+
 import {
   buildDiscountFingerprint,
+  campaignCartEventKey,
   createCampaignDiscountService,
   CAMPAIGN_EMAIL_COOLDOWN_DAYS,
 } from '../../../api/services/campaign-discount.service'
+
+function resetPhase6Mocks() {
+  pipeline.calls.length = 0
+  pipeline.processMarkers.mockReset().mockImplementation(async () => {
+    pipeline.calls.push('markers')
+    return { explained: 0, reset: 0, ignored: 0, resetProducts: 0 }
+  })
+  pipeline.materialize.mockReset().mockImplementation(async () => {
+    pipeline.calls.push('materialize')
+    return { materialized: 0, candidates: 0 }
+  })
+  pipeline.evaluate.mockReset().mockImplementation(async () => {
+    pipeline.calls.push('evaluate')
+    return { products: 0, pending: 0, ineligible: 0, grouped: 0 }
+  })
+  outbox.recordNotification.mockReset().mockImplementation(async () => {
+    pipeline.calls.push('outbox')
+  })
+  reservations.rows.length = 0
+  reservations.forced.clear()
+  reservations.reserveCampaignEmail.mockReset().mockImplementation(
+    async (
+      _tx: unknown,
+      input: { userId: string; productId: string; fingerprint: string; source: string; now: Date },
+    ) => {
+      const forced = reservations.forced.get(`${input.userId}:${input.productId}`)
+      if (forced) return { ok: false, reason: forced }
+      if (reservations.rows.some((row) => row.userId === input.userId && row.fingerprint === input.fingerprint)) {
+        return { ok: false, reason: 'already' }
+      }
+      const cutoff = input.now.getTime() - 7 * 24 * 60 * 60 * 1000
+      if (
+        reservations.rows.some(
+          (row) =>
+            row.userId === input.userId && row.productId === input.productId && row.createdAt.getTime() >= cutoff,
+        )
+      ) {
+        return { ok: false, reason: 'cooldown' }
+      }
+      reservations.rows.push({ ...input, createdAt: input.now })
+      return { ok: true, id: `reservation-${reservations.rows.length}` }
+    },
+  )
+}
 
 interface MockProduct {
   id: string
@@ -198,8 +273,29 @@ function createMockPrisma() {
     createdAt: Date
   }> = []
 
-  return {
+  const priceDropEvents: Array<{ productId: string; status: string; changeAt: Date }> = []
+
+  const prisma = {
     _dispatches: dispatches,
+    _priceDropEvents: priceDropEvents,
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
+    priceDropEvent: {
+      findMany: vi.fn().mockImplementation(
+        async ({
+          where,
+        }: {
+          where: { productId: { in: string[] }; status: { in: string[] }; changeAt: { gte: Date } }
+        }) =>
+          priceDropEvents
+            .filter(
+              (event) =>
+                where.productId.in.includes(event.productId) &&
+                where.status.in.includes(event.status) &&
+                event.changeAt.getTime() >= where.changeAt.gte.getTime(),
+            )
+            .map((event) => ({ productId: event.productId })),
+      ),
+    },
     discountRule: {
       findUnique: vi.fn().mockImplementation(async ({ where }: { where: { id: string } }) => {
         if (where.id === 'rule-missing-not-found') return null
@@ -224,11 +320,19 @@ function createMockPrisma() {
           cursor,
           skip,
         }: {
-          where: { product: ProductWhere }
+          where: { product: ProductWhere } | { userId: { in: string[] }; productId: { in: string[] } }
           take?: number
           cursor?: { id: string }
           skip?: number
         }) => {
+          if ('userId' in where) {
+            return favorites
+              .filter(
+                (favorite) =>
+                  where.userId.in.includes(favorite.userId) && where.productId.in.includes(favorite.productId),
+              )
+              .map((favorite) => ({ userId: favorite.userId, productId: favorite.productId }))
+          }
           let rows = favorites
             .filter((favorite) =>
               matchesProductWhere(products.find((product) => product.id === favorite.productId), where.product),
@@ -390,6 +494,7 @@ function createMockPrisma() {
       ),
     },
   }
+  return prisma
 }
 
 describe('buildDiscountFingerprint', () => {
@@ -409,8 +514,9 @@ describe('CampaignDiscountService.resolveTargets', () => {
   let service: ReturnType<typeof createCampaignDiscountService>
 
   beforeEach(() => {
+    resetPhase6Mocks()
     prisma = createMockPrisma()
-    service = createCampaignDiscountService({ prisma: prisma as never, notifications: { send: vi.fn() } as never })
+    service = createCampaignDiscountService({ prisma: prisma as never })
   })
 
   it('returns empty result when the discount rule does not exist', async () => {
@@ -418,304 +524,188 @@ describe('CampaignDiscountService.resolveTargets', () => {
     expect(targets).toEqual([])
   })
 
-  it('resolves PRODUCT scope to favoriters and cart-holders of the exact product, excluding seller and unconsented users', async () => {
+  it('resolves PRODUCT scope to cart holders only — favoriting alone is no reason any more (phase 6)', async () => {
     const targets = await service.resolveTargets('rule-product')
 
-    // product-1 has 4 favoriters (consented, seller-self, no-consent, revoked) and 2 cart
-    // holders (cart-consented, guest). After self-exclusion, consent filtering, and guest
-    // exclusion, only user-consented (favorite) and user-cart-consented (cart) remain.
-    expect(targets.map((target) => target.userId).sort()).toEqual(['user-cart-consented', 'user-consented'])
-
-    const favoriteTarget = targets.find((target) => target.userId === 'user-consented')
-    expect(favoriteTarget).toMatchObject({ source: 'favorite', productId: 'product-1' })
-
-    const cartTarget = targets.find((target) => target.userId === 'user-cart-consented')
-    expect(cartTarget).toMatchObject({ source: 'cart', productId: 'product-1' })
+    // product-1 has 4 favoriters and 2 cart holders (cart-consented, guest). Only the
+    // consented, non-guest cart holder remains; favoriters get the lowest-price e-mail instead.
+    expect(targets.map((target) => target.userId)).toEqual(['user-cart-consented'])
+    expect(targets[0]).toMatchObject({ source: 'cart', productId: 'product-1' })
+    expect(prisma.favoriteProduct.findMany).not.toHaveBeenCalled()
   })
 
-  it('does not surface another tenant product or its favoriters even if a DiscountRuleProduct row points at it', async () => {
-    // rule-product-cross-tenant (owned by seller-1) lists product-1 (seller-1) and
-    // product-4 (seller-2). The PRODUCT scope where-clause is constrained by sellerId,
-    // so product-4 — and user-cross-tenant who favorited it — must never appear.
+  it('does not surface another tenant product even if a DiscountRuleProduct row points at it', async () => {
     const targets = await service.resolveTargets('rule-product-cross-tenant')
 
     expect(targets.some((target) => target.productId === 'product-4')).toBe(false)
     expect(targets.some((target) => target.userId === 'user-cross-tenant')).toBe(false)
-
-    // The legitimate same-seller product still resolves normally.
-    expect(targets.some((target) => target.userId === 'user-consented' && target.productId === 'product-1')).toBe(
-      true,
-    )
+    expect(
+      targets.some((target) => target.userId === 'user-cart-consented' && target.productId === 'product-1'),
+    ).toBe(true)
   })
 
-  it('excludes the seller own account from the audience', async () => {
+  it('excludes the seller own account, unconsented users and guest carts', async () => {
     const targets = await service.resolveTargets('rule-product')
     expect(targets.some((target) => target.userId === 'seller-user-1')).toBe(false)
-  })
-
-  it('excludes users without marketing consent or with revoked consent', async () => {
-    const targets = await service.resolveTargets('rule-product')
     expect(targets.some((target) => target.userId === 'user-no-consent')).toBe(false)
     expect(targets.some((target) => target.userId === 'user-revoked')).toBe(false)
+    expect(targets.filter((target) => target.source === 'cart').map((target) => target.userId)).toEqual([
+      'user-cart-consented',
+    ])
   })
 
-  it('excludes guest cart items (no user account to notify)', async () => {
-    const targets = await service.resolveTargets('rule-product')
-    // guest cart (cart-2) also holds product-1, but has no userId — must not surface as a
-    // target. The only cart-sourced target for product-1 is the non-guest cart-1 holder.
-    const cartSourcedUserIds = targets.filter((target) => target.source === 'cart').map((target) => target.userId)
-    expect(cartSourcedUserIds).toEqual(['user-cart-consented'])
-  })
-
-  it('resolves CATEGORY scope to the seller products in that category and dedupes favorite over cart', async () => {
+  it('resolves CATEGORY scope to cart holders of the seller products in that category', async () => {
     const targets = await service.resolveTargets('rule-category')
 
-    // user-consented favorited product-1 AND has product-2 in cart (cart-3) — both in cat-1 scope.
-    // Must be deduped to a single 'favorite' entry.
-    const consentedEntries = targets.filter((target) => target.userId === 'user-consented')
-    expect(consentedEntries).toHaveLength(1)
-    expect(consentedEntries[0]?.source).toBe('favorite')
-
-    // user-cart-consented only has a cart hit (product-1, cart-1) — surfaces as 'cart'.
-    const cartEntry = targets.find((target) => target.userId === 'user-cart-consented')
-    expect(cartEntry?.source).toBe('cart')
-
-    // product-3 is cat-2, out of CATEGORY(cat-1) scope — user-only-all must not appear.
-    expect(targets.some((target) => target.userId === 'user-only-all')).toBe(false)
-
-    // product-4 belongs to seller-2 — never in scope for a seller-1 rule.
+    // user-consented has product-2 (cat-1) in cart-3; user-cart-consented has product-1 in cart-1.
+    expect(targets.map((target) => target.userId).sort()).toEqual(['user-cart-consented', 'user-consented'])
+    expect(targets.every((target) => target.source === 'cart')).toBe(true)
     expect(targets.some((target) => target.productId === 'product-4')).toBe(false)
   })
 
-  it('resolves ALL_PRODUCTS scope to every seller product, including categories CATEGORY scope would miss', async () => {
+  it('does not include favorite-only users for ALL_PRODUCTS scope', async () => {
     const targets = await service.resolveTargets('rule-all')
 
-    expect(targets.some((target) => target.userId === 'user-only-all' && target.productId === 'product-3')).toBe(
-      true,
-    )
+    // user-only-all only favorited product-3 — no cart — so no cart e-mail.
+    expect(targets.some((target) => target.userId === 'user-only-all')).toBe(false)
     expect(targets.some((target) => target.productId === 'product-4')).toBe(false)
-  })
-})
-
-describe('CampaignDiscountService favorites pagination (unbounded audience)', () => {
-  const FAVORITE_COUNT = 1200 // exceeds the service's internal page size (1000)
-
-  function createLargeFavoritesPrisma() {
-    const product = { id: 'product-big', name: 'Popüler Ürün', slug: 'populer-urun' }
-    const rule = {
-      id: 'rule-big',
-      sellerId: 'seller-big',
-      scope: 'PRODUCT' as const,
-      categoryId: null,
-      startsAt: null,
-      createdAt: new Date('2026-07-10T00:00:00.000Z'),
-      products: [{ productId: product.id }],
-      seller: { userId: 'seller-big-owner' },
-    }
-
-    const favorites = Array.from({ length: FAVORITE_COUNT }, (_, index) => ({
-      id: `fav-big-${String(index).padStart(5, '0')}`,
-      userId: `user-big-${index}`,
-      productId: product.id,
-      createdAt: new Date('2026-07-01'),
-    }))
-
-    return {
-      discountRule: { findUnique: vi.fn().mockResolvedValue(rule) },
-      product: { findMany: vi.fn().mockResolvedValue([{ id: product.id, name: product.name, slug: product.slug }]) },
-      favoriteProduct: {
-        findMany: vi.fn().mockImplementation(
-          async ({
-            take,
-            cursor,
-            skip,
-          }: {
-            take?: number
-            cursor?: { id: string }
-            skip?: number
-          }) => {
-            let rows = favorites
-            if (cursor) {
-              const index = rows.findIndex((favorite) => favorite.id === cursor.id)
-              rows = index >= 0 ? rows.slice(index + (skip ?? 0)) : []
-            }
-            if (typeof take === 'number') rows = rows.slice(0, take)
-            return rows.map((favorite) => ({
-              ...favorite,
-              user: { id: favorite.userId, email: `${favorite.userId}@example.com`, name: null },
-              product,
-            }))
-          },
-        ),
-      },
-      cartItem: { findMany: vi.fn().mockResolvedValue([]) },
-      user: {
-        findMany: vi.fn().mockImplementation(async ({ where }: { where: { id: { in: string[] } } }) =>
-          where.id.in.map((id) => ({ id, email: `${id}@example.com`, name: null })),
-        ),
-      },
-      marketingConsent: {
-        findMany: vi.fn().mockImplementation(async ({ where }: { where: { userId: { in: string[] } } }) =>
-          where.userId.in.map((userId) => ({ userId })),
-        ),
-      },
-    }
-  }
-
-  it('paginates past the internal page size and includes users from the second page', async () => {
-    const prisma = createLargeFavoritesPrisma()
-    const service = createCampaignDiscountService({ prisma: prisma as never, notifications: { send: vi.fn() } as never })
-
-    const targets = await service.resolveTargets('rule-big')
-
-    expect(targets).toHaveLength(FAVORITE_COUNT)
-    // user-big-1050 only exists on the second internal page (page size 1000).
-    expect(targets.some((target) => target.userId === 'user-big-1050')).toBe(true)
-    expect(prisma.favoriteProduct.findMany).toHaveBeenCalledTimes(2) // two pages drained
   })
 })
 
 describe('CampaignDiscountService.notifyDiscountAudience', () => {
   let prisma: ReturnType<typeof createMockPrisma>
-  let sendMock: ReturnType<typeof vi.fn>
   let service: ReturnType<typeof createCampaignDiscountService>
+  const NOW = new Date('2026-07-17T12:00:00.000Z')
 
   beforeEach(() => {
+    resetPhase6Mocks()
     prisma = createMockPrisma()
-    sendMock = vi.fn()
-    service = createCampaignDiscountService({ prisma: prisma as never, notifications: { send: sendMock } as never })
+    service = createCampaignDiscountService({ prisma: prisma as never })
   })
 
-  it('creates a dispatch row and sends a notification per resolved target', async () => {
+  it('reserves and writes one outbox row per cart target in the same transaction', async () => {
     const result = await service.notifyDiscountAudience({
       discountRuleId: 'rule-product',
       discountFingerprint: 'rule-product:2026-07-10T00:00:00.000Z',
       sellerName: 'Atolye Kuzey',
+      now: NOW,
     })
 
-    // rule-product resolves to 2 targets: user-consented (favorite) + user-cart-consented (cart).
-    expect(result).toEqual({ notified: 2 })
-    expect(prisma.campaignEmailDispatch.create).toHaveBeenCalledTimes(2)
-    expect(sendMock).toHaveBeenCalledTimes(2)
-    // Each dispatch row records the productId so the cooldown scan can key on it.
-    expect(prisma._dispatches.map((dispatch) => dispatch.productId)).toEqual(['product-1', 'product-1'])
-    expect(sendMock).toHaveBeenCalledWith(
+    expect(result).toEqual({ notified: 1, superseded: 0, skipped: 0 })
+    expect(reservations.reserveCampaignEmail).toHaveBeenCalledWith(
+      prisma,
       expect.objectContaining({
-        userId: 'user-consented',
-        type: 'product_discount_favorited',
-        emailTo: 'consented@example.com',
-        data: expect.objectContaining({
-          unsubscribeUrl: expect.stringContaining('token-consented'),
-        }),
+        userId: 'user-cart-consented',
+        productId: 'product-1',
+        source: 'cart',
+        fingerprint: 'rule-product:2026-07-10T00:00:00.000Z',
+        eventKey: campaignCartEventKey('rule-product:2026-07-10T00:00:00.000Z', 'user-cart-consented'),
       }),
     )
-    expect(sendMock).toHaveBeenCalledWith(
+    expect(outbox.recordNotification).toHaveBeenCalledWith(
+      prisma,
       expect.objectContaining({
         userId: 'user-cart-consented',
         type: 'product_discount_in_cart',
+        eventKey: campaignCartEventKey('rule-product:2026-07-10T00:00:00.000Z', 'user-cart-consented'),
         emailTo: 'cartuser@example.com',
-        data: expect.objectContaining({
-          unsubscribeUrl: expect.stringContaining('token-cart'),
-        }),
+        data: expect.objectContaining({ unsubscribeUrl: expect.stringContaining('token-cart') }),
       }),
+    )
+    expect(outbox.recordNotification).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ type: 'product_discount_favorited' }),
     )
   })
 
-  it('is idempotent: re-running for the same fingerprint skips already-dispatched users', async () => {
-    const params = {
-      discountRuleId: 'rule-product',
-      discountFingerprint: 'rule-product:2026-07-10T00:00:00.000Z',
-      sellerName: 'Atolye Kuzey',
-    }
-
-    const first = await service.notifyDiscountAudience(params)
-    const second = await service.notifyDiscountAudience(params)
-
-    expect(first).toEqual({ notified: 2 })
-    expect(second).toEqual({ notified: 0 })
-    expect(sendMock).toHaveBeenCalledTimes(2)
-    // The cooldown check now short-circuits before the create attempt, so the second
-    // call never reaches campaignEmailDispatch.create for these already-dispatched users.
-    expect(prisma.campaignEmailDispatch.create).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not throw when the unique constraint rejects a duplicate dispatch', async () => {
-    const params = {
-      discountRuleId: 'rule-product',
-      discountFingerprint: 'rule-product:2026-07-10T00:00:00.000Z',
-      sellerName: 'Atolye Kuzey',
-    }
-
-    await service.notifyDiscountAudience(params)
-    await expect(service.notifyDiscountAudience(params)).resolves.toEqual({ notified: 0 })
-  })
-
-  it('cooldown blocks a new fingerprint (rule recreated) for the same user+product within 7 days — the recreate-to-respam scenario', async () => {
-    const first = await service.notifyDiscountAudience({
-      discountRuleId: 'rule-product',
-      discountFingerprint: 'rule-product:2026-07-10T00:00:00.000Z',
-      sellerName: 'Atolye Kuzey',
-    })
-    expect(first).toEqual({ notified: 2 })
-
-    // Simulates delete+recreate of the rule: audience resolution is by product scope
-    // (same underlying rule-product fixture), but the fingerprint is brand-new — as it
-    // would be for a freshly-created rule row with a new id/startsAt.
-    const second = await service.notifyDiscountAudience({
-      discountRuleId: 'rule-product',
-      discountFingerprint: 'rule-product-recreated:2026-07-11T00:00:00.000Z',
-      sellerName: 'Atolye Kuzey',
-    })
-
-    expect(second).toEqual({ notified: 0 })
-    expect(sendMock).toHaveBeenCalledTimes(2) // no new sends on the second call
-    expect(prisma.campaignEmailDispatch.create).toHaveBeenCalledTimes(2) // no new dispatch rows
-  })
-
-  it('sends again once the cooldown window has elapsed, even for a new fingerprint', async () => {
+  it('brings the price pipeline up to date before deciding (deterministic priority)', async () => {
     await service.notifyDiscountAudience({
       discountRuleId: 'rule-product',
       discountFingerprint: 'rule-product:2026-07-10T00:00:00.000Z',
       sellerName: 'Atolye Kuzey',
+      now: NOW,
     })
 
-    // Rewind the recorded dispatch timestamps past the cooldown window.
-    const staleCutoff = new Date(Date.now() - (CAMPAIGN_EMAIL_COOLDOWN_DAYS + 1) * 24 * 60 * 60 * 1000)
-    for (const dispatch of prisma._dispatches) dispatch.createdAt = staleCutoff
-
-    const second = await service.notifyDiscountAudience({
-      discountRuleId: 'rule-product',
-      discountFingerprint: 'rule-product-recreated:2026-08-01T00:00:00.000Z',
-      sellerName: 'Atolye Kuzey',
+    expect(pipeline.calls.slice(0, 3)).toEqual(['markers', 'materialize', 'evaluate'])
+    expect(pipeline.calls.indexOf('outbox')).toBeGreaterThan(pipeline.calls.indexOf('evaluate'))
+    expect(pipeline.processMarkers).toHaveBeenCalledWith(prisma, {
+      scope: { productIds: ['product-1'], sellerIds: ['seller-1'] },
     })
-
-    expect(second).toEqual({ notified: 2 })
-    expect(sendMock).toHaveBeenCalledTimes(4)
+    expect(pipeline.materialize).toHaveBeenCalledWith(prisma, { productIds: ['product-1'] })
   })
 
-  it('does not apply the cooldown across different products for the same user', async () => {
-    // rule-category (scope CATEGORY cat-1) includes product-1 and product-2; notify once.
-    await service.notifyDiscountAudience({
+  it('gives way to the lowest-price e-mail for a favoriter with an eligible price drop of this campaign', async () => {
+    // user-consented has product-2 in its cart; make it also favorite product-2 and give
+    // product-2 a pending lowest-price event after the campaign start.
+    prisma.favoriteProduct.findMany.mockImplementationOnce(async () => [
+      { userId: 'user-consented', productId: 'product-2' },
+    ])
+    prisma._priceDropEvents.push({
+      productId: 'product-2',
+      status: 'pending',
+      changeAt: new Date('2026-07-05T00:00:01.000Z'),
+    })
+
+    const result = await service.notifyDiscountAudience({
       discountRuleId: 'rule-category',
       discountFingerprint: 'rule-category:2026-07-05T00:00:00.000Z',
       sellerName: 'Atolye Kuzey',
+      now: NOW,
     })
-    const firstSendCount = sendMock.mock.calls.length
 
-    // A distinct PRODUCT-scope rule for product-2 (different product than product-1's
-    // dispatch history but may overlap on user) must not be blocked by the cooldown.
-    await service.notifyDiscountAudience({
-      discountRuleId: 'rule-all',
-      discountFingerprint: 'rule-all:2026-07-02T00:00:00.000Z',
+    expect(result).toEqual({ notified: 1, superseded: 1, skipped: 0 })
+    expect(reservations.reserveCampaignEmail).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ userId: 'user-consented' }),
+    )
+  })
+
+  it('still sends the cart e-mail when the price drop of this product was not eligible', async () => {
+    prisma._priceDropEvents.push({
+      productId: 'product-2',
+      status: 'ineligible',
+      changeAt: new Date('2026-07-05T00:00:01.000Z'),
+    })
+
+    const result = await service.notifyDiscountAudience({
+      discountRuleId: 'rule-category',
+      discountFingerprint: 'rule-category:2026-07-05T00:00:00.000Z',
       sellerName: 'Atolye Kuzey',
+      now: NOW,
     })
 
-    // rule-all (ALL_PRODUCTS) reaches user-only-all on product-3 — a product never
-    // dispatched before — so it must send regardless of the rule-category cooldown.
-    expect(sendMock.mock.calls.length).toBeGreaterThan(firstSendCount)
-    expect(
-      sendMock.mock.calls.some((call) => (call[0] as { userId: string }).userId === 'user-only-all'),
-    ).toBe(true)
+    expect(result).toEqual({ notified: 2, superseded: 0, skipped: 0 })
+  })
+
+  it('is idempotent: re-running for the same fingerprint writes nothing new', async () => {
+    const params = {
+      discountRuleId: 'rule-product',
+      discountFingerprint: 'rule-product:2026-07-10T00:00:00.000Z',
+      sellerName: 'Atolye Kuzey',
+      now: NOW,
+    }
+
+    expect(await service.notifyDiscountAudience(params)).toEqual({ notified: 1, superseded: 0, skipped: 0 })
+    expect(await service.notifyDiscountAudience(params)).toEqual({ notified: 0, superseded: 0, skipped: 1 })
+    expect(outbox.recordNotification).toHaveBeenCalledTimes(1)
+  })
+
+  it('a reservation refused by the shared limits writes no outbox row', async () => {
+    reservations.forced.set('user-cart-consented:product-1', 'daily_cap')
+
+    const result = await service.notifyDiscountAudience({
+      discountRuleId: 'rule-product',
+      discountFingerprint: 'rule-product-recreated:2026-07-11T00:00:00.000Z',
+      sellerName: 'Atolye Kuzey',
+      now: NOW,
+    })
+
+    expect(result).toEqual({ notified: 0, superseded: 0, skipped: 1 })
+    expect(outbox.recordNotification).not.toHaveBeenCalled()
+  })
+
+  it('keeps the 7-day cooldown constant shared with the reservation module', () => {
+    expect(CAMPAIGN_EMAIL_COOLDOWN_DAYS).toBe(7)
   })
 
   it('returns zero without side effects when there is no audience', async () => {
@@ -725,9 +715,9 @@ describe('CampaignDiscountService.notifyDiscountAudience', () => {
       sellerName: 'Atolye Kuzey',
     })
 
-    expect(result).toEqual({ notified: 0 })
-    expect(prisma.campaignEmailDispatch.create).not.toHaveBeenCalled()
-    expect(sendMock).not.toHaveBeenCalled()
+    expect(result).toEqual({ notified: 0, superseded: 0, skipped: 0 })
+    expect(reservations.reserveCampaignEmail).not.toHaveBeenCalled()
+    expect(outbox.recordNotification).not.toHaveBeenCalled()
   })
 })
 

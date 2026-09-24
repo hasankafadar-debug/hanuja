@@ -69,29 +69,19 @@ describe('campaign-discount.job — fan-out', () => {
     queueAddMock.mockReset()
   })
 
-  it('notifies both the store-follower audience and the favorite/cart audience', async () => {
-    notifyFollowersMock.mockResolvedValue(undefined)
-    notifyDiscountAudienceMock.mockResolvedValue({ notified: 2 })
+  const payload = {
+    discountRuleId: 'rule-1',
+    discountFingerprint: 'rule-1:2026-07-17T00:00:00.000Z',
+    sellerId: 'seller-1',
+    sellerName: 'Atelier Noa',
+    sellerSlug: 'atelier-noa',
+  }
 
-    await processCampaignDiscountJob(
-      fanOutJob({
-        discountRuleId: 'rule-1',
-        discountFingerprint: 'rule-1:2026-07-17T00:00:00.000Z',
-        sellerId: 'seller-1',
-        sellerName: 'Atelier Noa',
-        sellerSlug: 'atelier-noa',
-      }),
-    )
+  it('notifies only the cart audience — store followers are no notification reason (phase 6)', async () => {
+    notifyDiscountAudienceMock.mockResolvedValue({ notified: 2, superseded: 0, skipped: 0 })
 
-    expect(notifyFollowersMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sellerId: 'seller-1',
-        sellerName: 'Atelier Noa',
-        sellerSlug: 'atelier-noa',
-        discountRuleId: 'rule-1',
-        discountFingerprint: 'rule-1:2026-07-17T00:00:00.000Z',
-      }),
-    )
+    await processCampaignDiscountJob(fanOutJob(payload))
+
     expect(notifyDiscountAudienceMock).toHaveBeenCalledWith(
       expect.objectContaining({
         discountRuleId: 'rule-1',
@@ -99,61 +89,13 @@ describe('campaign-discount.job — fan-out', () => {
         sellerName: 'Atelier Noa',
       }),
     )
+    expect(notifyFollowersMock).not.toHaveBeenCalled()
   })
 
-  it('does not skip the favorite/cart audience when the store-follower dispatch fails', async () => {
-    notifyFollowersMock.mockRejectedValue(new Error('follow dispatch failed'))
-    notifyDiscountAudienceMock.mockResolvedValue({ notified: 1 })
-
-    await expect(
-      processCampaignDiscountJob(
-        fanOutJob({
-          discountRuleId: 'rule-1',
-          discountFingerprint: 'rule-1:2026-07-17T00:00:00.000Z',
-          sellerId: 'seller-1',
-          sellerName: 'Atelier Noa',
-          sellerSlug: 'atelier-noa',
-        }),
-      ),
-    ).resolves.toBeUndefined()
-
-    expect(notifyDiscountAudienceMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not skip the store-follower audience when the favorite/cart dispatch fails', async () => {
-    notifyFollowersMock.mockResolvedValue(undefined)
+  it('fails the job when the cart dispatch fails, so BullMQ retries it', async () => {
     notifyDiscountAudienceMock.mockRejectedValue(new Error('audience dispatch failed'))
 
-    await expect(
-      processCampaignDiscountJob(
-        fanOutJob({
-          discountRuleId: 'rule-1',
-          discountFingerprint: 'rule-1:2026-07-17T00:00:00.000Z',
-          sellerId: 'seller-1',
-          sellerName: 'Atelier Noa',
-          sellerSlug: 'atelier-noa',
-        }),
-      ),
-    ).resolves.toBeUndefined()
-
-    expect(notifyFollowersMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('throws (fails the job) only when both audiences fail', async () => {
-    notifyFollowersMock.mockRejectedValue(new Error('follow dispatch failed'))
-    notifyDiscountAudienceMock.mockRejectedValue(new Error('audience dispatch failed'))
-
-    await expect(
-      processCampaignDiscountJob(
-        fanOutJob({
-          discountRuleId: 'rule-1',
-          discountFingerprint: 'rule-1:2026-07-17T00:00:00.000Z',
-          sellerId: 'seller-1',
-          sellerName: 'Atelier Noa',
-          sellerSlug: 'atelier-noa',
-        }),
-      ),
-    ).rejects.toThrow(/both audiences errored/)
+    await expect(processCampaignDiscountJob(fanOutJob(payload))).rejects.toThrow('audience dispatch failed')
   })
 })
 

@@ -11,9 +11,10 @@
  * with a positive control proving the consented user IS reached, so a mock that
  * accidentally excludes everyone cannot make the suite pass silently.
  *
- * The store-follow discount flow is governed by its own per-follow opt-out token
- * (StoreFollow.emailOptOutToken), not by MarketingConsent, and is intentionally
- * unaffected by this gate — see store-follow.service and its own tests.
+ * Phase 6 (2026-09-24): the cart discount e-mail is the only discount e-mail of this service.
+ * Favoriters get the lowest-price e-mail (price-drop-dispatch.service, consent-gated when the
+ * audience is frozen and again at the send gate) and following a store is no notification
+ * reason at all — the old store-follow discount e-mail is closed.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaClient } from '@prisma/client'
@@ -25,8 +26,27 @@ import type { PrismaClient } from '@prisma/client'
 vi.mock('../../api/jobs/notification-dispatch.job', () => ({
   enqueueNotification: vi.fn(),
 }))
+vi.mock('../../api/services/price-change-reconcile.service', () => ({
+  processPriceChangeMarkers: vi.fn(async () => ({ explained: 0, reset: 0, ignored: 0, resetProducts: 0 })),
+}))
+vi.mock('../../api/services/price-drop-evaluation.service', () => ({
+  materializeDuePredictions: vi.fn(async () => ({ materialized: 0, candidates: 0 })),
+  evaluatePriceDropCandidates: vi.fn(async () => ({ products: 0, pending: 0, ineligible: 0, grouped: 0 })),
+}))
+const outbox = vi.hoisted(() => ({ rows: [] as Array<{ userId: string; type: string; emailTo?: string }> }))
+vi.mock('../../api/services/notification-outbox.service', () => ({
+  recordNotification: vi.fn(async (_tx: unknown, payload: { userId: string; type: string; emailTo?: string }) => {
+    outbox.rows.push(payload)
+  }),
+  recordNotifications: vi.fn(),
+}))
+vi.mock('../../api/services/campaign-email-reservation', () => ({
+  CAMPAIGN_EMAIL_COOLDOWN_DAYS: 7,
+  reserveCampaignEmail: vi.fn(async () => ({ ok: true, id: 'reservation' })),
+}))
 
 import { createCampaignDiscountService } from '../../api/services/campaign-discount.service'
+import { createStoreFollowService } from '../../api/services/store-follow.service'
 
 interface MockUser {
   id: string
@@ -112,20 +132,18 @@ function createConsentAudiencePrisma() {
     product: {
       findMany: vi.fn(async () => [{ id: product.id, name: product.name, slug: product.slug }]),
     },
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
+    priceDropEvent: { findMany: vi.fn(async () => []) },
     favoriteProduct: {
+      findMany: vi.fn(async () => []),
+    },
+    cartItem: {
+      // The four users hold the discounted product in their carts, in different consent states.
       findMany: vi.fn(async () =>
         [...favorites]
           .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-          .map((favorite) => ({
-            userId: favorite.userId,
-            user: users.find((user) => user.id === favorite.userId)!,
-            product,
-          })),
+          .map((holder) => ({ productId: holder.productId, cart: { userId: holder.userId } })),
       ),
-    },
-    cartItem: {
-      // No cart holders in this fixture — the audience is favorite-sourced only.
-      findMany: vi.fn(async () => []),
     },
     user: {
       findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
@@ -213,10 +231,7 @@ describe('campaign consent enforcement — resolveTargets audience gate', () => 
 
   beforeEach(() => {
     prisma = createConsentAudiencePrisma()
-    service = createCampaignDiscountService({
-      prisma: prisma as unknown as PrismaClient,
-      notifications: { send: vi.fn() } as never,
-    })
+    service = createCampaignDiscountService({ prisma: prisma as unknown as PrismaClient })
   })
 
   it('includes the opted-in, not-revoked user (positive control — suite is non-vacuous)', async () => {
@@ -239,7 +254,7 @@ describe('campaign consent enforcement — resolveTargets audience gate', () => 
     expect(targets.some((target) => target.userId === 'user-revoked')).toBe(false)
   })
 
-  it('narrows a four-favoriter product down to exactly the single consented user', async () => {
+  it('narrows a four-cart-holder product down to exactly the single consented user', async () => {
     const targets = await service.resolveTargets('rule-product')
     expect(targets.map((target) => target.userId)).toEqual(['user-consented'])
   })
@@ -247,44 +262,48 @@ describe('campaign consent enforcement — resolveTargets audience gate', () => 
 
 describe('campaign consent enforcement — notifyDiscountAudience dispatch gate', () => {
   let prisma: ConsentPrisma
-  let sendMock: ReturnType<typeof vi.fn>
   let service: ReturnType<typeof createCampaignDiscountService>
 
   beforeEach(() => {
+    outbox.rows.length = 0
     prisma = createConsentAudiencePrisma()
-    sendMock = vi.fn()
-    service = createCampaignDiscountService({
-      prisma: prisma as unknown as PrismaClient,
-      notifications: { send: sendMock } as never,
-    })
+    service = createCampaignDiscountService({ prisma: prisma as unknown as PrismaClient })
   })
 
-  it('sends to the consented user and to no one else, writing exactly one dispatch row', async () => {
+  it('writes the cart e-mail for the consented user and for no one else', async () => {
     const result = await service.notifyDiscountAudience({
       discountRuleId: 'rule-product',
       discountFingerprint: 'rule-product:2026-07-10T00:00:00.000Z',
       sellerName: 'Atölye Kuzey',
     })
 
-    expect(result).toEqual({ notified: 1 })
-    expect(sendMock).toHaveBeenCalledTimes(1)
-    expect(sendMock).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-consented', emailTo: 'elif.consented@example.com' }),
-    )
-    expect(prisma._dispatches.map((dispatch) => dispatch.userId)).toEqual(['user-consented'])
+    expect(result).toEqual({ notified: 1, superseded: 0, skipped: 0 })
+    expect(outbox.rows).toHaveLength(1)
+    expect(outbox.rows[0]).toMatchObject({
+      userId: 'user-consented',
+      type: 'product_discount_in_cart',
+      emailTo: 'elif.consented@example.com',
+    })
   })
 
-  it('never sends to no-row, un-opted, or revoked users', async () => {
+  it('never writes an e-mail for no-row, un-opted, or revoked users', async () => {
     await service.notifyDiscountAudience({
       discountRuleId: 'rule-product',
       discountFingerprint: 'rule-product:2026-07-10T00:00:00.000Z',
       sellerName: 'Atölye Kuzey',
     })
 
-    const reachedUserIds = sendMock.mock.calls.map((call) => (call[0] as { userId: string }).userId)
+    const reachedUserIds = outbox.rows.map((row) => row.userId)
     expect(reachedUserIds).not.toContain('user-no-row')
     expect(reachedUserIds).not.toContain('user-unopted')
     expect(reachedUserIds).not.toContain('user-revoked')
+  })
+})
+
+describe('campaign consent enforcement — store follow is no notification reason (phase 6)', () => {
+  it('the store-follow service no longer has a discount notification path', () => {
+    const service = createStoreFollowService({ prisma: {} as PrismaClient }) as unknown as Record<string, unknown>
+    expect(service['notifyFollowersAboutDiscount']).toBeUndefined()
   })
 })
 
@@ -294,10 +313,7 @@ describe('campaign consent enforcement — revoke → audience exclusion round-t
 
   beforeEach(() => {
     prisma = createConsentAudiencePrisma()
-    service = createCampaignDiscountService({
-      prisma: prisma as unknown as PrismaClient,
-      notifications: { send: vi.fn() } as never,
-    })
+    service = createCampaignDiscountService({ prisma: prisma as unknown as PrismaClient })
   })
 
   it('drops a previously-included user from the audience after they unsubscribe via token', async () => {

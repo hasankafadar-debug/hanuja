@@ -12,7 +12,9 @@ import {
 } from '../lib/errors'
 import { createCartRepository } from '../repositories/cart.repository'
 import { createPlatformSettingsService } from './platform-settings.service'
-import { createDiscountService, type EffectivePriceResult } from './discount.service'
+import { createDiscountService } from './discount.service'
+// The one effective price calculation shared with the product page and the price history.
+import { applyEffectivePricing } from '../domain/effective-price'
 import { createCouponService } from './coupon.service'
 import { createProductAnalyticsService } from './product-analytics.service'
 import { roundMoney } from '@hanuja/security/money'
@@ -22,21 +24,6 @@ interface CartServiceDeps {
 }
 
 const MAX_ITEM_QUANTITY = 99
-
-function applyEffectivePricing(
-  basePrice: Decimal,
-  pricing: EffectivePriceResult | undefined | null,
-): Decimal {
-  if (!pricing?.discountSource) return basePrice
-  const src = pricing.discountSource
-  if (src.type === 'PERCENT') {
-    return Decimal.max(
-      basePrice.mul(new Decimal(100).minus(src.value)).div(100),
-      new Decimal(0),
-    ).toDecimalPlaces(2)
-  }
-  return Decimal.max(basePrice.minus(src.value), new Decimal(0)).toDecimalPlaces(2)
-}
 
 export function createCartService({ prisma }: CartServiceDeps) {
   const carts = createCartRepository(prisma)

@@ -2,7 +2,7 @@
  * Notification Dispatch Job â€” sends in-app and email notifications.
  * Idempotent: deduplication is handled by the notification record's existence.
  */
-import { NotificationType as NotificationTypeEnum } from '@prisma/client'
+import { NotificationType as NotificationTypeEnum, type PrismaClient } from '@prisma/client'
 import { Worker, Job } from 'bullmq'
 import { createHash, randomUUID } from 'node:crypto'
 import { redis } from '../lib/redis'
@@ -37,6 +37,7 @@ import {
   adminSellerSupportTicketTemplate,
   sellerProductQuestionTemplate,
   customerProductQuestionAnsweredTemplate,
+  productPriceDropTemplate,
   type BankTransferInstruction,
   type CancellationActorRole,
   type EmailOrderLineInput,
@@ -73,6 +74,11 @@ import {
   notificationErrorCode,
 } from '../lib/notification-policy'
 import { recordNotification } from '../services/notification-outbox.service'
+import {
+  RESERVED_CAMPAIGN_TYPES,
+  runCampaignSendGate,
+} from '../services/campaign-send-gate'
+import { markCampaignReservation } from '../services/campaign-email-reservation'
 
 function normalizeNotificationType(type: string) {
   return type.trim().replace(/-/g, '_').toUpperCase()
@@ -403,6 +409,18 @@ async function buildEmailPayload(
         unsubscribeUrl: str(data, 'unsubscribeUrl'),
       })
 
+    case NotificationTypeEnum.product_price_drop:
+      return productPriceDropTemplate({
+        customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
+        productName: str(data, 'productName'),
+        productUrl: str(data, 'productUrl'),
+        priceText: str(data, 'priceText'),
+        unsubscribeUrl: str(data, 'unsubscribeUrl'),
+        ...opt(data, 'variantName'),
+        ...opt(data, 'imageUrl'),
+        ...opt(data, 'sellerName'),
+      })
+
     case NotificationTypeEnum.product_discount_favorited:
     case NotificationTypeEnum.product_discount_in_cart:
       return productDiscountTemplate({
@@ -531,6 +549,31 @@ export async function processNotificationDispatch(
   const payload = JSON.parse(JSON.stringify({ ...job.data, eventKey }))
   const now = new Date()
   const deliveryUserId = isOps ? null : userId
+  // Campaign gate (phase 6): closed legacy types, reservation, shared limits and the
+  // lowest-price re-check run before either leg; a refusal produces neither.
+  if (!isOps) {
+    const gate = await runCampaignSendGate(prisma, { type, eventKey, userId })
+    if (!gate.proceed) {
+      const recipient = (job.data.emailTo ?? user?.email ?? userId).trim().toLowerCase()
+      await prisma.notificationDelivery.upsert({
+        where: { recipient_channel_eventKey: { recipient, channel: 'email', eventKey } },
+        update: {},
+        create: {
+          eventKey,
+          userId: deliveryUserId,
+          type,
+          channel: 'email',
+          recipient,
+          payload,
+          status: 'sent',
+          transportStatus: 'skipped',
+          lastError: gate.reason.slice(0, 200),
+        },
+      })
+      return
+    }
+  }
+  const reservationTracked = RESERVED_CAMPAIGN_TYPES.has(type)
   if (!isOps) {
     const inApp = await prisma.notificationDelivery.upsert({
       where: {
@@ -589,7 +632,10 @@ export async function processNotificationDispatch(
   // Preserve deliberate in-app-only events; explicitly requested unsupported email is an error.
   if (!policy && !job.data.emailTo) return
   // Marketing producers intentionally omit emailTo for users who opted out.
-  if (policy?.category === 'kampanya' && !job.data.emailTo) return
+  if (policy?.category === 'kampanya' && !job.data.emailTo) {
+    if (reservationTracked) await releaseSendingReservation(prisma, eventKey, 'no_email_address')
+    return
+  }
   // The in-app copy an admin user receives for an operation event stays in-app:
   // the e-mail leg belongs to the ops row alone, so the number of admin users
   // never changes how many e-mails go out.
@@ -619,9 +665,18 @@ export async function processNotificationDispatch(
       payload,
     },
   })
-  if (email.status === 'sent' || email.transportStatus === 'skipped') return
-  if (email.transportStatus === 'uncertain')
+  if (email.status === 'sent' || email.transportStatus === 'skipped') {
+    if (reservationTracked) {
+      if (email.transportStatus === 'skipped')
+        await releaseSendingReservation(prisma, eventKey, email.lastError ?? 'email_skipped')
+      else await markCampaignReservation(prisma, eventKey, 'sent')
+    }
+    return
+  }
+  if (email.transportStatus === 'uncertain') {
+    if (reservationTracked) await markCampaignReservation(prisma, eventKey, 'uncertain')
     throw new Error('EMAIL_OUTCOME_UNCERTAIN_REVIEW_REQUIRED')
+  }
   if (email.status === 'processing') {
     if (!email.leaseExpiresAt || email.leaseExpiresAt < now) {
       await prisma.notificationDelivery.updateMany({
@@ -637,6 +692,7 @@ export async function processNotificationDispatch(
           leaseToken: null,
         },
       })
+      if (reservationTracked) await markCampaignReservation(prisma, eventKey, 'uncertain')
     }
     throw new Error('EMAIL_DELIVERY_BUSY_OR_UNCERTAIN')
   }
@@ -685,6 +741,7 @@ export async function processNotificationDispatch(
             leaseExpiresAt: null,
           },
         })
+        if (reservationTracked) await releaseSendingReservation(prisma, eventKey, 'no_consent')
         return
       }
     }
@@ -721,6 +778,7 @@ export async function processNotificationDispatch(
       },
     })
     accepted = true
+    if (reservationTracked) await markCampaignReservation(prisma, eventKey, 'sent')
     await prisma.notificationDelivery.updateMany({
       where: { id: email.id, leaseToken: token },
       data: {
@@ -760,8 +818,18 @@ export async function processNotificationDispatch(
         leaseExpiresAt: null,
       },
     })
+    if (reservationTracked && !accepted)
+      await markCampaignReservation(prisma, eventKey, uncertain ? 'uncertain' : 'failed')
     throw error
   }
+}
+
+/** A reservation that reached the gate but will not be sent frees its place in the limits. */
+async function releaseSendingReservation(prisma: PrismaClient, eventKey: string, reason: string) {
+  await prisma.campaignEmailDispatch.updateMany({
+    where: { eventKey, status: 'sending' },
+    data: { status: 'released', releaseReason: reason.slice(0, 200) },
+  })
 }
 
 async function trackedDispatch(job: Job<NotificationDispatchJobData>) {

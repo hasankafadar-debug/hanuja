@@ -151,6 +151,8 @@ export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
     category: 'fatura',
     required: ['orderNumber', 'orderUrl'],
   },
+  // Closed in phase 6 (2026-09-24): no producer writes these two any more and the send gate
+  // skips queued rows (LEGACY_CAMPAIGN_DISABLED). Kept so old records stay readable.
   store_discount_followed_seller: {
     role: 'customer',
     category: 'kampanya',
@@ -165,6 +167,13 @@ export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
     role: 'customer',
     category: 'kampanya',
     required: ['productUrl', 'unsubscribeUrl'],
+  },
+  // Lowest price of the last 15 days (phase 6): favoriters only, marketing consent, bulk lane.
+  // The send gate re-checks the history and the shared limits before either leg.
+  product_price_drop: {
+    role: 'customer',
+    category: 'kampanya',
+    required: ['priceDropEventId', 'productName', 'productUrl', 'priceText', 'unsubscribeUrl'],
   },
   // Admin operation events: e-mail goes to the configured operations mailbox only.
   // Their per-admin in-app copies stay in-app (see the dispatcher's ops branch).

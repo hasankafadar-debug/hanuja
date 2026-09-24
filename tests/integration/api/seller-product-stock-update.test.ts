@@ -6,11 +6,13 @@ const {
   createPrismaForRouteMock,
   createCatalogServiceMock,
   updateProductForSellerMock,
+  recordPriceChangesMock,
 } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   createPrismaForRouteMock: vi.fn(),
   createCatalogServiceMock: vi.fn(),
   updateProductForSellerMock: vi.fn(),
+  recordPriceChangesMock: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({
@@ -27,6 +29,12 @@ vi.mock("@hanuja/api/lib/prisma", () => ({
 
 vi.mock("@hanuja/api/services/catalog.service", () => ({
   createCatalogService: createCatalogServiceMock,
+}));
+
+// The price history recorder has its own tests; here only its call inside the route's
+// transaction is checked (e-mail plan phase 6).
+vi.mock("@hanuja/api/services/price-history.service", () => ({
+  recordPriceChanges: recordPriceChangesMock,
 }));
 
 function createPrismaMock() {
@@ -171,6 +179,11 @@ describe("seller product variant quick updates", () => {
     expect(prisma.product.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { stockQuantity: 13 } }),
     );
+    // The variant price and its history are written in the same transaction.
+    expect(recordPriceChangesMock).toHaveBeenCalledWith(prisma, {
+      productIds: ["product-1"],
+      source: "variant_write",
+    });
   });
 
   it.each([

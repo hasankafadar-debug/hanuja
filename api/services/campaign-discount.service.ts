@@ -1,23 +1,26 @@
 /**
- * Campaign discount service — notifies customers who favorited or have-in-cart
- * a product when a seller starts a discount on that product.
+ * Campaign discount service — notifies customers who have a product in their cart when a seller
+ * starts a discount on that product (`product_discount_in_cart`).
  *
- * Audience resolution respects marketing consent (opt-in, not revoked) and
- * excludes the seller's own account. Dispatch is deduplicated per
- * (userId, discountFingerprint, source) so re-running notifyDiscountAudience
- * for the same campaign instance is idempotent.
+ * Phase 6 (2026-09-24): the favorite discount e-mail is closed. Favoriters get the
+ * lowest-price-of-15-days e-mail instead (price-drop-dispatch.service), which wins over the cart
+ * e-mail for the same user and product. Before deciding, the price pipeline of the discount's
+ * products runs inline (markers, due boundaries, candidates), so the priority does not depend on
+ * which job runs first.
  *
- * Scope, out of this chunk: queue/job wiring, HTTP routes, email templates.
- * notifyDiscountAudience creates in-app notifications + enqueues email via the
- * shared notification service; the email template mapping is added later.
+ * Each cart e-mail is a reservation (campaign-email-reservation.ts) written together with its
+ * outbox row; the shared limits (7 days per user/product, 3 per user in 24 hours) are checked
+ * when reserving and again at the send gate.
  */
 import type { CampaignDispatchSource, Prisma, PrismaClient } from '@prisma/client'
 import { getWebBaseUrl } from '../lib/platform-info'
-import { createNotificationService, type NotificationService } from './notification.service'
+import { reserveCampaignEmail } from './campaign-email-reservation'
+import { recordNotification } from './notification-outbox.service'
+import { processPriceChangeMarkers } from './price-change-reconcile.service'
+import { evaluatePriceDropCandidates, materializeDuePredictions } from './price-drop-evaluation.service'
 
 interface CampaignDiscountServiceDeps {
   prisma: PrismaClient
-  notifications?: NotificationService
 }
 
 interface DiscountRuleForFingerprint {
@@ -45,17 +48,12 @@ export interface CampaignDiscountTarget {
 
 const PRODUCT_ID_PAGE_SIZE = 1000
 const CART_ITEM_CHUNK_SIZE = 1000
-const FAVORITE_PAGE_SIZE = 1000
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 /**
- * Cooldown penceresi: bir kullanıcıya aynı ürün için en fazla 7 günde bir
- * kampanya e-postası gönderilir. Fingerprint'ten bağımsızdır; satıcının kuralı
- * silip yeniden oluşturarak (yeni fingerprint) aynı kitleyi tekrar spam'lemesini
- * engeller.
+ * Cooldown penceresi: bir kullanıcıya aynı ürün için en fazla 7 günde bir kampanya e-postası
+ * gönderilir (sepet ve 15 günlük fiyat bildirimi ortak). Kural artık rezervasyon modülünde.
  */
-export const CAMPAIGN_EMAIL_COOLDOWN_DAYS = 7
+export { CAMPAIGN_EMAIL_COOLDOWN_DAYS } from './campaign-email-reservation'
 
 /**
  * Deterministic fingerprint for one "campaign instance" of a discount rule.
@@ -87,51 +85,11 @@ function buildUnsubscribeUrl(optOutToken: string): string {
   return `${getWebBaseUrl()}/api/marketing/unsubscribe?token=${encodeURIComponent(optOutToken)}`
 }
 
-export function createCampaignDiscountService({
-  prisma,
-  notifications = createNotificationService({ prisma }),
-}: CampaignDiscountServiceDeps) {
-  async function resolveFavoriteTargets(
-    productWhere: Prisma.ProductWhereInput,
-  ): Promise<CampaignDiscountTarget[]> {
-    // Cursor-paginated: a popular product can have an unbounded favorite count,
-    // so pages are drained by stable id cursor and deduped incrementally.
-    const targetsByUserId = new Map<string, CampaignDiscountTarget>()
-    let cursor: string | undefined
+export function campaignCartEventKey(discountFingerprint: string, userId: string) {
+  return `campaign-cart:${discountFingerprint}:user:${userId}`
+}
 
-    for (;;) {
-      const page = await prisma.favoriteProduct.findMany({
-        where: { product: productWhere },
-        orderBy: { id: 'asc' },
-        take: FAVORITE_PAGE_SIZE,
-        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-        include: {
-          user: { select: { id: true, email: true, name: true } },
-          product: { select: { id: true, name: true, slug: true } },
-        },
-      })
-      if (page.length === 0) break
-
-      for (const favorite of page) {
-        if (targetsByUserId.has(favorite.userId)) continue
-        targetsByUserId.set(favorite.userId, {
-          userId: favorite.userId,
-          email: favorite.user.email,
-          name: favorite.user.name,
-          source: 'favorite',
-          productId: favorite.product.id,
-          productName: favorite.product.name,
-          productSlug: favorite.product.slug,
-        })
-      }
-
-      if (page.length < FAVORITE_PAGE_SIZE) break
-      cursor = page[page.length - 1]?.id
-    }
-
-    return Array.from(targetsByUserId.values())
-  }
-
+export function createCampaignDiscountService({ prisma }: CampaignDiscountServiceDeps) {
   /**
    * CartItem has no Product relation, so the scoped product set is resolved
    * first (cursor-paginated), then matched against cart items in chunks.
@@ -237,10 +195,9 @@ export function createCampaignDiscountService({
   }
 
   /**
-   * Resolve the notification audience for a discount rule: users who favorited
-   * or have-in-cart a discounted product, opted into marketing email, excluding
-   * the seller's own account. A user present in both favorite and cart audiences
-   * is counted once, under 'favorite'.
+   * Resolve the cart audience for a discount rule: users who have a discounted product in their
+   * cart, opted into marketing email, excluding the seller's own account. Favoriting alone is no
+   * longer a reason (phase 6); favoriters get the lowest-price e-mail instead.
    */
   async function resolveTargets(discountRuleId: string): Promise<CampaignDiscountTarget[]> {
     const rule = await prisma.discountRule.findUnique({
@@ -252,67 +209,82 @@ export function createCampaignDiscountService({
     })
     if (!rule) return []
 
-    const productWhere = buildProductScopeWhere(rule)
-
-    const [favoriteTargets, cartTargets] = await Promise.all([
-      resolveFavoriteTargets(productWhere),
-      resolveCartTargets(productWhere, rule.sellerId),
-    ])
-
-    const favoriteUserIds = new Set(favoriteTargets.map((target) => target.userId))
-    const dedupedCartTargets = cartTargets.filter((target) => !favoriteUserIds.has(target.userId))
-
-    const combined = [...favoriteTargets, ...dedupedCartTargets].filter(
+    const cartTargets = (await resolveCartTargets(buildProductScopeWhere(rule), rule.sellerId)).filter(
       (target) => target.userId !== rule.seller.userId,
     )
-    if (combined.length === 0) return []
+    if (cartTargets.length === 0) return []
 
-    const consentedUserIds = await filterConsentedUserIds(combined.map((target) => target.userId))
-
-    return combined.filter((target) => consentedUserIds.has(target.userId))
+    const consentedUserIds = await filterConsentedUserIds(cartTargets.map((target) => target.userId))
+    return cartTargets.filter((target) => consentedUserIds.has(target.userId))
   }
 
   /**
-   * (userId, productId) pairs already emailed within the cooldown window. Keyed
-   * independently of fingerprint, so a recreated rule (new fingerprint) cannot
-   * re-email the same audience for the same product before the window elapses.
-   * One batched query for all targets, then in-memory filtering.
+   * Brings the price history of the discounted products up to date (markers, due rule
+   * boundaries, candidate decisions) so the lowest-price priority below is deterministic.
    */
-  async function findRecentlyDispatchedKeys(
+  async function syncPricePipeline(productIds: string[], sellerId: string) {
+    if (!productIds.length) return
+    for (let round = 0; round < 20; round += 1) {
+      const processed = await processPriceChangeMarkers(prisma, {
+        scope: { productIds, sellerIds: [sellerId] },
+      })
+      if (processed.explained + processed.reset + processed.ignored === 0) break
+    }
+    await materializeDuePredictions(prisma, { productIds })
+    await evaluatePriceDropCandidates(prisma, { productIds, productLimit: productIds.length })
+  }
+
+  /**
+   * Cart holders whose product has a lowest-price event for this campaign and who also
+   * favorited it: the lowest-price e-mail wins, the cart e-mail is not written.
+   */
+  async function findPriceDropPriorityKeys(
     targets: CampaignDiscountTarget[],
+    campaignStart: Date,
   ): Promise<Set<string>> {
-    const cutoff = new Date(Date.now() - CAMPAIGN_EMAIL_COOLDOWN_DAYS * MS_PER_DAY)
-    const recent = await prisma.campaignEmailDispatch.findMany({
+    const productIds = [...new Set(targets.map((target) => target.productId))]
+    const events = await prisma.priceDropEvent.findMany({
+      where: {
+        productId: { in: productIds },
+        status: { in: ['pending', 'dispatching', 'dispatched'] },
+        changeAt: { gte: campaignStart },
+      },
+      select: { productId: true },
+    })
+    const withEvent = new Set(events.map((event) => event.productId))
+    if (!withEvent.size) return new Set()
+    const favorites = await prisma.favoriteProduct.findMany({
       where: {
         userId: { in: targets.map((target) => target.userId) },
-        productId: { in: targets.map((target) => target.productId) },
-        createdAt: { gte: cutoff },
+        productId: { in: [...withEvent] },
       },
       select: { userId: true, productId: true },
     })
-
-    const keys = new Set<string>()
-    for (const row of recent) {
-      if (row.productId === null) continue
-      keys.add(`${row.userId}:${row.productId}`)
-    }
-    return keys
+    return new Set(favorites.map((row) => `${row.userId}:${row.productId}`))
   }
 
   /**
-   * Send discount notifications to the resolved audience. Idempotent: reruns
-   * for the same (userId, discountFingerprint, source) skip the already-sent
-   * dispatch via the unique constraint on CampaignEmailDispatch. Additionally,
-   * a per-user/product cooldown (CAMPAIGN_EMAIL_COOLDOWN_DAYS) blocks re-emailing
-   * the same audience across distinct campaign instances of the same product.
+   * Queue the cart discount e-mails. Idempotent: a target already reserved for this campaign
+   * instance (same fingerprint) is skipped. Each e-mail is reserved against the shared limits
+   * and written to the outbox in the same transaction.
    */
   async function notifyDiscountAudience(params: {
     discountRuleId: string
     discountFingerprint: string
     sellerName: string
-  }): Promise<{ notified: number }> {
+    now?: Date
+  }): Promise<{ notified: number; superseded: number; skipped: number }> {
+    const rule = await prisma.discountRule.findUnique({
+      where: { id: params.discountRuleId },
+      select: { sellerId: true, startsAt: true, createdAt: true },
+    })
+    if (!rule) return { notified: 0, superseded: 0, skipped: 0 }
+
     const targets = await resolveTargets(params.discountRuleId)
-    if (targets.length === 0) return { notified: 0 }
+    if (targets.length === 0) return { notified: 0, superseded: 0, skipped: 0 }
+
+    await syncPricePipeline([...new Set(targets.map((target) => target.productId))], rule.sellerId)
+    const priority = await findPriceDropPriorityKeys(targets, rule.startsAt ?? rule.createdAt)
 
     const consents = await prisma.marketingConsent.findMany({
       where: { userId: { in: targets.map((target) => target.userId) } },
@@ -320,55 +292,55 @@ export function createCampaignDiscountService({
     })
     const optOutTokenByUserId = new Map(consents.map((consent) => [consent.userId, consent.optOutToken]))
 
-    const recentlyDispatchedKeys = await findRecentlyDispatchedKeys(targets)
-
     let notified = 0
+    let superseded = 0
+    let skipped = 0
 
     for (const target of targets) {
       const optOutToken = optOutTokenByUserId.get(target.userId)
-      if (!optOutToken) continue
-
-      // Cooldown: skip a target already emailed for this product in the window,
-      // independent of the campaign fingerprint (closes the recreate loophole).
-      if (recentlyDispatchedKeys.has(`${target.userId}:${target.productId}`)) continue
-
-      try {
-        await prisma.campaignEmailDispatch.create({
-          data: {
-            userId: target.userId,
-            discountRuleId: params.discountRuleId,
-            productId: target.productId,
-            discountFingerprint: params.discountFingerprint,
-            source: target.source,
-            emailSentAt: new Date(),
-          },
-        })
-      } catch {
-        continue // already dispatched for this campaign instance — idempotent skip
+      if (!optOutToken) {
+        skipped += 1
+        continue
+      }
+      if (priority.has(`${target.userId}:${target.productId}`)) {
+        superseded += 1
+        continue
       }
 
-      const isFavoriteSource = target.source === 'favorite'
-
-      await notifications.send({
-        userId: target.userId,
-        type: isFavoriteSource ? 'product_discount_favorited' : 'product_discount_in_cart',
-        title: isFavoriteSource
-          ? 'Favorilediğiniz üründe indirim başladı'
-          : 'Sepetinizdeki üründe indirim başladı',
-        body: `${target.productName} şimdi indirimde.`,
-        data: {
-          productName: target.productName,
-          productUrl: buildProductUrl(target.productSlug),
-          sellerName: params.sellerName,
-          unsubscribeUrl: buildUnsubscribeUrl(optOutToken),
-        },
-        emailTo: target.email,
+      const eventKey = campaignCartEventKey(params.discountFingerprint, target.userId)
+      const reserved = await prisma.$transaction(async (tx) => {
+        const reservation = await reserveCampaignEmail(tx, {
+          userId: target.userId,
+          productId: target.productId,
+          source: target.source,
+          fingerprint: params.discountFingerprint,
+          eventKey,
+          discountRuleId: params.discountRuleId,
+          now: params.now ?? new Date(),
+        })
+        if (!reservation.ok) return false
+        await recordNotification(tx, {
+          userId: target.userId,
+          type: 'product_discount_in_cart',
+          eventKey,
+          title: 'Sepetinizdeki üründe indirim başladı',
+          body: `${target.productName} şimdi indirimde.`,
+          data: {
+            productName: target.productName,
+            productUrl: buildProductUrl(target.productSlug),
+            sellerName: params.sellerName,
+            unsubscribeUrl: buildUnsubscribeUrl(optOutToken),
+          },
+          emailTo: target.email,
+        })
+        return true
       })
 
-      notified += 1
+      if (reserved) notified += 1
+      else skipped += 1
     }
 
-    return { notified }
+    return { notified, superseded, skipped }
   }
 
   /**

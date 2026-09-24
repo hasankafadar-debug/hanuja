@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { MAX_BULK_UPDATE_ROWS } from '@/lib/bulk-product-update'
+import { recordPriceChanges } from '@hanuja/api/services/price-history.service'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -116,12 +117,17 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    await prisma.product.update({
-      where: { id: row.productId },
-      data: {
-        ...(row.newPrice !== undefined ? { price: row.newPrice } : {}),
-        ...(row.newStock !== undefined ? { stockQuantity: row.newStock } : {}),
-      },
+    const productId = row.productId
+    // The price and its history are written together (e-mail plan phase 6).
+    await prisma.$transaction(async (tx) => {
+      await tx.product.update({
+        where: { id: productId },
+        data: {
+          ...(row.newPrice !== undefined ? { price: row.newPrice } : {}),
+          ...(row.newStock !== undefined ? { stockQuantity: row.newStock } : {}),
+        },
+      })
+      await recordPriceChanges(tx, { productIds: [productId], source: 'product_write' })
     })
 
     if (

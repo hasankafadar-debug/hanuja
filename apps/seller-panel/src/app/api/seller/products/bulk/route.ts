@@ -26,6 +26,7 @@ import {
   BULK_IMPORT_TRANSACTION_TIMEOUT_MS,
 } from '@/lib/bulk-import-transaction'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
+import { recordPriceChanges } from '@hanuja/api/services/price-history.service'
 import { isBarcodeConflict, syncVariantBarcodeReservation } from '@hanuja/api/domain/barcode-registry'
 import { generateUniqueProductBarcode } from '@hanuja/api/domain/barcode-generate'
 import { requireModelCode } from '@hanuja/api/domain/model-code'
@@ -583,6 +584,7 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
   }
 
   const publishedProductIds: string[] = []
+  const createdProductIds: string[] = []
   // Seeded with seller-entered barcodes so auto-generated ones cannot collide
   // with a still-pending entered barcode inside the same import.
   const usedBarcodes = new Set<string>(allBarcodes)
@@ -621,6 +623,7 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
             deferVisibilitySync: true,
           })
           if (product.status === 'published') publishedProductIds.push(product.id)
+          createdProductIds.push(product.id)
 
           if (usesVariants) {
             for (const entry of group) {
@@ -664,6 +667,8 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
             })
           }
       }
+      // Price history starts with the products (e-mail plan phase 6).
+      await recordPriceChanges(tx, { productIds: createdProductIds, source: 'product_write' })
     }, {
       isolationLevel: 'Serializable',
       maxWait: BULK_IMPORT_TRANSACTION_MAX_WAIT_MS,

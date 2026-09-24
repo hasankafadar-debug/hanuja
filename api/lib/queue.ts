@@ -17,6 +17,7 @@ export const QUEUE_NAMES = {
   CAMPAIGN_DISCOUNT: 'campaign-discount',
   REFUND_PROCESSING: 'refund-processing',
   ANNOUNCEMENT_DISPATCH: 'announcement-dispatch',
+  PRICE_HISTORY: 'price-history',
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
@@ -85,3 +86,4 @@ export const announcementDispatchQueue = createQueueProxy(
 export const refundProcessingQueue = createQueueProxy(
   QUEUE_NAMES.REFUND_PROCESSING,
 )
+export const priceHistoryQueue = createQueueProxy(QUEUE_NAMES.PRICE_HISTORY)

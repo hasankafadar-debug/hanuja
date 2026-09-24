@@ -25,6 +25,8 @@
     "brand-swap": "tsx tools/scripts/brand-swap.ts",
     "check-env": "tsx tools/scripts/check-env.ts",
     "notification:diagnose": "tsx tools/scripts/check-notification-delivery.ts",
+    "price-history:status": "tsx tools/scripts/price-history-status.ts",
+    "price-history:reset": "tsx tools/scripts/price-history-reset.ts",
     "check-duplicate-payments": "tsx tools/scripts/check-duplicate-provider-payment-ids.ts",
     "check-barcode-registry-ready": "tsx tools/scripts/check-barcode-registry-ready.ts",
     "check-turnstile-egress": "tsx tools/scripts/check-turnstile-egress.ts",

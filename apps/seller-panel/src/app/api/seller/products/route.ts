@@ -5,6 +5,7 @@ import { Decimal } from '@prisma/client/runtime/client'
 import { auth } from '@/lib/auth'
 import { PrismaClient } from '@prisma/client'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
+import { recordPriceChanges } from '@hanuja/api/services/price-history.service'
 import { ConflictError, ValidationError } from '@hanuja/api/lib/errors'
 import { isBarcodeConflict, syncVariantBarcodeReservation } from '@hanuja/api/domain/barcode-registry'
 import { generateUniqueProductBarcode } from '@hanuja/api/domain/barcode-generate'
@@ -224,6 +225,9 @@ export async function POST(req: NextRequest) {
       if (attributeValues.length > 0) {
         await tx.productAttributeValue.createMany({ data: attributeValues, skipDuplicates: true })
       }
+
+      // Price history starts with the product (e-mail plan phase 6).
+      await recordPriceChanges(tx, { productIds: [created.id], source: 'product_write' })
 
       return created
     })

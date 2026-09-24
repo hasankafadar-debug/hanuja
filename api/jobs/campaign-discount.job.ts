@@ -1,22 +1,21 @@
 /**
- * Campaign Discount Job — fans out discount notifications and activates
- * scheduled discount rules.
+ * Campaign Discount Job — cart discount notifications and scheduled rule activation.
  *
  * Two job names on one worker:
  *
- *   1. fan-out         — notifies both audiences for a single discount campaign:
- *      a) store followers      (store-follow.service)
- *      b) favorite/cart holders (campaign-discount.service)
- *      Each audience is dispatched independently: a failure in one does not skip
- *      the other. The job only fails if BOTH audiences fail, so BullMQ retries
- *      re-run the whole fan-out (dispatch dedupe by fingerprint keeps it safe).
+ *   1. fan-out         — notifies users who have a discounted product in their cart
+ *      (campaign-discount.service). Store followers and favoriters are no longer notified
+ *      here (phase 6, 2026-09-24): favoriters get the lowest-price-of-15-days e-mail from the
+ *      price-history queue, and following a store alone is no notification reason. A failure
+ *      fails the job so BullMQ retries it; reservations make the retry safe.
  *
  *   2. activation-scan — periodic sweep (every 15 min):
  *      • SCHEDULED rules whose startsAt has passed → ACTIVE, then enqueue one
  *        fan-out per newly-activated rule.
  *      • ACTIVE rules whose endsAt has passed → EXPIRED (no notification).
- *      Idempotent: status transitions are guarded by a conditional updateMany,
- *      and fan-out dedupe is by discountFingerprint.
+ *      Idempotent: status transitions are guarded by a conditional updateMany.
+ *      These status flips do not change any price (the live status already follows the
+ *      clock), so the price-change triggers leave no marker for them.
  *
  * See: .claude/rules/08-order-lifecycle-rules.md, docs/06-engineering/queue-jobs-plan.md
  */
@@ -24,7 +23,6 @@ import { Worker, Job } from 'bullmq'
 import { redis } from '../lib/redis'
 import { QUEUE_NAMES, campaignDiscountQueue } from '../lib/queue'
 import { prisma } from '../lib/prisma'
-import { createStoreFollowService } from '../services/store-follow.service'
 import {
   createCampaignDiscountService,
   buildDiscountFingerprint,
@@ -44,43 +42,12 @@ const FAN_OUT_JOB_NAME = 'fan-out'
 const ACTIVATION_SCAN_JOB_NAME = 'activation-scan'
 
 async function processFanOut(data: CampaignFanOutJobData): Promise<void> {
-  const storeFollowService = createStoreFollowService({ prisma })
   const campaignService = createCampaignDiscountService({ prisma })
-
-  let followersFailed = false
-  let audienceFailed = false
-
-  try {
-    await storeFollowService.notifyFollowersAboutDiscount({
-      sellerId: data.sellerId,
-      sellerName: data.sellerName,
-      sellerSlug: data.sellerSlug,
-      discountRuleId: data.discountRuleId,
-      discountFingerprint: data.discountFingerprint,
-    })
-  } catch (err) {
-    followersFailed = true
-    console.error('[campaign-discount] Store-follower fan-out failed:', err)
-  }
-
-  try {
-    await campaignService.notifyDiscountAudience({
-      discountRuleId: data.discountRuleId,
-      discountFingerprint: data.discountFingerprint,
-      sellerName: data.sellerName,
-    })
-  } catch (err) {
-    audienceFailed = true
-    console.error('[campaign-discount] Favorite/cart fan-out failed:', err)
-  }
-
-  // Only fail the job when BOTH audiences failed, so a retry re-runs the whole
-  // fan-out. Fingerprint dedupe makes re-dispatch to the succeeded audience safe.
-  if (followersFailed && audienceFailed) {
-    throw new Error(
-      `[campaign-discount] fan-out failed for rule ${data.discountRuleId}: both audiences errored`,
-    )
-  }
+  await campaignService.notifyDiscountAudience({
+    discountRuleId: data.discountRuleId,
+    discountFingerprint: data.discountFingerprint,
+    sellerName: data.sellerName,
+  })
 }
 
 async function processActivationScan(): Promise<{ activated: number; expired: number }> {

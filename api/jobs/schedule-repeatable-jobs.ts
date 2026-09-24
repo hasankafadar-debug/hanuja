@@ -31,6 +31,7 @@ import {
   campaignDiscountQueue,
   notificationOutboxQueue,
   announcementDispatchQueue,
+  priceHistoryQueue,
 } from '../lib/queue'
 
 export async function scheduleRepeatableJobs(): Promise<void> {
@@ -52,6 +53,26 @@ export async function scheduleRepeatableJobs(): Promise<void> {
       repeat: { every: 15_000 },
       removeOnComplete: 10,
       removeOnFail: 20,
+    },
+  )
+  // Lowest-price-of-15-days (e-mail plan phase 6): markers → baseline → due boundaries →
+  // candidate decisions → one dispatch step, every 15 s; the hourly reconcile is a safety net.
+  await priceHistoryQueue.add(
+    'tick',
+    {},
+    {
+      repeat: { every: 15_000 },
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  )
+  await priceHistoryQueue.add(
+    'reconcile',
+    {},
+    {
+      repeat: { pattern: '17 * * * *', tz: 'UTC' },
+      removeOnComplete: { count: 10 },
+      removeOnFail: { count: 20 },
     },
   )
   // ── 1. Payout maturity — daily at 02:00 UTC ─────────────────────────────────

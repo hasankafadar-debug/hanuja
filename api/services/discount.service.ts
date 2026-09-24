@@ -8,6 +8,17 @@ import type {
   Product,
 } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
+import {
+  buildEffectivePriceResult,
+  deriveRuleStatus,
+  resolveRuleForProduct,
+  type EffectivePriceResult,
+} from '../domain/effective-price'
+import {
+  PRICE_HISTORY_WRITE_TX_OPTIONS,
+  productIdsInRuleScope,
+  recordPriceChanges,
+} from './price-history.service'
 
 type DiscountRuleWithProducts = DiscountRule & {
   products: Array<Pick<DiscountRuleProduct, 'productId'>>
@@ -15,102 +26,7 @@ type DiscountRuleWithProducts = DiscountRule & {
 
 type PriceAwareProduct = Pick<Product, 'id' | 'sellerId' | 'categoryId' | 'price' | 'compareAtPrice'>
 
-export interface EffectivePriceResult {
-  originalPrice: Decimal
-  effectivePrice: Decimal
-  discountSource: {
-    ruleId: string
-    ruleName: string
-    scope: DiscountRuleScope
-    type: DiscountType
-    value: Decimal
-    /** Kampanya başlangıç referansı: rule.startsAt varsa o, yoksa kural oluşturulma anı (createdAt). */
-    effectiveStartsAt: Date
-  } | null
-}
-
-function deriveRuleStatus(rule: Pick<DiscountRule, 'status' | 'startsAt' | 'endsAt'>, now: Date): DiscountStatus {
-  if (rule.status === 'PAUSED' || rule.status === 'EXPIRED') return rule.status
-  if (rule.startsAt && rule.startsAt > now) return 'SCHEDULED'
-  if (rule.endsAt && rule.endsAt < now) return 'EXPIRED'
-  return 'ACTIVE'
-}
-
-function calculateDiscountedPrice(price: Decimal, rule: Pick<DiscountRule, 'type' | 'value'>) {
-  if (rule.type === 'PERCENT') {
-    const discounted = price.mul(new Decimal(100).minus(rule.value)).div(100)
-    return Decimal.max(discounted, new Decimal(0)).toDecimalPlaces(2)
-  }
-
-  return Decimal.max(price.minus(rule.value), new Decimal(0)).toDecimalPlaces(2)
-}
-
-function isRuleApplicable(rule: DiscountRuleWithProducts, product: PriceAwareProduct, now: Date) {
-  if (deriveRuleStatus(rule, now) !== 'ACTIVE') return false
-  if (rule.scope === 'ALL_PRODUCTS') return true
-  if (rule.scope === 'CATEGORY') return Boolean(product.categoryId && rule.categoryId === product.categoryId)
-  return rule.products.some((entry) => entry.productId === product.id)
-}
-
-function pickBestRuleForScope(
-  rules: DiscountRuleWithProducts[],
-  product: PriceAwareProduct,
-) {
-  let bestRule: DiscountRuleWithProducts | null = null
-  let bestPrice: Decimal | null = null
-
-  for (const rule of rules) {
-    const discountedPrice = calculateDiscountedPrice(product.price, rule)
-    if (bestPrice == null || discountedPrice.lt(bestPrice)) {
-      bestRule = rule
-      bestPrice = discountedPrice
-    }
-  }
-
-  return bestRule
-}
-
-function resolveRuleForProduct(
-  product: PriceAwareProduct,
-  rules: DiscountRuleWithProducts[],
-  now: Date,
-) {
-  const applicableRules = rules.filter((rule) => isRuleApplicable(rule, product, now))
-  const productRules = applicableRules.filter((rule) => rule.scope === 'PRODUCT')
-  const categoryRules = applicableRules.filter((rule) => rule.scope === 'CATEGORY')
-  const allProductsRules = applicableRules.filter((rule) => rule.scope === 'ALL_PRODUCTS')
-
-  if (productRules.length > 0) return pickBestRuleForScope(productRules, product)
-  if (categoryRules.length > 0) return pickBestRuleForScope(categoryRules, product)
-  if (allProductsRules.length > 0) return pickBestRuleForScope(allProductsRules, product)
-  return null
-}
-
-function buildEffectivePriceResult(
-  product: PriceAwareProduct,
-  rule: DiscountRuleWithProducts | null,
-): EffectivePriceResult {
-  if (!rule) {
-    return {
-      originalPrice: product.compareAtPrice ?? product.price,
-      effectivePrice: product.price,
-      discountSource: null,
-    }
-  }
-
-  return {
-    originalPrice: product.price,
-    effectivePrice: calculateDiscountedPrice(product.price, rule),
-    discountSource: {
-      ruleId: rule.id,
-      ruleName: rule.name,
-      scope: rule.scope,
-      type: rule.type,
-      value: rule.value,
-      effectiveStartsAt: rule.startsAt ?? rule.createdAt,
-    },
-  }
-}
+export type { EffectivePriceResult }
 
 function buildRuleStatus(startsAt: Date | null, endsAt: Date | null, now: Date): DiscountStatus {
   if (startsAt && startsAt > now) return 'SCHEDULED'
@@ -257,17 +173,32 @@ export function createDiscountService({ prisma }: { prisma: PrismaClient }) {
       }
     }
 
-    return prisma.discountRule.create({
-      data: data as never,
-      include: {
-        products: {
-          select: { productId: true },
+    // The rule and the price history of every product it reprices are written together; the
+    // rule's future start/end are recorded as predicted boundaries (e-mail plan phase 6).
+    return prisma.$transaction(async (tx) => {
+      const rule = await tx.discountRule.create({
+        data: data as never,
+        include: {
+          products: {
+            select: { productId: true },
+          },
+          category: {
+            select: { id: true, name: true },
+          },
         },
-        category: {
-          select: { id: true, name: true },
-        },
-      },
-    })
+      })
+      await recordPriceChanges(tx, {
+        productIds: await productIdsInRuleScope(tx, {
+          sellerId,
+          scope: rule.scope,
+          categoryId: rule.categoryId,
+          productIds: rule.products.map((entry) => entry.productId),
+        }),
+        ruleIds: [rule.id],
+        source: 'discount_rule_write',
+      })
+      return rule
+    }, PRICE_HISTORY_WRITE_TX_OPTIONS)
   }
 
   async function listRules(
@@ -369,6 +300,13 @@ export function createDiscountService({ prisma }: { prisma: PrismaClient }) {
       }
     }
 
+    const previousScopeProductIds = await productIdsInRuleScope(prisma, {
+      sellerId,
+      scope: existing.scope,
+      categoryId: existing.categoryId,
+      productIds: existing.products.map((entry) => entry.productId),
+    })
+
     return prisma.$transaction(async (tx) => {
       await tx.discountRule.update({
         where: { id },
@@ -395,6 +333,19 @@ export function createDiscountService({ prisma }: { prisma: PrismaClient }) {
         await tx.discountRuleProduct.deleteMany({ where: { discountRuleId: id } })
       }
 
+      const nextScopeProductIds = await productIdsInRuleScope(tx, {
+        sellerId,
+        scope: nextScope,
+        categoryId: nextScope === 'CATEGORY' ? nextCategoryId ?? null : null,
+        productIds:
+          nextScope === 'PRODUCT' ? input.productIds ?? existing.products.map((entry) => entry.productId) : [],
+      })
+      await recordPriceChanges(tx, {
+        productIds: [...previousScopeProductIds, ...nextScopeProductIds],
+        ruleIds: [id],
+        source: 'discount_rule_write',
+      })
+
       return tx.discountRule.findUnique({
         where: { id },
         include: {
@@ -410,17 +361,33 @@ export function createDiscountService({ prisma }: { prisma: PrismaClient }) {
           },
         },
       })
-    })
+    }, PRICE_HISTORY_WRITE_TX_OPTIONS)
   }
 
   async function deleteRule(sellerId: string, id: string) {
-    const existing = await prisma.discountRule.findFirst({ where: { id, sellerId } })
+    const existing = await prisma.discountRule.findFirst({
+      where: { id, sellerId },
+      include: { products: { select: { productId: true } } },
+    })
     if (!existing) throw new Error('İndirim kuralı bulunamadı.')
 
-    return prisma.discountRule.update({
-      where: { id },
-      data: { status: 'EXPIRED', endsAt: new Date() },
-    })
+    return prisma.$transaction(async (tx) => {
+      const rule = await tx.discountRule.update({
+        where: { id },
+        data: { status: 'EXPIRED', endsAt: new Date() },
+      })
+      await recordPriceChanges(tx, {
+        productIds: await productIdsInRuleScope(tx, {
+          sellerId,
+          scope: existing.scope,
+          categoryId: existing.categoryId,
+          productIds: existing.products.map((entry) => entry.productId),
+        }),
+        ruleIds: [id],
+        source: 'discount_rule_write',
+      })
+      return rule
+    }, PRICE_HISTORY_WRITE_TX_OPTIONS)
   }
 
   return {

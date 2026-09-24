@@ -5,6 +5,7 @@ import type { PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { z } from 'zod'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
+import { recordPriceChanges } from '@hanuja/api/services/price-history.service'
 import { ConflictError, ValidationError } from '@hanuja/api/lib/errors'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import {
@@ -331,6 +332,10 @@ export async function PATCH(
           data: { productId: id, optionId: materialOptionId, sortOrder: 0 },
         })
       }
+
+      // Price, category and variant changes reach the price history in this transaction
+      // (e-mail plan phase 6); an unchanged price writes nothing.
+      await recordPriceChanges(tx, { productIds: [id], source: 'product_write' })
 
       return saved
     })
