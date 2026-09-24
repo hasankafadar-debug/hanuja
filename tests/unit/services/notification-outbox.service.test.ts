@@ -50,6 +50,18 @@ describe('notification outbox relay', () => {
     }
   }
 
+  it('terminally skips queued advertising while relaying transactional mail', async () => {
+    const db: any = database()
+    db.$transaction = (fn: (tx: unknown) => unknown) => fn(db)
+    db.marketingChannelSettings = { findUnique: vi.fn().mockResolvedValue({ emailEnabled: false, smsEnabled: false, version: 1 }) }
+    db.campaignEmailDispatch = { updateMany: vi.fn() }
+    db.notificationOutbox.findMany.mockImplementation(async ({ where }: any) => where.lane === 'transactional' ? [row] : [{ ...row, id: 'ad', type: 'product_price_drop', lane: 'bulk', status: 'queued' }])
+    await relayNotifications(db)
+    expect(queue.add).toHaveBeenCalledTimes(1)
+    expect(db.notificationOutbox.updateMany).toHaveBeenCalledWith({ where: { id: 'ad', status: { in: ['pending', 'queued'] } }, data: { status: 'completed', lastError: 'MARKETING_CHANNEL_DISABLED' } })
+    expect(db.campaignEmailDispatch.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { eventKey: row.eventKey, status: 'reserved' } }))
+  })
+
   it('uses the supplied transaction client and does not contact Redis while recording', async () => {
     const tx = {
       notificationOutbox: { upsert: vi.fn().mockResolvedValue(row) },

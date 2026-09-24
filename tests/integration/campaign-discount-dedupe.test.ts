@@ -1,3 +1,7 @@
+// This suite isolates existing campaign behavior with a configured channel. Central fail-closed behavior has dedicated tests.
+vi.mock('../../api/services/marketing-channel.service', () => ({
+  getMarketingChannelStatus: async () => ({ canSend: true }),
+}))
 /**
  * Integration test — cart discount e-mail vs. the lowest-price e-mail (e-mail plan phase 6).
  *

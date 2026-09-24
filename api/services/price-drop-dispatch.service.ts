@@ -19,6 +19,7 @@ import { amountText } from '../lib/email-templates/shared'
 import { getWebBaseUrl } from '../lib/platform-info'
 import { ANNOUNCEMENT_BULK_INFLIGHT_CAP } from './announcement-dispatch.service'
 import { reserveCampaignEmail } from './campaign-email-reservation'
+import { getMarketingChannelStatus } from './marketing-channel.service'
 import { recordNotifications } from './notification-outbox.service'
 import { evaluateEventNow } from './price-drop-evaluation.service'
 import { priceDropFingerprint } from './price-history.service'
@@ -112,6 +113,12 @@ export async function advancePriceDropDispatch(
       `)
       if (!picked) return { skipped: 'idle', reserved: 0, skippedRecipients: 0 }
       const event = await tx.priceDropEvent.findUniqueOrThrow({ where: { id: picked.id } })
+
+      const channel = await getMarketingChannelStatus(tx, 'email')
+      if (!channel.canSend) {
+        await cancelEvent(tx, event.id, channel.reason, now)
+        return { eventId: event.id, cancelled: channel.reason, reserved: 0, skippedRecipients: 0 }
+      }
 
       if (event.changeAt.getTime() < now.getTime() - PRICE_DROP_EVENT_TTL_MS) {
         await cancelEvent(tx, event.id, 'expired', now)

@@ -312,6 +312,7 @@ enum LedgerEntryType {
 }
 
 enum AdminActionType {
+  marketing_channel_updated
   payment_approved
   payment_rejected
   bank_transfer_approved
@@ -2643,6 +2644,17 @@ model StoreDiscountDispatch {
 // Tek bir kayıt onayı (signup checkbox) hem email hem sms zaman damgasını
 // aynı anda set eder — iş kararı. Kanallar ileride ayrışabilir diye ayrı
 // tutulur. Rıza olmayan/geri çekilmiş kullanıcı kampanya e-postası alamaz.
+
+model MarketingChannelSettings {
+  id           String   @id @default("marketing")
+  emailEnabled Boolean  @default(false)
+  smsEnabled   Boolean  @default(false)
+  version      Int      @default(1)
+  updatedBy    String?
+  updatedAt    DateTime @updatedAt
+
+  @@map("marketing_channel_settings")
+}
 
 model MarketingConsent {
   id             String    @id @default(cuid())

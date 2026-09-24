@@ -1,7 +1,8 @@
-import type { Prisma, PrismaClient } from '@prisma/client'
+import type { NotificationType, Prisma, PrismaClient } from '@prisma/client'
 import { createHash, randomUUID } from 'node:crypto'
 import type { NotificationDispatchJobData } from '../jobs/notification-dispatch.job'
-import { notificationLane } from '../lib/notification-policy'
+import { EMAIL_POLICIES, notificationLane } from '../lib/notification-policy'
+import { getMarketingChannelStatus, releaseBlockedMarketingReservation } from './marketing-channel.service'
 
 type OutboxClient = Pick<Prisma.TransactionClient, 'notificationOutbox'>
 
@@ -82,6 +83,19 @@ export async function relayNotifications(prisma: PrismaClient) {
   )
   const rows = batches.flat()
   for (const row of rows) {
+    if (EMAIL_POLICIES[row.type as NotificationType]?.category === 'kampanya') {
+      const channel = await getMarketingChannelStatus(prisma, 'email')
+      if (!channel.canSend) {
+        await prisma.$transaction(async (tx) => {
+          await releaseBlockedMarketingReservation(tx, row.eventKey, channel.reason)
+          await tx.notificationOutbox.updateMany({
+            where: { id: row.id, status: { in: ['pending', 'queued'] } },
+            data: { status: 'completed', lastError: channel.reason },
+          })
+        })
+        continue
+      }
+    }
     const queue =
       row.lane === 'bulk' ? notificationBulkQueue : notificationDispatchQueue
     const jobId = outboxJobId(row.id, row.generation)

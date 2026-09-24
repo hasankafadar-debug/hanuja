@@ -1,3 +1,7 @@
+// This suite isolates existing campaign behavior with a configured channel. Central fail-closed behavior has dedicated tests.
+vi.mock('../../../api/services/marketing-channel.service', () => ({
+  getMarketingChannelStatus: async () => ({ canSend: true }),
+}))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // campaign-discount.service.ts transitively imports modules that load the api/lib/prisma

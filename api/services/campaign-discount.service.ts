@@ -15,6 +15,7 @@
 import type { CampaignDispatchSource, Prisma, PrismaClient } from '@prisma/client'
 import { getWebBaseUrl } from '../lib/platform-info'
 import { reserveCampaignEmail } from './campaign-email-reservation'
+import { getMarketingChannelStatus } from './marketing-channel.service'
 import { recordNotification } from './notification-outbox.service'
 import { processPriceChangeMarkers } from './price-change-reconcile.service'
 import { evaluatePriceDropCandidates, materializeDuePredictions } from './price-drop-evaluation.service'
@@ -274,6 +275,8 @@ export function createCampaignDiscountService({ prisma }: CampaignDiscountServic
     sellerName: string
     now?: Date
   }): Promise<{ notified: number; superseded: number; skipped: number }> {
+    const channel = await getMarketingChannelStatus(prisma, 'email')
+    if (!channel.canSend) return { notified: 0, superseded: 0, skipped: 0 }
     const rule = await prisma.discountRule.findUnique({
       where: { id: params.discountRuleId },
       select: { sellerId: true, startsAt: true, createdAt: true },

@@ -8,6 +8,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { redis } from '../lib/redis'
 import { QUEUE_NAMES } from '../lib/queue'
 import { sendEmail } from '../lib/mailer'
+import { getMarketingChannelStatus } from '../services/marketing-channel.service'
 import { PLATFORM_LEGAL_INFO } from '../lib/platform-info'
 import {
   orderConfirmationTemplate,
@@ -570,6 +571,14 @@ export async function processNotificationDispatch(
           lastError: gate.reason.slice(0, 200),
         },
       })
+      // Preserve accepted/uncertain/in-flight deliveries; terminalize only jobs
+      // that have definitely not started a provider attempt.
+      await prisma.notificationDelivery.updateMany({
+        where: { recipient, channel: 'email', eventKey,
+          status: { in: ['pending', 'failed'] }, transportStatus: { not: 'uncertain' } },
+        data: { status: 'sent', transportStatus: 'skipped', lastError: gate.reason.slice(0, 200),
+          leaseToken: null, leaseExpiresAt: null },
+      })
       return
     }
   }
@@ -755,6 +764,18 @@ export async function processNotificationDispatch(
       data: { messageId },
     })
     const unsubscribeUrl = String(data?.['unsubscribeUrl'] ?? '')
+    if (config.category === 'kampanya') {
+      const channel = await getMarketingChannelStatus(prisma, 'email')
+      if (!channel.canSend) {
+        await prisma.notificationDelivery.update({
+          where: { id: email.id },
+          data: { status: 'sent', transportStatus: 'skipped', lastError: channel.reason,
+            leaseToken: null, leaseExpiresAt: null },
+        })
+        if (reservationTracked) await releaseSendingReservation(prisma, eventKey, channel.reason)
+        return
+      }
+    }
     const result = await sendEmail({
       to: emailTo,
       ...template,

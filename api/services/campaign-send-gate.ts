@@ -13,6 +13,8 @@
  *   the minimum of the last 15 days. A price that went down and came back is caught here.
  */
 import type { NotificationType, PrismaClient } from '@prisma/client'
+import { EMAIL_POLICIES } from '../lib/notification-policy'
+import { getMarketingChannelStatus, releaseBlockedMarketingReservation } from './marketing-channel.service'
 import { checkCampaignLimits, lockCampaignUser } from './campaign-email-reservation'
 import { hasPendingMarkers, processPriceChangeMarkers } from './price-change-reconcile.service'
 import { evaluateEventNow } from './price-drop-evaluation.service'
@@ -30,6 +32,13 @@ export async function runCampaignSendGate(
   input: { type: NotificationType; eventKey: string; userId: string; now?: Date },
 ): Promise<CampaignGateResult> {
   if (LEGACY_CAMPAIGN_TYPES.has(input.type)) return { proceed: false, reason: 'LEGACY_CAMPAIGN_DISABLED' }
+  if (EMAIL_POLICIES[input.type]?.category === 'kampanya') {
+    const channel = await getMarketingChannelStatus(prisma, 'email')
+    if (!channel.canSend) {
+      await releaseBlockedMarketingReservation(prisma, input.eventKey, channel.reason)
+      return { proceed: false, reason: channel.reason }
+    }
+  }
   if (!RESERVED_CAMPAIGN_TYPES.has(input.type)) return { proceed: true }
 
   const reservation = await prisma.campaignEmailDispatch.findUnique({

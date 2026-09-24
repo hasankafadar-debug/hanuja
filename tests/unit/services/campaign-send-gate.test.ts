@@ -1,3 +1,7 @@
+// This suite isolates existing campaign behavior with a configured channel. Central fail-closed behavior has dedicated tests.
+vi.mock('../../../api/services/marketing-channel.service', () => ({
+  getMarketingChannelStatus: async () => ({ canSend: true }),
+}))
 /**
  * Campaign send gate (e-mail plan phase 6) — runs before the in-app and e-mail legs.
  * The price pipeline pieces are controlled; the reservation limit checks are the real ones.
