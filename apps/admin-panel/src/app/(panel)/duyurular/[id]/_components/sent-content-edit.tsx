@@ -24,18 +24,21 @@ export function SentContentEdit({ announcementId, version, title, body, onSaved 
   async function handleSave() {
     setSaving(true)
     setError(null)
+    // The fields are locked while saving; the values sent are what the page reports as saved.
+    const sentTitle = draftTitle
+    const sentBody = draftBody
     try {
       const response = await csrfFetch(`/api/admin/announcements/${announcementId}/sent-content`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ version, title: draftTitle, body: draftBody }),
+        body: JSON.stringify({ version, title: sentTitle, body: sentBody }),
       })
       if (!response.ok) {
         setError(await readApiError(response, 'Değişiklikler kaydedilemedi.'))
         return
       }
       const data = await readApiData<{ version: number; changed: boolean }>(response)
-      onSaved({ version: data.version, title: draftTitle.trim(), body: draftBody.trim(), changed: data.changed })
+      onSaved({ version: data.version, title: sentTitle.trim(), body: sentBody.trim(), changed: data.changed })
       setOpen(false)
     } catch {
       setError('Bağlantı hatası oluştu.')
@@ -63,6 +66,7 @@ export function SentContentEdit({ announcementId, version, title, body, onSaved 
         <Label htmlFor="sent-title">Başlık</Label>
         <Input
           id="sent-title"
+          disabled={saving}
           value={draftTitle}
           maxLength={ANNOUNCEMENT_TITLE_MAX}
           onChange={(event) => setDraftTitle(event.target.value)}
@@ -74,6 +78,7 @@ export function SentContentEdit({ announcementId, version, title, body, onSaved 
         <Textarea
           id="sent-body"
           rows={8}
+          disabled={saving}
           value={draftBody}
           maxLength={ANNOUNCEMENT_BODY_MAX}
           onChange={(event) => setDraftBody(event.target.value)}

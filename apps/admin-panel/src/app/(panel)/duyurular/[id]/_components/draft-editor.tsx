@@ -8,6 +8,7 @@ import { Button, ConfirmDialog, Input, Label, PageHeader, Textarea } from '@hanu
 import { csrfFetch } from '@/lib/csrf-fetch'
 import { readApiData, readApiError } from '../../_components/api'
 import type { AnnouncementDraftInitial, FilterOptionsData, ManualSellerRef } from '../../_components/types'
+import { createDraftSaveState, type DraftSaveState } from '../../_components/draft-save-state'
 import { MediaSection, type MediaState } from './media-section'
 import { AudienceBuilder } from './audience-builder'
 import { RecipientPreview, type PreviewSummary } from './recipient-preview'
@@ -52,9 +53,16 @@ export function DraftEditor({ initial, filterOptions }: DraftEditorProps) {
     Object.fromEntries(initial.manualSellers.map((seller) => [seller.id, seller])),
   )
   const [dirty, setDirty] = useState(false)
-  // Save bookkeeping read by async flows (preview, exclusion) that may run with an
-  // older render's closure: the saved version and whether edits are unsaved.
-  const syncRef = useRef({ version: initial.version, dirty: false })
+  // Save bookkeeping shared by async flows (preview, exclusion) that may run with an
+  // older render's closure. Fields stay editable while saving: a response only marks
+  // the edits it carried as saved, and saves run one at a time.
+  const saveStateRef = useRef<DraftSaveState | null>(null)
+  saveStateRef.current ??= createDraftSaveState(initial.version)
+  const saveState = saveStateRef.current
+  // The values a save sends are read when it starts, never from a queued closure.
+  const latestRef = useRef({ title, body, media, audience })
+  latestRef.current = { title, body, media, audience }
+  const pendingSavesRef = useRef(0)
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -71,56 +79,67 @@ export function DraftEditor({ initial, filterOptions }: DraftEditorProps) {
   const [sendError, setSendError] = useState<string | null>(null)
 
   function markDirty() {
-    syncRef.current.dirty = true
+    saveState.markEdited()
     setDirty(true)
     setSaveMessage(null)
   }
 
-  async function doSave(overrides: { audience?: AnnouncementAudience } = {}): Promise<number | null> {
+  async function doSave(): Promise<number | null> {
+    pendingSavesRef.current += 1
     setSaving(true)
     setSaveError(null)
     try {
-      const response = await csrfFetch(`/api/admin/announcements/${initial.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          version: syncRef.current.version,
-          title,
-          body,
-          mediaAssetId: media.mediaAssetId,
-          posterAssetId: media.posterAssetId,
-          audience: overrides.audience ?? audience,
-        }),
+      const saved = await saveState.save(async (sendVersion) => {
+        const values = latestRef.current
+        const response = await csrfFetch(`/api/admin/announcements/${initial.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            version: sendVersion,
+            title: values.title,
+            body: values.body,
+            mediaAssetId: values.media.mediaAssetId,
+            posterAssetId: values.media.posterAssetId,
+            audience: values.audience,
+          }),
+        })
+        if (!response.ok) {
+          setSaveError(await readApiError(response, 'Taslak kaydedilemedi.'))
+          return null
+        }
+        return (await readApiData<{ version: number }>(response)).version
       })
-      if (!response.ok) {
-        setSaveError(await readApiError(response, 'Taslak kaydedilemedi.'))
-        return null
-      }
-      const data = await readApiData<{ version: number }>(response)
-      syncRef.current = { version: data.version, dirty: false }
-      setVersion(data.version)
-      setDirty(false)
-      setSaveMessage('Taslak kaydedildi.')
-      return data.version
+      const snapshot = saveState.snapshot()
+      setVersion(snapshot.version)
+      setDirty(snapshot.dirty)
+      if (saved !== null)
+        setSaveMessage(
+          snapshot.dirty ? 'Kaydedildi; sonraki değişiklikler henüz kaydedilmedi.' : 'Taslak kaydedildi.',
+        )
+      return saved
     } catch {
       setSaveError('Bağlantı hatası oluştu.')
       return null
     } finally {
-      setSaving(false)
+      pendingSavesRef.current -= 1
+      if (pendingSavesRef.current === 0) setSaving(false)
     }
   }
 
   async function ensureSaved(): Promise<number | null> {
-    if (!syncRef.current.dirty) return syncRef.current.version
+    const snapshot = saveState.snapshot()
+    if (!snapshot.dirty) return snapshot.version
     return doSave()
   }
 
   /** Applies an exclusion change and saves it in the same step, so the next preview sees it. */
   async function saveExclusions(update: (ids: string[]) => string[]): Promise<number | null> {
-    const next = { ...audience, excludedSellerIds: update(audience.excludedSellerIds) }
+    const current = latestRef.current.audience
+    const next = { ...current, excludedSellerIds: update(current.excludedSellerIds) }
+    latestRef.current = { ...latestRef.current, audience: next }
     setAudience(next)
     markDirty()
-    return doSave({ audience: next })
+    return doSave()
   }
 
   async function handleDelete() {

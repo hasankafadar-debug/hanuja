@@ -189,6 +189,7 @@ butonu ve "operasyonel duyuru" dipnotu. Düz metin sürümü de üretilir.
 | `tests/unit/services/announcement-content.test.ts` | kapak seçimi, donmuş içerik, video URL'si |
 | `tests/unit/media-announcement-upload.service.test.ts` | 50/51 MB, slider 10 MB, WebP reddi, sahte imza, silme sırası |
 | `tests/unit/media-signature.test.ts` | PNG/JPEG/MP4/WebM imzaları |
+| `tests/unit/announcement-draft-save-state.test.ts` | kaydetme sürerken yapılan düzenleme kaydedilmemiş kalır; üst üste kaydetmeler sırayla ve dönen sürümle gider; başarısız kaydetme kuyruğu kilitlemez |
 | `tests/security/announcement-routes.test.ts` | CSRF önce, yalnız admin, hash/version bağlama, gerekçe, rate limit, bozuk gövde 400, satıcı okundu rotası |
 | `tests/postgres/announcement-send.test.ts` | gerçek veride filtreler; 5 eşzamanlı gönderim → tek dondurma; bayat liste/version → 409; 3 paralel sweep + 2.500 alıcı + 40 dolu slot → tam 60 yazım, alıcı başına tek outbox; kilitli satırda ~2 sn içinde geri alma; retry kapasite, belirsiz/silinmiş hariç, eşzamanlı istekte tek işaret; satıcı silinince geçmiş korunur; düzenleme yeni gönderim üretmez, dispatcher donmuş içeriği gönderir; bağlama ↔ silme 20 tekrar |
 
@@ -197,7 +198,7 @@ outbox (bulk hat, toplu insert), r2 sınırları, medya silme sırası açıklam
 
 Sonuçlar (2026-09-24, yerel):
 - `pnpm lint` 7/7, `pnpm typecheck` 8/8, `pnpm build` 3/3 başarılı.
-- `pnpm test` exit 0: 226 dosya, 2295 test geçti, 2 atlandı.
+- `pnpm test` exit 0: 227 dosya, 2299 test geçti, 2 atlandı (kaydetme düzeltmesi sonrası).
 - `pnpm --filter @hanuja/tests test:postgres` (iki test veritabanıyla): 6 dosya, 122 test geçti.
 
 ## 15. Yerel tarayıcı doğrulaması (2026-09-24)
@@ -218,6 +219,13 @@ transport'u; gerçek e-posta gönderilmedi).
   Başka kimlikli detay sayfası "bulunamadı" arayüzünü gösterdi.
 - Filtre: "İstanbul" → yalnız Atelier Noa. "Çıkar" → 0, "Geri al" → 1 (her ikisi de kaydedip önizledi).
   Taslak silindi ve listeye dönüldü.
+
+- **Gecikmeli kaydetme (inceleme bulgusu, düzeltildi):** sayfadaki `fetch` PATCH'i 4 sn geciktirecek şekilde
+  sarıldı. "Eski metin" kaydedilirken başlığa " + yeni ek" yazıldı. Yanıt gelince ekran "Kaydedildi; sonraki
+  değişiklikler henüz kaydedilmedi." gösterdi, "Taslağı kaydet" etkin, "Gönder" kapalı kaldı; sunucuya yalnız
+  "Eski metin" gitmişti. İkinci kaydetme yeni metni dönen sürümle gönderdi (409 yok); veritabanında başlık
+  "Eski metin + yeni ek", sürüm 3. Önceki sürümde yanıt yeni düzenlemeyi de "kaydedildi" sayıyor ve gönderimi
+  açabiliyordu.
 
 Yerelde doğrulanamayanlar:
 - **Medya yükleme ve video oynatma.** Yerel ortam gerçek bir R2 bucket'ına bağlı olduğu için dosya
