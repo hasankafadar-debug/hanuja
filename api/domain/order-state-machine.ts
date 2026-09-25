@@ -22,7 +22,13 @@ const ALLOWED_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
     'payment_cancelled',
     'bank_transfer_waiting',
   ],
-  bank_transfer_waiting: ['bank_transfer_confirmed', 'payment_cancelled', 'cancelled_by_customer', 'cancelled_by_admin'],
+  bank_transfer_waiting: [
+    'bank_transfer_confirmed',
+    'payment_cancelled',
+    'cancelled_by_customer',
+    'cancelled_by_admin',
+    'cancelled_due_to_payment_failure', // admin rejects the transfer
+  ],
   bank_transfer_confirmed: ['payment_confirmed'],
   payment_confirmed: ['seller_queue_ready', 'cancelled_by_customer', 'cancelled_by_admin'],
   payment_failed: ['payment_pending'], // Allow retry

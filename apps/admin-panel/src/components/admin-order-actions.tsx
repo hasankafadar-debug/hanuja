@@ -22,6 +22,8 @@ interface AdminOrderActionsProps {
   hasEftPendingPayment: boolean
   hasBlockablePayout: boolean
   canCancel: boolean
+  /** Paid order: cancelling starts a customer refund. Unpaid: only stock returns. */
+  cancelRefundsCustomer?: boolean
   manualPenalty?: {
     sellerId: string
     sellerName: string
@@ -35,6 +37,7 @@ export function AdminOrderActions({
   hasEftPendingPayment,
   hasBlockablePayout,
   canCancel,
+  cancelRefundsCustomer = false,
   manualPenalty,
 }: AdminOrderActionsProps) {
   const router = useRouter()
@@ -168,7 +171,9 @@ export function AdminOrderActions({
                 'cancel',
                 `/api/admin/orders/${orderId}/cancel`,
                 { reason: 'Admin kararı ile iptal edildi' },
-                'Bu siparişi iptal etmek istiyor musunuz? Bu işlem geri alınamaz.',
+                cancelRefundsCustomer
+                  ? 'Bu siparişi iptal etmek istiyor musunuz? Stok geri döner ve müşteriye iade başlatılır. Bu işlem geri alınamaz.'
+                  : 'Bu siparişi iptal etmek istiyor musunuz? Ödeme alınmadığı için iade oluşmaz; stok geri döner. Bu işlem geri alınamaz.',
               )
             }
           >

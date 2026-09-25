@@ -63,6 +63,7 @@ describe('EFT payment approval transaction', () => {
           .fn()
           .mockResolvedValueOnce({
             id: 'order-1',
+            status: 'bank_transfer_waiting',
             customerId: 'customer-1',
             totalAmount: new Decimal('100.00'),
             lines: [{ sellerId: 'seller-1' }],
@@ -71,6 +72,10 @@ describe('EFT payment approval transaction', () => {
           // finance transaction (payload assertions live in payment.service.notifications).
           .mockResolvedValueOnce(null),
         update: vi.fn(),
+      },
+      payment: {
+        updateMany: vi.fn(async () => ({ count: 1 })),
+        findUniqueOrThrow: vi.fn(async () => ({ id: 'payment-1', method: 'eft', status: 'confirmed' })),
       },
       orderLine: { findMany: vi.fn(async () => []), update: vi.fn() },
       orderStatusHistory: { create: vi.fn() },
@@ -90,11 +95,12 @@ describe('EFT payment approval transaction', () => {
 
     expect(result).toMatchObject({ id: 'payment-1', status: 'confirmed' })
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)
-    expect(confirmPaymentMock).toHaveBeenCalledWith(
-      'payment-1',
-      { confirmedBy: 'admin-1' },
-      tx,
-    )
+    // Compare-and-swap on the pending payment: a concurrent customer
+    // cancellation closes the same row, so only one of them can win.
+    expect(tx.payment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'payment-1', status: 'pending' },
+      data: expect.objectContaining({ status: 'confirmed', eftConfirmedBy: 'admin-1' }),
+    })
     expect(tx.order.update).toHaveBeenCalledTimes(3)
     expect(tx.orderStatusHistory.create).toHaveBeenCalledTimes(3)
     expect(tx.cartItem.deleteMany).toHaveBeenCalledWith({
@@ -110,5 +116,31 @@ describe('EFT payment approval transaction', () => {
       actorId: 'admin-1',
       actionType: 'payment_approved',
     }))
+  })
+
+  it('refuses to reopen an order that already left bank_transfer_waiting', async () => {
+    const tx = {
+      order: {
+        findUnique: vi.fn(async () => ({
+          id: 'order-1',
+          status: 'cancelled_by_customer',
+          customerId: 'customer-1',
+          totalAmount: new Decimal('100.00'),
+          lines: [{ sellerId: 'seller-1' }],
+        })),
+        update: vi.fn(),
+      },
+      payment: { updateMany: vi.fn(), findUniqueOrThrow: vi.fn() },
+    }
+    const prisma = {
+      $transaction: vi.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
+    }
+    const service = createPaymentService({ prisma: prisma as never })
+    await expect(
+      service.approveEftPayment({ orderId: 'order-1', adminActorId: 'admin-1' }),
+    ).rejects.toThrow('havale onayı bekleyen durumda değil')
+    expect(tx.payment.updateMany).not.toHaveBeenCalled()
+    expect(tx.order.update).not.toHaveBeenCalled()
+    expect(postAccrualsMock).not.toHaveBeenCalled()
   })
 })

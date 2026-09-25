@@ -34,6 +34,7 @@ const REFUND_STATUS_LABELS: Record<string, string> = {
   completed: 'Tamamlandı',
   failed: 'Başarısız',
   manual_required: 'Manuel işlem gerekli',
+  voided: 'Geçersiz (tahsilat yok)',
 }
 
 const REFUND_SOURCE_LABELS: Record<string, string> = {
@@ -276,7 +277,17 @@ export default async function AdminOrderDetailPage({ params }: Props) {
   const canConfirmDelivery = DELIVERY_CONFIRMABLE.has(order.status)
   const hasEftPendingPayment = order.payments.some((payment) => payment.method === 'eft' && payment.status === 'pending')
   const hasBlockablePayout = order.payouts.some((payout) => BLOCKABLE_PAYOUT_STATUSES.has(payout.status))
-  const canCancel = !isTerminal
+  // Mirrors adminCancel: after dispatch the return flow applies; before payment
+  // only an order waiting for its transfer is cancellable; a paid legacy order
+  // has no line-level refund path.
+  const paymentCollected = order.payments.some((payment) => payment.confirmedAt !== null)
+  const hasShippedQuantity = order.lines.some((line) => line.shippedQuantity > 0)
+  const canCancel =
+    !isTerminal &&
+    !hasShippedQuantity &&
+    (paymentCollected
+      ? order.quantityLifecycleVersion === 2
+      : order.status === 'bank_transfer_waiting')
 
   const primaryRisk = order.fulfillmentRisks[0] ?? null
   const isDelayRisk = primaryRisk?.status === 'warning' || primaryRisk?.status === 'breached'
@@ -530,7 +541,10 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                         className="inline-flex w-fit shrink-0 rounded-full border px-2 py-1 text-xs font-medium"
                         style={cancellationStatusStyle(cancellation.status)}
                       >
-                        {CANCELLATION_STATUS_LABELS[cancellation.status] ?? cancellation.status}
+                        {cancellation.status === 'completed' &&
+                        moneyToNumber(cancellation.customerRefundAmount) === 0
+                          ? 'İade gerekmedi'
+                          : (CANCELLATION_STATUS_LABELS[cancellation.status] ?? cancellation.status)}
                       </span>
                     </div>
                     <ul
@@ -988,6 +1002,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
           hasEftPendingPayment={hasEftPendingPayment}
           hasBlockablePayout={hasBlockablePayout}
           canCancel={canCancel}
+          cancelRefundsCustomer={paymentCollected}
           manualPenalty={canApplyManualPenalty && sellerId
             ? {
                 sellerId,

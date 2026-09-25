@@ -26,6 +26,7 @@ import {
 import { createOrderDocumentService } from './order-document.service'
 import { postPaymentConfirmedSellerAccruals } from './seller-payment-accrual.service'
 import { createRefundService } from './refund.service'
+import { releaseRemainingOrderLines } from './order-line-release'
 import { formatMoney } from '@hanuja/security/money'
 import { formatOrderNumber } from '../lib/order-number'
 
@@ -380,25 +381,34 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           include: { lines: { select: { sellerId: true } } },
         })
         if (!order) throw new NotFoundError('Order', params.orderId)
+        // A cancelled (or otherwise moved-on) order must never be reopened by a
+        // late approval: it would credit the seller and oversell released stock.
+        if (order.status !== 'bank_transfer_waiting') {
+          throw new ConflictError(
+            `Sipariş havale onayı bekleyen durumda değil: ${order.status}`,
+          )
+        }
+        assertTransition(order.status, 'bank_transfer_confirmed')
 
         // Geçerli indirim tutarı ürün toplamını aşamaz
         if (discountDecimal && discountDecimal.gt(order.totalAmount)) {
           throw new ConflictError('İndirim tutarı sipariş toplamını aşamaz')
         }
 
-        const updatedPaymentData: Record<string, unknown> = {
-          confirmedBy: params.adminActorId,
+        // Compare-and-swap: a concurrent customer cancellation closes the same
+        // pending payment, so exactly one of the two succeeds.
+        const claimed = await tx.payment.updateMany({
+          where: { id: payment.id, status: 'pending' },
+          data: {
+            status: 'confirmed',
+            confirmedAt,
+            eftConfirmedBy: params.adminActorId,
+          },
+        })
+        if (claimed.count !== 1) {
+          throw new ConflictError('Ödeme durumu değişti; sayfayı yenileyin')
         }
-        if (discountDecimal) {
-          updatedPaymentData.eftDiscountAmount = discountDecimal
-          updatedPaymentData.eftDiscountReason = params.discountReason ?? null
-        }
-
-        const updated = await payments.confirm(
-          payment.id,
-          updatedPaymentData,
-          tx as PrismaClient,
-        )
+        const updated = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } })
 
         // Siparişin toplam tutarını indirimi yansıtacak şekilde güncelle
         if (discountDecimal) {
@@ -500,13 +510,36 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
     }) {
       const payment = await payments.findByOrderId(params.orderId)
       if (!payment) throw new NotFoundError('Payment', params.orderId)
+      if (payment.method !== 'eft') {
+        throw new ConflictError('Bu ödeme havale/EFT değil')
+      }
+      if (payment.status !== 'pending') {
+        throw new ConflictError(`Ödeme durumu reddetmeye uygun değil: ${payment.status}`)
+      }
 
       return prisma.$transaction(async (tx) => {
-        const updated = await payments.updateStatus(
-          payment.id,
-          'failed',
-          tx as PrismaClient,
-        )
+        const order = await tx.order.findUnique({
+          where: { id: params.orderId },
+          select: { status: true },
+        })
+        if (!order) throw new NotFoundError('Order', params.orderId)
+        // An order the customer already cancelled keeps its own status and is
+        // not mailed a second cancellation.
+        if (order.status !== 'bank_transfer_waiting') {
+          throw new ConflictError(
+            `Sipariş havale onayı bekleyen durumda değil: ${order.status}`,
+          )
+        }
+        assertTransition(order.status, 'cancelled_due_to_payment_failure')
+
+        const claimed = await tx.payment.updateMany({
+          where: { id: payment.id, status: 'pending' },
+          data: { status: 'failed' },
+        })
+        if (claimed.count !== 1) {
+          throw new ConflictError('Ödeme durumu değişti; sayfayı yenileyin')
+        }
+        const updated = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } })
 
         await orders.updateStatus(
           params.orderId,
@@ -531,7 +564,11 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           reason: params.reason,
         })
 
+        // The e-mail lists the still-active lines, so it is recorded first. The
+        // reserved stock then returns to the catalog; nothing was collected, so
+        // no refund record or seller ledger movement is written.
         await recordEftRejectedNotification(tx, params.orderId, params.reason)
+        await releaseRemainingOrderLines(tx, params.orderId)
 
         return updated
       })

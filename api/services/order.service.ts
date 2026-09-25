@@ -14,6 +14,7 @@ import { isWithinReturnWindow } from '../domain/penalty-calculator'
 import { createQuantityCancellationService } from './quantity-cancellation.service'
 import { createSellerApprovalQueryService } from './seller-approval-query.service'
 import { recordWholeOrderCancellationNotifications } from './order-email-payload'
+import { releaseRemainingOrderLines } from './order-line-release'
 
 interface OrderServiceDeps {
   prisma: PrismaClient
@@ -70,7 +71,40 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
 
     assertTransition(order.status, params.toStatus)
 
+    const orderPayments = await prisma.payment.findMany({
+      where: { orderId: params.orderId },
+      select: { id: true, status: true, confirmedAt: true },
+    })
+    const paymentCollected = orderPayments.some((payment) => payment.confirmedAt !== null)
+
     await prisma.$transaction(async (tx) => {
+      if (!paymentCollected) {
+        // Leaves the EFT approval queue; losing the race to an approval aborts.
+        const pending = orderPayments.filter((payment) => payment.status === 'pending')
+        if (pending.length > 0) {
+          const closed = await tx.payment.updateMany({
+            where: {
+              id: { in: pending.map((payment) => payment.id) },
+              status: 'pending',
+              confirmedAt: null,
+            },
+            data: { status: 'cancelled' },
+          })
+          if (closed.count !== pending.length) {
+            throw new ConflictError('Ödeme bu sırada onaylandı veya kapatıldı; sayfayı yenileyin')
+          }
+          for (const payment of pending) {
+            await tx.paymentEvent.create({
+              data: {
+                paymentId: payment.id,
+                eventType: 'cancelled_before_confirmation',
+                payload: { actorId: params.actorId, toStatus: params.toStatus },
+              },
+            })
+          }
+        }
+      }
+
       await (tx as PrismaClient).order.update({
         where: { id: params.orderId },
         data: {
@@ -108,6 +142,10 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
         reason: params.auditReason ?? params.note,
         eventSuffix: params.toStatus,
       })
+
+      // After the e-mail snapshot, which lists the still-active lines. An unpaid
+      // order returns its reserved stock; there is no refund or ledger effect.
+      if (!paymentCollected) await releaseRemainingOrderLines(tx, params.orderId)
     })
 
     if (params.refund) {
@@ -302,12 +340,65 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
 
     /**
      * Admin cancels an order with reason - auditable.
+     *
+     * Quantity-lifecycle orders go through the quantity cancellation: stock is
+     * released, a paid order gets its customer refund and seller accrual
+     * reversal, an unpaid EFT order only closes its pending payment. After
+     * dispatch the return flow applies instead.
      */
     async adminCancel(params: {
       orderId: string
       adminActorId: string
       reason: string
     }) {
+      const order = await prisma.order.findUnique({
+        where: { id: params.orderId },
+        select: {
+          customerId: true,
+          quantityLifecycleVersion: true,
+          lines: {
+            select: { id: true, quantity: true, cancelledQuantity: true, shippedQuantity: true },
+          },
+          payments: { select: { confirmedAt: true } },
+        },
+      })
+      if (!order) throw new NotFoundError('Order', params.orderId)
+
+      if (order.quantityLifecycleVersion === 2) {
+        if (order.lines.some((line) => line.shippedQuantity > 0)) {
+          throw new ConflictError('Kargoya verilmiş ürün var; bu siparişte iade akışı kullanılmalı')
+        }
+        const items = order.lines
+          .map((line) => ({
+            orderLineId: line.id,
+            quantity: line.quantity - line.cancelledQuantity - line.shippedQuantity,
+          }))
+          .filter((item) => item.quantity > 0)
+        if (items.length === 0) {
+          throw new ConflictError('İptal edilebilecek aktif ürün adedi kalmadı')
+        }
+        await quantityCancellations.create({
+          orderId: params.orderId,
+          customerId: order.customerId,
+          actorId: params.adminActorId,
+          actorRole: 'admin',
+          reason: `Admin iptali: ${params.reason}`,
+          idempotencyKey: `admin-cancel:${params.orderId}`,
+          fullCancellationStatus: 'cancelled_by_admin',
+          audit: { actorId: params.adminActorId, reason: params.reason },
+          items,
+        })
+        return orders.findById(params.orderId)
+      }
+
+      // Legacy orders have no line-level refund path; cancelling a paid one here
+      // used to skip the customer refund entirely.
+      if (order.payments.some((payment) => payment.confirmedAt !== null)) {
+        throw new ConflictError(
+          'Eski akıştaki ödenmiş sipariş panelden iptal edilemez; finans incelemesi gerekir',
+        )
+      }
+
       return cancelOrder({
         orderId: params.orderId,
         actorId: params.adminActorId,
