@@ -21,7 +21,7 @@ function serializeShipments(
       id: shipment.order.id,
       publicNumber: shipment.order.publicNumber,
       status: shipment.order.status,
-      totalAmount: shipment.order.totalAmount.toString(),
+      sellerLineAmount: shipment.order.sellerLineAmount,
     },
     events: shipment.events.map((event) => ({
       status: event.status,

@@ -4,6 +4,7 @@ import { Button, EmptyState, PageHeader, StatusBadge } from '@hanuja/ui'
 import { Download, ShoppingBag } from 'lucide-react'
 import { maskCustomerName, formatMoney } from '@hanuja/security'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { calculateSellerOrderLinesTotal } from '@hanuja/api/lib/seller-order-projection'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
@@ -109,7 +110,6 @@ export default async function SellerOrdersPage({ searchParams }: Props) {
     publicNumber?: number | null
     createdAt: Date
     status: string
-    totalAmount?: { toNumber(): number } | number | null
     customer?: { name?: string | null } | null
     address?: { fullName?: string | null } | null
     lines: Array<{
@@ -258,18 +258,10 @@ export default async function SellerOrdersPage({ searchParams }: Props) {
             </thead>
             <tbody>
               {rows.map((order) => {
-                const displayTotal =
-                  order.totalAmount !== null && order.totalAmount !== undefined
-                    ? typeof order.totalAmount === 'object' && 'toNumber' in order.totalAmount
-                      ? order.totalAmount.toNumber()
-                      : Number(order.totalAmount)
-                    : order.lines.reduce((sum, line) => {
-                        const unitPrice =
-                          typeof line.unitPrice === 'object' && 'toNumber' in line.unitPrice
-                            ? line.unitPrice.toNumber()
-                            : Number(line.unitPrice)
-                        return sum + unitPrice * line.quantity
-                      }, 0)
+                // Seller-safe total: sum of this seller's own order lines only.
+                // Never Order.totalAmount — that includes other sellers' lines,
+                // shipping, and order-level discounts the seller must not see.
+                const displayTotal = calculateSellerOrderLinesTotal(order.lines)
 
                 return (
                   <tr

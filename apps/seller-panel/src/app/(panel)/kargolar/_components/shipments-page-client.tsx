@@ -19,7 +19,7 @@ export interface ShipmentListItem {
     id: string
     publicNumber: number | null
     status: string
-    totalAmount: string
+    sellerLineAmount: number
   }
   events: Array<{
     status: string
@@ -181,7 +181,7 @@ export default function ShipmentsPageClient({ initialShipments }: Props) {
                       {formatOrderDisplayNumber(shipment.order.publicNumber, shipment.orderId)}
                     </Link>
                     <div className="text-xs mt-0.5" style={{ color: 'var(--color-muted-fg)' }}>
-                      {Number(shipment.order.totalAmount).toLocaleString('tr-TR', {
+                      {shipment.order.sellerLineAmount.toLocaleString('tr-TR', {
                         maximumFractionDigits: 0,
                       })}{' '}
                       TL

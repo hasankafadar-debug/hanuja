@@ -13,6 +13,7 @@ import { NotFoundError, ForbiddenError, ConflictError } from '../lib/errors'
 import { createOrderRepository } from '../repositories/order.repository'
 import { createShipmentRepository } from '../repositories/shipment.repository'
 import { assertTransition } from '../domain/order-state-machine'
+import { calculateSellerOrderLinesTotal } from '../lib/seller-order-projection'
 
 interface ShipmentServiceDeps {
   prisma: PrismaClient
@@ -230,7 +231,7 @@ export function createShipmentService({ prisma }: ShipmentServiceDeps) {
       sellerId: string,
       params: { skip?: number; take?: number } = {},
     ) {
-      return prisma.shipment.findMany({
+      const shipments = await prisma.shipment.findMany({
         where: { sellerId },
         include: {
           order: {
@@ -238,8 +239,14 @@ export function createShipmentService({ prisma }: ShipmentServiceDeps) {
               id: true,
               publicNumber: true,
               status: true,
-              totalAmount: true,
               createdAt: true,
+              // Seller-safe amount: only this seller's own lines. Never select
+              // order.totalAmount — it includes other sellers' lines, shipping,
+              // and order-level discounts the seller must not see.
+              lines: {
+                where: { sellerId },
+                select: { quantity: true, unitPrice: true },
+              },
             },
           },
           events: {
@@ -250,6 +257,17 @@ export function createShipmentService({ prisma }: ShipmentServiceDeps) {
         orderBy: { createdAt: 'desc' },
         skip: params.skip ?? 0,
         take: params.take ?? 20,
+      })
+
+      return shipments.map((shipment) => {
+        const { lines, ...order } = shipment.order
+        return {
+          ...shipment,
+          order: {
+            ...order,
+            sellerLineAmount: calculateSellerOrderLinesTotal(lines),
+          },
+        }
       })
     },
 
