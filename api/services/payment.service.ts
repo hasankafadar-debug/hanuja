@@ -27,7 +27,8 @@ import { createOrderDocumentService } from './order-document.service'
 import { postPaymentConfirmedSellerAccruals } from './seller-payment-accrual.service'
 import { createRefundService } from './refund.service'
 import { releaseRemainingOrderLines } from './order-line-release'
-import { formatMoney } from '@hanuja/security/money'
+import { roundMoney } from '@hanuja/security/money'
+import { resolveEftAdminDiscount } from '../domain/eft-admin-discount'
 import { formatOrderNumber } from '../lib/order-number'
 
 type PaymentNotificationClient = Pick<Prisma.TransactionClient, 'order' | 'notificationOutbox'>
@@ -370,6 +371,13 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         throw new ConflictError(`Ödeme durumu onaylamaya uygun değil: ${payment.status}`)
       }
 
+      if (
+        params.discountAmount !== undefined &&
+        (!Number.isInteger(params.discountAmount) || params.discountAmount < 0)
+      ) {
+        throw new ConflictError('Geçersiz indirim tutarı')
+      }
+      // 0 (or omitted) means no discount.
       const discountDecimal = params.discountAmount
         ? new Decimal(params.discountAmount).div(100)
         : null
@@ -378,7 +386,17 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         const confirmedAt = new Date()
         const order = await tx.order.findUnique({
           where: { id: params.orderId },
-          include: { lines: { select: { sellerId: true } } },
+          include: {
+            lines: {
+              select: {
+                id: true,
+                sellerId: true,
+                totalPrice: true,
+                customerPaidProductAmount: true,
+              },
+              orderBy: { id: 'asc' },
+            },
+          },
         })
         if (!order) throw new NotFoundError('Order', params.orderId)
         // A cancelled (or otherwise moved-on) order must never be reopened by a
@@ -390,10 +408,24 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         }
         assertTransition(order.status, 'bank_transfer_confirmed')
 
-        // Geçerli indirim tutarı ürün toplamını aşamaz
-        if (discountDecimal && discountDecimal.gt(order.totalAmount)) {
-          throw new ConflictError('İndirim tutarı sipariş toplamını aşamaz')
+        // Admin discount is Hanuja-absorbed (like the EFT channel discount): it
+        // lowers only what the customer pays for products — never shipping and
+        // never a seller-side snapshot. See api/domain/eft-admin-discount.ts.
+        const discount = discountDecimal
+          ? resolveEftAdminDiscount({
+              lines: order.lines,
+              discount: discountDecimal,
+              orderTotalAmount: order.totalAmount,
+              shippingAmount: order.shippingAmount,
+            })
+          : null
+        if (discount?.status === 'exceeds_paid_product_total') {
+          throw new ConflictError('İndirim tutarı ürün tutarını aşamaz')
         }
+        const previousPaymentAmount = payment.amount
+        const collectedAmount = discountDecimal
+          ? roundMoney(order.totalAmount.sub(discountDecimal))
+          : null
 
         // Compare-and-swap: a concurrent customer cancellation closes the same
         // pending payment, so exactly one of the two succeeds.
@@ -403,6 +435,13 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
             status: 'confirmed',
             confirmedAt,
             eftConfirmedBy: params.adminActorId,
+            ...(discountDecimal && collectedAmount
+              ? {
+                  amount: collectedAmount,
+                  eftDiscountAmount: discountDecimal,
+                  eftDiscountReason: params.discountReason ?? null,
+                }
+              : {}),
           },
         })
         if (claimed.count !== 1) {
@@ -410,15 +449,30 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         }
         const updated = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } })
 
-        // Siparişin toplam tutarını indirimi yansıtacak şekilde güncelle
-        if (discountDecimal) {
+        if (discountDecimal && collectedAmount && discount?.status === 'ok') {
           await (tx as PrismaClient).order.update({
             where: { id: params.orderId },
             data: {
               discountAmount: { increment: discountDecimal },
-              totalAmount: { decrement: discountDecimal },
+              totalAmount: collectedAmount,
             },
           })
+          // Per-line customer-paid snapshots and provider refund caps exist only
+          // on quantity-lifecycle orders. Legacy (v1) orders never carried them
+          // and their refunds are capped by Payment.amount alone, so they are
+          // left untouched.
+          if (order.quantityLifecycleVersion === 2) {
+            for (const line of discount.lines) {
+              await (tx as PrismaClient).orderLine.update({
+                where: { id: line.orderLineId },
+                data: { customerPaidProductAmount: line.newPaidAmount },
+              })
+              await (tx as PrismaClient).paymentProviderItem.updateMany({
+                where: { paymentId: payment.id, orderLineId: line.orderLineId, kind: 'product' },
+                data: { amount: line.newPaidAmount },
+              })
+            }
+          }
         }
 
         await (tx as PrismaClient).order.update({
@@ -463,7 +517,9 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
             orderId: params.orderId,
             toStatus: 'seller_queue_ready',
             actorId: params.adminActorId,
-            reason: `Havale onaylandı. ${params.evidenceNote ?? ''}${discountDecimal ? ` İndirim: ${formatMoney(discountDecimal.toNumber())} (${params.discountReason ?? ''})` : ''}`.trim(),
+            // Sellers read this timeline: admin evidence and the discount stay
+            // in the audit log only.
+            reason: 'Havale onaylandı',
           },
         })
         await (tx as PrismaClient).cartItem.deleteMany({
@@ -483,10 +539,25 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           actionType: 'payment_approved',
           targetType: 'payment',
           targetId: payment.id,
-          previousData: { status: payment.status },
+          previousData: { status: payment.status, amount: previousPaymentAmount.toFixed(2) },
           newData: {
             status: 'confirmed',
-            ...(discountDecimal ? { eftDiscountAmount: discountDecimal.toFixed(2), eftDiscountReason: params.discountReason } : {}),
+            amount: updated.amount.toFixed(2),
+            ...(discountDecimal
+              ? {
+                  eftDiscountAmount: discountDecimal.toFixed(2),
+                  eftDiscountReason: params.discountReason,
+                  ...(discount?.status === 'ok' && order.quantityLifecycleVersion === 2
+                    ? {
+                        lineDiscountShares: discount.lines.map((line) => ({
+                          orderLineId: line.orderLineId,
+                          discountShare: line.discountShare.toFixed(2),
+                          customerPaidProductAmount: line.newPaidAmount.toFixed(2),
+                        })),
+                      }
+                    : {}),
+                }
+              : {}),
           },
           ...(params.evidenceNote !== undefined ? { reason: params.evidenceNote } : {}),
         })
