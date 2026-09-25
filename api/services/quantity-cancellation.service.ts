@@ -262,7 +262,7 @@ export function createQuantityCancellationService({
       const summary = items
         .map((item) => `${item.productName} (${item.quantity})`)
         .join(', ')
-      const data = {
+      const data: Record<string, unknown> = {
         operationId: operation.id,
         orderId: order.id,
         orderNumber,
@@ -292,6 +292,10 @@ export function createQuantityCancellationService({
       // A seller rejecting their own lines already knows; only mail sellers when
       // someone else cancelled. An unpaid order was never visible to the seller.
       if (seller && context.actorRole !== 'seller' && paymentCollected) {
+        // Seller-bound data must never carry the customer's refund amount
+        // (rule: seller finance visibility is limited to its own ledger; see
+        // .claude/rules/09-seller-panel-rules.md "Finance Summary Rules").
+        const { refundAmount: _customerRefundAmount, ...sellerData } = data
         await recordNotification(tx, {
           eventKey: `cancellation:${operation.id}:seller`,
           userId: seller.user.id,
@@ -300,7 +304,7 @@ export function createQuantityCancellationService({
           title: 'Siparişinizde adet iptali var',
           body: summary,
           data: {
-            ...data,
+            ...sellerData,
             sellerName: seller.displayName,
             panelUrl: `${getSellerPanelUrl()}/siparisler/${order.id}`,
           },

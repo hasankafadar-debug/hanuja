@@ -68,6 +68,30 @@ describe('phase 4 transactional order email templates', () => {
     expect(template.text).toContain('Kredi Kartı')
   })
 
+  it('renders the payment-confirmed discount breakdown the same way order-placed does', () => {
+    const template = orderPaymentConfirmedTemplate({
+      ...customerOrderInput,
+      paymentMethod: 'eft',
+      summary: {
+        subtotal: '₺10.000,00',
+        couponDiscount: '₺100,00',
+        couponCode: 'HOSGELDIN',
+        eftDiscount: '₺200,00',
+        eftDiscountRate: '%3',
+        additionalDiscount: '₺50,00',
+        shipping: 'Ücretsiz',
+      },
+    })
+
+    expect(template.html).toContain('Kupon İndirimi (HOSGELDIN)')
+    expect(template.html).toContain('Havale / EFT İndirimi (%3)')
+    expect(template.html).toContain('Ek İndirim')
+    expect(template.html).toContain('₺200,00')
+    expect(template.text).toContain('Kupon İndirimi (HOSGELDIN): -₺100,00')
+    expect(template.text).toContain('Havale / EFT İndirimi (%3): -₺200,00')
+    expect(template.text).toContain('Ek İndirim: -₺50,00')
+  })
+
   it('renders shipped details when the shipment event carries line data', () => {
     const template = orderShippedTemplate({
       ...customerOrderInput,

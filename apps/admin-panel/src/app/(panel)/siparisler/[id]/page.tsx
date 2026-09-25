@@ -217,6 +217,8 @@ export default async function AdminOrderDetailPage({ params }: Props) {
     (sum, payment) => sum + moneyToNumber(payment.eftDiscountAmount),
     0,
   )
+  const manualEftDiscountReason =
+    order.payments.find((payment) => payment.eftDiscountReason)?.eftDiscountReason ?? null
   const couponDiscountAmount = Math.max(
     0,
     moneyToNumber(order.discountAmount) - manualEftDiscountAmount,
@@ -449,7 +451,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
               ...(eftDiscountAmount > 0
                 ? [
                     {
-                      label: `EFT indirimi${eftDiscountRatePercent > 0 ? ` (%${eftDiscountRatePercent})` : ''}`,
+                      label: `Havale/EFT indirimi${eftDiscountRatePercent > 0 ? ` (%${eftDiscountRatePercent})` : ''}`,
                       value: `-${formatMoney(eftDiscountAmount)}`,
                     },
                   ]
@@ -457,7 +459,9 @@ export default async function AdminOrderDetailPage({ params }: Props) {
               ...(manualEftDiscountAmount > 0
                 ? [
                     {
-                      label: 'Ek indirim (EFT onayı)',
+                      label: manualEftDiscountReason
+                        ? `Ek indirim (EFT onayı) — ${manualEftDiscountReason}`
+                        : 'Ek indirim (EFT onayı)',
                       value: `-${formatMoney(manualEftDiscountAmount)}`,
                     },
                   ]

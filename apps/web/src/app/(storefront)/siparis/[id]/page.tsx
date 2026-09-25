@@ -425,7 +425,7 @@ export default async function OrderDetailPage({ params }: Props) {
           ) : null}
           {eftDiscount > 0 ? (
             <div className="flex justify-between" style={{ color: 'var(--color-success, #16a34a)' }}>
-              <span>EFT indirimi{eftDiscountRatePercent > 0 ? ` (%${eftDiscountRatePercent})` : ''}</span>
+              <span>Havale/EFT indirimi{eftDiscountRatePercent > 0 ? ` (%${eftDiscountRatePercent})` : ''}</span>
               <span>-{formatMoney(eftDiscount)}</span>
             </div>
           ) : null}

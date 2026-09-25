@@ -80,6 +80,7 @@ export interface CustomerOrderEmailInput {
 
 export interface CustomerPaymentConfirmedEmailInput extends CustomerOrderEmailInput {
   paymentMethod?: 'card' | 'eft'
+  summary?: OrderAmountSummary
 }
 
 export interface CustomerShipmentEmailInput extends Omit<CustomerOrderEmailInput, 'items'> {

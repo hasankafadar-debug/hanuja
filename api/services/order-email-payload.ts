@@ -23,7 +23,6 @@ export const ORDER_EMAIL_INCLUDE = {
   address: { select: { fullName: true } },
   payments: {
     orderBy: { createdAt: 'desc' as const },
-    take: 1,
     select: { method: true, status: true, eftDiscountAmount: true, confirmedAt: true },
   },
   lines: {
@@ -76,12 +75,19 @@ function percentLabel(rate: Decimal | null | undefined): string | null {
 }
 
 export function orderAmountSummary(order: OrderEmailSnapshot): OrderAmountSummary {
-  const manualDiscount = order.payments[0]?.eftDiscountAmount ?? null
+  // Order.discountAmount = checkout kuponu + admin EFT onayında girilen manuel
+  // indirim (Payment.eftDiscountAmount, tüm ödemeler toplamı). İkisi ayrı
+  // satırda gösterilmeli; aksi halde manuel indirim iki kez sayılır.
+  const manualDiscount = order.payments.reduce(
+    (sum, payment) => sum.add(payment.eftDiscountAmount ?? new Decimal(0)),
+    new Decimal(0),
+  )
+  const couponDiscount = Decimal.max(0, order.discountAmount.sub(manualDiscount))
   return {
     subtotal: formatMoney(order.grossAmount.toNumber()),
-    ...(order.discountAmount.gt(0)
+    ...(couponDiscount.gt(0)
       ? {
-          couponDiscount: formatMoney(order.discountAmount.toNumber()),
+          couponDiscount: formatMoney(couponDiscount.toNumber()),
           couponCode: order.couponCode ?? null,
         }
       : {}),
@@ -91,7 +97,7 @@ export function orderAmountSummary(order: OrderEmailSnapshot): OrderAmountSummar
           eftDiscountRate: percentLabel(order.eftDiscountRateSnapshot),
         }
       : {}),
-    ...(manualDiscount && manualDiscount.gt(0)
+    ...(manualDiscount.gt(0)
       ? { additionalDiscount: formatMoney(manualDiscount.toNumber()) }
       : {}),
     shipping: order.shippingAmount.gt(0) ? formatMoney(order.shippingAmount.toNumber()) : 'Ücretsiz',
@@ -216,6 +222,10 @@ export async function recordWholeOrderCancellationNotifications(
     data: { ...base, items },
   })
   if (options.actorRole === 'seller' || !paymentCollected) return
+  // Seller-bound data must never carry the customer's paid/refund amount
+  // (rule: seller finance visibility is limited to its own ledger; see
+  // .claude/rules/09-seller-panel-rules.md "Finance Summary Rules").
+  const { refundAmount: _customerRefundAmount, ...sellerBase } = base
   for (const seller of sellerOrderEmailData(order)) {
     await recordNotification(tx, {
       eventKey: `order:${order.id}:cancelled:${options.eventSuffix}:seller:${seller.sellerId}`,
@@ -225,7 +235,7 @@ export async function recordWholeOrderCancellationNotifications(
       title: 'Siparişiniz iptal edildi',
       body: summary,
       data: {
-        ...base,
+        ...sellerBase,
         sellerId: seller.sellerId,
         sellerName: seller.data.sellerName,
         panelUrl: seller.data.panelUrl,

@@ -121,6 +121,9 @@ describe('quantity cancellation notifications', () => {
       sellerName: 'Atelier Noa',
       panelUrl: 'https://satici.hanuja.com.tr/siparisler/order-1',
     })
+    // Seller-bound data never carries the customer's refund amount, even
+    // though the customer copy above does.
+    expect(sellerCall.data).not.toHaveProperty('refundAmount')
 
     // Admin copy stays in-app: no e-mail address is attached.
     expect(adminCall).toMatchObject({ userId: 'admin-1', type: 'order_canceled' })

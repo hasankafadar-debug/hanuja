@@ -220,6 +220,7 @@ async function buildEmailPayload(
         ...(optStr(data, 'totalAmount') ? { totalAmount: optStr(data, 'totalAmount')! } : {}),
         ...(optStr(data, 'orderUrl') ? { orderUrl: optStr(data, 'orderUrl')! } : {}),
         ...(paymentMethod(data) ? { paymentMethod: paymentMethod(data)! } : {}),
+        ...(amountSummary(data) ? { summary: amountSummary(data)! } : {}),
       })
 
     case NotificationTypeEnum.seller_order_received:

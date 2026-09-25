@@ -328,15 +328,26 @@ export function orderPaymentConfirmedTemplate(
     ${paragraph(
       `<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişinizin ödemesi onaylandı${escapeHtml(paymentCopy)}. Siparişiniz satıcıya iletildi ve hazırlık sürecine alındı; kargoya verildiğinde size ayrıca bilgi vereceğiz.`,
     )}
-    ${renderLineItemsTable(params.items)}
-    ${renderTotal(params.totalAmount)}
+    ${renderLineItemsTable(params.items, { style: 'margin-bottom:8px;' })}
+    ${params.summary ? renderAmountSummary(params.summary, params.totalAmount ?? '') : renderTotal(params.totalAmount)}
     ${renderCta('Siparişimi Görüntüle', orderUrl)}
   `
+
+  const textLines = [
+    `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişinizin ödemesi onaylandı${paymentCopy}. Siparişiniz hazırlık sürecine alındı.`,
+    renderLineItemsText(params.items),
+    params.summary
+      ? renderAmountSummaryText(params.summary, params.totalAmount ?? '')
+      : params.totalAmount === undefined
+        ? ''
+        : `Toplam: ${amountText(params.totalAmount)}`,
+    ...(orderUrl ? [`Sipariş detayı: ${orderUrl}`] : []),
+  ].filter(Boolean)
 
   return {
     subject: `${title} — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişinizin ödemesi onaylandı${paymentCopy}. Siparişiniz hazırlık sürecine alındı.\n${renderLineItemsText(params.items)}${params.totalAmount === undefined ? '' : `\nToplam: ${amountText(params.totalAmount)}`}${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
+    text: textLines.join('\n'),
   }
 }
 
