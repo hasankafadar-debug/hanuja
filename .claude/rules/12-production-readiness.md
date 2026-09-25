@@ -736,8 +736,52 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - **Kapsam dışı (bulundu, ayrı iş):**
   - 20. gün otomatik iptali (`autoCancelForFulfillmentBreach`) v2 siparişlerde eski iade yolunu çağırıyor.
     O yol v2'yi reddettiği için sipariş iadesiz ve stok iadesiz iptal kalır.
-  - `approveEftPayment`'ta girilen admin indirimi `Payment.eftDiscountAmount`'a hiç yazılmıyor. Eski
-    `payments.confirm` bu alanı zaten düşürüyordu; davranış değiştirilmedi.
+
+### 37. EFT onay indirimi, fazla iade, satıcıdan tutar gizleme, sipariş ekranı geri bildirimi (yeni — 2026-09-25)
+
+- **Belirti (canlı EFT testleri):**
+  - Admin'in havale onayında girdiği indirim ekranlarda "Ek indirim" olarak görünmüyordu; müşteri ve admin
+    sayfasında "Kupon indirimi" altına düşüyordu.
+  - Müşteri iptal sonrası sayfanın eski hâlde kaldığını, Siparişlerim'de "Detay"ın 2–3 tıklama istediğini
+    bildirdi.
+- **Kök neden:**
+  - `approveEftPayment` indirimi yalnız `Order.discountAmount`/`totalAmount`'a işliyordu;
+    `Payment.eftDiscountAmount`/`eftDiscountReason` hiç yazılmıyordu.
+  - `Payment.amount` ve v2 satırlarının `customerPaidProductAmount` değeri indirimsiz kalıyordu → indirimli
+    siparişin tam iptalinde müşteriye **ödediğinden fazla** iade çıkıyordu (v1'de iade manuel incelemeye
+    düşüyordu).
+  - Durum geçmişi metni dekont notunu ve indirimi taşıyordu; satıcı zaman çizelgesinde görünüyordu.
+  - İptal modalı `router.refresh()` bitmeden kapanıyordu; Detay sayfası yavaş ve geri bildirimsizdi.
+- **Düzeltme:**
+  - İndirim (kuruş, ≤ müşterinin ödediği ürün tutarı; kargo indirilmez) `Payment.eftDiscountAmount`/
+    `eftDiscountReason`'a yazılır.
+  - `Payment.amount` ve `Order.totalAmount` tahsil edilen tutara çekilir.
+  - v2'de indirim satırların `customerPaidProductAmount` ve `PaymentProviderItem(kind=product)` tutarlarına
+    oransal dağıtılır (`api/domain/eft-admin-discount.ts`).
+  - Satıcı alanları (`totalPrice`, `couponDiscountAmount`, komisyon, hakediş) değişmez; indirim Hanuja'ya
+    aittir.
+  - `seller_queue_ready` gerekçesi yalnız "Havale onaylandı"; not ve indirim `payment_approved` audit
+    kaydında durur.
+  - Satıcı sipariş listesi ve kargolar yalnız satıcının kendi satır toplamını (Σ `unitPrice × quantity`)
+    gösterir.
+  - `toSellerSafeOrderDto` sipariş seviyesindeki para alanlarını çıkarır; satıcı iptal bildirim verisinde
+    `refundAmount` yoktur.
+  - Müşteri/admin sipariş detayında etiketler "Havale/EFT indirimi (%N)" ve "Ek indirim" (müşteriye
+    gerekçe gösterilmez; admin'de gösterilir).
+  - Sipariş e-posta özeti kuponu `discountAmount − Σ Payment.eftDiscountAmount` olarak hesaplar (çift
+    sayım yok); "Ödemeniz Onaylandı" e-postası tam dökümü gösterir.
+  - İptal modalı yenileme bitene kadar "İptal ediliyor..." durumunda kalır ve başarı mesajı gösterir.
+  - Detay linki "Açılıyor" gösterir; `siparis/[id]/loading.tsx` iskelet ekranı eklendi.
+- **Migration YOK, env YOK.** Redeploy dört servis: **worker → admin-panel → seller-panel → web**.
+- **Testler:** `tests/unit/domain/eft-admin-discount.test.ts`, `tests/unit/services/payment-eft-approval.test.ts`,
+  `tests/postgres/eft-admin-discount.test.ts`, `tests/security/seller-cannot-see-order-level-amounts.test.ts`,
+  `tests/unit/services/order-email-payload.test.ts`, `tests/unit/email-templates.test.ts`.
+- **Açık uçlar (blocking değil):**
+  - Bu değişiklikten önce onaylanmış indirimli siparişlerde `Payment.eftDiscountAmount` boştur (indirim
+    "Kupon indirimi" altında görünür, tam iptalde iade indirimsiz tutardan hesaplanır); otomatik düzeltme
+    yok, gerekirse `payment_approved` audit kaydından tek tek düzeltilir.
+  - Eski durum geçmişi kayıtlarındaki dekont notu/indirim metni satıcı zaman çizelgesinde kalır.
+  - İptal sonrası yenilenme ve Detay geri bildirimi canlıda doğrulanacak.
 
 ## Operasyonel Not
 

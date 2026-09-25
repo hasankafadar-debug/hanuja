@@ -68,6 +68,9 @@ Her `payment_confirmed` ödeme için:
 - `payment.amount` değeri `order.totalAmount` ile eşleşmeli
 - `payment.orderId` aktif bir siparişe bağlı olmalı
 - `payment.status = confirmed` ise `order.paymentConfirmedAt` dolu olmalı
+- **Admin EFT-onay indirimi:** 2026-09-25 ve sonrası admin-onaylı EFT ödemelerinde `Payment.amount == Order.totalAmount`
+  (indiri uygulandıktan sonra toplam). 2026-09-25 öncesi admin-discounted EFT siparişlerinde `Payment.amount` = indirim öncesi tutardır
+  (fark tam olarak admin indirimidir ve ilgili `payment_approved` audit kaydındaki `eftDiscountAmount` ile açıklanır)
 
 ### 4.2 OrderLine — Payout Tutarlılığı
 

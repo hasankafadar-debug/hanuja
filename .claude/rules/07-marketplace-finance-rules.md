@@ -136,6 +136,17 @@ Payout.netAmount    = formula above             (NOT reduced by eftDiscountAmoun
 The EFT discount cost is absorbed entirely by Hanuja. Changing this policy requires
 explicit approval and an update to `docs/01-business/payout-policy.md` section 12.
 
+### Admin EFT-approval manual discount — platform absorption
+
+When admin approves a pending EFT payment via `approveEftPayment`, admin may optionally apply a manual discount
+(input: kuruş amount, non-negative integer; cap: may not exceed what the customer pays for products —
+shipping is never discounted). This discount is **also absorbed entirely by Hanuja**. It is stored in
+`Payment.eftDiscountAmount` / `eftDiscountReason` (the channel discount stays in `Order.eftDiscountAmount`);
+`Payment.amount` and `Order.totalAmount` become the collected amount, and on quantity-lifecycle orders it is
+spread over `OrderLine.customerPaidProductAmount` so refunds never exceed what the customer paid. Like the channel discount, it does NOT reduce `Payout.grossAmount`, `Payout.netAmount`, or seller
+accrual. It is recorded in the audit log as `payment_approved` action with discount reason and the per-line
+shares calculated for reconciliation.
+
 ### Commission base — KDV-inclusive, coupon-adjusted
 
 The commission base is the **KDV-inclusive** amount the customer actually paid for the line:

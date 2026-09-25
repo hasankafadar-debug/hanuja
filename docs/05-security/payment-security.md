@@ -102,9 +102,15 @@ Bank transfer payments follow a different flow and require explicit admin action
 
 **Approve:** `POST /api/admin/payments/eft/:orderId/approve`
 - Requires: `adminActorId` resolved from the admin's server-side session (never from the request body)
-- Accepts: optional `evidenceNote`, optional `discountAmount` (paise, integer), optional `discountReason`
+- Accepts: optional `evidenceNote`, optional `discountAmount` (kuruş, non-negative integer), optional `discountReason`
+- Input cap: `discountAmount` may not exceed what the customer pays for products (shipping is never discounted)
+- `Payment.amount` and `Order.totalAmount` are set to the collected amount (pre-discount total − discount)
 - Calls `paymentService.approveEftPayment()` inside a database transaction
-- Creates an `AdminAuditLog` entry via `auditEftApproved()` with actor, timestamp, order ID, evidence note, and discount reasoning if any
+- Creates an `AdminAuditLog` entry with action type `payment_approved`, actor, timestamp, order ID, evidence note,
+  and discount information (amount and reason) if any. The audit log also records the per-line discount share breakdown
+  for reconciliation
+- Stores discount in `Payment.eftDiscountAmount` and reason in `Payment.eftDiscountReason`
+- Discount is absorbed by Hanuja and does NOT reduce `Payout.grossAmount`, `Payout.netAmount`, or seller ledger accrual
 - Updates order status to `bank_transfer_confirmed` then `payment_confirmed`
 - Makes order visible to seller
 

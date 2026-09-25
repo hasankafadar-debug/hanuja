@@ -362,9 +362,17 @@ It must not be subtracted from `Payout.grossAmount` or `Payout.netAmount` in any
 calculation. If payout logic is ever changed to account for EFT discount, this section of
 this document must be updated first, with explicit approval.
 
+### Admin EFT-approval manual discount exception
+
+When admin approves an EFT payment, admin may enter an optional manual discount (kuruş, non-negative integer).
+This discount is also **absorbed entirely by Hanuja** and does NOT reduce `Payout.grossAmount` or `Payout.netAmount`.
+The admin discount is stored in `Payment.eftDiscountAmount` / `eftDiscountReason` (the channel discount stays
+in `Order.eftDiscountAmount`); seller-side snapshots (`totalPrice`, `couponDiscountAmount`, commission,
+`netPayoutAmount`) never change and sellers never see it. See `.claude/rules/07-marketplace-finance-rules.md`.
+
 ### Commission base
 
-EFT discount also does NOT affect the commission base. Commission is calculated on
+EFT discount (both channel and admin-manual) also does NOT affect the commission base. Commission is calculated on
 `OrderLine.totalPrice` (KDV-inclusive, pre-discount gross). See `commission-policy.md`.
 
 ---
