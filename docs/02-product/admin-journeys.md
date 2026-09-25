@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-09-04
+# Son güncelleme: 2026-09-25
 # Durum: taslak v1
 
 # Admin Journeys
@@ -25,6 +25,12 @@ Amac, hangi admin akisinda hangi veri, yetki ve audit beklentisinin oldugunu sab
 - Gerekli veri: siparis, gonderen bilgisi, dekont veya evidence, tahsilat tutari, musteri ve satici baglami
 - Karar: approve veya reject
 - Zorunlu kontrol: actor kimligi, gerekce, audit log, tekrarli onay korumasi
+- Onay ve ret yalniz `bank_transfer_waiting` durumundaki sipariste ve bekleyen EFT odemesinde calisir
+  (2026-09-25). Musteri onaydan once siparisi iptal ederse odeme `cancelled` olur ve kayit bu
+  kuyruktan duser; iptal edilmis siparis onayla yeniden acilamaz, reddedilince durumu ezilmez.
+- Ret, ayrilmis stogu geri verir; iade veya cari hesap kaydi olusmaz. Musteri havaleyi gondermis ama
+  siparisi iptal etmisse, iade talebi musteri destek ekranina (`musteri-destek`) gelir; iade banka
+  uzerinden yapilir, sistemde iade kaydi acilmaz.
 
 ## Journey 2: Geciken siparis triage
 

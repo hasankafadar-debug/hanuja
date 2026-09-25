@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-09-02
+# Son güncelleme: 2026-09-25
 # Durum: taslak v1
 
 # Refund and Return Policy
@@ -374,6 +374,22 @@ yapılmaz.
 
 Satıcı tarafı zaman aşımı (kargo bilgisi veya teslim kararı verilmemesi) halen manuel
 operasyonla izlenir; otomatik SLA işi ayrı geliştirmedir.
+
+## 14.2 Tahsilat Yoksa İade Yok (2026-09-25)
+
+Hanuja'nın tahsil etmediği bir tutar iade edilmez. Ödemesi onaylanmamış (hiçbir
+`Payment.confirmedAt` dolu olmayan) sipariş iptal edildiğinde ya da havale reddedildiğinde:
+
+- `RefundTransaction` açılmaz; "Manuel iade bekleyen" kuyruğuna kayıt düşmez.
+- Satıcı cari hesabına iade kaydı yazılmaz (zaten satış tahakkuku da yazılmamıştır).
+- Müşteri e-postası iade vaat etmez. Havale/EFT ödemesini gönderip admin onayından önce iptal eden
+  müşteri, sipariş sayfasındaki Destek bölümünden (admin'in `musteri-destek` ekranına düşer) iade
+  talep eder; admin gelen havaleyi banka hesabında doğrulayıp banka üzerinden iade eder. Bu
+  sistem dışı iade için sistemde iade kaydı açılmaz.
+- `quantity-refund.service` tahsil edilmemiş sipariş için iade kaydını reddeder (savunma katmanı).
+
+Düzeltmeden önce oluşmuş hatalı iade kayıtları `voided` durumuna alınır; bkz.
+`docs/07-operations/reconciliation-process.md` §12 "Tahsil edilmemiş sipariş iadeleri".
 
 ---
 

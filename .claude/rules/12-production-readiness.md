@@ -694,6 +694,51 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   referansına göre hesaplanmıyor — hukuki inceleme ve ayrı iş. Marker/açıklama tabloları için budama yok.
 - Ayrıntı: `docs/07-operations/email-phase-6-report.md`.
 
+### 36. Ödeme onayından önce iptal, EFT onay/red koruması, admin iptali (yeni — 2026-09-25)
+
+- **Belirti (#26050076, #26050077):** müşteri havale onayı beklenirken siparişi iptal etti.
+  - Satıcıya iptal e-postası gitti ve satıcı ekstresine −58.700 TL `refund` kaydı yazıldı.
+  - Sipariş hem "EFT/Havale bekleyen" hem "Manuel iade bekleyen" kuyruğunda kaldı.
+  - Müşteriye ve admin'e yapılmamış bir tahsilatın iadesi bildirildi.
+- **Kök neden:**
+  - İptal, ödemenin tahsil edilip edilmediğine bakmadan iade kaydı açıyordu.
+  - Bekleyen ödeme kapatılmıyordu.
+  - `approveEftPayment` / `rejectEftPayment` sipariş durumunu kontrol etmiyordu. Onay, iptal edilmiş
+    siparişi yeniden açabiliyordu; ret de durumu eziyordu.
+- **Düzeltme:** kural `docs/07-operations/order-lifecycle.md` §7.1–7.2'de. Tahsilat yoksa iade yoktur:
+  - yalnız tam iptal yapılabilir, ödeme `cancelled` olur, stok geri gelir;
+  - `RefundTransaction` ve cari hesap kaydı oluşmaz, satıcı bilgilendirilmez;
+  - satıcı sorgularına `SELLER_VISIBLE_PAYMENT_WHERE` eklendi (liste, sayaç, detay, panel istatistiği,
+    destek sipariş listesi);
+  - müşteri e-postası iade vaat etmez, EFT ile ödeme yapıldıysa Destek'e yönlendirir;
+  - admin e-postası "Net sipariş tutarı (ödeme alınmadı)" satırını gösterir.
+- **EFT onay/red:**
+  - İkisi de yalnız `bank_transfer_waiting` siparişte çalışır; ödeme güncellemesi CAS ile yapılır.
+  - Ret artık ayrılmış stoğu geri verir. Önceden reddedilen her havale siparişinin stoğu kalıcı düşük
+    kalıyordu.
+- **Admin iptali:** v2 siparişte adet bazlı iptal yolunu kullanır.
+  - Ödenmişte iade açılır ve tahakkuk ters kayıtla düzeltilir; ceza uygulanmaz.
+  - Kargolanmış adet varsa ve ödenmiş v1 siparişte iptal reddedilir.
+- **Migration VAR:** `20260925130000_refund_transaction_voided`. Yalnız ekleme yapar:
+  `RefundTransactionStatus.voided`, `RefundTransactionItemStatus.voided`. **Yeni env yok.**
+- **Redeploy: dört servis** (api değişiklikleri hepsine giriyor). Sıra: **worker → admin-panel →
+  seller-panel → web**. Migration'ı worker başlangıçta uygular.
+- **Onarım (deploy sonrası, worker konteyneri):**
+  - Önce `pnpm refund:repair-unpaid` çalıştırılır (dry-run, salt okunur). Çıktı incelenir.
+  - Sonra `pnpm refund:repair-unpaid --apply --actor <adminUserId> --reason "..."` çalıştırılır.
+  - Yapılanlar ve mutabakat davranışı: `docs/07-operations/reconciliation-process.md` §12
+    "Tahsil edilmemiş sipariş iadeleri".
+  - Deploy olana kadar bu iki kayıtta "İadeyi tamamla" yapılmamalı.
+- **Testler:**
+  - `tests/postgres/unpaid-eft-cancellation.test.ts` (15 test): iptal, yarış, EFT onay/red, admin
+    iptali, onarım, mutabakat.
+  - Birim: iptal bildirimi ve iki e-posta şablonu.
+- **Kapsam dışı (bulundu, ayrı iş):**
+  - 20. gün otomatik iptali (`autoCancelForFulfillmentBreach`) v2 siparişlerde eski iade yolunu çağırıyor.
+    O yol v2'yi reddettiği için sipariş iadesiz ve stok iadesiz iptal kalır.
+  - `approveEftPayment`'ta girilen admin indirimi `Payment.eftDiscountAmount`'a hiç yazılmıyor. Eski
+    `payments.confirm` bu alanı zaten düşürüyordu; davranış değiştirilmedi.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

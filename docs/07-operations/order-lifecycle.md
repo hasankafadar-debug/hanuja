@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-09-21
+# Son güncelleme: 2026-09-25
 # Durum: taslak v1
 
 # Order Lifecycle — Sipariş Yaşam Döngüsü
@@ -218,6 +218,43 @@ Tüm iptaller ayrı nedenlerle kaydedilir. Aynı `cancelled` değeri altında bi
 | Fraud/risk | Risk motoru veya admin | Duruma göre |
 
 20 gün ihlali iptali `Order.cancellationReason = auto_canceled_20day_breach` ve `Order.status = cancelled_due_to_20day_breach` olarak kaydedilir; aynı transaction içinde refund flow tetiklenir.
+
+### 7.1 Ödeme onayından önce iptal (2026-09-25)
+
+Ödemesi hiç tahsil edilmemiş sipariş (hiçbir `Payment.confirmedAt` dolu değil) iptal edildiğinde
+iade ve finans hareketi **oluşmaz**:
+
+- Yalnız `bank_transfer_waiting` (havale onayı bekleyen) sipariş iptal edilebilir. `payment_pending`
+  kart siparişi iptal edilemez: 3-D Secure sürerken iptal edilirse ödeme sonradan çekilebilir.
+- Yalnız siparişin **tamamı** iptal edilebilir; kısmi iptal havale edilecek tutarı değiştireceği için
+  reddedilir.
+- Bekleyen ödeme `cancelled` olur ve `cancelled_before_confirmation` ödeme olayı yazılır; sipariş
+  "EFT/Havale bekleyen" kuyruğundan düşer. Ödeme onayı ile iptal aynı anda gelirse ödeme satırı
+  üzerindeki koşullu güncelleme sayesinde yalnız biri başarılı olur.
+- Stok geri verilir, satırların `cancelledQuantity` değeri artar, `OrderCancellation` `completed`
+  ve iade/düzeltme tutarları 0 olarak yazılır (`grossProductAmount` bilgi için kalır).
+- `RefundTransaction`, satıcı cari hesap kaydı ve hakediş değişikliği **yazılmaz**.
+- Satıcıya e-posta ve uygulama içi bildirim gitmez; sipariş satıcı panelinin hiçbir listesinde
+  görünmez (`SELLER_VISIBLE_PAYMENT_WHERE`).
+- Müşteri e-postası iade vaat etmez; EFT ile ödeme yaptıysa sipariş sayfasındaki Destek bölümünden
+  (admin'e giden talep) iletişime geçmesi istenir. Admin operasyon e-postası tutarı
+  "Net sipariş tutarı (ödeme alınmadı)" etiketiyle gösterir.
+
+**EFT reddi** (`rejectEftPayment`) yalnız `bank_transfer_waiting` siparişte ve bekleyen EFT ödemesinde
+çalışır; iptal edilmiş bir siparişin durumunu ezmez. Ret, ayrılmış stoğu geri verir; iade veya cari
+hesap kaydı oluşturmaz. **EFT onayı** (`approveEftPayment`) da yalnız `bank_transfer_waiting`
+siparişte çalışır; iptal edilmiş sipariş yeniden açılamaz.
+
+### 7.2 Admin iptali (2026-09-25)
+
+- Adet yaşam döngüsü v2 siparişlerde admin iptali, adet bazlı iptal servisiyle yapılır
+  (`cancelled_by_admin`, `cancellationReason: admin_cancelled`, denetim kaydı aynı transaction'da):
+  - ödenmemiş (`bank_transfer_waiting`) sipariş: §7.1 kuralları;
+  - ödenmiş sipariş: stok geri döner, müşteri iadesi açılır (kart otomatik, EFT manuel kuyruk),
+    satış tahakkuku ters kayıtla düzeltilir, satıcı bilgilendirilir, **ceza uygulanmaz**.
+- Kargoya verilmiş adet varsa admin iptali reddedilir; iade akışı kullanılır (§8).
+- Eski (v1) akıştaki **ödenmiş** sipariş panelden iptal edilemez (önceden iadesiz iptal ediyordu);
+  ödenmemiş v1 sipariş iptal edilebilir, stok geri döner, ödeme `cancelled` olur.
 
 ---
 

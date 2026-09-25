@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-09-04
+# Son güncelleme: 2026-09-25
 # Durum: taslak v1
 
 # Reconciliation Process — Mutabakat Süreci
@@ -448,6 +448,30 @@ otomatik deneme ve sağlayıcı mutabakatı ayrı süreçtir, görünürlükleri
 14 gün sonrası destek/resim/belge süreci ve mevcut iade değerlendirme kuralları
 değişmez. Bu değişiklik migration veya worker değişikliği içermez; yalnızca
 `hanuja-admin` deploy edilir (`complete` çağrısının tek üretim kullanıcısı admin API'dir).
+
+### Tahsil edilmemiş sipariş iadeleri — `voided` (2026-09-25)
+
+2026-09-25 düzeltmesinden önce, havale onayı beklenirken iptal edilen EFT siparişleri için
+`manual_required` bir `RefundTransaction` ve satıcı cari hesabına eksi `refund` kaydı
+oluşuyordu (örnek: #26050076, #26050077). Tahsilat olmadığı için bu kayıtlar geçersizdir.
+
+`pnpm refund:repair-unpaid` (worker konteynerinde; varsayılan dry-run) hedefi şöyle bulur:
+`sourceType = cancellation`, `paymentId` boş ve siparişin hiçbir ödemesinde `confirmedAt` yok.
+`--apply --actor <adminUserId> --reason "..."` her kayıt için tek transaction'da:
+
+- iadeye bağlı her cari hesap kaydının tam tersini yazar (`eventKey refund-void:<entryId>`);
+  orijinal ve ters kayıt `visibleToSeller = false` olur. Hiçbir satır silinmez, `balanceAfter`
+  zinciri korunur; satıcı ekstresinde hareket görünmez, net etki 0'dır;
+- `RefundTransaction` ve kalemlerini `voided` yapar (kuyruklardan düşer);
+- `OrderCancellation`'ın iade/düzeltme tutarlarını 0'lar ve `completed` yapar;
+- bekleyen ödemeyi `cancelled` yapar (`failed` ise bırakır);
+- sonradan yapılan EFT reddinin ezdiği müşteri iptali durumunu geri yükler;
+- satıcının uygulama içi iptal bildirimini kaldırır (e-posta logu kalır);
+- tüm önceki değerleri `manual_ledger_adjustment` denetim kaydına yazar.
+
+Mutabakat (`reconcileFinance`) `voided` iadede defter etkisinin net 0 olmasını bekler;
+`outstandingPayoutDebts` bu kayıtları borç saymaz. Stoka dokunulmaz (müşteri iptalinde zaten
+geri verilmişti).
 
 ## 13. Çapraz Referanslar
 

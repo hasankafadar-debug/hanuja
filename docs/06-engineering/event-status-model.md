@@ -39,6 +39,29 @@ Stored on `Order.cancellationReason` (`OrderCancellationReason` enum):
 - Target state: `cancelled_due_to_20day_breach` (terminal).
 - Side effects: refund initiated, ledger entries emitted only for the new accrual days, `AdminAuditLog` entry recorded with system actor.
 
+## Unpaid order cancellation, EFT approval/rejection (2026-09-25)
+A payment counts as collected once `Payment.confirmedAt` is set (it survives a later refund).
+- `bank_transfer_waiting → cancelled_by_customer | cancelled_by_admin`: whole-order cancellation
+  only (partial is rejected). The pending payment moves `pending → cancelled` with a
+  `cancelled_before_confirmation` `PaymentEvent`; stock is released; `OrderCancellation` is written
+  `completed` with zero refund/adjustment amounts. No `RefundTransaction`, no `SellerLedgerEntry`,
+  no seller notification.
+- `payment_pending` (card, 3-D Secure in flight) cannot be cancelled by the customer.
+- `bank_transfer_waiting → bank_transfer_confirmed → payment_confirmed → seller_queue_ready`
+  (EFT approval) runs only from `bank_transfer_waiting`; the payment update is a compare-and-swap
+  on `status = 'pending'`, so it races safely with a customer cancellation.
+- `bank_transfer_waiting → cancelled_due_to_payment_failure` (EFT rejection, now listed in the state
+  machine): payment `pending → failed`, stock released, no refund or ledger row. Rejected when the
+  order already left `bank_transfer_waiting`.
+- Paid quantity-lifecycle order, admin cancellation → `cancelled_by_admin`
+  (`cancellationReason: admin_cancelled`) through the quantity cancellation: refund queued, sale
+  accrual reversed, no penalty. Refused once any unit shipped.
+- `RefundTransactionStatus.voided` / `RefundTransactionItemStatus.voided`: a refund created for an
+  order that never collected a payment (pre-fix data). Closed by
+  `tools/scripts/repair-unpaid-cancellation-refunds.ts`, which appends exact ledger reversals
+  (`eventKey refund-void:<entryId>`), hides both rows from the seller statement and keeps the refund
+  row for audit. Reconciliation expects a net-zero ledger effect for `voided` refunds.
+
 ## Seller-driven return → dispute transitions (2026-05-15)
 - `delivery_confirmed → return_requested`: customer opens return (only within 14
   calendar days of `deliveryConfirmedAt`; backend hard-rejects after the window).

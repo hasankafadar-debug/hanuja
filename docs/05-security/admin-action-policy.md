@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-09-25
 # Durum: taslak v1
 
 # Admin Action Policy
@@ -152,6 +152,19 @@ penalty evaluation logic in the service layer.
 | `reason` | Admin's stated reason (mandatory) |
 | `actorId` | Admin user ID |
 | `actorRole` | `admin` |
+
+**Service behaviour (2026-09-25):** quantity-lifecycle orders are cancelled through the quantity
+cancellation, and the audit entry is written in the same transaction. `newData` then also carries
+`paymentCollected` and `cancellationIds`. The outcome depends on the payment:
+- **Not collected** (`bank_transfer_waiting`): stock returns and the pending payment is closed. No
+  refund, ledger row or seller notification.
+- **Collected:** stock returns, a customer refund is queued (card automatic, EFT in the manual
+  queue) and the sale accrual is reversed. Admin cancellation applies **no seller penalty**; a
+  penalty stays a separate admin action.
+- **Refused:** once any unit shipped (use the return flow), and for a paid legacy (v1) order,
+  which has no line-level refund path.
+
+The confirmation dialog states whether a refund will be started.
 
 ---
 
