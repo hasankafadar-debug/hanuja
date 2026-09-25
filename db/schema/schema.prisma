@@ -258,6 +258,9 @@ enum RefundTransactionStatus {
   completed
   failed
   manual_required
+  // Erroneous refund for an order that never collected a payment; closed with a
+  // reversing ledger entry. See docs/07-operations/reconciliation-process.md.
+  voided
 }
 
 enum PaymentProvider {
@@ -276,6 +279,7 @@ enum RefundTransactionItemStatus {
   completed
   failed
   manual_required
+  voided
 }
 
 enum RefundSourceType {

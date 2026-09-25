@@ -17,7 +17,7 @@ export async function outstandingPayoutDebts(tx: FinanceReader, sellerId: string
   })
   const refunds = await tx.refundTransaction.findMany({
     where: { sellerId, id: { in: entries.filter(e => e.type === 'refund' && e.referenceType === 'refund_transaction').map(e => e.referenceId) } },
-    select: { id: true, sellerAdjustmentAmount: true, createdAt: true,
+    select: { id: true, status: true, sellerAdjustmentAmount: true, createdAt: true,
       order: { select: { payouts: { where: { sellerId }, select: { status: true, paidAt: true, settledAt: true } } } } },
   })
   const refundMap = new Map(refunds.map(refund => [refund.id, refund]))
@@ -52,7 +52,8 @@ export async function outstandingPayoutDebts(tx: FinanceReader, sellerId: string
       const closed = refund?.order.payouts.find(p => isPayoutSettled(p.status))
       const closedAt = closed?.settledAt ?? closed?.paidAt
       // Pre-settlement refunds already reduced this order's payout: never deduct twice.
-      if (!refund || !closedAt || refund.createdAt < closedAt) continue
+      // A voided refund was never owed (the order collected no payment).
+      if (!refund || refund.status === 'voided' || !closedAt || refund.createdAt < closedAt) continue
       principal = refund.sellerAdjustmentAmount
     }
     const key = `${entry.referenceType}:${entry.referenceId}`

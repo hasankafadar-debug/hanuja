@@ -175,6 +175,9 @@ export async function reconcileFinance(prisma: PrismaClient, sellerId?: string) 
         }
       }
       for (const refund of refunds) {
+        // A voided refund (order never collected a payment) keeps its original
+        // ledger rows plus exact reversals, so its expected net effect is zero.
+        const ledgerExpected = refund.ledgerAppliedAt !== null && refund.status !== 'voided'
         const entries = ledger.filter(
           (e) =>
             e.referenceType === 'refund_transaction' &&
@@ -184,13 +187,13 @@ export async function reconcileFinance(prisma: PrismaClient, sellerId?: string) 
         compare(
           'refund_product_ledger',
           refund.id,
-          refund.ledgerAppliedAt ? refund.grossProductAmount.negated() : zero,
+          ledgerExpected ? refund.grossProductAmount.negated() : zero,
           sum(entries.filter((e) => e.type === 'refund').map((e) => e.amount)),
         )
         compare(
           'refund_coupon_ledger',
           refund.id,
-          refund.ledgerAppliedAt ? refund.couponAdjustmentAmount : zero,
+          ledgerExpected ? refund.couponAdjustmentAmount : zero,
           sum(entries.filter((e) => e.type === 'coupon_share').map((e) => e.amount)),
         )
         if (refund.status !== 'manual_required' || refund.items.length > 0) {
