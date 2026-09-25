@@ -17,6 +17,18 @@ const sellerVisibleAddressSelect = {
   postalCode: true,
 } satisfies Prisma.AddressSelect
 
+/**
+ * Sellers only ever see orders whose payment was collected. Status alone is not
+ * enough: an unpaid EFT order the customer cancelled ends in the same
+ * `cancelled_*` status as a paid one. `confirmedAt` survives a later refund.
+ */
+export const SELLER_VISIBLE_PAYMENT_WHERE = {
+  OR: [
+    { paymentConfirmedAt: { not: null } },
+    { payments: { some: { confirmedAt: { not: null } } } },
+  ],
+} satisfies Prisma.OrderWhereInput
+
 const sellerVisibleLegalSnapshotSelect = {
   distanceSalesHtml: true,
   preInformationHtml: true,
@@ -78,6 +90,7 @@ export function createOrderRepository(prisma: PrismaClient) {
         where: {
           id,
           lines: { some: { sellerId } },
+          AND: [SELLER_VISIBLE_PAYMENT_WHERE],
           status: {
             notIn: [
               'draft',
@@ -224,6 +237,7 @@ export function createOrderRepository(prisma: PrismaClient) {
         where: {
           ...(params.orderIds !== undefined ? { id: { in: params.orderIds } } : {}),
           lines: { some: { sellerId: params.sellerId } },
+          AND: [SELLER_VISIBLE_PAYMENT_WHERE],
           ...(params.missingInvoice
             ? { sellerInvoices: { none: { sellerId: params.sellerId } } }
             : {}),
@@ -291,6 +305,7 @@ export function createOrderRepository(prisma: PrismaClient) {
         where: {
           ...(params.orderIds !== undefined ? { id: { in: params.orderIds } } : {}),
           lines: { some: { sellerId: params.sellerId } },
+          AND: [SELLER_VISIBLE_PAYMENT_WHERE],
           ...(params.missingInvoice
             ? { sellerInvoices: { none: { sellerId: params.sellerId } } }
             : {}),

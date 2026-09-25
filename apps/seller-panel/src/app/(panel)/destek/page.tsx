@@ -6,6 +6,7 @@ import { maskCustomerName } from '@hanuja/security'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createSupportTicketService } from '@hanuja/api/services/support-ticket.service'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { SELLER_VISIBLE_PAYMENT_WHERE } from '@hanuja/api/repositories/order.repository'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { NewTicketForm } from './_components/new-ticket-form'
 
@@ -33,7 +34,7 @@ export default async function SupportPage() {
   const [tickets, recentOrders] = await Promise.all([
     service.listForSeller(seller.id),
     prisma.order.findMany({
-      where: { lines: { some: { sellerId: seller.id } } },
+      where: { lines: { some: { sellerId: seller.id } }, AND: [SELLER_VISIBLE_PAYMENT_WHERE] },
       select: {
         id: true,
         publicNumber: true,

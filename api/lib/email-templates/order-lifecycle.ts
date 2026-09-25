@@ -25,6 +25,7 @@ import {
   renderInfoBox,
   renderLineItemsTable,
   renderLineItemsText,
+  renderLink,
 } from './shared'
 
 export function cancellationActorLabel(role: CancellationActorRole): string {
@@ -62,8 +63,16 @@ export function customerOrderCancelledTemplate(
     payment_failure: 'ödeme alınamadığı için iptal edildi. Dilerseniz yeni bir sipariş oluşturabilirsiniz.',
   }
   const scope = params.partial ? 'aşağıdaki ürün/adetler' : 'sipariş'
-  const refundCopy =
-    params.refundAmount === undefined
+  // Cancelled before the transfer was confirmed: nothing to refund. A customer
+  // who already sent the money contacts support, which reaches the admins.
+  const unpaidEft =
+    params.refundAmount === undefined &&
+    params.paymentNotCollected === true &&
+    params.paymentMethod === 'eft'
+  const supportUrl = orderUrl ? `${orderUrl.replace(/\/+$/, '')}/destek/yeni` : undefined
+  const refundCopy = unpaidEft
+    ? `EFT/Havale ile ödeme yaptıysanız, iade için ${renderLink('Destek', supportUrl)} kısmından bizimle iletişime geçebilirsiniz.`
+    : params.refundAmount === undefined
       ? params.actorRole === 'payment_failure'
         ? 'Bu sipariş için tahsilat yapılmadı.'
         : ''
@@ -79,8 +88,9 @@ export function customerOrderCancelledTemplate(
     ${refundCopy ? paragraph(refundCopy, 'margin:0 0 24px;font-size:14px;color:#555;') : ''}
     ${renderCta('Siparişimi Görüntüle', orderUrl)}
   `
-  const refundText =
-    params.refundAmount === undefined
+  const refundText = unpaidEft
+    ? `EFT/Havale ile ödeme yaptıysanız, iade için Destek kısmından bizimle iletişime geçebilirsiniz${supportUrl ? `: ${supportUrl}` : '.'}`
+    : params.refundAmount === undefined
       ? params.actorRole === 'payment_failure'
         ? 'Bu sipariş için tahsilat yapılmadı.'
         : ''

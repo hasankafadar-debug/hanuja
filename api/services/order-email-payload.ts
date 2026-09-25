@@ -24,7 +24,7 @@ export const ORDER_EMAIL_INCLUDE = {
   payments: {
     orderBy: { createdAt: 'desc' as const },
     take: 1,
-    select: { method: true, status: true, eftDiscountAmount: true },
+    select: { method: true, status: true, eftDiscountAmount: true, confirmedAt: true },
   },
   lines: {
     orderBy: { createdAt: 'asc' as const },
@@ -190,6 +190,8 @@ export async function recordWholeOrderCancellationNotifications(
   const items = customerOrderLines(order)
   if (items.length === 0) return
   const paymentConfirmed = order.payments[0]?.status === 'confirmed'
+  // Never collected: the seller never saw the order and no refund is owed.
+  const paymentCollected = order.payments.some((payment) => payment.confirmedAt !== null)
   const paymentMethod = order.payments[0]?.method ?? null
   const summary = items.map((item) => `${item.productName} (${item.quantity})`).join(', ')
   const base = {
@@ -201,6 +203,7 @@ export async function recordWholeOrderCancellationNotifications(
     ...(options.reason ? { cancellationReason: options.reason } : {}),
     ...(paymentMethod ? { paymentMethod } : {}),
     ...(paymentConfirmed ? { refundAmount: formatMoney(order.totalAmount.toNumber()) } : {}),
+    ...(!paymentCollected && paymentMethod === 'eft' ? { paymentNotCollected: true } : {}),
     orderUrl: customerOrderUrl(order.id),
   }
   await recordNotification(tx, {
@@ -212,7 +215,7 @@ export async function recordWholeOrderCancellationNotifications(
     body: summary,
     data: { ...base, items },
   })
-  if (options.actorRole === 'seller') return
+  if (options.actorRole === 'seller' || !paymentCollected) return
   for (const seller of sellerOrderEmailData(order)) {
     await recordNotification(tx, {
       eventKey: `order:${order.id}:cancelled:${options.eventSuffix}:seller:${seller.sellerId}`,

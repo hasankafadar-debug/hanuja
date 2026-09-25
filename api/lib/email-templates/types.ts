@@ -153,6 +153,11 @@ export interface CustomerCancellationEmailInput extends CustomerOrderEmailInput 
   /** Amount to be refunded to the customer (product + shipping share); omitted when nothing was collected. */
   refundAmount?: EmailAmount
   paymentMethod?: 'card' | 'eft' | null
+  /**
+   * The order was cancelled before its EFT/havale payment was confirmed. No
+   * refund is promised; a customer who already transferred is sent to support.
+   */
+  paymentNotCollected?: boolean
 }
 
 export interface CustomerReturnCargoInfoEmailInput extends Omit<CustomerOrderEmailInput, 'items'> {
@@ -253,6 +258,10 @@ export interface AdminOrderCancellationEmailInput extends AdminOperationEmailBas
   sellerName?: string
   customerName?: string
   refundAmount?: EmailAmount
+  /** False when the order never collected a payment: `netAmount` is shown instead of a refund. */
+  paymentCollected?: boolean
+  /** Customer net total of the cancelled lines (discounts applied, shipping included). */
+  netAmount?: EmailAmount
   reason?: string
   items?: readonly EmailOrderLineInput[]
 }

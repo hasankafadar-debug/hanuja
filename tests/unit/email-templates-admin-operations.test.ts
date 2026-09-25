@@ -31,6 +31,22 @@ describe('admin operation e-mail templates', () => {
     expect(mail.html).toContain(ADMIN_URL)
     expect(mail.html).toContain('Gea Berjer')
     expect(mail.text).toContain('4.850 TL')
+    expect(mail.text).toContain('İade tutarı: 4.850 TL')
+  })
+
+  it('labels the net amount of a cancellation that never collected a payment', () => {
+    const mail = adminOrderCancellationTemplate({
+      orderNumber: '26050077',
+      adminUrl: ADMIN_URL,
+      actorLabel: 'Müşteri',
+      paymentCollected: false,
+      netAmount: '56.939 TL',
+      items: [{ productName: 'Angolo 2li Orta Sehpa', quantity: 1 }],
+    })
+    expect(mail.html).toContain('Net sipariş tutarı (ödeme alınmadı)')
+    expect(mail.html).toContain('56.939 TL')
+    expect(mail.html).not.toContain('İade tutarı')
+    expect(mail.text).toContain('Net sipariş tutarı (ödeme alınmadı): 56.939 TL')
   })
 
   it('renders the return request with the flow it came from', () => {

@@ -15,10 +15,34 @@ import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 import { formatMoney } from '@hanuja/security/money'
 import { resolveEmailImageUrl } from '../lib/email-line-items'
+import {
+  closeFullyCancelledSellerFulfillment,
+  releaseLineQuantity,
+} from './order-line-release'
+import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 
 interface CancellationSelection {
   orderLineId: string
   quantity: number
+}
+
+type FullCancellationStatus =
+  | 'cancelled_by_customer'
+  | 'cancelled_by_admin'
+  | 'cancelled_due_to_seller_rejection'
+
+const FULL_CANCELLATION_REASONS = {
+  cancelled_by_customer: 'customer_requested',
+  cancelled_by_admin: 'admin_cancelled',
+  cancelled_due_to_seller_rejection: 'seller_rejected',
+} as const satisfies Record<FullCancellationStatus, string>
+
+/**
+ * A payment counts as collected once it was confirmed; confirmedAt survives a
+ * later refund. Without one, cancelling must not create refunds or ledger rows.
+ */
+function hasCollectedPayment(payments: Array<{ confirmedAt: Date | null }>) {
+  return payments.some((payment) => payment.confirmedAt !== null)
 }
 
 function assertSelections(items: CancellationSelection[]) {
@@ -62,9 +86,9 @@ export function createQuantityCancellationService({
     actorId?: string
     /** Who triggered the cancellation; drives the wording of the customer/seller e-mails. */
     actorRole?: 'customer' | 'seller' | 'admin'
-    fullCancellationStatus?:
-      | 'cancelled_by_customer'
-      | 'cancelled_due_to_seller_rejection'
+    fullCancellationStatus?: FullCancellationStatus
+    /** Admin cancellations write their audit entry inside the same transaction. */
+    audit?: { actorId: string; reason: string }
     items: CancellationSelection[]
   }) {
     assertSelections(params.items)
@@ -83,11 +107,21 @@ export function createQuantityCancellationService({
           error.code === 'P2034'
         ) {
           throw new ConflictError(
-            'İptal ile kargoya verme işlemi çakıştı; güncel durumu yenileyin',
+            'İptal başka bir işlemle çakıştı; güncel durumu yenileyin',
           )
         }
         throw error
       })
+
+    // Nothing was collected: no refund record and no seller ledger movement.
+    // Checked after the transaction so idempotent replays behave the same.
+    const collectedPayment = await prisma.payment.findFirst({
+      where: { orderId: params.orderId, confirmedAt: { not: null } },
+      select: { id: true },
+    })
+    if (!collectedPayment) {
+      return operations.map((operation) => ({ ...operation, refundTransaction: null }))
+    }
 
     const queued: Array<Awaited<ReturnType<typeof refunds.queue>>> = []
     for (const operation of operations) {
@@ -156,9 +190,20 @@ export function createQuantityCancellationService({
         }
       }>
     }>,
-    context: { actorRole: 'customer' | 'seller' | 'admin'; actorId?: string },
+    context: {
+      actorRole: 'customer' | 'seller' | 'admin'
+      actorId?: string
+      /**
+       * False when the order never collected a payment: the seller never saw the
+       * order, so it is not told; nobody is promised a refund. Defaults to true.
+       */
+      paymentCollected?: boolean
+      /** Customer net amount per operation, shown to admins when nothing was collected. */
+      netAmountByOperationId?: Map<string, Decimal>
+    },
   ) {
     if (operations.length === 0) return
+    const paymentCollected = context.paymentCollected ?? true
     const sellerIds = [...new Set(operations.map((operation) => operation.sellerId))]
     const productIds = [
       ...new Set(
@@ -227,10 +272,13 @@ export function createQuantityCancellationService({
         partial,
         paymentMethod,
         cancellationReason: operation.reason,
-        refundAmount: formatMoney(operation.customerRefundAmount.toNumber()),
+        ...(paymentCollected
+          ? { refundAmount: formatMoney(operation.customerRefundAmount.toNumber()) }
+          : { paymentNotCollected: true }),
         orderUrl: `${getWebBaseUrl()}/siparis/${order.id}`,
         items,
       }
+      const netAmount = context.netAmountByOperationId?.get(operation.id)
       await recordNotification(tx, {
         eventKey: `cancellation:${operation.id}:customer`,
         userId: order.customerId,
@@ -242,8 +290,8 @@ export function createQuantityCancellationService({
       })
       const seller = sellerById.get(operation.sellerId)
       // A seller rejecting their own lines already knows; only mail sellers when
-      // someone else cancelled.
-      if (seller && context.actorRole !== 'seller') {
+      // someone else cancelled. An unpaid order was never visible to the seller.
+      if (seller && context.actorRole !== 'seller' && paymentCollected) {
         await recordNotification(tx, {
           eventKey: `cancellation:${operation.id}:seller`,
           userId: seller.user.id,
@@ -281,7 +329,12 @@ export function createQuantityCancellationService({
           actorLabel: ADMIN_CANCELLATION_ACTOR_LABELS[context.actorRole],
           customerName,
           sellerName: sellerById.get(operation.sellerId)?.displayName,
-          refundAmount: formatMoney(operation.customerRefundAmount.toNumber()),
+          ...(paymentCollected
+            ? { refundAmount: formatMoney(operation.customerRefundAmount.toNumber()) }
+            : {
+                paymentCollected: false,
+                ...(netAmount ? { netAmount: formatMoney(netAmount.toNumber()) } : {}),
+              }),
           reason: operation.reason,
           items,
         },
@@ -298,9 +351,8 @@ export function createQuantityCancellationService({
       idempotencyKey?: string
       actorId?: string
       actorRole?: 'customer' | 'seller' | 'admin'
-      fullCancellationStatus?:
-        | 'cancelled_by_customer'
-        | 'cancelled_due_to_seller_rejection'
+      fullCancellationStatus?: FullCancellationStatus
+      audit?: { actorId: string; reason: string }
       items: CancellationSelection[]
     },
   ) {
@@ -330,6 +382,15 @@ export function createQuantityCancellationService({
       throw new ConflictError('Bu sipariş eski iptal akışını kullanıyor')
     }
 
+    const paymentCollected = hasCollectedPayment(order.payments)
+    // Only an EFT order still waiting for its transfer can be cancelled before
+    // payment. A card payment still in 3-D Secure could be captured afterwards.
+    if (!paymentCollected && order.status !== 'bank_transfer_waiting') {
+      throw new ConflictError(
+        'Ödemesi tamamlanmamış sipariş iptal edilemez; ödeme sonuçlandıktan sonra tekrar deneyin',
+      )
+    }
+
     const requestedById = new Map(
       params.items.map((item) => [item.orderLineId, item.quantity]),
     )
@@ -355,9 +416,54 @@ export function createQuantityCancellationService({
       bySeller.set(line.sellerId, rows)
     }
 
+    if (!paymentCollected) {
+      // The transfer amount is fixed; a partial cancellation would change it.
+      const coversWholeOrder = order.lines.every((line) => {
+        const cancellable =
+          line.quantity - line.cancelledQuantity - line.shippedQuantity
+        return cancellable === 0 || requestedById.get(line.id) === cancellable
+      })
+      if (!coversWholeOrder) {
+        throw new ValidationError(
+          'Havale/EFT ödemesi onaylanmamış siparişte yalnız siparişin tamamı iptal edilebilir',
+        )
+      }
+      // Closes the pending payment so it leaves the EFT approval queue. Losing
+      // this race to an admin approval rolls the whole cancellation back.
+      const pendingPayments = order.payments.filter(
+        (payment) => payment.status === 'pending' && payment.confirmedAt === null,
+      )
+      const closed = await tx.payment.updateMany({
+        where: {
+          id: { in: pendingPayments.map((payment) => payment.id) },
+          status: 'pending',
+          confirmedAt: null,
+        },
+        data: { status: 'cancelled' },
+      })
+      if (pendingPayments.length === 0 || closed.count !== pendingPayments.length) {
+        throw new ConflictError('Ödeme bu sırada onaylandı veya kapatıldı; sayfayı yenileyin')
+      }
+      for (const payment of pendingPayments) {
+        await tx.paymentEvent.create({
+          data: {
+            paymentId: payment.id,
+            eventType: 'cancelled_before_confirmation',
+            payload: {
+              actorRole: params.actorRole ?? 'customer',
+              actorId: params.actorId ?? params.customerId,
+              reason: params.reason.trim(),
+            },
+          },
+        })
+      }
+    }
+
     const created = []
+    const netAmountByOperationId = new Map<string, Decimal>()
     for (const [sellerId, lines] of bySeller) {
       let customerRefundAmount = new Decimal(0)
+      let customerNetAmount = new Decimal(0)
       let grossProductAmount = new Decimal(0)
       let couponAdjustmentAmount = new Decimal(0)
       let sellerAdjustmentAmount = new Decimal(0)
@@ -367,42 +473,20 @@ export function createQuantityCancellationService({
       for (const line of lines) {
         const quantity = requestedById.get(line.id)!
         const consumed = line.cancelledQuantity + line.returnClaimedQuantity
-        const {
-          customerAmount,
-          grossAmount,
-          couponAmount,
-          sellerAmount,
-          commissionAmount,
-        } = allocateProductRefund(line, consumed, quantity)
+        const allocation = allocateProductRefund(line, consumed, quantity)
+        // Without a collected payment there is nothing to refund and no seller
+        // accrual to reverse; only the cancelled goods value is kept for history.
+        const zero = new Decimal(0)
+        const customerAmount = paymentCollected ? allocation.customerAmount : zero
+        const couponAmount = paymentCollected ? allocation.couponAmount : zero
+        const sellerAmount = paymentCollected ? allocation.sellerAmount : zero
+        const commissionAmount = paymentCollected ? allocation.commissionAmount : zero
 
-        const updated = await tx.orderLine.updateMany({
-          where: {
-            id: line.id,
-            cancelledQuantity: line.cancelledQuantity,
-            shippedQuantity: line.shippedQuantity,
-          },
-          data: { cancelledQuantity: { increment: quantity } },
-        })
-        if (updated.count !== 1) {
-          throw new ConflictError(
-            'Ürün kargoya verilmiş veya başka bir iptal işlemi yapılmış',
-          )
-        }
-
-        if (line.variantId) {
-          await tx.productVariant.update({
-            where: { id: line.variantId },
-            data: { stockQuantity: { increment: quantity } },
-          })
-        } else {
-          await tx.product.update({
-            where: { id: line.productId },
-            data: { stockQuantity: { increment: quantity } },
-          })
-        }
+        await releaseLineQuantity(tx, line, quantity)
 
         customerRefundAmount = customerRefundAmount.add(customerAmount)
-        grossProductAmount = grossProductAmount.add(grossAmount)
+        customerNetAmount = customerNetAmount.add(allocation.customerAmount)
+        grossProductAmount = grossProductAmount.add(allocation.grossAmount)
         couponAdjustmentAmount = couponAdjustmentAmount.add(couponAmount)
         sellerAdjustmentAmount = sellerAdjustmentAmount.add(sellerAmount)
         commissionAdjustmentAmount =
@@ -411,60 +495,36 @@ export function createQuantityCancellationService({
           orderLineId: line.id,
           quantity,
           customerRefundAmount: customerAmount,
-          grossProductAmount: grossAmount,
+          grossProductAmount: allocation.grossAmount,
           couponAdjustmentAmount: couponAmount,
           sellerAdjustmentAmount: sellerAmount,
           commissionAdjustmentAmount: commissionAmount,
         })
       }
 
-      created.push(
-        await tx.orderCancellation.create({
-          data: {
-            orderId: order.id,
-            sellerId,
-            customerId: params.customerId,
-            ...(params.idempotencyKey
-              ? { requestKey: params.idempotencyKey }
-              : {}),
-            reason: params.reason.trim(),
-            customerRefundAmount,
-            grossProductAmount,
-            couponAdjustmentAmount,
-            sellerAdjustmentAmount,
-            commissionAdjustmentAmount,
-            items: { create: itemData },
-          },
-          include: { items: { include: { orderLine: true } } },
-        }),
-      )
-
-      const sellerLinesAfter = await tx.orderLine.findMany({
-        where: { orderId: order.id, sellerId },
-        select: { quantity: true, cancelledQuantity: true },
+      const operation = await tx.orderCancellation.create({
+        data: {
+          orderId: order.id,
+          sellerId,
+          customerId: params.customerId,
+          ...(params.idempotencyKey
+            ? { requestKey: params.idempotencyKey }
+            : {}),
+          reason: params.reason.trim(),
+          ...(paymentCollected ? {} : { status: 'completed' as const }),
+          customerRefundAmount,
+          grossProductAmount,
+          couponAdjustmentAmount,
+          sellerAdjustmentAmount,
+          commissionAdjustmentAmount,
+          items: { create: itemData },
+        },
+        include: { items: { include: { orderLine: true } } },
       })
-      if (
-        sellerLinesAfter.length > 0 &&
-        sellerLinesAfter.every(
-          (line) => line.cancelledQuantity === line.quantity,
-        )
-      ) {
-        await tx.orderSellerFulfillment.updateMany({
-          where: {
-            orderId: order.id,
-            sellerId,
-            status: {
-              notIn: [
-                'shipped',
-                'delivered',
-                'delivery_confirmation_pending',
-                'delivery_confirmed',
-              ],
-            },
-          },
-          data: { status: 'cancelled' },
-        })
-      }
+      created.push(operation)
+      netAmountByOperationId.set(operation.id, customerNetAmount)
+
+      await closeFullyCancelledSellerFulfillment(tx, order.id, sellerId)
     }
 
     const remaining = await tx.orderLine.aggregate({
@@ -493,6 +553,11 @@ export function createQuantityCancellationService({
       totalQuantity > 0 && totalQuantity === cancelledQuantity
     const fullCancellationStatus =
       params.fullCancellationStatus ?? 'cancelled_by_customer'
+    const fullCancellationFields = {
+      status: fullCancellationStatus,
+      cancelledAt: new Date(),
+      cancellationReason: FULL_CANCELLATION_REASONS[fullCancellationStatus],
+    }
     const isFullyClosed = isQuantityFullyClosed({
       originalQuantity: totalQuantity,
       cancelledQuantity,
@@ -500,16 +565,23 @@ export function createQuantityCancellationService({
     })
 
     if (isFullyClosed && created.length > 0) {
-      const shippingRefund = order.shippingAmount.sub(
+      const outstandingShipping = order.shippingAmount.sub(
         order.refundedShippingAmount,
       )
-      if (shippingRefund.gt(0)) {
-        const last = created[created.length - 1]!
+      const last = created[created.length - 1]!
+      if (!paymentCollected && outstandingShipping.gt(0)) {
+        // Part of the order net amount shown to admins; nothing is refunded.
+        netAmountByOperationId.set(
+          last.id,
+          netAmountByOperationId.get(last.id)!.add(outstandingShipping),
+        )
+      }
+      if (paymentCollected && outstandingShipping.gt(0)) {
         const updated = await tx.orderCancellation.update({
           where: { id: last.id },
           data: {
-            shippingRefundAmount: shippingRefund,
-            customerRefundAmount: { increment: shippingRefund },
+            shippingRefundAmount: outstandingShipping,
+            customerRefundAmount: { increment: outstandingShipping },
           },
           include: { items: { include: { orderLine: true } } },
         })
@@ -517,31 +589,14 @@ export function createQuantityCancellationService({
         await tx.order.update({
           where: { id: order.id },
           data: {
-            ...(isFullyCancelled
-              ? {
-                  status: fullCancellationStatus,
-                  cancelledAt: new Date(),
-                  cancellationReason:
-                    fullCancellationStatus ===
-                    'cancelled_due_to_seller_rejection'
-                      ? ('seller_rejected' as const)
-                      : ('customer_requested' as const),
-                }
-              : {}),
-            refundedShippingAmount: { increment: shippingRefund },
+            ...(isFullyCancelled ? fullCancellationFields : {}),
+            refundedShippingAmount: { increment: outstandingShipping },
           },
         })
       } else if (isFullyCancelled) {
         await tx.order.update({
           where: { id: order.id },
-          data: {
-            status: fullCancellationStatus,
-            cancelledAt: new Date(),
-            cancellationReason:
-              fullCancellationStatus === 'cancelled_due_to_seller_rejection'
-                ? 'seller_rejected'
-                : 'customer_requested',
-          },
+          data: fullCancellationFields,
         })
       }
     }
@@ -552,9 +607,28 @@ export function createQuantityCancellationService({
         fromStatus: order.status,
         toStatus: isFullyCancelled ? fullCancellationStatus : order.status,
         actorId: params.actorId ?? params.customerId,
-        reason: `Adet bazlı iptal: ${params.items.reduce((sum, item) => sum + item.quantity, 0)} adet — ${params.reason.trim()}`,
+        reason: `Adet bazlı iptal${paymentCollected ? '' : ' (ödeme onaylanmadan)'}: ${params.items.reduce((sum, item) => sum + item.quantity, 0)} adet — ${params.reason.trim()}`,
       },
     })
+
+    if (params.audit) {
+      await createAdminAuditLogRepository(tx).createEntry({
+        actorId: params.audit.actorId,
+        actionType: 'order_cancelled',
+        targetType: 'order',
+        targetId: order.id,
+        previousData: {
+          status: order.status,
+          cancellationReason: order.cancellationReason ?? null,
+        },
+        newData: {
+          status: isFullyCancelled ? fullCancellationStatus : order.status,
+          paymentCollected,
+          cancellationIds: created.map((operation) => operation.id),
+        },
+        reason: params.audit.reason,
+      })
+    }
 
     await recordCancellationNotifications(tx, order, created, {
       actorRole:
@@ -563,6 +637,8 @@ export function createQuantityCancellationService({
           ? 'seller'
           : 'customer'),
       ...(params.actorId ? { actorId: params.actorId } : {}),
+      paymentCollected,
+      netAmountByOperationId,
     })
 
     return created

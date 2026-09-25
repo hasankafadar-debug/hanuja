@@ -229,8 +229,12 @@ export default async function OrderDetailPage({ params }: Props) {
     'preparing',
     'awaiting_shipment',
   ])
+  const paymentConfirmed = Boolean((order as { paymentConfirmedAt?: Date | null }).paymentConfirmedAt)
+  // Before payment only an EFT order waiting for its transfer can be cancelled,
+  // and only as a whole; a card payment still in 3-D Secure cannot.
+  const wholeOrderOnly = isQuantityLifecycle && !paymentConfirmed && isEftPending
   const canCustomerCancel = isQuantityLifecycle
-    ? cancellationLines.length > 0
+    ? cancellationLines.length > 0 && (paymentConfirmed || isEftPending)
     : CUSTOMER_CANCELLABLE_STATUSES.has(order.status)
   const hasActiveReturn = returnRequests.some((r) => r.status !== 'refund_completed')
   const withinReturnWindow = isWithinReturnWindow(order.deliveryConfirmedAt)
@@ -292,6 +296,7 @@ export default async function OrderDetailPage({ params }: Props) {
             <CancelOrderButton
               orderId={order.id}
               {...(isQuantityLifecycle ? { lines: cancellationLines } : {})}
+              wholeOrderOnly={wholeOrderOnly}
             />
           ) : null}
         </div>

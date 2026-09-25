@@ -156,6 +156,36 @@ describe('quantity cancellation notifications', () => {
     expect(recordNotificationMock.mock.calls[0]![1].data.actorRole).toBe('seller')
   })
 
+  it('keeps an unpaid EFT cancellation away from the seller and promises no refund', async () => {
+    const tx = buildTx()
+    const service = createQuantityCancellationService({ prisma: {} as never })
+    await service.recordCancellationNotifications(
+      tx as never,
+      {
+        ...order,
+        payments: [{ method: 'eft' as const }],
+        lines: [{ id: 'line-a', productId: 'product-a', quantity: 1 }],
+      } as never,
+      [{ ...operation, customerRefundAmount: new Decimal('0') }] as never,
+      {
+        actorRole: 'customer',
+        paymentCollected: false,
+        netAmountByOperationId: new Map([['cancel-1', new Decimal('56939.00')]]),
+      },
+    )
+
+    const calls = recordNotificationMock.mock.calls.map((call) => call[1])
+    // No seller row: the seller never saw an order whose payment was not confirmed.
+    expect(calls.map((call) => call.userId)).toEqual(['customer-1', 'admin-1', 'ops'])
+
+    const [customerCall, , opsCall] = calls
+    expect(customerCall.data).toMatchObject({ paymentMethod: 'eft', paymentNotCollected: true })
+    expect(customerCall.data).not.toHaveProperty('refundAmount')
+
+    expect(opsCall.data).toMatchObject({ paymentCollected: false, netAmount: '56.939 TL' })
+    expect(opsCall.data).not.toHaveProperty('refundAmount')
+  })
+
   it('marks a cancellation covering every ordered unit as full', async () => {
     const tx = buildTx()
     const service = createQuantityCancellationService({ prisma: {} as never })

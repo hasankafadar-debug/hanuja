@@ -261,6 +261,7 @@ async function buildEmailPayload(
         ...(optStr(data, 'refundAmount') ? { refundAmount: optStr(data, 'refundAmount')! } : {}),
         ...(paymentMethod(data) ? { paymentMethod: paymentMethod(data)! } : {}),
         ...(optStr(data, 'orderUrl') ? { orderUrl: optStr(data, 'orderUrl')! } : {}),
+        ...(data['paymentNotCollected'] === true ? { paymentNotCollected: true } : {}),
       })
 
     case NotificationTypeEnum.seller_return_request:
@@ -457,6 +458,8 @@ async function buildEmailPayload(
         ...opt(data, 'sellerName'),
         ...opt(data, 'customerName'),
         ...opt(data, 'refundAmount'),
+        ...(data['paymentCollected'] === false ? { paymentCollected: false } : {}),
+        ...opt(data, 'netAmount'),
         ...opt(data, 'reason'),
       })
 

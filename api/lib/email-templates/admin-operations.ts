@@ -68,6 +68,15 @@ export function adminOrderCancellationTemplate(
 ): EmailTemplate {
   const title = `Sipariş ${orderLabel(params.orderNumber)} için iptal kaydedildi`
   const reason = excerpt(params.reason)
+  // An order cancelled before its payment was confirmed owes no refund; the
+  // customer's net total is shown under a label that says so.
+  const amountRow: [string, string | null] =
+    params.paymentCollected === false
+      ? [
+          'Net sipariş tutarı (ödeme alınmadı)',
+          params.netAmount ? amountText(params.netAmount) : null,
+        ]
+      : ['İade tutarı', params.refundAmount ? amountText(params.refundAmount) : null]
   const html = layout(
     title,
     `${heading(title)}
@@ -76,7 +85,7 @@ export function adminOrderCancellationTemplate(
       ['İptali yapan', params.actorLabel],
       ['Satıcı', params.sellerName],
       ['Müşteri', params.customerName],
-      ['İade tutarı', params.refundAmount ? amountText(params.refundAmount) : null],
+      amountRow,
     ])}
     ${reason ? paragraph(`<strong>Gerekçe:</strong> ${reason}`) : ''}
     ${params.items?.length ? renderLineItemsTable(params.items, { quantityLabel: 'İptal', hideAmounts: true }) : ''}
@@ -90,7 +99,7 @@ export function adminOrderCancellationTemplate(
       params.actorLabel ? `İptali yapan: ${params.actorLabel}` : null,
       params.sellerName ? `Satıcı: ${params.sellerName}` : null,
       params.customerName ? `Müşteri: ${params.customerName}` : null,
-      params.refundAmount ? `İade tutarı: ${amountText(params.refundAmount)}` : null,
+      amountRow[1] ? `${amountRow[0]}: ${amountRow[1]}` : null,
       params.reason ? `Gerekçe: ${params.reason}` : null,
       params.items?.length
         ? renderLineItemsText(params.items, { quantityLabel: 'İptal', hideAmounts: true })

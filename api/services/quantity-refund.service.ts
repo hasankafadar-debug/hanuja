@@ -87,6 +87,22 @@ export function createQuantityRefundService({
         where: { orderId: params.orderId, status: 'confirmed' },
         orderBy: { confirmedAt: 'desc' },
       })
+      if (!payment) {
+        // An order whose payments never confirmed collected nothing: a refund
+        // row would reach the manual queue and debit the seller ledger. Legacy
+        // orders without any payment row keep their existing review path.
+        const anyPayment = await tx.payment.findFirst({
+          where: { orderId: params.orderId },
+          select: { id: true },
+        })
+        const collectedPayment = await tx.payment.findFirst({
+          where: { orderId: params.orderId, confirmedAt: { not: null } },
+          select: { id: true },
+        })
+        if (anyPayment && !collectedPayment) {
+          throw new ConflictError('Tahsil edilmemiş sipariş için iade oluşturulamaz')
+        }
+      }
       let refund = await tx.refundTransaction.findUnique({
         where: {
           sourceType_sourceId: {

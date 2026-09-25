@@ -31,9 +31,12 @@ interface Props {
     name: string
     availableQuantity: number
   }>
+  /** EFT payment not yet confirmed: the server accepts only a whole-order cancellation. */
+  wholeOrderOnly?: boolean
 }
 
-export function CancelOrderButton({ orderId, lines }: Props) {
+export function CancelOrderButton({ orderId, lines, wholeOrderOnly = false }: Props) {
+  const wholeOrder = wholeOrderOnly && Boolean(lines)
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [selectedReason, setSelectedReason] = useState('')
@@ -50,7 +53,10 @@ export function CancelOrderButton({ orderId, lines }: Props) {
     setError(null)
     startTransition(async () => {
       const items = lines
-        ?.map((line) => ({ orderLineId: line.id, quantity: quantities[line.id] ?? 0 }))
+        ?.map((line) => ({
+          orderLineId: line.id,
+          quantity: wholeOrder ? line.availableQuantity : (quantities[line.id] ?? 0),
+        }))
         .filter((item) => item.quantity > 0)
       if (lines && (!items || items.length === 0)) {
         setError('İptal etmek istediğiniz en az bir ürün seçin.')
@@ -82,22 +88,45 @@ export function CancelOrderButton({ orderId, lines }: Props) {
   return (
     <>
       <Button variant="destructive" size="sm" onClick={() => setOpen(true)}>
-        {lines ? 'Ürün / Adet İptal Et' : 'Siparişi İptal Et'}
+        {lines && !wholeOrder ? 'Ürün / Adet İptal Et' : 'Siparişi İptal Et'}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{lines ? 'İptal edilecek ürün ve adetler' : 'Siparişi İptal Et'}</DialogTitle>
+            <DialogTitle>
+              {lines && !wholeOrder ? 'İptal edilecek ürün ve adetler' : 'Siparişi İptal Et'}
+            </DialogTitle>
             <DialogDescription>
-              {lines
-                ? 'Satıcı kargoya vermeden önce seçtiğiniz adetler hemen iptal edilir.'
-                : 'Bu işlem geri alınamaz. İptal etmek istediğinizden emin misiniz?'}
+              {wholeOrder
+                ? 'Havale/EFT ödemeniz henüz onaylanmadığı için yalnız siparişin tamamı iptal edilebilir.'
+                : lines
+                  ? 'Satıcı kargoya vermeden önce seçtiğiniz adetler hemen iptal edilir.'
+                  : 'Bu işlem geri alınamaz. İptal etmek istediğinizden emin misiniz?'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
-            {lines ? (
+            {lines && wholeOrder ? (
+              <div className="divide-y rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
+                {lines.map((line) => (
+                  <div key={line.id} className="flex items-center gap-3 px-3 py-3">
+                    <span
+                      className="min-w-0 flex-1 text-sm font-medium"
+                      style={{ color: 'var(--color-primary)' }}
+                    >
+                      {line.name}
+                    </span>
+                    <span
+                      className="text-sm font-semibold tabular-nums"
+                      style={{ color: 'var(--color-primary)' }}
+                    >
+                      {line.availableQuantity} adet
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : lines ? (
               <div className="divide-y rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
                 {lines.map((line) => {
                   const quantity = quantities[line.id] ?? 0
@@ -214,7 +243,11 @@ export function CancelOrderButton({ orderId, lines }: Props) {
               onClick={handleCancel}
               disabled={loading || !selectedReason}
             >
-              {loading ? 'İptal ediliyor...' : lines ? 'Seçilenleri İptal Et' : 'Evet, iptal et'}
+              {loading
+                ? 'İptal ediliyor...'
+                : lines && !wholeOrder
+                  ? 'Seçilenleri İptal Et'
+                  : 'Evet, iptal et'}
             </Button>
           </DialogFooter>
         </DialogContent>

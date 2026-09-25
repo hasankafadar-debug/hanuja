@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createOrderService } from '@hanuja/api/services/order.service'
+import { SELLER_VISIBLE_PAYMENT_WHERE } from '@hanuja/api/repositories/order.repository'
 import { createPayoutRepository } from '@hanuja/api/repositories/payout.repository'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
@@ -74,6 +75,7 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
     prisma.order.findMany({
       where: {
         lines: { some: { sellerId: seller.id } },
+        AND: [SELLER_VISIBLE_PAYMENT_WHERE],
         createdAt: { gte: last30Days },
         status: {
           in: [

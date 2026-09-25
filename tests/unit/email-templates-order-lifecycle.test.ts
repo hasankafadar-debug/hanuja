@@ -239,6 +239,26 @@ describe('customerOrderCancelledTemplate', () => {
     expect(failure.html).toContain('tahsilat yapılmadı')
     expect(failure.html).not.toContain('iade edilecek')
   })
+
+  it('sends a customer who cancelled before EFT approval to support instead of promising a refund', () => {
+    const template = customerOrderCancelledTemplate({
+      ...base,
+      items: [line],
+      partial: false,
+      actorRole: 'customer',
+      paymentMethod: 'eft',
+      paymentNotCollected: true,
+    })
+    expect(template.html).toContain('EFT/Havale ile ödeme yaptıysanız, iade için')
+    expect(template.html).toContain(
+      'href="https://www.hanuja.com.tr/siparis/order-1/destek/yeni"',
+    )
+    expect(template.html).toContain('kısmından bizimle iletişime geçebilirsiniz')
+    expect(template.html).not.toContain('iade edilecek')
+    expect(template.text).toContain(
+      'iade için Destek kısmından bizimle iletişime geçebilirsiniz: https://www.hanuja.com.tr/siparis/order-1/destek/yeni',
+    )
+  })
 })
 
 describe('sellerOrderCancellationTemplate', () => {
