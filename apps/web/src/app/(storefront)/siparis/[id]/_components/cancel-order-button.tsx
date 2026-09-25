@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Minus, Plus } from 'lucide-react'
 import {
@@ -11,6 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  useToast,
 } from '@hanuja/ui'
 import { csrfFetch } from '@/lib/csrf-fetch'
 
@@ -38,12 +39,23 @@ interface Props {
 export function CancelOrderButton({ orderId, lines, wholeOrderOnly = false }: Props) {
   const wholeOrder = wholeOrderOnly && Boolean(lines)
   const router = useRouter()
+  const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [selectedReason, setSelectedReason] = useState('')
   const [loading, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const idempotencyKey = useRef<string>(crypto.randomUUID())
+  const [closeAfterRefresh, setCloseAfterRefresh] = useState(false)
+
+  // Keep the modal open (with the button showing its pending state) until the
+  // post-cancel router.refresh() has actually rendered, then close it.
+  useEffect(() => {
+    if (closeAfterRefresh && !loading) {
+      setCloseAfterRefresh(false)
+      setOpen(false)
+    }
+  }, [closeAfterRefresh, loading])
 
   async function handleCancel() {
     if (!selectedReason) {
@@ -80,8 +92,14 @@ export function CancelOrderButton({ orderId, lines, wholeOrderOnly = false }: Pr
       }
       idempotencyKey.current = crypto.randomUUID()
       setQuantities({})
-      setOpen(false)
-      router.refresh()
+      toast({
+        title: lines && !wholeOrder ? 'Seçilen ürünler iptal edildi' : 'Siparişiniz iptal edildi',
+        variant: 'success',
+      })
+      setCloseAfterRefresh(true)
+      startTransition(() => {
+        router.refresh()
+      })
     })
   }
 

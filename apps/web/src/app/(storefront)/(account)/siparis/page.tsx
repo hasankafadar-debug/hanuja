@@ -10,6 +10,7 @@ import { createOrderService } from '@hanuja/api/services/order.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { getCustomerOrderStatusLabel } from '@/lib/customer-order-status'
+import { PendingLink } from '@/components/pending-link'
 
 export const dynamic = 'force-dynamic'
 
@@ -140,7 +141,9 @@ export default async function OrdersPage() {
                 style={{ borderColor: 'var(--color-border)' }}
               >
                 <Button asChild variant="outline" size="sm">
-                  <Link href={`/siparis/${order.id}`}>Detay</Link>
+                  <PendingLink href={`/siparis/${order.id}`} pendingLabel="Açılıyor">
+                    Detay
+                  </PendingLink>
                 </Button>
                 <Button asChild variant="outline" size="sm">
                   <Link href={`/siparis/${order.id}/destek/yeni`} className="flex items-center gap-1.5">

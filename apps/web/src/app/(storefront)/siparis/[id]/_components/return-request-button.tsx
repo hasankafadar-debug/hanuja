@@ -93,7 +93,9 @@ export default function ReturnRequestButton({ orderId, lines }: ReturnRequestBut
         description: 'Tasarımcı iade kargo bilgilerini iletene kadar bekleyin.',
         variant: 'success',
       })
-      router.refresh()
+      startTransition(() => {
+        router.refresh()
+      })
     })
   }
 
