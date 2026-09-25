@@ -65,6 +65,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'İadeler', href: '/iadeler', icon: <RotateCcw className="h-4 w-4" /> },
       { label: 'Duyuru', href: '/duyurular', icon: <Megaphone className="h-4 w-4" /> },
+      { label: 'Müşteri Kampanyaları', href: '/musteri-kampanyalari', icon: <Megaphone className="h-4 w-4" /> },
       { label: 'Ek Süre Talepleri', href: '/uzatma-talepleri', icon: <Clock className="h-4 w-4" /> },
       { label: 'Uyuşmazlıklar', href: '/uyusmazliklar', icon: <MessageCircleWarning className="h-4 w-4" /> },
       { label: 'Yorumlar', href: '/yorumlar', icon: <MessageSquare className="h-4 w-4" /> },

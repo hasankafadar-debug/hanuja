@@ -51,6 +51,10 @@ export function isAdminOperationType(type: NotificationType) {
 
 // New business events are added here together with their templates in later phases.
 export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
+  customer_campaign: {
+    role: 'customer', category: 'kampanya',
+    required: ['campaignId', 'recipientId', 'unsubscribeUrl'],
+  },
   order_placed: {
     role: 'customer',
     category: 'noreply',

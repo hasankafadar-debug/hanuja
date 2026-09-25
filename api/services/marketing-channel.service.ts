@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { ConflictError, ValidationError } from '../lib/errors'
+import { EMAIL_POLICIES } from '../lib/notification-policy'
 
 type Db = PrismaClient | Prisma.TransactionClient
 export type MarketingChannel = 'email' | 'sms'
@@ -50,6 +51,17 @@ export async function updateMarketingChannel(
         version: { increment: 1 }, updatedBy: input.actorId },
     })
     if (!changed.count) throw new ConflictError('Ayar değişti. Sayfayı yenileyin.')
+    if (input.channel === 'email') {
+      const types = Object.entries(EMAIL_POLICIES).filter(([, policy]) => policy?.category === 'kampanya').map(([type]) => type)
+      await tx.notificationOutbox.updateMany({
+        where: { type: { in: types }, status: { in: ['pending', 'queued'] } },
+        data: { status: 'completed', lastError: 'MARKETING_CHANNEL_DISABLED' },
+      })
+      await tx.campaignEmailDispatch.updateMany({
+        where: { status: 'reserved' },
+        data: { status: 'released', releaseReason: 'MARKETING_CHANNEL_DISABLED' },
+      })
+    }
     await tx.adminAuditLog.create({ data: {
       actorId: input.actorId, actionType: 'marketing_channel_updated', targetType: 'marketing_channel', targetId: input.channel,
       previousData: { enabled: input.channel === 'email' ? before.emailEnabled : before.smsEnabled },

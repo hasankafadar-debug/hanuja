@@ -428,12 +428,12 @@ function createMockPrisma() {
           where,
           data,
         }: {
-          where: { userId: { in: string[] }; emailRevokedAt: null }
+          where: { userId: { in: string[] } | string; emailRevokedAt: null }
           data: { emailRevokedAt: Date }
         }) => {
           let count = 0
           for (const consent of marketingConsents) {
-            if (!where.userId.in.includes(consent.userId)) continue
+            if (typeof where.userId === 'string' ? where.userId !== consent.userId : !where.userId.in.includes(consent.userId)) continue
             if (consent.emailRevokedAt !== null) continue
             consent.emailRevokedAt = data.emailRevokedAt
             count += 1
@@ -442,6 +442,12 @@ function createMockPrisma() {
         },
       ),
     },
+    marketingConsentAddress: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    marketingConsentEvent: { create: vi.fn().mockResolvedValue({}) },
     campaignEmailDispatch: {
       findMany: vi.fn().mockImplementation(
         async ({
@@ -783,8 +789,9 @@ interface MockConsentRow {
 function createConsentMockPrisma(seed: MockConsentRow[] = []) {
   const rows: MockConsentRow[] = seed.map((row) => ({ ...row }))
 
-  return {
+  const prisma = {
     _rows: rows,
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
     marketingConsent: {
       upsert: vi.fn().mockImplementation(
         async ({
@@ -820,12 +827,16 @@ function createConsentMockPrisma(seed: MockConsentRow[] = []) {
           where,
           data,
         }: {
-          where: { userId: string }
+          where: { userId: string; emailConsentAt?: { not: null }; emailRevokedAt?: null; smsConsentAt?: { not: null }; smsRevokedAt?: null }
           data: Partial<MockConsentRow>
         }) => {
           let count = 0
           for (const row of rows) {
             if (row.userId !== where.userId) continue
+            if (where.emailConsentAt && row.emailConsentAt === null) continue
+            if (where.smsConsentAt && row.smsConsentAt === null) continue
+            if ('emailRevokedAt' in where && row.emailRevokedAt !== null) continue
+            if ('smsRevokedAt' in where && row.smsRevokedAt !== null) continue
             Object.assign(row, data)
             count += 1
           }
@@ -837,30 +848,28 @@ function createConsentMockPrisma(seed: MockConsentRow[] = []) {
           rows.find((row) => row.userId === where.userId) ?? null,
       ),
     },
+    marketingConsentAddress: {
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    marketingConsentEvent: { create: vi.fn().mockResolvedValue({}) },
   }
+  return prisma
 }
 
 describe('CampaignDiscountService.grantMarketingConsent', () => {
-  it('creates a consent row with both channels opted in and an opt-out token', async () => {
+  it('rejects a signup grant while IYS capture is unconfigured', async () => {
     const prisma = createConsentMockPrisma()
     const service = createCampaignDiscountService({
       prisma: prisma as never,
       notifications: { send: vi.fn() } as never,
     })
 
-    await service.grantMarketingConsent({ userId: 'user-1', source: 'signup' })
-
-    expect(prisma._rows).toHaveLength(1)
-    const row = prisma._rows[0]!
-    expect(row.emailConsentAt).not.toBeNull()
-    expect(row.smsConsentAt).not.toBeNull()
-    expect(row.emailRevokedAt).toBeNull()
-    expect(row.smsRevokedAt).toBeNull()
-    expect(row.consentSource).toBe('signup')
-    expect(row.optOutToken.length).toBeGreaterThan(0)
+    await expect(service.grantMarketingConsent({ userId: 'user-1', source: 'signup' })).rejects.toThrow('İYS')
+    expect(prisma._rows).toHaveLength(0)
   })
 
-  it('re-grants an existing revoked consent by clearing both RevokedAt flags and updating the source', async () => {
+  it('does not revive a revoked legacy consent', async () => {
     const revokedAt = new Date('2026-07-01T00:00:00.000Z')
     const prisma = createConsentMockPrisma([
       {
@@ -879,27 +888,26 @@ describe('CampaignDiscountService.grantMarketingConsent', () => {
       notifications: { send: vi.fn() } as never,
     })
 
-    await service.grantMarketingConsent({ userId: 'user-1', source: 'account_settings' })
+    await expect(service.grantMarketingConsent({ userId: 'user-1', source: 'account_settings' })).rejects.toThrow('İYS')
 
     expect(prisma._rows).toHaveLength(1)
     const row = prisma._rows[0]!
-    expect(row.emailRevokedAt).toBeNull()
-    expect(row.smsRevokedAt).toBeNull()
-    expect(row.consentSource).toBe('account_settings')
-    expect(row.optOutToken).toBe('token-existing') // token preserved on re-grant
+    expect(row.emailRevokedAt).toEqual(revokedAt)
+    expect(row.smsRevokedAt).toEqual(revokedAt)
+    expect(row.consentSource).toBe('signup')
+    expect(row.optOutToken).toBe('token-existing')
   })
 
-  it('is idempotent when granted twice', async () => {
+  it('keeps repeated grants disabled', async () => {
     const prisma = createConsentMockPrisma()
     const service = createCampaignDiscountService({
       prisma: prisma as never,
       notifications: { send: vi.fn() } as never,
     })
 
-    await service.grantMarketingConsent({ userId: 'user-1', source: 'signup' })
-    await service.grantMarketingConsent({ userId: 'user-1', source: 'account_settings' })
-
-    expect(prisma._rows).toHaveLength(1)
+    await expect(service.grantMarketingConsent({ userId: 'user-1', source: 'signup' })).rejects.toThrow('İYS')
+    await expect(service.grantMarketingConsent({ userId: 'user-1', source: 'account_settings' })).rejects.toThrow('İYS')
+    expect(prisma._rows).toHaveLength(0)
   })
 })
 
@@ -961,7 +969,7 @@ describe('CampaignDiscountService.getMarketingConsentStatus', () => {
     })
   })
 
-  it('reports consented when ConsentAt is set and RevokedAt is null', async () => {
+  it('does not treat an old unverified consent as sendable', async () => {
     const service = serviceFor([
       {
         id: 'c1',
@@ -975,8 +983,8 @@ describe('CampaignDiscountService.getMarketingConsentStatus', () => {
       },
     ])
     expect(await service.getMarketingConsentStatus({ userId: 'user-1' })).toEqual({
-      emailConsented: true,
-      smsConsented: true,
+      emailConsented: false,
+      smsConsented: false,
     })
   })
 

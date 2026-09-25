@@ -3,16 +3,16 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { createCampaignDiscountService } from '@hanuja/api/services/campaign-discount.service'
+import { createMarketingConsentService } from '@hanuja/api/services/marketing-consent.service'
 
-const schema = z.object({ consented: z.boolean() })
+const schema = z.object({ consented: z.boolean(), channel: z.enum(['email', 'sms']).optional(), source: z.enum(['signup', 'account_settings']).optional() })
 
 export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers })
   if (!session?.user) return NextResponse.json({ message: 'Oturum açmanız gerekiyor.' }, { status: 401 })
   if (session.user.role !== 'customer') return NextResponse.json({ message: 'Bu işlem müşteri hesabına özeldir.' }, { status: 403 })
-  const service = createCampaignDiscountService({ prisma: createPrismaForRoute() })
-  const status = await service.getMarketingConsentStatus({ userId: session.user.id })
+  const service = createMarketingConsentService(createPrismaForRoute())
+  const status = await service.getStatus(session.user.id)
   return NextResponse.json(status)
 }
 
@@ -25,12 +25,14 @@ export async function PUT(request: NextRequest) {
   const parsed = schema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ message: 'Geçersiz istek.' }, { status: 400 })
 
-  const service = createCampaignDiscountService({ prisma: createPrismaForRoute() })
+  const service = createMarketingConsentService(createPrismaForRoute())
   if (parsed.data.consented) {
-    await service.grantMarketingConsent({ userId: session.user.id, source: 'account_settings' })
+    return NextResponse.json({ message: 'İYS hazırlığı tamamlanana kadar yeni iletişim izni alınmıyor.' }, { status: 409 })
   } else {
-    await service.revokeMarketingConsentByUser({ userId: session.user.id })
+    // Legacy bulk withdrawal remains compatible; a grant can never revive SMS.
+    for (const channel of parsed.data.channel ? [parsed.data.channel] : ['email', 'sms'] as const)
+      await service.revokeByUser(session.user.id, channel, 'account_settings')
   }
-  const status = await service.getMarketingConsentStatus({ userId: session.user.id })
+  const status = await service.getStatus(session.user.id)
   return NextResponse.json(status)
 }

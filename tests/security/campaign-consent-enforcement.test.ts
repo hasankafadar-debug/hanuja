@@ -117,6 +117,8 @@ function createConsentAudiencePrisma() {
   }> = []
 
   const prisma = {
+    marketingConsentAddress: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]) },
+    marketingConsentEvent: { create: vi.fn() },
     _dispatches: dispatches,
     discountRule: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
@@ -155,6 +157,12 @@ function createConsentAudiencePrisma() {
       ),
     },
     marketingConsent: {
+      updateMany: vi.fn(async ({ where, data }: { where: { userId: string }; data: { emailRevokedAt: Date } }) => {
+        const consent = consents.find(entry => entry.userId === where.userId && !entry.emailRevokedAt)
+        if (!consent) return { count: 0 }
+        consent.emailRevokedAt = data.emailRevokedAt
+        return { count: 1 }
+      }),
       findMany: vi.fn(
         async ({
           where,

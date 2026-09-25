@@ -2,6 +2,7 @@ import { Worker } from 'bullmq'
 import { redis } from '../lib/redis'
 import { QUEUE_NAMES } from '../lib/queue'
 import { relayNotifications } from '../services/notification-outbox.service'
+import { runCustomerCampaignDispatchSweep } from '../services/customer-campaign.service'
 
 export function startNotificationOutboxWorker() {
   const worker = new Worker(
@@ -9,6 +10,7 @@ export function startNotificationOutboxWorker() {
     async () => {
       const { prisma } = await import('../lib/prisma')
       await relayNotifications(prisma)
+      await runCustomerCampaignDispatchSweep(prisma)
     },
     { connection: redis, concurrency: 1 },
   )

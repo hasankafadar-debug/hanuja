@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { createCampaignDiscountService } from '@hanuja/api/services/campaign-discount.service'
+import { createMarketingConsentService } from '@hanuja/api/services/marketing-consent.service'
 import { checkRateLimit, API_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 
 export async function GET(req: NextRequest) {
@@ -14,14 +14,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Token gerekli.' }, { status: 400 })
   }
 
-  const service = createCampaignDiscountService({ prisma: createPrismaForRoute() })
-  const result = await service.revokeMarketingEmailConsentByToken(token)
-
-  if (!result) {
-    return NextResponse.json({ error: 'Geçersiz çıkış bağlantısı.' }, { status: 404 })
-  }
-
-  return NextResponse.json({ ok: true })
+  const target = new URL('/abonelikten-cik', req.url)
+  target.searchParams.set('token', token)
+  return NextResponse.redirect(target)
 }
 
 // One-Click unsubscribe (RFC 8058): the mail client POSTs with the token in the
@@ -35,8 +30,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Token gerekli.' }, { status: 400 })
   }
 
-  const service = createCampaignDiscountService({ prisma: createPrismaForRoute() })
-  const result = await service.revokeMarketingEmailConsentByToken(token)
+  const service = createMarketingConsentService(createPrismaForRoute())
+  const result = await service.revokeByToken(token, 'unsubscribe_post')
 
   if (!result) {
     return NextResponse.json({ error: 'Geçersiz çıkış bağlantısı.' }, { status: 404 })

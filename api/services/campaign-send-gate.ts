@@ -15,6 +15,7 @@
 import type { NotificationType, PrismaClient } from '@prisma/client'
 import { EMAIL_POLICIES } from '../lib/notification-policy'
 import { getMarketingChannelStatus, releaseBlockedMarketingReservation } from './marketing-channel.service'
+import { checkMarketingEmailRecipient } from './marketing-recipient-policy'
 import { checkCampaignLimits, lockCampaignUser } from './campaign-email-reservation'
 import { hasPendingMarkers, processPriceChangeMarkers } from './price-change-reconcile.service'
 import { evaluateEventNow } from './price-drop-evaluation.service'
@@ -23,13 +24,13 @@ export const LEGACY_CAMPAIGN_TYPES: ReadonlySet<string> = new Set([
   'product_discount_favorited',
   'store_discount_followed_seller',
 ])
-export const RESERVED_CAMPAIGN_TYPES: ReadonlySet<string> = new Set(['product_discount_in_cart', 'product_price_drop'])
+export const RESERVED_CAMPAIGN_TYPES: ReadonlySet<string> = new Set(['product_discount_in_cart', 'product_price_drop', 'customer_campaign'])
 
 export type CampaignGateResult = { proceed: true } | { proceed: false; reason: string }
 
 export async function runCampaignSendGate(
   prisma: PrismaClient,
-  input: { type: NotificationType; eventKey: string; userId: string; now?: Date },
+  input: { type: NotificationType; eventKey: string; userId: string; emailTo?: string; now?: Date },
 ): Promise<CampaignGateResult> {
   if (LEGACY_CAMPAIGN_TYPES.has(input.type)) return { proceed: false, reason: 'LEGACY_CAMPAIGN_DISABLED' }
   if (EMAIL_POLICIES[input.type]?.category === 'kampanya') {
@@ -46,6 +47,15 @@ export async function runCampaignSendGate(
     select: { id: true, status: true, releaseReason: true, discountFingerprint: true, productId: true },
   })
   if (!reservation) return { proceed: false, reason: 'CAMPAIGN_RESERVATION_MISSING' }
+  if (input.type === 'customer_campaign') {
+    const recipient = await prisma.customerCampaignRecipient.findFirst({
+      where: { eventKey: input.eventKey, userId: input.userId }, select: { submittedAt: true },
+    })
+    if (!recipient || recipient.submittedAt.getTime() <= (input.now ?? new Date()).getTime() - 86_400_000) {
+      await releaseBlockedMarketingReservation(prisma, input.eventKey, 'CAMPAIGN_EXPIRED')
+      return { proceed: false, reason: 'CAMPAIGN_EXPIRED' }
+    }
+  }
   // Already past the gate: the delivery's own idempotency (sent / uncertain / lease) decides.
   if (reservation.status === 'sending' || reservation.status === 'sent' || reservation.status === 'uncertain') {
     return { proceed: true }
@@ -120,11 +130,8 @@ export async function runCampaignSendGate(
     })
     if (limit) return release(limit)
 
-    const consent = await tx.marketingConsent.findUnique({
-      where: { userId: input.userId },
-      select: { emailConsentAt: true, emailRevokedAt: true },
-    })
-    if (!consent?.emailConsentAt || consent.emailRevokedAt) return release('no_consent')
+    const recipientReason = await checkMarketingEmailRecipient(tx, input.userId, input.emailTo ?? '')
+    if (recipientReason) return release('no_consent')
 
     await tx.campaignEmailDispatch.update({
       where: { id: reservation.id },

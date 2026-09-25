@@ -97,7 +97,7 @@ export async function checkCampaignLimits(tx: Tx, input: LimitCheckInput): Promi
 
 export interface ReserveInput {
   userId: string
-  productId: string
+  productId: string | null
   source: CampaignDispatchSource
   fingerprint: string
   eventKey: string
@@ -123,10 +123,10 @@ export async function reserveCampaignEmail(tx: Tx, input: ReserveInput): Promise
   if (limit) return { ok: false, reason: limit }
 
   const pendingSince = new Date(input.now.getTime() - CAMPAIGN_RESERVATION_TTL_MS)
-  const queued = await tx.campaignEmailDispatch.findMany({
+  const queued = input.productId ? await tx.campaignEmailDispatch.findMany({
     where: { userId: input.userId, productId: input.productId, status: 'reserved', createdAt: { gte: pendingSince } },
     select: { id: true, source: true },
-  })
+  }) : []
   const blocking = queued.filter((row) => input.source !== 'price_drop' || row.source === 'price_drop')
   if (blocking.length) return { ok: false, reason: 'pending_reservation' }
 

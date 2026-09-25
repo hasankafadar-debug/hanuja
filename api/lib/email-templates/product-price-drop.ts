@@ -9,6 +9,7 @@
  */
 import type { EmailTemplate } from './types'
 import { escapeHtml, greeting, heading, isSafeHttpUrl, layout, paragraph, renderCta } from './shared'
+import { marketingFooterHtml, marketingFooterText } from './marketing-footer'
 
 export interface ProductPriceDropEmailInput {
   customerName: string
@@ -31,10 +32,6 @@ function productImage(imageUrl: string | undefined, productName: string): string
 
 export function productPriceDropTemplate(params: ProductPriceDropEmailInput): EmailTemplate {
   const label = params.variantName ? `${params.productName} – ${params.variantName}` : params.productName
-  const unsubscribe = isSafeHttpUrl(params.unsubscribeUrl)
-    ? `<a href="${escapeHtml(params.unsubscribeUrl.trim())}" style="color:#135854;">abonelikten çıkabilirsiniz</a>`
-    : 'abonelikten çıkabilirsiniz'
-
   const body = `
     ${heading(PRICE_DROP_SUBJECT)}
     ${greeting(params.customerName)}
@@ -50,9 +47,9 @@ export function productPriceDropTemplate(params: ProductPriceDropEmailInput): Em
     )}
     ${renderCta('Ürünü İncele', params.productUrl)}
     <p style="margin:0;font-size:13px;color:#777;">
-      Bu e-postayı, ürünü favorilerinize eklediğiniz için alıyorsunuz. Kampanya e-postalarını
-      almak istemiyorsanız ${unsubscribe}.
+      Bu e-postayı, ürünü favorilerinize eklediğiniz için alıyorsunuz.
     </p>
+    ${marketingFooterHtml(params.unsubscribeUrl)}
   `
 
   const text = [
@@ -65,7 +62,7 @@ export function productPriceDropTemplate(params: ProductPriceDropEmailInput): Em
     `Ürünü incele: ${params.productUrl}`,
     '',
     'Bu e-postayı, ürünü favorilerinize eklediğiniz için alıyorsunuz.',
-    `Kampanya e-postalarından çıkmak için: ${params.unsubscribeUrl}`,
+    marketingFooterText(params.unsubscribeUrl),
   ].join('\n')
 
   return { subject: PRICE_DROP_SUBJECT, html: layout(PRICE_DROP_SUBJECT, body), text }

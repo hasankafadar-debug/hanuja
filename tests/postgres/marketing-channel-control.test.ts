@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
 import { PrismaClient } from '@prisma/client'
-import { getMarketingChannelStatus, releaseBlockedMarketingReservation } from '../../api/services/marketing-channel.service'
+import { getMarketingChannelStatus, releaseBlockedMarketingReservation, updateMarketingChannel } from '../../api/services/marketing-channel.service'
+import { runCampaignSendGate } from '../../api/services/campaign-send-gate'
 
 const url = new URL(process.env.NOTIFICATION_TEST_DATABASE_URL ?? 'http://invalid')
 if (!['localhost', '127.0.0.1'].includes(url.hostname) || url.pathname !== '/hanuja_notification_test')
@@ -27,5 +28,24 @@ describe('marketing migration and real database gate', () => {
     await releaseBlockedMarketingReservation(prisma, 'nonexistent-test-event', 'disabled')
     await prisma.marketingChannelSettings.delete({ where: { id: 'marketing' } })
     expect((await getMarketingChannelStatus(prisma, 'email')).reason).toBe('MARKETING_SETTINGS_UNAVAILABLE')
+  })
+
+  it('cannot enable delivery and releases only unattempted reservations when disabled', async () => {
+    await prisma.marketingChannelSettings.create({ data: { id: 'marketing' } })
+    const user = await prisma.user.create({ data: { email: `closed-${randomUUID()}@example.test`, role: 'customer' } })
+    const reservedKey = `closed-${randomUUID()}`
+    const uncertainKey = `uncertain-${randomUUID()}`
+    await prisma.campaignEmailDispatch.createMany({ data: [
+      { userId: user.id, source: 'cart', productId: 'closed-product', discountFingerprint: randomUUID(), eventKey: reservedKey, status: 'reserved' },
+      { userId: user.id, source: 'cart', productId: 'uncertain-product', discountFingerprint: randomUUID(), eventKey: uncertainKey, status: 'uncertain', sendingAt: new Date() },
+    ] })
+    const settings = await prisma.marketingChannelSettings.findUniqueOrThrow({ where: { id: 'marketing' } })
+    await expect(updateMarketingChannel(prisma, { channel: 'email', enabled: true, actorId: 'test-admin', version: settings.version })).rejects.toThrow()
+    expect((await prisma.marketingChannelSettings.findUniqueOrThrow({ where: { id: 'marketing' } })).version).toBe(settings.version)
+    expect(await runCampaignSendGate(prisma, { type: 'product_discount_in_cart', eventKey: reservedKey, userId: user.id, emailTo: user.email }))
+      .toEqual({ proceed: false, reason: 'MARKETING_CHANNEL_DISABLED' })
+    expect(await prisma.campaignEmailDispatch.findUniqueOrThrow({ where: { eventKey: reservedKey } }))
+      .toMatchObject({ status: 'released', releaseReason: 'MARKETING_CHANNEL_DISABLED' })
+    expect((await prisma.campaignEmailDispatch.findUniqueOrThrow({ where: { eventKey: uncertainKey } })).status).toBe('uncertain')
   })
 })

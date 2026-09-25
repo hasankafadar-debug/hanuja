@@ -83,6 +83,7 @@ export enum PaymentMethod {
 }
 
 export enum NotificationType {
+  customer_campaign = 'customer_campaign',
   order_placed = 'order_placed',
   order_payment_confirmed = 'order_payment_confirmed',
   order_shipped = 'order_shipped',
@@ -136,6 +137,7 @@ export enum AnnouncementStatus {
 }
 
 export enum CampaignDispatchSource {
+  customer_campaign = 'customer_campaign',
   favorite = 'favorite',
   cart = 'cart',
   price_drop = 'price_drop',

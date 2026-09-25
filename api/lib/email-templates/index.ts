@@ -46,6 +46,7 @@ import {
 } from './shared'
 import { renderWithdrawalNotice, renderWithdrawalNoticeText } from './withdrawal-notice'
 import { cancellationActorLabel } from './order-lifecycle'
+import { marketingFooterHtml, marketingFooterText } from './marketing-footer'
 
 export type {
   AdminBankTransferPendingEmailInput,
@@ -645,10 +646,6 @@ export function storeDiscountFollowedSellerTemplate(params: {
       </a>`
     : `<span style="display:inline-block;color:#135854;font-size:14px;font-weight:600;">Mağazayı Gör</span>`
 
-  const unsubscribeCta = isSafeHttpUrl(params.unsubscribeUrl)
-    ? `<a href="${escapeHtml(params.unsubscribeUrl.trim())}" style="color:#135854;">buradan çıkış yapabilirsiniz</a>`
-    : 'buradan çıkış yapabilirsiniz'
-
   const body = `
     <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Takip Ettiğiniz Mağazada İndirim Var</h2>
     <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${customerNameHtml},</p>
@@ -660,16 +657,16 @@ export function storeDiscountFollowedSellerTemplate(params: {
       ${storeCta}
     </p>
     <p style="margin:0;font-size:13px;color:#777;">
-      Bu mağaza için e-posta almak istemiyorsanız
-      ${unsubscribeCta}.
-      Desteklenen posta kutularında bu e-postayı <strong>RET</strong> yazarak yanıtlamak da e-posta bildirimlerini kapatır.
+      Bu e-postayı mağaza bildirimleri için alıyorsunuz. Desteklenen posta kutularında
+      <strong>RET</strong> yazarak yanıtlamak da e-posta bildirimlerini kapatır.
     </p>
+    ${marketingFooterHtml(params.unsubscribeUrl)}
   `
 
   return {
     subject: `${params.sellerName} mağazasında indirim başladı`,
     html: layout('Takip Ettiğiniz Mağazada İndirim Var', body),
-    text: `Merhaba ${params.customerName}, ${params.sellerName} mağazasında indirim başladı. Mağaza: ${params.storeUrl} Çıkış: ${params.unsubscribeUrl}`,
+    text: `Merhaba ${params.customerName}, ${params.sellerName} mağazasında indirim başladı. Mağaza: ${params.storeUrl}\n\n${marketingFooterText(params.unsubscribeUrl)}`,
   }
 }
 
@@ -709,10 +706,6 @@ export function productDiscountTemplate(params: {
       </a>`
     : `<span style="display:inline-block;color:#135854;font-size:14px;font-weight:600;">Ürünü İncele</span>`
 
-  const unsubscribeCta = isSafeHttpUrl(params.unsubscribeUrl)
-    ? `<a href="${escapeHtml(params.unsubscribeUrl.trim())}" style="color:#135854;">abonelikten çıkın</a>`
-    : 'abonelikten çıkın'
-
   const body = `
     <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${title}</h2>
     <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${customerNameHtml},</p>
@@ -720,10 +713,7 @@ export function productDiscountTemplate(params: {
     <p style="margin:0 0 24px;">
       ${productCta}
     </p>
-    <p style="margin:0;font-size:13px;color:#777;">
-      Kampanya e-postalarını almak istemiyorsanız
-      ${unsubscribeCta}.
-    </p>
+    ${marketingFooterHtml(params.unsubscribeUrl)}
   `
 
   const textLead = isFavorite
@@ -733,7 +723,7 @@ export function productDiscountTemplate(params: {
   return {
     subject: title,
     html: layout(title, body),
-    text: `Merhaba ${params.customerName}, ${textLead} Ürünü incele: ${params.productUrl} Abonelikten çıkış: ${params.unsubscribeUrl}`,
+    text: `Merhaba ${params.customerName}, ${textLead} Ürünü incele: ${params.productUrl}\n\n${marketingFooterText(params.unsubscribeUrl)}`,
   }
 }
 

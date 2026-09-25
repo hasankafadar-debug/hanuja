@@ -338,17 +338,15 @@ describe('productDiscountTemplate', () => {
     expect(template.html).toContain('Ürünü İncele') // CTA label still renders, just without a link
   })
 
-  it('omits the unsubscribe anchor when unsubscribeUrl is not http(s)', () => {
-    const template = productDiscountTemplate({
+  it('blocks a campaign when the unsubscribe URL is unsafe', () => {
+    expect(() => productDiscountTemplate({
       customerName: 'Ayşe',
       productName: 'Meşe Sehpa',
       productUrl: 'https://www.hanuja.com.tr/urun/mese-sehpa',
       sellerName: 'Atelier Noa',
       context: 'favorite',
       unsubscribeUrl: 'javascript:alert(1)',
-    })
-
-    expect(template.html).not.toMatch(/href="javascript:/i)
+    })).toThrow('Geçerli abonelikten çıkış bağlantısı')
   })
 })
 

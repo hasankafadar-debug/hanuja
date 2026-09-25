@@ -5,6 +5,7 @@ function client(settings: unknown = { emailEnabled: false, smsEnabled: false, ve
   const db: any = {
     marketingChannelSettings: { findUnique: vi.fn().mockResolvedValue(settings), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     adminAuditLog: { create: vi.fn() }, campaignEmailDispatch: { updateMany: vi.fn() },
+    notificationOutbox: { updateMany: vi.fn() },
   }
   db.$transaction = (fn: (tx: unknown) => unknown) => fn(db)
   return db

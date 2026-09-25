@@ -19,6 +19,7 @@ import { getMarketingChannelStatus } from './marketing-channel.service'
 import { recordNotification } from './notification-outbox.service'
 import { processPriceChangeMarkers } from './price-change-reconcile.service'
 import { evaluatePriceDropCandidates, materializeDuePredictions } from './price-drop-evaluation.service'
+import { createMarketingConsentService } from './marketing-consent.service'
 
 interface CampaignDiscountServiceDeps {
   prisma: PrismaClient
@@ -354,21 +355,7 @@ export function createCampaignDiscountService({ prisma }: CampaignDiscountServic
   async function revokeMarketingEmailConsentByToken(
     token: string,
   ): Promise<{ revoked: true } | null> {
-    const trimmed = token.trim()
-    if (!trimmed) return null
-
-    const consent = await prisma.marketingConsent.findUnique({
-      where: { optOutToken: trimmed },
-      select: { id: true, emailRevokedAt: true },
-    })
-    if (!consent) return null
-    if (consent.emailRevokedAt) return { revoked: true } // already opted out
-
-    await prisma.marketingConsent.update({
-      where: { id: consent.id },
-      data: { emailRevokedAt: new Date() },
-    })
-    return { revoked: true }
+    return createMarketingConsentService(prisma).revokeByToken(token, 'unsubscribe_post')
   }
 
   /**
@@ -377,23 +364,7 @@ export function createCampaignDiscountService({ prisma }: CampaignDiscountServic
    * consent row. Returns the number of consents newly revoked.
    */
   async function revokeMarketingEmailConsentByEmail(email: string): Promise<number> {
-    const normalized = email.trim().toLowerCase()
-    if (!normalized) return 0
-
-    const users = await prisma.user.findMany({
-      where: { email: { equals: normalized, mode: 'insensitive' } },
-      select: { id: true },
-    })
-    if (users.length === 0) return 0
-
-    const result = await prisma.marketingConsent.updateMany({
-      where: {
-        userId: { in: users.map((user) => user.id) },
-        emailRevokedAt: null,
-      },
-      data: { emailRevokedAt: new Date() },
-    })
-    return result.count
+    return createMarketingConsentService(prisma).revokeByEmail(email)
   }
 
   /**
@@ -409,24 +380,9 @@ export function createCampaignDiscountService({ prisma }: CampaignDiscountServic
     userId: string
     source: 'signup' | 'account_settings'
   }): Promise<void> {
-    const now = new Date()
-    await prisma.marketingConsent.upsert({
-      where: { userId },
-      create: {
-        userId,
-        emailConsentAt: now,
-        smsConsentAt: now,
-        consentSource: source,
-        optOutToken: crypto.randomUUID(),
-      },
-      update: {
-        emailConsentAt: now,
-        smsConsentAt: now,
-        emailRevokedAt: null,
-        smsRevokedAt: null,
-        consentSource: source,
-      },
-    })
+    void userId
+    void source
+    throw new Error('İYS hazırlığı tamamlanana kadar yeni pazarlama izni alınmıyor.')
   }
 
   /**
@@ -434,11 +390,9 @@ export function createCampaignDiscountService({ prisma }: CampaignDiscountServic
    * account action. Idempotent and a no-op success when the user has no row.
    */
   async function revokeMarketingConsentByUser({ userId }: { userId: string }): Promise<void> {
-    const now = new Date()
-    await prisma.marketingConsent.updateMany({
-      where: { userId },
-      data: { emailRevokedAt: now, smsRevokedAt: now },
-    })
+    const service = createMarketingConsentService(prisma)
+    await service.revokeByUser(userId, 'email', 'account_settings')
+    await service.revokeByUser(userId, 'sms', 'account_settings')
   }
 
   /**
@@ -450,20 +404,8 @@ export function createCampaignDiscountService({ prisma }: CampaignDiscountServic
   }: {
     userId: string
   }): Promise<{ emailConsented: boolean; smsConsented: boolean }> {
-    const consent = await prisma.marketingConsent.findUnique({
-      where: { userId },
-      select: {
-        emailConsentAt: true,
-        emailRevokedAt: true,
-        smsConsentAt: true,
-        smsRevokedAt: true,
-      },
-    })
-    if (!consent) return { emailConsented: false, smsConsented: false }
-    return {
-      emailConsented: consent.emailConsentAt !== null && consent.emailRevokedAt === null,
-      smsConsented: consent.smsConsentAt !== null && consent.smsRevokedAt === null,
-    }
+    const status = await createMarketingConsentService(prisma).getStatus(userId)
+    return { emailConsented: status.emailConsented, smsConsented: status.smsConsented }
   }
 
   return {

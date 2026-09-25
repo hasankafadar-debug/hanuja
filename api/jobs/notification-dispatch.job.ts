@@ -9,6 +9,7 @@ import { redis } from '../lib/redis'
 import { QUEUE_NAMES } from '../lib/queue'
 import { sendEmail } from '../lib/mailer'
 import { getMarketingChannelStatus } from '../services/marketing-channel.service'
+import { checkMarketingEmailRecipient } from '../services/marketing-recipient-policy'
 import { PLATFORM_LEGAL_INFO } from '../lib/platform-info'
 import {
   orderConfirmationTemplate,
@@ -169,10 +170,20 @@ function contractLinks(data: EmailData): OrderContractLinks {
 async function buildEmailPayload(
   type: CanonicalNotificationType,
   data: EmailData | undefined,
+  recipient?: { userId: string; emailTo: string },
 ): Promise<{ subject: string; html: string; text: string } | null> {
   if (!data) return null
 
   switch (type) {
+    case NotificationTypeEnum.customer_campaign: {
+      if (!recipient) throw new Error('EMAIL_RECIPIENT_INVALID')
+      const { prisma } = await import('../lib/prisma')
+      const { loadSubmittedCustomerCampaign } = await import('../services/customer-campaign.service')
+      const { customerCampaignTemplate } = await import('../lib/email-templates/customer-campaign')
+      const snapshot = await loadSubmittedCustomerCampaign(prisma, str(data, 'campaignId'), str(data, 'recipientId'), recipient.userId)
+      if (snapshot.recipientEmail.trim().toLowerCase() !== recipient.emailTo) throw new Error('EMAIL_RECIPIENT_ADDRESS_CHANGED')
+      return customerCampaignTemplate(snapshot.content, str(data, 'unsubscribeUrl'))
+    }
     case NotificationTypeEnum.order_placed: {
       const method = paymentMethod(data) ?? 'card'
       const summary = amountSummary(data)
@@ -553,7 +564,7 @@ export async function processNotificationDispatch(
   // Campaign gate (phase 6): closed legacy types, reservation, shared limits and the
   // lowest-price re-check run before either leg; a refusal produces neither.
   if (!isOps) {
-    const gate = await runCampaignSendGate(prisma, { type, eventKey, userId })
+    const gate = await runCampaignSendGate(prisma, { type, eventKey, userId, emailTo: job.data.emailTo ?? '' })
     if (!gate.proceed) {
       const recipient = (job.data.emailTo ?? user?.email ?? userId).trim().toLowerCase()
       await prisma.notificationDelivery.upsert({
@@ -736,16 +747,14 @@ export async function processNotificationDispatch(
     if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(emailTo))
       throw new Error('EMAIL_RECIPIENT_INVALID')
     if (config.category === 'kampanya') {
-      const consent = await prisma.marketingConsent.findUnique({
-        where: { userId },
-      })
-      if (!consent?.emailConsentAt || consent.emailRevokedAt) {
+      const consentReason = await checkMarketingEmailRecipient(prisma, userId, emailTo, String(data?.['unsubscribeUrl'] ?? ''))
+      if (consentReason) {
         await prisma.notificationDelivery.update({
           where: { id: email.id },
           data: {
             status: 'sent',
             transportStatus: 'skipped',
-            lastError: 'MARKETING_CONSENT_MISSING',
+            lastError: consentReason,
             leaseToken: null,
             leaseExpiresAt: null,
           },
@@ -754,7 +763,7 @@ export async function processNotificationDispatch(
         return
       }
     }
-    const template = await buildEmailPayload(type, data)
+    const template = await buildEmailPayload(type, data, { userId, emailTo })
     if (!template) throw new Error('EMAIL_TEMPLATE_UNSUPPORTED')
     const messageId =
       email.messageId ??
@@ -766,13 +775,14 @@ export async function processNotificationDispatch(
     const unsubscribeUrl = String(data?.['unsubscribeUrl'] ?? '')
     if (config.category === 'kampanya') {
       const channel = await getMarketingChannelStatus(prisma, 'email')
-      if (!channel.canSend) {
+      const blockedReason = !channel.canSend ? channel.reason : await checkMarketingEmailRecipient(prisma, userId, emailTo, unsubscribeUrl)
+      if (blockedReason) {
         await prisma.notificationDelivery.update({
           where: { id: email.id },
-          data: { status: 'sent', transportStatus: 'skipped', lastError: channel.reason,
+          data: { status: 'sent', transportStatus: 'skipped', lastError: blockedReason,
             leaseToken: null, leaseExpiresAt: null },
         })
-        if (reservationTracked) await releaseSendingReservation(prisma, eventKey, channel.reason)
+        if (reservationTracked) await releaseSendingReservation(prisma, eventKey, blockedReason)
         return
       }
     }

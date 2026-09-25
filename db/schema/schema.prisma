@@ -313,6 +313,12 @@ enum LedgerEntryType {
 
 enum AdminActionType {
   marketing_channel_updated
+  customer_campaign_created
+  customer_campaign_updated
+  customer_campaign_deleted
+  customer_campaign_copied
+  customer_campaign_submitted
+  customer_campaign_retry_requested
   payment_approved
   payment_rejected
   bank_transfer_approved
@@ -383,6 +389,7 @@ enum HomePromoSlot {
 }
 
 enum NotificationType {
+  customer_campaign
   order_placed
   order_payment_confirmed
   order_shipped
@@ -452,6 +459,7 @@ enum NotificationDeliveryStatus {
 }
 
 enum CampaignDispatchSource {
+  customer_campaign
   favorite
   cart
   price_drop
@@ -596,6 +604,7 @@ model User {
   paidPayouts             Payout[]                @relation("PayoutPaidByAdmin")
   createdSellerInvoices   SellerInvoice[]         @relation("SellerInvoiceCreatedByAdmin")
   marketingConsent        MarketingConsent?
+  customerCampaignRecipients CustomerCampaignRecipient[]
   campaignEmailDispatches CampaignEmailDispatch[]
   priceDropRecipients     PriceDropRecipient[]
 
@@ -2300,6 +2309,8 @@ model MediaAsset {
   homePromoMedia             HomePromo[]                        @relation("HomePromoMedia")
   announcementMedia          Announcement[]                     @relation("AnnouncementMedia")
   announcementPoster         Announcement[]                     @relation("AnnouncementPoster")
+  customerCampaignMedia      CustomerCampaign[]                 @relation("CustomerCampaignMedia")
+  customerCampaignPoster     CustomerCampaign[]                 @relation("CustomerCampaignPoster")
 
   @@index([uploadedBy])
   @@index([uploadedBy, folder, status])
@@ -2578,6 +2589,78 @@ model AnnouncementRecipient {
   @@index([retryRequestedAt])
   @@index([sellerId, readAt])
   @@map("announcement_recipients")
+}
+
+enum CustomerCampaignChannel {
+  email
+  sms
+}
+
+enum CustomerCampaignStatus {
+  draft
+  submitted
+}
+
+/// Admin-authored commercial messages for customers; separate from operational seller announcements.
+/// Submitted content and recipient rows are immutable. A new campaign is made by copying.
+model CustomerCampaign {
+  id                 String                  @id @default(cuid())
+  channel            CustomerCampaignChannel @default(email)
+  status             CustomerCampaignStatus  @default(draft)
+  version            Int                     @default(1)
+  title              String
+  body               String
+  ctaLabel           String?
+  ctaUrl             String?
+  mediaAssetId       String?
+  posterAssetId      String?
+  audience           Json
+  audienceHash       String?
+  recipientCount     Int                     @default(0)
+  submittedContent   Json?
+  submittedAt        DateTime?
+  submittedByAdminId String?
+  createdByAdminId   String
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  mediaAsset  MediaAsset?                 @relation("CustomerCampaignMedia", fields: [mediaAssetId], references: [id], onDelete: Restrict)
+  posterAsset MediaAsset?                 @relation("CustomerCampaignPoster", fields: [posterAssetId], references: [id], onDelete: Restrict)
+  recipients  CustomerCampaignRecipient[]
+
+  @@index([status, createdAt])
+  @@index([channel, createdAt])
+  @@index([mediaAssetId])
+  @@index([posterAssetId])
+  @@map("customer_campaigns")
+}
+
+/// Frozen customer identity and delivery key. userId may null after account deletion.
+model CustomerCampaignRecipient {
+  id               String   @id @default(cuid())
+  campaignId       String
+  userId           String?
+  userDeletedAt    DateTime?
+  email            String?
+  phone            String?
+  eventKey         String   @unique
+  status           String   @default("pending")
+  statusReason     String?
+  deliveryId       String?
+  outboxWrittenAt  DateTime?
+  retryRequestedAt DateTime?
+  submittedAt      DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  campaign CustomerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, userId])
+  @@index([campaignId, status])
+  @@index([outboxWrittenAt, submittedAt])
+  @@index([retryRequestedAt])
+  @@index([userId])
+  @@map("customer_campaign_recipients")
 }
 
 /// Per-event operations mailbox for admin notifications. One row per event slug.
@@ -3097,4 +3180,41 @@ model ProductAttributeValue {
   @@index([productId])
   @@index([optionId])
   @@map("product_attribute_values")
+}
+
+model MarketingConsentAddress {
+  id            String    @id @default(cuid())
+  userId        String
+  brand         String    @default("hanuja")
+  channel       String
+  address       String
+  status        String    @default("legacy_unverified")
+  grantedAt     DateTime?
+  revokedAt     DateTime?
+  verifiedIysAt DateTime?
+  textVersion   String?
+  source        String?
+  optOutToken   String    @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([userId, brand, channel, address])
+  @@index([channel, address, status])
+  @@map("marketing_consent_addresses")
+}
+
+model MarketingConsentEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  brand       String   @default("hanuja")
+  channel     String
+  address     String?
+  action      String
+  source      String
+  textVersion String?
+  operationId String   @unique
+  createdAt   DateTime @default(now())
+
+  @@index([userId, channel, createdAt])
+  @@map("marketing_consent_events")
 }

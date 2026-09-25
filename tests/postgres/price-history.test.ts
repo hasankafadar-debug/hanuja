@@ -15,6 +15,22 @@ import { Decimal } from '@prisma/client/runtime/client'
 
 const h = vi.hoisted(() => ({ send: vi.fn() }))
 vi.mock('../../api/lib/mailer', () => ({ sendEmail: h.send }))
+// These tests exercise the price-history and dispatch pipeline with marketing
+// enabled. Readiness and IYS fail-closed behavior are covered against the real
+// module in marketing-channel-control.test.ts.
+vi.mock('../../api/services/marketing-channel.service', () => ({
+  getMarketingChannelStatus: vi.fn(async () => ({ canSend: true })),
+  releaseBlockedMarketingReservation: vi.fn(async () => undefined),
+}))
+vi.mock('../../api/services/marketing-recipient-policy', () => ({
+  checkMarketingEmailRecipient: vi.fn(async (db: PrismaClient | Prisma.TransactionClient, userId: string) => {
+    const consent = await db.marketingConsent.findUnique({
+      where: { userId },
+      select: { emailConsentAt: true, emailRevokedAt: true },
+    })
+    return consent?.emailConsentAt && !consent.emailRevokedAt ? null : 'MARKETING_ADDRESS_CONSENT_MISSING'
+  }),
+}))
 vi.mock('../../api/lib/prisma', () => ({
   get prisma() {
     return prisma

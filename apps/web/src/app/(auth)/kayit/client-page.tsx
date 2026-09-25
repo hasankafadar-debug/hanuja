@@ -103,15 +103,14 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
 
       setVerificationEmail(email)
 
-      // Fire-and-forget marketing opt-in. Requires an active session; if signup
-      // gates on email verification without one, the write is skipped server-side
-      // (401) and simply retried later from account settings. Never blocks signup.
+      let consentFailed = false
       if (marketingConsent) {
-        void csrfFetch('/api/user/marketing-consent', {
+        const consentResponse = await csrfFetch('/api/user/marketing-consent', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ consented: true }),
-        }).catch(() => {})
+          body: JSON.stringify({ consented: true, source: 'signup' }),
+        }).catch(() => null)
+        consentFailed = !consentResponse?.ok
       }
 
       const verificationResult = await sendVerificationEmail(email)
@@ -121,7 +120,7 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
         return
       }
 
-      setVerificationMessage('Hesabınız oluşturuldu. Doğrulama bağlantısı e-posta adresinize gönderildi.')
+      setVerificationMessage('Hesabınız oluşturuldu. Doğrulama bağlantısı e-posta adresinize gönderildi.' + (consentFailed ? ' İletişim izniniz kaydedilemedi; üyeliğiniz bu durumdan etkilenmedi.' : ''))
     } catch (err) {
       const message =
         err instanceof Error && err.message
@@ -276,13 +275,20 @@ export function SignupPageClient({ turnstileSiteKey }: SignupPageClientProps) {
             id="marketingConsent"
             type="checkbox"
             checked={marketingConsent}
+            disabled
+            aria-describedby="marketing-consent-readiness"
             onChange={(event) => setMarketingConsent(event.target.checked)}
             className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 text-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
           />
           <label htmlFor="marketingConsent" className="text-xs leading-relaxed text-neutral-500">
-            Kampanya, indirim ve fırsatlardan e-posta ve SMS ile haberdar olmak istiyorum.
+            Hanuja’dan reklam, indirim ve promosyon bilgilerinin e-posta ve SMS yoluyla tarafıma gönderilmesini istiyorum.
           </label>
         </div>
+
+        <p id="marketing-consent-readiness" className="text-xs text-neutral-500">
+          İYS hazırlığı tamamlanana kadar yeni izin alınmıyor. Bu tercih üyelik için zorunlu değildir.{' '}
+          <a href="/ticari-iletisim" className="underline">Ticari iletişim bilgilendirmesi</a>
+        </p>
 
         <p className="text-xs leading-relaxed text-neutral-400">
           Üye olarak{' '}

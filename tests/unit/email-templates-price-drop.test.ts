@@ -14,6 +14,8 @@ const base = {
 describe('productPriceDropTemplate', () => {
   it('uses the fixed subject and starts with "Favorilediğiniz"', () => {
     const email = productPriceDropTemplate(base)
+    expect(email.html).toContain('MERSİS:')
+    expect(email.text).toContain('Kampanya e-postalarından çıkış:')
     expect(email.subject).toBe(PRICE_DROP_SUBJECT)
     expect(email.subject).toBe('Favorilediğiniz ürün son 15 günün en düşük fiyatında')
     expect(email.text).toContain('Favorilediğiniz Meşe <script>alert(1)</script> Sehpa – Doğal & Ceviz son 15 günün en düşük fiyatında.')

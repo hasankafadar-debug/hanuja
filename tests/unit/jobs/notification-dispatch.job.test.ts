@@ -1,3 +1,10 @@
+// Isolate pipeline behavior; actual address and token policy has dedicated tests.
+vi.mock('../../../api/services/marketing-recipient-policy', () => ({
+  checkMarketingEmailRecipient: async (db: any, userId: string) => {
+    const consent = await db.marketingConsent.findUnique({ where: { userId } })
+    return !consent?.emailConsentAt || consent.emailRevokedAt ? 'MARKETING_CONSENT_MISSING' : null
+  },
+}))
 // This suite isolates existing campaign behavior with a configured channel. Central fail-closed behavior has dedicated tests.
 vi.mock('../../../api/services/marketing-channel.service', () => ({
   getMarketingChannelStatus: async () => ({ canSend: true }),
