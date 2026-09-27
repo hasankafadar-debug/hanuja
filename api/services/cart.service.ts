@@ -235,23 +235,39 @@ export function createCartService({ prisma }: CartServiceDeps) {
       const unitPrice = applyEffectivePricing(basePrice, pricing)
 
       const cart = await carts.findOrCreate(params.userId)
-      const existingItem = (
-        cart.items as Array<{ productId: string; variantId: string | null; quantity: number }>
-      ).find(
-        (item) =>
-          item.productId === params.productId &&
-          (item.variantId ?? '') === (params.variantId ?? ''),
-      )
+      const variantId = params.variantId ?? null
 
-      if (existingItem) {
-        const newQty = existingItem.quantity + params.quantity
+      // Adding a product that is already in the cart raises the quantity of its line.
+      // The lines are read under a cart lock so a double tap cannot create a second line;
+      // duplicate lines left by the earlier upsert (which never matched NULL variants)
+      // are folded into the oldest one.
+      const item = await prisma.$transaction(async (tx) => {
+        const txCarts = createCartRepository(tx as PrismaClient)
+        await txCarts.lockCart(cart.id)
+
+        const lines = await txCarts.findLinesForProduct(cart.id, params.productId, variantId)
+        const [line, ...duplicates] = lines
+        if (!line) {
+          return txCarts.createItem({
+            cartId: cart.id,
+            productId: params.productId,
+            variantId,
+            quantity: params.quantity,
+            unitPrice,
+          })
+        }
+
+        const newQty = lines.reduce((sum, existing) => sum + existing.quantity, 0) + params.quantity
         const maxAllowed = Math.min(availableStock, MAX_ITEM_QUANTITY)
         if (newQty > maxAllowed) {
           throw new ValidationError(`Sepette en fazla ${maxAllowed} adet bu urun bulunabilir`)
         }
-      }
 
-      const item = await carts.addItem(cart.id, params.productId, params.quantity, params.variantId, unitPrice)
+        if (duplicates.length > 0) {
+          await txCarts.deleteItems(cart.id, duplicates.map((duplicate) => duplicate.id))
+        }
+        return txCarts.updateItemQuantity(cart.id, line.id, newQty)
+      })
 
       await productAnalytics.recordProductEvent({
         productId: params.productId,

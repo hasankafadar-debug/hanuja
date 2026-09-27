@@ -57,12 +57,11 @@ function buildPrisma(options: {
   cartItems?: Array<{ id: string; productId: string; variantId: string | null; quantity: number; unitPrice: Decimal }>
 } = {}) {
   const product = options.product ?? catalogProduct()
-  const cartItemUpsert = vi.fn().mockImplementation(async (args: { create: { unitPrice: Decimal; quantity: number } }) => ({
-    id: 'item-1',
-    ...args.create,
-  }))
+  const cartItems = options.cartItems ?? []
 
-  return {
+  const prisma = {
+    $queryRaw: vi.fn().mockResolvedValue([]),
+    $transaction: vi.fn(async (run: (tx: unknown) => Promise<unknown>) => run(prisma)),
     platformSettings: { upsert: vi.fn().mockResolvedValue(SETTINGS_ROW) },
     cart: {
       findUnique: vi.fn().mockResolvedValue(
@@ -70,9 +69,21 @@ function buildPrisma(options: {
           ? { id: 'cart-1', userId: 'u1', couponCode: null, items: options.cartItems }
           : null,
       ),
-      upsert: vi.fn().mockResolvedValue({ id: 'cart-1', userId: 'u1', couponCode: null, items: [] }),
+      upsert: vi.fn().mockResolvedValue({ id: 'cart-1', userId: 'u1', couponCode: null, items: cartItems }),
     },
-    cartItem: { upsert: cartItemUpsert },
+    cartItem: {
+      findMany: vi.fn(async (args: { where: { productId: string; variantId: string | null } }) =>
+        cartItems.filter(
+          (item) => item.productId === args.where.productId && item.variantId === args.where.variantId,
+        ),
+      ),
+      create: vi.fn(async (args: { data: { unitPrice: Decimal; quantity: number } }) => ({ id: 'item-new', ...args.data })),
+      update: vi.fn(async (args: { where: { id: string }; data: { quantity: number } }) => ({
+        id: args.where.id,
+        ...args.data,
+      })),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
     product: {
       findMany: vi.fn().mockResolvedValue([product]),
       findUnique: vi.fn().mockResolvedValue(product),
@@ -82,6 +93,7 @@ function buildPrisma(options: {
     // product analytics: non-customer role short-circuits the event write
     user: { findUnique: vi.fn().mockResolvedValue({ role: 'seller' }) },
   }
+  return prisma
 }
 
 describe('cart.service — price and availability are re-derived from the database', () => {
@@ -131,8 +143,8 @@ describe('cart.service — price and availability are re-derived from the databa
 
     await service.addItem({ userId: 'u1', productId: 'p1', quantity: 1 })
 
-    const upsertArgs = prisma.cartItem.upsert.mock.calls[0]?.[0] as { create: { unitPrice: Decimal } }
-    expect(upsertArgs.create.unitPrice.toNumber()).toBe(249)
+    const createArgs = prisma.cartItem.create.mock.calls[0]?.[0] as { data: { unitPrice: Decimal } }
+    expect(createArgs.data.unitPrice.toNumber()).toBe(249)
   })
 
   it('addItem rejects a product that is no longer published', async () => {
@@ -140,7 +152,8 @@ describe('cart.service — price and availability are re-derived from the databa
     const service = createCartService({ prisma: prisma as never })
 
     await expect(service.addItem({ userId: 'u1', productId: 'p1', quantity: 1 })).rejects.toBeInstanceOf(NotFoundError)
-    expect(prisma.cartItem.upsert).not.toHaveBeenCalled()
+    expect(prisma.cartItem.create).not.toHaveBeenCalled()
+    expect(prisma.cartItem.update).not.toHaveBeenCalled()
   })
 
   it('addItem rejects a suspended seller and a seller in Tatil Modu', async () => {

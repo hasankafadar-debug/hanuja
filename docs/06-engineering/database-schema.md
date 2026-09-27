@@ -305,6 +305,15 @@ See `docs/07-operations/email-phase-6-report.md`.
 `CartItem` carries `@@index([productId])` to support the campaign-discount job's
 cart-audience lookup (users with a given product in their cart) without a full table scan.
 
+### CartItem line uniqueness (2026-09-27)
+`@@unique([cartId, productId, variantId])` does **not** guarantee one line per product: `variantId`
+is NULL for products without variants and PostgreSQL treats NULLs as distinct. One line per
+(product, variant) is enforced in `cart.service.addItem` instead: it locks the cart row
+(`SELECT … FOR UPDATE`, `cart.repository.lockCart`), reads the matching lines with
+`variantId: null` for "no variant", and raises the quantity of the oldest line. Duplicate lines left by
+the earlier upsert (which looked lines up with `variantId: ''` and never matched) are folded into
+that line on the next add of the same product. Covered by `tests/postgres/cart-add-item.test.ts`.
+
 ---
 
 ### ProductQuestionThread / ProductQuestionMessage (2026-09-23)

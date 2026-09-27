@@ -823,6 +823,23 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
     kutuları zeminsiz olabilir); `badge.tsx` `text-*-fg` sınıfları ve `bg-info` preset'te tanımsız.
   - Kategori gruplaması ve buna göre mobil menü tasarımı ayrı iş (iş sahibi kararı, 2026-09-27).
 
+### 39. Sepette aynı ürün için tekrar eden satırlar (yeni — 2026-09-27)
+
+- **Belirti:** varyantsız bir ürünü tekrar sepete eklemek adedi artırmıyor, her seferinde yeni satır açıyordu;
+  sipariş de aynı ürünü ayrı satırlarda taşıyordu. "Sepette en fazla X adet" sınırı yalnız ilk satırı gördüğü
+  için aşılabiliyordu. Stok taşması yoktu (sipariş anındaki koşullu stok düşümü satır satır kontrol eder).
+- **Kök neden:** `cart.repository.addItem` upsert'i satırı `variantId: ''` ile arıyor, `NULL` ile yazıyordu;
+  `@@unique([cartId, productId, variantId])` `NULL`'ları farklı saydığı için engellemiyordu.
+- **Düzeltme (şema değişmedi):** `cart.service.addItem` sepet satırını kilitler (`SELECT … FOR UPDATE`),
+  ürünün satırlarını `variantId: null` ile okur, varsa en eski satırın adedini artırır, yoksa oluşturur; adet
+  sınırı ürünün sepetteki toplam adedine uygulanır. Eski hatadan kalan tekrar eden satırlar aynı ürün yeniden
+  eklenince tek satırda birleşir; eklenmezse sipariş/silinene kadar kalır (iş sahibi kararı: tek seferlik
+  temizlik betiği yok). Ayrıntı: `docs/06-engineering/database-schema.md` §"CartItem line uniqueness".
+- **Migration YOK, env YOK.** `cart.service` yalnız web'in sepet route'larından çağrılır → yalnız **web**.
+- **Testler:** `tests/postgres/cart-add-item.test.ts` (5 test, gerçek PostgreSQL: tekrar ekleme, varyant ayrımı,
+  eşzamanlı 4 ekleme, eski tekrar eden satırların birleşmesi, toplam adet sınırı; eski kodla 4'ü başarısız),
+  `tests/unit/services/cart-price-freshness.service.test.ts` yeni yola uyarlandı.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
