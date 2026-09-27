@@ -35,8 +35,9 @@ function SiteHeader() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-1 min-[440px]:gap-4">
           <Link href="/" className="min-w-0 shrink-0" aria-label="Hanuja — Ana Sayfa">
+            {/* Phone logo must fit 360px next to the four 36px icons (~168px left for it). */}
             <span className="inline-flex min-[440px]:hidden">
-              <HanujaLogo scale={0.58} textScale={0.72} showTagline={false} variant="light" />
+              <HanujaLogo scale={0.58} textScale={1.3} showTagline={false} variant="light" />
             </span>
             <span className="hidden min-[440px]:inline-flex">
               <HanujaLogo scale={0.85} textScale={1.4} variant="light" />
