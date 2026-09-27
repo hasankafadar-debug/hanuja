@@ -33,12 +33,12 @@ function SiteHeader() {
       }}
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between gap-1 min-[400px]:gap-4">
+        <div className="flex h-16 items-center justify-between gap-1 min-[440px]:gap-4">
           <Link href="/" className="min-w-0 shrink-0" aria-label="Hanuja — Ana Sayfa">
-            <span className="inline-flex min-[400px]:hidden">
+            <span className="inline-flex min-[440px]:hidden">
               <HanujaLogo scale={0.58} textScale={0.72} showTagline={false} variant="light" />
             </span>
-            <span className="hidden min-[400px]:inline-flex">
+            <span className="hidden min-[440px]:inline-flex">
               <HanujaLogo scale={0.85} textScale={1.4} variant="light" />
             </span>
           </Link>

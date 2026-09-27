@@ -152,18 +152,20 @@ export default async function OrdersPage() {
                   </Link>
                 </Button>
 
+                {/* Documents load when a dialog is opened: shipping every order's HTML with
+                    the list made this page ~13x heavier than the other account pages. */}
                 {order.legalSnapshot ? (
                   <>
                     <LegalDocumentDialog
                       title="Mesafeli Satış Sözleşmesi"
-                      html={order.legalSnapshot.distanceSalesHtml}
+                      htmlUrl={`/api/orders/${order.id}/documents/contracts/distance-sales?goruntule=1`}
                       triggerLabel="Mesafeli Satış"
                       triggerVariant="outline"
                       downloadHref={`/api/orders/${order.id}/documents/contracts/distance-sales`}
                     />
                     <LegalDocumentDialog
                       title="Ön Bilgilendirme Formu"
-                      html={order.legalSnapshot.preInformationHtml}
+                      htmlUrl={`/api/orders/${order.id}/documents/contracts/pre-information?goruntule=1`}
                       triggerLabel="Ön Bilgilendirme"
                       triggerVariant="outline"
                       downloadHref={`/api/orders/${order.id}/documents/contracts/pre-information`}

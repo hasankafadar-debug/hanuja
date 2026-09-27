@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, useToast } from '@hanuja/ui'
 import { Heart, MessageCircleQuestion, Share2, ShoppingCart } from 'lucide-react'
 import { csrfFetch } from '@/lib/csrf-fetch'
 import { getSession } from '@/lib/auth-client'
+import { CART_CHANGED_EVENT, type CartChangedDetail } from '@/lib/cart-flight'
 import { AskQuestionPanel } from '@/components/product-questions/ask-question-panel'
+import { CartAddedFlyout } from '@/components/cart-added-flyout'
 
 interface Props {
   productId: string
@@ -62,6 +64,10 @@ export default function AddToCartButton({
   const [questionOpen, setQuestionOpen] = useState(false)
   const [questionAutoFocus, setQuestionAutoFocus] = useState(false)
   const [questionChecking, setQuestionChecking] = useState(false)
+  const [cartFlyoutKey, setCartFlyoutKey] = useState<number | null>(null)
+  // The header badge is refreshed when the confirmation lands; if it never lands
+  // (a newer add replaced it, or the page is left mid-flight) it is refreshed on unmount.
+  const cartRefreshPendingRef = useRef(false)
   const [selectedVariantId, setSelectedVariantId] = useState(
     initialVariantId && variants.some((variant) => variant.id === initialVariantId)
       ? initialVariantId
@@ -139,17 +145,31 @@ export default function AddToCartButton({
       }
 
       setAdded(true)
-      toast({
-        title: 'Sepete eklendi',
-        description: 'Ürün sepetinize eklendi.',
-        variant: 'success',
-      })
-      window.dispatchEvent(new CustomEvent('hanuja:cart-changed'))
+      cartRefreshPendingRef.current = true
+      setCartFlyoutKey((key) => (key ?? 0) + 1)
       setTimeout(() => setAdded(false), 2000)
     } finally {
       setLoading(false)
     }
   }
+
+  const announceCartAdded = useCallback(() => {
+    cartRefreshPendingRef.current = false
+    window.dispatchEvent(
+      new CustomEvent<CartChangedDetail>(CART_CHANGED_EVENT, { detail: { reason: 'added' } }),
+    )
+  }, [])
+
+  const handleCartFlyoutLanded = useCallback(() => {
+    setCartFlyoutKey(null)
+    announceCartAdded()
+  }, [announceCartAdded])
+
+  useEffect(() => {
+    return () => {
+      if (cartRefreshPendingRef.current) announceCartAdded()
+    }
+  }, [announceCartAdded])
 
   async function handleToggleFavorite() {
     const nextFavorite = !isFavorite
@@ -394,6 +414,10 @@ export default function AddToCartButton({
           <span className="truncate">Soru Sor</span>
         </Button>
       </div>
+
+      {cartFlyoutKey !== null ? (
+        <CartAddedFlyout key={cartFlyoutKey} onLanded={handleCartFlyoutLanded} />
+      ) : null}
 
       {questionOpen ? (
         <div id="product-question-panel">

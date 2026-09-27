@@ -783,6 +783,46 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   - Eski durum geçmişi kayıtlarındaki dekont notu/indirim metni satıcı zaman çizelgesinde kalır.
   - İptal sonrası yenilenme ve Detay geri bildirimi canlıda doğrulanacak.
 
+### 38. Mobil mağaza: sepete ekleme bildirimi, başlık taşması, kategori menüsü, Siparişlerim (yeni — 2026-09-27)
+
+- **Belirtiler (iPhone 16 Pro, 402 px, canlıda doğrulandı):**
+  - "Sepete eklendi" bildirimi saydamdı, yazısı başlıkla üst üste biniyordu.
+  - Sepet rozeti ekranın dışında kalıyordu (401–417 px); tüm mağaza sayfalarında 15 px yatay taşma vardı.
+  - Kategori menüsünün açılır paneli masaüstünde de telefonda da görünmüyordu; masaüstünde üzerine
+    gelince menü ~7 px sola kayıyordu.
+  - Siparişlerim diğer hesap sayfalarından belirgin yavaştı.
+- **Kök nedenler:**
+  - Toast varyantları `bg-success/10`, `border-success/30`, `text-success-fg` kullanıyordu. Preset renkleri
+    `<alpha-value>`'suz `var(--color-*)` olduğu için `/NN` sınıfları hiç üretilmez, `*-fg` renkleri tanımsızdır
+    (aynı kısıt `stat-card.tsx` yorumunda). Arka plan hiç yoktu.
+  - Büyük logo `min-[400px]`'de devreye giriyordu ama satır 429 px istiyor.
+  - `e4517f6` (2026-07-15, kategori gizleme ile aynı commit) `MegaMenu`'yü `overflow-x-auto` kutusuna sardı.
+    `overflow-x: auto` dikeyi de kırpar: panel 45 px'lik şeride hapsoldu, açılınca çıkan dikey kaydırma çubuğu
+    menüyü sola itti.
+  - Siparişlerim her siparişin iki sözleşme HTML'ini `LegalDocumentDialog` prop'u olarak gönderiyordu: 9 siparişte
+    RSC 311 KB (262 KB'ı sözleşme), Favorilerim 24 KB; TTFB aynıydı.
+- **Düzeltme:**
+  - Sepete ekleme: tek satırlık ince beyaz kutu 1 sn görünür, başlıktaki sepet ikonuna çekilir, ardından rozet
+    sayısı belirir (`cart-added-flyout.tsx`, `lib/cart-flight.ts`, `cart-icon.tsx`). Reduced-motion'da yalnız solar.
+  - Diğer toast'lar: beyaz zemin, renkli çerçeve + ikon; başlık yazısı AA kontrast için bir ton koyu.
+  - Başlık: büyük logo `min-[440px]`; altında sembollü küçük logo.
+  - Menü: sarmalayıcı kaldırıldı. Panel yalnız gerçek fareyle hover'da açılır; dokunmatikte ilk dokunuş paneli
+    açar/kapatır, panelde "Tüm … ürünleri" linki var, dışarı dokununca kapanır, telefonda tek sütun.
+    "Ürünü olmayan kategori gizli, ürün yayınlanınca görünür" kuralı değişmedi; kurucu fonksiyonlar
+    `apps/web/src/lib/storefront-nav-menu.ts`'e taşınıp ilk kez teste bağlandı.
+  - Siparişlerim: `LegalDocumentDialog` `htmlUrl` kabul eder; belge dialog ilk açıldığında mevcut
+    `/api/orders/{id}/documents/contracts/{kind}?goruntule=1` route'undan (oturum + sahiplik kontrollü) yüklenir.
+    `html` kullanan sipariş detayı, satıcı ve admin panelleri değişmedi.
+- **Migration YOK, env YOK.** Zorunlu redeploy yalnız **web**. `packages/ui` değişiklikleri: `Toaster` ve
+  `MegaMenu` yalnız web'de; `LegalDocumentDialog` additive → seller/admin redeploy gerekmez.
+- **Testler:** `tests/unit/toast-variant-classes.test.ts` (sınıfları gerçek preset'le derler),
+  `tests/unit/storefront-nav-menu.test.ts`, `tests/unit/cart-flight.test.ts`,
+  `tests/unit/storefront-mobile-regressions.test.ts`. Animasyon node ortamında test edilemez; gözle doğrulanır.
+- **Açık uçlar (bu işte dokunulmadı):**
+  - `alert.tsx` success/warning/info/destructive varyantları aynı `/NN` hatasını taşıyor (panellerdeki uyarı
+    kutuları zeminsiz olabilir); `badge.tsx` `text-*-fg` sınıfları ve `bg-info` preset'te tanımsız.
+  - Kategori gruplaması ve buna göre mobil menü tasarımı ayrı iş (iş sahibi kararı, 2026-09-27).
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

@@ -8,7 +8,7 @@
 import * as React from "react"
 import * as ToastPrimitive from "@radix-ui/react-toast"
 import { cva, type VariantProps } from "class-variance-authority"
-import { X } from "lucide-react"
+import { CircleAlert, CircleCheck, TriangleAlert, X } from "lucide-react"
 import { cn } from "../lib/utils"
 
 const ToastProvider = ToastPrimitive.Provider
@@ -28,15 +28,22 @@ const ToastViewport = React.forwardRef<
 ))
 ToastViewport.displayName = ToastPrimitive.Viewport.displayName
 
+/*
+ * Variant colors avoid `/NN` opacity utilities and `*-fg` names on purpose: the Tailwind
+ * preset declares colors as bare `var(--color-*)` with no `<alpha-value>` placeholder, so
+ * `bg-success/10` and friends are dropped at build time and the toast rendered with no
+ * background at all (see also stat-card.tsx). Solid white keeps the text readable over
+ * the header it overlaps on phones.
+ */
 const toastVariants = cva(
   "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-4 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
   {
     variants: {
       variant: {
         default: "border border-border bg-background text-foreground",
-        success: "border-success/30 bg-success/10 text-success-fg",
-        destructive: "border-destructive/30 bg-destructive/10 text-destructive group border",
-        warning: "border-warning/30 bg-warning/10 text-warning-fg",
+        success: "border-success bg-white text-foreground",
+        destructive: "border-destructive bg-white text-foreground",
+        warning: "border-warning bg-white text-foreground",
       },
     },
     defaultVariants: {
@@ -235,20 +242,36 @@ function useToast() {
 
 // --- Toaster convenience component ---
 
+// Title text uses a darker shade than the brand success/warning colors, which fall
+// below 4.5:1 contrast on white at this text size.
+const TOAST_TITLE_TONE = {
+  success: { Icon: CircleCheck, className: "text-[#15803d]" },
+  destructive: { Icon: CircleAlert, className: "text-destructive" },
+  warning: { Icon: TriangleAlert, className: "text-[#b45309]" },
+} as const
+
 function Toaster() {
   const { toasts } = useToast()
   return (
     <ToastProvider>
-      {toasts.map(({ id, title, description, action, variant, duration }) => (
-        <Toast key={id} {...(variant != null ? { variant } : {})} {...(duration != null ? { duration } : {})}>
-          <div className="grid gap-1">
-            {title && <ToastTitle>{title}</ToastTitle>}
-            {description && <ToastDescription>{description}</ToastDescription>}
-          </div>
-          {action}
-          <ToastClose />
-        </Toast>
-      ))}
+      {toasts.map(({ id, title, description, action, variant, duration }) => {
+        const tone = variant && variant !== "default" ? TOAST_TITLE_TONE[variant] : null
+        return (
+          <Toast key={id} {...(variant != null ? { variant } : {})} {...(duration != null ? { duration } : {})}>
+            <div className="grid gap-1">
+              {title && (
+                <ToastTitle className={cn(tone && "flex items-center gap-1.5", tone?.className)}>
+                  {tone ? <tone.Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
+                  {title}
+                </ToastTitle>
+              )}
+              {description && <ToastDescription>{description}</ToastDescription>}
+            </div>
+            {action}
+            <ToastClose />
+          </Toast>
+        )
+      })}
       <ToastViewport />
     </ToastProvider>
   )
