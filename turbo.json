@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalDependencies": ["patches/**"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

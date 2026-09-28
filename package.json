@@ -75,6 +75,9 @@
       "tmp": "0.2.7",
       "brace-expansion@^1.1.0": "1.1.18",
       "brace-expansion@^2.0.0": "2.1.4"
+    },
+    "patchedDependencies": {
+      "next@15.5.22": "patches/next@15.5.22.patch"
     }
   }
 }

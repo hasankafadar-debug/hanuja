@@ -840,6 +840,48 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   eşzamanlı 4 ekleme, eski tekrar eden satırların birleşmesi, toplam adet sınırı; eski kodla 4'ü başarısız),
   `tests/unit/services/cart-price-freshness.service.test.ts` yeni yola uyarlandı.
 
+### 40. Siparişlerim'e geçişte takılma: React ping kaybı + `next` yaması (yeni — 2026-09-28)
+
+- **Belirti:** hesap menüsünden "Siparişlerim"e (`/siparis`) tıklayınca sayfa hiç açılmıyor, geç açılıyor ya da
+  2-3 tıklama istiyordu; diğer hesap sayfaları hızlıydı. Yalnız production build'de; `next dev`'de görülmez.
+- **Kök neden (React 19.2 hatası, uygulama kodu değil):** Next 15.5.22'nin paketlediği React
+  `19.2.0-canary-0bdb9206-20250818`, render sırasında gelen bir ping'i kök `RootSuspendedWithDelay` iken atıyor
+  (`pingSuspendedRoot`: `? 0 === (executionContext & 2) && prepareFreshStack(root, 0)`). Tetik: React Flight 3200
+  baytı aşan eleman ağacını ayrı `$L` lazy satırlara böler (`/siparis`'te her sipariş satırı); geçiş render'ı
+  henüz gelmemiş bir satırı fırlatır, satır gelince chunk `resolved_model`'da kalır, React ping'i bağlarken Flight
+  onu senkron çözüp ping'i render içinde çağırır → ping kaybolur, kök askıda kalır; bir sonraki güncelleme
+  (ikinci tıklama, hover prefetch) render'ı yeniden başlatır. Upstream düzeltme: React `c0d218f0f3`
+  (PR #36134); Next 16.3.6 içerir, 15.5.x hattı içermez.
+- **Kanıt (yerel prod build, 402 px iframe, 10 siparişli fixture müşteri):** önce 10/10 TIMEOUT (5 sn);
+  askıdaki kökte `suspendedLanes`=geçiş, `pingedLanes`=0, abone olunan tüm Flight chunk'ları `fulfilled`.
+  Tek senkron ping'i tarayıcıda mikro-göreve ertelemek 4/4 düzeltti; prefetch önbelleğini temizlemek düzeltmedi
+  (`prefetch={false}` çözüm değil). Radix Slot / `Button asChild` şüphesi elendi (çocuklar satır içi).
+- **Düzeltme (genel — üç uygulama):** `patches/next@15.5.22.patch` (`package.json` → `pnpm.patchedDependencies`)
+  upstream dalı geri taşır: `? 0 === (executionContext & 2) ? prepareFreshStack(root, 0) :
+  (workInProgressRootPingedLanes |= pingedLanes)`. Kapsam: `next/dist/compiled/react-dom/cjs/` altındaki
+  `react-dom-client.{production,development}.js` ve `react-dom-profiling.{profiling,development}.js`
+  (`react-dom-experimental` kullanılmıyor — ppr/taint/viewTransition kapalı). Uygulama kodu ve UI değişmedi.
+- **Deploy zorunluluğu:** 4 Dockerfile'da `pnpm install --frozen-lockfile`'dan önce `COPY patches ./patches`
+  eklendi; yoksa kurulum kırılır. `turbo.json` `globalDependencies: ["patches/**"]`.
+- **Koruma:** `tests/unit/react-dom-ping-backport.test.ts` üç uygulamanın çözdüğü `next`'in tam `15.5.22`
+  olduğunu ve 4 dosyada düzeltilmiş dalın bulunup eskisinin bulunmadığını doğrular. Next yükseltilince test
+  kırılır: Next ≥16.3.6'ya geçişte yama, test ve Dockerfile satırı birlikte kaldırılır.
+- **Aynı koşula açık diğer yerler (yama bunları da kapsar):** 3200 baytı aşan sunucu-render ağacı + geçiş —
+  liste → detay gezinmeleri ve `router.refresh()` (web sipariş iptali sonrası yenileme, §37'deki "sayfa eski
+  kalıyor"; admin `siparisler/[id]` — RSC 72 KB, 48 lazy satır; satıcı `siparisler/[id]`). Admin
+  `saticilar/page.tsx:159`'daki düz `<a>` (`fef1962`, 2026-09-13, "stalled App Router RSC transition") aynı hata
+  sınıfına alınmış geçici çözümdür; yama canlıya çıktıktan sonra `Link`'e dönüş ayrı iş. Panel menüleri
+  (`SidebarNav`) tasarım gereği düz `<a>` ile tam sayfa yükler, bu hatadan etkilenmez.
+- **Doğrulama (yerel prod build, 2026-09-28):** yama sonrası `/faturalarim` → `/siparis` 20/20 (56–143 ms; önce
+  10/10 TIMEOUT), 402/1280 px, 1500 ms prefetch ve Profilim'den geçiş varyantları 11/11; `/siparis` →
+  `/siparis/[id]` 9/9; admin `siparisler` → `[id]` 5/5 (105–189 ms); satıcı `urunler` → `[id]` 3/3. Panellerde yama
+  öncesi takılma ölçülemedi (yalnız gerileme kontrolü). Üç uygulamanın React chunk'ında dal minify edilmiş haliyle
+  `(4===uB||…)&&0==(2&uM)?ip(e,0):uK|=t`; eski `?0==(2&uM)&&ip(e,0)` biçimi hiçbir chunk'ta yok. Canlı ortam,
+  iOS Safari ve Linux Docker build'i henüz doğrulanmadı.
+- **Migration YOK, env YOK.** Redeploy: **web, seller-panel, admin-panel** (çalışma zamanı düzeltmesi);
+  **worker** çalışma zamanı etkilenmez ama Dockerfile + lockfile değiştiği için birlikte build edilmeli.
+  Sıra kritik değil.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

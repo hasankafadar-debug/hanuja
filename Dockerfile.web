@@ -14,6 +14,8 @@ WORKDIR /app
 
 # Copy workspace manifests first (layer cache for dependency installs)
 COPY pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+# pnpm applies patchedDependencies during install, so patches/ must be present here
+COPY patches ./patches
 COPY package.json ./
 COPY api/package.json ./api/package.json
 COPY db/package.json ./db/package.json
