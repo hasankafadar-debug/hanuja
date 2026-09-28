@@ -8,6 +8,7 @@ import CartIcon from '@/components/cart-icon'
 import { StorefrontNav } from '@/components/storefront/storefront-nav'
 import { VIRTUAL_COLLECTION_MAP } from '@/config/storefront-nav'
 import { getCustomerVisibleCategories } from '@/lib/customer-visible-categories'
+import { CookiePreferencesButton } from '@/components/cookie-consent/cookie-preferences-button'
 
 const SELLER_PANEL_URL = getSellerPanelUrl()
 
@@ -342,6 +343,10 @@ async function SiteFooter() {
             <Link href="/kvkk" className="hover:text-white transition-colors">
               KVKK
             </Link>
+            <Link href="/cerez-politikasi" className="hover:text-white transition-colors">
+              Çerez Aydınlatma Metni
+            </Link>
+            <CookiePreferencesButton className="hover:text-white transition-colors" />
             <Link href="/mesafeli-satis" className="hover:text-white transition-colors">
               Mesafeli Satış Sözleşmesi
             </Link>

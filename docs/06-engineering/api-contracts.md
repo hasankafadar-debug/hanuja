@@ -134,6 +134,19 @@ Guest carts use a session cookie to carry `sessionId`. On login, guest cart is m
 
 ---
 
+### /api/cookie-consent (2026-09-28)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/api/cookie-consent` | Optional | Record a cookie consent decision; body: `{ decision: 'accept_all' \| 'reject_all' \| 'save', consentId?, policyVersion, functional, analytics, marketing }` (strict) |
+
+CSRF-protected and IP rate-limited (`SENSITIVE_RATE_LIMIT`). `userId` comes from the server session, never
+the body. Returns `{ consentId, policyVersion, action, necessary, functional, analytics, marketing }`.
+`409 CONSENT_NOT_REQUIRED` while every cookie is strictly necessary (today); `409 POLICY_VERSION_MISMATCH`
+for an outdated `policyVersion`. See `docs/08-legal/cookie-policy-notes.md`.
+
+---
+
 ### /api/checkout and /api/payments
 
 | Method | Path | Auth | Description |

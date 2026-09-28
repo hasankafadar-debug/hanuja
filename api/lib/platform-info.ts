@@ -11,6 +11,8 @@ export const PLATFORM_LEGAL_INFO = {
   brandDisplay: 'Hanuja Dijital',
   companyName: 'Suat Salih Ayk. ve Dri. Urn. Teks. San. ve Tic. Ltd. Sti',
   companyNameDisplay: 'Suat Salih Ayk. ve Dri. Ürn. Teks. San. ve Tic. Ltd. Şti.',
+  /** Unabbreviated trade name — used by the KVKK and cookie notices (/kvkk, /cerez-politikasi). */
+  companyLegalName: 'Suat Salih Ayakkabı ve Deri Ürünleri Tekstil Sanayi ve Ticaret Ltd. Şti.',
   address: 'Egemenlik Mah. 6124/2 Sk. No:3 Bornova / İZMİR',
   city: 'İzmir',
   district: 'Bornova',

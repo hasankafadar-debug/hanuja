@@ -621,6 +621,8 @@ model User {
   productQuestionThreads  ProductQuestionThread[]  @relation("ProductQuestionThreadCustomer")
   productQuestionMessages ProductQuestionMessage[] @relation("ProductQuestionMessageAuthor")
 
+  cookieConsentRecords CookieConsentRecord[]
+
   @@map("users")
 }
 
@@ -3221,4 +3223,33 @@ model MarketingConsentEvent {
 
   @@index([userId, channel, createdAt])
   @@map("marketing_consent_events")
+}
+
+enum CookieConsentAction {
+  accept_all
+  reject_all
+  custom
+  withdraw
+}
+
+/// Append-only proof of storefront cookie consent decisions (docs/08-legal/cookie-policy-notes.md).
+/// One row per decision; `consentId` groups the rows of one browser. No IP or user agent is stored.
+model CookieConsentRecord {
+  id            String              @id @default(cuid())
+  consentId     String
+  userId        String?
+  policyVersion String
+  necessary     Boolean             @default(true)
+  functional    Boolean
+  analytics     Boolean
+  marketing     Boolean
+  action        CookieConsentAction
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([consentId, createdAt])
+  @@index([userId])
+  @@map("cookie_consent_records")
 }

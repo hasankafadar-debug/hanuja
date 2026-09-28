@@ -497,6 +497,11 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   süresi dolmuş girdi + 20 eşzamanlı istek → 1 hesaplama (tek-uçuş); sıcak girdi + 20 istek → 0 vitrin
   sorgusu (yalnız layout 2×20); logo tıklamasında `/` RSC isteği 13 ms, tam sayfa TTFB 69 ms. Kesinti
   sırasında her isteğin ~4 sn sürmesi layout'un kendi DB bağlantı zaman aşımıdır (bu işten bağımsız).
+- **Canlıda doğrulandı (2026-09-19, deploy `953cafc`, yalnız web elle deploy edildi):** ürün sayfasından
+  logoya tıklama → `/` RSC isteği ~210 ms (internet RTT dahil); Coolify web logu temiz (`homepage
+  showcase load failed` / `revalidating cache` yok); iş sahibi Hesabım sekmelerinden logoya geçişi
+  hızlı olarak teyit etti. Worker/admin/seller yeniden kurulmadı (gerekmiyordu); `coolify-setup.md`'deki
+  "her servis farklı commit'te olabilir" notu bu yüzden yine geçerli — üçü hâlâ `6b36bee`'de.
   Tıklama sonrası her yüzey güncel: `/urun/[slug]` (`getProductBySlug` → yayında değil / satıcı pasif /
   tatilde → `notFound`), `cart.service.addItem` (fiyat DB'den, istemciden fiyat alınmaz; yayında olmayan,
   askıdaki, tatildeki satıcı ve stoksuz ürün reddi), `getCart` (kalemler her açılışta yeniden fiyatlanır).
@@ -881,6 +886,52 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - **Migration YOK, env YOK.** Redeploy: **web, seller-panel, admin-panel** (çalışma zamanı düzeltmesi);
   **worker** çalışma zamanı etkilenmez ama Dockerfile + lockfile değiştiği için birlikte build edilmeli.
   Sıra kritik değil.
+
+
+### 41. Çerez bildirimi, rıza altyapısı, /cerez-politikasi ve yeni /kvkk metni (yeni — 2026-09-28)
+
+- **Envanter:** kod ve tarayıcı denetimine göre mağaza yalnız zorunlu çerez kullanıyor.
+  - `hanuja-csrf` ve `hanuja-csrf-mirror`: 24 saat.
+  - `better-auth.session_token`: 30 gün. `better-auth.session_data`: 5 dk. `better-auth.state`:
+    5 dk, yalnız Google girişinde.
+  - localStorage'da yalnız yeni `hanuja-cookie-notice` ve `hanuja-cookie-consent` anahtarları var.
+  - Analitik, piksel, iframe ve CSP yok.
+  - Tek kaynak `api/lib/cookie-policy.ts`; ayrıntı `docs/08-legal/cookie-policy-notes.md`.
+- **Davranış:**
+  - Bugün **bilgilendirme modu**: altta küçük bir hap (tasarım C, iş sahibi seçimi) ve "Anladım".
+    "Anladım" rıza değildir, sunucuya gitmez (İlke Kararı 2026/347).
+  - Envantere zorunlu olmayan ilk kalem eklendiğinde **rıza modu** kendiliğinden açılır: üç eşit
+    buton, dört kategorili tercih paneli, rızaya bağlı script yükleme ve geri almada temizlik.
+    Bu mod yalnız e2e fikstürüyle doğrulandı.
+  - Footer'a "Çerez Aydınlatma Metni" ve "Çerez Tercihleri" eklendi.
+  - `/kvkk` içeriği iş sahibinin yeni metniyle değişti; tam unvan `PLATFORM_LEGAL_INFO.companyLegalName`.
+- **Migration VAR:** `20260928120000_cookie_consent_records`, yalnız ekleme yapar (tablo + enum).
+  - Bugün boş kalır; API bilgilendirme modunda 409 döner.
+  - **Yeni env yok.** `NEXT_PUBLIC_COOKIE_CONSENT_E2E_FIXTURE` yalnız test içindir;
+    `check-env --env=prod` bu değişken set edilirse hata verir.
+- **Redeploy:** **worker → web.** Migration'ı worker açılışta uygular. Seller ve admin gerekmez;
+  değişen `api/lib/platform-info.ts` alanı yalnız eklemedir ve orada kullanılmıyor.
+  `check-duplicate-payments` gerekmez.
+- **Canlı denetim yapıldı (2026-09-28, deploy öncesi):**
+  `pnpm cookie:audit --base-url=https://www.hanuja.com.tr --google`.
+  - Yalnız `hanuja-csrf`, `hanuja-csrf-mirror` ve `__Secure-better-auth.state` görüldü; hepsi
+    envanterde.
+  - Turnstile ve `media.hanuja.tr` çerez koymadı; üçüncü taraf çerez yok.
+  - Turnstile'ın `brunhild.challenges.cloudflare.com` alt alan adı beklenen host listesine
+    eklendi. Envanter ve sürüm değişmedi.
+- **Testler:**
+  - Birim: `tests/unit/cookie-policy.test.ts`, `tests/unit/cookie-consent-state.test.ts`,
+    `tests/unit/services/cookie-consent.service.test.ts`.
+  - Güvenlik: `tests/security/client-tracking-guard.test.ts` — izleme kodu ya da izin listesi
+    dışı çerez/depolama yazımı bulunursa kırılır.
+  - E2E: `tests/e2e/storefront/cookie-consent.e2e.ts` iki modda yerelde 5/5 + 5/5 geçti.
+- **Açık uçlar (blocking değil):**
+  - Rıza kayıtlarının saklama süresi belirlenmedi.
+  - Hukuki sebep sütunu hukukçu teyidi bekliyor.
+  - Legal sayfalarda `prose` sınıfı var ama `@tailwindcss/typography` kurulu değil. Başlıklar
+    bütün legal sayfalarda düz metin gibi görünüyor; bu önceden de böyleydi.
+  - `docs/06-engineering/api-contracts.md` misafir sepeti için "session cookie" diyor, ama kodda
+    misafir sepeti yok.
 
 ## Operasyonel Not
 

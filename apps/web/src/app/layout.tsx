@@ -12,6 +12,7 @@ import '@fontsource/plus-jakarta-sans/500.css'
 import '@fontsource/plus-jakarta-sans/600.css'
 import { Toaster } from '@hanuja/ui'
 import { DEFAULT_WEB_URL } from '@hanuja/api/lib/platform-info'
+import { CookieConsentProvider } from '@/components/cookie-consent/cookie-consent-provider'
 import './globals.css'
 
 const previewDeployment = process.env.PREVIEW_DEPLOYMENT === 'true'
@@ -54,8 +55,10 @@ export default function RootLayout({
   return (
     <html lang="tr">
       <body>
-        {children}
-        <Toaster />
+        <CookieConsentProvider>
+          {children}
+          <Toaster />
+        </CookieConsentProvider>
       </body>
     </html>
   )

@@ -271,6 +271,15 @@ authenticated session. Campaign email (`product_discount_in_cart`, `product_pric
 an active (non-revoked) `emailConsentAt` — checked when queueing and again at the send gate.
 The store-follow discount notice was closed in phase 6 (2026-09-24).
 
+### CookieConsentRecord (2026-09-28)
+Append-only proof of storefront cookie consent (`cookie_consent_records`, enum `CookieConsentAction`:
+`accept_all | reject_all | custom | withdraw`). One row per decision; `consentId` (server-issued UUID)
+chains the decisions of one browser. `userId` is optional (`onDelete: SetNull`) and comes only from the
+server session. `necessary` is always true; `functional/analytics/marketing` are derived on the server
+(categories with no real cookie are always false). No IP address or user agent is stored. Rows are only
+written while the site has a non-necessary cookie (consent mode); today the table stays empty.
+Retention is not decided yet. See `docs/08-legal/cookie-policy-notes.md`.
+
 ### CampaignEmailDispatch
 Dedupe and cooldown ledger for campaign discount email. `@@unique([userId,
 discountFingerprint, source])` prevents re-sending for the same discount campaign state;

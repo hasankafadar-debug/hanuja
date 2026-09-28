@@ -102,6 +102,7 @@ const ENV_VARS: EnvVar[] = [
   { key: 'NEXT_PUBLIC_SITE_URL', required: false, description: 'Canonical site URL', apps: ['web'] },
   { key: 'PREVIEW_DEPLOYMENT', required: false, requiredInProd: true, description: 'Preview deployment flag (must be false in production)', apps: ['web'] },
   { key: 'AUTO_APPROVE_CLEAN_PRODUCTS', required: false, description: 'Auto-publish clean products flag', apps: ['all'] },
+  { key: 'NEXT_PUBLIC_COOKIE_CONSENT_E2E_FIXTURE', required: false, description: 'E2E-only cookie consent fixture (must be unset in production)', apps: ['web'] },
 ]
 
 const PLACEHOLDER_PATTERNS = [
@@ -248,6 +249,11 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
 
     if (isProd && envVar.key === 'PREVIEW_DEPLOYMENT' && value.trim().toLowerCase() !== 'false') {
       missing.push('PREVIEW_DEPLOYMENT must be false in production.')
+    }
+
+    // The fixture adds fake analytics/marketing entries to the cookie inventory (api/lib/cookie-policy.ts).
+    if (isProd && envVar.key === 'NEXT_PUBLIC_COOKIE_CONSENT_E2E_FIXTURE') {
+      missing.push('NEXT_PUBLIC_COOKIE_CONSENT_E2E_FIXTURE must not be set in production.')
     }
 
     // Auth secret length check

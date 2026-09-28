@@ -24,6 +24,7 @@
     "validate-brand": "tsx tools/validators/validate-brand.ts",
     "brand-swap": "tsx tools/scripts/brand-swap.ts",
     "check-env": "tsx tools/scripts/check-env.ts",
+    "cookie:audit": "tsx tools/scripts/cookie-audit.ts",
     "notification:diagnose": "tsx tools/scripts/check-notification-delivery.ts",
     "price-history:status": "tsx tools/scripts/price-history-status.ts",
     "price-history:reset": "tsx tools/scripts/price-history-reset.ts",
