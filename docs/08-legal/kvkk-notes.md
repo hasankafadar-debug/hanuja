@@ -6,6 +6,10 @@
 Bu belge, Hanuja'nin KVKK uyumlu aydinlatma metni ve ic surecleri icin calisma notudur.
 Nihai aydinlatma metni degil; veri sorumlusu detaylari ve saklama sureleri hukuk ve operasyon tarafinda son kez teyit edilmelidir.
 
+> **2026-09-28:** `/kvkk` sayfasi is sahibinin verdigi yeni metinle degistirildi (Son Guncelleme 28.09.2026,
+> tam unvan `PLATFORM_LEGAL_INFO.companyLegalName`). Cerezler icin ayri aydinlatma `/cerez-politikasi`;
+> envanter, rıza sistemi ve acik hukuki konular: `docs/08-legal/cookie-policy-notes.md`.
+
 ## Veri sorumlusu cercevesi
 
 - Hanuja, musteri, satici ve admin kullanicilarindan toplanan kisisel veriler icin veri sorumlusu gibi davranir.
