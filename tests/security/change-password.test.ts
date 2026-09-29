@@ -16,6 +16,9 @@ describe('change-password routes', () => {
       expect(source).toContain('HIGH_RISK_RATE_LIMIT')
       expect(source).toContain("currentPassword: z.string().min(1)")
       expect(source).toContain('revokeOtherSessions: true')
+      // revokeOtherSessions also deletes the caller's session; the replacement cookie must reach
+      // the browser (tests/security/change-password-session-cookie.test.ts).
+      expect(source).toContain('returnHeaders: true')
       expect(source).toMatch(/session\.user\.role !== '(customer|seller|admin)'/)
     })
   }

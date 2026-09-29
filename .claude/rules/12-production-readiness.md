@@ -933,6 +933,42 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   - `docs/06-engineering/api-contracts.md` misafir sepeti için "session cookie" diyor, ama kodda
     misafir sepeti yok.
 
+### 42. Parola değiştirince birkaç dakika sonra oturumdan düşme (yeni — 2026-09-28)
+
+- **Belirti:** Parola değiştirilince "Parolanız değiştirildi; diğer oturumlar kapatıldı" mesajı
+  çıkıyordu. En geç 5 dk sonra kullanıcı giriş sayfasına düşüyordu. Üç panelde de aynı: müşteri
+  `/hesabim/guvenlik`, satıcı `/ayarlar/sifre`, admin `/hesabim/sifre`.
+- **Mekanizma:**
+  - `auth.api.changePassword({ revokeOtherSessions: true })` kullanıcının **tüm** oturumlarını
+    siler; çağıran oturum da buna dahil. Ardından yeni bir oturum açıp çerezini yazar (Better Auth
+    1.6.25 `update-user.mjs`).
+  - Sunucu tarafı `auth.api.*` çağrısı `returnHeaders` verilmezse yanıt başlıklarını atar. Route kendi
+    `NextResponse.json` yanıtını döndüğü için yeni çerez tarayıcıya hiç ulaşmıyordu.
+  - Tarayıcı silinmiş oturumun token'ıyla kalıyordu. 5 dk'lık `session_data` önbelleği dolunca oturum
+    düşüyordu.
+  - Yerelde tekrar üretildi: değişiklikten hemen sonra `get-session?disableCookieCache=true` isteği
+    `null` döndü. DB'de yalnız tarayıcıya hiç verilmeyen yeni oturum vardı.
+- **Düzeltme:** Üç route (`apps/web/.../api/user/change-password`, `seller-panel/.../api/seller/change-password`,
+  `admin-panel/.../api/admin/change-password`) artık `returnHeaders: true` ile çağırıyor. Better Auth'un
+  döndürdüğü `Headers` nesnesi olduğu gibi yanıta ekleniyor.
+  - Çerez adı elle yazılmıyor, yeni çerez de yok. `session_token` ve `session_data` §41 envanterinde
+    zaten var. Satıcı ve admin panelindeki `dont_remember` (tarayıcı oturumu) modu korunuyor, çünkü
+    Better Auth bu çerezi gelen istekten okuyor.
+  - Aynı formlardaki ikinci hata da giderildi: `await` sonrasında `event.currentTarget.reset()` null
+    hatası veriyordu ve buton "Değiştiriliyor…" durumunda takılı kalıyordu.
+- **Bilinen takas (hata değil):** Kapatılan **diğer** cihazlar, kendi `session_data` önbellekleri
+  sayesinde 5 dk'ya kadar açık kalabilir. Bu Better Auth cookie cache'in doğası. Anında iptal
+  gerekirse cookie cache kapatılmalı veya süresi kısaltılmalı; bu ayrı bir karardır.
+- **Testler:**
+  - `tests/security/change-password-session-cookie.test.ts`: gerçek Better Auth örneğiyle sözleşme
+    testi ve üç route için çerez iletimi.
+  - `tests/security/change-password.test.ts`: sözleşmeye `returnHeaders: true` şartı eklendi.
+  - Yerelde uçtan uca doğrulandı. Düzeltmeden sonra token önbelleksiz de geçerli; DB'de tek oturum var
+    ve o da yenisi.
+  - Satıcı/admin panelleri yerelde canlı denenmedi, route testleriyle kapsandı.
+- **Migration YOK, env YOK.** Redeploy: **web, seller-panel, admin-panel**. Sıra önemsiz, worker
+  gerekmez.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

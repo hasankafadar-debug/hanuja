@@ -273,7 +273,8 @@ const _auth = betterAuth({
         newPassword: string;
         revokeOtherSessions: boolean;
       };
-    }) => Promise<unknown>;
+      returnHeaders: true;
+    }) => Promise<{ headers: Headers; response: unknown }>;
     requestPasswordReset: (opts: {
       body: { email: string; redirectTo?: string };
     }) => Promise<unknown>;

@@ -21,11 +21,13 @@ export async function POST(request: NextRequest) {
   const parsed = schema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ message: 'Yeni parola en az 8 karakter olmalıdır.' }, { status: 400 })
   try {
-    await auth.api.changePassword({ headers: request.headers, body: { ...parsed.data, revokeOtherSessions: true } })
+    // revokeOtherSessions also deletes the caller's session and issues a replacement cookie.
+    // Forward it, or the browser keeps a dead token and is logged out when the cookie cache expires.
+    const { headers: authHeaders } = await auth.api.changePassword({ headers: request.headers, body: { ...parsed.data, revokeOtherSessions: true }, returnHeaders: true })
     await revokeTrustedDevices(createPrismaForRoute(), session.user.id)
     const template = passwordChangedTemplate({ changedAt: new Date() })
     sendEmail({ to: session.user.email, subject: template.subject, html: template.html, text: template.text }).catch(console.error)
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true }, { headers: authHeaders })
   } catch {
     return NextResponse.json({ message: 'Mevcut parola yanlış veya parola değiştirilemedi.' }, { status: 400 })
   }

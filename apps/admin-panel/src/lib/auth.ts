@@ -166,7 +166,8 @@ const _auth = betterAuth({
         newPassword: string;
         revokeOtherSessions: boolean;
       };
-    }) => Promise<unknown>;
+      returnHeaders: true;
+    }) => Promise<{ headers: Headers; response: unknown }>;
     admin: {
       setUserPassword: (opts: {
         headers: Headers;

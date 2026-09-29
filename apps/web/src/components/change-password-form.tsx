@@ -8,7 +8,9 @@ export function ChangePasswordForm({ endpoint = '/api/user/change-password' }: {
   const [busy, setBusy] = useState(false)
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage('')
-    const form = new FormData(event.currentTarget)
+    // React nulls event.currentTarget once the handler yields, so keep the element for after the await.
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     const newPassword = String(form.get('newPassword') ?? '')
     const passwordErrors = getCustomerPasswordErrors(newPassword)
     if (passwordErrors.length > 0) { setMessage(passwordErrors[0] ?? ''); setBusy(false); return }
@@ -16,7 +18,7 @@ export function ChangePasswordForm({ endpoint = '/api/user/change-password' }: {
     const response = await csrfFetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: form.get('currentPassword'), newPassword: form.get('newPassword') }) })
     const data = await response.json().catch(() => ({}))
     setMessage(response.ok ? 'Parolanız değiştirildi; diğer oturumlar kapatıldı.' : data.message ?? data.error ?? 'Parola değiştirilemedi.')
-    if (response.ok) event.currentTarget.reset()
+    if (response.ok) formElement.reset()
     setBusy(false)
   }
   return <form onSubmit={submit} className="mx-auto max-w-lg space-y-4 rounded-xl border bg-white p-6">
