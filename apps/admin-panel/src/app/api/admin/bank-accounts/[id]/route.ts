@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createPlatformBankAccountService } from '@hanuja/api/services/platform-bank-account.service'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 const updateSchema = z.object({
   accountHolder: z.string().min(1).max(200).optional(),
@@ -24,6 +25,8 @@ interface RouteParams {
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
+  const csrfError = checkCsrf(req)
+  if (csrfError) return csrfError
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
@@ -45,7 +48,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   return NextResponse.json({ data: account })
 }
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
+export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  const csrfError = checkCsrf(req)
+  if (csrfError) return csrfError
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })

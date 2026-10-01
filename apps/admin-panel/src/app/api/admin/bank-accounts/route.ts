@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createPlatformBankAccountService } from '@hanuja/api/services/platform-bank-account.service'
+import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 const createSchema = z.object({
   accountHolder: z.string().min(1).max(200),
@@ -29,6 +30,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const csrfError = checkCsrf(req)
+  if (csrfError) return csrfError
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })

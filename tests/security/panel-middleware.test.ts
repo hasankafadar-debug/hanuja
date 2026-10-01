@@ -68,14 +68,14 @@ describe('active panel middleware', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
-  it('matches seller and media APIs without matching auth APIs', () => {
+  it('matches every API so origin protection cannot miss a mutation', () => {
     expect(adminConfig.matcher).toEqual([
       '/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+      '/api/:path*',
     ])
     expect(sellerConfig.matcher).toEqual([
       '/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-      '/api/seller/:path*',
-      '/api/media/:path*',
+      '/api/:path*',
     ])
   })
 

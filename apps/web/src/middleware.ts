@@ -17,6 +17,7 @@
  *   to browse the storefront are also allowed (they have valid sessions).
  */
 import { NextResponse, type NextRequest } from 'next/server'
+import { isApiMutationOriginAllowed } from '@hanuja/security/request-origin'
 import {
   generateCsrfToken,
   getCsrfCookieOptions,
@@ -57,6 +58,11 @@ function hasSessionCookie(request: NextRequest): boolean {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  if ((process.env.NODE_ENV === 'production' || process.env.CSRF_STRICT === 'true') &&
+      !isApiMutationOriginAllowed(request, process.env.BETTER_AUTH_URL ?? request.url, 'web')) {
+    return NextResponse.json({ error: 'İstek kaynağı doğrulanamadı.' }, { status: 403, headers: { 'Cache-Control': 'no-store' } })
+  }
 
   // For API and static asset routes, skip all middleware logic
   if (isApiOrAsset(pathname)) {
@@ -99,5 +105,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)', '/api/:path*'],
 }

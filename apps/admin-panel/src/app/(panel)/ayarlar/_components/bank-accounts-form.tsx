@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Building2, Plus, Trash2, Eye, EyeOff } from 'lucide-react'
 import { Button, Input, Label } from '@hanuja/ui'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 type BankAccount = {
   id: string
@@ -62,7 +63,7 @@ export function BankAccountsForm({ initialAccounts }: Props) {
 
     setSaving(true)
     try {
-      const res = await fetch('/api/admin/bank-accounts', {
+      const res = await csrfFetch('/api/admin/bank-accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -96,7 +97,7 @@ export function BankAccountsForm({ initialAccounts }: Props) {
     setTogglingId(account.id)
     setError(null)
     try {
-      const res = await fetch(`/api/admin/bank-accounts/${account.id}`, {
+      const res = await csrfFetch(`/api/admin/bank-accounts/${account.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !account.isActive }),
@@ -121,7 +122,7 @@ export function BankAccountsForm({ initialAccounts }: Props) {
     setDeletingId(id)
     setError(null)
     try {
-      const res = await fetch(`/api/admin/bank-accounts/${id}`, { method: 'DELETE' })
+      const res = await csrfFetch(`/api/admin/bank-accounts/${id}`, { method: 'DELETE' })
       if (!res.ok) {
         setError('Hesap silinemedi.')
         return

@@ -1,5 +1,6 @@
 import { betterFetch } from '@better-fetch/fetch'
 import { getPanelInternalOrigin } from '@hanuja/security/panel-origin'
+import { isApiMutationOriginAllowed } from '@hanuja/security/request-origin'
 import { NextResponse, type NextRequest } from 'next/server'
 import { isPublicAdminPath } from './lib/admin-public-paths'
 
@@ -82,6 +83,11 @@ async function checkSession(request: NextRequest): Promise<SessionCheck> {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  if ((process.env.NODE_ENV === 'production' || process.env.CSRF_STRICT === 'true') &&
+      !isApiMutationOriginAllowed(request, process.env.BETTER_AUTH_URL ?? request.url, 'panel')) {
+    return NextResponse.json({ error: 'İstek kaynağı doğrulanamadı.' }, { status: 403, headers: { 'Cache-Control': 'no-store' } })
+  }
+
   if (isPublicAdminPath(pathname) || pathname === '/api' || pathname.startsWith('/api/')) {
     return applySecurityHeaders(request, NextResponse.next())
   }
@@ -110,5 +116,6 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/api/:path*',
   ],
 }
