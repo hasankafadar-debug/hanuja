@@ -18,6 +18,17 @@ const standaloneOutput = process.platform === 'win32' ? {} : { output: 'standalo
 const config: NextConfig = {
   ...standaloneOutput,
   serverExternalPackages: ['iyzipay', '@prisma/client', 'prisma', 'better-auth'],
+  experimental: {
+    // Next clones every non-GET body matched by the middleware and hands the route
+    // only the first `middlewareClientMaxBodySize` bytes (default 10 MiB). Seller
+    // document, contract and invoice uploads go through this middleware, so the
+    // limit must sit above the largest route envelope (contracts: 100 MiB +
+    // 5 MiB multipart overhead) for the route's own bounded reader to decide —
+    // and answer 413 — instead of a truncated multipart body. Renamed to
+    // `proxyClientMaxBodySize` in Next 16. Guarded by
+    // tests/unit/seller-panel-middleware-body-limit.test.ts.
+    middlewareClientMaxBodySize: 106 * 1024 * 1024,
+  },
   transpilePackages: ['@hanuja/ui', '@hanuja/security', '@hanuja/types', '@hanuja/api'],
   images: {
     localPatterns: [

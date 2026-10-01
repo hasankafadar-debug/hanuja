@@ -996,7 +996,45 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - **Deploy sonrası:** her panelde zararsız bir mutasyon (ör. bildirimi okundu yapma) 403 almamalı.
 - **Açık uç (önceden vardı, bu işle gelmedi):** Next 15.5 middleware'in yakaladığı isteklerde 10 MB
   üstü gövdeyi keser (`middlewareClientMaxBodySize`). `/api/seller/*` zaten eşleştiği için 100 MB'a
-  kadar izinli satıcı sözleşme/belge yüklemeleri 10 MB'ı aşınca bozulabilir; doğrulanmadı.
+  kadar izinli satıcı sözleşme/belge yüklemeleri 10 MB'ı aşınca bozulabilir. **§44'te doğrulandı ve
+  düzeltildi.**
+
+### 44. Satıcı panelinde 10 MB üstü belge, sözleşme ve fatura yüklemeleri (yeni — 2026-10-02)
+
+- **Belirti (yerelde doğrulandı, canlıda bildirilmiş vaka yok):** 10 MiB'ı aşan yüklemeler parse edilemiyordu.
+  - `/api/seller/documents` ve `/api/seller/documents/contracts` "Geçersiz form verisi." (400) dönüyordu.
+  - `/api/seller/orders/[id]/invoice` `Failed to parse body as FormData` hatasıyla 500 dönüyordu.
+  - 5 MiB'lık aynı istekler sorunsuzdu.
+  - Sunucu her seferinde `Request body exceeded 10MB for /api/seller/... Only the first 10MB will be
+    available` uyarısını logladı. Yerel `next start` ve `next dev` sonucu aynıydı.
+  - Etkilenen sınırlar: belge 20 MB, sözleşme grubu 100 MB, fatura 20 MB.
+- **Kök neden:** Next, middleware matcher'ına (`/api/:path*`) takılan GET/HEAD dışındaki her isteğin
+  gövdesini klonlar (`next/dist/server/body-streams.js`). Middleware gövdeyi okumasa da bu olur. Limit
+  aşılınca hem middleware kopyası hem de route'a verilen kopya kesilir, kapanış boundary'si kaybolur.
+  Varsayılan limit 10 MiB; hiçbir `next.config` ayarlamıyordu.
+- **Düzeltme:** `apps/seller-panel/next.config.ts` →
+  `experimental.middlewareClientMaxBodySize: 106 * 1024 * 1024`.
+  - Değer en büyük route zarfının üstünde: sözleşme route'u 100 MiB + 5 MiB. Böylece büyük gövdeye
+    route'un kendi sınırı yanıt verir (413 ve kendi mesajı); kesik gövdeden doğan 400/500 oluşmaz.
+  - Doğrulandı: 12, 30 ve 104 MiB istekler parse edildi; 25 MiB belge ve 120 MiB sözleşme route'un 413
+    mesajını aldı; production sunucusunda 12 ve 30 MiB isteklerde uyarı yok.
+  - Route, servis ve middleware değişmedi.
+  - Web ve admin-panel etkilenmez: sunucu tarafı multipart yükleme route'ları yok, yüklemeler presigned R2.
+- **Bilinen takas:** Next klonu gövdeyi bellekte tutar (middleware kopyası + route'a verilen kopya).
+  - Middleware'e takılan bir POST artık yaklaşık 2 × 106 MiB'a kadar bellek tutabilir; önceki tavan
+    2 × 10 MiB idi.
+  - Bellek yine istemcinin gerçekten gönderdiği byte ile orantılıdır.
+  - Alternatif reddedildi: yükleme route'larını matcher'dan çıkarmak, Origin ve `mustChangePassword`
+    korumalarını üç route'a taşımayı ve fatura route'una ayrı bir gövde sınırı eklemeyi gerektirirdi.
+- **Test:** `tests/unit/seller-panel-middleware-body-limit.test.ts`.
+  - Seller-panel'in kendi `next` kurulumundaki gerçek klonlama modülünü kullanır.
+  - Varsayılan limitte 12 MiB'ın kesildiğini, ayarlı limitte eksiksiz geldiğini ve limitin route zarfının
+    üstünde olduğunu doğrular.
+  - Next 16'da ayarın adı `proxyClientMaxBodySize` olur; yükseltmede bu test kırılır, ayar ve test birlikte
+    güncellenir.
+- **Migration YOK, env YOK.** Yalnız **seller-panel** redeploy edilir. Config build anında
+  `required-server-files.json`'a yazıldığı için restart yetmez; worker, admin ve web gerekmez.
+- **Deploy sonrası:** Coolify seller-panel logunda `Request body exceeded 10MB` uyarısı görünmemeli.
 
 ## Operasyonel Not
 
