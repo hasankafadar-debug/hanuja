@@ -3,6 +3,18 @@
 
 # Security Architecture
 
+## 2026-10-01 yerel denetim notu
+
+Güncel uygulama kanıtı ve açık sınırlar: [yerel denetim raporu](../../tests/security/audit-2026-10-01/rapor.md). Aşağıdaki tasarım maddeleri tek başına canlı kurulum kanıtı değildir.
+
+Üç uygulamanın etkin `src/middleware.ts` dosyası üretimde tüm `/api/:path*` mutasyonlarını `packages/security/src/request-origin.ts` ile denetler. `Origin`, o uygulamanın genel `BETTER_AUTH_URL` origin'iyle aynı olmalıdır; Origin yoksa yalnız tarayıcı tarafından oluşturulan `Sec-Fetch-Site: same-origin` kabul edilir. Sibling domain ve eksik kaynak bilgisi reddedilir. Origin denetimi kimlik/yetki kontrolünün yerini almaz; handler kontrolleri sürer. Native formlar Origin ile çalışır; otomasyon istemcileri uygun Origin ve handler'ın istediği CSRF token'ını sağlamalıdır.
+
+Yalnız web uygulamasındaki belirli ödeme callback, iyzico/Resend webhook ve iki Postmark inbound yolu kendi imza/kimlik denetimleri nedeniyle bu Origin şartından muaftır. Kart başlangıç/callback/webhook yolları ayrıca koşulsuz kapalıdır. Platform banka hesabı mutasyonlarında açık CSRF token kontrolü ve istemcide `csrfFetch` bulunur.
+
+İade/uyuşmazlık özel dosyaları ve uyuşmazlık mesaj hedefleri, atanan `ReturnRequest.sellerId` üzerinden daraltılır. Legacy `sellerId=null` iadeler ve iadesiz sipariş-geneli uyuşmazlıklar mevcut sipariş katılımcısı davranışını korur; özel R2 nesnelerinin doğrudan CDN erişimi bu uygulama kontrollerinden ayrı bir altyapı sınırıdır.
+
+Bu değişiklikler yereldir; push ve deploy yapılmadı.
+
 ## Purpose
 
 This document describes the overall security design of the Hanuja marketplace.

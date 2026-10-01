@@ -1,0 +1,3286 @@
+{
+  "recordedAt": "2026-10-01T14:15:01.772Z",
+  "commit": "00b436c2415d3cfb37fa5eadc5784c84d5767af4",
+  "mode": "offline; candidate matches are not confirmed vulnerabilities",
+  "sourceState": "working-tree contents; commit identifies the local base, not a deployment",
+  "limitations": [
+    "No registry advisory query",
+    "No production configuration access",
+    "No environment files read",
+    "No live customer data",
+    "Narrow credential patterns only; Git history not scanned"
+  ],
+  "routes": [
+    {
+      "path": "apps/admin-panel/src/app/api/admin/announcements/[id]/email-preview/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "663054572cb1c04730927737686c7d58c90c293ee3bf32a5aa4bfd16a932f010",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/announcements/[id]/progress/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "84515a688095da3477ddf0e9510d9db92b1769609fc87ba18c6a235f5fa8558d",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/announcements/[id]/recipients/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "eafb8a07839fa31e78263ce09134464b101679eb7f29717321675f873c50dc5b",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/announcements/[id]/retry-preview/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "fd121399470455dd4e393ea839bc05100d943fdd97a5b1c870b88897c65d2ef9",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/announcements/[id]/retry/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "c7605a8ee65abc9003849583cfef73cf195e185851c7886851fa23cde6b13997",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/announcements/[id]/route.ts",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "sha256": "07aa5959bef19d2c0f0e0301442097aa98cac17cd56493da72759de457bac7cd",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/announcements/[id]/send/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "89e166be96c0d3fa7e47c4812a06233683a4c5c163ff9f2b39335d645cba4da5",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/announcements/[id]/sent-content/route.ts",
+      "methods": [
+        "PUT"
+      ],
+      "sha256": "c68bd29a87eee472480cf4bcdd2a5dc696387742e23cea4e560a918984d50d90",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/announcements/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "ae245e003fc7e0f2451d0b73e5621ce76dacd140e1623939cb47f227c9c0205e",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/announcements/sellers/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "911780a353a90d6c9ede238674b8d0fa2150a415ce94608e54f51d5674ff2de7",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/audit-logs/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "7b65c25229fe754bb2ee09a66f760f57d92b97ee691e141a22e88793c6176100",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/bank-accounts/[id]/route.ts",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "sha256": "78bb95a63ab8f9a5f268b3b9482c4cebba73d3b741d846cf47a8cf71b02e466c",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/bank-accounts/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "3841ab0d1ed53e9b9b6cd0daee14d8311d3bb073e4f01176a35334f342f9a09b",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/bank-details/[id]/approve/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "0a882b3392c19ddbbd318edd6447c56bb76c1239004a7b7268d59062ecac533c",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/bank-details/[id]/block/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "ae2785241ad12d9fe152944ed3f633d57598fc96a7ed87f70275ebf5cbb2dd5e",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/categories/[id]/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "sha256": "c22dc6a7bfcba933bf6bef14235bb586879eccb2399eb648ca1b83a9296fa102",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/categories/tax-groups/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "sha256": "4b693d9c9c7d136b78bac5c8ce789391de7cab85aa11a1907169dc480e26691c",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/change-password/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "88138fd46655011729dc2809189264e08fa05f9f7279025f4693cb96f33b101c",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-campaigns/[id]/copy/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "0b2857e6dc8de003434e281daeda4d9d739f3eb2aad8da35953cc95039875165",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-campaigns/[id]/email-preview/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "93384180ebbe6737cf019cd5f278b2db5931b4e30364570dd12c50a637a1dcb4",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-campaigns/[id]/progress/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "0c9194eac68d7f912ac5ede571e22db5d886b7b65d412d272900f3fc5b5bfb69",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-campaigns/[id]/recipients/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "a16aa03d2c23f806652ee28a199d601f4484e2924798c6df2acef06af827965c",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-campaigns/[id]/retry/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "cdf259289965b7a4a3f9aa3e813916a105b2b8b6a4549f5324649b52f3647d61",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-campaigns/[id]/route.ts",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "sha256": "514c3fb6433e37a3ae41d69a59120b041d4c1d94bc082a14cc933bf77483ed82",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-campaigns/[id]/submit/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "0d70959fa1c95efb691d7b16043fcb817a296bf2e70682784c3f2d7f7000988c",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-campaigns/channels/route.ts",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "sha256": "3b43a40cacef1814b4812d9e0c17a063a1590f618cb22d69130d8627f8b3ee02",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-campaigns/customers/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "cbbc780f692660fa0c6d4dcc2680c3ca90a1637a7a3e0e6f2ce97779b5b91bbe",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-campaigns/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "1dd7a4c5eb6a9cc0b016fb575ce7f66672febb1d7cebf5bc6f6f75bd93410e38",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-support-tickets/[id]/messages/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "69950afbc1003150fb8995ebcf97d98e9610aeda8911f35fa15d5c77b84cd335",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-support-tickets/[id]/resolve/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "553c5798af72aed9bfabe5573086a7828a0a206068aea9c9d8d968ccda4adb41",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-support-tickets/[id]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "07efb7f1972f8dce37a6d35aee85ab5bf86959efd52f727442a2043419c5f3ca",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-support-tickets/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "c0e1954a8d59d767c1b07764b7518d941d88747bb6a73cf898b0eec7da11001e",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/customer-support-tickets/upload-url/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "8e5575656192ac5b29fa4c0eea32051aced11e7e001d996328192505ba3f8835",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/disputes/[id]/messages/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "a4dc069acc884751e3d574e35ac5d8843fc24120d77c1d21a8c2f9ccd291c8ea",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/disputes/[id]/resolve/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "6e4e6eab3ccf45cc75f878828d1aa51ebd1789e2dc5ba7c1fad6814e8915f3da",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/disputes/[id]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "4796493d067bcf65e618f2071458fca7de0d5910bd87f444d9d3533e95f5fbe8",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/disputes/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "942e10108d2b3481e6321fc6a697c87b2ee7a5be116591abb81fc2fdd2c8df97",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/document-groups/[groupId]/review/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "642d7993af58eb18a67e7b4d8f18f511593adde6c5b672afb6c377c8c2dd2d52",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/documents/[id]/file/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "5385fca2a1d11b0b83e2033bee138268abd4ae20670656d1abff69bcce51170e",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/documents/[id]/review/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "435d9af585032634a55604db20eb3606616c29140e7e5d6bc8ac930d9c5c9a5e",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/email-deliveries/[id]/retry/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "110be0fdfd7f40b95e437cc3ff7ebb0b1c26a2ff5fef473f2fe6654473ed7537",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/extension-requests/[id]/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "5c766f2a364513799be171fbd30674fcb5c593a51ef58c5bbd692674012913a2",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/home-cms/promos/[slot]/route.ts",
+      "methods": [
+        "PUT"
+      ],
+      "sha256": "d0ab4fc0b721f95c56d7fdc254539b7e4a8ba64d31c1e66b25cc54d125f417c4",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/home-cms/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "33602acd53d77fcdcfc8cc253bf8c7208bc575b87c1780e486da931b946d82ef",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/home-cms/slides/[id]/route.ts",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "sha256": "581dbe40f45cde0a6577ce01bc71134a61eb5a8548ea64682dded1d6f6e6e791",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/home-cms/slides/reorder/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "sha256": "b1a8f92035fd2c4782f18ea6a1c1c29bf40a95aee4acec41c2f13746bd1ef5a3",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/home-cms/slides/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "125b38b423094b9d4b3b5c27563e128849ea1f92f1e3ff0915cdaccbdf17f096",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/media/[id]/confirm/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "a1ff56df44f79d0455651fbf3a63fc632cf96952e4260fd6197d770239c08d03",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/media/[id]/route.ts",
+      "methods": [
+        "DELETE"
+      ],
+      "sha256": "08f369186c7e44cdb77579df59b5090233e9e924f0dd8cded039cece1e8a7074",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/media/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "ac12cd990c1b376f7e3473d51686d7c4d44515d5975b768eb8a6e17e6beed5b1",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/media/upload-url/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "43b2ffbe5bc43b24e6d3963ce32100d0c561e94bbd5dca937f32212788637fa5",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/notification-recipients/route.ts",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "sha256": "ab02fd4ff847e67735f55f5779697e26c2d9d8265d2dfcb05dde40150ea60455",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/order-lines/[id]/commission-exempt/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "8b4e7b00ee92786f9018891a0f37ab1a23969f768cec4d6876efa73f8e03a3ec",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/order-lines/[id]/commission-invoice/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "ffe3f6126df71bf61ab93adb3caf8085fdbaa0720e84d8aff9db723361a1f0c6",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/orders/[id]/block-payout/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "ceec94911743668b759de86b8ce3212ee6575a136a44cff3e3703f4652a9fb12",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/orders/[id]/cancel/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "8e436608b061ac5d8bcf0ec7f464050f6b1a65bb434a0e71ff81ebfc2a98c2e6",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/orders/[id]/confirm-delivery/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "61927b874d4e3135c4498d779517ef22aef9263e8799f303f38553b4c0da163c",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/orders/[id]/contracts/[kind]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "85d20144372499a224b819b30db8c7b119bb1e3f238c3f64db12fe9b835998db",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/orders/[id]/invoices/[sellerId]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "304bf22b08e8aee404566fd5e4c4c89b110933529d3a9cc8fa24f51146551a4a",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/orders/[id]/penalties/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "7710d5aad306b79d1a0c875774e300b7b78bb0f515228e636f52cd8850d22e81",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/orders/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "3b09e112a1113299ecd25fd1de481e669a4e276198b1c3e6561c69eef60f16eb",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/payments/eft/[orderId]/approve/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "b355b23c86918225f0c9337873c325421b4cab6cf5e33be51c78e85fbe4a59cf",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/payments/eft/[orderId]/reject/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "ca68d4e4a75cb95f908b7bcca66bfa41e5c384ff10b459a2476f0ad67d1a65b5",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/payouts/[id]/release/route.ts",
+      "methods": [
+        "POST",
+        "GET"
+      ],
+      "sha256": "efc2894991af96f98763159e5cf62a43a213aeb6d2ae0bf40474be4c3f915bd9",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/penalties/[id]/route.ts",
+      "methods": [
+        "PUT"
+      ],
+      "sha256": "5dac53923be8d41e18e37ee434ffa5e5f398ddac0c64d8fa340f8234b845ec81",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/penalties/[id]/waive/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "553484068097ed5d84584b4f730a521be37b52bf1eb6368b0cc261e36fec82ac",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/platform-settings/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "sha256": "f69cb1f0e2d01afe92dacf2f39939e519145c1a91852ffd476b86bc424c39a53",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/products/[id]/approve/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "5d8b188697caa03da114b312026043ec54009823e36ca53c698b38acaf9ae5d6",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/products/[id]/reject/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "13587f4ab03cdb626d8e15073b7a004df972e97f75cdeb8e06f8cd4a5669d6b5",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/products/[id]/route.ts",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "sha256": "2d4359e0e3bbfa3f306347229ef653032970fd8dc0b058029edd2db35f372d21",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/products/bulk-approve/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "93f8a3180d228aa31d0de3f0edcb1727680f39f48f25c6ac3d5472750f46d085",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/products/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "3202105bd96bc13d5fc2f901c18acc7047ab46cc025bed8dde0d3d397a43f7f1",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/refunds/[id]/complete/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "5a252d15c0aa83b3be189ae6b4d164d2b258fdb49993788f5dd8ce3cfb14849c",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/refunds/[id]/reassess/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "55a20e5aef14532d059def8290b1f90416f278d35cb062cfaf571673c67f039d",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/returns/[id]/mark-received/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "3f507c60b60600dc9a81323040e772ed95e8b33f7e63251e679732a459339985",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/returns/[id]/messages/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "febdd8df93e85b014208bcec4bdeff64caa55f93bba9be4117488624b775b5d4",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/returns/[id]/review/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "8901c0791148d0f83a6120d5765175d8c56a886164fad0138e94c8225ce6b025",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/returns/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "ded10d76a36660191573743078e3b2b3b896de9f55362facf18a5628f0538787",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/reviews/[id]/moderate/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "e26ff6da571ebf304c093ad56298ab3bab49edba7eac6b52fdb6dca2a133f7cb",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/reviews/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "ea9ff081c42474447d76364fda0e1c2fd15204c2771685ea0de14e59c007a349",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/seller-invoices/[id]/route.ts",
+      "methods": [
+        "PUT"
+      ],
+      "sha256": "f2af939f6cb0d7bafd482cd4fb999a13a69209aa8d24b2ad948b2f8a4ee3bc5e",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/seller-invoices/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "80f4090b0f0d51a0ce41435dd049005d1abcd9b369af6172cbb14a3e9be4aac4",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/sellers/[id]/commission/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "sha256": "145ca338840f812ddd8711e865eb5609ecba396e2c054b5fcd4c8e79067f0b50",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/sellers/[id]/documents/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "62c7c79d91453caa8a5b607964df7417fe798888e8948decb6c2fd28530dfeba",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/sellers/[id]/request-documents/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "ee59c81ccccb73a7b8fe7c52ff66817d9b107021ad9dec50c52a5525de0977aa",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/sellers/[id]/reset-password/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "c1436c476663afc17e72130f1d038cb3c269e14555930b55a20ba747d98a483f",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/sellers/[id]/route.ts",
+      "methods": [
+        "DELETE"
+      ],
+      "sha256": "23d1b468a32f865c9927e89087c2e98649a05afe8519684c30999906bae7b04f",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/sellers/[id]/statement/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "8334f3f6242a399ac2a30813b5f63e354b82022dcd5396b5d77e0f5649bd7812",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/sellers/[id]/status/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "a42b480c6d2dce7329f1df064b1a8181f63033edcf6e8954a2cf226457fa0939",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/seo-content/run/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "17cffb2dbcf45540dae8cdbe5cfe301dd354e613c92063a01c3571745f5a8feb",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/support-tickets/[id]/messages/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "358efc0c218a97fd614bd57e096350f01d2257c4a9f102ba6a5f6623a778f77f",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/support-tickets/[id]/resolve/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "305b3c8eadbe353355275b6126bd12fc7677c34d63f1df964a924065f281b223",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/admin/support-tickets/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "69f2e49575e91cb9e2a74af88ebdd9ca952e81aea5825aca1cdffa275ae7edca",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/auth/[...all]/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "3b8981b2a5a2fd3c9f74058c0f140bc5fb4b8aa00b1f6832c2cb1e0cf74571df",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/health/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "cd2b23e0b6cd85f53e83f6854a6701a365d66d0731bbb605b184727fdf5b57c4",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/media/fetch/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "c3a5dda4224e9113247b2552727ceaa3d89165efc4956da76e34714bcc06f02a",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/media/private/[id]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "d9339d5945e319917439eb9bb637bf564e7d8dbc2dcc4b65d36ad70a7eda0da3",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/notifications/[id]/read/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "58e863bc1d46c88f708fd897218c1aae97ee96d196aa9b5c1c91d27db77fe390",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/notifications/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "ba6892a3ab0cdfb4b51f460e826381f0773ad9ca870d5f18541ca31eab126bfb",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/admin-panel/src/app/api/search/reindex/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "4e67eee3fdf61d6f05cc17bb384631f5992febb4ba8d79c6561418bd12cda75c",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/attribute-options/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "5d8f842f06f33bee04e0932f1f1e1c58235eb6b665c0c4de411241b174911a84",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/auth/[...all]/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "6fdfe253fefcc86e363b35741774dc07810c7818e257cc81e29125ea361be178",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/categories/[slug]/attributes/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "c861d79daf66c00c5f01207ee495ba3ec4d39341fab2848af0f915108ab5cab3",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/health/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "cd2b23e0b6cd85f53e83f6854a6701a365d66d0731bbb605b184727fdf5b57c4",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/media/[id]/confirm/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "4f6e62e86433df8b9cb886188550c56c5077aa3cf3f056a1349be93faa67835d",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/media/[id]/route.ts",
+      "methods": [
+        "DELETE"
+      ],
+      "sha256": "5cb6db198a803b0522f2c40ac8267bfbb01418c89ea026923be2ffd170daa617",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/media/export/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "168edbb7af14cc8cf387294934eda88e3a25724fcd4351c4ab7f97036d655738",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/media/fetch/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "c3a5dda4224e9113247b2552727ceaa3d89165efc4956da76e34714bcc06f02a",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/media/private/[id]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "99c51a8bafdaa39b0c351d2fd7b422de40d9b2c25005dfb40abac640ad9efeec",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/media/route.ts",
+      "methods": [
+        "POST",
+        "GET"
+      ],
+      "sha256": "a83870ba3ad28acf843b37dacb5733a8aa1d17d4253bb0ce142bafb5b022ff66",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/notifications/[id]/read/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "55853d0753a6b8d6a6716e209bc6d50ff16ac33356cff522f1067838379c57de",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/notifications/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "7d65051a2b66beab6f67adc0c115b226c9d44cc19f47640b94b87c99126c829a",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/announcements/[id]/read/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "dd511600bb92ac562dfd71fcc5a189769d1af0cf89af733babb55aff0d91e87c",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/bank-details/cancel-pending/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "72f1fbe26984d5f95a8f34a5d0bcd21d44baae1bd8200ba0efa4a759a1f4a6ea",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/bank-details/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "99c2da8b3417feef218be6da10b0d2248b9e2ac854e47adf50396c48fcbccdbd",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/bank-details/step-up/request/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "7b1dc4939e8bc81c7a6f8556a8d8eefcf2d6fff17534c273ceb925a6acd0c69b",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/change-password/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "b9f60580348058f232e9b7df26794a0db6b6d9ee87a423d79f0dee2b7bcbb216",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/coupons/[id]/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "sha256": "209112eaf12ecf7b68d66b833db04857f202c2aea377acb6083c37cab5aa6ade",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/coupons/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "e7166cade144186e1a982e4b0c551a71a30bbd8799a385d9bd597bc50fedd4f9",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/discounts/[id]/route.ts",
+      "methods": [
+        "GET",
+        "PATCH",
+        "DELETE"
+      ],
+      "sha256": "b4c7f663efccde5c6dbcf497fc83b84476bf641a7b879c810cb649b3bb662bfd",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/discounts/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "d49f464cf8b09cd693f382b1f219c8cd0de669345684bba485f87a0844e46210",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/documents/[id]/confirm/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "1a08ff4824acefb5c41eaa5d598984883a372272965100920d1c971a151d782d",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/documents/[id]/file/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "95a8a7d86b6f116bbfa48954b806840a23b438ecc885032001ee76b9e9eab285",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/documents/[id]/route.ts",
+      "methods": [
+        "DELETE"
+      ],
+      "sha256": "71f5e3456f74eada1e839dd32b35859a46fb4971804a704bd2a0bab036a6fabf",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/documents/contracts/[groupId]/route.ts",
+      "methods": [
+        "DELETE"
+      ],
+      "sha256": "83f4a17a3e109898718cdba46ee0fcad493d6066676a8e421c3c06a899eaae3e",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/documents/contracts/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "9893121fd7c18e03a6406da3d82818dfcd64ef86d37003d4740a7e90ed6cb0a5",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/documents/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "a4da46476d16841d5f1f3e791d383a479aa975c762372ca2ad4e063a625e7e57",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/finance/statement/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "5acdd0afc91d33b1c46d8046ad9adbfec5394dad035e63282ba1ea55cdf8ea6a",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/first-password/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "52d32afe13e3eca3d03895e47ce2dd93adca839f4e2f3c57303f40cdfe09c003",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/onboarding/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "f0ca90985382c0243372d8bb3aa3e1453a2bf3aa5492e3236ec77a5b0e05b3c2",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/orders/[id]/accept/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "e903f083d61214d85c106db48b2a758f966d873ce9248454f48ada7413b884f0",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/orders/[id]/contracts/[kind]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "8b4a12d1d28b08675b3a67e7df27613a06e2c2ff809cff943cbd63298f0af002",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/orders/[id]/extension-request/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "c47a4c5039b7520728d54aadbf2a2705bc38dc559a99e0ca3a00835b2a47a34f",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/orders/[id]/invoice/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "3e11e76e916382ac440cf6a478149f54892c47eeab17cc0a29c05a1f687af05d",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/orders/[id]/reject/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "8fa59e69643b0beb6a86d76d7c5fcf41e7a3f1326288f9fdac2cd989401eff45",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/orders/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "9ddab6226e582abafc41b79dbd3e267047241504f2dcfdf0ad7a6cd387643d59",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/product-questions/[id]/messages/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "939def06551af7bc0cf0aa1fd1d0f92d9b35514745e24cf99d3f835b6af2647a",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/product-questions/[id]/read/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "b5cc837d9d221709596b8ba14303133a37210cc0b4a3378825d621ee804d7b00",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/[id]/images/route.ts",
+      "methods": [
+        "POST",
+        "PATCH",
+        "GET",
+        "DELETE"
+      ],
+      "sha256": "89aa8803aef394de1f667555ed83ebf775d781ad14cd667cc24e17f857ff5c38",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/[id]/route.ts",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "sha256": "0a2b1485d1f82cd634943b8e71322addb85151822f66c2e72dccf115a7afb93c",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/[id]/variants/[variantId]/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "sha256": "d9a9ce010c59f4a5996f1fa32e2680fb3137b77d51ac9c0181703c57e75ddee8",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/barcode/check/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "c92c6686d7519cb04b57d821f813285c44c745536c345aa961d7c0a1e8ae3f58",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/barcodes/check/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "61c3f038d61e820591d250fd4eb56c7f3af690c0df567a4ff88f3261805fc263",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/bulk-update/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "36ea63d45cc776597dc803cc706a0ba2fc7eedf4fdeccfca4ec637ddf23ce738",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/bulk-update/template/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "e1aaf6ba928a0cd6023df35e04c3513ce01033e6208dfbacbce7ce1986287797",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/bulk/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "a8c89d4677f52ca0861549d9d1d620d6c9f6a792e0823ba0c4889f2ebc1d11ff",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/bulk/template/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "6a41d31d9e47896f5128627695ff76673bdde3e6891204d5659c711122b80f10",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/bulk/validate/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "09e28c2d529b9b68f12432a50a054f75270f8af439d0de279549063ef36e51d3",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/export/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "88dbd2a3fc8a2601ac9c7a8816e9fa3b9a2697260a8145984b71d40aeb5dbd93",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/products/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "b86bb04b18b8a91be61884f3138406ea0a81201e434a43129464ed6c7d59791c",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/profile/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "sha256": "ef4b4dfbae0334e28f21c9c6f60ccafe87db329a2fe2820df5c48c36383dfea6",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/returns/[id]/cargo-info/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "f3617a8bbe8e36c12b73b530405028926a9af6f210f664e8027dc5ad734dd672",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/returns/[id]/confirm-receipt/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "34faf3544a187dd7ab333e555b43c43b6c2bba4332c45baee95fbcdf480929b9",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/returns/[id]/messages/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "17d2bc8bcde425fcc675d2b7c30c25c918e3b232c0b718e9528a4f3c605dddaf",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/returns/[id]/receipt-decision/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "c5fff5a579c2280e9b8f94ae71c3443610a9a07c5923110b2522e4462524825f",
+      "authReference": false,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/returns/[id]/reject/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "32615fef3cb8521370694f626a233cb484f5ae04dc8db47eb3654af7213d0bcc",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/shipments/awaiting/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "b7b1c5e1bfdb48ea0c382537c8bf81231b159e5cf5e9e3e15ac4d63b98921e97",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/shipments/preparing/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "b9c4f2258274f4d548f152f9a65fcc93e256c40ad4b5bc8e81a1634a37c2332f",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/shipments/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "7c64ef01fbb8b1288878d6a568c3c8c9cf4916523636e27e4f2d1041b2e3a0a3",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/shipments/tracking/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "b1cdd2422be30c5025dca9f56406681824400decc093fd1d50f230b8da61fda2",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/support-tickets/[id]/messages/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "0d23aba5842876e3a5bcb31caf7a7c0e3a57a45ff5337268a99079b48b5fd2ec",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/support-tickets/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "d6f8767bb54844c67d7cbc98cc811972449549b17120d9acdbdb795048c4251c",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/seller-panel/src/app/api/seller/vacation-mode/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "sha256": "5f776d7f22781ae9391c7b9ae51c048e82e9b8d5a1d2ec5cb041662734374ec3",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/auth/[...all]/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "1f6fba914340bc485ae974503a5acda270669a44737240e28868ddd7255e08cf",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/cart/count/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "acd0b3e2ac9aaf6b8d2a32bcd6a5e951e32f8fb2a3dba17190774ae302c2e3aa",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/cart/coupon/route.ts",
+      "methods": [
+        "POST",
+        "DELETE"
+      ],
+      "sha256": "7a33e8ab40d432fa46d24f2f37d459deeba9238b2bb26bd64066b2e300692bec",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/cart/items/[itemId]/route.ts",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "sha256": "e80e04e260c66db8cbee3f3a73652886fe084928c060e0053e3fd7ee6bc66e37",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/cart/items/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "a7ee7b00d8d5d33f28bd149d1be34ca83de78669856920720fe9c027bdc8c5e0",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/cart/route.ts",
+      "methods": [
+        "GET",
+        "POST",
+        "DELETE"
+      ],
+      "sha256": "21d852dc72854c4bbb4238f7ffed076dbf89b7ce9854b6f0ccf6f8b8e6069b11",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/categories/[slug]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "b74bc38ad2af60c574928a0c257cc649aa4fc1468e79a55a7e6fe45bff0e9e2b",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/categories/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "d26c27371eb8619485d6e2eb3f2f8caf25dbc057195eed9b8d5115547fa1a24e",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/checkout/addresses/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "144b110dc3b95e5b0fe8f47b17a18536735ebfce4c11334fb67299d3ddd23057",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/checkout/contracts-preview/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "f5a4ff3c5007a133345d380982f307b38ed616322c2af19004b8badbd90b7148",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/checkout/order/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "c9ed3fa995f5f86ec7704727a02ddd0d1de065a4619f5af9d26c0380be3b1b70",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/checkout/validate/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "df9a5b58e554e790e45346604b927ea0288e75fd9ef4705ffa1ccb697c2b1b3f",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/cookie-consent/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "6cb82db724b47f8d14ebcce066686c5712c230c509e25d955353cfd7bf416e86",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/disputes/[id]/messages/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "feebe41786262dc0f24239bcd201ea78a13b362b4814fc144832cb1bf6cba7a9",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/disputes/[id]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "74c40eb06993a547d4deac580f69138b84a9c8e68b69bd9ac379b04796bfa73f",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/disputes/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "51405df493bde6afd91800688482213805011fe5d1ee0d80e60baacbe8c739b0",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/health/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "5eab62f85cec087f1115fcefe34d9e2b90e07c2d5a4b856d471c57dc15e2c6c2",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/inbound/postmark/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "4edcfc3ce7f9045d6eb6da0dd8810ffd276c658c61c4685beef56615f42fe68e",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/inbound/postmark/store-discount/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "6812203e62229379b1be7c942ef3b62e6064f743f39b4d3ea640030fdbe1f5ac",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/marketing/unsubscribe/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "1c1e463b5a9189224d69066a3388dac068f631c651ed0df1c842c3c044f515d9",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/media/[id]/confirm/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "7df85b177ea8bba2fb7dfde0dc180adeb807b3c32e385a8572e9a88f35a4dae5",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/media/fetch/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "c3a5dda4224e9113247b2552727ceaa3d89165efc4956da76e34714bcc06f02a",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/media/private/[id]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "99c51a8bafdaa39b0c351d2fd7b422de40d9b2c25005dfb40abac640ad9efeec",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/media/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "a05c8807ee07bd3e2ec8f4a8a0b1b1c087b44b17ef28a52aab170f056c9ac4d0",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/notifications/[id]/read/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "55853d0753a6b8d6a6716e209bc6d50ff16ac33356cff522f1067838379c57de",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/notifications/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "c62dc0e32311ae8bc91de4766594fb3b82e951c57cb60509178e21561076c281",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/orders/[id]/bank-info/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "18d543f0bb1bde9f2873ae6731747e5389b39ed126a1640edd8919564de4ce99",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/orders/[id]/cancel/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "56857478a30af7f7d47e61e70c2cb6a9def969b1769269837b38870075d20b96",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/orders/[id]/cancellations/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "68d52e9db0648c8623977cc03a492147ad900b440ee9ebdfbe50599dd7fe32f4",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/orders/[id]/documents/contracts/[kind]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "4d5723aa06439c14d4c9fbda55df473dc7c31cc79b4e187f27ba31049143fa69",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/orders/[id]/documents/invoices/[sellerId]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "c20a93b1b12a4455d18ba569ba2dea8ce24aadc1f8eeaae71290002a2c96fba4",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/orders/[id]/extension-request/respond/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "0fa61c805ac325c2e62b2a977709bbfd27bc45f8243198c8586171ef4f19ca25",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/orders/[id]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "72b46975fe5d7cc3450fde7b6fb580dc8a1cc79790e2161a7a6d2404fe63bf41",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/orders/[id]/support-tickets/route.ts",
+      "methods": [
+        "POST",
+        "GET"
+      ],
+      "sha256": "9dffa22397568c0deb0923ea0bb8a998b2f7b78ee0cdf004dc5fe2a8c141842b",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/orders/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "a19d88384d434a808806414ca9500981903904bad8432c73f1866aa6b722adb5",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/payment/callback/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "4dad9ca9d6cd2e0b68bc12998f2c7fcd1fb09ff1ae52997750a1e99e078ce6c9",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/payment/start/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "75a88ba9d796eef15cbf8800e6ecbaf40bc8b677fd6b9bd3829774c09a302f52",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/product-questions/[id]/messages/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "372870576bde59c1879a7a2237bd82377c460d7e8ecd020db5ceb91f956f8adb",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/product-questions/[id]/read/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "2096bba7bd71e222e678e3fd0d84084b40e8ff4639fc054da8d91ba746b33507",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/product-questions/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "268934c0523e1809dd904a22445d3e16fcbe47ebbc9a8e1ca6597da8e502baae",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/products/[slug]/reviews/eligibility/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "a57bb1e724825dbfeb8a762bbb6031d4c9505eed18bbcbf7a707be87edfada4f",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/products/[slug]/reviews/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "de92b54008ca0c17ad9afd43832a91849f739a32d3e4c1ec173b5a0fdcdfc7ce",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/products/[slug]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "91de6a0095699929a345ba10d9cca052e395a48ecd94d93529e0737ac97cdced",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/products/[slug]/view/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "b3131c5987ea4470f360f56e2392fe13c4d8f743afe4a6796d641243f16868a1",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/products/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "6efea86ac6011d7b7fa3b1bfd90e36d657b3587bd4a4805f416c787d073b7866",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/returns/[id]/messages/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "4094bee7351de57d408e91a562243f1e24a96428e89bb6a8fd53a7643923ff77",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/returns/[id]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "7a43578d7f21df26576c7e1fa6e17fde0a549c84b1b9e03d4c54dddcbbc480d0",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/returns/[id]/shipment/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "039a5d2ba686d9b771f4dc2cd5d55ecd5287d102fa93c9adb5c3cb89692430f4",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/returns/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "8ffe2645d8464986171c78feeca82f619363d4c6549404b4095c5b9b9c0ef380",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/search/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "4f7ea1fa9f7c7c02635fd74651c980adc44dec49baaa4510bb7b1cd5cab80dc9",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/store-follows/[sellerId]/route.ts",
+      "methods": [
+        "GET",
+        "POST",
+        "DELETE"
+      ],
+      "sha256": "21bb4b4aef5c9981baae1ec82a7ef06146f1f6bfe85722bf87094d2281104e71",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/store-follows/unsubscribe/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "ef0d9674e0324eb9c815489c470ab72abb5975e6a2a1ad44a0583fa3b888a728",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/storefront/products/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "25c53bd1ae3eb4baf5e5a9b313ec90529c24c888ba36e80f7c32c64daa72e435",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/storefront/store/[slug]/products/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "d09054b32ef857e226fdb5810537e092ef6cc9b850c155adc40a965d6bcde340",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/support-tickets/[id]/messages/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "f6e46d641a2ec70a33945bfea8596a165ab052ce54d793e287626ecac3092c63",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/support-tickets/[id]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "c6eb245e529e688db05e93530a3362381acd4c31ee46e34440c7914459301065",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/support-tickets/media/[id]/confirm/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "0ea4956cd8c0009323490272d80d4363dcdb7d1c2c666b7da0afea979050e6f7",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/support-tickets/upload-url/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "8619c3130e2ac694b5d9f86df641463f192ef177df12745bd41cb70439f11888",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/user/addresses/[id]/route.ts",
+      "methods": [
+        "PATCH",
+        "DELETE",
+        "PUT"
+      ],
+      "sha256": "c28aee68642c49e3c5cb0e8a2dedfea592cf7d1fd8225fdc21604312d3194bf4",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/user/addresses/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "1a153d331d617de7e0ce3ca2445eb16428d51edb4189508a05e46969f035ed5e",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/user/change-password/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "28765959a9724c6982fbc94929aaafed433da910ded92b591fc956c4f819058c",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/user/favorites/[productId]/route.ts",
+      "methods": [
+        "GET",
+        "DELETE"
+      ],
+      "sha256": "85bd6c31a47bcf06e42e19eab6e4d25479657b07e8a021a9f0745c4bf58a1629",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/user/favorites/ids/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "sha256": "ebcc99c1acac511d739ac34fe5652aa4f86224b00fbdfd582dc398611ba40ade",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": false
+    },
+    {
+      "path": "apps/web/src/app/api/user/favorites/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "sha256": "cba207527a0d5ad95b346ea613ff86c2d653a15c37de9bdd7270803290667ce8",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/user/marketing-consent/route.ts",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "sha256": "3c7ae0b661323fa3150cdfdbce1365531a2996d7fd6f154fd78a4381b47d3fec",
+      "authReference": true,
+      "csrfReference": true,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/user/profile/route.ts",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "sha256": "b71a8a39941e33c2ace80c5218ea87fcce6febb94e6d3efd4b20850ccc15bf09",
+      "authReference": true,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/webhooks/iyzico/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "883f7664faa1bf42ab3d0aa955ef08e7feaceec5251222fbcd5664aa75e8d2aa",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    },
+    {
+      "path": "apps/web/src/app/api/webhooks/resend/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "sha256": "8d6b38156f3a5efd14976706ea0e285ec801a096f85aa655b94edb38285009f4",
+      "authReference": false,
+      "csrfReference": false,
+      "mutating": true
+    }
+  ],
+  "candidates": [
+    {
+      "kind": "outgoingRequest",
+      "path": "api/jobs/search-index-sync.job.ts",
+      "line": 165
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/jobs/search-index-sync.job.ts",
+      "line": 185
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/jobs/search-index-sync.job.ts",
+      "line": 201
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/jobs/search-index-sync.job.ts",
+      "line": 220
+    },
+    {
+      "kind": "dynamicExecution",
+      "path": "api/lib/iyzico.ts",
+      "line": 30
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/lib/meilisearch.ts",
+      "line": 70
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/lib/meilisearch.ts",
+      "line": 107
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/lib/meilisearch.ts",
+      "line": 124
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/lib/turnstile.ts",
+      "line": 233
+    },
+    {
+      "kind": "rawSql",
+      "path": "api/services/announcement-dispatch.service.ts",
+      "line": 92
+    },
+    {
+      "kind": "rawSql",
+      "path": "api/services/announcement-dispatch.service.ts",
+      "line": 93
+    },
+    {
+      "kind": "rawSql",
+      "path": "api/services/customer-campaign.service.ts",
+      "line": 339
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/services/media.service.ts",
+      "line": 380
+    },
+    {
+      "kind": "rawSql",
+      "path": "api/services/price-drop-dispatch.service.ts",
+      "line": 95
+    },
+    {
+      "kind": "rawSql",
+      "path": "api/services/price-drop-dispatch.service.ts",
+      "line": 96
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/services/product-import/adapters/hipicon.adapter.ts",
+      "line": 267
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/services/product-import/adapters/hipicon.adapter.ts",
+      "line": 289
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/services/product-import/adapters/hipicon.adapter.ts",
+      "line": 303
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/services/product-import/adapters/hipicon.adapter.ts",
+      "line": 350
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/services/search-console.service.ts",
+      "line": 25
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/services/search-console.service.ts",
+      "line": 102
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/services/seo-image.service.ts",
+      "line": 45
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "api/services/seo-openai.service.ts",
+      "line": 54
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/anasayfa/_components/home-cms-manager.tsx",
+      "line": 20
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/anasayfa/_components/promo-editor.tsx",
+      "line": 94
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/anasayfa/_components/slide-editor.tsx",
+      "line": 121
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/anasayfa/_components/slider-list.tsx",
+      "line": 46
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/anasayfa/_components/slider-list.tsx",
+      "line": 78
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/anasayfa/_components/slider-list.tsx",
+      "line": 97
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/denetim/audit-log-table.tsx",
+      "line": 114
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/destek/_components/admin-ticket-actions.tsx",
+      "line": 27
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/destek/_components/admin-ticket-actions.tsx",
+      "line": 51
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/duyurular/[id]/_components/content-preview.tsx",
+      "line": 30
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/duyurular/[id]/_components/progress-panel.tsx",
+      "line": 37
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/duyurular/[id]/_components/recipient-preview.tsx",
+      "line": 46
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/duyurular/[id]/_components/retry-dialog.tsx",
+      "line": 42
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/komisyonlar/_components/row-actions.tsx",
+      "line": 43
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/medya/_components/media-library-client.tsx",
+      "line": 76
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/medya/_components/media-library-client.tsx",
+      "line": 106
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/musteri-destek/_components/customer-ticket-actions.tsx",
+      "line": 30
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/musteri-destek/_components/customer-ticket-actions.tsx",
+      "line": 59
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/uyusmazliklar/[id]/_components/dispute-resolve-form.tsx",
+      "line": 30
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/uyusmazliklar/[id]/_components/dispute-resolve-form.tsx",
+      "line": 60
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/app/(panel)/uzatma-talepleri/_components/admin-actions.tsx",
+      "line": 43
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/components/document-file-actions.tsx",
+      "line": 49
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/components/edit-invoice-dialog.tsx",
+      "line": 75
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/components/issue-seller-invoice-button.tsx",
+      "line": 52
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/components/seller-commission-settings.tsx",
+      "line": 39
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/admin-panel/src/lib/csrf-fetch.ts",
+      "line": 6
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/ayarlar/_components/store-brand-form.tsx",
+      "line": 92
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/destek/_components/new-ticket-form.tsx",
+      "line": 38
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/destek/_components/ticket-reply-form.tsx",
+      "line": 27
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/iadeler/[id]/_components/seller-return-photo.ts",
+      "line": 2
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/iadeler/[id]/_components/seller-return-photo.ts",
+      "line": 8
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/iadeler/[id]/_components/seller-return-photo.ts",
+      "line": 10
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/indirimler/[id]/_components/delete-discount-button.tsx",
+      "line": 18
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/indirimler/_components/coupon-form.tsx",
+      "line": 77
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/indirimler/_components/coupon-toggle.tsx",
+      "line": 20
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/indirimler/_components/discount-rule-form.tsx",
+      "line": 112
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/kargolar/_components/shipments-page-client.tsx",
+      "line": 71
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/kargolar/_components/shipments-page-client.tsx",
+      "line": 90
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/medya/_components/media-library.tsx",
+      "line": 85
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/medya/_components/media-library.tsx",
+      "line": 177
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/medya/_components/media-library.tsx",
+      "line": 236
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/siparisler/[id]/_components/extension-request-button.tsx",
+      "line": 51
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/siparisler/[id]/_components/order-workflow-card.tsx",
+      "line": 100
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/siparisler/[id]/_components/reject-button.tsx",
+      "line": 29
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/siparisler/[id]/_components/shipment-form.tsx",
+      "line": 20
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/[id]/_components/product-edit-form.tsx",
+      "line": 161
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/[id]/_components/product-edit-form.tsx",
+      "line": 162
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/[id]/_components/product-edit-form.tsx",
+      "line": 201
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/[id]/_components/product-edit-form.tsx",
+      "line": 214
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/[id]/_components/product-edit-form.tsx",
+      "line": 239
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/[id]/_components/product-edit-form.tsx",
+      "line": 307
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/[id]/_components/product-edit-form.tsx",
+      "line": 327
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/_components/products-table-client.tsx",
+      "line": 60
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/_components/products-table-client.tsx",
+      "line": 81
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/toplu-guncelle/_components/bulk-update-form.tsx",
+      "line": 102
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/toplu-guncelle/_components/bulk-update-form.tsx",
+      "line": 123
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/toplu-yukle/_components/bulk-import-form.tsx",
+      "line": 153
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/toplu-yukle/_components/bulk-import-form.tsx",
+      "line": 260
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/toplu-yukle/_components/bulk-import-form.tsx",
+      "line": 301
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/yeni/_components/new-product-form.tsx",
+      "line": 114
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/yeni/_components/new-product-form.tsx",
+      "line": 115
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/yeni/_components/new-product-form.tsx",
+      "line": 174
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/app/(panel)/urunler/yeni/_components/new-product-form.tsx",
+      "line": 199
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/components/image-uploader.tsx",
+      "line": 49
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/components/image-uploader.tsx",
+      "line": 67
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/components/image-uploader.tsx",
+      "line": 87
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/lib/csrf-fetch.ts",
+      "line": 6
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/seller-panel/src/lib/use-barcode-availability.ts",
+      "line": 66
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/(account)/hesabim/adresler/page.tsx",
+      "line": 60
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/(account)/hesabim/favoriler/page.tsx",
+      "line": 44
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/(account)/hesabim/page.tsx",
+      "line": 24
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/abonelikten-cik/page.tsx",
+      "line": 14
+    },
+    {
+      "kind": "htmlSink",
+      "path": "apps/web/src/app/(storefront)/blog/[slug]/page.tsx",
+      "line": 157
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/odeme/client-page.tsx",
+      "line": 113
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/odeme/client-page.tsx",
+      "line": 114
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/odeme/client-page.tsx",
+      "line": 180
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/sepet/page.tsx",
+      "line": 58
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/_components/extension-request-decision.tsx",
+      "line": 30
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/_components/return-media-upload.ts",
+      "line": 2
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/_components/return-media-upload.ts",
+      "line": 8
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/_components/return-media-upload.ts",
+      "line": 10
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/_components/return-panel.tsx",
+      "line": 74
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/destek/[ticketId]/_components/ticket-thread-client.tsx",
+      "line": 55
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/destek/_components/new-ticket-form.tsx",
+      "line": 61
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/destek/_components/new-ticket-form.tsx",
+      "line": 68
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/destek/_components/new-ticket-form.tsx",
+      "line": 70
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/destek/_components/new-ticket-form.tsx",
+      "line": 136
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/destek/_components/reply-form.tsx",
+      "line": 33
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/destek/_components/reply-form.tsx",
+      "line": 40
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/destek/_components/reply-form.tsx",
+      "line": 42
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/destek/_components/reply-form.tsx",
+      "line": 106
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/siparis/[id]/destek/_components/support-section.tsx",
+      "line": 56
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/urun/[slug]/_components/review-form.tsx",
+      "line": 47
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/urun/[slug]/_components/store-follow-button.tsx",
+      "line": 24
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/(storefront)/urun/[slug]/add-to-cart-button.tsx",
+      "line": 91
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/app/api/health/route.ts",
+      "line": 61
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/components/cart-icon.tsx",
+      "line": 29
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/components/communication-preferences-form.tsx",
+      "line": 11
+    },
+    {
+      "kind": "htmlSink",
+      "path": "apps/web/src/components/legal-document-html.tsx",
+      "line": 29
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/components/storefront/featured-products-carousel.tsx",
+      "line": 125
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/components/storefront/products-infinite-grid.tsx",
+      "line": 63
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/components/storefront/store-products-infinite-grid.tsx",
+      "line": 52
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/components/storefront/storefront-product-grid.tsx",
+      "line": 52
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/lib/csrf-fetch.ts",
+      "line": 17
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "apps/web/src/lib/csrf-fetch.ts",
+      "line": 25
+    },
+    {
+      "kind": "htmlSink",
+      "path": "packages/seo/src/json-ld.tsx",
+      "line": 11
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "packages/ui/src/components/composite/file-upload.tsx",
+      "line": 237
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "packages/ui/src/components/composite/file-upload.tsx",
+      "line": 259
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "packages/ui/src/components/composite/file-upload.tsx",
+      "line": 279
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "packages/ui/src/components/composite/legal-document-dialog.tsx",
+      "line": 56
+    },
+    {
+      "kind": "htmlSink",
+      "path": "packages/ui/src/components/composite/legal-document-html.tsx",
+      "line": 26
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "packages/ui/src/components/composite/notification-bell.tsx",
+      "line": 49
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "packages/ui/src/components/composite/notification-bell.tsx",
+      "line": 70
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "packages/ui/src/components/composite/notification-bell.tsx",
+      "line": 76
+    },
+    {
+      "kind": "htmlSink",
+      "path": "packages/ui/src/components/turnstile-widget.tsx",
+      "line": 156
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "tools/catalog-import/image.ts",
+      "line": 60
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "tools/catalog-import/runner.ts",
+      "line": 213
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "tools/scripts/seed-search.ts",
+      "line": 27
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "tools/scripts/seed-search.ts",
+      "line": 38
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "tools/scripts/seed-search.ts",
+      "line": 51
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "tools/scripts/seed-search.ts",
+      "line": 66
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "tools/scripts/seed-search.ts",
+      "line": 76
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "tools/scripts/seed-search.ts",
+      "line": 97
+    },
+    {
+      "kind": "outgoingRequest",
+      "path": "tools/scripts/seed-search.ts",
+      "line": 152
+    },
+    {
+      "kind": "dynamicExecution",
+      "path": "tools/scripts/web-explore.mjs",
+      "line": 45
+    }
+  ],
+  "manifests": [
+    {
+      "path": "api/package.json",
+      "name": "@hanuja/api",
+      "dependencies": {
+        "@hanuja/security": "workspace:*",
+        "@prisma/client": "6.19.3",
+        "bullmq": "^5.0.0",
+        "cheerio": "^1.0.0",
+        "ioredis": "^5.0.0",
+        "iyzipay": "^2.0.67",
+        "nodemailer": "^6.9.0",
+        "sharp": "0.35.3",
+        "zod": "^3.23.0",
+        "better-auth": "1.6.25",
+        "@better-auth/utils": "0.4.2"
+      },
+      "overrides": {}
+    },
+    {
+      "path": "apps/admin-panel/package.json",
+      "name": "admin-panel",
+      "dependencies": {
+        "@better-fetch/fetch": "1.3.1",
+        "@fontsource/dm-sans": "^5.2.8",
+        "@fontsource/outfit": "^5.2.8",
+        "@hanuja/api": "workspace:*",
+        "@hanuja/security": "workspace:*",
+        "@hanuja/types": "workspace:*",
+        "@hanuja/ui": "workspace:*",
+        "@prisma/client": "6.19.3",
+        "better-auth": "1.6.25",
+        "lucide-react": "^0.400.0",
+        "next": "15.5.22",
+        "prisma": "6.19.3",
+        "qrcode.react": "4.2.0",
+        "react": "^18.3.0",
+        "react-dom": "^18.3.0",
+        "xlsx": "0.18.5",
+        "zod": "^3.23.0"
+      },
+      "overrides": {}
+    },
+    {
+      "path": "apps/seller-panel/package.json",
+      "name": "seller-panel",
+      "dependencies": {
+        "@better-fetch/fetch": "1.3.1",
+        "@fontsource/dm-sans": "^5.2.8",
+        "@fontsource/outfit": "^5.2.8",
+        "@hanuja/api": "workspace:*",
+        "@hanuja/security": "workspace:*",
+        "@hanuja/types": "workspace:*",
+        "@hanuja/ui": "workspace:*",
+        "@prisma/client": "6.19.3",
+        "better-auth": "1.6.25",
+        "exceljs": "^4.4.0",
+        "lucide-react": "^0.400.0",
+        "next": "15.5.22",
+        "prisma": "6.19.3",
+        "react": "^18.3.0",
+        "react-dom": "^18.3.0",
+        "xlsx": "0.18.5"
+      },
+      "overrides": {}
+    },
+    {
+      "path": "apps/web/package.json",
+      "name": "web",
+      "dependencies": {
+        "@better-fetch/fetch": "^1.1.0",
+        "@fontsource/dm-sans": "^5.2.8",
+        "@fontsource/outfit": "^5.2.8",
+        "@fontsource/plus-jakarta-sans": "^5.2.8",
+        "@hanuja/api": "workspace:*",
+        "@hanuja/security": "workspace:*",
+        "@hanuja/seo": "workspace:*",
+        "@hanuja/types": "workspace:*",
+        "@hanuja/ui": "workspace:*",
+        "@prisma/client": "6.19.3",
+        "better-auth": "1.6.25",
+        "lucide-react": "^0.400.0",
+        "next": "15.5.22",
+        "prisma": "6.19.3",
+        "react": "^18.3.0",
+        "react-dom": "^18.3.0"
+      },
+      "overrides": {}
+    },
+    {
+      "path": "db/package.json",
+      "name": "@hanuja/db",
+      "dependencies": {
+        "@prisma/client": "6.19.3"
+      },
+      "overrides": {}
+    },
+    {
+      "path": "package.json",
+      "name": "hanuja",
+      "dependencies": {
+        "@aws-sdk/client-s3": "^3.600.0",
+        "@aws-sdk/s3-request-presigner": "^3.600.0",
+        "exceljs": "^4.4.0"
+      },
+      "overrides": {
+        "sharp": "0.35.3",
+        "undici": "7.29.0",
+        "ip-address": "10.4.0",
+        "postcss": "8.5.25",
+        "qs": "6.15.2",
+        "fast-xml-builder": "1.3.0",
+        "tmp": "0.2.7",
+        "brace-expansion@^1.1.0": "1.1.18",
+        "brace-expansion@^2.0.0": "2.1.4"
+      }
+    },
+    {
+      "path": "packages/config/package.json",
+      "name": "@hanuja/config",
+      "dependencies": {
+        "zod": "^3.23.0"
+      },
+      "overrides": {}
+    },
+    {
+      "path": "packages/security/package.json",
+      "name": "@hanuja/security",
+      "dependencies": {
+        "zod": "^3.23.0"
+      },
+      "overrides": {}
+    },
+    {
+      "path": "packages/seo/package.json",
+      "name": "@hanuja/seo",
+      "dependencies": {},
+      "overrides": {}
+    },
+    {
+      "path": "packages/types/package.json",
+      "name": "@hanuja/types",
+      "dependencies": {},
+      "overrides": {}
+    },
+    {
+      "path": "packages/ui/package.json",
+      "name": "@hanuja/ui",
+      "dependencies": {
+        "@radix-ui/react-checkbox": "^1.1.0",
+        "@radix-ui/react-dialog": "^1.1.0",
+        "@radix-ui/react-dropdown-menu": "^2.1.0",
+        "@radix-ui/react-label": "^2.1.0",
+        "@radix-ui/react-select": "^2.1.0",
+        "@radix-ui/react-separator": "^1.1.0",
+        "@radix-ui/react-slot": "^1.1.0",
+        "@radix-ui/react-toast": "^1.2.0",
+        "@radix-ui/react-tooltip": "^1.1.0",
+        "class-variance-authority": "^0.7.0",
+        "clsx": "^2.1.1",
+        "lucide-react": "^0.400.0",
+        "tailwind-merge": "^2.3.0"
+      },
+      "overrides": {}
+    },
+    {
+      "path": "tests/package.json",
+      "name": "@hanuja/tests",
+      "dependencies": {
+        "@prisma/client": "6.19.3"
+      },
+      "overrides": {}
+    }
+  ]
+}

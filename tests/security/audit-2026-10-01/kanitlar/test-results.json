@@ -1,0 +1,1565 @@
+{
+  "recordedAt": "2026-10-01T14:13:03.556Z",
+  "success": true,
+  "counts": {
+    "total": 2584,
+    "passed": 2584,
+    "failed": 0,
+    "pending": 0,
+    "files": 258
+  },
+  "security": {
+    "files": 33,
+    "tests": 489
+  },
+  "files": [
+    {
+      "path": "tests/integration/admin-seller-delete.integration.test.ts",
+      "status": "passed",
+      "tests": 1,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/bulk-product-approve.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/campaign-discount-activation-scan.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/campaign-discount-dedupe.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/cart-coupon.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/checkout-calculation.test.ts",
+      "status": "passed",
+      "tests": 15,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/checkout-coupon-commission.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/import-barcode-check.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/import-commit-auto-create-category.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/import-commit-barcode-conflict.test.ts",
+      "status": "passed",
+      "tests": 1,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/import-preview-rejects-unknown-root.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/order-lifecycle.test.ts",
+      "status": "passed",
+      "tests": 41,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/payment-flow.test.ts",
+      "status": "passed",
+      "tests": 23,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/payout-hold-coupon-share.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/payout-hold.test.ts",
+      "status": "passed",
+      "tests": 28,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/pre-launch-data-clean.integration.test.ts",
+      "status": "passed",
+      "tests": 1,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/product-moderation-flow.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/seller-bulk-import.test.ts",
+      "status": "passed",
+      "tests": 29,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/seller-email-otp-login.integration.test.ts",
+      "status": "passed",
+      "tests": 1,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/sitemap-category-visibility.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/security/admin-better-auth-rate-limit.test.ts",
+      "status": "passed",
+      "tests": 1,
+      "failed": []
+    },
+    {
+      "path": "tests/security/admin-csrf-fetch-usage.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/security/admin-csrf-target-manifest.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/security/admin-permission-matrix.test.ts",
+      "status": "passed",
+      "tests": 58,
+      "failed": []
+    },
+    {
+      "path": "tests/security/announcement-routes.test.ts",
+      "status": "passed",
+      "tests": 24,
+      "failed": []
+    },
+    {
+      "path": "tests/security/api-origin-boundary.test.ts",
+      "status": "passed",
+      "tests": 39,
+      "failed": []
+    },
+    {
+      "path": "tests/security/auth-boundaries.test.ts",
+      "status": "passed",
+      "tests": 51,
+      "failed": []
+    },
+    {
+      "path": "tests/security/better-auth-get-session-rate-limit.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/security/campaign-consent-enforcement.test.ts",
+      "status": "passed",
+      "tests": 10,
+      "failed": []
+    },
+    {
+      "path": "tests/security/campaign-respam-cooldown.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/security/card-payments-disabled.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/security/change-password-session-cookie.test.ts",
+      "status": "passed",
+      "tests": 8,
+      "failed": []
+    },
+    {
+      "path": "tests/security/change-password.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/security/client-tracking-guard.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/security/csrf-route-production.test.ts",
+      "status": "passed",
+      "tests": 15,
+      "failed": []
+    },
+    {
+      "path": "tests/security/iyzico-signature.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/security/json-ld-script-escape.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/security/notification-recipients-route.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/security/notification-retry-route.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/security/order-document-email-links.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/security/panel-middleware.test.ts",
+      "status": "passed",
+      "tests": 27,
+      "failed": []
+    },
+    {
+      "path": "tests/security/participant-isolation.test.ts",
+      "status": "passed",
+      "tests": 12,
+      "failed": []
+    },
+    {
+      "path": "tests/security/payment-callback-binding.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/security/platform-bank-csrf.test.ts",
+      "status": "passed",
+      "tests": 12,
+      "failed": []
+    },
+    {
+      "path": "tests/security/product-question-routes.test.ts",
+      "status": "passed",
+      "tests": 14,
+      "failed": []
+    },
+    {
+      "path": "tests/security/seller-bank-otp.test.ts",
+      "status": "passed",
+      "tests": 25,
+      "failed": []
+    },
+    {
+      "path": "tests/security/seller-cannot-see-customer-email.test.ts",
+      "status": "passed",
+      "tests": 10,
+      "failed": []
+    },
+    {
+      "path": "tests/security/seller-cannot-see-order-level-amounts.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/security/seller-contract-pii-projection.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/security/seller-csv-export-no-customer-name.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/security/seller-isolation.test.ts",
+      "status": "passed",
+      "tests": 80,
+      "failed": []
+    },
+    {
+      "path": "tests/security/seller-password-enforcement.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/security/webhook-replay.test.ts",
+      "status": "passed",
+      "tests": 20,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/admin-dashboard-attention.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/admin-dashboard-refunds.test.ts",
+      "status": "passed",
+      "tests": 13,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/admin-manual-refund-ui.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/admin-navigation-database-guard.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/admin-password-reset.test.ts",
+      "status": "passed",
+      "tests": 12,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/admin-refund-payment-queue.test.ts",
+      "status": "passed",
+      "tests": 23,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/admin-refund-queue-page.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/admin-seller-approval-presentation.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/admin-session-policy.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/announcement-draft-save-state.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/barcode-generate.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/barcode-registry-migration.test.ts",
+      "status": "passed",
+      "tests": 1,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/barcode-registry.test.ts",
+      "status": "passed",
+      "tests": 1,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/bulk-product-import.test.ts",
+      "status": "passed",
+      "tests": 28,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/bulk-product-update.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/cart-flight.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/cart-summary.test.ts",
+      "status": "passed",
+      "tests": 8,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/catalog-public-dto.test.ts",
+      "status": "passed",
+      "tests": 1,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/catalog-variant-effective-price.test.ts",
+      "status": "passed",
+      "tests": 8,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/category-filter-trail.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/category-selection.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/category-tree.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/check-env.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/checkout-draft.test.ts",
+      "status": "passed",
+      "tests": 8,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/cookie-consent-state.test.ts",
+      "status": "passed",
+      "tests": 10,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/cookie-policy.test.ts",
+      "status": "passed",
+      "tests": 12,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/csrf.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/customer-order-status.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/email-templates-admin-operations.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/email-templates-announcements.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/email-templates-order-lifecycle.test.ts",
+      "status": "passed",
+      "tests": 17,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/email-templates-price-drop.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/email-templates-product-questions.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/email-templates.test.ts",
+      "status": "passed",
+      "tests": 24,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/file-upload-request-helpers.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/hipicon-adapter.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/home-media-variants.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/image-upload-errors.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/import-barcode-pad.test.ts",
+      "status": "passed",
+      "tests": 12,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/import-category-match.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/import-category-resolver.test.ts",
+      "status": "passed",
+      "tests": 10,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/legacy-refund-allocation.test.ts",
+      "status": "passed",
+      "tests": 8,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/legal-documents.test.ts",
+      "status": "passed",
+      "tests": 17,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/login-redirect.test.ts",
+      "status": "passed",
+      "tests": 30,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/mailer-from-category.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/mailer-reliability.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/media-announcement-upload.service.test.ts",
+      "status": "passed",
+      "tests": 12,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/media-processing-bounds.test.ts",
+      "status": "passed",
+      "tests": 1,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/media-route-authorization.test.ts",
+      "status": "passed",
+      "tests": 12,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/media-signature.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/media-upload-bounds.service.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/media-url.test.ts",
+      "status": "passed",
+      "tests": 20,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/model-code.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/order-number-format.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/password-policy.test.ts",
+      "status": "passed",
+      "tests": 8,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/payment-capabilities.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/penalty-daily-accrual.test.ts",
+      "status": "passed",
+      "tests": 15,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/pre-launch-data-clean.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/private-document-storage.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/product-import-service.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/product-import.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/product-listing-query.test.ts",
+      "status": "passed",
+      "tests": 25,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/product-visibility.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/quantity-allocation.test.ts",
+      "status": "passed",
+      "tests": 13,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/r2-bounds.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/r2-config.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/rate-limit-redis.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/react-dom-ping-backport.test.ts",
+      "status": "passed",
+      "tests": 15,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/read-receipt.test.ts",
+      "status": "passed",
+      "tests": 13,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/round-money.test.ts",
+      "status": "passed",
+      "tests": 11,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/rounding-parity.test.ts",
+      "status": "passed",
+      "tests": 58,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/runtime-secret.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/sanitize-blog-html.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/seed-guard.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/seller-application-center-routing.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/seller-application-routing.test.ts",
+      "status": "passed",
+      "tests": 10,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/seller-email-otp-factor.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/seller-onboarding-validation.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/seller-otp-errors.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/seller-profile-validation.test.ts",
+      "status": "passed",
+      "tests": 16,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/single-flight.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/storefront-middleware.test.ts",
+      "status": "passed",
+      "tests": 8,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/storefront-mobile-regressions.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/storefront-nav-menu.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/support-email.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/support-ticket-media-projection.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/tax-resolve.test.ts",
+      "status": "passed",
+      "tests": 12,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/toast-variant-classes.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/turnstile-auth.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/turnstile-client-error.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/turnstile.test.ts",
+      "status": "passed",
+      "tests": 22,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/admin-finance-edit.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/admin-manual-refund.test.ts",
+      "status": "passed",
+      "tests": 16,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/admin-payout-pay.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/admin-refund-reassessment.test.ts",
+      "status": "passed",
+      "tests": 10,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/audit-logs-filter.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/commission-exempt-payout.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/fulfillment-auto-cancel.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/fulfillment-warning-5days.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/payment-confirm-binding.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/seller-documents.test.ts",
+      "status": "passed",
+      "tests": 10,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/seller-invoice-create.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/seller-product-import.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/integration/api/seller-product-stock-update.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/api/marketing-unsubscribe.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/api/seller-contract-documents-route.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/api/seller-onboarding-documents-route.test.ts",
+      "status": "passed",
+      "tests": 8,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/api/seller-onboarding-email-otp.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/api/seller-onboarding-profile-route.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/api/seller-vacation-mode-route.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/catalog-import/catalog-import.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/announcement-audience.test.ts",
+      "status": "passed",
+      "tests": 18,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/announcement-progress.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/business-days.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/cargo-tracking.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/category-tax-groups.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/category-visibility.test.ts",
+      "status": "passed",
+      "tests": 8,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/delivery-confirmation.test.ts",
+      "status": "passed",
+      "tests": 14,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/effective-price.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/eft-admin-discount.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/homepage-showcase.test.ts",
+      "status": "passed",
+      "tests": 19,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/order-quantity-summary.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/order-state-machine.test.ts",
+      "status": "passed",
+      "tests": 87,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/payout-calculator.test.ts",
+      "status": "passed",
+      "tests": 36,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/penalty-calculator.test.ts",
+      "status": "passed",
+      "tests": 27,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/price-drop-eligibility.test.ts",
+      "status": "passed",
+      "tests": 17,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/product-characteristics.test.ts",
+      "status": "passed",
+      "tests": 10,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/product-question.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/return-flow-transitions.test.ts",
+      "status": "passed",
+      "tests": 13,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/seller-order-tabs.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/seller-order-workflow.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/seller-statement-export.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/seller-statement.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/seo-generated-content.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/seo-topic-cluster.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/slug.test.ts",
+      "status": "passed",
+      "tests": 22,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/domain/tr-holidays.test.ts",
+      "status": "passed",
+      "tests": 22,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/jobs/campaign-discount.job.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/jobs/fulfillment-risk-notification.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/jobs/notification-dispatch.job.test.ts",
+      "status": "passed",
+      "tests": 31,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/jobs/search-index-sync.job.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/lib/reporting-time.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/lib/request-body.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/repositories/product.repository.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/repositories/seller-ledger.repository.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/admin-analytics.service.test.ts",
+      "status": "passed",
+      "tests": 21,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/admin-media.service.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/admin-notification.service.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/admin-order-overdue-list.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/admin-refund-query.service.test.ts",
+      "status": "passed",
+      "tests": 31,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/admin-seller-activation-onboarding.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/admin-seller-management.service.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/announcement-content.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/announcement.service.test.ts",
+      "status": "passed",
+      "tests": 12,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/blog.service.test.ts",
+      "status": "passed",
+      "tests": 23,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/campaign-discount.service.test.ts",
+      "status": "passed",
+      "tests": 32,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/campaign-send-gate.test.ts",
+      "status": "passed",
+      "tests": 13,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/cart-price-freshness.service.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/cart.service.test.ts",
+      "status": "passed",
+      "tests": 12,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/catalog-category-visibility.service.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/catalog-category.service.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/catalog-homepage-showcase.service.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/catalog-product.service.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/checkout.service.test.ts",
+      "status": "passed",
+      "tests": 18,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/contact-sharing-guard.service.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/content-scanner.service.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/cookie-consent.service.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/coupon.service.test.ts",
+      "status": "passed",
+      "tests": 14,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/delivery.service.notifications.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/discount.service.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/dispute-authorization.service.test.ts",
+      "status": "passed",
+      "tests": 13,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/dispute.service.test.ts",
+      "status": "passed",
+      "tests": 23,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/email-provider-event.service.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/favorite-product.service.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/home-cms-media-eligibility.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/home-media-optimizer.service.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/manual-refund-completion.test.ts",
+      "status": "passed",
+      "tests": 28,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/marketing-channel.service.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/marketing-consent.service.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/marketing-recipient-policy.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/media.service.test.ts",
+      "status": "passed",
+      "tests": 20,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/notification-operations.service.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/notification-outbox.service.test.ts",
+      "status": "passed",
+      "tests": 9,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/order-document-alias.service.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/order-email-payload.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/payment-eft-approval.test.ts",
+      "status": "passed",
+      "tests": 8,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/payment.service.notifications.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/payment.service.test.ts",
+      "status": "passed",
+      "tests": 21,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/product-analytics.service.test.ts",
+      "status": "passed",
+      "tests": 6,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/product-question.service.test.ts",
+      "status": "passed",
+      "tests": 27,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/product-review.service.test.ts",
+      "status": "passed",
+      "tests": 26,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/quantity-cancellation.notifications.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/quantity-refund.service.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/quantity-return.notifications.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/refund-execution.service.test.ts",
+      "status": "passed",
+      "tests": 2,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/refund-notification.service.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/refund-processor.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/return.service.notifications.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/return.service.test.ts",
+      "status": "passed",
+      "tests": 26,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/search.service.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/seller-approval-query.service.test.ts",
+      "status": "passed",
+      "tests": 19,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/seller-bank-activation-verification.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/seller-document.service.test.ts",
+      "status": "passed",
+      "tests": 36,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/seller-payment-accrual.service.test.ts",
+      "status": "passed",
+      "tests": 3,
+      "failed": []
+    },
+    {
+      "path": "tests/unit/services/seller.service.test.ts",
+      "status": "passed",
+      "tests": 4,
+      "failed": []
+    }
+  ]
+}

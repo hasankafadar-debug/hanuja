@@ -1,0 +1,84 @@
+{
+  "recordedAt": "2026-10-01T14:08:59.961Z",
+  "mode": "local commits only; audit artifact commit follows this source-change list",
+  "commits": [
+    {
+      "commit": "8e84924",
+      "purpose": "JSON-LD stored XSS",
+      "files": [
+        "packages/seo/src/json-ld.tsx",
+        "tests/security/json-ld-script-escape.test.ts",
+        "tests/vitest.config.ts"
+      ]
+    },
+    {
+      "commit": "6a42162",
+      "purpose": "Multi-seller return and dispute isolation",
+      "files": [
+        "api/lib/participant-scope.ts",
+        "api/repositories/dispute.repository.ts",
+        "api/routes/media.ts",
+        "tests/security/participant-isolation.test.ts",
+        "tests/unit/media-route-authorization.test.ts",
+        "tests/unit/services/dispute-authorization.service.test.ts"
+      ]
+    },
+    {
+      "commit": "c42c6de",
+      "purpose": "API origin boundary and platform bank CSRF",
+      "files": [
+        "packages/security/src/request-origin.ts",
+        "packages/security/package.json",
+        "apps/web/src/middleware.ts",
+        "apps/admin-panel/src/middleware.ts",
+        "apps/seller-panel/src/middleware.ts",
+        "apps/admin-panel/src/app/api/admin/bank-accounts/route.ts",
+        "apps/admin-panel/src/app/api/admin/bank-accounts/[id]/route.ts",
+        "apps/admin-panel/src/app/(panel)/ayarlar/_components/bank-accounts-form.tsx",
+        "tests/security/api-origin-boundary.test.ts",
+        "tests/security/platform-bank-csrf.test.ts",
+        "tests/security/panel-middleware.test.ts"
+      ]
+    },
+    {
+      "commit": "a28eaf2",
+      "purpose": "Seller bank OTP secrecy and one-use enforcement",
+      "files": [
+        "api/lib/seller-bank-otp.ts",
+        "apps/seller-panel/src/app/api/seller/bank-details/route.ts",
+        "apps/seller-panel/src/app/api/seller/bank-details/step-up/request/route.ts",
+        "tests/security/seller-bank-otp.test.ts",
+        "docs/05-security/seller-iban-verification.md"
+      ]
+    },
+    {
+      "commit": "8544b79",
+      "purpose": "Dormant webhook validation and actual payment guard coverage",
+      "files": [
+        "api/lib/iyzico.ts",
+        "tests/security/iyzico-signature.test.ts",
+        "tests/security/card-payments-disabled.test.ts",
+        "tests/security/webhook-replay.test.ts",
+        "docs/05-security/payment-security.md"
+      ]
+    },
+    {
+      "commit": "d837508",
+      "purpose": "Fail-closed production DB configuration and restore drill",
+      "files": [
+        "docker-compose.production.yml",
+        "tools/ops/restore-drill.sh",
+        "tools/ops/systemd/hanuja-backup.env.example",
+        "docs/07-operations/production-launch-checklist.md",
+        "tests/security/audit-2026-10-01/restore-drill-stubs.sh"
+      ]
+    },
+    {
+      "commit": "00b436c",
+      "purpose": "Invalid, expired and cross-seller OTP regression cases",
+      "files": [
+        "tests/security/seller-bank-otp.test.ts"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "recordedAt": "2026-10-01T13:43:30.691Z",
+  "results": [
+    {
+      "name": "TCP",
+      "blocked": true
+    },
+    {
+      "name": "Socket TCP",
+      "blocked": true
+    },
+    {
+      "name": "TLS",
+      "blocked": true
+    },
+    {
+      "name": "HTTP",
+      "blocked": true
+    },
+    {
+      "name": "HTTPS",
+      "blocked": true
+    },
+    {
+      "name": "DNS lookup",
+      "blocked": true
+    },
+    {
+      "name": "DNS resolve",
+      "blocked": true
+    },
+    {
+      "name": "DNS promise lookup",
+      "blocked": true
+    },
+    {
+      "name": "DNS promise resolve",
+      "blocked": true
+    },
+    {
+      "name": "UDP",
+      "blocked": true
+    },
+    {
+      "name": "fetch",
+      "blocked": true
+    }
+  ],
+  "localhostResolvedWithoutDNS": true,
+  "limitations": "Node preload protection; native binaries are outside this process guard. Verification did not run production DB or network tools."
+}

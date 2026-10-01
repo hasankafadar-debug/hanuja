@@ -1,0 +1,107 @@
+{
+  "recordedAt": "2026-10-01T14:13:03.556Z",
+  "mode": "local only",
+  "networkGuard": "network-guard.cjs",
+  "telemetryDisabled": true,
+  "packageDownloads": false,
+  "push": false,
+  "deploy": false,
+  "checks": [
+    {
+      "check": "Full Vitest",
+      "command": "pnpm --filter @hanuja/tests test -- --reporter=json --outputFile=security/audit-2026-10-01/kanitlar/vitest-full.tmp.json",
+      "result": "passed",
+      "exitCode": 0,
+      "files": 258,
+      "tests": 2584,
+      "failed": 0,
+      "securityFiles": 33,
+      "securityTests": 489,
+      "evidence": "test-results.json"
+    },
+    {
+      "check": "Typecheck",
+      "command": "pnpm --filter web --filter seller-panel --filter admin-panel --filter @hanuja/api --filter @hanuja/security --filter @hanuja/seo typecheck",
+      "result": "passed",
+      "exitCode": 0
+    },
+    {
+      "check": "Application lint",
+      "command": "pnpm --filter web --filter seller-panel --filter admin-panel lint",
+      "result": "passed with existing warnings",
+      "exitCode": 0
+    },
+    {
+      "check": "Shared package lint",
+      "command": "pnpm --filter @hanuja/security --filter @hanuja/seo lint",
+      "result": "passed",
+      "exitCode": 0
+    },
+    {
+      "check": "Changed API/test lint",
+      "command": "node node_modules/eslint/bin/eslint.js --no-eslintrc --config packages/security/.eslintrc.js [explicit changed API/test files]",
+      "result": "passed",
+      "exitCode": 0,
+      "note": "API has no own ESLint config; existing security config was used"
+    },
+    {
+      "check": "Production builds",
+      "command": "pnpm -r --workspace-concurrency=1 --filter web --filter seller-panel --filter admin-panel build",
+      "result": "passed for web, seller-panel, admin-panel",
+      "exitCode": 0,
+      "note": "Synthetic DB/Redis/search loopback addresses, auth/public origins and provider env overrides; no deployments"
+    },
+    {
+      "check": "Node network guards",
+      "command": "node tests/security/audit-2026-10-01/verify-network-guard.cjs",
+      "result": "11 probes blocked",
+      "exitCode": 0,
+      "evidence": "network-proof.json"
+    },
+    {
+      "check": "Compose missing password",
+      "command": "docker compose -f docker-compose.production.yml --env-file NUL config --quiet",
+      "result": "correctly rejected missing POSTGRES_PASSWORD",
+      "note": "No services started; no registry pulls"
+    },
+    {
+      "check": "Compose configured password",
+      "command": "docker compose -f docker-compose.production.yml --env-file NUL config --no-env-resolution --quiet",
+      "result": "passed with synthetic POSTGRES_PASSWORD and search key",
+      "exitCode": 0
+    },
+    {
+      "check": "Restore shell syntax",
+      "command": "bash -n tools/ops/restore-drill.sh",
+      "result": "passed",
+      "exitCode": 0
+    },
+    {
+      "check": "Restore safety scenarios",
+      "command": "bash tests/security/audit-2026-10-01/restore-drill-stubs.sh",
+      "result": "4 scenarios passed",
+      "exitCode": 0,
+      "note": "Only local psql/restic/tar/pg_restore stubs; SQL was not executed on PostgreSQL; no real restore"
+    },
+    {
+      "check": "Whitespace and patch errors",
+      "command": "git diff --check",
+      "result": "passed",
+      "exitCode": 0
+    }
+  ],
+  "unverified": [
+    "Current registry advisories and CVEs",
+    "Production configuration, credentials, data or networking",
+    "Direct private-prefix R2/CDN exposure",
+    "Real disposable PostgreSQL tests and concurrency",
+    "Real backup restore, key decryption, alarm delivery and RPO/RTO",
+    "Browser E2E and production form flows",
+    "Full Git-history secret scan"
+  ],
+  "initialHarnessFailures": {
+    "reactImport": "Resolved to already installed web application React renderer",
+    "checkEnvTests": "4 initial failures caused by blocked local tsx IPC; fixed guard and all 2584 tests passed on final full run"
+  },
+  "commitSafety": "post-commit auto-push hook disabled only per commit command using core.hooksPath=.git/offline-disabled-hooks"
+}
