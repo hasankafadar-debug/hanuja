@@ -91,6 +91,20 @@ describe('real seller bank OTP handlers', () => {
     expect(mocks.verification.deleteMany).not.toHaveBeenCalled()
     expect(mocks.requestChange).not.toHaveBeenCalled()
   })
+  it.each(['wrong code', 'other seller', 'expired'] as const)('rejects a stored OTP with %s through the actual lookup query', async scenario => {
+    const stored = { identifier, value: sellerBankOtpValue(identifier, code), expiresAt: new Date(Date.now() + 60_000) }
+    let submitted = bank
+    if (scenario === 'wrong code') submitted = { ...bank, otpCode: '654321' }
+    if (scenario === 'other seller') mocks.seller.findUnique.mockResolvedValue({ id: 'seller-b', status: 'active' })
+    if (scenario === 'expired') stored.expiresAt = new Date(Date.now() - 1000)
+    mocks.verification.findFirst.mockImplementation(async ({ where }) => (
+      stored.identifier === where.identifier && stored.value === where.value && stored.expiresAt > where.expiresAt.gt
+        ? { id: 'otp-record' } : null
+    ))
+    expect((await changeBank(request(submitted))).status).toBe(400)
+    expect(mocks.verification.deleteMany).not.toHaveBeenCalled()
+    expect(mocks.requestChange).not.toHaveBeenCalled()
+  })
   it('rejects a code consumed or expired between lookup and claim', async () => {
     mocks.verification.deleteMany.mockResolvedValue({ count: 0 })
     expect((await changeBank(request())).status).toBe(400)
