@@ -6,6 +6,10 @@ const SIGNED_WEB_ROUTES = new Set([
   '/api/webhooks/resend',
   '/api/inbound/postmark',
   '/api/inbound/postmark/store-discount',
+  // RFC 8058 one-click unsubscribe is POSTed by the mail provider's servers
+  // without browser metadata. The opt-out token in the query is the credential;
+  // the handler uses no cookies.
+  '/api/marketing/unsubscribe',
 ])
 
 export function isApiMutationOriginAllowed(request: Request, canonicalUrl: string, surface: 'web' | 'panel'): boolean {

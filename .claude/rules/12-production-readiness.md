@@ -969,6 +969,35 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - **Migration YOK, env YOK.** Redeploy: **web, seller-panel, admin-panel**. Sıra önemsiz, worker
   gerekmez.
 
+### 43. Güvenlik denetimi paketi: API Origin sınırı, kanıt erişimi, banka OTP (yeni — 2026-10-01)
+
+- **Kapsam:** Codex yerel denetiminin commit'leri (`8e84924`…`ad2eeb8`) ve push öncesi inceleme
+  düzeltmesi. Ayrıntı: `tests/security/audit-2026-10-01/rapor.md`.
+- **API Origin sınırı:** üretimde üç uygulamanın middleware'i tüm `/api/*` mutasyonlarında `Origin`'in
+  `BETTER_AUTH_URL` origin'iyle **birebir** aynı olmasını ister. Değer yanlışsa o uygulamadaki bütün
+  API mutasyonları 403 alır. Better Auth girişi `SELLER_PANEL_URL` gibi başka güvenilen origin'leri de
+  kabul ettiği için girişin çalışması değerin doğru olduğunu kanıtlamaz. 2026-10-01'de Coolify UI'dan
+  okundu ve doğru: web `https://www.hanuja.com.tr`, seller `https://satici.hanuja.com.tr`, admin
+  `https://admin.hanuja.com.tr`. Aynı okumada dört servis de `codex/release-2026-07-15` dalında,
+  Commit SHA `HEAD`, Auto deploy **"Manual deployments only"**; GitHub `deploy.yml` yalnız `main`'de
+  çalışır. Yani bu dala push tek başına deploy başlatmaz.
+- **Muaf uçlar (yalnız web):** ödeme callback, iyzico/Resend webhook, iki Postmark inbound ve
+  `/api/marketing/unsubscribe` (RFC 8058 tek tıkla çıkış; e-posta sağlayıcısı Origin göndermez). Bu
+  sonuncusu push öncesi incelemede eklendi; eksikken tek tıkla çıkış 403 alıyor ve rıza geri
+  çekilmiyordu. Panellerde muaf uç yoktur.
+- **Kanıt erişimi:** iade/uyuşmazlık özel dosyalarına yalnız iadenin atandığı satıcı erişir; legacy
+  `sellerId=null` iadeler ve doğrudan açılmış uyuşmazlıklar siparişteki tüm satıcılara açık kalır.
+  Gerçek PostgreSQL ile doğrulandı: `tests/postgres/private-evidence-participant-scope.test.ts`.
+- **Banka OTP:** HMAC ile saklanır ve finans işleminden önce tüketilir. Deploy anında bekleyen kodlar
+  (10 dk) geçersizleşir; servis hatasında satıcı yeni kod ister.
+- **Migration YOK, env YOK.** Redeploy: **web, seller-panel, admin-panel**; worker gerekmez (queue/şema
+  değişikliği yok), sıra önemsiz. `docker-compose.production.yml` değişikliği Coolify'ı etkilemez
+  (Dockerfile build pack).
+- **Deploy sonrası:** her panelde zararsız bir mutasyon (ör. bildirimi okundu yapma) 403 almamalı.
+- **Açık uç (önceden vardı, bu işle gelmedi):** Next 15.5 middleware'in yakaladığı isteklerde 10 MB
+  üstü gövdeyi keser (`middlewareClientMaxBodySize`). `/api/seller/*` zaten eşleştiği için 100 MB'a
+  kadar izinli satıcı sözleşme/belge yüklemeleri 10 MB'ı aşınca bozulabilir; doğrulanmadı.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
