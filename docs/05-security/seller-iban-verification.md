@@ -3,6 +3,14 @@
 
 # Seller IBAN / Bank Account Verification Policy
 
+## 2026-10-01 uygulama kanıtı
+
+Satıcı banka değişikliği ve kod isteme handler'ları session rolü, geçici parola, CSRF ve kullanıcı başına yüksek risk hız limitini doğrular. Altı haneli e-posta kodu `api/lib/seller-bank-otp.ts` ile satıcı/kullanıcıya bağlı HMAC-SHA256 olarak saklanır; `BETTER_AUTH_SECRET` zorunludur. Geçerli ve süresi dolmamış kayıt, finansal değişiklikten önce atomik `deleteMany` ile tüketilir. Eşzamanlı ikinci talep reddedilir. Servis hatasında kod tüketilmiş kalır ve yeni kod gerekir; eski düz metin bekleyen kodlar bu sürümle geçersizleşir.
+
+24 saat bekleme ve admin doğrulamalı aktivasyon servis kontrolleri korunur. Bu banka OTP'si belirli bir IBAN içeriğine bağlanmış işlem imzası değildir; ortak auth secret'ın veya e-posta hesabının ele geçirilmesine karşı bağımsız koruma sayılmaz. Şemada IBAN uygulama tarafından okunabilir biçimde tutulur; canlı disk/veritabanı şifrelemesi bu yerel denetimde doğrulanmadı. Aşağıdaki taslak politika maddeleri mevcut kodun tümünü kanıtlamaz.
+
+Testler, sınırlar ve canlıya uygulanmama durumu: [denetim raporu](../../tests/security/audit-2026-10-01/rapor.md).
+
 ## Purpose
 
 Seller bank account (IBAN) data is the most financially sensitive field the platform

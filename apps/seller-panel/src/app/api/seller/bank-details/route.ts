@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth'
 import { checkUserRateLimit, HIGH_RISK_RATE_LIMIT } from '@hanuja/api/lib/rate-limit'
 import { createSellerBankService } from '@hanuja/api/services/seller-bank.service'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
+import { sellerBankOtpIdentifier, sellerBankOtpValue } from '@hanuja/api/lib/seller-bank-otp'
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
@@ -25,16 +26,15 @@ const bankDetailSchema = z.object({
   reason: z.string().trim().max(200).optional(),
 })
 
-function buildOtpIdentifier(sellerId: string, userId: string) {
-  return `seller-bank-detail:${sellerId}:${userId}`
-}
-
 export async function POST(req: NextRequest) {
   const csrfError = checkCsrf(req)
   if (csrfError) return csrfError
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
+  }
+  if (session.user.role !== 'seller' || session.user.mustChangePassword) {
+    return NextResponse.json({ error: 'Satıcı doğrulaması gerekli.' }, { status: 403 })
   }
 
   // IBAN değişikliği payout-kritik: deneme hızını agresif sınırla (OTP brute-force dahil)
@@ -62,10 +62,12 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const identifier = sellerBankOtpIdentifier(seller.id, session.user.id)
+  const value = sellerBankOtpValue(identifier, parsed.data.otpCode)
   const verification = await prisma.verification.findFirst({
     where: {
-      identifier: buildOtpIdentifier(seller.id, session.user.id),
-      value: parsed.data.otpCode,
+      identifier,
+      value,
       expiresAt: { gt: new Date() },
     },
     orderBy: { createdAt: 'desc' },
@@ -79,6 +81,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Consume before the finance mutation. Concurrent requests cannot both use
+    // one OTP; a failed change requires a new code instead of enabling replay.
+    const claimed = await prisma.verification.deleteMany({
+      where: { id: verification.id, identifier, value, expiresAt: { gt: new Date() } },
+    })
+    if (claimed.count !== 1) {
+      return NextResponse.json({ error: 'Doğrulama kodu kullanılmış veya süresi dolmuş.' }, { status: 400 })
+    }
     const service = createSellerBankService({ prisma })
     const forwardedFor = req.headers.get('x-forwarded-for')
     await service.requestChange({
@@ -91,8 +101,6 @@ export async function POST(req: NextRequest) {
       userAgent: req.headers.get('user-agent'),
       reason: parsed.data.reason ?? null,
     })
-
-    await prisma.verification.delete({ where: { id: verification.id } })
 
     return NextResponse.json({
       success: true,
