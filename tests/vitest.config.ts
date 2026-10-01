@@ -1,7 +1,9 @@
 import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
+import { createRequire } from 'node:module'
 
 const ROOT = resolve(__dirname, '..')
+const webRequire = createRequire(resolve(ROOT, 'apps/web/package.json'))
 
 export default defineConfig({
   test: {
@@ -17,6 +19,9 @@ export default defineConfig({
   resolve: {
     // Array form preserves order — more specific subpath aliases must come first
     alias: [
+      // Use the installed application renderer for component security tests.
+      { find: /^react$/, replacement: webRequire.resolve('react') },
+      { find: /^react-dom\/server$/, replacement: webRequire.resolve('react-dom/server') },
       // Subpath BEFORE root — @prisma/client/runtime/library must not be
       // swallowed by the @prisma/client alias that comes after it.
       {
