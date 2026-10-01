@@ -29,7 +29,7 @@ Canonical URL: `https://www.hanuja.com.tr`. Alt alanlar: `satici`, `admin`, `med
 - Saklama: 7 günlük, 8 haftalık, 12 aylık, 10 yıllık. Belge türü matrisi hukuk/mali müşavir kararıyla daha uzun süre belirleyebilir.
 - Restic snapshot'ları `host,tags` ile gruplanır (`db-hourly` / `full-6h`); her koşu farklı `run-*` dizini yedeklediği için varsayılan `host,paths` gruplaması saklama politikasını fiilen devre dışı bırakır (2026-09-14 bulgusu). Betik güncellendikten sonra ilk `prune` öncesi `hanuja-backup prune-dry-run` ile silinecek snapshot listesi görülür.
 - Disk %70'te uyarı, %85'te kritik alarm üretir.
-- Üç ayda bir `tools/ops/restore-drill.sh` ayrı dizin ve boş test DB üzerinde çalıştırılır. Hem bir şifreli belge hem PostgreSQL dump geri gelmeden prova başarılı sayılmaz.
+- Üç ayda bir `tools/ops/restore-drill.sh` ayrı dizin ve boş test DB üzerinde çalıştırılır. DB adı `hanuja_restore_drill` veya `hanuja_restore_drill_<alfanumerik ek>` olmalıdır; script `psql` ile ad/boşluk kontrolü yapar ve `pg_restore --clean` kullanmaz. Hem bir şifreli belge hem PostgreSQL dump geri gelmeden prova başarılı sayılmaz. Bu prova belge anahtarıyla çözme ve uygulama akışlarını ayrıca doğrulamadan tam kurtarma kanıtı sayılmaz.
 
 ## iyzico anonim smoke testi
 

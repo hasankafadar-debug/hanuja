@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: hanuja
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hanuja_prod_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be configured}
       POSTGRES_DB: hanuja
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -74,7 +74,7 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://hanuja:${POSTGRES_PASSWORD:-hanuja_prod_password}@postgres:5432/hanuja
+      DATABASE_URL: postgresql://hanuja:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be configured}@postgres:5432/hanuja
       REDIS_URL: redis://redis:6379
       MEILISEARCH_URL: http://meilisearch:7700
     depends_on:
@@ -103,7 +103,7 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://hanuja:${POSTGRES_PASSWORD:-hanuja_prod_password}@postgres:5432/hanuja
+      DATABASE_URL: postgresql://hanuja:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be configured}@postgres:5432/hanuja
       REDIS_URL: redis://redis:6379
       MEILISEARCH_URL: http://meilisearch:7700
       BETTER_AUTH_URL: ${SELLER_PANEL_URL:-http://localhost:3001}
@@ -131,7 +131,7 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://hanuja:${POSTGRES_PASSWORD:-hanuja_prod_password}@postgres:5432/hanuja
+      DATABASE_URL: postgresql://hanuja:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be configured}@postgres:5432/hanuja
       REDIS_URL: redis://redis:6379
       MEILISEARCH_URL: http://meilisearch:7700
       BETTER_AUTH_URL: ${ADMIN_PANEL_URL:-http://localhost:3002}
@@ -157,7 +157,7 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://hanuja:${POSTGRES_PASSWORD:-hanuja_prod_password}@postgres:5432/hanuja
+      DATABASE_URL: postgresql://hanuja:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be configured}@postgres:5432/hanuja
       REDIS_URL: redis://redis:6379
       MEILISEARCH_URL: http://meilisearch:7700
     depends_on:
