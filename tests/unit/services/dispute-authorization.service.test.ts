@@ -5,6 +5,7 @@ import { createDisputeService } from '../../../api/services/dispute.service'
 
 function createPrismaMock() {
   return {
+    seller: { findUnique: vi.fn(async () => ({ id: 'seller-1' })) },
     dispute: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
@@ -74,9 +75,6 @@ describe('dispute authorization', () => {
           id: 'dispute-direct',
           OR: [
             { order: { customerId: 'customer-1' } },
-            {
-              order: { lines: { some: { seller: { userId: 'customer-1' } } } },
-            },
           ],
         },
       }),
@@ -98,11 +96,11 @@ describe('dispute authorization', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           OR: expect.arrayContaining([
-            {
+            expect.objectContaining({
               order: {
-                lines: { some: { seller: { userId: 'seller-user-1' } } },
+                lines: { some: { sellerId: 'seller-1' } },
               },
-            },
+            }),
           ]),
         }),
       }),

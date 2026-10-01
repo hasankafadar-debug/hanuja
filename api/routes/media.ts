@@ -13,6 +13,7 @@ import type { MediaFolder } from '../lib/r2'
 import type { Prisma } from '@prisma/client'
 import type { UserRole as PermissionUserRole } from '@hanuja/security'
 import { NotFoundError, UnauthorizedError } from '../lib/errors'
+import { disputeParticipantScope, returnParticipantScope } from '../lib/participant-scope'
 
 export interface PrivateMediaViewer {
   viewerId: string
@@ -240,6 +241,7 @@ function privateMediaUnauthorizedResponse() {
 function privateMediaWhere(
   assetId: string,
   viewer: PrivateMediaViewer,
+  sellerId: string | null,
 ): Prisma.MediaAssetWhereInput {
   const base: Prisma.MediaAssetWhereInput = {
     id: assetId,
@@ -253,26 +255,9 @@ function privateMediaWhere(
     ...base,
     OR: [
       { uploadedBy: viewer.viewerId },
-      { dispute: { order: { customerId: viewer.viewerId } } },
-      {
-        dispute: {
-          order: { lines: { some: { seller: { userId: viewer.viewerId } } } },
-        },
-      },
-      { returnRequest: { customerId: viewer.viewerId } },
-      {
-        returnRequest: {
-          order: { lines: { some: { seller: { userId: viewer.viewerId } } } },
-        },
-      },
-      { returnMessage: { returnRequest: { customerId: viewer.viewerId } } },
-      {
-        returnMessage: {
-          returnRequest: {
-            order: { lines: { some: { seller: { userId: viewer.viewerId } } } },
-          },
-        },
-      },
+      { dispute: { is: disputeParticipantScope(viewer.viewerId, sellerId) } },
+      { returnRequest: { is: returnParticipantScope(viewer.viewerId, sellerId) } },
+      { returnMessage: { returnRequest: { is: returnParticipantScope(viewer.viewerId, sellerId) } } },
       // Support attachment access is scoped to the ticket participant. These
       // relations are explicit because support uploads have existing readers
       // outside the return/dispute workflows.
@@ -299,8 +284,11 @@ export async function fetchPrivateMedia(assetId: string, viewer: PrivateMediaVie
 
   try {
     const prisma = createPrismaForRoute()
+    const seller = viewer.viewerRole === 'seller'
+      ? await prisma.seller.findUnique({ where: { userId: viewer.viewerId }, select: { id: true } })
+      : null
     const asset = await prisma.mediaAsset.findFirst({
-      where: privateMediaWhere(assetId, viewer),
+      where: privateMediaWhere(assetId, viewer, seller?.id ?? null),
       select: { id: true, key: true, folder: true },
     })
 

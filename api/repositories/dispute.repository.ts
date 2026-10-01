@@ -1,6 +1,7 @@
 import type { DisputeStatus, Prisma, UserRole, PrismaClient } from '@prisma/client'
 import type { Decimal } from '@prisma/client/runtime/client'
 import { canViewAllDisputes, type DisputeViewer } from '../lib/dispute-authorization'
+import { disputeParticipantScope } from '../lib/participant-scope'
 
 const participantMediaSelect = {
   id: true,
@@ -73,15 +74,14 @@ const messageTargetSelect = {
 } as const
 
 export function createDisputeRepository(prisma: PrismaClient) {
-  const participantWhere = (id: string, viewerId: string): Prisma.DisputeWhereInput => ({
-    id,
-    OR: [
-      { order: { customerId: viewerId } },
-      { order: { lines: { some: { seller: { userId: viewerId } } } } },
-    ],
-  })
+  const participantWhere = async (id: string, viewer: DisputeViewer): Promise<Prisma.DisputeWhereInput> => {
+    const seller = viewer.viewerRole === 'seller'
+      ? await prisma.seller.findUnique({ where: { userId: viewer.viewerId }, select: { id: true } })
+      : null
+    return { id, ...disputeParticipantScope(viewer.viewerId, seller?.id ?? null) }
+  }
 
-  const findByIdForViewer = (id: string, viewer: DisputeViewer) => {
+  const findByIdForViewer = async (id: string, viewer: DisputeViewer) => {
     if (canViewAllDisputes(viewer.viewerRole)) {
       return prisma.dispute.findUnique({
         where: { id },
@@ -90,12 +90,12 @@ export function createDisputeRepository(prisma: PrismaClient) {
     }
 
     return prisma.dispute.findFirst({
-      where: participantWhere(id, viewer.viewerId),
+      where: await participantWhere(id, viewer),
       select: participantDisputeSelect,
     })
   }
 
-  const findMessageTargetForViewer = (id: string, viewer: DisputeViewer) => {
+  const findMessageTargetForViewer = async (id: string, viewer: DisputeViewer) => {
     if (canViewAllDisputes(viewer.viewerRole)) {
       return prisma.dispute.findUnique({
         where: { id },
@@ -104,7 +104,7 @@ export function createDisputeRepository(prisma: PrismaClient) {
     }
 
     return prisma.dispute.findFirst({
-      where: participantWhere(id, viewer.viewerId),
+      where: await participantWhere(id, viewer),
       select: messageTargetSelect,
     })
   }
