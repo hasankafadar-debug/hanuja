@@ -3,6 +3,12 @@
 
 # Payment Security
 
+## 2026-10-01 yerel kontrol
+
+`api/lib/payment-capabilities.ts` kart satışını koşulsuz kapalı tutar. Web'deki `/api/payment/start`, `/api/payment/callback` ve `/api/webhooks/iyzico` handler'ları veri okuma, veritabanı ve sağlayıcı çağrısından önce `503 CARD_PAYMENTS_DISABLED` döndürür; ortam değişkeniyle açılmaz. Eski kart iadeleri ayrı servis yoludur. Iyzico imza doğrulayıcısı bozuk/eksik uzunlukta imzayı exception yerine `false` ile reddeder.
+
+Havale/EFT, iade ve satıcı ödeme servislerindeki tutar/ödeme referansı bağlama, durum karşılaştırması, kilit ve snapshot kontrolleri yerel testlerle incelendi. Gerçek banka hareketi, provider hesabı ve PostgreSQL eşzamanlılık testleri bu denetimde çalıştırılmadı. [Yerel rapor](../../tests/security/audit-2026-10-01/rapor.md) güncel kanıtları ve bu sınırları içerir; aşağıdaki kart akışı etkin satış akışı olarak yorumlanmamalıdır.
+
 ## Purpose
 
 This document describes the security design for all payment-related flows in Hanuja. It covers Iyzico webhook signature verification, the payment confirmation flow, EFT/havale manual approval with audit logging, idempotency guards, the rule that payment state transitions are backend-only, and environment separation between sandbox and production.

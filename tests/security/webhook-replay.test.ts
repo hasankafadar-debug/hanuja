@@ -12,48 +12,19 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { createHmac } from 'crypto'
 
-// ── Re-implement the logic to test independently ──────────────────────────────
-// (Avoids import issues with internal module state)
+import {
+  isDuplicateWebhook,
+  isWebhookTimestampFresh,
+  verifyWebhookSignature,
+} from '../../packages/security/src/webhook-verifier'
 
-const processedIds = new Set<string>()
-const idTimestamps = new Map<string, number>()
 const TTL_MS = 30 * 60 * 1000 // 30 minutes
 
-function isDuplicateWebhook(webhookId: string): boolean {
-  const now = Date.now()
-  for (const [id, ts] of idTimestamps.entries()) {
-    if (now - ts > TTL_MS) {
-      processedIds.delete(id)
-      idTimestamps.delete(id)
-    }
-  }
-  if (processedIds.has(webhookId)) return true
-  processedIds.add(webhookId)
-  idTimestamps.set(webhookId, now)
-  return false
-}
-
-function isWebhookTimestampFresh(
-  timestampSeconds: number,
-  toleranceSeconds = 300,
-): boolean {
-  const nowSeconds = Math.floor(Date.now() / 1000)
-  return Math.abs(nowSeconds - timestampSeconds) <= toleranceSeconds
-}
-
 function verifySignature(payload: string, secret: string, receivedSig: string): boolean {
-  try {
-    const expected = createHmac('sha256', secret).update(payload).digest('hex')
-    return expected === receivedSig
-  } catch {
-    return false
-  }
+  return verifyWebhookSignature({ payload, secret, receivedSignature: receivedSig })
 }
 
-afterEach(() => {
-  processedIds.clear()
-  idTimestamps.clear()
-})
+afterEach(() => vi.restoreAllMocks())
 
 // ── isDuplicateWebhook ────────────────────────────────────────────────────────
 

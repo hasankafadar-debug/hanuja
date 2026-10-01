@@ -404,5 +404,7 @@ export function verifyWebhookSignature(
     .createHmac('sha1', secret)
     .update(rawBody, 'utf-8')
     .digest('base64')
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(iyzicoSignature))
+  const received = Buffer.from(iyzicoSignature)
+  const expectedBytes = Buffer.from(expected)
+  return received.length === expectedBytes.length && crypto.timingSafeEqual(expectedBytes, received)
 }
