@@ -1,8 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { middleware } from '../../apps/web/src/middleware'
 
 describe('storefront middleware', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('returns an anonymous order reader to the customer site behind a reverse proxy, preserving query parameters', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('NEXT_PUBLIC_WEB_URL', '')
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://satici.hanuja.com.tr')
+    const response = await middleware(new NextRequest('https://0.0.0.0:3000/siparis/order-1?tab=faturalar'))
+    expect(response.headers.get('location')).toBe(
+      'https://www.hanuja.com.tr/giris?callbackUrl=%2Fsiparis%2Forder-1%3Ftab%3Dfaturalar',
+    )
+  })
   it.each(['/hesabim', '/hesabim/adresler', '/faturalarim', '/siparis', '/siparis/order-1'])(
     'redirects anonymous access to %s with the original callback path',
     async (pathname) => {

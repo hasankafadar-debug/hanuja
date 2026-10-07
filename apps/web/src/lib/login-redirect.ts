@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server'
+import { getWebBaseUrl } from '@hanuja/api/lib/platform-info'
 
 const DEFAULT_RETURN_PATH = '/hesabim'
 const INTERNAL_BASE = 'https://internal.invalid'
@@ -58,7 +59,13 @@ export function safeInternalPath(value: unknown, fallback: string = DEFAULT_RETU
  * to another host.
  */
 export function loginRedirectUrl(req: NextRequest, returnTo: string): URL {
-  const url = new URL('/giris', req.nextUrl.origin)
+  // A reverse proxy can expose an internal origin (0.0.0.0:3000) to Next.js.
+  // Production return links must use the configured customer site, never Host
+  // or forwarded headers. Keep unconfigured local development on its own origin.
+  const base = process.env.NEXT_PUBLIC_WEB_URL?.trim() || process.env.NODE_ENV === 'production'
+    ? getWebBaseUrl()
+    : req.nextUrl.origin
+  const url = new URL('/giris', base)
   url.searchParams.set('callbackUrl', safeInternalPath(returnTo))
   return url
 }

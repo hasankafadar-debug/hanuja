@@ -82,6 +82,22 @@ describe('order document links used in e-mails', () => {
     expect(getInvoiceForCustomer).not.toHaveBeenCalled()
   })
 
+  it('uses the customer origin behind a production reverse proxy, ignoring panel and forwarded hosts', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('NEXT_PUBLIC_WEB_URL', 'https://www.hanuja.com.tr')
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://satici.hanuja.com.tr')
+    getSession.mockResolvedValue(null)
+    const response = await invoiceGet(new NextRequest(
+      'https://0.0.0.0:3000/api/orders/order-1/documents/invoices/seller-1?download=1',
+      { headers: { 'x-forwarded-host': 'attacker.example.test' } },
+    ), invoiceParams)
+    const location = new URL(response.headers.get('location')!)
+    expect(location.origin).toBe('https://www.hanuja.com.tr')
+    expect(location.pathname).toBe('/giris')
+    expect(location.searchParams.get('callbackUrl')).toBe('/api/orders/order-1/documents/invoices/seller-1?download=1')
+    expect(getInvoiceForCustomer).not.toHaveBeenCalled()
+  })
+
   it('scopes the document lookup to the signed-in customer', async () => {
     getSession.mockResolvedValue({ user: { id: 'customer-1' } })
     await contractGet(req('http://localhost/api/orders/order-1/documents/contracts/distance-sales'), contractParams)

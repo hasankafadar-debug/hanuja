@@ -18,6 +18,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server'
 import { isApiMutationOriginAllowed } from '@hanuja/security/request-origin'
+import { loginRedirectUrl } from './lib/login-redirect'
 import {
   generateCsrfToken,
   getCsrfCookieOptions,
@@ -76,9 +77,7 @@ export async function middleware(request: NextRequest) {
   const nextResponse = () => NextResponse.next({ request: { headers: requestHeaders } })
 
   if (isProtected(pathname) && !hasSessionCookie(request)) {
-    const loginUrl = new URL('/giris', request.url)
-    loginUrl.searchParams.set('callbackUrl', pathname)
-    return NextResponse.redirect(loginUrl)
+    return NextResponse.redirect(loginRedirectUrl(request, pathname + request.nextUrl.search))
   }
 
   const response = nextResponse()

@@ -46,8 +46,10 @@ yedek kopyaları mevcut saklama süresine tabidir.
 3. Worker volume/root yapılandırmasını kalıcı Coolify ayarına ekleyin. Görev
    dosyalarını commit/push edin. Runbook sırası: worker + migration gate → admin →
    satıcı → web. Migration/worker başlangıcı başarılı olmadan panellere geçmeyin.
-4. Dört servis aynı commit'te ve sağlıklıyken yalnız admin ve satıcı runtime'ında
+4. Dört servis fatura değişikliklerini içeren sürümlerde ve sağlıklıyken yalnız admin ve satıcı runtime'ında
    `INVOICE_MANAGEMENT_ENABLED=true` etkinleştirin; yeni runtime'ı başlatın.
+   Yalnız müşteri uygulamasına ait takip düzeltmeleri storefront-only runbook
+   kuralıyla web'e yayımlanır; ortak fatura API/şema sürümü değişmez.
 5. Test siparişinde eski e-posta linkini, test belgesinin silinmesini, audit ve
    aktif dosya cleanup'ını, admin yeniden yüklemesini ve müşteri erişimini doğrulayın.
    Yayın sonrası en az 15 dakika servis hata/restart kayıtlarını izleyin.
