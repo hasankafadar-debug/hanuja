@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { recordNotificationMock } = vi.hoisted(() => ({ recordNotificationMock: vi.fn() }))
 vi.mock('../../../api/services/notification-outbox.service', () => ({ recordNotification: recordNotificationMock }))
+vi.mock('../../../api/services/private-document-cleanup.service', () => ({
+  schedulePrivateDocumentCleanup: vi.fn().mockResolvedValue(undefined),
+  processPrivateDocumentCleanup: vi.fn(async ({ fileKey, deleteFile }) => deleteFile(fileKey)),
+}))
 vi.mock('../../../api/lib/r2', () => ({
   DOCUMENT_MAX_SIZE_BYTES: 20 * 1024 * 1024,
   DOCUMENT_ALLOWED_MIME_TYPES: new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp']),
@@ -30,7 +34,10 @@ function fixture() {
       findMany: vi.fn().mockResolvedValue([{ id: 'alias-1', orderId: 'order-1', sellerId: 'seller-1', aliasEmail: alias }]),
       update: vi.fn(),
     },
-    orderSellerInvoice: { findUnique: vi.fn().mockResolvedValue(null), upsert: vi.fn().mockResolvedValue({ id: 'invoice-1' }) },
+    orderSellerInvoice: { findUnique: vi.fn().mockResolvedValue(null), upsert: vi.fn(async ({ create }) => ({ id: 'invoice-1', createdAt: new Date(), ...create })) },
+    orderSellerInvoicePolicy: { findUnique: vi.fn().mockResolvedValue(null), upsert: vi.fn(async ({ create }) => ({ id: 'policy-1', ...create })) },
+    adminAuditLog: { create: vi.fn().mockResolvedValue({}) },
+    $executeRaw: vi.fn().mockResolvedValue(1),
     order: { findUnique: vi.fn().mockResolvedValue({
       id: 'order-1', publicNumber: 26050080, customerId: 'customer-1',
       customer: { email: 'customer@example.test', name: 'Customer' }, address: { fullName: 'Customer' }, lines: [],

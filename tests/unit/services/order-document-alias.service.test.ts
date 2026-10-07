@@ -37,12 +37,29 @@ vi.mock('../../../api/services/notification-outbox.service', () => ({
   recordNotification: recordNotificationMock,
 }))
 
+vi.mock('../../../api/services/private-document-cleanup.service', () => ({
+  schedulePrivateDocumentCleanup: vi.fn().mockResolvedValue(undefined),
+  processPrivateDocumentCleanup: vi.fn(async ({ fileKey, deleteFile }) => deleteFile(fileKey)),
+}))
+
+function addMutationMocks(prisma: any) {
+  prisma.$executeRaw = vi.fn().mockResolvedValue(1)
+  prisma.orderSellerInvoicePolicy = {
+    findUnique: vi.fn().mockResolvedValue(null),
+    upsert: vi.fn(async ({ create }) => ({ id: 'policy-1', ...create })),
+  }
+  prisma.adminAuditLog = { create: vi.fn().mockResolvedValue({}) }
+  prisma.orderSellerInvoice.findUnique ??= vi.fn().mockResolvedValue(null)
+  prisma.orderSellerInvoice.upsert.mockImplementation(async ({ create }) => ({ id: 'invoice-1', createdAt: new Date(), ...create }))
+}
+
 import { createOrderDocumentService } from '../../../api/services/order-document.service'
 
 describe('order-document.service invoice aliasing', () => {
   beforeEach(() => {
     vi.stubEnv('INVOICE_ALIASING_ENABLED', 'true')
     vi.stubEnv('INBOUND_EMAIL_DOMAIN', 'fatura.hanuja.tr')
+    vi.stubEnv('NEXT_PUBLIC_WEB_URL', 'https://www.hanuja.com.tr')
     deleteObjectMock.mockReset()
     deleteObjectMock.mockResolvedValue(undefined)
     readObjectMock.mockReset()
@@ -133,7 +150,7 @@ describe('order-document.service invoice aliasing', () => {
         update: vi.fn().mockResolvedValue({}),
       },
       orderSellerInvoice: {
-        findUnique: vi.fn().mockResolvedValue({ fileKey: 'documents/seller-1/old.pdf' }),
+        findUnique: vi.fn().mockResolvedValue({ id: 'old-invoice', sellerId: 'seller-1', fileKey: 'documents/seller-1/old.pdf', createdAt: new Date(), fileName: 'old.pdf', mimeType: 'application/pdf', sizeBytes: 10, source: 'manual' }),
         upsert: vi.fn().mockResolvedValue({
           id: 'invoice-1',
           orderId: 'order-1',
@@ -148,6 +165,7 @@ describe('order-document.service invoice aliasing', () => {
       $transaction: vi.fn((callback) => callback(prisma)),
     }
 
+    addMutationMocks(prisma)
     const service = createOrderDocumentService({ prisma, storage })
     const result = await service.ingestPostmarkInboundEmail({
       MessageID: 'pm-1',
@@ -207,7 +225,7 @@ describe('order-document.service invoice aliasing', () => {
         }),
         findUnique: vi.fn().mockResolvedValue(emailOrderSnapshot),
       },
-      seller: { findUnique: vi.fn().mockResolvedValue({ displayName: 'Atelier Noa' }) },
+      seller: { findUnique: vi.fn().mockResolvedValue({ displayName: 'Atelier Noa', userId: 'seller-user', status: 'active' }) },
       orderSellerInvoice: {
         upsert: vi.fn().mockResolvedValue({
           id: 'invoice-1',
@@ -219,8 +237,10 @@ describe('order-document.service invoice aliasing', () => {
       $transaction: vi.fn((callback: (client: unknown) => unknown) => callback(prisma)),
     }
 
+    addMutationMocks(prisma)
     const service = createOrderDocumentService({ prisma, storage })
     await service.uploadInvoiceForSeller({
+      actorId: 'seller-user',
       orderId: 'order-1',
       sellerId: 'seller-1',
       fileName: 'fatura.pdf',
@@ -236,7 +256,7 @@ describe('order-document.service invoice aliasing', () => {
         userId: 'customer-1',
         type: 'invoice_uploaded',
         emailTo: 'customer@example.com',
-        eventKey: expect.stringMatching(/^invoice:order-1:seller-1:\d+$/),
+        eventKey: expect.stringMatching(/^invoice:order-1:seller-1:[a-f0-9]{64}$/),
         data: expect.objectContaining({
           orderId: 'order-1',
           sellerId: 'seller-1',
@@ -264,16 +284,18 @@ describe('order-document.service invoice aliasing', () => {
         }),
         findUnique: vi.fn().mockResolvedValue(emailOrderSnapshot),
       },
-      seller: { findUnique: vi.fn().mockResolvedValue({ displayName: 'Atelier Noa' }) },
+      seller: { findUnique: vi.fn().mockResolvedValue({ displayName: 'Atelier Noa', userId: 'seller-user', status: 'active' }) },
       orderSellerInvoice: {
         upsert: vi.fn().mockResolvedValue({ id: 'invoice-1', orderId: 'order-1', sellerId: 'seller-1' }),
       },
       $transaction: vi.fn((callback: (client: unknown) => unknown) => callback(prisma)),
     }
 
+    addMutationMocks(prisma)
     const service = createOrderDocumentService({ prisma, storage })
     await expect(
       service.uploadInvoiceForSeller({
+        actorId: 'seller-user',
         orderId: 'order-1',
         sellerId: 'seller-1',
         fileName: 'fatura.pdf',

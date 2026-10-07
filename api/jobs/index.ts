@@ -19,6 +19,7 @@ import { startCampaignDiscountWorker } from './campaign-discount.job'
 import { startRefundProcessingWorker } from './refund-processing.job'
 import { startAnnouncementDispatchWorker } from './announcement-dispatch.job'
 import { startPriceHistoryWorker } from './price-history.job'
+import { startPrivateDocumentCleanupWorker } from './private-document-cleanup.job'
 
 export function startAllWorkers() {
   const workers = [
@@ -37,6 +38,7 @@ export function startAllWorkers() {
     startRefundProcessingWorker(),
     startAnnouncementDispatchWorker(),
     startPriceHistoryWorker(),
+    startPrivateDocumentCleanupWorker(),
   ]
 
   console.log(`[workers] Started ${workers.length} BullMQ workers`)

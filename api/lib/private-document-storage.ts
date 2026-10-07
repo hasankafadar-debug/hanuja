@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto'
-import { access, chmod, mkdir, open, readFile, rename, rm } from 'node:fs/promises'
+import { access, chmod, mkdir, open, readFile, realpath, rename, rm } from 'node:fs/promises'
 import { constants as fsConstants } from 'node:fs'
-import { isAbsolute, join, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 
 const MAGIC = Buffer.from('HNKYC001', 'ascii')
 const IV_LENGTH = 12
@@ -23,6 +23,30 @@ export interface PrivateDocumentStorage {
 export interface PrivateDocumentStorageOptions {
   root?: string
   encryptionKey?: string | Buffer
+}
+
+/** Delete without loading the encryption key; workers only need access to the private volume. */
+export async function deletePrivateDocumentFile(
+  fileKey: string,
+  options: Pick<PrivateDocumentStorageOptions, 'root'> = {},
+): Promise<void> {
+  const root = resolveStorageRoot(options.root ?? process.env.PRIVATE_DOCUMENT_ROOT)
+  const path = resolveFilePath(root, fileKey)
+  // Reject a shard directory that resolves outside the volume (for example through
+  // an unexpected symlink). A missing volume root is a configuration error, while
+  // a missing shard/file is an idempotent successful deletion.
+  const canonicalRoot = await realpath(root)
+  let canonicalDirectory: string
+  try {
+    canonicalDirectory = await realpath(dirname(path))
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw error
+  }
+  if (!canonicalDirectory.startsWith(`${canonicalRoot}${sep}`)) {
+    throw new Error('Private document path resolves outside the storage root.')
+  }
+  await rm(path, { force: true })
 }
 
 function decodeEncryptionKey(value: string | Buffer | undefined): Buffer {
@@ -153,8 +177,7 @@ export function createPrivateDocumentStorage(
   }
 
   async function deleteFile(fileKey: string): Promise<void> {
-    const path = resolveFilePath(root, fileKey)
-    await rm(path, { force: true })
+    await deletePrivateDocumentFile(fileKey, { root })
   }
 
   return { write, read, exists, delete: deleteFile }

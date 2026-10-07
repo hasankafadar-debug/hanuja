@@ -9,7 +9,7 @@ vi.mock('../../../api/services/marketing-recipient-policy', () => ({
 vi.mock('../../../api/services/marketing-channel.service', () => ({
   getMarketingChannelStatus: async () => ({ canSend: true }),
 }))
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   user: vi.fn(),
@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   announcement: vi.fn(),
   gate: vi.fn(),
   mark: vi.fn(),
+  invoice: vi.fn(),
   records: new Map<
     string,
     Record<string, unknown> & {
@@ -69,6 +70,7 @@ vi.mock('../../../api/lib/prisma', () => {
       user: { findUnique: mocks.user },
       marketingConsent: { findUnique: mocks.consent },
       announcement: { findUnique: mocks.announcement },
+      orderSellerInvoice: { findFirst: mocks.invoice },
       campaignEmailDispatch: { updateMany: vi.fn(async () => ({ count: 1 })) },
       notificationOutbox: { upsert: mocks.outbox },
       $transaction: async (fn: (tx: unknown) => unknown) => fn(tx),
@@ -80,6 +82,7 @@ import {
   processNotificationDispatch,
   resolveNotificationType,
 } from '../../../api/jobs/notification-dispatch.job'
+import { getInvoiceRevision } from '../../../api/lib/invoice-management'
 
 const job = (override: Record<string, unknown> = {}) =>
   ({
@@ -102,9 +105,16 @@ const emailRecord = () =>
   [...mocks.records.values()].find((r) => r.channel === 'email')!
 
 describe('durable notification delivery', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.records.clear()
+    vi.stubEnv('NEXT_PUBLIC_WEB_URL', 'https://www.hanuja.com.tr')
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://satici.hanuja.com.tr')
+    mocks.invoice.mockReset().mockResolvedValue({
+      id: 'i1', fileKey: 'private/v1/current.bin', uploadedAt: new Date('2026-10-07T12:00:00Z'),
+    })
     mocks.user.mockResolvedValue({
       id: 'u1',
       email: 'customer@example.test',
@@ -230,6 +240,95 @@ describe('durable notification delivery', () => {
     await processNotificationDispatch(task)
     expect(mocks.send).toHaveBeenCalledTimes(1)
     expect(mocks.create).toHaveBeenCalledTimes(1)
+  })
+  const invoiceTask = (data: Record<string, unknown> = {}, eventKey?: string) =>
+    job({
+      eventKey: eventKey ?? `invoice:o1:s1:${getInvoiceRevision({ id: 'i1', fileKey: 'private/v1/current.bin' })}`,
+      data: {
+        orderId: 'o1', sellerId: 's1', orderNumber: '123', customerName: 'Ayşe',
+        invoiceRevision: getInvoiceRevision({ id: 'i1', fileKey: 'private/v1/current.bin' }),
+        orderUrl: 'https://satici.hanuja.com.tr/siparis/o1',
+        invoiceUrl: 'https://admin.hanuja.com.tr/api/orders/o1/documents/invoices/s1',
+        ...data,
+      },
+    })
+
+  it('rebuilds invoice and order links on the customer origin and checks order ownership', async () => {
+    await processNotificationDispatch(invoiceTask())
+    expect(mocks.invoice).toHaveBeenCalledWith({
+      where: { orderId: 'o1', sellerId: 's1', order: { customerId: 'u1' } },
+      select: { id: true, fileKey: true, uploadedAt: true },
+    })
+    const sent = mocks.send.mock.calls[0]![0]
+    expect(sent.html).toContain('https://www.hanuja.com.tr/api/orders/o1/documents/invoices/s1')
+    expect(sent.html).toContain('https://www.hanuja.com.tr/siparis/o1')
+    expect(sent.html).not.toContain('https://satici.hanuja.com.tr')
+    expect(sent.html).not.toContain('https://admin.hanuja.com.tr')
+    expect(mocks.invoice).toHaveBeenCalledTimes(2)
+  })
+
+  it('skips both notification channels after the invoice is removed or is not owned by this customer', async () => {
+    mocks.invoice.mockResolvedValue(null)
+    await processNotificationDispatch(invoiceTask())
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect([...mocks.records.values()]).toHaveLength(2)
+    for (const delivery of mocks.records.values())
+      expect(delivery).toMatchObject({ status: 'sent', transportStatus: 'skipped', lastError: 'INVOICE_REMOVED_OR_UNAUTHORIZED' })
+  })
+
+  it('skips an older file revision without notifying the customer', async () => {
+    mocks.invoice.mockResolvedValue({ id: 'i1', fileKey: 'private/v1/replacement.bin', uploadedAt: new Date() })
+    await processNotificationDispatch(invoiceTask())
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(emailRecord().lastError).toBe('INVOICE_SUPERSEDED')
+  })
+
+  it('supports old timestamp events and skips one that refers to an earlier upload', async () => {
+    const currentTime = new Date('2026-10-07T12:00:00Z').getTime()
+    await processNotificationDispatch(invoiceTask({ invoiceRevision: undefined }, `invoice:o1:s1:${currentTime}`))
+    expect(mocks.send).toHaveBeenCalledTimes(1)
+    mocks.records.clear()
+    mocks.send.mockClear()
+    mocks.create.mockClear()
+    await processNotificationDispatch(invoiceTask({ invoiceRevision: undefined }, `invoice:o1:s1:${currentTime - 1}`))
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect(emailRecord().lastError).toBe('INVOICE_SUPERSEDED')
+  })
+
+  it('rechecks the file immediately before SMTP when removal occurred during dispatch', async () => {
+    mocks.invoice.mockResolvedValueOnce({ id: 'i1', fileKey: 'private/v1/current.bin', uploadedAt: new Date() })
+      .mockResolvedValueOnce(null)
+    await processNotificationDispatch(invoiceTask())
+    expect(mocks.create).toHaveBeenCalledTimes(1)
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(emailRecord()).toMatchObject({ status: 'sent', transportStatus: 'skipped', leaseToken: null })
+  })
+
+  it('does not overwrite an accepted or uncertain delivery after removal', async () => {
+    const task = invoiceTask()
+    await processNotificationDispatch(task)
+    const accepted = { ...emailRecord() }
+    mocks.invoice.mockResolvedValue(null)
+    await processNotificationDispatch(task)
+    expect(emailRecord()).toEqual(accepted)
+    Object.assign(emailRecord(), { status: 'failed', transportStatus: 'uncertain', lastError: 'SMTP_OUTCOME_UNCERTAIN' })
+    await processNotificationDispatch(task)
+    expect(emailRecord()).toMatchObject({ status: 'failed', transportStatus: 'uncertain', lastError: 'SMTP_OUTCOME_UNCERTAIN' })
+    expect(mocks.send).toHaveBeenCalledTimes(1)
+  })
+
+  it('rewrites a legacy identity-free panel order URL but never trusts an unrelated host', async () => {
+    await processNotificationDispatch(job({ data: { orderNumber: '123', orderUrl: 'https://satici.hanuja.com.tr/siparis/o1?unsafe=1' } }))
+    expect(mocks.send.mock.calls[0]![0].html).toContain('https://www.hanuja.com.tr/siparis/o1')
+    expect(mocks.send.mock.calls[0]![0].html).not.toContain('unsafe=1')
+    mocks.records.clear()
+    mocks.send.mockClear()
+    await processNotificationDispatch(job({ data: { orderNumber: '123', orderUrl: 'https://unrelated.example/siparis/o1' } }))
+    expect(mocks.send.mock.calls[0]![0].html).toContain('https://unrelated.example/siparis/o1')
+    expect(mocks.send.mock.calls[0]![0].html).not.toContain('https://www.hanuja.com.tr/siparis/o1')
   })
   it('retries a definite SMTP rejection without repeating the in-app notification', async () => {
     mocks.send.mockRejectedValueOnce(

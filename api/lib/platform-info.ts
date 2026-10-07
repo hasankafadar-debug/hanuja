@@ -61,7 +61,15 @@ export function getPlatformBankInfo(orderReference: string): PlatformBankInfo {
 }
 
 export function getWebBaseUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? DEFAULT_WEB_URL).replace(/\/$/, '')
+  return (process.env.NEXT_PUBLIC_WEB_URL?.trim() || DEFAULT_WEB_URL).replace(/\/+$/, '')
+}
+
+export function getCustomerOrderUrl(orderId: string) {
+  return `${getWebBaseUrl()}/siparis/${encodeURIComponent(orderId)}`
+}
+
+export function getCustomerInvoiceUrl(orderId: string, sellerId: string, download = false) {
+  return `${getWebBaseUrl()}/api/orders/${encodeURIComponent(orderId)}/documents/invoices/${encodeURIComponent(sellerId)}${download ? '?download=1' : ''}`
 }
 
 export function getSellerPanelUrl() {

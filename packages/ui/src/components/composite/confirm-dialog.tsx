@@ -24,6 +24,8 @@ export interface ConfirmDialogProps {
   confirmLabel?: string
   cancelLabel?: string
   loading?: boolean
+  confirmDisabled?: boolean
+  children?: React.ReactNode
   onConfirm: () => void
 }
 
@@ -35,6 +37,8 @@ function ConfirmDialog({
   confirmLabel = "Onayla",
   cancelLabel = "Vazgeç",
   loading = false,
+  confirmDisabled = false,
+  children,
   onConfirm,
 }: ConfirmDialogProps) {
   return (
@@ -49,6 +53,7 @@ function ConfirmDialog({
           </div>
           <DialogDescription className="pt-2">{description}</DialogDescription>
         </DialogHeader>
+        {children}
         <DialogFooter className="gap-2 sm:gap-0">
           <Button
             variant="outline"
@@ -61,6 +66,7 @@ function ConfirmDialog({
             variant="destructive"
             onClick={onConfirm}
             loading={loading}
+            disabled={confirmDisabled}
           >
             {confirmLabel}
           </Button>

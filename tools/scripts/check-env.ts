@@ -36,7 +36,7 @@ interface EnvVar {
   /** If true, must be a real non-placeholder value in production */
   sensitiveInProd?: boolean
   /** Applies to which apps */
-  apps: ('web' | 'seller-panel' | 'admin-panel' | 'api' | 'all')[]
+  apps: ('web' | 'seller-panel' | 'admin-panel' | 'worker' | 'api' | 'all')[]
 }
 
 const ENV_VARS: EnvVar[] = [
@@ -76,6 +76,7 @@ const ENV_VARS: EnvVar[] = [
   { key: 'R2_BUCKET_NAME', required: true, description: 'R2 bucket name', apps: ['api'] },
   { key: 'R2_PUBLIC_URL', required: true, description: 'R2 public CDN URL', apps: ['api'] },
   { key: 'R2_CDN_URL', required: false, description: 'R2 public CDN URL override', apps: ['api'] },
+  { key: 'PRIVATE_DOCUMENT_ROOT', required: false, requiredInProd: true, description: 'Mounted absolute private document directory for durable invoice cleanup', apps: ['worker'] },
 
   // Search
   { key: 'MEILISEARCH_URL', required: true, description: 'Meilisearch server URL', apps: ['all'] },
@@ -93,6 +94,7 @@ const ENV_VARS: EnvVar[] = [
   { key: 'EMAIL_FROM_KAMPANYA', required: false, description: 'From address for campaign mail; falls back to SMTP_FROM. Must be an address on the Resend-verified domain.', apps: ['api'] },
   { key: 'RESEND_WEBHOOK_SECRET', required: false, description: 'Signing secret for /api/webhooks/resend (web runtime only; never NEXT_PUBLIC)', apps: ['web'] },
   { key: 'INVOICE_ALIASING_ENABLED', required: false, requiredInProd: true, description: 'Invoice aliasing feature flag (true/false)', apps: ['all'] },
+  { key: 'INVOICE_MANAGEMENT_ENABLED', required: false, description: 'Enable invoice deletion/admin upload only after all services are updated (true/false)', apps: ['all'] },
   { key: 'INBOUND_EMAIL_DOMAIN', required: false, requiredWhen: 'invoice-aliasing', description: 'Inbound invoice email domain, e.g. fatura.hanuja.com.tr', apps: ['web', 'seller-panel', 'admin-panel'] },
   { key: 'RESEND_RECEIVING_API_KEY', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Resend API key with access to received PDF attachments', apps: ['web'] },
   { key: 'RESEND_INBOUND_WEBHOOK_SECRET', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Signing secret for /api/inbound/resend', apps: ['web'] },
@@ -223,10 +225,15 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
     if (
       (envVar.key === 'CARD_PAYMENTS_ENABLED' ||
         envVar.key === 'INVOICE_ALIASING_ENABLED' ||
+        envVar.key === 'INVOICE_MANAGEMENT_ENABLED' ||
         envVar.key === 'PREVIEW_DEPLOYMENT') &&
       !/^(true|false)$/i.test(value.trim())
     ) {
       missing.push(`${envVar.key} must be exactly true or false.`)
+    }
+
+    if (envVar.key === 'PRIVATE_DOCUMENT_ROOT' && !path.isAbsolute(value.trim())) {
+      missing.push('PRIVATE_DOCUMENT_ROOT must be an absolute mounted directory.')
     }
 
     if (isProd && isForbiddenProductionUrl(envVar.key, value.trim())) {
@@ -294,7 +301,7 @@ function main() {
         // Workers use API integrations (SMTP, storage, queues, payments) but
         // never verify browser challenges. Keep all shared production checks.
         if (appFilter === 'worker') {
-          return v.key !== 'TURNSTILE_SECRET_KEY' && (v.apps.includes('all') || v.apps.includes('api'))
+          return v.key !== 'TURNSTILE_SECRET_KEY' && (v.apps.includes('all') || v.apps.includes('api') || v.apps.includes('worker'))
         }
         return v.apps.includes('all') || v.apps.includes(appFilter as 'web')
       })

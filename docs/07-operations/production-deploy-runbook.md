@@ -3,6 +3,10 @@
 
 # Production Deploy Runbook
 
+Sipariş faturası silme/değiştirme, kalıcı 30 günlük satıcı sınırı ve worker dosya
+temizliği için [fatura yönetimi yayın adımları](invoice-management.md) uygulanır.
+Bu yayın worker özel belge volume'u ve eklemeli migration içerir.
+
 Kaynak dosyalar (bu doküman onlarla çelişmez, üzerlerine ek sıralı runbook sağlar):
 - `docs/06-engineering/deployment-environments.md` — ortamların genel mimarisi (local/staging/production, servis listesi, rollback)
 - `docs/06-engineering/coolify-setup.md` — Coolify servis bazlı env değişkeni tablosu, DNS, checklist

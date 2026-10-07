@@ -329,6 +329,9 @@ enum AdminActionType {
   bank_transfer_rejected
   order_cancelled
   order_admin_note_added
+  order_invoice_uploaded
+  order_invoice_replaced
+  order_invoice_removed
   delivery_confirmed_manual
   penalty_applied
   penalty_waived
@@ -386,6 +389,11 @@ enum ExtensionRequestStatus {
   approved
   rejected_by_admin
   rejected_by_customer
+}
+
+enum PrivateDocumentCleanupStatus {
+  pending
+  completed
 }
 
 enum HomePromoSlot {
@@ -731,6 +739,7 @@ model Seller {
   discountRules           DiscountRule[]
   orderLines              OrderLine[]
   orderInvoices           OrderSellerInvoice[]
+  orderInvoicePolicies    OrderSellerInvoicePolicy[]
   orderEmailAliases       OrderEmailAlias[]
   shipments               Shipment[]
   payouts                 Payout[]
@@ -1246,6 +1255,7 @@ model Order {
   statusHistory          OrderStatusHistory[]
   legalSnapshot          OrderLegalSnapshot?
   sellerInvoices         OrderSellerInvoice[]
+  sellerInvoicePolicies  OrderSellerInvoicePolicy[]
   emailAliases           OrderEmailAlias[]
   inboundEmails          InboundEmail[]
   payouts                Payout[]
@@ -1320,6 +1330,40 @@ model OrderSellerInvoice {
   @@index([sellerId])
   @@index([source])
   @@map("order_seller_invoices")
+}
+
+// Retained after invoice removal: replacing or re-uploading never resets the seller window.
+model OrderSellerInvoicePolicy {
+  id              String   @id @default(cuid())
+  orderId         String
+  sellerId        String
+  firstUploadedAt DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, sellerId])
+  @@index([orderId])
+  @@index([sellerId])
+  @@map("order_seller_invoice_policies")
+}
+
+// Durable cleanup intent committed together with removing an active file reference.
+model PrivateDocumentCleanup {
+  id            String                       @id @default(cuid())
+  fileKey       String                       @unique
+  status        PrivateDocumentCleanupStatus @default(pending)
+  attempts      Int                          @default(0)
+  nextAttemptAt DateTime                     @default(now())
+  lastError     String?                      @db.Text
+  completedAt   DateTime?
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@map("private_document_cleanups")
 }
 
 model OrderEmailAlias {

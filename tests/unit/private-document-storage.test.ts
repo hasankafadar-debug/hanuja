@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createPrivateDocumentStorage } from '../../api/lib/private-document-storage'
+import { createPrivateDocumentStorage, deletePrivateDocumentFile } from '../../api/lib/private-document-storage'
 
 const temporaryRoots: string[] = []
 
@@ -97,5 +97,43 @@ describe('PrivateDocumentStorage', () => {
     await storage.delete(stored.key)
     await expect(storage.exists(stored.key)).resolves.toBe(false)
     await expect(storage.delete(stored.key)).resolves.toBeUndefined()
+  })
+
+  it('allows the cleanup worker to delete encrypted bytes without an encryption key', async () => {
+    const root = await createTemporaryRoot()
+    const writer = createPrivateDocumentStorage({ root, encryptionKey: Buffer.alloc(32) })
+    const stored = await writer.write(Buffer.from('invoice'))
+
+    await deletePrivateDocumentFile(stored.key, { root })
+    await expect(writer.exists(stored.key)).resolves.toBe(false)
+    await expect(deletePrivateDocumentFile(stored.key, { root })).resolves.toBeUndefined()
+  })
+
+  it('validates keys and requires an absolute configured root for deletion alone', async () => {
+    const root = await createTemporaryRoot()
+    await expect(deletePrivateDocumentFile('private/v1/aa/../../outside.bin', { root }))
+      .rejects.toThrow('Invalid private document storage key.')
+    await expect(deletePrivateDocumentFile('private/v1/aa/00000000-0000-0000-0000-000000000000.bin', { root: 'relative' }))
+      .rejects.toThrow('PRIVATE_DOCUMENT_ROOT must be an absolute path.')
+  })
+
+  it('treats a missing storage volume as an error instead of completing cleanup', async () => {
+    const root = await createTemporaryRoot()
+    await rm(root, { recursive: true, force: true })
+    await expect(deletePrivateDocumentFile(
+      'private/v1/aa/00000000-0000-0000-0000-000000000000.bin', { root },
+    )).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('rejects a shard symlink that points outside the storage root', async () => {
+    const root = await createTemporaryRoot()
+    const outside = await createTemporaryRoot()
+    const fileName = '00000000-0000-0000-0000-000000000000.bin'
+    await writeFile(join(outside, fileName), Buffer.from('must remain'))
+    await symlink(outside, join(root, 'aa'), process.platform === 'win32' ? 'junction' : 'dir')
+
+    await expect(deletePrivateDocumentFile(`private/v1/aa/${fileName}`, { root }))
+      .rejects.toThrow('Private document path resolves outside the storage root.')
+    expect(await readFile(join(outside, fileName), 'utf8')).toBe('must remain')
   })
 })

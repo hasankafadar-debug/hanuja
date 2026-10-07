@@ -42,13 +42,16 @@ export default async function SellerOrderDetailPage({ params }: Props) {
 
   if (!order) notFound()
 
-  const invoiceAlias = await createOrderDocumentService({ prisma })
-    .ensureInvoiceAliasForSeller(id, seller.id)
-    .then(alias => ({ aliasEmail: alias?.aliasEmail ?? null, status: alias ? 'ready' as const : 'disabled' as const }))
-    .catch(() => {
-      console.error('[seller-order] Invoice alias generation failed', { orderId: id, sellerId: seller.id })
-      return { aliasEmail: null, status: 'error' as const }
-    })
+  const documentService = createOrderDocumentService({ prisma })
+  const [invoiceManagement, invoiceAlias] = await Promise.all([
+    documentService.getInvoiceManagementForSeller(id, seller.id),
+    documentService.ensureInvoiceAliasForSeller(id, seller.id)
+      .then(alias => ({ aliasEmail: alias?.aliasEmail ?? null, status: alias ? 'ready' as const : 'disabled' as const }))
+      .catch(() => {
+        console.error('[seller-order] Invoice alias generation failed', { orderId: id, sellerId: seller.id })
+        return { aliasEmail: null, status: 'error' as const }
+      }),
+  ])
 
   const fulfillment = order.sellerFulfillments?.[0]
   const fulfillmentStatusMap: Record<string, string> = {
@@ -103,12 +106,6 @@ export default async function SellerOrderDetailPage({ params }: Props) {
     preInformationHtml: string
   } | null
 
-  type SellerInvoice = {
-    id: string
-    fileName: string
-    uploadedAt: Date
-  }
-
   type Address = {
     fullName: string
     phone?: string | null
@@ -142,7 +139,6 @@ export default async function SellerOrderDetailPage({ params }: Props) {
   const lines = order.lines as unknown as OrderLine[]
   const shipments = (order.shipments ?? []) as unknown as Shipment[]
   const legalSnapshot = (order.legalSnapshot ?? null) as LegalSnapshot
-  const sellerInvoice = ((order.sellerInvoices ?? []) as unknown as SellerInvoice[])[0] ?? null
   const latestShipment = shipments[0] ?? null
   const deliveryPendingLines = order.lines.filter((line) =>
     isDeliveryReviewLine(line, order.quantityLifecycleVersion),
@@ -299,19 +295,18 @@ export default async function SellerOrderDetailPage({ params }: Props) {
           <InvoiceUploadCard
             orderId={id}
             currentInvoice={
-              sellerInvoice
+              invoiceManagement.invoice
                 ? {
-                    fileName: sellerInvoice.fileName,
-                    uploadedAt: new Date(sellerInvoice.uploadedAt).toLocaleDateString('tr-TR', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    }),
+                    fileName: invoiceManagement.invoice.fileName,
+                    uploadedAt: invoiceManagement.invoice.uploadedAt.toISOString(),
+                    revision: invoiceManagement.invoice.revision,
                   }
                 : null
             }
+            firstUploadedAt={invoiceManagement.firstUploadedAt?.toISOString() ?? null}
+            sellerEditDeadline={invoiceManagement.sellerEditDeadline?.toISOString() ?? null}
+            canEdit={invoiceManagement.canEdit}
+            managementEnabled={invoiceManagement.managementEnabled}
           />
 
 

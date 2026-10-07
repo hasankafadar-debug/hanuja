@@ -18,6 +18,7 @@ export const QUEUE_NAMES = {
   REFUND_PROCESSING: 'refund-processing',
   ANNOUNCEMENT_DISPATCH: 'announcement-dispatch',
   PRICE_HISTORY: 'price-history',
+  PRIVATE_DOCUMENT_CLEANUP: 'private-document-cleanup',
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
@@ -87,3 +88,4 @@ export const refundProcessingQueue = createQueueProxy(
   QUEUE_NAMES.REFUND_PROCESSING,
 )
 export const priceHistoryQueue = createQueueProxy(QUEUE_NAMES.PRICE_HISTORY)
+export const privateDocumentCleanupQueue = createQueueProxy(QUEUE_NAMES.PRIVATE_DOCUMENT_CLEANUP)

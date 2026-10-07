@@ -32,9 +32,19 @@ import {
   notificationOutboxQueue,
   announcementDispatchQueue,
   priceHistoryQueue,
+  privateDocumentCleanupQueue,
 } from '../lib/queue'
 
 export async function scheduleRepeatableJobs(): Promise<void> {
+  await privateDocumentCleanupQueue.add(
+    'sweep',
+    {},
+    {
+      repeat: { every: 5 * 60 * 1000 },
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  )
   await notificationOutboxQueue.add(
     'relay',
     {},
@@ -160,6 +170,7 @@ export async function scheduleRepeatableJobs(): Promise<void> {
 
   console.log('[scheduler] Repeatable jobs registered:')
   console.log('  - notification-outbox relay     → every 15 sec')
+  console.log('  - private-document-cleanup       → every 5 min')
   console.log('  - payout-maturity-daily         → 02:00 UTC daily')
   console.log('  - delivery-silent-confirm        → every 30 min')
   console.log('  - fulfillment-risk-daily         → 08:00 UTC daily')

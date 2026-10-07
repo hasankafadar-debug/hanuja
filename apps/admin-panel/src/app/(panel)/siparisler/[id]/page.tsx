@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Button, LegalDocumentDialog, PageHeader, Separator, StatusBadge } from '@hanuja/ui'
+import { LegalDocumentDialog, PageHeader, Separator, StatusBadge } from '@hanuja/ui'
 import { formatMoney } from '@hanuja/security'
-import { AlertTriangle, ArrowLeft, Download, FileText } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, FileText } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { createOrderDocumentService } from '@hanuja/api/services/order-document.service'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { summarizeOrderQuantities } from '@hanuja/api/domain/order-quantity-summary'
 import { getManualEftRefundCompletion } from '@hanuja/api/domain/manual-eft-refund'
@@ -17,6 +18,7 @@ import { PerLineDeliveryConfirm } from './_components/per-line-delivery-confirm'
 import { ManualRefundCompletion } from './_components/manual-refund-completion'
 import { AdminOrderNotes } from './_components/admin-order-notes'
 import { SellerDeliveryReports } from './_components/seller-delivery-reports'
+import { AdminInvoiceCard } from './_components/admin-invoice-card'
 import { isDeliveryReviewLine } from '@hanuja/api/domain/delivery-review'
 
 export const dynamic = 'force-dynamic'
@@ -118,7 +120,7 @@ const DELIVERY_CONFIRMABLE = new Set([
 const BLOCKABLE_PAYOUT_STATUSES = new Set(['hold_active', 'payout_ready', 'payout_scheduled'])
 
 export default async function AdminOrderDetailPage({ params }: Props) {
-  await getAdminSession()
+  const session = await getAdminSession()
 
   const { id } = await params
   const prisma = createPrismaForRoute()
@@ -151,12 +153,6 @@ export default async function AdminOrderDetailPage({ params }: Props) {
       },
       statusHistory: { orderBy: { createdAt: 'asc' } },
       legalSnapshot: true,
-      sellerInvoices: {
-        include: {
-          seller: { select: { id: true, displayName: true, slug: true } },
-        },
-        orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
-      },
       payouts: { orderBy: { createdAt: 'desc' } },
       penalties: { orderBy: { createdAt: 'desc' } },
       cancellations: {
@@ -216,6 +212,8 @@ export default async function AdminOrderDetailPage({ params }: Props) {
   })
 
   if (!order) notFound()
+  const invoiceManagement = await createOrderDocumentService({ prisma })
+    .getInvoiceManagementForAdmin(id, session.user.id)
 
   const total = moneyToNumber(order.totalAmount)
   const grossAmount = moneyToNumber(order.grossAmount)
@@ -858,7 +856,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         </section>
       ) : null}
 
-      {(order.legalSnapshot || order.sellerInvoices.length > 0) ? (
+      {(order.legalSnapshot || invoiceManagement.sellers.length > 0) ? (
         <section
           className="rounded-xl border p-5"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
@@ -889,47 +887,22 @@ export default async function AdminOrderDetailPage({ params }: Props) {
             </div>
           ) : null}
 
-          {order.sellerInvoices.length > 0 ? (
+          {invoiceManagement.sellers.length > 0 ? (
             <div className="space-y-3">
-              {order.sellerInvoices.map((invoice) => {
-                const viewHref = `/api/admin/orders/${order.id}/invoices/${invoice.sellerId}`
-                const downloadHref = `${viewHref}?download=1`
-                const uploadedAt = new Date(invoice.uploadedAt).toLocaleDateString('tr-TR', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
-
-                return (
-                  <div
-                    key={invoice.id}
-                    className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
-                    style={{ borderColor: 'var(--color-border)' }}
-                  >
-                    <div>
-                      <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                        {invoice.seller.displayName}
-                      </p>
-                      <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                        {invoice.fileName} · {uploadedAt}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button asChild variant="outline" size="sm">
-                        <a href={viewHref}>Görüntüle</a>
-                      </Button>
-                      <Button asChild variant="outline" size="sm">
-                        <a href={downloadHref}>
-                          <Download className="h-4 w-4" />
-                          İndir
-                        </a>
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
+              {invoiceManagement.sellers.map(seller => (
+                <AdminInvoiceCard
+                  key={seller.sellerId}
+                  orderId={order.id}
+                  sellerId={seller.sellerId}
+                  sellerName={seller.sellerName}
+                  invoice={seller.invoice ? {
+                    fileName: seller.invoice.fileName,
+                    uploadedAt: seller.invoice.uploadedAt.toISOString(),
+                    revision: seller.invoice.revision,
+                  } : null}
+                  managementEnabled={invoiceManagement.managementEnabled}
+                />
+              ))}
             </div>
           ) : (
             <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>

@@ -2,7 +2,7 @@
  * Notification Dispatch Job â€” sends in-app and email notifications.
  * Idempotent: deduplication is handled by the notification record's existence.
  */
-import { NotificationType as NotificationTypeEnum, type PrismaClient } from '@prisma/client'
+import { NotificationType as NotificationTypeEnum, type Prisma, type PrismaClient } from '@prisma/client'
 import { Worker, Job } from 'bullmq'
 import { createHash, randomUUID } from 'node:crypto'
 import { redis } from '../lib/redis'
@@ -10,7 +10,15 @@ import { QUEUE_NAMES } from '../lib/queue'
 import { sendEmail } from '../lib/mailer'
 import { getMarketingChannelStatus } from '../services/marketing-channel.service'
 import { checkMarketingEmailRecipient } from '../services/marketing-recipient-policy'
-import { PLATFORM_LEGAL_INFO } from '../lib/platform-info'
+import {
+  PLATFORM_LEGAL_INFO,
+  getAdminPanelUrl,
+  getCustomerInvoiceUrl,
+  getCustomerOrderUrl,
+  getSellerPanelUrl,
+  getWebBaseUrl,
+} from '../lib/platform-info'
+import { getInvoiceRevision } from '../lib/invoice-management'
 import {
   orderConfirmationTemplate,
   shipmentNotificationTemplate,
@@ -165,6 +173,112 @@ function amountSummary(data: EmailData): OrderAmountSummary | undefined {
 function contractLinks(data: EmailData): OrderContractLinks {
   const value = data['contracts']
   return value && typeof value === 'object' ? (value as OrderContractLinks) : {}
+}
+
+function trustedInvoiceUrl(value: unknown) {
+  if (typeof value !== 'string') return null
+  try {
+    const url = new URL(value)
+    const origins = [getWebBaseUrl(), getSellerPanelUrl(), getAdminPanelUrl()]
+      .map((base) => new URL(base).origin)
+    return origins.includes(url.origin) && !url.username && !url.password ? url : null
+  } catch {
+    return null
+  }
+}
+
+function invoiceIdentity(data: EmailData | undefined, eventKey: string) {
+  const orderId = data && optStr(data, 'orderId')
+  const sellerId = data && optStr(data, 'sellerId')
+  if (orderId && sellerId) return { orderId, sellerId }
+  const event = /^invoice:([^:]+):([^:]+):[^:]+$/.exec(eventKey)
+  if (event) return { orderId: event[1]!, sellerId: event[2]! }
+  const url = trustedInvoiceUrl(data?.['invoiceUrl'])
+  const path = url && /^\/api\/orders\/([^/]+)\/documents\/invoices\/([^/]+)$/.exec(url.pathname)
+  if (!path) return null
+  try {
+    return { orderId: decodeURIComponent(path[1]!), sellerId: decodeURIComponent(path[2]!) }
+  } catch {
+    return null
+  }
+}
+
+/** Rebuild pending invoice links instead of trusting the producer's panel origin. */
+function canonicalInvoiceData(data: EmailData | undefined, eventKey: string) {
+  if (!data) return data
+  const identity = invoiceIdentity(data, eventKey)
+  if (identity) {
+    return {
+      ...data,
+      ...identity,
+      orderUrl: getCustomerOrderUrl(identity.orderId),
+      invoiceUrl: getCustomerInvoiceUrl(identity.orderId, identity.sellerId),
+    }
+  }
+  // Very old payloads have no invoice identity. Only rewrite our known panel
+  // origins; never turn a URL supplied by another host into a trusted link.
+  const result = { ...data }
+  for (const key of ['orderUrl', 'invoiceUrl']) {
+    const url = trustedInvoiceUrl(data[key])
+    if (url && [getSellerPanelUrl(), getAdminPanelUrl()].some((base) => new URL(base).origin === url.origin)) {
+      const target = new URL(getWebBaseUrl())
+      target.pathname = url.pathname
+      if (key === 'invoiceUrl' && url.searchParams.get('download') === '1') target.search = '?download=1'
+      result[key] = target.toString()
+    }
+  }
+  return result
+}
+
+async function invoiceDispatchSkipReason(
+  prisma: PrismaClient,
+  userId: string,
+  data: EmailData | undefined,
+  eventKey: string,
+) {
+  const identity = invoiceIdentity(data, eventKey)
+  if (!identity) return null
+  const invoice = await prisma.orderSellerInvoice.findFirst({
+    where: { ...identity, order: { customerId: userId } },
+    select: { id: true, fileKey: true, uploadedAt: true },
+  })
+  if (!invoice) return 'INVOICE_REMOVED_OR_UNAUTHORIZED'
+  const eventVersion = /^invoice:[^:]+:[^:]+:([^:]+)$/.exec(eventKey)?.[1]
+  const revision = data && optStr(data, 'invoiceRevision')
+  if (revision || (eventVersion && /^[a-f0-9]{64}$/.test(eventVersion))) {
+    return (revision ?? eventVersion) === getInvoiceRevision(invoice) ? null : 'INVOICE_SUPERSEDED'
+  }
+  // Pre-migration events identified the upload by its millisecond timestamp.
+  const uploadedAt = data && optStr(data, 'uploadedAt')
+  const expectedTime = eventVersion && /^\d+$/.test(eventVersion)
+    ? Number(eventVersion)
+    : uploadedAt ? new Date(uploadedAt).getTime() : null
+  return expectedTime !== null && expectedTime !== invoice.uploadedAt.getTime()
+    ? 'INVOICE_SUPERSEDED'
+    : null
+}
+
+async function skipUnstartedInvoiceDeliveries(
+  prisma: PrismaClient,
+  params: { userId: string; emailTo: string; type: CanonicalNotificationType; eventKey: string; payload: Prisma.InputJsonValue; reason: string },
+) {
+  for (const channel of ['in_app', 'email'] as const) {
+    const recipient = channel === 'in_app' ? params.userId : params.emailTo || params.userId
+    const row = await prisma.notificationDelivery.upsert({
+      where: { recipient_channel_eventKey: { recipient, channel, eventKey: params.eventKey } },
+      update: {},
+      create: {
+        eventKey: params.eventKey, userId: params.userId, type: params.type,
+        channel, recipient, payload: params.payload,
+        status: 'sent', transportStatus: 'skipped', lastError: params.reason,
+      },
+    })
+    // Accepted, uncertain, or in-flight SMTP attempts keep their real outcome.
+    await prisma.notificationDelivery.updateMany({
+      where: { id: row.id, status: { in: ['pending', 'failed'] }, transportStatus: { not: 'uncertain' } },
+      data: { status: 'sent', transportStatus: 'skipped', lastError: params.reason, leaseToken: null, leaseExpiresAt: null },
+    })
+  }
 }
 
 async function buildEmailPayload(
@@ -547,7 +661,7 @@ export async function processNotificationDispatch(
   job: Job<NotificationDispatchJobData>,
 ) {
   const { prisma } = await import('../lib/prisma')
-  const { userId, title, body, data, replyTo } = job.data
+  const { userId, title, body, replyTo } = job.data
   const type = resolveNotificationType(job.data.type)
   if (!type) throw new Error('EMAIL_EVENT_UNKNOWN')
   if (type === NotificationTypeEnum.seller_refund_completed) return
@@ -562,9 +676,22 @@ export async function processNotificationDispatch(
       })
   if (!isOps && !user) throw new Error('EMAIL_USER_MISSING')
   const eventKey = job.data.eventKey ?? `legacy-job:${job.id ?? 'unknown'}`
-  const payload = JSON.parse(JSON.stringify({ ...job.data, eventKey }))
+  const data = type === NotificationTypeEnum.invoice_uploaded
+    ? canonicalInvoiceData(job.data.data, eventKey)
+    : job.data.data
+  const payload = JSON.parse(JSON.stringify({ ...job.data, data, eventKey }))
   const now = new Date()
   const deliveryUserId = isOps ? null : userId
+  if (!isOps && type === NotificationTypeEnum.invoice_uploaded) {
+    const reason = await invoiceDispatchSkipReason(prisma, userId, data, eventKey)
+    if (reason) {
+      await skipUnstartedInvoiceDeliveries(prisma, {
+        userId, emailTo: (job.data.emailTo ?? user?.email ?? '').trim().toLowerCase(),
+        type, eventKey, payload, reason,
+      })
+      return
+    }
+  }
   // Campaign gate (phase 6): closed legacy types, reservation, shared limits and the
   // lowest-price re-check run before either leg; a refusal produces neither.
   if (!isOps) {
@@ -787,6 +914,17 @@ export async function processNotificationDispatch(
             leaseToken: null, leaseExpiresAt: null },
         })
         if (reservationTracked) await releaseSendingReservation(prisma, eventKey, blockedReason)
+        return
+      }
+    }
+    if (!isOps && type === NotificationTypeEnum.invoice_uploaded) {
+      const reason = await invoiceDispatchSkipReason(prisma, userId, data, eventKey)
+      if (reason) {
+        await prisma.notificationDelivery.updateMany({
+          where: { id: email.id, leaseToken: token },
+          data: { status: 'sent', transportStatus: 'skipped', lastError: reason,
+            leaseToken: null, leaseExpiresAt: null },
+        })
         return
       }
     }

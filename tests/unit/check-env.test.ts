@@ -18,6 +18,8 @@ const workerEnv: NodeJS.ProcessEnv = {
   ADMIN_PANEL_URL: 'https://admin.hanuja.com.tr',
   CARD_PAYMENTS_ENABLED: 'false',
   INVOICE_ALIASING_ENABLED: 'false',
+  INVOICE_MANAGEMENT_ENABLED: 'false',
+  PRIVATE_DOCUMENT_ROOT: '/var/lib/hanuja/private-documents',
   R2_ACCOUNT_ID: 'account-id',
   R2_ACCESS_KEY_ID: 'access-key-id',
   R2_SECRET_ACCESS_KEY: 'local-secret-value',
@@ -63,6 +65,20 @@ describe('production environment guard scopes', () => {
 
     expect(result.status).toBe(1)
     expect(result.output).toContain('NEXT_PUBLIC_WEB_URL must use a valid production domain')
+  })
+
+  it('requires an absolute mounted private-document directory for the worker', () => {
+    for (const value of ['', 'relative/private-documents']) {
+      const result = runCheck('worker', { ...workerEnv, PRIVATE_DOCUMENT_ROOT: value })
+      expect(result.status).toBe(1)
+      expect(result.output).toContain('PRIVATE_DOCUMENT_ROOT')
+    }
+  })
+
+  it('rejects invalid invoice-management rollout flags', () => {
+    const result = runCheck('worker', { ...workerEnv, INVOICE_MANAGEMENT_ENABLED: 'enabled' })
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('INVOICE_MANAGEMENT_ENABLED must be exactly true or false.')
   })
 
   it('still rejects a Cloudflare test secret for the API scope', () => {
