@@ -25,6 +25,7 @@ import { calculateHoldUntil } from '../domain/payout-calculator'
 import { createPayoutService } from './payout.service'
 import { formatOrderNumber } from '../lib/order-number'
 import { getWebBaseUrl } from '../lib/platform-info'
+import { DELIVERY_REVIEW_STATUSES, isDeliveryReviewLine } from '../domain/delivery-review'
 
 interface DeliveryServiceDeps {
   prisma: PrismaClient
@@ -330,52 +331,51 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
 
       assertTransition(order.status, 'shipped')
 
-      return prisma
-        .$transaction(async (tx: Prisma.TransactionClient) => {
-          const shippedAt = new Date()
-          let shipment = await shipments.findByOrderAndSeller(params.orderId, params.sellerId, tx)
+      return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const shippedAt = new Date()
+        let shipment = await shipments.findByOrderAndSeller(params.orderId, params.sellerId, tx)
 
-          if (shipment) {
-            await shipments.updateTracking(
-              shipment.id,
-              {
-                trackingNumber: params.trackingNumber,
-                ...(params.cargoProvider !== undefined
-                  ? { cargoProvider: params.cargoProvider }
-                  : {}),
-              },
-              tx,
-            )
-          } else {
-            shipment = await shipments.create(
-              {
-                orderId: params.orderId,
-                sellerId: params.sellerId,
-                cargoProvider: params.cargoProvider ?? 'unknown',
-                trackingNumber: params.trackingNumber,
-              },
-              tx,
-            )
-          }
-
-          await orders.updateStatus(params.orderId, 'shipped', tx as unknown as PrismaClient)
-          await (tx as PrismaClient).order.update({
-            where: { id: params.orderId },
-            data: { shippedAt },
-          })
-          await (tx as PrismaClient).orderLine.updateMany({
-            where: {
+        if (shipment) {
+          await shipments.updateTracking(
+            shipment.id,
+            {
+              trackingNumber: params.trackingNumber,
+              ...(params.cargoProvider !== undefined
+                ? { cargoProvider: params.cargoProvider }
+                : {}),
+            },
+            tx,
+          )
+        } else {
+          shipment = await shipments.create(
+            {
               orderId: params.orderId,
               sellerId: params.sellerId,
-              fulfilledAt: null,
+              cargoProvider: params.cargoProvider ?? 'unknown',
+              trackingNumber: params.trackingNumber,
             },
-            data: { fulfilledAt: shippedAt },
-          })
-          await orders.appendStatusHistory(
-            params.orderId,
-            'shipped',
-            params.sellerId,
-            `Kargo: ${params.trackingNumber}${params.cargoProvider ? ` (${params.cargoProvider})` : ''}`,
+            tx,
+          )
+        }
+
+        await orders.updateStatus(params.orderId, 'shipped', tx as unknown as PrismaClient)
+        await (tx as PrismaClient).order.update({
+          where: { id: params.orderId },
+          data: { shippedAt },
+        })
+        await (tx as PrismaClient).orderLine.updateMany({
+          where: {
+            orderId: params.orderId,
+            sellerId: params.sellerId,
+            fulfilledAt: null,
+          },
+          data: { fulfilledAt: shippedAt },
+        })
+        await orders.appendStatusHistory(
+          params.orderId,
+          'shipped',
+          params.sellerId,
+          `Kargo: ${params.trackingNumber}${params.cargoProvider ? ` (${params.cargoProvider})` : ''}`,
             tx as unknown as PrismaClient,
           )
 
@@ -559,11 +559,15 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
       confirmedLineIds: string[]
     }> {
       const txResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM orders WHERE id = ${orderId} FOR UPDATE`)
         const lifecycle = await tx.order.findUnique({
           where: { id: orderId },
-          select: { quantityLifecycleVersion: true },
+          select: { quantityLifecycleVersion: true, status: true },
         })
         if (!lifecycle) throw new NotFoundError('Order', orderId)
+        if (!(DELIVERY_REVIEW_STATUSES as readonly string[]).includes(lifecycle.status)) {
+          throw new ConflictError('Siparişin teslim teyidi durumu değişti; sayfayı yenileyin')
+        }
         const isQuantityLifecycle = lifecycle.quantityLifecycleVersion === 2
         const orderLineWhere: Prisma.OrderLineWhereInput = {
           orderId,
@@ -572,15 +576,31 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
           ...(orderLineIds && orderLineIds.length > 0 ? { id: { in: orderLineIds } } : {}),
         }
 
-        const linesToStamp = await (tx as PrismaClient).orderLine.findMany({
+        const candidates = await tx.orderLine.findMany({
           where: orderLineWhere,
-          select: { id: true, sellerId: true },
+          select: {
+            id: true,
+            sellerId: true,
+            quantity: true,
+            cancelledQuantity: true,
+            shippedQuantity: true,
+            fulfilledAt: true,
+            deliveryConfirmedAt: true,
+          },
         })
+        const linesToStamp = candidates.filter((line) =>
+          isDeliveryReviewLine(line, lifecycle.quantityLifecycleVersion),
+        )
         const stampedIds = linesToStamp.map((l) => l.id)
+        if (orderLineIds && new Set(orderLineIds).size !== stampedIds.length) {
+          throw new ConflictError(
+            'Seçilen ürünler arasında teslim teyidine uygun olmayan ürün var; sayfayı yenileyin',
+          )
+        }
 
         if (stampedIds.length > 0) {
           await (tx as PrismaClient).orderLine.updateMany({
-            where: { id: { in: stampedIds } },
+            where: { id: { in: stampedIds }, deliveryConfirmedAt: null },
             data: {
               deliveryConfirmedAt: confirmation.confirmedAt,
               deliveryConfirmedBy: actorId,
@@ -594,7 +614,7 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
           where: {
             orderId,
             deliveryConfirmedAt: null,
-            ...(isQuantityLifecycle ? { shippedQuantity: { gt: 0 } } : {}),
+            quantity: { gt: tx.orderLine.fields.cancelledQuantity },
           },
         })
         const allLinesConfirmed = remainingUnconfirmed === 0 && stampedIds.length > 0
@@ -605,7 +625,7 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
               where: {
                 orderId,
                 sellerId,
-                shippedQuantity: { gt: 0 },
+                quantity: { gt: tx.orderLine.fields.cancelledQuantity },
                 deliveryConfirmedAt: null,
               },
             })

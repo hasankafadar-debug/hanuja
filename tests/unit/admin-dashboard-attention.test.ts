@@ -14,13 +14,13 @@ const DASHBOARD_PAGE = fileURLToPath(
 const STAT_CARD = fileURLToPath(new URL('../../packages/ui/src/components/composite/stat-card.tsx', import.meta.url))
 
 describe('admin dashboard attention cards', () => {
-  it('highlights 18 non-zero metrics and excludes Active Seller', async () => {
+  it('highlights 19 non-zero metrics and excludes Active Seller', async () => {
     const source = await readFile(DASHBOARD_PAGE, 'utf8')
     const expressions = [...source.matchAll(/attention:\s*([\s\S]*?),\s*\r?\n\s*icon:/g)].map((match) =>
       match[1]?.replace(/\s+/g, ' ').trim(),
     )
 
-    expect(expressions).toHaveLength(19)
+    expect(expressions).toHaveLength(20)
     expect(expressions.filter((expression) => expression === 'false')).toHaveLength(1)
     expect(
       expressions.filter((expression) => expression !== 'false').every((expression) => expression?.endsWith('> 0')),
@@ -46,6 +46,7 @@ describe('admin dashboard attention cards', () => {
     ['Satıcı Onayı Bekleyenler', 'overdueSellerApprovals.total'],
     ['Manuel İade Bekleyen', 'manualRefunds.total'],
     ['Başarısız Kart İadesi', 'failedCardRefunds.total'],
+    ['Satıcı Teslim Bildirimleri', 'sellerDeliveryReports.orderCount'],
   ])('uses the existing green attention rule for %s', async (title, counter) => {
     const source = await readFile(DASHBOARD_PAGE, 'utf8')
     const start = source.indexOf(`title: '${title}'`)

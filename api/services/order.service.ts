@@ -20,6 +20,8 @@ interface OrderServiceDeps {
   prisma: PrismaClient
 }
 
+import { withoutAdminOrderNotes } from '../lib/private-order-fields'
+
 export function createOrderService({ prisma }: OrderServiceDeps) {
   const orders = createOrderRepository(prisma)
   const auditLog = createAdminAuditLogRepository(prisma)
@@ -450,12 +452,12 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
 
     async getOrderForCustomer(orderId: string, customerId: string) {
       const order = await orders.findByIdForCustomer(orderId, customerId)
-      return order ? withQuantityAvailability(order) : null
+      return order ? withoutAdminOrderNotes(withQuantityAvailability(order)) : null
     },
 
     async getOrderForSeller(orderId: string, sellerId: string) {
       const order = await orders.findByIdForSeller(orderId, sellerId)
-      return order ? withQuantityAvailability(order) : null
+      return order ? withoutAdminOrderNotes(withQuantityAvailability(order)) : null
     },
 
     async getOrderForAdmin(orderId: string) {
@@ -463,12 +465,13 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       return order ? withQuantityAvailability(order) : null
     },
 
-    listForCustomer(customerId: string, skip?: number, take?: number) {
-      return orders.listByCustomer({
+    async listForCustomer(customerId: string, skip?: number, take?: number) {
+      const rows = await orders.listByCustomer({
         customerId,
         ...(skip !== undefined ? { skip } : {}),
         ...(take !== undefined ? { take } : {}),
       })
+      return rows.map(withoutAdminOrderNotes)
     },
 
     listForSellerQueue(params: {

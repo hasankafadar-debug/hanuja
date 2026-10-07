@@ -138,15 +138,23 @@ describe('delivery.service e-mail producers', () => {
     }
     let remaining = 1
     const tx = {
+      $queryRaw: vi.fn(),
       order: {
         findUnique: vi.fn(async (args: { select?: { quantityLifecycleVersion?: boolean } }) =>
           args.select?.quantityLifecycleVersion
-            ? { quantityLifecycleVersion: 2 }
-            : { ...customerOrder, lines: stamp.lines.filter((l) => currentIds.includes(l.id)) },
+            ? { quantityLifecycleVersion: 2, status: 'shipped' }
+            : { ...customerOrder, lines: stamp.lines.filter((l) => currentIds.includes(l.id)),
+              },
         ),
       },
       orderLine: {
-        findMany: vi.fn(async () => stamp.lines.filter((l) => currentIds.includes(l.id)).map((l) => ({ id: l.id, sellerId: l.sellerId }))),
+        fields: { cancelledQuantity: 'cancelledQuantity' },
+        findMany: vi.fn(async () => stamp.lines.filter((l) => currentIds.includes(l.id)).map((l) => ({
+              ...l,
+              fulfilledAt: new Date(),
+              deliveryConfirmedAt: null,
+            })),
+        ),
         updateMany: vi.fn(),
         count: vi.fn(async () => remaining),
       },

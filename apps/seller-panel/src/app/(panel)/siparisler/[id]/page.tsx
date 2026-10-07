@@ -13,6 +13,7 @@ import InvoiceAliasCard from './_components/invoice-alias-card'
 import InvoiceUploadCard from './_components/invoice-upload-card'
 import OrderTimeline from './_components/order-timeline'
 import OrderWorkflowCard from './_components/order-workflow-card'
+import { DELIVERY_REVIEW_STATUSES, isDeliveryReviewLine } from '@hanuja/api/domain/delivery-review'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +28,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     where: { id },
     select: { publicNumber: true },
   })
-  return { title: `Sipariş ${formatOrderDisplayNumber(order?.publicNumber, id)}` }
+  return { title: `Sipariş ${formatOrderDisplayNumber(order?.publicNumber, id)}`,
+  }
 }
 
 export default async function SellerOrderDetailPage({ params }: Props) {
@@ -138,6 +140,19 @@ export default async function SellerOrderDetailPage({ params }: Props) {
   const legalSnapshot = (order.legalSnapshot ?? null) as LegalSnapshot
   const sellerInvoice = ((order.sellerInvoices ?? []) as unknown as SellerInvoice[])[0] ?? null
   const latestShipment = shipments[0] ?? null
+  const deliveryPendingLines = order.lines.filter((line) =>
+    isDeliveryReviewLine(line, order.quantityLifecycleVersion),
+  )
+  const reportedLines = order.lines.filter((line) => line.sellerDeliveryReportedAt)
+  const deliveryReportedAt =
+    reportedLines.length > 0
+      ? new Date(
+          Math.min(...reportedLines.map((line) => line.sellerDeliveryReportedAt!.getTime())),
+        ).toISOString()
+      : null
+  const canReportDelivery =
+    (DELIVERY_REVIEW_STATUSES as readonly string[]).includes(order.status) &&
+    deliveryPendingLines.some((line) => !line.sellerDeliveryReportedAt)
   const address = (order.address ?? null) as Address
   const customer = (order.customer ?? null) as Customer
   const penalties = (order.penalties ?? []) as unknown as Penalty[]
@@ -205,7 +220,8 @@ export default async function SellerOrderDetailPage({ params }: Props) {
                         {line.product?.name ?? 'Ürün'}
                       </p>
                       <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                        Orijinal: {line.quantity} · Güncel: {lineCurrentQuantity} · İptal: {line.cancelledQuantity} · Kargolanan: {line.shippedQuantity}
+                        Orijinal: {line.quantity} · Güncel: {lineCurrentQuantity} · İptal:{' '}
+                        {line.cancelledQuantity} · Kargolanan: {line.shippedQuantity}
                       </p>
                     </div>
                     <p
@@ -227,6 +243,11 @@ export default async function SellerOrderDetailPage({ params }: Props) {
           </section>
 
           <OrderWorkflowCard
+            canReportDelivery={canReportDelivery}
+            deliveryReportedAt={deliveryReportedAt}
+            deliveryReportConfirmed={
+              reportedLines.length > 0 && reportedLines.every((line) => line.deliveryConfirmedAt)
+            }
             orderId={id}
             status={operationalStatus}
             trackingNumber={latestShipment?.trackingNumber ?? null}
@@ -289,8 +310,8 @@ export default async function SellerOrderDetailPage({ params }: Props) {
             }
           />
 
-          <InvoiceAliasCard aliasEmail={invoiceAlias?.aliasEmail ?? null} />
 
+          <InvoiceAliasCard aliasEmail={invoiceAlias?.aliasEmail ?? null} />
         </div>
 
         <div className="space-y-6">
@@ -320,7 +341,12 @@ export default async function SellerOrderDetailPage({ params }: Props) {
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--color-accent)' }} />
                 <p style={{ color: 'var(--color-muted-fg)' }}>
                   {address
-                    ? [address.addressLine1, address.addressLine2, `${address.district} / ${address.city}`, address.postalCode]
+                    ? [
+                        address.addressLine1,
+                        address.addressLine2,
+                        `${address.district} / ${address.city}`,
+                        address.postalCode,
+                      ]
                         .filter(Boolean)
                         .join(', ')
                     : 'Teslimat adresi mevcut değil.'}

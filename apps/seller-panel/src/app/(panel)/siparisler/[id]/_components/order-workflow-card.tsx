@@ -10,6 +10,7 @@ import {
 } from '@/lib/seller-order-workflow'
 import RejectButton from './reject-button'
 import ExtensionRequestButton from './extension-request-button'
+import { csrfFetch } from '@/lib/csrf-fetch'
 
 interface OrderWorkflowCardProps {
   orderId: string
@@ -18,6 +19,9 @@ interface OrderWorkflowCardProps {
   cargoProvider?: string | null
   canRequestExtension: boolean
   pendingRequestId: string | null
+  canReportDelivery: boolean
+  deliveryReportedAt: string | null
+  deliveryReportConfirmed: boolean
 }
 
 const CARGO_PROVIDERS = ['yurtici', 'aras', 'ptt', 'mng', 'surat', 'ups', 'fedex', 'dhl', 'diger']
@@ -45,6 +49,9 @@ export default function OrderWorkflowCard({
   cargoProvider,
   canRequestExtension,
   pendingRequestId,
+  canReportDelivery,
+  deliveryReportedAt,
+  deliveryReportConfirmed,
 }: OrderWorkflowCardProps) {
   const router = useRouter()
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
@@ -118,6 +125,29 @@ export default function OrderWorkflowCard({
   }
 
   const actionColumns = canRequestExtension ? 'md:grid-cols-3' : 'md:grid-cols-2'
+
+  async function reportDelivery() {
+    if (loadingAction) return
+    setLoadingAction('report-delivery')
+    setError(null)
+    try {
+      const response = await csrfFetch('/api/seller/shipments/report-delivery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        setError(data.message ?? 'Teslim bildirimi kaydedilemedi.')
+        return
+      }
+      router.refresh()
+    } catch {
+      setError('Bağlantı hatası oluştu. Lütfen tekrar deneyin.')
+    } finally {
+      setLoadingAction(null)
+    }
+  }
 
   return (
     <section
@@ -367,6 +397,37 @@ export default function OrderWorkflowCard({
         <p className="mt-4 text-sm" style={{ color: 'var(--color-destructive)' }}>
           {error}
         </p>
+      ) : null}
+      {canReportDelivery ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+            Teslim edildiğini bildirin. Teslimat admin tarafından teyit edilecektir.
+          </p>
+          <Button
+            loading={loadingAction === 'report-delivery'}
+            disabled={loadingAction !== null}
+            onClick={reportDelivery}
+          >
+            Teslim edildi
+          </Button>
+        </div>
+      ) : deliveryReportedAt ? (
+        <div
+          className="mt-4 rounded-lg border p-4 text-sm"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
+          <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
+            {deliveryReportConfirmed
+              ? 'Teslimatınız teyit edildi.'
+              : 'Teslim bildiriminiz alındı — admin teyidi bekleniyor'}
+          </p>
+          <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>
+            Bildirim:{' '}
+            {new Date(deliveryReportedAt).toLocaleString('tr-TR', {
+              timeZone: 'Europe/Istanbul',
+            })}
+          </p>
+        </div>
       ) : null}
     </section>
   )

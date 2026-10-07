@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import type { OrderStatus, Prisma } from '@prisma/client'
 import { PageHeader } from '@hanuja/ui'
 import { maskCustomerName } from '@hanuja/security'
 import { getAdminSession } from '@/lib/admin-session'
@@ -7,6 +6,7 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { UrlPagination } from '@/components/url-pagination'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { QueueConfirm } from './_components/queue-confirm'
+import { createAdminDeliveryQueryService } from '@hanuja/api/services/admin-delivery-query.service'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,55 +31,24 @@ export default async function TeslimOnayiPage({
   const page = getPage(resolved)
   const skip = (page - 1) * PAGE_SIZE
 
+  const sellerReported = resolved?.sellerReported === '1'
+
   const prisma = createPrismaForRoute()
 
-  // Yesterday or earlier — gives cargo at least 1 day to settle.
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - 1)
-
-  const eligibleStatuses: OrderStatus[] = ['shipped', 'delivered', 'delivery_confirmation_pending']
-
-  const where: Prisma.OrderLineWhereInput = {
-    deliveryConfirmedAt: null,
-    order: {
-      shippedAt: { lt: cutoff },
-      status: { in: eligibleStatuses },
-    },
-  }
-
-  const [lines, total] = await Promise.all([
-    prisma.orderLine.findMany({
-      where,
-      orderBy: [{ order: { shippedAt: 'asc' } }, { createdAt: 'asc' }],
+  const { lines, orderCount, lineCount } = await createAdminDeliveryQueryService({
+    prisma,
+  }).listForAdmin({
+    sellerReported,
       skip,
       take: PAGE_SIZE,
-      select: {
-        id: true,
-        productName: true,
-        quantity: true,
-        order: {
-          select: {
-            id: true,
-            publicNumber: true,
-            shippedAt: true,
-            status: true,
-            customer: { select: { name: true } },
-            shipments: { select: { cargoProvider: true }, take: 1, orderBy: { createdAt: 'desc' } },
-          },
-        },
-        seller: { select: { id: true, displayName: true } },
-      },
-    }),
-    prisma.orderLine.count({ where }),
-  ])
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  })
+  const totalPages = Math.max(1, Math.ceil(lineCount / PAGE_SIZE))
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Teslim Onayı Bekleyenler"
-        description={`${total} kalem — kargoya verildikten 1+ gün geçmiş, henüz teslim onayı bekleniyor`}
+        title={sellerReported ? 'Satıcı Teslim Bildirimleri' : 'Teslim Onayı Bekleyenler'}
+        description={`${orderCount} sipariş, ${lineCount} kalem — ${sellerReported ? 'satıcı teslim bildiriminde bulunmuş, teslim teyidi bekleniyor' : 'sevkten 1+ gün geçmiş, teslim teyidi bekleniyor'}`}
       />
 
       {lines.length === 0 ? (
@@ -91,17 +60,28 @@ export default async function TeslimOnayiPage({
         </div>
       ) : (
         <QueueConfirm
+          sellerReported={sellerReported}
           lines={lines.map((l) => ({
             id: l.id,
             productName: l.productName,
-            quantity: l.quantity,
+            quantity: l.quantity - l.cancelledQuantity,
             orderId: l.order.id,
             orderNumber: formatOrderDisplayNumber(l.order.publicNumber, l.order.id),
-            shippedAt: l.order.shippedAt!.toISOString(),
+            shippedAt: (
+              l.fulfilledAt ??
+              l.order.shippedAt ??
+              l.sellerDeliveryReportedAt!
+            ).toISOString(),
+            reportedAt: l.sellerDeliveryReportedAt?.toISOString() ?? null,
             status: l.order.status,
             customerName: maskCustomerName(l.order.customer?.name ?? ''),
             sellerName: l.seller?.displayName ?? '—',
-            cargoProvider: l.order.shipments[0]?.cargoProvider ?? '—',
+            cargoProvider:
+              l.order.shipments.find((shipment) => shipment.sellerId === l.sellerId)
+                ?.cargoProvider ?? '—',
+            trackingNumber:
+              l.order.shipments.find((shipment) => shipment.sellerId === l.sellerId)
+                ?.trackingNumber ?? '—',
           }))}
         />
       )}

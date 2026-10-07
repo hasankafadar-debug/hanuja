@@ -74,6 +74,7 @@ const LOGIN_MFA_ONLY_ROUTES = [
   'apps/admin-panel/src/app/api/admin/orders/[id]/block-payout/route.ts',
   'apps/admin-panel/src/app/api/admin/orders/[id]/cancel/route.ts',
   'apps/admin-panel/src/app/api/admin/orders/[id]/confirm-delivery/route.ts',
+  'apps/admin-panel/src/app/api/admin/orders/[id]/notes/route.ts',
   'apps/admin-panel/src/app/api/admin/orders/[id]/penalties/route.ts',
   'apps/admin-panel/src/app/api/admin/penalties/[id]/waive/route.ts',
   'apps/admin-panel/src/app/api/admin/payments/eft/[orderId]/approve/route.ts',

@@ -13,7 +13,7 @@ const bodySchema = z.object({
   // Per-line confirmation: if provided, only the listed lines are stamped and
   // the order only transitions to delivery_confirmed when ALL lines are done.
   // Omitting the array preserves the legacy order-level behaviour.
-  orderLineIds: z.array(z.string().min(1)).optional(),
+  orderLineIds: z.array(z.string().min(1)).min(1).optional(),
 })
 
 export async function POST(

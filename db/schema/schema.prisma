@@ -328,6 +328,7 @@ enum AdminActionType {
   bank_transfer_approved
   bank_transfer_rejected
   order_cancelled
+  order_admin_note_added
   delivery_confirmed_manual
   penalty_applied
   penalty_waived
@@ -622,6 +623,7 @@ model User {
   productQuestionMessages ProductQuestionMessage[] @relation("ProductQuestionMessageAuthor")
 
   cookieConsentRecords CookieConsentRecord[]
+  orderAdminNotes OrderAdminNote[]
 
   @@map("users")
 }
@@ -1261,6 +1263,7 @@ model Order {
   cancellations          OrderCancellation[]
   refundTransactions     RefundTransaction[]
   productQuestionThreads ProductQuestionThread[]
+  adminNotes             OrderAdminNote[]
 
   @@index([customerId, status])
   @@index([status, createdAt])
@@ -1402,6 +1405,9 @@ model OrderLine {
   // Per-satır teslimat onayı — order.deliveryConfirmedAt ile eş zamanlı yazılır
   deliveryConfirmedAt DateTime?
   deliveryConfirmedBy String? // 'customer' | 'admin_<id>' | 'system'
+  // Seller report is evidence for admin review, never definitive delivery.
+  sellerDeliveryReportedAt DateTime?
+  sellerDeliveryReportedBy String?
 
   createdAt DateTime @default(now())
 
@@ -1421,6 +1427,7 @@ model OrderLine {
   @@index([orderId])
   @@index([sellerId])
   @@index([commissionInvoiceId])
+  @@index([sellerDeliveryReportedAt])
   @@map("order_lines")
 }
 
@@ -1493,6 +1500,21 @@ model FulfillmentRisk {
 }
 
 // Sipariş durum geçmişi — append-only, üzerine yazma yok
+// Private, append-only operational notes. Never include in customer/seller DTOs.
+model OrderAdminNote {
+  id        String   @id @default(cuid())
+  orderId   String
+  authorId  String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt])
+  @@map("order_admin_notes")
+}
+
 model OrderStatusHistory {
   id         String       @id @default(cuid())
   orderId    String

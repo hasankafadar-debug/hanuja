@@ -15,6 +15,9 @@ import { AdminOrderActions } from '@/components/admin-order-actions'
 import { CancellationDetailCard } from './_components/cancellation-detail-card'
 import { PerLineDeliveryConfirm } from './_components/per-line-delivery-confirm'
 import { ManualRefundCompletion } from './_components/manual-refund-completion'
+import { AdminOrderNotes } from './_components/admin-order-notes'
+import { SellerDeliveryReports } from './_components/seller-delivery-reports'
+import { isDeliveryReviewLine } from '@hanuja/api/domain/delivery-review'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,7 +95,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     where: { id },
     select: { publicNumber: true },
   })
-  return { title: `Sipariş ${formatOrderDisplayNumber(order?.publicNumber, id)}` }
+  return { title: `Sipariş ${formatOrderDisplayNumber(order?.publicNumber, id)}`,
+  }
 }
 
 const TERMINAL_STATUSES = new Set([
@@ -135,7 +139,16 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         },
       },
       payments: { orderBy: { createdAt: 'desc' } },
-      shipments: { orderBy: { createdAt: 'desc' }, take: 1 },
+      shipments: { orderBy: { createdAt: 'desc' } },
+      adminNotes: {
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: {
+          id: true,
+          body: true,
+          createdAt: true,
+          author: { select: { name: true } },
+        },
+      },
       statusHistory: { orderBy: { createdAt: 'asc' } },
       legalSnapshot: true,
       sellerInvoices: {
@@ -410,7 +423,8 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                     <div>
                       <p style={{ color: 'var(--color-muted-fg)' }}>{line.productName}</p>
                       <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                        Orijinal: {line.quantity} · Güncel: {lineCurrentQuantity} · İptal: {line.cancelledQuantity} · Kargolanan: {line.shippedQuantity}
+                        Orijinal: {line.quantity} · Güncel: {lineCurrentQuantity} · İptal:{' '}
+                        {line.cancelledQuantity} · Kargolanan: {line.shippedQuantity}
                       </p>
                     </div>
                     <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
@@ -423,7 +437,12 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                   </div>
                   {line.deliveryConfirmedAt ? (
                     <p className="mt-0.5 text-xs" style={{ color: 'var(--color-success)' }}>
-                      ✓ Teslim onaylandı — {new Date(line.deliveryConfirmedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      ✓ Teslim onaylandı —{' '}
+                      {new Date(line.deliveryConfirmedAt).toLocaleDateString('tr-TR', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
                     </p>
                   ) : null}
                 </div>
@@ -558,7 +577,8 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                       {cancellation.items.map((item) => (
                         <li key={item.id} className="flex justify-between gap-4">
                           <span style={{ color: 'var(--color-primary)' }}>
-                            {productNameByLineId.get(item.orderLineId) ?? item.orderLineId} × {item.quantity}
+                            {productNameByLineId.get(item.orderLineId) ?? item.orderLineId} ×{' '}
+                            {item.quantity}
                           </span>
                           <span style={{ color: 'var(--color-muted-fg)' }}>
                             {formatMoney(moneyToNumber(item.customerRefundAmount))}
@@ -621,8 +641,12 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                          Refund transaction · {REFUND_SOURCE_LABELS[refund.sourceType] ?? refund.sourceType}
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: 'var(--color-primary)' }}
+                        >
+                          Refund transaction ·{' '}
+                          {REFUND_SOURCE_LABELS[refund.sourceType] ?? refund.sourceType}
                         </p>
                         <p className="break-all text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                           ID: {refund.id} · {new Date(refund.createdAt).toLocaleString('tr-TR')}
@@ -689,7 +713,9 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                                   <div>
                                     <p className="text-xs font-medium" style={{ color: 'var(--color-primary)' }}>
                                       {REFUND_ITEM_KIND_LABELS[item.kind] ?? item.kind}
-                                      {item.orderLine?.productName ? ` · ${item.orderLine.productName}` : ''}
+                                      {item.orderLine?.productName
+                                        ? ` · ${item.orderLine.productName}`
+                                        : ''}
                                     </p>
                                     <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                                       {item.quantity !== null && item.quantity !== undefined
@@ -984,13 +1010,26 @@ export default async function AdminOrderDetailPage({ params }: Props) {
 
       <PerLineDeliveryConfirm
         orderId={order.id}
-        lines={order.lines.map((l) => ({
-          id: l.id,
-          productName: l.productName,
-          quantity: l.quantity,
-          deliveryConfirmedAt: l.deliveryConfirmedAt ?? null,
-        }))}
+        lines={order.lines
+          .filter((l) => isDeliveryReviewLine(l, order.quantityLifecycleVersion))
+          .map((l) => ({
+            id: l.id,
+            productName: l.productName,
+            quantity: l.quantity - l.cancelledQuantity,
+            deliveryConfirmedAt: l.deliveryConfirmedAt ?? null,
+          }))}
         canConfirm={canConfirmDelivery}
+      />
+
+      <SellerDeliveryReports lines={order.lines} shipments={order.shipments} />
+      <AdminOrderNotes
+        orderId={order.id}
+        notes={order.adminNotes.map((note) => ({
+          id: note.id,
+          body: note.body,
+          createdAt: note.createdAt.toISOString(),
+          authorName: note.author.name?.trim() || 'Admin',
+        }))}
       />
 
       <section

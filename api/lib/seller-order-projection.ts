@@ -1,5 +1,6 @@
 import { maskCustomerName } from '@hanuja/security'
 import { formatOrderDisplayNumber } from './order-number'
+import { withoutAdminOrderNotes } from './private-order-fields'
 
 type SellerOrderCustomer = {
   name?: string | null
@@ -32,7 +33,7 @@ const ORDER_LEVEL_FINANCE_FIELDS = [
 type OrderLevelFinanceField = (typeof ORDER_LEVEL_FINANCE_FIELDS)[number]
 
 function omitOrderLevelFinanceFields<T extends object>(order: T): Omit<T, OrderLevelFinanceField> {
-  const sanitized = { ...order } as Record<string, unknown>
+  const sanitized = { ...withoutAdminOrderNotes(order) } as Record<string, unknown>
   for (const field of ORDER_LEVEL_FINANCE_FIELDS) {
     delete sanitized[field]
   }

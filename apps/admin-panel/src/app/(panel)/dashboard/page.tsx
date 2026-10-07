@@ -25,6 +25,7 @@ import { createFulfillmentRiskService } from '@hanuja/api/services/fulfillment-r
 import { createAdminRefundQueryService } from '@hanuja/api/services/admin-refund-query.service'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { RefundQueuePreview } from './refund-queue-preview'
+import { createAdminDeliveryQueryService } from '@hanuja/api/services/admin-delivery-query.service'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,13 +40,18 @@ export default async function AdminDashboardPage() {
   const fulfillmentRiskSvc = createFulfillmentRiskService({ prisma })
   const refundQuery = createAdminRefundQueryService({ prisma })
 
-  const [stats, recentOrdersResult, fulfillmentRisks, manualRefunds, failedCardRefunds, overdueSellerApprovals] = await Promise.all([
+  const [stats, recentOrdersResult, fulfillmentRisks, manualRefunds, failedCardRefunds, overdueSellerApprovals,
+    sellerDeliveryReports,
+  ] = await Promise.all([
     analytics.getDashboardStats(),
     orderSvc.listForAdmin({ skip: 0, take: 5 }),
     fulfillmentRiskSvc.listActiveForAdmin({ take: 5 }),
     refundQuery.listManualRequiredForAdmin({ take: 5 }),
     refundQuery.listFailedCardForAdmin({ take: 5 }),
     createSellerApprovalQueryService({ prisma }).listOverdueForAdmin(),
+    createAdminDeliveryQueryService({ prisma }).getCounts({
+      sellerReported: true,
+    }),
   ])
 
   type OrderRow = {
@@ -139,6 +145,14 @@ export default async function AdminDashboardPage() {
   // that is above zero in normal operation, so flagging it would drown out the
   // cards that genuinely need attention.
   const statCards = [
+    {
+      href: '/teslim-onayi?sellerReported=1',
+      title: 'Satıcı Teslim Bildirimleri',
+      description: 'Teslim teyidi bekleyen siparişler',
+      value: String(sellerDeliveryReports.orderCount),
+      attention: sellerDeliveryReports.orderCount > 0,
+      icon: <PackageSearch className="h-5 w-5" />,
+    },
     {
       href: null,
       title: 'Bugunku Tahsilat',

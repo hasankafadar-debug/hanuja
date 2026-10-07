@@ -10,6 +10,7 @@ import type { PrismaClient } from '@prisma/client'
 import { isMissingDatabaseObjectError } from '../lib/prisma-runtime'
 import { createFulfillmentRiskService } from './fulfillment-risk.service'
 import { createAdminRefundQueryService } from './admin-refund-query.service'
+import { createAdminDeliveryQueryService } from './admin-delivery-query.service'
 
 export interface AdminDashboardStats {
   orders: {
@@ -79,7 +80,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
     const [
       totalOrdersToday,
       pendingSellerAction,
-      pendingDeliveryConfirmation,
+      pendingDeliveryCounts,
       openReturns,
       openDisputes,
       pendingEftApprovals,
@@ -108,9 +109,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       prisma.order.count({
         where: { status: { in: ['seller_queue_ready', 'seller_reviewing'] } },
       }),
-      prisma.order.count({
-        where: { status: 'delivery_confirmation_pending' },
-      }),
+      createAdminDeliveryQueryService({ prisma }).getCounts(),
       prisma.returnRequest.count({
         where: { status: { in: ['requested', 'under_review'] } },
       }),
@@ -217,7 +216,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
         delayedOrders,
         openReturns,
         openDisputes,
-        pendingDeliveryConfirmation,
+        pendingDeliveryConfirmation: pendingDeliveryCounts.orderCount,
       },
       moderation: {
         pendingProducts,

@@ -423,6 +423,7 @@ describe('admin refund query service', () => {
     const countModel = () => ({ count: vi.fn(async () => 0) })
     const prisma = {
       ...db,
+      $queryRaw: vi.fn(async () => [{ orderCount: 0, lineCount: 0 }]),
       order: countModel(),
       returnRequest: countModel(),
       dispute: countModel(),

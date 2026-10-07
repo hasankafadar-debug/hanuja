@@ -3,6 +3,29 @@
 
 # Order Lifecycle — Sipariş Yaşam Döngüsü
 
+## Satıcı teslim bildirimi ve özel admin notları (2026-10-07)
+
+Satıcı sevk ettiği kendi ürünleri için **Teslim edildi** bildirimi yapabilir.
+`OrderLine.sellerDeliveryReportedAt` ve `sellerDeliveryReportedBy` bildirim zamanını
+ve kullanıcıyı kaydeder. Bu bildirim teslim teyidi değildir: sipariş/kargo durumu,
+`deliveredAt`, `deliveryConfirmedAt`, 72 saatlik sessiz onay ve hakediş bekleme
+süresi değişmez. Tekrarlanan bildirim ilk zaman damgasını korur.
+
+Admin **Satıcı Teslim Bildirimleri** kartı teyitsiz bildirimleri benzersiz sipariş
+bazında sayar; sayı pozitifse kart yeşildir. `/teslim-onayi?sellerReported=1`
+ürün bazlı kuyruğu hemen açar. Genel teslim kuyruğu satıcının ürünlerinin sevkinden
+en az 24 saat sonra açılır; kart ve liste aynı sorgu koşullarını kullanır.
+Seçilen ürün kimlikleri toplu seçimde de açıkça gönderilir. Sevk edilmemiş veya
+teyitsiz aktif ürün varken sipariş bütünü teslim onaylandı sayılmaz. Teyit edilen
+bildirim kuyruktan çıkar, sipariş detayındaki bildirim geçmişi korunur.
+
+**Admin Notları**, `OrderAdminNote` tablosunda yalnız eklenebilir kayıtlar olarak
+tutulur. Her kayıt admini, düz metni ve sunucunun `createdAt` zamanını içerir;
+arayüz Türkiye saatini gösterir. Admin rolü ve CSRF kontrolüyle not eklenir,
+denetim günlüğüne yalnız not kimliği yazılır. Bu kayıtlar genel `Order.notes` veya
+ortak durum geçmişine yazılmaz; satıcı/müşteri sorgularına, DTO'larına, e-postalara
+ve dışa aktarımlara dahil edilmez. Ödeme takvimi bu değişiklikle güncellenmemiştir.
+
 Kaynak kurallar: `.claude/rules/08-order-lifecycle-rules.md`, `.claude/rules/07-marketplace-finance-rules.md`, `CLAUDE.md §2`
 
 ---
