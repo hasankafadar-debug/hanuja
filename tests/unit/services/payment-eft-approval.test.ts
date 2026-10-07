@@ -4,6 +4,7 @@ import { Decimal } from '../../__mocks__/prisma-runtime'
 const {
   appendStatusHistoryMock,
   auditCreateMock,
+  aliasGenerationMock,
   confirmPaymentMock,
   findPaymentMock,
   postAccrualsMock,
@@ -12,6 +13,7 @@ const {
 } = vi.hoisted(() => ({
   appendStatusHistoryMock: vi.fn(),
   auditCreateMock: vi.fn(),
+  aliasGenerationMock: vi.fn(),
   confirmPaymentMock: vi.fn(),
   findPaymentMock: vi.fn(),
   postAccrualsMock: vi.fn(),
@@ -44,7 +46,7 @@ vi.mock('../../../api/services/notification-outbox.service', () => ({
   recordNotification: recordNotificationMock,
 }))
 vi.mock('../../../api/services/order-document.service', () => ({
-  createOrderDocumentService: vi.fn(() => ({ ensureInvoiceAliasesForOrder: vi.fn() })),
+  createOrderDocumentService: vi.fn(() => ({ ensureInvoiceAliasesForOrder: aliasGenerationMock })),
 }))
 
 import { createPaymentService } from '../../../api/services/payment.service'
@@ -225,6 +227,33 @@ describe('EFT approval with an admin discount (Hanuja-absorbed)', () => {
     }
     return { tx, service: createPaymentService({ prisma: prisma as never }) }
   }
+
+  it('waits for aliases after the payment transaction commits', async () => {
+    const { tx, service } = setup()
+    let finishAliases!: () => void
+    aliasGenerationMock.mockImplementationOnce(() => new Promise<void>(resolve => { finishAliases = resolve }))
+    let finished = false
+    const approval = service.approveEftPayment({ orderId: 'order-1', adminActorId: 'admin-1' })
+      .then(result => { finished = true; return result })
+    await vi.waitFor(() => expect(aliasGenerationMock).toHaveBeenCalledWith('order-1'))
+    expect(tx.payment.updateMany).toHaveBeenCalled()
+    expect(finished).toBe(false)
+    finishAliases()
+    expect(await approval).toMatchObject({ status: 'confirmed' })
+  })
+
+  it('keeps a confirmed payment when post-commit alias generation fails', async () => {
+    const { tx, service } = setup()
+    aliasGenerationMock.mockRejectedValueOnce(new Error('alias temporarily unavailable'))
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      expect(await service.approveEftPayment({ orderId: 'order-1', adminActorId: 'admin-1' })).toMatchObject({ status: 'confirmed' })
+      expect(tx.payment.updateMany).toHaveBeenCalled()
+      expect(errorLog).toHaveBeenCalledWith('[payment] Invoice alias generation failed', { orderId: 'order-1', code: 'UNKNOWN' })
+    } finally {
+      errorLog.mockRestore()
+    }
+  })
 
   const statusReasons = (create: { mock: { calls: unknown[][] } }) =>
     create.mock.calls.map((call) => (call[0] as { data: { reason: string } }).data.reason)

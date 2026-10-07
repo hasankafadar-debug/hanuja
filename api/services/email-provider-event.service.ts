@@ -18,7 +18,7 @@ const eventSchema = z.object({
   }),
 })
 
-export function verifyEmailWebhook(
+export function verifyEmailWebhookSignature(
   raw: string,
   headers: Headers,
   secret: string,
@@ -49,6 +49,11 @@ export function verifyEmailWebhook(
       )
     })
   if (!valid) throw new Error('INVALID_WEBHOOK_SIGNATURE')
+  return id
+}
+
+export function verifyEmailWebhook(raw: string, headers: Headers, secret: string, now = Date.now()) {
+  const id = verifyEmailWebhookSignature(raw, headers, secret, now)
   return { id, ...eventSchema.parse(JSON.parse(raw)) }
 }
 

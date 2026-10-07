@@ -93,9 +93,11 @@ const ENV_VARS: EnvVar[] = [
   { key: 'EMAIL_FROM_KAMPANYA', required: false, description: 'From address for campaign mail; falls back to SMTP_FROM. Must be an address on the Resend-verified domain.', apps: ['api'] },
   { key: 'RESEND_WEBHOOK_SECRET', required: false, description: 'Signing secret for /api/webhooks/resend (web runtime only; never NEXT_PUBLIC)', apps: ['web'] },
   { key: 'INVOICE_ALIASING_ENABLED', required: false, requiredInProd: true, description: 'Invoice aliasing feature flag (true/false)', apps: ['all'] },
-  { key: 'INBOUND_EMAIL_DOMAIN', required: false, requiredWhen: 'invoice-aliasing', description: 'Inbound invoice email domain, e.g. fatura.hanuja.com.tr', apps: ['api', 'web'] },
-  { key: 'POSTMARK_INBOUND_WEBHOOK_USER', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Postmark inbound webhook basic auth user', apps: ['web'] },
-  { key: 'POSTMARK_INBOUND_WEBHOOK_PASS', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Postmark inbound webhook basic auth password', apps: ['web'] },
+  { key: 'INBOUND_EMAIL_DOMAIN', required: false, requiredWhen: 'invoice-aliasing', description: 'Inbound invoice email domain, e.g. fatura.hanuja.com.tr', apps: ['web', 'seller-panel', 'admin-panel'] },
+  { key: 'RESEND_RECEIVING_API_KEY', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Resend API key with access to received PDF attachments', apps: ['web'] },
+  { key: 'RESEND_INBOUND_WEBHOOK_SECRET', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Signing secret for /api/inbound/resend', apps: ['web'] },
+  { key: 'POSTMARK_INBOUND_WEBHOOK_USER', required: false, sensitiveInProd: true, description: 'Legacy Postmark inbound basic auth user (optional)', apps: ['web'] },
+  { key: 'POSTMARK_INBOUND_WEBHOOK_PASS', required: false, sensitiveInProd: true, description: 'Legacy Postmark inbound basic auth password (optional)', apps: ['web'] },
 
   // App metadata
   { key: 'NEXT_PUBLIC_SITE_NAME', required: false, description: 'Site display name', apps: ['web'] },

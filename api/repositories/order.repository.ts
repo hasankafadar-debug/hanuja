@@ -17,6 +17,16 @@ const sellerVisibleAddressSelect = {
   postalCode: true,
 } satisfies Prisma.AddressSelect
 
+const sellerVisibleBillingAddressSelect = {
+  ...sellerVisibleAddressSelect,
+  invoiceType: true,
+  tcNumber: true,
+  isForeignNational: true,
+  companyName: true,
+  taxOffice: true,
+  taxNumber: true,
+} satisfies Prisma.AddressSelect
+
 /**
  * Sellers only ever see orders whose payment was collected. Status alone is not
  * enough: an unpaid EFT order the customer cancelled ends in the same
@@ -111,7 +121,8 @@ export function createOrderRepository(prisma: PrismaClient) {
             include: { items: true },
             orderBy: { createdAt: 'desc' },
           },
-          address: { select: sellerVisibleAddressSelect },
+          address: { select: sellerVisibleBillingAddressSelect },
+          billingAddress: { select: sellerVisibleBillingAddressSelect },
           customer: {
             select: {
               id: true,

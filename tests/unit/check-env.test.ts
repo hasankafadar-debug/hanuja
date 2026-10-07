@@ -79,4 +79,34 @@ describe('production environment guard scopes', () => {
     expect(result.status).toBe(1)
     expect(result.output).toContain('Unknown app scope: worker-with-typo')
   })
+
+  it('requires the inbound domain on seller/admin only when aliasing is enabled', () => {
+    for (const app of ['seller-panel', 'admin-panel']) {
+      const env = {
+        ...workerEnv, INVOICE_ALIASING_ENABLED: 'true', INBOUND_EMAIL_DOMAIN: '',
+        BETTER_AUTH_URL: 'https://www.hanuja.com.tr', NEXT_PUBLIC_APP_URL: 'https://www.hanuja.com.tr',
+        TURNSTILE_SECRET_KEY: 'local-valid-secret-value', NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'local-valid-site-key',
+      }
+      const result = runCheck(app, env)
+      expect(result.status).toBe(1)
+      expect(result.output).toContain('INBOUND_EMAIL_DOMAIN')
+      expect(result.output).not.toContain('POSTMARK_INBOUND_WEBHOOK_PASS')
+    }
+  })
+
+  it('requires Resend receiving secrets on web without requiring legacy Postmark credentials', () => {
+    const env = {
+      ...workerEnv, INVOICE_ALIASING_ENABLED: 'true', INBOUND_EMAIL_DOMAIN: 'fatura.hanuja.com.tr',
+      RESEND_RECEIVING_API_KEY: '', RESEND_INBOUND_WEBHOOK_SECRET: '',
+      POSTMARK_INBOUND_WEBHOOK_USER: '', POSTMARK_INBOUND_WEBHOOK_PASS: '',
+      BETTER_AUTH_URL: 'https://www.hanuja.com.tr', NEXT_PUBLIC_APP_URL: 'https://www.hanuja.com.tr',
+      TURNSTILE_SECRET_KEY: 'local-valid-secret-value', NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'local-valid-site-key',
+      MEILISEARCH_SEARCH_KEY: 'local-search-key', PREVIEW_DEPLOYMENT: 'false',
+    }
+    const result = runCheck('web', env)
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('RESEND_RECEIVING_API_KEY')
+    expect(result.output).toContain('RESEND_INBOUND_WEBHOOK_SECRET')
+    expect(result.output).not.toMatch(/!\s+POSTMARK_INBOUND_WEBHOOK_PASS/)
+  })
 })

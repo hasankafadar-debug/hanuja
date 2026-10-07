@@ -4,6 +4,7 @@ const SIGNED_WEB_ROUTES = new Set([
   '/api/payment/callback',
   '/api/webhooks/iyzico',
   '/api/webhooks/resend',
+  '/api/inbound/resend',
   '/api/inbound/postmark',
   '/api/inbound/postmark/store-discount',
   // RFC 8058 one-click unsubscribe is POSTed by the mail provider's servers

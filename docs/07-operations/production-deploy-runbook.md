@@ -71,8 +71,8 @@ Gerekli/opsiyonel değişkenlerin tek doğru kaynağı `tools/scripts/check-env.
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key |
 | `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key (dev bypass token kabul edilmez) |
 | `INBOUND_EMAIL_DOMAIN` | Gelen fatura e-posta domaini (örn. `fatura.hanuja.com.tr`) |
-| `POSTMARK_INBOUND_WEBHOOK_USER` | Postmark inbound webhook basic auth kullanıcı |
-| `POSTMARK_INBOUND_WEBHOOK_PASS` | Postmark inbound webhook basic auth şifre |
+| `RESEND_RECEIVING_API_KEY` | Fatura otomasyonu açıksa yalnız web runtime: Resend gelen PDF okuma anahtarı |
+| `RESEND_INBOUND_WEBHOOK_SECRET` | Fatura otomasyonu açıksa yalnız web runtime: `/api/inbound/resend` imza anahtarı |
 
 ### Opsiyonel
 `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `EMAIL_FROM_NOREPLY`, `EMAIL_FROM_FATURA`, `EMAIL_FROM_KAMPANYA`, `INVOICE_ALIASING_ENABLED`, `NEXT_PUBLIC_SITE_NAME`, `NEXT_PUBLIC_SITE_URL`, `AUTO_APPROVE_CLEAN_PRODUCTS` (bkz. `.claude/rules/12-production-readiness.md` §6 — varsayılan `false` kalmalı).
@@ -95,6 +95,11 @@ Production SMTP sağlayıcısı Resend'dir (SES'in yerini aldı — SES producti
 - [ ] Eski SES DNS kayıtları (3 DKIM CNAME + `ses.hanuja.com.tr` MX/TXT) ve SES SMTP kimlik bilgisi **bilinçli olarak yedekte tutulur** (iş kararı, 2026-07-18): AWS production erişimi onaylanırsa SES'e dönüş yalnızca Coolify env değişimidir. SES credential'ının AWS konsolundan rotasyonu (yenisini üret, eskisini sil) ilk uygun fırsatta önerilir.
 
 ### Doğrulama
+Fatura adresleri için Resend gelen-posta kurulumu ve servis bazlı değişkenler
+`docs/07-operations/invoice-aliasing.md` dosyasında tanımlıdır. `INBOUND_EMAIL_DOMAIN`
+otomasyon açıkken web, seller-panel ve admin-panel için gereklidir. Eski Postmark
+Basic Auth değişkenleri Resend fatura akışı için zorunlu değildir.
+
 Tüm değişkenler Coolify panelinden her servise ayrı ayrı girilir — **hiçbir zaman repo'ya commit edilmez** (bkz. `.claude/rules/05-security-rules.md` §"Secret ve Credential Kuralları"). Servis bazlı hangi değişkenin hangi Coolify servisine gireceği için `docs/06-engineering/coolify-setup.md` tablolarını kullanın.
 
 ```bash

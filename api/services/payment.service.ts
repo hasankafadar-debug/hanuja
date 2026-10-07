@@ -115,7 +115,10 @@ async function fireInvoiceAliasGeneration(prisma: PrismaClient, orderId: string)
   try {
     await createOrderDocumentService({ prisma }).ensureInvoiceAliasesForOrder(orderId)
   } catch (err) {
-    console.error('[payment] Invoice alias generation failed:', err)
+    console.error('[payment] Invoice alias generation failed', {
+      orderId,
+      code: typeof err === 'object' && err !== null && 'code' in err ? err.code : 'UNKNOWN',
+    })
   }
 }
 
@@ -331,9 +334,9 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         await firePaymentConfirmedNotifications(tx, params.orderId)
 
         return updated
-      }).then((result) => {
-        // Fire-and-forget: do not block payment response
-        void fireInvoiceAliasGeneration(prisma, params.orderId)
+      }).then(async (result) => {
+        // Wait after commit; alias failures must not roll back a collected payment.
+        await fireInvoiceAliasGeneration(prisma, params.orderId)
         return result
       }).catch((error: unknown) => {
         // providerPaymentId @unique yarış penceresi — eşzamanlı çift onayda ikincisi P2002 alır
@@ -565,8 +568,8 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         await firePaymentConfirmedNotifications(tx, params.orderId)
 
         return updated
-      }).then((result) => {
-        void fireInvoiceAliasGeneration(prisma, params.orderId)
+      }).then(async (result) => {
+        await fireInvoiceAliasGeneration(prisma, params.orderId)
         return result
       })
     },

@@ -74,6 +74,43 @@ describe('order-document.service invoice aliasing', () => {
     })
   })
 
+  it('returns the existing alias without regenerating it', async () => {
+    const existing = { id: 'alias-1', aliasEmail: 'pfexisting@fatura.hanuja.tr' }
+    const prisma = {
+      order: { findFirst: vi.fn().mockResolvedValue({ id: 'order-1' }) },
+      orderEmailAlias: { findUnique: vi.fn().mockResolvedValue(existing), create: vi.fn() },
+    } as never
+    expect(await createOrderDocumentService({ prisma }).ensureInvoiceAliasForSeller('order-1', 'seller-1')).toBe(existing)
+    expect(prisma.orderEmailAlias.create).not.toHaveBeenCalled()
+  })
+
+  it('reuses the winner after a concurrent order/seller unique conflict', async () => {
+    const winner = { id: 'alias-1', aliasEmail: 'pfwinner@fatura.hanuja.tr' }
+    const prisma = {
+      order: { findFirst: vi.fn().mockResolvedValue({ id: 'order-1' }) },
+      orderEmailAlias: {
+        findUnique: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(winner),
+        create: vi.fn().mockRejectedValue({ code: 'P2002' }),
+      },
+    } as never
+    expect(await createOrderDocumentService({ prisma }).ensureInvoiceAliasForSeller('order-1', 'seller-1')).toBe(winner)
+    expect(prisma.orderEmailAlias.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not create aliases when disabled or when the order is not seller-visible', async () => {
+    const prisma = {
+      order: { findFirst: vi.fn().mockResolvedValue(null) },
+      orderEmailAlias: { findUnique: vi.fn(), create: vi.fn() },
+    } as never
+    vi.stubEnv('INVOICE_ALIASING_ENABLED', 'false')
+    expect(await createOrderDocumentService({ prisma }).ensureInvoiceAliasForSeller('order-1', 'seller-1')).toBeNull()
+    expect(prisma.order.findFirst).not.toHaveBeenCalled()
+    vi.stubEnv('INVOICE_ALIASING_ENABLED', 'true')
+    await expect(createOrderDocumentService({ prisma }).ensureInvoiceAliasForSeller('order-1', 'seller-2')).rejects.toThrow()
+    expect(prisma.orderEmailAlias.create).not.toHaveBeenCalled()
+    expect(prisma.order.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ AND: expect.any(Array), lines: { some: { sellerId: 'seller-2' } } }) }))
+  })
+
   it('processes a known Postmark alias with a PDF attachment', async () => {
     const storage = { write: vi.fn().mockResolvedValue({ key: 'private/v1/aa/new.bin' }), read: vi.fn(), exists: vi.fn(), delete: vi.fn() }
 
@@ -87,12 +124,12 @@ describe('order-document.service invoice aliasing', () => {
         }),
       },
       orderEmailAlias: {
-        findFirst: vi.fn().mockResolvedValue({
+        findMany: vi.fn().mockResolvedValue([{
           id: 'alias-1',
           orderId: 'order-1',
           sellerId: 'seller-1',
           aliasEmail: 'pfabc@fatura.hanuja.tr',
-        }),
+        }]),
         update: vi.fn().mockResolvedValue({}),
       },
       orderSellerInvoice: {
@@ -126,7 +163,7 @@ describe('order-document.service invoice aliasing', () => {
         {
           Name: 'invoice.pdf',
           ContentType: 'application/pdf',
-          Content: Buffer.from('pdf').toString('base64'),
+          Content: Buffer.from('%PDF-1.7\ntest').toString('base64'),
           ContentLength: 3,
         },
       ],
@@ -258,12 +295,12 @@ describe('order-document.service invoice aliasing', () => {
         create: vi.fn().mockResolvedValue({ id: 'inbound-1', status: 'no_valid_attachment' }),
       },
       orderEmailAlias: {
-        findFirst: vi.fn().mockResolvedValue({
+        findMany: vi.fn().mockResolvedValue([{
           id: 'alias-1',
           orderId: 'order-1',
           sellerId: 'seller-1',
           aliasEmail: 'pfabc@fatura.hanuja.tr',
-        }),
+        }]),
         update: vi.fn().mockResolvedValue({}),
       },
     } as never
@@ -287,7 +324,7 @@ describe('order-document.service invoice aliasing', () => {
         create: vi.fn().mockResolvedValue({ id: 'inbound-unknown', status: 'unknown_alias' }),
       },
       orderEmailAlias: {
-        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([]),
       },
     } as never
 

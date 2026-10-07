@@ -26,6 +26,7 @@
     "check-env": "tsx tools/scripts/check-env.ts",
     "cookie:audit": "tsx tools/scripts/cookie-audit.ts",
     "notification:diagnose": "tsx tools/scripts/check-notification-delivery.ts",
+    "invoice-alias:backfill": "tsx tools/scripts/backfill-invoice-aliases.ts",
     "price-history:status": "tsx tools/scripts/price-history-status.ts",
     "price-history:reset": "tsx tools/scripts/price-history-reset.ts",
     "check-duplicate-payments": "tsx tools/scripts/check-duplicate-provider-payment-ids.ts",

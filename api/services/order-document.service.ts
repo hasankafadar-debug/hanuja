@@ -18,10 +18,25 @@ import { getWebBaseUrl } from '../lib/platform-info'
 import { formatOrderNumber } from '../lib/order-number'
 import { EMAIL_LINE_IMAGE_SELECT, toEmailOrderLine } from '../lib/email-line-items'
 import { toSellerSafeLegalSnapshot } from '../lib/seller-legal-snapshot'
+import { SELLER_VISIBLE_PAYMENT_WHERE } from '../repositories/order.repository'
 
 interface OrderDocumentServiceDeps {
   prisma: PrismaClient
   storage?: PrivateDocumentStorage
+}
+
+export interface InboundInvoiceAttachment {
+  fileName: string
+  mimeType: string
+  body: Uint8Array
+}
+
+export interface InboundInvoiceEmail {
+  messageId: string
+  recipients: string[]
+  fromEmail?: string | null
+  subject?: string | null
+  loadAttachment: () => Promise<InboundInvoiceAttachment | null>
 }
 
 const SELLER_HIDDEN_ORDER_STATUSES = [
@@ -93,8 +108,8 @@ function getInboundEmailDomain() {
   return process.env['INBOUND_EMAIL_DOMAIN']?.trim() || 'fatura.hanuja.com.tr'
 }
 
-function isInvoiceAliasingEnabled() {
-  return (process.env['INVOICE_ALIASING_ENABLED'] ?? 'true').toLowerCase() !== 'false'
+export function isInvoiceAliasingEnabled() {
+  return (process.env['INVOICE_ALIASING_ENABLED'] ?? 'true').trim().toLowerCase() !== 'false'
 }
 
 function normalizeEmail(value: string | null | undefined) {
@@ -201,16 +216,9 @@ function getPostmarkMessageId(payload: PostmarkInboundPayload) {
 }
 
 function selectInvoiceAttachment(payload: PostmarkInboundPayload) {
-  const attachments = payload.Attachments ?? []
-  const allowed = attachments.filter((attachment) => {
-    const mimeType = attachment.ContentType?.toLowerCase() ?? ''
-    return DOCUMENT_ALLOWED_MIME_TYPES.has(mimeType)
-  })
-  return (
-    allowed.find((attachment) => attachment.ContentType?.toLowerCase() === 'application/pdf') ??
-    allowed[0] ??
-    null
-  )
+  return payload.Attachments?.find(
+    (attachment) => attachment.ContentType?.toLowerCase() === 'application/pdf',
+  ) ?? null
 }
 
 export function createOrderDocumentService({
@@ -256,6 +264,11 @@ export function createOrderDocumentService({
           'code' in error &&
           (error as { code?: string }).code === 'P2002'
         ) {
+          // Another request may have created this order/seller alias concurrently.
+          const existing = await prisma.orderEmailAlias.findUnique({
+            where: { orderId_sellerId_purpose: { orderId, sellerId, purpose: 'invoice' } },
+          })
+          if (existing) return existing
           continue
         }
         throw error
@@ -271,6 +284,7 @@ export function createOrderDocumentService({
       where: {
         id: orderId,
         lines: { some: { sellerId } },
+        AND: [SELLER_VISIBLE_PAYMENT_WHERE],
         status: { notIn: [...SELLER_HIDDEN_ORDER_STATUSES] },
       },
       select: { id: true },
@@ -581,48 +595,69 @@ export function createOrderDocumentService({
     }
   }
 
-  async function ingestPostmarkInboundEmail(payload: PostmarkInboundPayload) {
-    const messageId = getPostmarkMessageId(payload)
+  async function processInboundInvoiceEmail(payload: InboundInvoiceEmail) {
+    const messageId = payload.messageId
     const existingInbound = await prisma.inboundEmail.findUnique({ where: { messageId } })
     if (existingInbound) {
       return { status: 'duplicate' as const, inboundEmail: existingInbound }
     }
 
-    const recipients = getPostmarkRecipients(payload)
-    const alias = await prisma.orderEmailAlias.findFirst({
+    const recipients = [...new Set(payload.recipients.map(normalizeEmail).filter(Boolean))]
+    const aliases = await prisma.orderEmailAlias.findMany({
       where: {
         aliasEmail: { in: recipients },
         purpose: 'invoice',
         status: 'active',
+        order: {
+          AND: [SELLER_VISIBLE_PAYMENT_WHERE],
+          status: { notIn: [...SELLER_HIDDEN_ORDER_STATUSES] },
+        },
       },
+      take: 2,
     })
+    const alias = aliases.length === 1 ? aliases[0] : null
 
     if (!alias) {
       const inboundEmail = await prisma.inboundEmail.create({
         data: {
           messageId,
           aliasEmail: recipients[0] ?? '',
-          fromEmail: payload.FromFull?.Email ?? payload.From ?? null,
-          subject: payload.Subject ?? null,
-          status: 'unknown_alias',
-          errorReason: 'Alias not found',
+          fromEmail: payload.fromEmail ?? null,
+          subject: payload.subject ?? null,
+          status: aliases.length ? 'ambiguous_alias' : 'unknown_alias',
+          errorReason: aliases.length ? 'Multiple invoice aliases' : 'Alias not found',
         },
       })
-      return { status: 'unknown_alias' as const, inboundEmail }
+      return { status: aliases.length ? 'ambiguous_alias' as const : 'unknown_alias' as const, inboundEmail }
     }
 
-    const attachment = selectInvoiceAttachment(payload)
-    if (!attachment?.Content || !attachment.ContentType) {
+    let attachment: InboundInvoiceAttachment | null = null
+    let invalidAttachment = false
+    try {
+      attachment = await payload.loadAttachment()
+      if (attachment) {
+        validateInvoiceFile(attachment.mimeType, attachment.body.byteLength)
+        if (attachment.mimeType !== 'application/pdf' ||
+            Buffer.from(attachment.body.subarray(0, 5)).toString('ascii') !== '%PDF-') {
+          throw new ValidationError('Geçerli bir PDF fatura eki bulunamadı.')
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof ValidationError)) throw error
+      attachment = null
+      invalidAttachment = true
+    }
+    if (!attachment) {
       const inboundEmail = await prisma.inboundEmail.create({
         data: {
           messageId,
           orderId: alias.orderId,
           sellerId: alias.sellerId,
           aliasEmail: alias.aliasEmail,
-          fromEmail: payload.FromFull?.Email ?? payload.From ?? null,
-          subject: payload.Subject ?? null,
+          fromEmail: payload.fromEmail ?? null,
+          subject: payload.subject ?? null,
           status: 'no_valid_attachment',
-          errorReason: 'No PDF/image invoice attachment found',
+          errorReason: invalidAttachment ? 'Invalid PDF or attachment size' : 'No PDF invoice attachment found',
         },
       })
       await prisma.orderEmailAlias.update({
@@ -632,11 +667,8 @@ export function createOrderDocumentService({
       return { status: 'no_valid_attachment' as const, inboundEmail }
     }
 
-    const mimeType = attachment.ContentType.toLowerCase()
-    const fileName = attachment.Name ?? `invoice-${alias.orderId}.pdf`
-    const body = new Uint8Array(Buffer.from(attachment.Content, 'base64'))
-    const sizeBytes = attachment.ContentLength ?? body.byteLength
-    validateInvoiceFile(mimeType, sizeBytes)
+    const { mimeType, fileName, body } = attachment
+    const sizeBytes = body.byteLength
 
     const previous = await prisma.orderSellerInvoice.findUnique({
       where: {
@@ -659,8 +691,8 @@ export function createOrderDocumentService({
             orderId: alias.orderId,
             sellerId: alias.sellerId,
             aliasEmail: alias.aliasEmail,
-            fromEmail: payload.FromFull?.Email ?? payload.From ?? null,
-            subject: payload.Subject ?? null,
+            fromEmail: payload.fromEmail ?? null,
+            subject: payload.subject ?? null,
             status: 'processed',
             selectedAttachment: {
               fileName,
@@ -727,6 +759,42 @@ export function createOrderDocumentService({
     }
   }
 
+  async function ingestInboundInvoiceEmail(payload: InboundInvoiceEmail) {
+    try {
+      return await processInboundInvoiceEmail(payload)
+    } catch (error) {
+      // The unique message ID also protects concurrent webhook deliveries.
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+        const inboundEmail = await prisma.inboundEmail.findUnique({
+          where: { messageId: payload.messageId },
+        })
+        if (inboundEmail) return { status: 'duplicate' as const, inboundEmail }
+      }
+      throw error
+    }
+  }
+
+  async function ingestPostmarkInboundEmail(payload: PostmarkInboundPayload) {
+    return ingestInboundInvoiceEmail({
+      messageId: getPostmarkMessageId(payload),
+      recipients: getPostmarkRecipients(payload),
+      fromEmail: payload.FromFull?.Email ?? payload.From ?? null,
+      subject: payload.Subject ?? null,
+      loadAttachment: async () => {
+        const attachment = selectInvoiceAttachment(payload)
+        if (!attachment?.Content) return null
+        if (attachment.Content.length > Math.ceil(DOCUMENT_MAX_SIZE_BYTES / 3) * 4) {
+          throw new ValidationError('Dosya boyutu 20 MB limitini aşıyor.')
+        }
+        return {
+          fileName: attachment.Name ?? 'fatura.pdf',
+          mimeType: 'application/pdf',
+          body: new Uint8Array(Buffer.from(attachment.Content, 'base64')),
+        }
+      },
+    })
+  }
+
   return {
     ensureInvoiceAliasForSeller,
     ensureInvoiceAliasesForOrder,
@@ -742,6 +810,7 @@ export function createOrderDocumentService({
     getInvoiceForAdmin,
     readInvoiceFile,
     uploadInvoiceForSeller,
+    ingestInboundInvoiceEmail,
     ingestPostmarkInboundEmail,
   }
 }

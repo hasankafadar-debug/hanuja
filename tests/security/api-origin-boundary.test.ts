@@ -47,7 +47,7 @@ describe.each(surfaces)('%s API origin boundary', (_name, middleware, path) => {
   })
 })
 
-it.each(['/api/payment/callback', '/api/webhooks/iyzico', '/api/webhooks/resend', '/api/inbound/postmark', '/api/inbound/postmark/store-discount'])(
+it.each(['/api/payment/callback', '/api/webhooks/iyzico', '/api/webhooks/resend', '/api/inbound/resend', '/api/inbound/postmark', '/api/inbound/postmark/store-discount'])(
   'leaves provider authentication to its existing handler: %s', async path => {
     const response = await webMiddleware(new NextRequest(`${origin}${path}`, { method: 'POST' }))
     expect(response.headers.get('x-middleware-next')).toBe('1')

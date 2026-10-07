@@ -9,7 +9,7 @@ import { createOrderService } from '@hanuja/api/services/order.service'
 import { createOrderDocumentService } from '@hanuja/api/services/order-document.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
-import InvoiceAliasCard from './_components/invoice-alias-card'
+import BillingInformationCard from './_components/billing-information-card'
 import InvoiceUploadCard from './_components/invoice-upload-card'
 import OrderTimeline from './_components/order-timeline'
 import OrderWorkflowCard from './_components/order-workflow-card'
@@ -44,7 +44,11 @@ export default async function SellerOrderDetailPage({ params }: Props) {
 
   const invoiceAlias = await createOrderDocumentService({ prisma })
     .ensureInvoiceAliasForSeller(id, seller.id)
-    .catch(() => null)
+    .then(alias => ({ aliasEmail: alias?.aliasEmail ?? null, status: alias ? 'ready' as const : 'disabled' as const }))
+    .catch(() => {
+      console.error('[seller-order] Invoice alias generation failed', { orderId: id, sellerId: seller.id })
+      return { aliasEmail: null, status: 'error' as const }
+    })
 
   const fulfillment = order.sellerFulfillments?.[0]
   const fulfillmentStatusMap: Record<string, string> = {
@@ -311,7 +315,6 @@ export default async function SellerOrderDetailPage({ params }: Props) {
           />
 
 
-          <InvoiceAliasCard aliasEmail={invoiceAlias?.aliasEmail ?? null} />
         </div>
 
         <div className="space-y-6">
@@ -354,6 +357,12 @@ export default async function SellerOrderDetailPage({ params }: Props) {
               </div>
             </div>
           </section>
+
+          <BillingInformationCard
+            address={order.billingAddress ?? order.address ?? null}
+            aliasEmail={invoiceAlias.aliasEmail}
+            aliasStatus={invoiceAlias.status}
+          />
 
           {penalties.length > 0 ? (
             <section
