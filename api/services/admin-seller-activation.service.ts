@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient, SellerDocumentType, SellerStatus } from '@pr
 import { maskIban } from '@hanuja/security'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { DomainError, NotFoundError } from '../lib/errors'
+import { recordNotification } from './notification-outbox.service'
 
 const SELLER_DOCUMENT_TYPES = new Set<SellerDocumentType>([
   'identity',
@@ -249,6 +250,15 @@ export function createAdminSellerActivationService({ prisma }: { prisma: PrismaC
         newData: { status: 'active' },
       })
 
+      const recipient = await tx.seller.findUniqueOrThrow({
+        where: { id: params.sellerId }, select: { userId: true, user: { select: { email: true } } },
+      })
+      await recordNotification(tx, {
+        eventKey: 'seller:' + params.sellerId + ':approved:' + readiness.pendingBankDetailId,
+        userId: recipient.userId, emailTo: recipient.user.email, type: 'seller_approved',
+        title: 'Satıcı hesabınız aktif edildi', body: 'Başvurunuz onaylandı. Satıcı panelinize giriş yapabilirsiniz.',
+        data: { email: recipient.user.email, stage: 'activation_confirmed' },
+      })
       return readiness
     })
   }

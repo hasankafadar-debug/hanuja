@@ -2,15 +2,7 @@ import type { PrismaClient } from '@prisma/client'
 import { maskIban, HIGH_RISK_RATE_LIMIT, rateLimit } from '@hanuja/security'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { createNotificationService } from './notification.service'
-import { sendEmail } from '../lib/mailer'
-
-function buildBankDetailEmail(params: { subject: string; sellerName: string; body: string }) {
-  return {
-    subject: params.subject,
-    html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>${params.subject}</h2><p>Merhaba ${params.sellerName},</p><p>${params.body}</p></div>`,
-    text: `Merhaba ${params.sellerName}, ${params.body}`,
-  }
-}
+import { recordNotification } from './notification-outbox.service'
 
 export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
   const auditLog = createAdminAuditLogRepository(prisma)
@@ -108,37 +100,23 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
         },
       })
 
+      await createAdminAuditLogRepository(tx).createEntry({
+        actorId: params.actorId,
+        actionType: 'seller_bank_detail_changed',
+        targetType: 'SellerBankDetail',
+        targetId: detail.id,
+        previousData: { iban: active?.iban ? maskIban(active.iban) : null },
+        newData: { iban: maskIban(params.iban), status: 'PENDING_ACTIVATION', flags },
+        ...(params.reason ? { reason: params.reason } : {}),
+      })
+
+      await recordNotification(tx, {
+        eventKey: 'seller-bank:' + detail.id + ':submitted', userId: seller.user.id, emailTo: seller.user.email,
+        type: 'seller_bank_detail_pending', title: 'IBAN değişikliği alındı',
+        body: 'IBAN değişikliği talebiniz alındı. Güvenlik bekleme süresi başlatıldı.',
+        data: { bankDetailId: detail.id, stage: 'email_ready', sellerName: seller.user.name ?? seller.displayName, ibanMasked: maskIban(params.iban) },
+      })
       return detail
-    })
-
-    await auditLog.createEntry({
-      actorId: params.actorId,
-      actionType: 'seller_bank_detail_changed',
-      targetType: 'SellerBankDetail',
-      targetId: created.id,
-      previousData: { iban: active?.iban ? maskIban(active.iban) : null },
-      newData: { iban: maskIban(params.iban), status: 'PENDING_ACTIVATION', flags },
-      ...(params.reason ? { reason: params.reason } : {}),
-    })
-
-    await notifications.send({
-      userId: seller.user.id,
-      type: 'seller_bank_detail_pending',
-      title: 'IBAN değişikliği alındı',
-      body: 'IBAN değişikliği talebiniz alındı. 24 saat sonunda aktif olacaktır.',
-      data: { bankDetailId: created.id },
-    })
-
-    const email = buildBankDetailEmail({
-      subject: 'IBAN değişikliği talebiniz alındı',
-      sellerName: seller.user.name ?? seller.displayName,
-      body: `Yeni IBAN bilginiz ${maskIban(params.iban)} için güvenlik bekleme süresi başlatıldı. Bu işlem size ait değilse destek ekibimizle hemen iletişime geçin.`,
-    })
-    await sendEmail({
-      to: seller.user.email,
-      subject: email.subject,
-      html: email.html,
-      text: email.text,
     })
 
     return created
@@ -214,35 +192,21 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
           reason: params.reason ?? null,
         },
       })
-    })
+      await createAdminAuditLogRepository(tx).createEntry({
+        actorId: params.adminActorId,
+        actionType: 'seller_bank_detail_approved',
+        targetType: 'SellerBankDetail',
+        targetId: detail.id,
+        newData: { status: detail.status, verified: true },
+        ...(params.reason ? { reason: params.reason } : {}),
+      })
 
-    await auditLog.createEntry({
-      actorId: params.adminActorId,
-      actionType: 'seller_bank_detail_approved',
-      targetType: 'SellerBankDetail',
-      targetId: detail.id,
-      newData: { status: detail.status, verified: true },
-      ...(params.reason ? { reason: params.reason } : {}),
-    })
-
-    await notifications.send({
-      userId: detail.seller.user.id,
-      type: 'seller_bank_detail_approved',
-      title: 'IBAN değişikliği onaylandı',
-      body: 'IBAN değişikliği talebiniz onaylandı. Aktivasyon zamanı geldiğinde yeni hesap kullanılacak.',
-      data: { bankDetailId: detail.id },
-    })
-
-    const email = buildBankDetailEmail({
-      subject: 'IBAN değişikliğiniz onaylandı',
-      sellerName: detail.seller.user.name ?? detail.seller.displayName,
-      body: `Yeni IBAN bilginiz ${maskIban(detail.iban)} için güvenlik onayı tamamlandı. Aktivasyon zamanı geldiğinde bu hesap kullanılacak.`,
-    })
-    await sendEmail({
-      to: detail.seller.user.email,
-      subject: email.subject,
-      html: email.html,
-      text: email.text,
+      await recordNotification(tx, {
+        eventKey: 'seller-bank:' + detail.id + ':approved', userId: detail.seller.user.id, emailTo: detail.seller.user.email,
+        type: 'seller_bank_detail_approved', title: 'IBAN değişikliği onaylandı',
+        body: 'IBAN değişikliği talebiniz onaylandı. Aktivasyon zamanı geldiğinde yeni hesap kullanılacak.',
+        data: { bankDetailId: detail.id, stage: 'email_ready', sellerName: detail.seller.user.name ?? detail.seller.displayName, ibanMasked: maskIban(detail.iban) },
+      })
     })
   }
 

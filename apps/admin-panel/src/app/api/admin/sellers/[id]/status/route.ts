@@ -7,8 +7,6 @@ import { handleError, ok } from '@hanuja/api/lib/response'
 import { createSellerRepository } from '@hanuja/api/repositories/seller.repository'
 import { createAdminAuditLogRepository } from '@hanuja/api/repositories/admin-audit-log.repository'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { sellerApprovalTemplate } from '@hanuja/api/lib/email-templates/seller-approval'
-import { sendEmail } from '@hanuja/api/lib/mailer'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 import { enqueueStoreSync } from '@hanuja/api/jobs/search-index-sync.job'
 import { createAdminSellerActivationService } from '@hanuja/api/services/admin-seller-activation.service'
@@ -50,7 +48,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       select: {
         id: true,
         status: true,
-        user: { select: { email: true } },
       },
     })
     if (!seller) throw new NotFoundError('Seller', id)
@@ -67,19 +64,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await activationService.activateInitial({
         sellerId: id,
         adminActorId: session.user.id,
-      })
-
-      const template = sellerApprovalTemplate({
-        email: seller.user.email,
-        panelUrl: process.env.SELLER_PANEL_URL ?? 'http://localhost:3001',
-      })
-      await sendEmail({
-        to: seller.user.email,
-        subject: template.subject,
-        html: template.html,
-        text: template.text,
-      }).catch((error) => {
-        console.error('[seller-status] Approval email failed after activation', error)
       })
     } else {
       // Suspended seller reactivation intentionally keeps the existing lightweight

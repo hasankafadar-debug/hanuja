@@ -13,7 +13,7 @@ import type {
   OrderContractLinks,
 } from '../lib/email-templates/types'
 import { formatOrderNumber } from '../lib/order-number'
-import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
+import { getCustomerContractLinks, getCustomerOrderUrl, getSellerOrderUrl } from '../lib/platform-info'
 import { recordNotification } from './notification-outbox.service'
 
 type OrderEmailClient = Pick<Prisma.TransactionClient, 'order'>
@@ -47,19 +47,15 @@ export const ORDER_EMAIL_INCLUDE = {
 export type OrderEmailSnapshot = Prisma.OrderGetPayload<{ include: typeof ORDER_EMAIL_INCLUDE }>
 
 export function customerOrderUrl(orderId: string): string {
-  return `${getWebBaseUrl()}/siparis/${orderId}`
+  return getCustomerOrderUrl(orderId)
 }
 
 export function sellerOrderPanelUrl(orderId: string): string {
-  return `${getSellerPanelUrl()}/siparisler/${orderId}`
+  return getSellerOrderUrl(orderId)
 }
 
 export function orderContractLinks(orderId: string): OrderContractLinks {
-  const base = `${getWebBaseUrl()}/api/orders/${orderId}/documents/contracts`
-  return {
-    preInformationUrl: `${base}/pre-information?goruntule=1`,
-    distanceSalesUrl: `${base}/distance-sales?goruntule=1`,
-  }
+  return getCustomerContractLinks(orderId)
 }
 
 export function customerDisplayName(order: {

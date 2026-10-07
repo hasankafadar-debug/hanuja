@@ -326,9 +326,53 @@ describe('durable notification delivery', () => {
     expect(mocks.send.mock.calls[0]![0].html).not.toContain('unsafe=1')
     mocks.records.clear()
     mocks.send.mockClear()
-    await processNotificationDispatch(job({ data: { orderNumber: '123', orderUrl: 'https://unrelated.example/siparis/o1' } }))
-    expect(mocks.send.mock.calls[0]![0].html).toContain('https://unrelated.example/siparis/o1')
-    expect(mocks.send.mock.calls[0]![0].html).not.toContain('https://www.hanuja.com.tr/siparis/o1')
+    await expect(processNotificationDispatch(job({ data: { orderNumber: '123', orderUrl: 'https://unrelated.example/siparis/o1' } }))).rejects.toThrow('EMAIL_DATA_MISSING:orderId')
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(emailRecord().status).toBe('failed')
+  })
+  it.each(['order_placed', 'order_payment_confirmed', 'order_shipped', 'order_delivery_confirmed', 'order_cancelled', 'return_requested', 'return_status_changed', 'order_return_approved', 'order_return_rejected', 'refund_completed'])('keeps %s HTML and text on the customer origin for an old queue payload', async (type) => {
+    await processNotificationDispatch(job({ type, eventKey: 'legacy:' + type, data: {
+      orderId: 'o1', orderNumber: '123', customerName: 'Ayşe',
+      orderUrl: 'https://admin.hanuja.com.tr/siparis/o1',
+      items: [{ productName: 'Test', quantity: 1, acceptedQuantity: 1, rejectedQuantity: 0 }],
+      actorRole: 'admin', decision: type === 'order_return_rejected' ? 'rejected' : 'approved',
+      stage: 'cargo_info_ready', refundAmount: '10 TL',
+    } }))
+    const sent = mocks.send.mock.calls[0]![0]
+    expect(sent.html).toContain('https://www.hanuja.com.tr/siparis/o1')
+    expect(sent.text).toContain('https://www.hanuja.com.tr/siparis/o1')
+    expect((emailRecord().payload as { data: { orderUrl: string } }).data.orderUrl).toBe('https://www.hanuja.com.tr/siparis/o1')
+    expect(sent.html + sent.text).not.toContain('https://admin.hanuja.com.tr/siparis')
+  })
+  it('records an observable failure instead of sending a buttonless customer mail', async () => {
+    await expect(processNotificationDispatch(job({ type: 'order_payment_confirmed', data: {
+      orderNumber: '123', items: [{ productName: 'Test', quantity: 1 }],
+    } }))).rejects.toThrow('EMAIL_DATA_MISSING:orderId')
+    expect(emailRecord()).toMatchObject({ status: 'failed', lastError: 'EMAIL_DATA_MISSING:orderId' })
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+  it.each(['seller_approved', 'seller_documents_requested', 'seller_bank_detail_pending', 'seller_bank_detail_approved'])('delivers %s through the tracked pipeline and deduplicates retries', async (type) => {
+    mocks.user.mockResolvedValue({ id: 'u1', email: 'seller@example.test', role: 'seller' })
+    const task = job({ type, eventKey: 'operational:' + type, data: {
+      stage: type === 'seller_approved' ? 'activation_confirmed' : 'email_ready',
+      email: 'seller@example.test', sellerName: '<Store>', bankDetailId: 'b1', ibanMasked: 'TR**1234',
+      requiredDocTypes: ['Kimlik'], note: '<b>literal note</b>',
+    } })
+    await processNotificationDispatch(task)
+    await processNotificationDispatch(task)
+    expect(mocks.send).toHaveBeenCalledTimes(1)
+    expect(emailRecord().status).toBe('sent')
+    expect(mocks.send.mock.calls[0]![0].html).not.toContain('<b>literal note</b>')
+    if (type === 'seller_approved' || type === 'seller_documents_requested') {
+      const sent = mocks.send.mock.calls[0]![0]
+      expect(sent.html).toContain('https://satici.hanuja.com.tr/')
+      expect(sent.text).toContain('https://satici.hanuja.com.tr/')
+    }
+  })
+  it('keeps old bank in-app-only events from unexpectedly becoming email', async () => {
+    mocks.user.mockResolvedValue({ id: 'u1', email: 'seller@example.test', role: 'seller' })
+    await processNotificationDispatch(job({ type: 'seller_bank_detail_pending', data: { bankDetailId: 'b1' } }))
+    expect(mocks.send).not.toHaveBeenCalled()
   })
   it('retries a definite SMTP rejection without repeating the in-app notification', async () => {
     mocks.send.mockRejectedValueOnce(
@@ -376,7 +420,7 @@ describe('durable notification delivery', () => {
   it('rejects missing template data and wrong recipient roles with observable failures', async () => {
     await expect(
       processNotificationDispatch(job({ data: { orderNumber: '123' } })),
-    ).rejects.toThrow('EMAIL_DATA_MISSING:orderUrl')
+    ).rejects.toThrow('EMAIL_DATA_MISSING:orderId')
     expect(emailRecord().status).toBe('failed')
     mocks.user.mockResolvedValue({
       id: 'u1',
@@ -624,6 +668,7 @@ describe('durable notification delivery', () => {
         type: 'return_status_changed',
         data: {
           stage: 'cargo_info_ready',
+          orderId: 'o1',
           orderNumber: '123',
           customerName: 'Ayşe',
           cargoAddress: 'Kadıköy',
@@ -676,7 +721,7 @@ describe('durable notification delivery', () => {
     for (const [type, data, subject] of cases) {
       mocks.records.clear()
       mocks.send.mockClear()
-      await processNotificationDispatch(job({ eventKey: `case:${type}`, type, data }))
+      await processNotificationDispatch(job({ eventKey: `case:${type}`, type, data: { ...data, orderId: 'o1' } }))
       expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ subject }))
     }
   })
@@ -686,7 +731,7 @@ describe('durable notification delivery', () => {
         job({
           eventKey: 'bad-decision',
           type: 'order_return_approved',
-          data: { orderNumber: '123', decision: 'maybe', items: [{ productName: 'x', quantity: 1 }] },
+          data: { orderId: 'o1', orderNumber: '123', decision: 'maybe', items: [{ productName: 'x', quantity: 1 }] },
         }),
       ),
     ).rejects.toThrow('EMAIL_TEMPLATE_UNSUPPORTED')

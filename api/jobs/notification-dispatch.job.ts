@@ -19,6 +19,10 @@ import {
   getWebBaseUrl,
 } from '../lib/platform-info'
 import { getInvoiceRevision } from '../lib/invoice-management'
+import { canonicalNotificationEmailData } from '../lib/notification-email-links'
+import { sellerApprovalTemplate } from '../lib/email-templates/seller-approval'
+import { sellerDocumentsRequestedTemplate } from '../lib/email-templates/seller-documents-requested'
+import { sellerBankDetailTemplate } from '../lib/email-templates/seller-bank-detail'
 import {
   orderConfirmationTemplate,
   shipmentNotificationTemplate,
@@ -289,6 +293,19 @@ async function buildEmailPayload(
   if (!data) return null
 
   switch (type) {
+    case NotificationTypeEnum.seller_approved:
+      return sellerApprovalTemplate({ email: str(data, 'email'), panelUrl: str(data, 'panelUrl') })
+    case NotificationTypeEnum.seller_documents_requested:
+      return sellerDocumentsRequestedTemplate({
+        email: str(data, 'email'), panelUrl: str(data, 'panelUrl'),
+        requiredDocTypes: lines<string>(data, 'requiredDocTypes'), ...opt(data, 'note'),
+      })
+    case NotificationTypeEnum.seller_bank_detail_pending:
+    case NotificationTypeEnum.seller_bank_detail_approved:
+      return sellerBankDetailTemplate({
+        approved: type === NotificationTypeEnum.seller_bank_detail_approved,
+        sellerName: str(data, 'sellerName'), ibanMasked: str(data, 'ibanMasked'),
+      })
     case NotificationTypeEnum.customer_campaign: {
       if (!recipient) throw new Error('EMAIL_RECIPIENT_INVALID')
       const { prisma } = await import('../lib/prisma')
@@ -866,7 +883,8 @@ export async function processNotificationDispatch(
   if (!claim.count) throw new Error('EMAIL_DELIVERY_BUSY_OR_UNCERTAIN')
   let accepted = false
   try {
-    const config = validateEmailData(type, data)
+    const emailData = canonicalNotificationEmailData(type, data)
+    const config = validateEmailData(type, emailData)
     // Being addressed to the ops mailbox is not on its own a licence to skip the
     // role check: only the declared operation types may take this path.
     if (isOps) {
@@ -894,14 +912,14 @@ export async function processNotificationDispatch(
         return
       }
     }
-    const template = await buildEmailPayload(type, data, { userId, emailTo })
+    const template = await buildEmailPayload(type, emailData, { userId, emailTo })
     if (!template) throw new Error('EMAIL_TEMPLATE_UNSUPPORTED')
     const messageId =
       email.messageId ??
       `<${createHash('sha256').update(email.id).digest('hex')}@hanuja.com.tr>`
     await prisma.notificationDelivery.update({
       where: { id: email.id },
-      data: { messageId },
+      data: { messageId, payload: JSON.parse(JSON.stringify({ ...job.data, data: emailData, eventKey })) },
     })
     const unsubscribeUrl = String(data?.['unsubscribeUrl'] ?? '')
     if (config.category === 'kampanya') {

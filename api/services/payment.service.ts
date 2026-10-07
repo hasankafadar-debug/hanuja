@@ -105,6 +105,7 @@ async function recordEftRejectedNotification(
       partial: false,
       cancellationReason: reason,
       paymentMethod: 'eft',
+      paymentNotCollected: true,
       orderUrl: customerOrderUrl(order.id),
       items: customerOrderLines(order),
     },

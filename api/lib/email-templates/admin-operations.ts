@@ -37,7 +37,7 @@ function subjectOf(label: string, suffix?: string | null) {
 }
 
 function orderLabel(orderNumber: string) {
-  return `#${orderNumber}`
+  return '#' + orderNumber.replace(/^#+/, '')
 }
 
 /** Short free-text block (reason, message) — truncated and escaped. */

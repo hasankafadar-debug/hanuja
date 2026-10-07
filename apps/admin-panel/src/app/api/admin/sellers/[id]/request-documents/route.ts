@@ -6,8 +6,7 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createAdminAuditLogRepository } from '@hanuja/api/repositories/admin-audit-log.repository'
 import { UnauthorizedError, ForbiddenError, NotFoundError } from '@hanuja/api/lib/errors'
 import { handleError, ok } from '@hanuja/api/lib/response'
-import { sellerDocumentsRequestedTemplate } from '@hanuja/api/lib/email-templates/seller-documents-requested'
-import { sendEmail } from '@hanuja/api/lib/mailer'
+import { recordNotification } from '@hanuja/api/services/notification-outbox.service'
 import { checkCsrf } from '@hanuja/api/lib/csrf-check'
 
 const DOC_TYPES = [
@@ -46,7 +45,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params
     const body = bodySchema.parse(await req.json())
     const prisma = createPrismaForRoute()
-    const auditLog = createAdminAuditLogRepository(prisma)
 
     const seller = await prisma.seller.findUnique({
       where: { id },
@@ -54,46 +52,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         id: true,
         documentsRequestedAt: true,
         requiredDocumentTypes: true,
+        userId: true,
         user: { select: { email: true } },
       },
     })
     if (!seller) throw new NotFoundError('Seller', id)
 
-    const panelUrl = `${process.env.SELLER_PANEL_URL ?? 'http://localhost:3001'}/basvuru/belgeler`
-
-    await prisma.seller.update({
-      where: { id: seller.id },
-      data: {
-        documentsRequestedAt: new Date(),
-        requiredDocumentTypes: body.requiredDocTypes,
-      },
-    })
-
-    await auditLog.createEntry({
-      actorId: session.user.id,
-      actionType: 'seller_documents_requested',
-      targetType: 'seller',
-      targetId: seller.id,
-      previousData: { documentsRequestedAt: seller.documentsRequestedAt },
-      newData: {
-        documentsRequestedAt: new Date().toISOString(),
-        requiredDocTypes: body.requiredDocTypes,
-      },
-      ...(body.note ? { note: body.note } : {}),
-    })
-
-    const template = sellerDocumentsRequestedTemplate({
-      email: seller.user.email,
-      panelUrl,
-      ...(body.note ? { note: body.note } : {}),
-      requiredDocTypes: body.requiredDocTypes.map((docType) => LABELS[docType]),
-    })
-
-    await sendEmail({
-      to: seller.user.email,
-      subject: template.subject,
-      html: template.html,
-      text: template.text,
+    await prisma.$transaction(async (tx) => {
+      const requestedAt = new Date()
+      await tx.seller.update({
+        where: { id: seller.id }, data: { documentsRequestedAt: requestedAt, requiredDocumentTypes: body.requiredDocTypes },
+      })
+      const audit = await createAdminAuditLogRepository(tx).createEntry({
+        actorId: session.user.id, actionType: 'seller_documents_requested', targetType: 'seller', targetId: seller.id,
+        previousData: { documentsRequestedAt: seller.documentsRequestedAt },
+        newData: { documentsRequestedAt: requestedAt.toISOString(), requiredDocTypes: body.requiredDocTypes },
+        ...(body.note ? { note: body.note } : {}),
+      })
+      await recordNotification(tx, {
+        eventKey: 'seller:' + seller.id + ':documents-requested:' + audit.id,
+        userId: seller.userId, emailTo: seller.user.email, type: 'seller_documents_requested',
+        title: 'Belgeleriniz talep edildi', body: 'Başvurunuz için istenen belgeleri yükleyin.',
+        data: {
+          email: seller.user.email, requiredDocTypes: body.requiredDocTypes.map((type) => LABELS[type]),
+          ...(body.note ? { note: body.note } : {}),
+        },
+      })
     })
 
     return ok({ requested: true })

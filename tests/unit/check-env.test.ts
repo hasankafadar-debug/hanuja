@@ -67,6 +67,15 @@ describe('production environment guard scopes', () => {
     expect(result.output).toContain('NEXT_PUBLIC_WEB_URL must use a valid production domain')
   })
 
+  it('rejects cross-audience origins and mismatched public/server panel configuration', () => {
+    const collision = runCheck('worker', { ...workerEnv, NEXT_PUBLIC_WEB_URL: 'https://satici.hanuja.com.tr' })
+    expect(collision.status).toBe(1)
+    expect(collision.output).toContain('EMAIL_BASE_URL_ROLE_MISMATCH')
+    const mismatch = runCheck('worker', { ...workerEnv, SELLER_PANEL_URL: 'https://other-seller.example' })
+    expect(mismatch.status).toBe(1)
+    expect(mismatch.output).toContain('NEXT_PUBLIC_SELLER_PANEL_URL must use the same origin as SELLER_PANEL_URL')
+  })
+
   it('requires an absolute mounted private-document directory for the worker', () => {
     for (const value of ['', 'relative/private-documents']) {
       const result = runCheck('worker', { ...workerEnv, PRIVATE_DOCUMENT_ROOT: value })

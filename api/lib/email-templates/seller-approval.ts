@@ -1,21 +1,21 @@
-import { PLATFORM_LEGAL_INFO } from '../platform-info'
+import { greeting, heading, layout, paragraph, renderCta } from './shared'
 
 export function sellerApprovalTemplate(input: { email: string; panelUrl: string }) {
   const subject = 'Satıcı hesabınız aktif edildi'
-  const html = `<!DOCTYPE html>
-<html lang="tr">
-<body style="font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:24px;">
-  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;">
-    <h1 style="margin:0 0 16px;font-size:24px;color:#111;">Satıcı hesabınız hazır</h1>
-    <p style="margin:0 0 16px;color:#444;">Merhaba ${input.email},</p>
-    <p style="margin:0 0 16px;color:#444;">Başvurunuz onaylandı. Satıcı panelinize aşağıdaki bağlantıdan giriş yapabilirsiniz.</p>
-    <p style="margin:0 0 24px;"><a href="${input.panelUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;">Satıcı paneline git</a></p>
-    <p style="margin:0;color:#666;font-size:13px;">Başvuru sırasında kullandığınız hesap bilgilerinizle giriş yapabilirsiniz.</p>
-    <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
-    <p style="margin:0;color:#888;font-size:12px;">Destek: ${PLATFORM_LEGAL_INFO.supportEmail}</p>
-  </div>
-</body>
-</html>`
-  const text = `Satıcı hesabınız aktif edildi. Başvuru sırasında kullandığınız hesap bilgilerinizle giriş yapabilirsiniz. Panel: ${input.panelUrl}`
-  return { subject, html, text }
+  return {
+    subject,
+    html: layout(
+      subject,
+      heading('Satıcı hesabınız hazır') +
+        greeting(input.email) +
+        paragraph(
+          'Başvurunuz onaylandı. Satıcı panelinize aşağıdaki bağlantıdan giriş yapabilirsiniz.',
+        ) +
+        renderCta('Satıcı paneline git', input.panelUrl) +
+        paragraph('Başvuru sırasında kullandığınız hesap bilgilerinizle giriş yapabilirsiniz.'),
+    ),
+    text:
+      'Satıcı hesabınız aktif edildi. Başvuru sırasında kullandığınız hesap bilgilerinizle giriş yapabilirsiniz. Panel: ' +
+      input.panelUrl,
+  }
 }

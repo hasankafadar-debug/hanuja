@@ -839,7 +839,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
               title: `Havale/EFT onayı bekliyor - ${formatOrderDisplayNumber(order.publicNumber, order.id)}`,
               body: 'Müşteri havale/EFT ile ödeme seçti. Ödeme onaylanana kadar sipariş satıcıya düşmez.',
               data: {
-                orderNumber: formatOrderDisplayNumber(order.publicNumber, order.id),
+                orderNumber: formatOrderNumber(order.publicNumber, order.id),
                 adminUrl: adminPanelLink('/odemeler'),
                 customerName: customerDisplayName(snapshot),
                 totalAmount: order.totalAmount.toFixed(2),

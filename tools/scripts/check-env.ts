@@ -16,6 +16,7 @@
  */
 
 import { config as loadDotEnv } from 'dotenv'
+import { getPlatformBaseUrls } from '../../api/lib/platform-info'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -272,6 +273,17 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
 
     if (isProd && envVar.key === 'TURNSTILE_SECRET_KEY' && value === 'dev-turnstile-bypass') {
       missing.push('TURNSTILE_SECRET_KEY must not use the development bypass token in production.')
+    }
+  }
+
+  if (isProd && vars.some((envVar) => envVar.key === 'NEXT_PUBLIC_WEB_URL')) {
+    try { getPlatformBaseUrls() } catch (error) {
+      missing.push(error instanceof Error ? error.message : 'EMAIL_BASE_URL_INVALID')
+    }
+    for (const [publicKey, serverKey] of [['NEXT_PUBLIC_SELLER_PANEL_URL', 'SELLER_PANEL_URL'], ['NEXT_PUBLIC_ADMIN_PANEL_URL', 'ADMIN_PANEL_URL']]) {
+      const publicUrl = process.env[publicKey!]?.trim()
+      const serverUrl = process.env[serverKey!]?.trim()
+      if (publicUrl && serverUrl && !haveSameOrigin(publicUrl, serverUrl)) missing.push(publicKey + ' must use the same origin as ' + serverKey + '.')
     }
   }
 

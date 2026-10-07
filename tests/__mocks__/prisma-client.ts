@@ -111,6 +111,7 @@ export enum NotificationType {
   admin_dispute_opened = 'admin_dispute_opened',
   account_verified = 'account_verified',
   seller_approved = 'seller_approved',
+  seller_documents_requested = 'seller_documents_requested',
   seller_suspended = 'seller_suspended',
   seller_bank_detail_pending = 'seller_bank_detail_pending',
   seller_bank_detail_approved = 'seller_bank_detail_approved',

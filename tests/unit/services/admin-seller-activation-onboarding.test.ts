@@ -26,6 +26,7 @@ function createPrismaMock(seller = createSeller()) {
   const prisma = {
     seller: {
       findUnique: vi.fn().mockResolvedValue(seller),
+      findUniqueOrThrow: vi.fn().mockResolvedValue(seller),
       update: vi.fn().mockResolvedValue({}),
     },
     sellerBankDetail: {
@@ -50,6 +51,7 @@ function createPrismaMock(seller = createSeller()) {
     adminAuditLog: {
       create: vi.fn().mockResolvedValue({}),
     },
+    notificationOutbox: { upsert: vi.fn().mockResolvedValue({ id: "outbox-1" }) },
     $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(prisma)),
   }
 
@@ -218,6 +220,11 @@ describe('admin seller onboarding activation', () => {
       adminActorId: 'admin-1',
     })
 
+    expect(prisma.notificationOutbox.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ type: 'seller_approved', userId: 'user-1', payload: expect.objectContaining({
+        emailTo: 'seller@example.test', data: { email: 'seller@example.test', stage: 'activation_confirmed' },
+      }) }),
+    }))
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)
     expect(prisma.sellerBankDetail.updateMany).toHaveBeenCalledWith({
       where: {

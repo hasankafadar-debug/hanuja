@@ -9,7 +9,11 @@ vi.mock('../../../api/services/notification-outbox.service', () => ({
   recordNotification: recordNotificationMock,
 }))
 
-import { firePaymentConfirmedNotifications } from '../../../api/services/payment.service'
+vi.mock('../../../api/repositories/order.repository', () => ({ createOrderRepository: () => ({ updateStatus: vi.fn(), appendStatusHistory: vi.fn() }) }))
+vi.mock('../../../api/services/order-line-release', () => ({ releaseRemainingOrderLines: vi.fn() }))
+
+import { customerOrderCancelledTemplate } from '../../../api/lib/email-templates'
+import { createPaymentService, firePaymentConfirmedNotifications } from '../../../api/services/payment.service'
 
 function orderSnapshot(paymentMethod: 'card' | 'eft') {
   return {
@@ -135,6 +139,29 @@ describe('payment.service notification dispatch', () => {
     })
   })
 
+  it('provides the customer support action when an EFT is rejected before collection', async () => {
+    const payment = { id: 'payment-1', method: 'eft', status: 'pending' }
+    const snapshot = orderSnapshot('eft')
+    const tx = {
+      order: { findUnique: vi.fn().mockResolvedValueOnce({ status: 'bank_transfer_waiting' }).mockResolvedValueOnce(snapshot) },
+      payment: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ ...payment, status: 'failed' }),
+      },
+    }
+    const prisma = {
+      payment: { findFirst: vi.fn().mockResolvedValue(payment) },
+      adminAuditLog: { create: vi.fn().mockResolvedValue({ id: 'audit-1' }) },
+      $transaction: vi.fn(async (callback) => callback(tx)),
+    }
+    await createPaymentService({ prisma: prisma as never }).rejectEftPayment({ orderId: 'order-1', adminActorId: 'admin-1', reason: 'Dekont doğrulanamadı' })
+    const payload = recordNotificationMock.mock.calls[0]![1]
+    expect(recordNotificationMock.mock.calls[0]![0]).toBe(tx)
+    expect(payload.data).toMatchObject({ paymentNotCollected: true, paymentMethod: 'eft', actorRole: 'payment_failure' })
+    const email = customerOrderCancelledTemplate(payload.data)
+    expect(email.html).toContain('https://www.hanuja.com.tr/siparis/order-1/destek/yeni')
+    expect(email.text).toContain('https://www.hanuja.com.tr/siparis/order-1/destek/yeni')
+  })
   it('records nothing when the order cannot be loaded', async () => {
     const tx = { order: { findUnique: vi.fn().mockResolvedValue(null) } }
     await firePaymentConfirmedNotifications(tx as never, 'missing')

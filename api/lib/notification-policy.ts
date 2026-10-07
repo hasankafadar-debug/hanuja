@@ -1,5 +1,6 @@
 import type { NotificationType } from '@prisma/client'
 import type { EmailFromCategory } from './mailer'
+import { validateNotificationEmailLinks } from './notification-email-links'
 
 type EmailPolicy = {
   role: 'customer' | 'seller' | 'admin'
@@ -51,6 +52,10 @@ export function isAdminOperationType(type: NotificationType) {
 
 // New business events are added here together with their templates in later phases.
 export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
+  seller_approved: { role: 'seller', category: 'noreply', required: ['email', 'panelUrl'], emailStages: ['activation_confirmed'] },
+  seller_documents_requested: { role: 'seller', category: 'noreply', required: ['email', 'panelUrl', 'requiredDocTypes'] },
+  seller_bank_detail_pending: { role: 'seller', category: 'noreply', required: ['sellerName', 'bankDetailId', 'ibanMasked'], emailStages: ['email_ready'] },
+  seller_bank_detail_approved: { role: 'seller', category: 'noreply', required: ['sellerName', 'bankDetailId', 'ibanMasked'], emailStages: ['email_ready'] },
   customer_campaign: {
     role: 'customer', category: 'kampanya',
     required: ['campaignId', 'recipientId', 'unsubscribeUrl'],
@@ -255,6 +260,9 @@ export function validateEmailData(
       throw new Error(`EMAIL_DATA_MISSING:${key}`)
     }
   }
+  validateNotificationEmailLinks(type, data)
+  if (type === 'seller_documents_requested' && (!Array.isArray(data?.requiredDocTypes) || !data.requiredDocTypes.length))
+    throw new Error('EMAIL_DATA_MISSING:requiredDocTypes')
   return policy
 }
 

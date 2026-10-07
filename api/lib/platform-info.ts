@@ -61,7 +61,7 @@ export function getPlatformBankInfo(orderReference: string): PlatformBankInfo {
 }
 
 export function getWebBaseUrl() {
-  return (process.env.NEXT_PUBLIC_WEB_URL?.trim() || DEFAULT_WEB_URL).replace(/\/+$/, '')
+  return getPlatformBaseUrls().customer
 }
 
 export function getCustomerOrderUrl(orderId: string) {
@@ -73,9 +73,86 @@ export function getCustomerInvoiceUrl(orderId: string, sellerId: string, downloa
 }
 
 export function getSellerPanelUrl() {
-  return (process.env.NEXT_PUBLIC_SELLER_PANEL_URL ?? DEFAULT_SELLER_PANEL_URL).replace(/\/$/, '')
+  return getPlatformBaseUrls().seller
 }
 
 export function getAdminPanelUrl() {
-  return (process.env.NEXT_PUBLIC_ADMIN_PANEL_URL ?? DEFAULT_ADMIN_PANEL_URL).replace(/\/$/, '')
+  return getPlatformBaseUrls().admin
+}
+
+export type PlatformAudience = 'customer' | 'seller' | 'admin'
+
+/** App-local NEXT_PUBLIC_APP_URL must never decide another audience's links. */
+export function getPlatformBaseUrls(): Record<PlatformAudience, string> {
+  const values = {
+    customer: process.env.NEXT_PUBLIC_WEB_URL?.trim() || DEFAULT_WEB_URL,
+    seller:
+      process.env.NEXT_PUBLIC_SELLER_PANEL_URL?.trim() ||
+      process.env.SELLER_PANEL_URL?.trim() ||
+      DEFAULT_SELLER_PANEL_URL,
+    admin:
+      process.env.NEXT_PUBLIC_ADMIN_PANEL_URL?.trim() ||
+      process.env.ADMIN_PANEL_URL?.trim() ||
+      DEFAULT_ADMIN_PANEL_URL,
+  }
+  const result = {} as Record<PlatformAudience, string>
+  for (const role of ['customer', 'seller', 'admin'] as const) {
+    let url: URL
+    try {
+      url = new URL(values[role].replace(/\/+$/, ''))
+    } catch {
+      throw new Error('EMAIL_BASE_URL_INVALID:' + role)
+    }
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash ||
+      (process.env.NODE_ENV === 'production' &&
+        (url.protocol !== 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))
+    )
+      throw new Error('EMAIL_BASE_URL_INVALID:' + role)
+    result[role] = url.origin
+  }
+  if (
+    new Set(Object.values(result)).size !== 3 ||
+    [
+      DEFAULT_SELLER_PANEL_URL,
+      DEFAULT_ADMIN_PANEL_URL,
+      process.env.SELLER_PANEL_URL,
+      process.env.ADMIN_PANEL_URL,
+    ].some((value) => {
+      if (!value) return false
+      try {
+        return new URL(value.trim()).origin === result.customer
+      } catch {
+        return false
+      }
+    })
+  )
+    throw new Error('EMAIL_BASE_URL_ROLE_MISMATCH')
+  return result
+}
+
+export function getPlatformLink(role: PlatformAudience, path: string): string {
+  if (!path.startsWith('/') || path.startsWith('//') || path.includes(String.fromCharCode(92)))
+    throw new Error('EMAIL_LINK_PATH_INVALID')
+  return getPlatformBaseUrls()[role] + path
+}
+
+export function getCustomerContractLinks(orderId: string) {
+  const base = getPlatformLink(
+    'customer',
+    '/api/orders/' + encodeURIComponent(orderId) + '/documents/contracts',
+  )
+  return {
+    preInformationUrl: base + '/pre-information?goruntule=1',
+    distanceSalesUrl: base + '/distance-sales?goruntule=1',
+  }
+}
+
+export function getSellerOrderUrl(orderId: string) {
+  return getPlatformLink('seller', '/siparisler/' + encodeURIComponent(orderId))
 }
