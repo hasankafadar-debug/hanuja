@@ -47,6 +47,9 @@ export type Order = {
   customerId: string
   status: OrderStatus
   totalAmount: number
+  installmentCount?: number | null
+  installmentDifferenceAmount?: number | null
+  installmentTotalAmount?: number | null
   createdAt: Date
   updatedAt: Date
 }

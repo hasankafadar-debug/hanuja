@@ -1,3 +1,4 @@
+import { AdminCommunicationReply } from '@/components/admin-communication-reply'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { headers } from 'next/headers'
@@ -59,7 +60,7 @@ export default async function AdminProductQuestionDetailPage({ params }: Props) 
 
       <PageHeader
         title={thread.product.name}
-        description="Salt okunur görünüm. Bu görüntüleme denetim günlüğüne kaydedildi."
+        description="Müşteri ve tasarımcıyla ayrı Hanuja yazışmaları"
       />
 
       <dl
@@ -95,7 +96,7 @@ export default async function AdminProductQuestionDetailPage({ params }: Props) 
         <div>
           <dt style={{ color: 'var(--color-muted-fg)' }}>Durum</dt>
           <dd className="font-medium">
-            {thread.status === 'waiting_for_seller' ? 'Tasarımcı yanıtı bekleniyor' : 'Yanıtlandı'}
+            {thread.status === 'waiting_for_seller' ? 'Hanuja yanıtı bekleniyor' : 'Yanıtlandı'}
           </dd>
         </div>
       </dl>
@@ -119,6 +120,7 @@ export default async function AdminProductQuestionDetailPage({ params }: Props) 
           </li>
         ))}
       </ol>
+      <AdminCommunicationReply endpoint={'/api/admin/product-questions/' + id + '/messages'} allowInternal={false} />
     </div>
   )
 }

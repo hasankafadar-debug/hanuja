@@ -87,7 +87,7 @@ export default async function ReturnsAdminPage({ searchParams }: { searchParams?
         <table className="w-full whitespace-nowrap text-sm">
           <thead style={{ backgroundColor: 'var(--color-muted)' }}>
             <tr>
-              {['İade No', 'Sipariş', 'Ürün / Adet', 'Sebep', 'Müşteri İadesi', 'Uyuşmazlık', 'Refund', 'Durum', ''].map((h) => (
+              {['İade No', 'Sipariş', 'Ürün / Adet', 'Sebep', 'Müşteri İadesi', 'Uyuşmazlık', 'Refund', 'Durum', 'Ödeme son tarihi', ''].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
@@ -120,7 +120,7 @@ export default async function ReturnsAdminPage({ searchParams }: { searchParams?
                   className="px-4 py-3 font-mono text-xs"
                   style={{ color: 'var(--color-muted-fg)' }}
                 >
-                  {r.id.slice(0, 8)}…
+                  <Link href={'/iadeler/' + r.id} className="underline">{r.id.slice(0, 8)}…</Link>
                 </td>
                 <td className="px-4 py-3">
                   <Link
@@ -165,6 +165,7 @@ export default async function ReturnsAdminPage({ searchParams }: { searchParams?
                 <td className="px-4 py-3">
                   <StatusBadge status={r.status} />
                 </td>
+                <td className="px-4 py-3">{r.refundDeadlineAt?.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' }) ?? 'Teslim bekleniyor'}</td>
                 <td className="px-4 py-3">
                   {r.items.length === 0 && r.status === 'under_review' && <ReturnReviewActions returnId={r.id} />}
                   {r.items.length === 0 && r.status === 'approved' && (

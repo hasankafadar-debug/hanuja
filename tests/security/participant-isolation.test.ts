@@ -44,8 +44,8 @@ function fixturePrisma() {
 }
 beforeEach(() => {
   vi.clearAllMocks()
-  returnRequest = { sellerId: 'seller-a', customerId: 'customer-a', order }
-  dispute = { id: 'dispute-a', order, escalatedFromReturn: returnRequest }
+  returnRequest = { sellerId: 'seller-a', customerId: 'customer-a', order, messages: [], evidence: [] }
+  dispute = { id: 'dispute-a', order, escalatedFromReturn: returnRequest, messages: [], evidence: [] }
   asset = {
     id: 'asset-a', status: 'ready', key: 'returns/customer-a/fixture.jpg', folder: 'returns', uploadedBy: 'customer-a',
     returnRequest, dispute: null, returnMessage: null, supportAttachments: [], customerSupportAttachments: [],
@@ -67,8 +67,9 @@ describe('multi-seller private media through the real handler', () => {
   it.each([
     ['user-a', 'seller'], ['customer-a', 'customer'], ['staff-a', 'admin'],
   ] as const)('preserves access for %s (%s)', async (viewerId, viewerRole) => {
-    expect((await fetchPrivateMedia('asset-a', { viewerId, viewerRole })).status).toBe(200)
-    expect(mocks.read).toHaveBeenCalledOnce()
+    expect((await fetchPrivateMedia('asset-a', { viewerId, viewerRole })).status).toBe(viewerRole === 'seller' ? 404 : 200)
+    if (viewerRole !== 'seller') expect(mocks.read).toHaveBeenCalledOnce()
+    else expect(mocks.read).not.toHaveBeenCalled()
   })
   it('denies an unrelated customer and a customer role with a seller identity', async () => {
     expect((await fetchPrivateMedia('asset-a', { viewerId: 'other-customer', viewerRole: 'customer' })).status).toBe(404)
@@ -76,9 +77,9 @@ describe('multi-seller private media through the real handler', () => {
     expect(prisma.seller.findUnique).not.toHaveBeenCalled()
     expect(mocks.read).not.toHaveBeenCalled()
   })
-  it('preserves legacy order-wide returns without a sellerId', async () => {
+  it('keeps historical customer evidence private even on legacy order-wide returns', async () => {
     returnRequest.sellerId = null
-    expect((await fetchPrivateMedia('asset-a', { viewerId: 'user-b', viewerRole: 'seller' })).status).toBe(200)
+    expect((await fetchPrivateMedia('asset-a', { viewerId: 'user-b', viewerRole: 'seller' })).status).toBe(404)
   })
 })
 
@@ -86,14 +87,14 @@ describe('real dispute repository scopes both reads and message targets', () => 
   it.each(['findByIdForViewer', 'findMessageTargetForViewer'] as const)('%s denies the other seller and allows the participants', async method => {
     const repository = createDisputeRepository(prisma as unknown as PrismaClient)
     expect(await repository[method]('dispute-a', { viewerId: 'user-b', viewerRole: 'seller' })).toBeNull()
-    expect(await repository[method]('dispute-a', { viewerId: 'user-a', viewerRole: 'seller' })).toEqual(dispute)
-    expect(await repository[method]('dispute-a', { viewerId: 'customer-a', viewerRole: 'customer' })).toEqual(dispute)
+    expect(await repository[method]('dispute-a', { viewerId: 'user-a', viewerRole: 'seller' })).toMatchObject({ id: 'dispute-a' })
+    expect(await repository[method]('dispute-a', { viewerId: 'customer-a', viewerRole: 'customer' })).toMatchObject({ id: 'dispute-a' })
     expect(await repository[method]('dispute-a', { viewerId: 'staff-a', viewerRole: 'admin' })).toEqual(dispute)
   })
   it.each(['direct', 'legacy'])('preserves %s order-wide disputes', async kind => {
     if (kind === 'direct') dispute.escalatedFromReturn = null
     else returnRequest.sellerId = null
     const repository = createDisputeRepository(prisma as unknown as PrismaClient)
-    expect(await repository.findByIdForViewer('dispute-a', { viewerId: 'user-b', viewerRole: 'seller' })).toEqual(dispute)
+    expect(await repository.findByIdForViewer('dispute-a', { viewerId: 'user-b', viewerRole: 'seller' })).toMatchObject({ id: 'dispute-a', evidence: [], messages: [] })
   })
 })

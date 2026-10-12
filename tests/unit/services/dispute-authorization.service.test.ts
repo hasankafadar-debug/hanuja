@@ -205,6 +205,7 @@ describe('dispute authorization', () => {
         disputeId: 'dispute-direct',
         authorId: viewerId,
         authorRole: viewerRole,
+        audience: viewerRole,
         body: 'Case update',
       },
     })
@@ -246,6 +247,7 @@ describe('dispute authorization', () => {
         disputeId: 'dispute-direct',
         authorId: 'admin-1',
         authorRole: 'admin',
+        audience: 'internal',
         body: 'Admin review update',
       },
     })

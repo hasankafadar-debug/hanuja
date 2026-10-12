@@ -17,6 +17,7 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
 
+  const [audience, setAudience] = useState('customer')
   const [note, setNote] = useState('')
   const [resolution, setResolution] = useState('')
   const [refund, setRefund] = useState('')
@@ -30,7 +31,7 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: note.trim() }),
+        body: JSON.stringify({ body: note.trim(), audience }),
       })
       if (!res.ok) {
         const p = await res.json().catch(() => null)
@@ -81,10 +82,13 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
         <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
           Not / Mesaj Ekle {returnRequestId ? '(müşteri-tasarımcı yazışmasına yazılır)' : ''}
         </p>
+        <label>Mesajın alıcısı <select value={audience} onChange={(event) => setAudience(event.target.value)}>
+          <option value="customer">Müşteri</option><option value="seller">Tasarımcı</option><option value="internal">Yalnız yönetim</option>
+        </select></label>
         <Textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Tarafların göreceği not"
+          placeholder="Seçilen alıcıya iletilecek mesaj"
           rows={2}
           disabled={pending}
         />

@@ -142,6 +142,7 @@ export function createSupportTicketService({ prisma }: { prisma: PrismaClient })
           select: { id: true, status: true, createdAt: true },
         },
         messages: {
+          where: { authorRole: { in: ['seller', 'admin'] } },
           orderBy: { createdAt: 'asc' },
           include: {
             author: {

@@ -22,6 +22,7 @@ const resolveDisputeSchema = z.object({
 })
 
 const addMessageSchema = z.object({
+  audience: z.enum(['customer', 'seller', 'internal']).optional(),
   body: z.string().min(1, 'Mesaj boş olamaz'),
 })
 
@@ -67,12 +68,13 @@ export async function addDisputeMessage(
 ) {
   try {
     const body = await req.json()
-    const { body: messageBody } = addMessageSchema.parse(body)
+    const { body: messageBody, audience } = addMessageSchema.parse(body)
     const svc = getDisputeService()
     const message = await svc.addMessage({
       disputeId,
       viewer,
       body: messageBody,
+      ...(audience ? { audience } : {}),
     })
     return created(message)
   } catch (err) {

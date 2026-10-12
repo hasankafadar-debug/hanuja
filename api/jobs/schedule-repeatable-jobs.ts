@@ -34,9 +34,11 @@ import {
   priceHistoryQueue,
   privateDocumentCleanupQueue,
   sellerInvoiceReminderQueue,
+  returnDeadlineQueue,
 } from '../lib/queue'
 
 export async function scheduleRepeatableJobs(): Promise<void> {
+  await returnDeadlineQueue.add('sweep', {}, { repeat: { every: 60 * 60 * 1000 }, removeOnComplete: 10, removeOnFail: 20 })
   // Seller invoice to Hanuja still missing an hour after shipment → one reminder e-mail.
   await sellerInvoiceReminderQueue.add(
     'sweep',

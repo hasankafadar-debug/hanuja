@@ -2,6 +2,7 @@ import { Queue } from 'bullmq'
 import { getRedis } from './redis'
 
 export const QUEUE_NAMES = {
+  RETURN_DEADLINE: 'return-deadline',
   PAYOUT_MATURITY: 'payout-maturity',
   DELIVERY_SILENT_CONFIRM: 'delivery-silent-confirmation',
   RECONCILIATION: 'reconciliation',
@@ -90,4 +91,5 @@ export const refundProcessingQueue = createQueueProxy(
 )
 export const priceHistoryQueue = createQueueProxy(QUEUE_NAMES.PRICE_HISTORY)
 export const privateDocumentCleanupQueue = createQueueProxy(QUEUE_NAMES.PRIVATE_DOCUMENT_CLEANUP)
+export const returnDeadlineQueue = createQueueProxy(QUEUE_NAMES.RETURN_DEADLINE)
 export const sellerInvoiceReminderQueue = createQueueProxy(QUEUE_NAMES.SELLER_INVOICE_REMINDER)

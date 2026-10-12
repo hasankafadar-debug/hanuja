@@ -67,6 +67,7 @@ export function createCustomerSupportTicketService({ prisma }: { prisma: PrismaC
       where: { id: ticketId },
       include: {
         messages: {
+          where: { authorRole: { in: ['customer', 'admin'] } },
           orderBy: { createdAt: 'asc' },
           include: {
             attachments: {
@@ -297,7 +298,7 @@ export function createCustomerSupportTicketService({ prisma }: { prisma: PrismaC
         where: { customerId, ...(orderId ? { orderId } : {}) },
         orderBy: { createdAt: 'desc' },
         include: {
-          messages: { orderBy: { createdAt: 'asc' }, take: 1 },
+          messages: { where: { authorRole: { in: ['customer', 'admin'] } }, orderBy: { createdAt: 'asc' }, take: 1 },
         },
       })
     },

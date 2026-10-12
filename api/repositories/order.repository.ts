@@ -78,7 +78,7 @@ export function createOrderRepository(prisma: PrismaClient) {
           legalSnapshot: true,
           customerInvoice: { select: customerInvoiceSummarySelect },
           returnRequests: {
-            select: { id: true, status: true, createdAt: true },
+            select: { id: true, status: true, reviewedAt: true, sellerRejectedAt: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
           },
         },
@@ -178,7 +178,7 @@ export function createOrderRepository(prisma: PrismaClient) {
           legalSnapshot: true,
           customerInvoice: { select: customerInvoiceSummarySelect },
           returnRequests: {
-            select: { id: true, status: true, createdAt: true },
+            select: { id: true, status: true, reviewedAt: true, sellerRejectedAt: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
           },
         },

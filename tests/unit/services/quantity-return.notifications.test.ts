@@ -104,16 +104,9 @@ describe('quantity return notifications', () => {
       { refundAmount: new Decimal('9700.00'), disputeOpened: true },
     )
     const partial = recordNotificationMock.mock.calls[0]![1]
-    expect(partial).toMatchObject({
-      eventKey: 'return:return-1:customer:decision',
-      emailTo: 'customer@example.com',
-      type: 'order_return_approved',
-    })
-    expect(partial.data).toMatchObject({ decision: 'partial', disputeOpened: true, refundAmount: '9.700 TL' })
-    expect(partial.data.items).toEqual([
-      expect.objectContaining({ acceptedQuantity: 2, rejectedQuantity: 0, rejectionReason: null }),
-      expect.objectContaining({ acceptedQuantity: 0, rejectedQuantity: 1, rejectionReason: 'Kullanılmış' }),
-    ])
+    expect(partial).toMatchObject({ eventKey: 'return:return-1:customer:inspection', type: 'return_status_changed', title: 'İadeniz Hanuja incelemesinde' })
+    expect(JSON.stringify(partial)).not.toContain('Kullanılmış')
+    expect(partial.data).not.toHaveProperty('decision')
 
     recordNotificationMock.mockReset()
     await service.recordReturnDecisionNotification(
@@ -138,8 +131,9 @@ describe('quantity return notifications', () => {
       { refundAmount: new Decimal('0'), disputeOpened: true },
     )
     const rejected = recordNotificationMock.mock.calls[0]![1]
-    expect(rejected.type).toBe('order_return_rejected')
-    expect(rejected.data).toMatchObject({ decision: 'rejected', disputeOpened: true })
+    expect(rejected.type).toBe('return_status_changed')
+    expect(rejected.data).not.toHaveProperty('decision')
+    expect(JSON.stringify(rejected)).not.toContain('Hasar yok')
     expect(rejected.data.refundAmount).toBeUndefined()
   })
 })

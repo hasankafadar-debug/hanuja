@@ -70,20 +70,15 @@ function buildSampleOrderContext(overrides: Partial<LegalContractContext> = {}):
 }
 
 describe('legal documents', () => {
-  it('renders versioned distance sales and pre-information documents with marketplace role language', () => {
+  it('renders Hanuja as the seller while designers remain product brands', () => {
     const bundle = renderLegalDocuments(buildPublicLegalDocumentContext())
-
-    expect(bundle.distanceSalesVersion).toBe(DISTANCE_SALES_DOCUMENT_VERSION)
-    expect(bundle.preInformationVersion).toBe(PRE_INFORMATION_DOCUMENT_VERSION)
-
-    expect(bundle.distanceSalesHtml).toContain('Belge Sürümü')
-    expect(bundle.distanceSalesHtml).toContain('elektronik ticaret aracı hizmet sağlayıcı')
-    expect(bundle.distanceSalesHtml).toContain('Satıcı Sorumlulukları')
-    expect(bundle.distanceSalesHtml).toContain('Alıcı Beyan ve Sorumlulukları')
-    expect(bundle.distanceSalesHtml).toContain('Uyuşmazlık')
-
-    expect(bundle.preInformationHtml).toContain('Teknik Sipariş Adımları')
-    expect(bundle.preInformationHtml).toContain('Platformun Rolü ve Sorumluluk Sınırı')
+    for (const html of [bundle.distanceSalesHtml, bundle.preInformationHtml]) {
+      expect(html).toContain('Suat Salih Ayakkabı ve Deri Ürünleri')
+      expect(html).not.toContain('aracı hizmet sağlayıcı')
+      expect(html).toContain('Tasarımcı / Marka')
+      expect(html).toContain('Sözleşme Konusu Sipariş')
+    }
+    expect(bundle.sellerSnapshot[0]?.sellerId).toBe('hanuja')
   })
 
   it('embeds the active document versions in both order snapshots', () => {
@@ -95,8 +90,8 @@ describe('legal documents', () => {
     expect(bundle.preInformationHtml).toContain(
       `<strong>Belge Sürümü:</strong> ${PRE_INFORMATION_DOCUMENT_VERSION}`,
     )
-    expect(bundle.distanceSalesVersion).toBe('distance-sales-2026-09-18-v4')
-    expect(bundle.preInformationVersion).toBe('pre-information-2026-09-18-v4')
+    expect(bundle.distanceSalesVersion).toBe('distance-sales-2026-10-12-v5')
+    expect(bundle.preInformationVersion).toBe('pre-information-2026-10-12-v5')
     expect(bundle.distanceSalesVersion).not.toBe('distance-sales-2026-09-03-v3')
     expect(bundle.preInformationVersion).not.toBe('pre-information-2026-09-03-v3')
   })
@@ -116,32 +111,19 @@ describe('legal documents', () => {
     const bundle = renderLegalDocuments(buildPublicLegalDocumentContext())
     const combinedHtml = `${bundle.distanceSalesHtml}\n${bundle.preInformationHtml}`
 
-    expect(combinedHtml).toContain('01.01.2026')
-    expect(combinedHtml).toContain('tüketici iade masraflarından sorumlu tutulamaz')
+    expect(combinedHtml).toContain('14 gün')
+    expect(combinedHtml).toContain('tüketiciden iade masrafı talep edilemez')
     expect(combinedHtml).not.toContain('telefon, akıllı saat, tablet ve bilgisayar')
     expect(combinedHtml).not.toContain('iade kargo müşteriye aittir')
   })
 
-  it('states the personalized-goods withdrawal exception without limiting defective-goods remedies', () => {
+  it('limits customization exceptions to actual custom goods and preserves defect rights', () => {
     const bundle = renderLegalDocuments(buildPublicLegalDocumentContext())
-
     for (const html of [bundle.distanceSalesHtml, bundle.preInformationHtml]) {
-      expect(html).toContain('Tüketicinin istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan mallara ilişkin')
-      expect(html).toContain("Mesafeli Sözleşmeler Yönetmeliği'ndeki cayma hakkı istisnaları")
-      expect(html).toContain('Ürün bu nitelikteyse ve mevzuattaki koşullar oluşmuşsa cayma hakkı kullanılamayabilir')
-      expect(html).toContain('Ayıplı veya sözleşmeye aykırı ürünlere ilişkin tüketicinin mevzuattan doğan')
-      expect(html).toContain('yasal hakları saklıdır')
-      expect(html).toContain('cayma hakkı istisnası bu hakları ortadan kaldırmaz')
-    }
-  })
-
-  it('keeps a general (flag-free) clause for buyer-requested customization proven by correspondence', () => {
-    const bundle = renderLegalDocuments(buildPublicLegalDocumentContext())
-
-    for (const html of [bundle.distanceSalesHtml, bundle.preInformationHtml]) {
-      expect(html).toContain('mevcut bir üründe değişiklik, ölçü/renk/malzeme uyarlaması veya özel üretim')
-      expect(html).toContain('yazışma ve sipariş')
-      expect(html).toContain('30 günlük azami teslim süresi istisnası uygulanabilir')
+      expect(html).toContain('kişisel ihtiyaç')
+      expect(html).toContain('Mesafeli Sözleşmeler Yönetmeliği')
+      expect(html).toContain('ayıplı')
+      expect(html).toContain('14 günlük cayma süresi')
     }
   })
 
@@ -237,7 +219,7 @@ describe('legal documents — essential characteristics snapshot', () => {
     const bundle = renderLegalDocuments(buildSampleOrderContext())
 
     expect(bundle.preInformationHtml).toContain(
-      'anındaki temel nitelikleri (seçilen varyant, renk, malzeme, ölçü, ürün kodu ve sevk süresi)',
+      'Seçtiğiniz ürünlerin adı ve temel özellikleri',
     )
   })
 })
@@ -263,7 +245,7 @@ describe('legal documents — fulfillment commitment', () => {
     for (const html of [bundle.distanceSalesHtml, bundle.preInformationHtml]) {
       expect(html).toContain('mal satışlarında teslimat süresi her hâlükârda mevzuattaki azami süre olan')
       expect(html).toContain('30 günü geçemez')
-      expect(html).toContain('sipariş özetinde belirtilen sevk süresi')
+      expect(html).toContain('Taahhüt Edilen Sevk Süresi')
       expect(html).not.toContain('en geç 30 gün içinde tamamlanır')
     }
   })

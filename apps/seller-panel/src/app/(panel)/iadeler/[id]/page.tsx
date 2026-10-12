@@ -1,3 +1,4 @@
+import { canSeeMessage } from '@hanuja/api/domain/communication-audience'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getSellerFromSession } from '@/lib/seller-session'
@@ -27,16 +28,16 @@ export default async function SellerReturnDetailPage({ params }: Props) {
   const data: SellerReturnData = {
     id: rr.id,
     status: rr.status,
-    reason: rr.reason,
-    description: rr.description,
+    reason: 'Hanuja iade incelemesi',
+    description: null,
     sellerReturnAddress: rr.sellerReturnAddress,
     sellerReturnCargoCarrier: rr.sellerReturnCargoCarrier,
     sellerReturnInstructions: rr.sellerReturnInstructions,
     returnCargoProvider: rr.returnCargoProvider,
     returnTrackingNumber: rr.returnTrackingNumber,
     sellerRejectReason: rr.sellerRejectReason,
-    evidence: rr.evidence.map((e) => ({ id: e.id })),
-    messages: rr.messages.map((m) => ({
+    evidence: rr.evidence.filter((asset) => asset.uploadedBy === seller.userId).map((e) => ({ id: e.id })),
+    messages: rr.messages.filter((message) => canSeeMessage('seller', message)).map((m) => ({
       id: m.id,
       authorRole: m.authorRole,
       body: m.body,

@@ -10,7 +10,7 @@ import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.r
 import { assertTransition, isPostShipmentStatus } from '../domain/order-state-machine'
 import { createPenaltyService } from './penalty.service'
 import { createPaymentService } from './payment.service'
-import { isWithinReturnWindow } from '../domain/penalty-calculator'
+import { isWithinWithdrawalWindow } from '../domain/withdrawal-window'
 import { createQuantityCancellationService } from './quantity-cancellation.service'
 import { createSellerApprovalQueryService } from './seller-approval-query.service'
 import { recordWholeOrderCancellationNotifications } from './order-email-payload'
@@ -35,6 +35,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
     shippedQuantity: number
     returnClaimedQuantity: number
     deliveryConfirmedAt: Date | null
+    deliveredAt: Date | null
   }> }>(order: T) {
     if (order.quantityLifecycleVersion !== 2) return order
     return {
@@ -47,7 +48,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
           line.quantity - line.cancelledQuantity - line.shippedQuantity,
         ),
         returnableQuantity:
-          line.deliveryConfirmedAt && isWithinReturnWindow(line.deliveryConfirmedAt)
+          line.deliveredAt && isWithinWithdrawalWindow(order)
             ? Math.max(0, line.shippedQuantity - line.returnClaimedQuantity)
             : 0,
       })),
@@ -452,7 +453,12 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
 
     async getOrderForCustomer(orderId: string, customerId: string) {
       const order = await orders.findByIdForCustomer(orderId, customerId)
-      return order ? withoutAdminOrderNotes(withQuantityAvailability(order)) : null
+      if (!order) return null
+      const safe = withoutAdminOrderNotes(withQuantityAvailability(order))
+      return {
+        ...safe,
+        returnRequests: safe.returnRequests.map((request) => ({ ...request, status: request.status === 'rejected' && (!request.reviewedAt || (request.sellerRejectedAt && request.sellerRejectedAt > request.reviewedAt)) ? 'under_review' as const : request.status })),
+      }
     },
 
     async getOrderForSeller(orderId: string, sellerId: string) {
@@ -471,7 +477,10 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
         ...(skip !== undefined ? { skip } : {}),
         ...(take !== undefined ? { take } : {}),
       })
-      return rows.map(withoutAdminOrderNotes)
+      return rows.map((row) => ({
+        ...withoutAdminOrderNotes(row),
+        returnRequests: row.returnRequests.map((request) => ({ ...request, status: request.status === 'rejected' && (!request.reviewedAt || (request.sellerRejectedAt && request.sellerRejectedAt > request.reviewedAt)) ? 'under_review' as const : request.status })),
+      }))
     },
 
     listForSellerQueue(params: {

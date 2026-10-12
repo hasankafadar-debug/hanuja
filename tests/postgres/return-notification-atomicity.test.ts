@@ -141,6 +141,7 @@ async function seedReturn(
           customerPaidProductAmount: new Decimal('200.00'),
           netPayoutAmount: new Decimal('200.00'),
           deliveryConfirmedAt: new Date(),
+          deliveredAt: new Date(),
         },
       },
     },

@@ -1,3 +1,5 @@
+import { assertNoContactSharing } from './contact-sharing-guard.service'
+import { canSeeMessage } from '../domain/communication-audience'
 /**
  * Product questions — private customer ↔ seller conversations (e-mail plan phase 4).
  *
@@ -14,7 +16,7 @@
  *     reported as shown.
  */
 import type { Prisma, PrismaClient, ProductQuestionStatus, UserRole } from '@prisma/client'
-import { maskCustomerName, maskEmail } from '@hanuja/security'
+import { maskEmail } from '@hanuja/security'
 import {
   buildThreadKey,
   checkOrderAskable,
@@ -24,8 +26,6 @@ import {
   isThreadUnread,
   PRODUCT_QUESTION_MESSAGE_MAX,
   PRODUCT_QUESTION_MESSAGE_MIN,
-  statusAfterMessage,
-  statusTurnedOverBy,
   type ProductQuestionAuthor,
 } from '../domain/product-question'
 import { resolveEmailImageUrl, EMAIL_LINE_IMAGE_SELECT } from '../lib/email-line-items'
@@ -33,7 +33,6 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '.
 import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
-import { assertNoContactSharing } from './contact-sharing-guard.service'
 import { recordNotification } from './notification-outbox.service'
 
 type Tx = Prisma.TransactionClient
@@ -110,46 +109,17 @@ async function recordTurnNotification(
   const orderNumber = thread.order
     ? formatOrderNumber(thread.order.publicNumber, thread.order.id)
     : undefined
-  if (author === 'customer') {
+  const admins = await tx.user.findMany({ where: { role: 'admin' }, select: { id: true } })
+  for (const admin of admins) {
     await recordNotification(tx, {
-      eventKey: `product-question:${thread.id}:seller:turn:${thread.turnSeq}`,
-      userId: thread.seller.userId,
-      emailTo: thread.seller.user.email,
-      type: 'seller_product_question',
-      title: 'Müşteri Sorusu',
-      body: `${thread.product.name} ürünü için yeni bir müşteri sorusu var.`,
-      data: {
-        threadId: thread.id,
-        sellerId: thread.seller.id,
-        sellerName: thread.seller.displayName,
-        productName: thread.product.name,
-        productImageUrl: resolveEmailImageUrl(thread.product.images),
-        customerName: maskCustomerName(thread.customer.name),
-        ...(orderNumber ? { orderNumber } : {}),
-        messageExcerpt: excerpt(body),
-        panelUrl: sellerThreadUrl(thread.id),
-      },
+      eventKey: 'product-question:' + thread.id + ':admin:' + admin.id + ':turn:' + thread.turnSeq + ':' + author,
+      userId: admin.id,
+      type: 'admin_support_new_ticket',
+      title: author === 'customer' ? 'Hanuja ürün sorusu' : 'Tasarımcı iç yanıtı',
+      body: thread.product.name + ': ' + excerpt(body),
+      data: { threadId: thread.id, orderNumber, adminUrl: '/musteri-sorulari/' + thread.id },
     })
-    return
   }
-  await recordNotification(tx, {
-    eventKey: `product-question:${thread.id}:customer:turn:${thread.turnSeq}`,
-    userId: thread.customerId,
-    emailTo: thread.customer.email,
-    type: 'customer_product_question_answered',
-    title: 'Sorunuz yanıtlandı',
-    body: `${thread.seller.displayName}, ${thread.product.name} hakkındaki sorunuzu yanıtladı.`,
-    data: {
-      threadId: thread.id,
-      customerName: thread.customer.name ?? '',
-      sellerName: thread.seller.displayName,
-      productName: thread.product.name,
-      productImageUrl: resolveEmailImageUrl(thread.product.images),
-      ...(orderNumber ? { orderNumber } : {}),
-      messageExcerpt: excerpt(body),
-      threadUrl: customerThreadUrl(thread.id),
-    },
-  })
 }
 
 /**
@@ -174,7 +144,7 @@ export async function appendProductQuestionMessage(
   const clock = new Date()
   // Display timestamp only; never earlier than what is already stored (clock skew between instances).
   const now = clock > locked.lastMessageAt ? clock : locked.lastMessageAt
-  const turned = locked.status === statusTurnedOverBy(params.author)
+  const turned = true
 
   const message = await tx.productQuestionMessage.create({
     data: {
@@ -182,6 +152,7 @@ export async function appendProductQuestionMessage(
       seq,
       authorId: params.authorId,
       authorRole: params.author,
+      audience: params.author,
       body: params.body,
       createdAt: now,
     },
@@ -191,11 +162,9 @@ export async function appendProductQuestionMessage(
     where: { id: params.threadId },
     data: {
       lastMessageAt: now,
-      ...(params.author === 'customer'
-        ? { lastCustomerMessageSeq: seq }
-        : { lastSellerMessageSeq: seq }),
+
       ...(turned
-        ? { status: statusAfterMessage(params.author), turnSeq: { increment: 1 } }
+        ? { status: 'waiting_for_seller', turnSeq: { increment: 1 } }
         : {}),
     },
     select: NOTIFY_SELECT,
@@ -234,7 +203,7 @@ const THREAD_DETAIL_INCLUDE = {
   order: { select: { id: true, publicNumber: true } },
   messages: {
     orderBy: { seq: 'asc' },
-    select: { id: true, authorRole: true, body: true, createdAt: true },
+    select: { id: true, authorRole: true, audience: true, body: true, createdAt: true },
   },
 } satisfies Prisma.ProductQuestionThreadInclude
 
@@ -257,7 +226,7 @@ export interface ProductQuestionThreadDto {
   canReply: boolean
 }
 
-function toThreadDto(thread: ThreadDetail, canReply: boolean): ProductQuestionThreadDto {
+function toThreadDto(thread: ThreadDetail, canReply: boolean, viewer?: 'customer' | 'seller'): ProductQuestionThreadDto {
   return {
     id: thread.id,
     status: thread.status,
@@ -272,7 +241,7 @@ function toThreadDto(thread: ThreadDetail, canReply: boolean): ProductQuestionTh
     order: thread.order
       ? { id: thread.order.id, number: formatOrderNumber(thread.order.publicNumber, thread.order.id) }
       : null,
-    messages: thread.messages.map((m) => ({
+    messages: thread.messages.filter((message) => !viewer || canSeeMessage(viewer, message)).map((m) => ({
       id: m.id,
       authorRole: m.authorRole,
       body: m.body,
@@ -335,7 +304,7 @@ function toListItem(row: ThreadListRow, viewer: 'customer' | 'seller' | 'admin')
     productSlug: row.product.slug,
     productImageUrl: row.product.images[0]?.url ?? null,
     counterpartName:
-      viewer === 'customer' ? row.seller.displayName : maskCustomerName(row.customer.name),
+      'Hanuja',
     orderNumber: row.order ? formatOrderNumber(row.order.publicNumber, row.order.id) : null,
     // Admin lists carry no message content; content is shown only in the audited detail view.
     lastMessagePreview:
@@ -436,7 +405,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
       orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
       skip: (page - 1) * PRODUCT_QUESTION_PAGE_SIZE,
       take: PRODUCT_QUESTION_PAGE_SIZE,
-      select: THREAD_LIST_SELECT,
+      select: { ...THREAD_LIST_SELECT, messages: { ...THREAD_LIST_SELECT.messages, where: { audience: viewer } } },
     })
     return { items: rows.map((row) => toListItem(row, viewer)), total, page, totalPages }
   }
@@ -497,7 +466,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
               status: 'waiting_for_seller',
               turnSeq: 1,
               messageSeq: 1,
-              lastCustomerMessageSeq: 1,
+              lastCustomerMessageSeq: 0,
               lastMessageAt: now,
             },
             select: { id: true },
@@ -508,6 +477,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
               seq: 1,
               authorId: params.customerId,
               authorRole: 'customer',
+              audience: 'customer',
               body,
               createdAt: now,
             },
@@ -569,7 +539,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
      */
     async markRead(threadId: string, viewer: ProductQuestionViewer, lastSeenMessageId: string) {
       const message = await prisma.productQuestionMessage.findFirst({
-        where: { id: lastSeenMessageId, threadId, thread: ownershipWhere(viewer) },
+        where: { id: lastSeenMessageId, threadId, audience: viewer.role, thread: ownershipWhere(viewer) },
         select: { seq: true },
       })
       if (!message) throw new NotFoundError('Mesaj')
@@ -606,7 +576,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
         include: THREAD_DETAIL_INCLUDE,
       })
       if (!thread) return null
-      return toThreadDto(thread, isSellerOperational(thread.seller.status))
+      return toThreadDto(thread, true, 'customer')
     },
 
     async listForSeller(
@@ -628,9 +598,43 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
       })
       if (!thread) return null
       return {
-        ...toThreadDto(thread, true),
-        customerName: maskCustomerName(thread.customer.name),
+        ...toThreadDto(thread, true, 'seller'),
+        customerName: 'Hanuja',
       }
+    },
+
+    async replyAsAdmin(params: { threadId: string; adminId: string; audience: 'customer' | 'seller'; body: string }) {
+      const body = prepareQuestionMessageBody(params.body)
+      return prisma.$transaction(async (tx) => {
+        const locked = await tx.productQuestionThread.update({
+          where: { id: params.threadId },
+          data: { messageSeq: { increment: 1 }, turnSeq: { increment: 1 } },
+          select: { messageSeq: true },
+        })
+        const seq = locked.messageSeq
+        const message = await tx.productQuestionMessage.create({
+          data: { threadId: params.threadId, seq, authorId: params.adminId, authorRole: 'admin', audience: params.audience, body },
+        })
+        const thread = await tx.productQuestionThread.update({
+          where: { id: params.threadId },
+          data: { lastMessageAt: new Date(), ...(params.audience === 'customer' ? { lastSellerMessageSeq: seq, status: 'waiting_for_customer' } : { lastCustomerMessageSeq: seq }) },
+          select: NOTIFY_SELECT,
+        })
+        const customer = params.audience === 'customer'
+        await recordNotification(tx, {
+          eventKey: 'product-question:' + thread.id + ':admin-reply:' + message.id,
+          userId: customer ? thread.customerId : thread.seller.userId,
+          emailTo: customer ? thread.customer.email : thread.seller.user.email,
+          type: customer ? 'customer_product_question_answered' : 'seller_product_question',
+          title: 'Hanuja ürün sorusu yanıtı',
+          body: 'Hanuja, ' + thread.product.name + ' hakkında mesaj gönderdi.',
+          data: { threadId: thread.id, sellerId: thread.seller.id, sellerName: 'Hanuja', customerName: customer ? thread.customer.name : 'Hanuja', productName: thread.product.name, messageExcerpt: excerpt(body), threadUrl: customerThreadUrl(thread.id), panelUrl: sellerThreadUrl(thread.id) },
+        })
+        await createAdminAuditLogRepository(tx).createEntry({
+          actorId: params.adminId, actionType: 'product_question_viewed', targetType: 'product_question_thread', targetId: params.threadId, newData: { operation: 'reply', audience: params.audience },
+        })
+        return message
+      })
     },
 
     async countUnreadForSeller(sellerId: string) {

@@ -10,7 +10,7 @@ import {
   allocateProductRefund,
   isQuantityFullyClosed,
 } from '../domain/quantity-allocation'
-import { isWithinReturnWindow } from '../domain/penalty-calculator'
+import { isWithinWithdrawalWindow } from '../domain/withdrawal-window'
 import {
   createQuantityRefundService,
   dispatchRefundProcessingAfterCommit,
@@ -101,14 +101,14 @@ export function createQuantityReturnService({
     orderId: string
     customerId: string
     reason: string
+    claimType?: 'withdrawal' | 'defect' | 'warranty'
     idempotencyKey?: string
     description?: string
     evidenceAssetIds?: string[]
     items: ReturnSelection[]
   }) {
     validateSelections(params.items)
-    if (params.reason.trim().length < 3)
-      throw new ValidationError('İade nedeni en az 3 karakter olmalı')
+
 
     let attempts = 0
     let operations: Awaited<ReturnType<typeof openInTransaction>> | undefined
@@ -258,6 +258,8 @@ export function createQuantityReturnService({
             body: summary,
             data: {
               ...data,
+              returnReason: 'Hanuja iade incelemesi',
+              customerName: 'Hanuja',
               sellerName: seller.displayName,
               panelUrl: `${getSellerPanelUrl()}/iadeler/${operation.id}`,
             },
@@ -358,6 +360,17 @@ export function createQuantityReturnService({
         rejectionReason: decision?.rejectionReason?.trim() || null,
       }
     })
+    if (items.some((item) => item.rejectedQuantity > 0)) {
+      await recordNotification(tx, {
+        eventKey: 'return:' + request.id + ':customer:inspection',
+        userId: request.customerId,
+        type: 'return_status_changed',
+        title: 'İadeniz Hanuja incelemesinde',
+        body: 'İade ürünleriniz değerlendiriliyor. Kabul edilen ürünlerin ödeme iadesi ayrıca takip edilebilir.',
+        data: { returnRequestId: request.id, orderId: request.orderId },
+      })
+      return
+    }
     const accepted = items.reduce((sum, item) => sum + item.acceptedQuantity, 0)
     const rejected = items.reduce((sum, item) => sum + item.rejectedQuantity, 0)
     const decision = rejected === 0 ? 'approved' : accepted === 0 ? 'rejected' : 'partial'
@@ -404,6 +417,7 @@ export function createQuantityReturnService({
       orderId: string
       customerId: string
       reason: string
+      claimType?: 'withdrawal' | 'defect' | 'warranty'
       idempotencyKey?: string
       description?: string
       items: ReturnSelection[]
@@ -443,8 +457,8 @@ export function createQuantityReturnService({
     const bySeller = new Map<string, typeof selected>()
     for (const line of selected) {
       if (
-        !line.deliveryConfirmedAt ||
-        !isWithinReturnWindow(line.deliveryConfirmedAt)
+        !line.deliveredAt ||
+        ((params.claimType ?? 'withdrawal') === 'withdrawal' && !isWithinWithdrawalWindow(order))
       ) {
         throw new ConflictError(
           `"${line.productName}" için 14 günlük iade süresi açık değil`,
@@ -505,11 +519,12 @@ export function createQuantityReturnService({
             ...(params.idempotencyKey
               ? { requestKey: params.idempotencyKey }
               : {}),
-            reason: params.reason.trim(),
+            reason: params.reason.trim() || 'Cayma hakkı',
+            claimType: params.claimType ?? 'withdrawal',
             ...(params.description !== undefined
               ? { description: params.description }
               : {}),
-            isWithinWindow: true,
+            isWithinWindow: isWithinWithdrawalWindow(order),
             items: { create: itemData },
           },
           include: { items: { include: { orderLine: true } } },
@@ -535,6 +550,7 @@ export function createQuantityReturnService({
     returnRequestId: string
     sellerId: string
     decisions: ReceiptDecision[]
+    evidenceAssetIds?: string[]
   }) {
     const prior = await prisma.returnRequest.findFirst({
       where: { id: params.returnRequestId, sellerId: params.sellerId },
@@ -655,7 +671,7 @@ export function createQuantityReturnService({
 
           const claimed = await tx.returnRequest.updateMany({
             where: { id: request.id, status: 'in_transit' },
-            data: { status: 'received', sellerReceivedAt: new Date() },
+            data: { status: 'received', sellerReceivedAt: new Date(), returnCarrierDeliveredAt: request.returnCarrierDeliveredAt ?? new Date(), refundDeadlineAt: request.refundDeadlineAt ?? new Date(Date.now() + 14 * 86400000) },
           })
           if (claimed.count !== 1) {
             throw new ConflictError(
@@ -663,6 +679,13 @@ export function createQuantityReturnService({
             )
           }
 
+          if (params.evidenceAssetIds?.length) {
+            const seller = await tx.seller.findUniqueOrThrow({ where: { id: params.sellerId }, select: { userId: true } })
+            await tx.mediaAsset.updateMany({
+              where: { id: { in: params.evidenceAssetIds }, uploadedBy: seller.userId, status: 'ready' },
+              data: { returnRequestId: request.id, type: 'return_evidence' },
+            })
+          }
           const decisionById = new Map(
             params.decisions.map((decision) => [
               decision.returnRequestItemId,
@@ -901,9 +924,9 @@ export function createQuantityReturnService({
               await tx.returnRequest.update({
                 where: { id: request.id },
                 data: {
-                  status: 'refund_completed',
+                  status: disputeId ? 'under_review' : 'refund_completed',
                   refundAmount: acceptedCustomerAmount,
-                  refundedAt: new Date(),
+                  refundedAt: disputeId ? null : new Date(),
                 },
               })
             }

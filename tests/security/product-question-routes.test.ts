@@ -179,7 +179,7 @@ describe('product question routes', () => {
     )
     expect(read.status).toBe(404)
     expect(prisma.productQuestionMessage.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'm1', threadId: 't-other', thread: { sellerId: 's1' } } }),
+      expect.objectContaining({ where: { id: 'm1', threadId: 't-other', audience: 'seller', thread: { sellerId: 's1' } } }),
     )
   })
 
@@ -265,7 +265,7 @@ describe('product question data exposure', () => {
     const query = prisma.productQuestionThread.findFirst.mock.calls[0]![0]
     expect(query.where).toEqual({ id: 't1', sellerId: 's1' })
     expect(query.include.customer).toEqual({ select: { name: true } })
-    expect(dto?.customerName).toBe('Ayşe Y.')
+    expect(dto?.customerName).toBe('Hanuja')
     expect(JSON.stringify(dto)).not.toMatch(/@/)
   })
 

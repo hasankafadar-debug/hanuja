@@ -136,7 +136,8 @@ describe('private media authorization', () => {
     const where = prisma.mediaAsset.findFirst.mock.calls[0]![0].where
     expect(where.OR).toEqual(
       expect.arrayContaining([
-        { returnRequest: { is: { OR: [{ customerId: 'customer-1' }] } } },
+        { uploadedBy: 'customer-1' },
+        { returnMessage: { audience: 'customer', authorRole: 'admin', returnRequest: { is: { OR: [{ customerId: 'customer-1' }] } } } },
         {
           supportAttachments: {
             some: {

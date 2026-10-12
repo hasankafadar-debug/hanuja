@@ -368,6 +368,7 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
                   </div>
                 )
               })}
+              {rejectPhotos.node}
               <Button
                 type="button"
                 disabled={
@@ -385,6 +386,7 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
                   post(
                     `/api/seller/returns/${data.id}/receipt-decision`,
                     {
+                      evidenceAssetIds: rejectPhotos.ids,
                       items: data.items.map((item) => ({
                         returnRequestItemId: item.id,
                         ...itemDecisions[item.id],
@@ -488,7 +490,7 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
         style={{ borderColor: 'var(--color-border)' }}
       >
         <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-          Müşteri ile Yazışma
+          Hanuja ile Yazışma
         </p>
         {data.messages.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>

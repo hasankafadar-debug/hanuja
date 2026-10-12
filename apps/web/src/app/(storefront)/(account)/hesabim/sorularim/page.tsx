@@ -45,8 +45,7 @@ export default async function MyQuestionsPage({ searchParams }: Props) {
           Sorularım
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-          Ürünler hakkında tasarımcılara sorduğunuz sorular. Konuşma herkese açık değildir. Siz, ilgili
-          tasarımcı ve denetim amacıyla yetkili yöneticiler erişebilir.
+          Ürünler hakkında Hanuja’ya sorduğunuz sorular. Yazışmanıza yalnız siz ve Hanuja müşteri hizmetleri erişebilir.
         </p>
       </div>
 
@@ -54,7 +53,7 @@ export default async function MyQuestionsPage({ searchParams }: Props) {
         <EmptyState
           icon={<MessageCircleQuestion className="h-12 w-12" />}
           title="Henüz soru sormadınız"
-          description="Bir ürün sayfasındaki “Soru Sor” butonuyla tasarımcıya soru sorabilirsiniz."
+          description="Bir ürün sayfasındaki “Soru Sor” butonuyla Hanuja’ya soru sorabilirsiniz."
         />
       ) : (
         <ul className="divide-y rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>

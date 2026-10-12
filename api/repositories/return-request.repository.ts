@@ -90,6 +90,7 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
         reason: string
         description?: string
         isWithinWindow: boolean
+        claimType?: string
       },
       tx?: ReturnRequestClient,
     ) {
@@ -140,10 +141,11 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
     },
 
     /** Seller confirms physical receipt → status in_transit → received. */
-    setSellerReceived(id: string, tx?: ReturnRequestClient) {
+    async setSellerReceived(id: string, tx?: ReturnRequestClient) {
+      const prior = await (tx ?? prisma).returnRequest.findUniqueOrThrow({ where: { id } })
       return (tx ?? prisma).returnRequest.update({
         where: { id },
-        data: { status: 'received', sellerReceivedAt: new Date() },
+        data: { status: 'received', sellerReceivedAt: new Date(), returnCarrierDeliveredAt: new Date(), refundDeadlineAt: prior.refundDeadlineAt ?? new Date(Date.now() + 14 * 86400000) },
       })
     },
 

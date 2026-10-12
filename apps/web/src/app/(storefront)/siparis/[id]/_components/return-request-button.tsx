@@ -9,6 +9,7 @@ import { ReturnPhotoPicker } from './return-photo-picker'
 
 interface ReturnRequestButtonProps {
   orderId: string
+  withdrawalAllowed?: boolean
   lines?: Array<{
     id: string
     name: string
@@ -24,10 +25,11 @@ function getApiMessage(payload: unknown, fallback: string) {
   return fallback
 }
 
-export default function ReturnRequestButton({ orderId, lines }: ReturnRequestButtonProps) {
+export default function ReturnRequestButton({ orderId, lines, withdrawalAllowed = true }: ReturnRequestButtonProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
+  const [claimType, setClaimType] = useState(withdrawalAllowed ? 'withdrawal' : 'defect')
   const [reason, setReason] = useState('')
   const [description, setDescription] = useState('')
   const [evidenceAssetIds, setEvidenceAssetIds] = useState<string[]>([])
@@ -36,14 +38,6 @@ export default function ReturnRequestButton({ orderId, lines }: ReturnRequestBut
   const [isPending, startTransition] = useTransition()
 
   function submit() {
-    if (reason.trim().length < 3) {
-      toast({
-        title: 'İade talebi oluşturulamadı',
-        description: 'Lütfen en az 3 karakterlik bir sebep yazın.',
-        variant: 'destructive',
-      })
-      return
-    }
     const items = lines
       ?.map((line) => ({ orderLineId: line.id, quantity: quantities[line.id] ?? 0 }))
       .filter((item) => item.quantity > 0)
@@ -65,7 +59,8 @@ export default function ReturnRequestButton({ orderId, lines }: ReturnRequestBut
         },
         body: JSON.stringify({
           orderId,
-          reason: reason.trim(),
+          reason: reason.trim() || undefined,
+          claimType,
           description: description.trim() || undefined,
           evidenceAssetIds: evidenceAssetIds.length ? evidenceAssetIds : undefined,
           ...(lines ? { items } : {}),
@@ -90,7 +85,7 @@ export default function ReturnRequestButton({ orderId, lines }: ReturnRequestBut
       setOpen(false)
       toast({
         title: 'İade talebi alındı',
-        description: 'Tasarımcı iade kargo bilgilerini iletene kadar bekleyin.',
+        description: 'Hanuja müşteri hizmetleri iade kargo bilgilerini iletecektir.',
         variant: 'success',
       })
       startTransition(() => {
@@ -158,10 +153,17 @@ export default function ReturnRequestButton({ orderId, lines }: ReturnRequestBut
           </div>
         </div>
       ) : null}
+      <label className="block text-sm">Başvuru türü
+        <select value={claimType} onChange={(event) => setClaimType(event.target.value)} className="ml-2 rounded border p-2" disabled={isPending}>
+          {withdrawalAllowed ? <option value="withdrawal">Cayma hakkı</option> : null}
+          <option value="defect">Ayıplı / yanlış / hasarlı ürün</option>
+          <option value="warranty">Garanti</option>
+        </select>
+      </label>
       <Input
         value={reason}
         onChange={(event) => setReason(event.target.value)}
-        placeholder="İade sebebi"
+        placeholder="Açıklama (isteğe bağlı)"
         disabled={isPending}
       />
       <Textarea

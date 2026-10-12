@@ -1,3 +1,4 @@
+import { participantReturn } from '../lib/participant-return'
 /**
  * Return route handlers — thin: validate → auth → service → respond.
  * Business logic lives in api/services/return.service.ts, not here.
@@ -13,7 +14,8 @@ const assetIds = z.array(z.string().min(1)).max(10).optional()
 
 const openRequestSchema = z.object({
   orderId: z.string().min(1),
-  reason: z.string().min(3, 'Sebep en az 3 karakter olmalı'),
+  reason: z.string().trim().optional().transform((value) => value || 'Cayma hakkı'),
+  claimType: z.enum(['withdrawal', 'defect', 'warranty']).default('withdrawal'),
   description: z.string().optional(),
   evidenceAssetIds: assetIds,
   items: z
@@ -29,6 +31,7 @@ const openRequestSchema = z.object({
 })
 
 const receiptDecisionSchema = z.object({
+  evidenceAssetIds: assetIds,
   items: z
     .array(
       z.object({
@@ -52,6 +55,7 @@ const markReceivedSchema = z.object({
 })
 
 const addMessageSchema = z.object({
+  audience: z.enum(['customer', 'seller', 'internal']).optional(),
   body: z.string().min(1, 'Mesaj boş olamaz'),
   attachmentAssetIds: assetIds,
 })
@@ -171,7 +175,7 @@ function toPrivateReturnRequest<
 export async function openReturnRequest(req: NextRequest, customerId: string) {
   try {
     const body = await req.json()
-    const { orderId, reason, description, evidenceAssetIds, items } = openRequestSchema.parse(body)
+    const { orderId, reason, claimType, description, evidenceAssetIds, items } = openRequestSchema.parse(body)
     if (items) {
       const prisma = createPrismaForRoute()
       const quantityService = createQuantityReturnService({ prisma })
@@ -179,6 +183,7 @@ export async function openReturnRequest(req: NextRequest, customerId: string) {
         orderId,
         customerId,
         reason,
+        claimType,
         ...(req.headers.get('idempotency-key')?.trim()
           ? { idempotencyKey: req.headers.get('idempotency-key')!.trim().slice(0, 200) }
           : {}),
@@ -203,6 +208,7 @@ export async function openReturnRequest(req: NextRequest, customerId: string) {
       orderId,
       customerId,
       reason,
+      claimType,
       ...(description !== undefined ? { description } : {}),
       ...(evidenceAssetIds !== undefined ? { evidenceAssetIds } : {}),
     })
@@ -226,6 +232,7 @@ export async function decideQuantityReturnReceipt(
       returnRequestId,
       sellerId,
       decisions: body.items,
+      ...(body.evidenceAssetIds ? { evidenceAssetIds: body.evidenceAssetIds } : {}),
     })
     return ok(result)
   } catch (error) {
@@ -253,7 +260,7 @@ export async function getReturnRequestForCustomer(returnRequestId: string, custo
       const { NotFoundError } = await import('../lib/errors')
       throw new NotFoundError('ReturnRequest', returnRequestId)
     }
-    return ok(toPrivateReturnRequest(rr))
+    return ok(participantReturn(toPrivateReturnRequest(rr), 'customer', customerId))
   } catch (err) {
     return handleError(err)
   }
@@ -268,7 +275,7 @@ export async function getReturnRequestForSeller(returnRequestId: string, sellerI
       const { NotFoundError } = await import('../lib/errors')
       throw new NotFoundError('ReturnRequest', returnRequestId)
     }
-    return ok(toPrivateReturnRequest(returnRequest))
+    return ok(participantReturn(toPrivateReturnRequest(returnRequest), 'seller'))
   } catch (err) {
     return handleError(err)
   }
@@ -297,12 +304,13 @@ export async function addReturnMessage(
 ) {
   try {
     const body = await req.json()
-    const { body: messageBody, attachmentAssetIds } = addMessageSchema.parse(body)
+    const { body: messageBody, attachmentAssetIds, audience } = addMessageSchema.parse(body)
     const svc = getReturnService()
     const message = await svc.addMessage({
       returnRequestId,
       authorId,
       authorRole,
+      ...(audience ? { audience } : {}),
       body: messageBody,
       ...(attachmentAssetIds !== undefined ? { attachmentAssetIds } : {}),
     })

@@ -1,3 +1,4 @@
+import { startReturnDeadlineWorker } from './return-deadline.job'
 /**
  * Job worker registry — start all workers from a single entry point.
  * In production, this runs in a separate process from the Next.js apps.
@@ -41,6 +42,7 @@ export function startAllWorkers() {
     startPriceHistoryWorker(),
     startPrivateDocumentCleanupWorker(),
     startSellerInvoiceReminderWorker(),
+    startReturnDeadlineWorker(),
   ]
 
   console.log(`[workers] Started ${workers.length} BullMQ workers`)

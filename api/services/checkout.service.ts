@@ -477,6 +477,8 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           billingAddress: formattedBillingAddress,
         },
         sellers: Array.from(sellerMap.values()),
+        installmentCount: params.paymentMethod === 'eft' ? 1 : null,
+        installmentDifferenceAmount: params.paymentMethod === 'eft' ? 0 : null,
         // `lines` ve `rawLines` aynı sıra/uzunluktadır; belgeye özgü nitelikler
         // rawLines'tan alınır, OrderLine'a yazılmaz.
         items: lines.map((line, index) => ({
@@ -662,6 +664,9 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
               ? { eftDiscountRateSnapshot: draft.eftDiscountRate }
               : {}),
             totalAmount: draft.totalAmount,
+            installmentCount: params.paymentMethod === 'eft' ? 1 : null,
+            installmentDifferenceAmount: params.paymentMethod === 'eft' ? 0 : null,
+            installmentTotalAmount: params.paymentMethod === 'eft' ? draft.totalAmount : null,
             couponCode: params.couponCode ?? draft.cart.couponCode,
             ...(params.notes !== undefined ? { notes: params.notes } : {}),
             lines: {

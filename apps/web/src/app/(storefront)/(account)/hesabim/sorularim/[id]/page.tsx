@@ -57,7 +57,7 @@ export default async function MyQuestionDetailPage({ params }: Props) {
             </p>
           )}
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            {thread.seller.displayName}
+            Hanuja müşteri hizmetleri
             {thread.order ? (
               <>
                 {' · '}
@@ -72,7 +72,7 @@ export default async function MyQuestionDetailPage({ params }: Props) {
 
       <QuestionThread
         threadId={thread.id}
-        sellerName={thread.seller.displayName}
+        sellerName="Hanuja"
         messages={thread.messages}
         canReply={thread.canReply}
       />

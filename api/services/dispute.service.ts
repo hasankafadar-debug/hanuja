@@ -1,3 +1,4 @@
+import { messageAudience, type CommunicationAudience } from '../domain/communication-audience'
 /**
  * Dispute Service — uyuşmazlık lifecycle orchestration.
  *
@@ -11,6 +12,7 @@
  * See: .claude/rules/07-marketplace-finance-rules.md, .claude/rules/08-order-lifecycle-rules.md
  */
 import type { PrismaClient } from '@prisma/client'
+import { recordNotification } from './notification-outbox.service'
 import { allocateProductRefund } from '../domain/quantity-allocation'
 import { createPayoutService } from './payout.service'
 import { isPayoutSettled } from './payout-debt.service'
@@ -324,6 +326,14 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
         ...(params.resolution !== undefined && { reason: params.resolution }),
       })
 
+      if (rr) {
+        await prisma.returnRequest.update({ where: { id: rr.id }, data: { reviewedAt: new Date(), reviewedBy: params.adminActorId, reviewNote: params.resolution, ...(!isCustomerFavored ? { status: 'rejected' } : {}) } })
+        await prisma.$transaction(async (tx) => {
+          const customer = await tx.order.findUniqueOrThrow({ where: { id: dispute.orderId }, select: { customerId: true } })
+          await tx.returnMessage.create({ data: { returnRequestId: rr.id, authorId: params.adminActorId, authorRole: 'admin', audience: 'customer', body: params.resolution } })
+          await recordNotification(tx, { eventKey: 'dispute:' + dispute.id + ':customer:resolved', userId: customer.customerId, type: 'return_status_changed', title: isCustomerFavored ? 'İadeniz Hanuja tarafından kabul edildi' : 'İadeniz Hanuja tarafından değerlendirildi', body: params.resolution, data: { orderId: dispute.orderId, returnRequestId: rr.id } })
+        })
+      }
       await syncChangedPayoutSchedules(prisma, { orderId: dispute.orderId, sellerId: rr?.sellerId })
       return resolved
     },
@@ -331,7 +341,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
     /**
      * Müşteri, satıcı veya admin mesaj ekler.
      */
-    async addMessage(params: { disputeId: string; viewer: DisputeViewer; body: string }) {
+    async addMessage(params: { disputeId: string; viewer: DisputeViewer; body: string; audience?: CommunicationAudience }) {
       const dispute = await disputes.findMessageTargetForViewer(params.disputeId, params.viewer)
       if (!dispute) throw new NotFoundError('Dispute', params.disputeId)
 
@@ -356,6 +366,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
         disputeId: params.disputeId,
         authorId: params.viewer.viewerId,
         authorRole: params.viewer.viewerRole,
+        audience: messageAudience(params.viewer.viewerRole, params.audience),
         body: params.body,
       })
     },

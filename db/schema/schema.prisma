@@ -1245,6 +1245,9 @@ model Order {
   eftDiscountAmount       Decimal  @default(0) @db.Decimal(12, 2)
   eftDiscountRateSnapshot Decimal? @db.Decimal(5, 4)
   totalAmount             Decimal  @db.Decimal(12, 2) // M??terinin ?dedi?i tutar
+  installmentCount Int?
+  installmentDifferenceAmount Decimal? @db.Decimal(12, 2)
+  installmentTotalAmount Decimal? @db.Decimal(12, 2)
   refundedShippingAmount  Decimal  @default(0) @db.Decimal(12, 2)
 
   couponCode String?
@@ -1493,6 +1496,7 @@ model OrderLine {
   fulfillmentDueAt         DateTime?
   fulfilledAt              DateTime?
 
+  deliveredAt DateTime? // Actual receipt; independent of operational approval
   // Per-satır teslimat onayı — order.deliveryConfirmedAt ile eş zamanlı yazılır
   deliveryConfirmedAt DateTime?
   deliveryConfirmedBy String? // 'customer' | 'admin_<id>' | 'system'
@@ -1936,6 +1940,10 @@ model ReturnRequest {
   status                    ReturnRequestStatus @default(requested)
   reason                    String
   description               String?
+  claimType String @default("withdrawal") // withdrawal | defect | warranty
+  refundDeadlineAt DateTime?
+  returnCarrierDeliveredAt DateTime?
+  predeclaredReturnCarrier Boolean @default(false)
   isWithinWindow            Boolean // 14 günlük cayma hakkı içinde mi
   // Satıcı iade kargo talimatı (satıcı → müşteri)
   sellerReturnAddress       String?
@@ -2164,6 +2172,8 @@ model ReturnMessage {
 
   @@index([returnRequestId])
   @@map("return_messages")
+  audience String? // customer | seller | internal; legacy null is staff-only
+
 }
 
 model Dispute {
@@ -2207,6 +2217,8 @@ model DisputeMessage {
 
   @@index([disputeId])
   @@map("dispute_messages")
+  audience String? // customer | seller | internal; legacy null is staff-only
+
 }
 
 // =============================================================================
@@ -3250,6 +3262,8 @@ model ProductQuestionMessage {
   @@unique([threadId, seq])
   @@index([authorId])
   @@map("product_question_messages")
+  audience String? // customer | seller | internal; legacy null is staff-only
+
 }
 
 // =============================================================================

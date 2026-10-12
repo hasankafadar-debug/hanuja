@@ -1,3 +1,4 @@
+import { isWithinWithdrawalWindow } from '@hanuja/api/domain/withdrawal-window'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -9,7 +10,6 @@ import { CreditCard, Download, FileText, MapPin, Package } from 'lucide-react'
 import { auth } from '@/lib/auth'
 import { createOrderService } from '@hanuja/api/services/order.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { RETURN_WINDOW_DAYS } from '@hanuja/api/domain/penalty-calculator'
 import { getPlatformBankInfo } from '@hanuja/api/lib/platform-info'
 import { formatOrderDisplayNumber, formatOrderNumber } from '@hanuja/api/lib/order-number'
 import { createPlatformBankAccountService } from '@hanuja/api/services/platform-bank-account.service'
@@ -45,12 +45,7 @@ function isSchemaOutOfSyncError(error: unknown) {
   )
 }
 
-function isWithinReturnWindow(deliveryConfirmedAt: Date | string | null | undefined) {
-  if (!deliveryConfirmedAt) return false
-  const deadline = new Date(deliveryConfirmedAt)
-  deadline.setDate(deadline.getDate() + RETURN_WINDOW_DAYS)
-  return new Date() <= deadline
-}
+
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
@@ -130,6 +125,7 @@ export default async function OrderDetailPage({ params }: Props) {
     cancelledQuantity: number
     shippedQuantity: number
     returnClaimedQuantity: number
+    deliveredAt: Date | null
     deliveryConfirmedAt: Date | string | null
     unitPrice: { toNumber(): number } | number
     product: { id: string; name: string; slug: string; images: Array<{ url: string }> } | null
@@ -190,13 +186,13 @@ export default async function OrderDetailPage({ params }: Props) {
           id: line.id,
           name: line.product?.name ?? line.productName,
           availableQuantity: line.shippedQuantity - line.returnClaimedQuantity,
-          deliveryConfirmedAt: line.deliveryConfirmedAt,
+          deliveredAt: line.deliveredAt,
         }))
         .filter(
           (line) =>
-            line.availableQuantity > 0 && isWithinReturnWindow(line.deliveryConfirmedAt),
+            line.availableQuantity > 0 && Boolean(line.deliveredAt),
         )
-        .map(({ deliveryConfirmedAt: _deliveryConfirmedAt, ...line }) => line)
+        .map(({ deliveredAt: _deliveredAt, ...line }) => line)
     : []
   const shipments = (order.shipments ?? []) as unknown as Shipment[]
   const address = (order.address ?? null) as Address
@@ -236,7 +232,7 @@ export default async function OrderDetailPage({ params }: Props) {
     ? cancellationLines.length > 0 && (paymentConfirmed || isEftPending)
     : CUSTOMER_CANCELLABLE_STATUSES.has(order.status)
   const hasActiveReturn = returnRequests.some((r) => r.status !== 'refund_completed')
-  const withinReturnWindow = isWithinReturnWindow(order.deliveryConfirmedAt)
+  const withinReturnWindow = isWithinWithdrawalWindow(order)
   const canCustomerReturn = isQuantityLifecycle
     ? returnLines.length > 0
     : order.status === 'delivery_confirmed' && withinReturnWindow && !hasActiveReturn
@@ -301,6 +297,9 @@ export default async function OrderDetailPage({ params }: Props) {
         </div>
       </div>
 
+      <p className="mb-4 text-sm">
+        Teslim öncesinde cayma, ayıp veya garanti bildiriminiz için <Link className="underline" href={'/siparis/' + order.id + '/destek'}>Hanuja desteğine</Link> başvurabilir veya admin@hanuja.com.tr adresine yazabilirsiniz.
+      </p>
       {returnRequests.map((returnRequest) => (
         <ReturnPanel key={returnRequest.id} returnRequestId={returnRequest.id} />
       ))}
@@ -315,10 +314,11 @@ export default async function OrderDetailPage({ params }: Props) {
               İade
             </h2>
             <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-              Teslim onayından itibaren 14 gün içinde iade talebi oluşturabilirsiniz.
+              Cayma süresi son ürünün fiili tesliminden itibaren 14 gündür. Ayıp ve garanti başvuruları bu süreyle sınırlı değildir.
             </p>
           </div>
           <ReturnRequestButton
+            withdrawalAllowed={withinReturnWindow}
             orderId={order.id}
             {...(isQuantityLifecycle ? { lines: returnLines } : {})}
           />
@@ -331,8 +331,8 @@ export default async function OrderDetailPage({ params }: Props) {
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
         >
           <p style={{ color: 'var(--color-muted-fg)' }}>
-            İade süresi doldu. Teslim onayından sonraki 14 günlük iade hakkı sona erdiği için
-            bu sipariş için iade talebi oluşturulamaz.
+            Son ürünün tesliminden itibaren 14 günlük cayma süresi sona erdi.
+            Ayıp ve garanti başvurularınızı ilgili başvuru türünü seçerek veya Hanuja desteği üzerinden iletebilirsiniz.
           </p>
         </section>
       ) : null}

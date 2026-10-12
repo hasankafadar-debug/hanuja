@@ -1,3 +1,5 @@
+import { messageAudience, type CommunicationAudience } from '../domain/communication-audience'
+import { isWithinWithdrawalWindow } from '../domain/withdrawal-window'
 /**
  * Return Service — seller-driven return lifecycle (08-order-lifecycle-rules.md).
  *
@@ -28,7 +30,6 @@ import {
 import { createRefundService } from './refund.service'
 import { dispatchRefundProcessingAfterCommit } from './quantity-refund.service'
 import { sellerScopedReturnWhere } from '../repositories/return-request.repository'
-import { isWithinReturnWindow } from '../domain/penalty-calculator'
 import { assertTransition } from '../domain/order-state-machine'
 import { assertNoContactSharing } from './contact-sharing-guard.service'
 import { formatMoney, roundMoney } from '@hanuja/security/money'
@@ -334,6 +335,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
       orderId: string
       customerId: string
       reason: string
+      claimType?: 'withdrawal' | 'defect' | 'warranty'
       description?: string
       evidenceAssetIds?: string[]
     }) {
@@ -344,12 +346,12 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         throw new ConflictError('Bu siparişte ürün ve adet seçerek iade talebi oluşturun')
       }
 
-      if (!order.deliveryConfirmedAt) {
+      if (!order.lines.some((line) => line.deliveredAt)) {
         throw new ConflictError('Teslim onaylanmadan iade talebi açılamaz')
       }
 
-      const isWithinWindow = isWithinReturnWindow(order.deliveryConfirmedAt)
-      if (!isWithinWindow) {
+      const isWithinWindow = isWithinWithdrawalWindow(order)
+      if (!isWithinWindow && (!params.claimType || params.claimType === 'withdrawal')) {
         throw new ConflictError(
           'İade süresi doldu — teslim onayından sonraki 14 günlük iade hakkı sona erdi',
         )
@@ -379,6 +381,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
                   reason: params.reason,
                   ...(params.description !== undefined && { description: params.description }),
                   isWithinWindow,
+                  claimType: params.claimType ?? 'withdrawal',
                 },
                 tx,
               )
@@ -449,7 +452,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
                       orderNumber: sellerContext.orderNumber,
                       sellerId: sid,
                       sellerName: seller.displayName,
-                      returnReason: params.reason,
+                      returnReason: 'Hanuja iade incelemesi',
                       panelUrl: `${getSellerPanelUrl()}/iadeler/${returnRequest.id}`,
                       items: sellerContext.items.map((item) => ({ ...item, sellerId: sid })),
                     },
@@ -779,15 +782,15 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         )
 
         // Notify customer + admins
-        await notifyCustomerReturnDecision(tx, rr, 'rejected', {
-          eventKey: `return:${rr.id}:customer:receipt-rejected`,
-          refundOutcome: 'under_review',
-          sellerId: params.sellerId,
-          disputeOpened: true,
-          rejectionReason: params.description
-            ? `${params.reason} — ${params.description}`
-            : params.reason,
+        await recordNotification(tx, {
+          eventKey: 'return:' + rr.id + ':customer:under-review',
+          userId: rr.customerId,
+          type: 'return_status_changed',
+          title: 'İadeniz Hanuja incelemesinde',
+          body: 'İade ürününüz Hanuja tarafından değerlendiriliyor.',
+          data: { orderId: rr.orderId, returnRequestId: rr.id },
         })
+
         const admins = await tx.user.findMany({
           where: { role: 'admin' },
           select: { id: true },
@@ -978,6 +981,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
       authorRole: UserRole
       body: string
       attachmentAssetIds?: string[]
+      audience?: CommunicationAudience
     }) {
       const rr = await returnRequests.findById(params.returnRequestId)
       if (!rr) throw new NotFoundError('ReturnRequest', params.returnRequestId)
@@ -995,6 +999,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
             returnRequestId: params.returnRequestId,
             authorId: params.authorId,
             authorRole: params.authorRole,
+            audience: messageAudience(params.authorRole, params.audience),
             body: params.body,
           },
         })

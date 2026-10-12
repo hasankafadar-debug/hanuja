@@ -71,15 +71,14 @@ export function AskQuestionPanel({
       onSubmit={handleSubmit}
       className="space-y-3 rounded-lg border p-4"
       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      aria-label="Tasarımcıya soru sor"
+      aria-label="Hanuja’ya soru sor"
     >
       <div>
         <label htmlFor={`question-${productId}`} className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-          Tasarımcıya sorunuz
+          Hanuja’ya sorunuz
         </label>
         <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          Konuşma herkese açık değildir. Siz, ilgili tasarımcı ve denetim amacıyla yetkili yöneticiler
-          erişebilir. Telefon, e-posta, adres veya bağlantı paylaşmayın.
+          Konuşma herkese açık değildir. Sorularınızı Hanuja müşteri hizmetleri yanıtlar. Telefon, e-posta, adres veya bağlantı paylaşmayın.
         </p>
       </div>
       <textarea

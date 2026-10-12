@@ -1,3 +1,4 @@
+import { canSeeMessage } from '../domain/communication-audience'
 import type { DisputeStatus, Prisma, UserRole, PrismaClient } from '@prisma/client'
 import type { Decimal } from '@prisma/client/runtime/client'
 import { canViewAllDisputes, type DisputeViewer } from '../lib/dispute-authorization'
@@ -28,6 +29,7 @@ const participantDisputeSelect = {
     select: {
       id: true,
       authorRole: true,
+      audience: true,
       body: true,
       createdAt: true,
     },
@@ -46,6 +48,7 @@ const participantDisputeSelect = {
         select: {
           id: true,
           authorRole: true,
+          audience: true,
           body: true,
           createdAt: true,
           attachments: { select: participantMediaSelect },
@@ -89,10 +92,26 @@ export function createDisputeRepository(prisma: PrismaClient) {
       })
     }
 
-    return prisma.dispute.findFirst({
+    const dispute = await prisma.dispute.findFirst({
       where: await participantWhere(id, viewer),
       select: participantDisputeSelect,
     })
+    if (!dispute) return null
+    const audience = viewer.viewerRole === 'seller' ? 'seller' : 'customer'
+    return {
+      ...dispute,
+      reason: dispute.escalatedFromReturn ? 'İade incelemesi' : dispute.reason,
+      description: dispute.escalatedFromReturn ? null : dispute.description,
+      evidence: [],
+      messages: dispute.messages.filter((message) => canSeeMessage(audience, message)),
+      escalatedFromReturn: dispute.escalatedFromReturn ? {
+        ...dispute.escalatedFromReturn,
+        status: !dispute.resolution ? 'under_review' : dispute.escalatedFromReturn.status,
+        reason: 'İade incelemesi', description: null, evidence: [],
+        messages: dispute.escalatedFromReturn.messages.filter((message) => canSeeMessage(audience, message)),
+      } : null,
+    }
+
   }
 
   const findMessageTargetForViewer = async (id: string, viewer: DisputeViewer) => {
@@ -183,7 +202,7 @@ export function createDisputeRepository(prisma: PrismaClient) {
       })
     },
 
-    addMessage(data: { disputeId: string; authorId: string; authorRole: UserRole; body: string }) {
+    addMessage(data: { disputeId: string; authorId: string; authorRole: UserRole; audience?: string; body: string }) {
       return prisma.disputeMessage.create({ data })
     },
 

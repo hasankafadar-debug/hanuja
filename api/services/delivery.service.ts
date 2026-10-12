@@ -585,6 +585,8 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
             shippedQuantity: true,
             fulfilledAt: true,
             deliveryConfirmedAt: true,
+            deliveredAt: true,
+            shipmentItems: { select: { shipment: { select: { deliveredAt: true } } } },
           },
         })
         const linesToStamp = candidates.filter((line) =>
@@ -597,6 +599,13 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
           )
         }
 
+        for (const line of linesToStamp) {
+          if (!line.deliveredAt) {
+            const receipts = line.shipmentItems.map((item) => item.shipment.deliveredAt).filter((date): date is Date => date !== null)
+            const receivedAt = receipts.length ? new Date(Math.max(...receipts.map((date) => date.getTime()))) : confirmation.confirmedAt
+            await tx.orderLine.update({ where: { id: line.id }, data: { deliveredAt: receivedAt } })
+          }
+        }
         if (stampedIds.length > 0) {
           await (tx as PrismaClient).orderLine.updateMany({
             where: { id: { in: stampedIds }, deliveryConfirmedAt: null },

@@ -1,3 +1,4 @@
+import { isPendingReturnInspection } from '../domain/communication-audience'
 import type { Prisma, PrismaClient, RefundSourceType } from '@prisma/client'
 import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
 import { Decimal } from '@prisma/client/runtime/client'
@@ -525,7 +526,7 @@ export function createQuantityRefundService({
           })
         }
       } else if (refund.sourceType === 'return_request') {
-        await tx.returnRequest.update({
+        const closedReturn = await tx.returnRequest.update({
           where: { id: refund.sourceId },
           data: {
             status: 'refund_completed',
@@ -533,6 +534,10 @@ export function createQuantityRefundService({
             refundAmount: refund.customerAmount,
           },
         })
+        if (closedReturn && isPendingReturnInspection(closedReturn)) {
+          await tx.returnRequest.update({ where: { id: refund.sourceId }, data: { status: 'under_review', refundedAt: null } })
+        }
+
         const order = await tx.order.findUniqueOrThrow({
           where: { id: refund.orderId },
           select: { quantityLifecycleVersion: true, status: true },

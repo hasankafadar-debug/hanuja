@@ -13,7 +13,7 @@ import type { MediaFolder } from '../lib/r2'
 import type { Prisma } from '@prisma/client'
 import type { UserRole as PermissionUserRole } from '@hanuja/security'
 import { NotFoundError, UnauthorizedError } from '../lib/errors'
-import { disputeParticipantScope, returnParticipantScope } from '../lib/participant-scope'
+import { returnParticipantScope } from '../lib/participant-scope'
 
 export interface PrivateMediaViewer {
   viewerId: string
@@ -255,9 +255,8 @@ function privateMediaWhere(
     ...base,
     OR: [
       { uploadedBy: viewer.viewerId },
-      { dispute: { is: disputeParticipantScope(viewer.viewerId, sellerId) } },
-      { returnRequest: { is: returnParticipantScope(viewer.viewerId, sellerId) } },
-      { returnMessage: { returnRequest: { is: returnParticipantScope(viewer.viewerId, sellerId) } } },
+
+      { returnMessage: { audience: viewer.viewerRole === 'customer' ? 'customer' : 'seller', authorRole: 'admin', returnRequest: { is: returnParticipantScope(viewer.viewerId, sellerId) } } },
       // Support attachment access is scoped to the ticket participant. These
       // relations are explicit because support uploads have existing readers
       // outside the return/dispute workflows.

@@ -15,6 +15,7 @@ function makePrisma() {
   // Status seen under the row lock (first update of appendProductQuestionMessage).
   const state = { lockStatus: 'waiting_for_seller' as 'waiting_for_seller' | 'waiting_for_customer' }
   const tx = {
+    user: { findMany: vi.fn().mockResolvedValue([{ id: 'admin-1' }]) },
     productQuestionThread: {
       create: vi.fn().mockResolvedValue({ id: 't1' }),
       update: vi.fn(async ({ data }: { data: Record<string, unknown> }) =>
@@ -140,22 +141,22 @@ describe('opening a pre-sale question', () => {
     )
     const outbox = m.tx.notificationOutbox.upsert.mock.calls[0]![0]
     expect(outbox.create).toMatchObject({
-      eventKey: 'product-question:t1:seller:turn:1',
-      userId: 'su1',
-      type: 'seller_product_question',
+      eventKey: 'product-question:t1:admin:admin-1:turn:1:customer',
+      userId: 'admin-1',
+      type: 'admin_support_new_ticket',
     })
     const payload = outbox.create.payload
-    expect(payload.emailTo).toBe('seller@example.test')
-    expect(payload.data.customerName).toBe('Ayşe Y.')
+    expect(payload.emailTo).toBeUndefined()
+    expect(payload.data.adminUrl).toBe('/musteri-sorulari/t1')
     expect(JSON.stringify(payload)).not.toContain('ayse@example.test')
   })
 
   it('joins an existing conversation instead of opening a second one', async () => {
     m.prisma.productQuestionThread.findUnique.mockResolvedValue({ id: 't1' })
     const result = await ask()
-    expect(result).toMatchObject({ threadId: 't1', created: false, notified: false })
+    expect(result).toMatchObject({ threadId: 't1', created: false, notified: true })
     expect(m.tx.productQuestionThread.create).not.toHaveBeenCalled()
-    expect(m.tx.notificationOutbox.upsert).not.toHaveBeenCalled()
+    expect(m.tx.notificationOutbox.upsert).toHaveBeenCalled()
   })
 
   it('falls back to the winning conversation on a unique-key race', async () => {
@@ -167,7 +168,7 @@ describe('opening a pre-sale question', () => {
         throw Object.assign(new Error('unique'), { code: 'P2002' })
       })
     const result = await ask()
-    expect(result).toMatchObject({ threadId: 't-winner', created: false, notified: false })
+    expect(result).toMatchObject({ threadId: 't-winner', created: false, notified: true })
   })
 })
 
@@ -234,28 +235,16 @@ describe('replies and the turn decision under the row lock', () => {
     expect(m.tx.productQuestionMessage.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ seq: 2, authorRole: 'seller' }) }),
     )
-    expect(finish!.data).toMatchObject({ lastSellerMessageSeq: 2 })
+    expect(finish!.data).not.toHaveProperty('lastSellerMessageSeq')
   })
 
-  it('notifies the customer only when the seller reply turns the conversation over', async () => {
-    await svc().replyAsSeller({ threadId: 't1', sellerId: 's1', authorUserId: 'su1', body: 'Evet' })
-    const finish = m.tx.productQuestionThread.update.mock.calls[1]![0]
-    expect(finish.data).toMatchObject({
-      status: 'waiting_for_customer',
-      turnSeq: { increment: 1 },
-    })
-    expect(m.tx.notificationOutbox.upsert.mock.calls[0]![0].create).toMatchObject({
-      eventKey: 'product-question:t1:customer:turn:2',
-      userId: 'c1',
-      type: 'customer_product_question_answered',
-    })
-
-    m.tx.notificationOutbox.upsert.mockClear()
-    m.tx.productQuestionThread.update.mockClear()
-    m.state.lockStatus = 'waiting_for_customer'
-    await svc().replyAsSeller({ threadId: 't1', sellerId: 's1', authorUserId: 'su1', body: 'Ek bilgi' })
-    expect(m.tx.notificationOutbox.upsert).not.toHaveBeenCalled()
-    expect(m.tx.productQuestionThread.update.mock.calls[1]![0].data).not.toHaveProperty('status')
+  it('notifies staff and never the customer directly when a designer writes', async () => {
+    await svc().replyAsSeller({ threadId: 't1', sellerId: 's1', authorUserId: 'su1', body: 'İç inceleme yanıtı' })
+    const entries = m.tx.notificationOutbox.upsert.mock.calls.map((call) => call[0].create)
+    expect(entries).toHaveLength(1)
+    expect(entries[0].userId).toBe('admin-1')
+    expect(entries[0].userId).not.toBe('c1')
+    expect(m.tx.productQuestionMessage.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ audience: 'seller' }) }))
   })
 
   it('scopes a seller reply to the seller and a customer reply to the customer', async () => {
@@ -297,7 +286,7 @@ describe('read receipts', () => {
       svc().markRead('t1', { role: 'seller', sellerId: 's1' }, 'm-foreign'),
     ).rejects.toMatchObject({ statusCode: 404 })
     expect(m.prisma.productQuestionMessage.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'm-foreign', threadId: 't1', thread: { sellerId: 's1' } } }),
+      expect.objectContaining({ where: { id: 'm-foreign', threadId: 't1', audience: 'seller', thread: { sellerId: 's1' } } }),
     )
     expect(m.prisma.productQuestionThread.updateMany).not.toHaveBeenCalled()
   })
