@@ -1,5 +1,5 @@
-# Son güncelleme: 2026-04-18
-# Durum: taslak v1
+# Son güncelleme: 2026-10-11 (satıcı Hanuja modeli: faturaya bağlı vade)
+# Durum: taslak v2
 
 # Payout Policy
 
@@ -30,13 +30,20 @@ This means:
 The seller never collects directly from the customer. Payout is the settlement Hanuja makes
 to the seller after the full order lifecycle has been evaluated.
 
+**Satıcı Hanuja modeli (2026-10):** Hanuja is the seller of record in customer contracts; the seller
+(designer/brand) is Hanuja's supplier. The seller invoices Hanuja for each order when shipping, and the
+payout settles that invoice. Its amount equals the order's payout net before later returns (§6):
+KDV-inclusive sale − seller coupon share − KDV-inclusive commission, at the product's KDV rate. Cargo is
+included in the product price and is not on the invoice.
+
 ---
 
-## 2. Payout Start Condition
+## 2. Payout Record and Preconditions
 
-**Payout countdown starts only when the order reaches `delivery_confirmed`.**
+**The payout record is created only when the order reaches `delivery_confirmed`.** The payout term
+itself runs from the approved seller invoice (§3).
 
-It does not start at:
+A payout record is never created at:
 
 - `shipped`
 - `delivered`
@@ -55,7 +62,7 @@ The shipment physically appears to have reached the customer. Sources:
 
 ### What is `delivery_confirmed`
 
-Delivery is operationally accepted for payout countdown purposes. This occurs by:
+Delivery is operationally accepted for payout purposes. This occurs by:
 
 1. Customer explicitly confirms receipt ("Teslim Aldım")
 2. Admin manually confirms after reviewing evidence
@@ -63,25 +70,42 @@ Delivery is operationally accepted for payout countdown purposes. This occurs by
 
 Silent confirmation must be system-driven and timestamped, not left to manual follow-up.
 
-The schema field `Order.deliveryConfirmedAt` is the authoritative timestamp from which the
-30-day hold period is measured. The `Payout.holdStartedAt` field mirrors this value when
-the payout record is created.
+`Order.deliveryConfirmedAt` is the authoritative delivery timestamp. `Payout.holdStartedAt` mirrors
+it when the payout record is created. Delivery confirmation is a precondition for payment; it no
+longer starts the 30-day term.
 
 ---
 
-## 3. Mandatory 30-Day Hold Period
+## 3. Payout Term — Approved Seller Invoice + 30 Days, First Friday
 
-After `delivery_confirmed`, a **30-day hold** applies before payout can be released.
-
-The hold end date is:
+The term starts from the invoice the seller issued to Hanuja, once an admin has approved it with its
+invoice number and date (`OrderSellerInvoice.reviewStatus = approved`, `invoiceDate`):
 
 ```
-holdUntil = deliveryConfirmedAt + 30 days
+dueDate = first Friday on or after (invoiceDate + PlatformSettings.payoutHoldDays)   // default 30
 ```
 
-This is stored in `Payout.holdUntil`.
+- Days are Europe/Istanbul calendar days.
+- If that Friday is a public holiday, the next business day (`api/domain/tr-holidays.ts`).
+- Examples: invoice Mon 7 Sep 2026 → 7 Oct (Wed) → **Fri 9 Oct**; invoice Sat 10 Oct 2026 → 9 Nov (Mon)
+  → **Fri 13 Nov**; invoice Wed 1 Apr 2026 → Fri 1 May is a holiday → **Mon 4 May**.
+- `invoiceDate` may not be in the future or before the order's payment date.
+- Approval writes the due date to `Payout.holdUntil` (`syncInvoiceDueDate`); a rejection or a replaced
+  invoice clears it. If the payout does not exist yet, `activateHold` reads the approved invoice when
+  the order is delivery-confirmed. The `payout-maturity` job fills any missing due date.
+- Implementation: `calculatePayoutDueDate` (`api/domain/payout-calculator.ts`),
+  `readInvoicePayoutDueDate` / `readPayoutEligibility` (`api/services/payout-eligibility.ts`).
 
-During the hold period, the system evaluates:
+A payout matures only when **all** hold: the seller invoice is approved, the order is
+`delivery_confirmed`, and the due date has been reached. If a blocker is open on the due date, it is
+scheduled on the first Friday on or after all blockers clear (Friday itself is allowed;
+a holiday Friday moves to the next business day). `holdUntil` retains the invoice due date,
+while `nextPaymentAt` stores the resulting payment day. A new blocker clears only the unpaid
+record's schedule; its removal persists the next eligible day. Worker retries, batches and
+admin payment checks use that same stored day, so repeated checks never move it forward.
+Settled records retain their dates.
+
+Until then, the system evaluates:
 
 - return risk and open return requests
 - open disputes
@@ -91,8 +115,8 @@ During the hold period, the system evaluates:
 - negative balance offsets from prior orders
 - reconciliation concerns
 
-A payout does not automatically become ready when the 30-day window closes. The hold expiry
-is a minimum condition, not a sufficient condition. All blocking checks must also pass.
+A payout does not automatically become ready on its due date. The due date is a minimum condition,
+not a sufficient condition. All blocking checks must also pass.
 
 ---
 
@@ -102,8 +126,8 @@ Payout status is tracked in the `Payout` model using `PayoutStatus`:
 
 | Status | Meaning |
 |---|---|
-| `hold_active` | 30-day hold period is running |
-| `payout_blocked` | Hold expired but a blocking condition exists |
+| `hold_active` | Waiting for the approved seller invoice and its due date |
+| `payout_blocked` | Due date reached but a blocking condition exists |
 | `payout_ready` | All conditions passed; eligible for payment |
 | `payout_scheduled` | Included in a payout batch queued for processing |
 | `payout_paid` | Payment has been sent to the seller's bank account |
@@ -116,6 +140,9 @@ Transitions must be recorded in `SellerLedgerEntry` and visible in admin finance
 
 Payout must not be released to `payout_ready` when any of the following are true:
 
+- the seller's invoice to Hanuja is missing, awaiting review or rejected ("Satıcının Hanuja'ya
+  faturası onaylanmadı"), or its due date has not been reached ("Fatura vadesi dolmadı")
+- delivery is not confirmed ("Teslim onayı bekleniyor")
 - there is an open return request (`ReturnRequest.status` not in a closed state)
 - there is an open or unresolved dispute (`Dispute.payoutBlocked = true`)
 - a fraud or chargeback review flag is active
@@ -238,9 +265,9 @@ Hanuja processes seller payouts in batches rather than individually per order.
 Batch schedule options include: weekly, biweekly, or monthly. The active schedule is a
 platform configuration decision and may change over time.
 
-**The batch schedule does not override the 30-day order-level hold.**
+**The batch schedule does not override the order-level invoice term (§3).**
 
-An order whose hold period has not expired cannot be included in a batch, regardless of
+An order whose due date has not been reached cannot be included in a batch, regardless of
 when the batch runs.
 
 Batch records are stored in `PayoutBatch`. Each batch has:
@@ -306,14 +333,15 @@ modify payout calculations.
 
 ### Seller-visible payout timing
 
-Where the hold release date is calculable, it must be shown to the seller:
+Once the seller invoice is approved, the expected payout date is shown to the seller (order detail
+and payout screens):
 
 ```
-Expected earliest payout eligibility: deliveryConfirmedAt + 30 days
+Expected payout date: dueDate (§3), or the next Friday if a blocker is still open
 ```
 
-This is not a guaranteed payment date. It is the earliest the hold can clear, subject
-to all blocking condition checks also passing.
+This is not a guaranteed payment date. It is the earliest the payout can be made, subject to delivery
+confirmation and all blocking condition checks also passing.
 
 ---
 
@@ -426,6 +454,8 @@ This document must remain aligned with:
 
 - `.claude/rules/07-marketplace-finance-rules.md` (source of truth for finance rules)
 - `.claude/rules/08-order-lifecycle-rules.md` (delivery_confirmed lifecycle)
+- `docs/07-operations/invoice-management.md` (seller invoice review, customer invoice)
+- `api/domain/seller-purchase-invoice.ts` (seller invoice amount)
 - `docs/07-operations/payout-lifecycle.md`
 - `docs/07-operations/reconciliation-process.md`
 - `docs/06-engineering/event-status-model.md`

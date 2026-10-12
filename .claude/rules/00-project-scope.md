@@ -18,9 +18,11 @@ It operates with a **central collection model**.
 
 That means:
 
+- Hanuja is the seller of record in customer contracts (since 2026-10); sellers (designers/brands) are
+  Hanuja's suppliers
 - the customer pays Hanuja
 - approved orders are passed to the seller
-- the seller fulfills the order
+- the seller fulfills the order and invoices Hanuja for it; Hanuja invoices the customer
 - Hanuja pays the seller later according to payout rules
 - commissions, ad fees, cargo charges, penalties, refunds, and offsets affect the seller's net payout
 
@@ -33,9 +35,9 @@ These rules must be treated as platform constants unless an explicit document ch
    - Card payments and bank transfer / EFT payments come to Hanuja.
 
 2. **Seller payout delay**
-   - Seller payout begins only after the order reaches `delivery_confirmed`.
-   - A 30-day hold applies after `delivery_confirmed`.
-   - During this hold, returns, disputes, fraud checks, chargeback risk, and offset calculations are evaluated.
+   - The payout record is created only when the order reaches `delivery_confirmed`.
+   - The payout is due on the first Friday on or after the approved seller invoice date + 30 days.
+   - Until then, returns, disputes, fraud checks, chargeback risk, and offset calculations are evaluated.
 
 3. **Penalty rule**
    - Standard seller penalty is **20% of the product amount** in defined cases.
@@ -47,7 +49,7 @@ These rules must be treated as platform constants unless an explicit document ch
 
 5. **Delivery distinction**
    - `delivered` and `delivery_confirmed` are separate concepts.
-   - Payout countdown starts from `delivery_confirmed`, not from `delivered`.
+   - A payout needs `delivery_confirmed` (never just `delivered`) and an approved seller invoice.
 
 6. **Return and dispute sensitivity**
    - Returns, cancellations, disputes, and admin interventions affect payout eligibility.

@@ -8,6 +8,8 @@ paths:
   - "packages/seo/**/*"
 model: sonnet
 effort: medium
+version: 1.0.0
+last-updated: 2026-09-12
 ---
 
 This skill defines SEO standards for Hanuja store and blog pages.

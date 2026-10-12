@@ -9,6 +9,8 @@ paths:
   - "tools/generators/**/*"
 model: sonnet
 effort: medium
+version: 1.0.0
+last-updated: 2026-09-12
 ---
 
 This skill defines Hanuja scaffold generation discipline.
@@ -77,7 +79,7 @@ Standard imports to include:
 - Repository: import { prisma } from '@/lib/prisma'
 - Service: import { {Domain}Repository } from '../repositories/{domain}.repository'
 - Route: import { z } from 'zod'; import { {Domain}Service } from '../services/{domain}.service'
-- Next.js page: import { getServerSession } from 'next-auth' (or Better Auth equivalent)
+- Next.js page: import the Better Auth server session helper (e.g. `auth.api.getSession`)
 
 When scaffolding a new module:
 1. Identify the domain name

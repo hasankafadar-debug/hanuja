@@ -1,11 +1,13 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-10-11
 # Durum: taslak v1
 
 # Payment Security
 
 ## 2026-10-01 yerel kontrol
 
-`api/lib/payment-capabilities.ts` kart satışını koşulsuz kapalı tutar. Web'deki `/api/payment/start`, `/api/payment/callback` ve `/api/webhooks/iyzico` handler'ları veri okuma, veritabanı ve sağlayıcı çağrısından önce `503 CARD_PAYMENTS_DISABLED` döndürür; ortam değişkeniyle açılmaz. Eski kart iadeleri ayrı servis yoludur. Iyzico imza doğrulayıcısı bozuk/eksik uzunlukta imzayı exception yerine `false` ile reddeder.
+`api/lib/payment-capabilities.ts` kart satışını varsayılan olarak kapalı tutar. Web'deki `/api/payment/start`, `/api/payment/callback` ve `/api/webhooks/iyzico` handler'ları veri okuma, veritabanı ve sağlayıcı çağrısından önce `503 CARD_PAYMENTS_DISABLED` döndürür.
+
+**Güncelleme 2026-10-11 (satıcı Hanuja modeli):** kart satışı yalnız web servisinde `IYZICO_CARD_PAYMENTS_ENABLED=true` ile açılır (büyük/küçük harf ve boşluk duyarsız; başka her değer kapalıdır). Eski `CARD_PAYMENTS_ENABLED` değişkeni kart satışını artık açmaz; production'da hâlâ `true` duruyor olabileceği için kasıtlı olarak yeni bir ad seçildi. iyzico'nun standart sanal POS onayı ve yeni sözleşme metinleri yayına girmeden açılmaz; açmadan önce 3DS akışı sandbox test kartıyla uçtan uca doğrulanmalıdır. `tools/scripts/check-env.ts` değişkeni doğrular ve açıkken iyzico anahtarlarını zorunlu tutar. Eski kart iadeleri ayrı servis yoludur. Iyzico imza doğrulayıcısı bozuk/eksik uzunlukta imzayı exception yerine `false` ile reddeder.
 
 Havale/EFT, iade ve satıcı ödeme servislerindeki tutar/ödeme referansı bağlama, durum karşılaştırması, kilit ve snapshot kontrolleri yerel testlerle incelendi. Gerçek banka hareketi, provider hesabı ve PostgreSQL eşzamanlılık testleri bu denetimde çalıştırılmadı. [Yerel rapor](../../tests/security/audit-2026-10-01/rapor.md) güncel kanıtları ve bu sınırları içerir; aşağıdaki kart akışı etkin satış akışı olarak yorumlanmamalıdır.
 

@@ -1,10 +1,27 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-10-11 (satici Hanuja modeli)
 # Durum: taslak v1 - Hukuki inceleme gereklidir. Bu belge taslak niteliğindedir.
 
 # Payment Regulation Notes
 
 Bu belge, Hanuja'nin merkezi tahsilat modelinin odeme mevzuati acisindan tasidigi riskleri ozetler.
 Amac, urunu lisansli odeme kurumu gibi konumlandirmadan Iyzico etrafinda dogru teknik ve hukuki sinirlari belirlemektir.
+
+## Satici Hanuja modeli (2026-10)
+
+- Odeme kuruluslari duz sanal POS icin uye isyerinin satilan malin saticisi olmasini istiyor; iyzico'nun
+  pazaryeri urunu mobilya satisini kabul etmiyor. Bu nedenle sozlesmelerde **satici Hanuja**dir; tasarimci
+  ve markalar Hanuja'nin tedarikcisidir. Musteri odemesi Hanuja'nin kendi satisinin bedelidir; ucuncu
+  kisi adina tahsilat ve sonradan aktarim kurgusu bu modelde yoktur.
+- Fatura akisi: Hanuja musteriye satis faturasi keser (kargoya verilisten itibaren 7 gun, VUK 231/5);
+  tedarikci (satici) siparisi Hanuja'ya faturalar (tutar: KDV dahil satis − satici kupon payi − KDV dahil
+  komisyon). Hakedis, onayli tedarikci faturasinin tarihinden 30 gun sonraki ilk cuma odenir.
+- Urunu tedarikci dogrudan musteriye gonderir (dropship). Irsaliyede "<Hanuja unvani> adina musteriye
+  teslim edilmek uzere" ibaresi kullanilir. Benzer yapi icin Gelir Idaresi ozelgesi: Istanbul VDB
+  08.03.2012, B.07.1.GIB.4.34.19.02-019.01-918 (mali musavirle teyit edilmelidir).
+- Kart odemesi `IYZICO_CARD_PAYMENTS_ENABLED` ile acilir; iyzico onayi ve yeni sozlesme metinleri
+  yayina girmeden acilmaz.
+- Mali musavire sorulacaklar: irsaliye kopyasinin sisteme alinmasi, musteri iadesinde belge ve Hanuja →
+  tedarikci iade faturasi, ceza belgesinin turu.
 
 ## Temel risk sorusu
 
@@ -22,8 +39,8 @@ Amac, urunu lisansli odeme kurumu gibi konumlandirmadan Iyzico etrafinda dogru t
 ## Merkezi tahsilat modeline dair notlar
 
 - Hanuja, saticiya anlik gecis yapan bir "passthrough" sistem gibi degil, kontrollu bir tahsilat ve sonradan payout modeliyle calisir.
-- Payout'in `delivery_confirmed` sonrasinda 30 gun hold ile baslamasi, risk ve iade yonetimi nedeniyle is kurali olarak kurgulanmistir.
-- Bu bekletme mekaniginin odeme mevzuati ve para saklama yorumu acisindan hukuk tarafinda acikca degerlendirilmesi gerekir.
+- Hakedis vadesi tedarikci faturasina baglidir: onayli fatura tarihi + 30 gun sonrasindaki ilk cuma; ayrica teslim onayi ve acik iade/uyusmazlik olmamasi gerekir. Bu, ticari bir odeme vadesi olarak kurgulanmistir.
+- Vadenin ve mahsup/negatif bakiye kurgusunun tedarikci sozlesmesinde acikca yazilmasi gerekir; hukuk tarafinda degerlendirilmelidir.
 
 ## Iyzico iliskisinin hukuki sonucu
 
@@ -46,7 +63,7 @@ Amac, urunu lisansli odeme kurumu gibi konumlandirmadan Iyzico etrafinda dogru t
 ## Hukuk ekibinin incelemesi gereken sorular
 
 - Merkezi tahsilat modelinin hangi kosullarda odeme hizmeti lisansi gerektirip gerektirmedigi
-- 30 gun payout hold'un hukuki gerekcesi ve aciklama bicimi
+- Tedarikci faturasina bagli 30 gunluk odeme vadesinin sozlesmesel anlatimi
 - EFT kabul surecinin mevzuat ve uyum etkileri
 - Iade, ceza, mahsup ve negatif bakiye kurgusunun sozlesmesel anlatimi
 

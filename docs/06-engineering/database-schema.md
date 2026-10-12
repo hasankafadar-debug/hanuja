@@ -353,6 +353,25 @@ dispatch sweep, `readAt` the seller panel badge. Indexes: `(outboxWrittenAt, cre
 progress join. Enum additions: `NotificationType.seller_announcement`, `AdminActionType.announcement_sent`,
 `announcement_updated_after_send`, `announcement_retry_requested`.
 
+### OrderSellerInvoice review / OrderCustomerInvoice (2026-10-11, satıcı Hanuja modeli)
+
+Migration `20261011120000_seller_purchase_invoice_customer_invoice` (additive only).
+
+- `OrderSellerInvoice` is the **seller's invoice to Hanuja** (one per order/seller). New fields:
+  `reviewStatus` (`SellerInvoiceReviewStatus`: `pending | approved | rejected`, default `pending`,
+  indexed), `invoiceNumber`, `invoiceDate` (Türkiye day start; the payout term runs from it),
+  `reviewedAt`, `reviewedByAdminId`, `reviewNote` (rejection reason). Every new file resets them.
+- `OrderCustomerInvoice` (`order_customer_invoices`) is **Hanuja's sales invoice to the customer**:
+  `orderId @unique` (cascade on order delete), private storage file fields (`fileUrl`, `fileKey`,
+  `fileName`, `mimeType`, `sizeBytes`), optional `invoiceNumber`, `uploadedAt`, `uploadedByAdminId`.
+  The revision for `If-Match` and notification keys is `sha256(id   fileKey)`.
+- `PrivateDocumentCleanup` treats a file key referenced by either table as active.
+- Enum additions: `NotificationType.seller_invoice_reminder`, `seller_invoice_rejected`;
+  `AdminActionType.seller_invoice_approved`, `seller_invoice_rejected`, `customer_invoice_uploaded`,
+  `customer_invoice_replaced`, `customer_invoice_removed`.
+- `Payout.holdUntil` now stores the invoice due date (first Friday on or after
+  `invoiceDate + PlatformSettings.payoutHoldDays`); it is null until the invoice is approved.
+
 ## Index Rationale Summary
 
 | Index | Purpose |

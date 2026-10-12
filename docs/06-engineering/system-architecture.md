@@ -185,7 +185,8 @@ No app reaches into another app's internal modules.
 BullMQ workers run in `api/jobs/` and are registered in `api/worker.ts`.
 
 Critical job types:
-- Payout maturity: evaluates 30-day hold completion after `delivery_confirmed`
+- Payout maturity: evaluates the invoice due date (approved seller invoice date + 30 days, first Friday) and delivery confirmation
+- Seller invoice reminder: one reminder an hour after shipment when the seller's invoice to Hanuja is missing
 - Delivery silent-confirmation: promotes `delivered` to `delivery_confirmed` after 72-hour no-objection window
 - Reconciliation: cross-checks order, payment, and payout records for consistency
 - Search index sync: propagates product/category changes to Meilisearch

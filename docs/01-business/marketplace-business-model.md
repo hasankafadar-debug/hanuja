@@ -1,6 +1,6 @@
 # Marketplace Business Model
-# Son güncelleme: 2026-04-17
-# Durum: taslak v1
+# Son güncelleme: 2026-10-11 (satıcı Hanuja modeli)
+# Durum: taslak v2
 
 Business rule source document.
 Source of truth for platform-level financial and operational model.
@@ -10,7 +10,13 @@ Cross-reference: CLAUDE.md §2, §15 · `.claude/rules/00-project-scope.md` · `
 
 ## Overview
 
-Hanuja is a Turkey-focused multi-vendor marketplace for home, office, decor, furniture, and lifestyle products. It is not a simple listing aggregator. It operates a **central collection model**, meaning Hanuja acts as the financial intermediary between the customer and every seller on the platform.
+Hanuja is a Turkey-focused multi-brand store for home, office, decor, furniture, and lifestyle products. It is not a simple listing aggregator. It operates a **central collection model**.
+
+**Satıcı Hanuja modeli (2026-10):** Hanuja is the **seller of record** in customer contracts. Designers
+and brands ("sellers" in the codebase and panels) are Hanuja's **suppliers**: they keep their brand and
+store pages on the storefront, fulfil and ship the order, and invoice Hanuja for it. The reason is that
+payment providers require the merchant to be the seller of the goods for a standard virtual POS, and
+iyzico's marketplace product does not accept furniture.
 
 ---
 
@@ -22,14 +28,19 @@ Hanuja is a Turkey-focused multi-vendor marketplace for home, office, decor, fur
 2. Customer pays Hanuja directly — via card (Iyzico) or bank transfer / EFT.
 3. Hanuja holds the collected funds.
 4. The order is forwarded to the relevant seller(s) only after payment is confirmed.
-5. The seller fulfills the order and ships to the customer.
-6. After delivery is confirmed and the mandatory hold period expires, Hanuja pays the seller their net payout.
+5. The seller fulfills the order, ships it to the customer on Hanuja's behalf, and invoices Hanuja for
+   the order (order number in the description).
+6. Hanuja issues the customer's sales invoice within 7 days of handover to cargo.
+7. After delivery is confirmed and the seller's invoice is approved, Hanuja pays the seller on the first
+   Friday on or after the invoice date + 30 days.
 
 ### What this means operationally
 
 - The seller never handles customer money directly.
-- The seller issues the product invoice to the customer.
-- Hanuja issues the commission invoice and any service/ad fee invoices to the seller.
+- Hanuja issues the sales invoice to the customer.
+- The seller issues its invoice to Hanuja: KDV-inclusive sale − seller coupon share − KDV-inclusive
+  commission, at the product's KDV rate (cargo is included in the price and not on it).
+- No separate commission invoice; Hanuja issues penalty and any service/ad fee invoices to the seller.
 - All deductions (commission, cargo charges, penalties, refunds, ad fees) are calculated and applied before any payout reaches the seller.
 - If deductions exceed earnings, the seller ledger goes negative.
 
@@ -108,7 +119,7 @@ Result may be negative. Negative net payout creates or extends a seller debt in 
 
 - Payout countdown starts **only** from `delivery_confirmed` status.
 - `delivered` and `delivery_confirmed` are separate states and must not be conflated.
-- A mandatory 30-day hold applies after `delivery_confirmed`.
+- Payout is due on the first Friday on or after the approved seller invoice date + 30 days; `delivery_confirmed` is required as well.
 - After the hold period, the payout passes a readiness check before release.
 - See `docs/01-business/payout-policy.md` for full payout lifecycle.
 
@@ -178,9 +189,12 @@ When decisions conflict, Hanuja prioritizes in this order:
 
 | Invoice | Issued by | Issued to |
 |---------|-----------|-----------|
-| Product invoice | Seller | Customer |
-| Commission invoice | Hanuja | Seller |
+| Sales invoice (e-Arşiv, manual in Uyumsoft for now) | Hanuja | Customer |
+| Supplier invoice for the order (sale − coupon share − commission) | Seller | Hanuja |
+| Penalty invoice | Hanuja | Seller |
 | Ad/service fee invoice | Hanuja | Seller |
+
+Commission invoices are no longer issued (older ones remain as history).
 
 ---
 
@@ -202,7 +216,7 @@ These are hardcoded policy values. Do not change without documented approval:
 | Constant | Value | Source |
 |----------|-------|--------|
 | Standard penalty rate | 20% of product amount | `STANDARD_PENALTY_RATE` in `penalty-calculator.ts` |
-| Payout hold period | 30 days after `delivery_confirmed` | `PAYOUT_HOLD_DAYS` in `penalty-calculator.ts` |
+| Payout term | First Friday on or after approved seller invoice date + 30 days (`delivery_confirmed` also required) | `PlatformSettings.payoutHoldDays`, default `PAYOUT_HOLD_DAYS` in `penalty-calculator.ts`; `calculatePayoutDueDate` |
 | Fulfillment commitment | 20 days from payment confirmation | `FULFILLMENT_DAYS` in `penalty-calculator.ts` |
 | Silent delivery confirmation | 72 hours after `delivered` with no objection | `SILENT_DELIVERY_CONFIRMATION_HOURS` |
 | 14-day return window | 14 days from `delivery_confirmed` | `RETURN_WINDOW_DAYS` in `penalty-calculator.ts` |

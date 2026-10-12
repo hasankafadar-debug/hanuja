@@ -48,8 +48,9 @@ Sipariş akışı aşağıdaki ayrımlara kesinlikle uymalıdır:
 ```
 Müşteri sepet → Ödeme girişimi → Ödeme onayı
     → Satıcı kuyruğu → Satıcı kabulü → Hazırlık
-    → Kargoya verildi → Teslim edildi → Teslim onaylandı
-    → Payout hold (30 gün) → Ödeme hazır → Ödeme yapıldı
+    → Kargoya verildi (satıcı Hanuja'ya faturasını keser; Hanuja 7 gün içinde müşteri faturasını keser)
+    → Teslim edildi → Teslim onaylandı (payout kaydı)
+    → Satıcı faturası onaylandı → Vade (fatura tarihi + 30 gün, ilk cuma) → Ödeme hazır → Ödeme yapıldı
 ```
 
 Her adım bir `OrderStatusHistory` kaydıyla belgelenir.
@@ -147,7 +148,7 @@ Bu durumlar birincil `Order` sütununda değil, `Payout` modelinde tutulur. Anca
 
 | Status | Açıklama |
 |--------|----------|
-| `payout_hold_active` | 30 günlük bekleme dönemi devam ediyor |
+| `payout_hold_active` | Satıcı faturası onayı veya fatura vadesi bekleniyor |
 | `payout_blocked` | İade/uyuşmazlık/fraud/admin nedeniyle bloke |
 | `payout_ready` | Tüm kontroller geçti, ödeme yapılabilir |
 | `payout_paid` | Satıcıya ödeme gerçekleşti |

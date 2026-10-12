@@ -7,6 +7,8 @@ context: fork
 agent: ui-ux-designer
 model: sonnet
 effort: high
+version: 1.0.0
+last-updated: 2026-09-12
 ---
 
 You are running the Hanuja site design workflow.

@@ -221,8 +221,9 @@ Seller may see the difference between `delivered` and `delivery_confirmed`, but 
 
 The panel should help the seller understand:
 
-- delivered does not mean payout countdown has fully matured
-- payout hold starts from `delivery_confirmed`
+- delivered does not mean the payout has matured
+- the payout term runs from the approved invoice the seller issued to Hanuja (first Friday on or
+  after invoice date + 30 days); delivery confirmation is required as well
 - returns/disputes may still affect final payout eligibility
 
 ## Finance Summary Rules
@@ -272,6 +273,31 @@ Seller should have visibility into payout lifecycle, but not control over payout
 - override blocked reasons
 - mark payout as paid
 - alter ledger calculations
+- approve their own invoice to Hanuja or set its invoice date
+
+## Hanuja'ya Fatura (satıcı Hanuja modeli)
+
+Hanuja müşteriye satıcıdır; satıcı (tasarımcı) Hanuja'nın tedarikçisidir ve siparişi Hanuja'ya
+faturalar. Sipariş detayında (`siparisler/[id]`):
+
+- **"Hanuja'ya Keseceğiniz Fatura" kartı**: satır bazında KDV dahil satış, kampanya (satıcı kupon)
+  payı, KDV dahil komisyon ve fatura tutarı; KDV oranına göre matrah/KDV; toplam. Hesap sunucudadır
+  (`api/domain/seller-purchase-invoice.ts`); iptal edilen adetler düşer, komisyon muafiyeti uygulanır.
+  Kargo ürün fiyatına dahildir, faturada yer almaz.
+- Talimat: fatura **ürün kargoya verilirken** kesilir, açıklamasına **sipariş numarası** yazılır.
+- Durum: bekleniyor / Hanuja kontrol ediyor / onaylandı (fatura no, tarih, beklenen ödeme tarihi) /
+  onaylanmadı (gerekçe). Beklenen ödeme tarihi teslim onayı ve açık iade durumuna bağlıdır.
+- **"Fatura Bilgileri" kartı**: müşterinin fatura bilgisi değil, Hanuja'nın unvanı, adresi, vergi
+  dairesi/VKN ve MERSİS'i (`PLATFORM_LEGAL_INFO`); irsaliye açıklaması "<unvan> adına müşteriye teslim
+  edilmek üzere" ve teslim alacak kişi; fatura e-posta adresi (alias).
+- Satıcı müşterinin TC/VKN'sini ve fatura adresini görmez (`findByIdForSeller` yalnız teslimat
+  alanlarını seçer).
+- Kargo girişi fatura olmadan da yapılabilir; fatura bir saat sonra hâlâ yoksa satıcıya tek seferlik
+  hatırlatma e-postası gider (`seller-invoice-reminder` işi). Ceza yoktur.
+- Onaylanan fatura satıcı tarafından değiştirilemez veya silinemez (gelen e-postayla da); düzeltme
+  için Hanuja yönetimine başvurulur. Reddedilen fatura düzeltilip yeniden yüklenebilir; yeni dosya
+  yeniden incelemeye girer.
+- Satıcının Hanuja'ya kestiği fatura müşteriye hiçbir yoldan gösterilmez.
 
 ## Penalty Visibility Rules
 

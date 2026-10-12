@@ -20,7 +20,7 @@ directly reflect these rules.
 ## 1. Purpose of the Penalty System
 
 Hanuja operates a central collection model. Customer payments are held by Hanuja and released
-to sellers after delivery confirmation and a 30-day hold. This trust model requires sellers
+to sellers after delivery confirmation, on the due date of their approved invoice to Hanuja (invoice date + 30 days, first Friday). This trust model requires sellers
 to fulfill orders reliably.
 
 The penalty system creates a financial consequence for two specific seller-side failures that

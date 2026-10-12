@@ -212,7 +212,7 @@ Build doğrulaması her servis deploy'undan önce CI'da veya lokal olarak tamaml
 
 ## 6. Worker Doğrulaması (kritik)
 
-`.claude/rules/12-production-readiness.md` §9 uyarınca: `fulfillment-risk` BullMQ worker'ı günlük %1 geç sevkiyat ceza birikimini ve 20. gün auto-cancel'ı işler; worker çalışmıyorsa **ceza birikimi durur** ve payout olgunlaşma (30 günlük hold sonrası) işlenmez.
+`.claude/rules/12-production-readiness.md` §9 uyarınca: `fulfillment-risk` BullMQ worker'ı günlük %1 geç sevkiyat ceza birikimini ve 20. gün auto-cancel'ı işler; worker çalışmıyorsa **ceza birikimi durur** ve payout olgunlaşma (onaylı satıcı faturası vadesi sonrası) işlenmez.
 
 Worker deploy sonrası doğrulama adımları:
 

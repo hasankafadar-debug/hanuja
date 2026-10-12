@@ -361,7 +361,7 @@ Avoid unexplained raw constants.
 Examples of business-significant values:
 
 - 20-day fulfillment commitment
-- 30-day payout hold
+- 30-day payout term after the approved seller invoice date
 - 20% penalty rate
 - 72-hour silent delivery confirmation window
 

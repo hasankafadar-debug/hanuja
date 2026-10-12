@@ -10,6 +10,8 @@ paths:
   - "packages/security/**/*"
 model: sonnet
 effort: high
+version: 1.0.0
+last-updated: 2026-09-12
 ---
 
 This skill defines Hanuja authentication and session discipline.

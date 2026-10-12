@@ -24,7 +24,7 @@ blocking behavior that must surround every IBAN or bank detail change event.
 
 ## Why This Is High Risk
 
-- Hanuja collects all customer payments centrally and pays sellers after `delivery_confirmed`.
+- Hanuja collects all customer payments centrally and pays sellers after `delivery_confirmed`, on the due date of the seller's approved invoice to Hanuja.
 - If an attacker changes a seller's IBAN before a payout batch runs, funds go to the
   wrong account immediately.
 - The damage is potentially irreversible without legal intervention.

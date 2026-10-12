@@ -118,7 +118,8 @@ have no Prisma dependency.
 
 Key domain artifacts:
 
-- `payout-calculator.ts` — `calculateNetPayout()`, `calculateHoldUntil()`, `isHoldExpired()`
+- `payout-calculator.ts` — `calculateNetPayout()`, `calculatePayoutDueDate()`, `nextPayoutDay()`, `isHoldExpired()`
+- `seller-purchase-invoice.ts` — `calculateSellerPurchaseInvoice()` (the seller's invoice amount to Hanuja)
 - `penalty-calculator.ts` — `calculatePenaltyAmount()`, `SILENT_DELIVERY_CONFIRMATION_HOURS = 72`
 - `order-state-machine.ts` — `assertTransition()` guard for valid status moves
 - `commission-resolver.ts` — four-level commission resolution: product override → category → seller → system default

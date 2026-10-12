@@ -38,12 +38,17 @@ At a high level, the intended flow is:
 3. payment is confirmed
 4. order becomes visible to seller
 5. seller accepts/fulfills the order
-6. shipment is created or tracking is entered
+6. shipment is created or tracking is entered; the seller invoices Hanuja for the order
+   (order number in the description) — a missing invoice does not block this step
 7. order is delivered
-8. delivery is confirmed
-9. payout hold countdown starts
+8. delivery is confirmed; the payout record is created
+9. the admin approves the seller's invoice; the payout term runs from its invoice date
+   (first Friday on or after invoice date + 30 days)
 10. return/dispute windows and risk checks are evaluated
-11. payout becomes eligible if no blocking issue exists
+11. payout becomes eligible on the due date if no blocking issue exists
+
+Hanuja issues the customer's sales invoice within 7 days of handover to cargo, independently of the
+seller's invoice (satıcı Hanuja modeli).
 
 Do not collapse these stages into fewer stages if clarity is lost.
 
@@ -154,7 +159,7 @@ Possible sources:
 - admin manually verifies delivery evidence
 
 ### delivery_confirmed
-Means delivery is operationally accepted for payout countdown purposes.
+Means delivery is operationally accepted for payout purposes.
 
 This may occur by:
 
@@ -162,7 +167,7 @@ This may occur by:
 2. admin confirmation after review
 3. silent confirmation if delivered status exists and customer does not object within the defined waiting period
 
-Payout countdown starts from `delivery_confirmed`, never from `delivered`. :contentReference[oaicite:5]{index=5}
+A payout record is created only at `delivery_confirmed`, never at `delivered`. Its term runs from the approved seller invoice date (`07-marketplace-finance-rules.md` → Payout Eligibility Rules).
 
 ## Delivery Confirmation Logic
 
@@ -360,10 +365,13 @@ Risk review must not be invisible.
 
 Order lifecycle must remain aligned with payout rules.
 
-### Payout countdown starts when:
-- status becomes `delivery_confirmed`
+### Payout is created and matures when:
+- the payout record is created when status becomes `delivery_confirmed`
+- it matures on the first Friday on or after the approved seller invoice date + 30 days
 
 ### Payout must remain blocked when:
+- the seller's invoice to Hanuja is missing, rejected or not yet due
+- delivery is not confirmed
 - return is open
 - dispute is open
 - chargeback risk exists
@@ -456,7 +464,7 @@ Do not:
 - expose unpaid orders to sellers
 - treat seller rejection as penalty-free by default
 - treat `delivered` as equivalent to `delivery_confirmed`
-- start payout countdown from shipment or delivery alone
+- start the payout term from shipment or delivery alone, or without an approved seller invoice
 - keep shipped orders in a naive cancellation flow
 - assume all returns are inside 14 days
 - assume all post-14-day returns are automatically accepted

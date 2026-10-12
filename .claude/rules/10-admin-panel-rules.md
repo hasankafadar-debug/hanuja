@@ -232,7 +232,8 @@ Finance views are one of the most critical admin areas in Hanuja.
 
 Before payout is released, admin must be able to see:
 
-- maturity date / 30-day hold completion
+- the seller invoice review state and its due date (first Friday on or after invoice date + 30 days)
+- delivery confirmation
 - open return status
 - dispute status
 - fraud/risk flags
@@ -251,6 +252,41 @@ If payouts are processed in batches:
 - batch execution must be auditable
 - partial failures must be traceable
 - re-run behavior must be safe and controlled
+
+## Invoice Rules in Admin Panel (satıcı Hanuja modeli)
+
+Hanuja is the seller of record. The order detail page has a **"Belgeler ve Faturalar"** section.
+
+### Seller's invoice to Hanuja — review
+
+- The card shows the expected KDV-inclusive amount and the KDV split from
+  `api/domain/seller-purchase-invoice.ts`, plus a checklist: Hanuja's legal name as buyer, amount,
+  KDV rate (`OrderLine.taxRate`) and the order number in the description.
+- **Approve** requires the invoice number and invoice date (Türkiye calendar day; not in the future,
+  not before the order's payment date). The date starts the payout term; approval writes the due date
+  to the payout.
+- **Reject** requires a reason (5–1000 characters); the seller is notified (`seller_invoice_rejected`)
+  and the payout stays blocked.
+- Both decisions need the current file revision (`If-Match`) and write an audit entry
+  (`seller_invoice_approved` / `seller_invoice_rejected`). An approved invoice cannot be decided again;
+  to correct it the admin removes and re-uploads the file (management permission), which resets review.
+
+### Hanuja's sales invoice to the customer
+
+- Issued manually in Uyumsoft within 7 days of handover to cargo, then uploaded as a PDF on the order
+  (`OrderCustomerInvoice`). It does not wait for the seller's invoice.
+- The e-Arşiv block lists what the invoice needs: buyer identity and billing address, lines with KDV
+  rates, payment method and date, carrier and handover date, the sales channel line.
+- Upload, replacement (revision + reason) and removal (reason) are audited
+  (`customer_invoice_uploaded` / `_replaced` / `_removed`). Each new file notifies the customer once
+  ("Faturanız oluşturuldu").
+- The orders list has an invoice column and quick filters "Müşteri faturası bekleyen" (shipped, no
+  invoice; deadline handover + 7 days) and "Müşteri faturası kesilmiş".
+
+### Commission
+
+No separate commission invoice is issued any more. The "Komisyonlar" page keeps the commission list,
+older commission invoices (read-only history) and commission exemptions. Penalty invoices remain.
 
 ## Penalty and Waiver Rules
 

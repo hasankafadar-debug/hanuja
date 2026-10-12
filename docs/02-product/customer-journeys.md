@@ -36,10 +36,12 @@ No journey step may imply that seller receives payment directly or that payout o
 12. Customer receives notification to confirm delivery.
 13. Customer clicks "Teslim Aldım" — status moves to `delivery_confirmed`.
     - If customer does not act within 72 hours of `delivered`, silent confirmation applies.
-14. Payout hold countdown begins (30 days from `delivery_confirmed`).
-15. If no return or dispute is opened, payout becomes eligible after hold period.
+14. Hanuja's sales invoice (issued within 7 days of shipment) appears under "Faturalarım" and on the
+    order detail.
+15. The seller's payout follows the approved invoice the seller issued to Hanuja (first Friday on or
+    after invoice date + 30 days), provided delivery is confirmed and no return or dispute is open.
 
-**Outcome:** Order complete. Seller payout scheduled after 30-day hold.
+**Outcome:** Order complete. The customer sees only Hanuja's invoice.
 
 ---
 

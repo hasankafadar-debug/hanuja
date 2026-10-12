@@ -8,6 +8,8 @@ paths:
   - "db/**/*"
 model: sonnet
 effort: medium
+version: 1.0.0
+last-updated: 2026-09-12
 ---
 
 This skill defines Hanuja deployment discipline.
@@ -21,14 +23,14 @@ Environment separation:
 - production: live credentials, live data, real payment processing
 
 Coolify deployment rules:
-1. Three separate Coolify services: web, seller-panel, admin-panel
-2. Shared backend API service (or embedded in each app via Next.js API routes)
+1. Four separate Coolify services: web, seller-panel, admin-panel, worker (BullMQ/queue jobs)
+2. Business logic lives in api/ (imported by the apps and the worker), not a separate deployed API service
 3. Separate Redis and PostgreSQL services
 4. Environment variables configured per service in Coolify — never in repo
 5. Docker-based deployment with health checks
 
 Pre-deployment checklist:
-- [ ] All required env vars present (DATABASE_URL, REDIS_URL, NEXTAUTH_SECRET, IYZICO_*, R2_*, MEILISEARCH_*)
+- [ ] All required env vars present (DATABASE_URL, REDIS_URL, BETTER_AUTH_SECRET, IYZICO_*, R2_*, MEILISEARCH_*, SMTP_*)
 - [ ] Database migration applied (pnpm db:migrate:deploy)
 - [ ] Meilisearch indexes created/updated
 - [ ] Build passes (pnpm build)

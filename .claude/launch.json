@@ -14,10 +14,28 @@
       "port": 3001
     },
     {
+      "name": "admin-panel",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "admin-panel", "dev"],
+      "port": 3002
+    },
+    {
       "name": "web-prod",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "web", "start"],
       "port": 3000
+    },
+    {
+      "name": "seller-prod",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "seller-panel", "start"],
+      "port": 3001
+    },
+    {
+      "name": "admin-prod",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "admin-panel", "start"],
+      "port": 3002
     }
   ]
 }

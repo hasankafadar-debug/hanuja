@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-09-25
+# Son güncelleme: 2026-10-11
 # Durum: taslak v1
 
 # Admin Journeys
@@ -44,8 +44,8 @@ Amac, hangi admin akisinda hangi veri, yetki ve audit beklentisinin oldugunu sab
 
 - Giris noktasi: `/admin-panel/hakedisler` veya `/admin-panel/finans`
 - Amac: payout-ready kayitlari bloklayan durum kalmadan batch'e almak
-- Gerekli veri: holdUntil, blockedReason, negatif bakiye, return, dispute ve fraud durumu
-- **Önemli kural:** `holdUntil` geçmesi yeterli değil, minimum koşuldur. Payout eligible olabilmesi için ayrıca: açık iade yok, açık dispute yok, fraud flag yok, banka detayı doğrulanmış, negatif bakiye offseti uygulanmış olmalıdır.
+- Gerekli veri: satıcı faturası onay durumu ve vadesi (`holdUntil`), teslim onayı, blockedReason, negatif bakiye, return, dispute ve fraud durumu
+- **Önemli kural:** vade (onaylı satıcı faturası tarihi + 30 gün sonrasındaki ilk cuma) minimum koşuldur. Payout eligible olabilmesi için ayrıca: teslim onaylı, açık iade yok, açık dispute yok, fraud flag yok, banka detayı doğrulanmış, negatif bakiye offseti uygulanmış olmalıdır.
 - Karar: batch schedule, manual release, hold devam
 - Zorunlu kontrol: finance admin yetkisi ve audit kaydi
 
@@ -119,6 +119,22 @@ Amac, hangi admin akisinda hangi veri, yetki ve audit beklentisinin oldugunu sab
   yeniden onizleme gerekir. Gonderilmis duyurunun yalniz panel metni duzenlenir, e-posta yeniden gitmez.
   Medya herkese acik URL'dedir; gizli bilgi iceren medya yuklenmez. Resend gunluk kotasi islemsel
   e-postalarla ortaktir. Ayrinti: `docs/07-operations/email-phase-5-report.md`
+
+## Journey 9: Satici faturasi onayi ve musteri faturasi (satici Hanuja modeli, 2026-10-11)
+
+- Giris noktasi: `/siparisler` (fatura sutunu; "Musteri faturasi bekleyen" / "Musteri faturasi kesilmis"
+  hizli filtreleri) → siparis detayi "Belgeler ve Faturalar"
+- Satici faturasi: beklenen KDV dahil tutar ve KDV dagilimi gosterilir; admin PDF'te alici unvanini,
+  tutari, KDV oranini ve aciklamadaki siparis numarasini kontrol eder. Onay icin fatura no + fatura
+  tarihi zorunlu (ileri tarih ve odeme tarihinden onceki tarih reddedilir); onay hakedis vadesini
+  yazar (fatura tarihi + 30 gun, ilk cuma). Red icin gerekce zorunlu; saticiya bildirim gider, hakedis
+  bloke kalir. Onayli fatura yeniden degerlendirilemez.
+- Musteri faturasi: Hanuja Uyumsoft'ta kesip (kargoya verilisten itibaren 7 gun) PDF'i yukler;
+  "e-Arsiv icin bilgiler" blogu gerekli alanlari toplar. Degistirme surum + gerekce, kaldirma gerekce ister.
+  Her yeni dosya musteriye bir kez "Faturaniz olusturuldu" bildirimi uretir.
+- Zorunlu kontrol: admin yetkisi, `If-Match` surum kontrolu ve audit kaydi
+  (`seller_invoice_approved/rejected`, `customer_invoice_uploaded/replaced/removed`).
+  Ayrinti: `docs/07-operations/invoice-management.md`
 
 ## UI beklentileri
 

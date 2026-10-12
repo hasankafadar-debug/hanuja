@@ -138,8 +138,11 @@ Her kesinleşmiş `ReturnRequest` için:
 **Job adı:** `payout-maturity-scan`  
 **Zamanlama:** Her gün (tercihen sabah 06:00)  
 **İşlem:**
-1. `holdUntil <= şimdiki zaman` ve `status = hold_active` olan payout'ları tarar
-2. Her payout için bloke koşullarını kontrol eder (açık iade, uyuşmazlık, eksik banka bilgisi vb.)
+1. `holdUntil <= şimdiki zaman` ve `status = hold_active` olan payout'ları tarar (`holdUntil` = onaylı
+   satıcı faturası tarihi + 30 gün sonrasındaki ilk cuma; onaylı faturası olup vadesi yazılmamış kayıtlar
+   önce tamamlanır)
+2. Her payout için bloke koşullarını kontrol eder (satıcı faturası onayı ve vadesi, teslim onayı, açık iade,
+   uyuşmazlık, eksik banka bilgisi vb.)
 3. Tüm koşullar temizse `status = payout_ready` yapar
 4. Değişiklik varsa `SellerLedgerEntry` bekleme bitiş kaydı eklenebilir
 5. İdempotent çalışır — aynı payout için çift geçiş yapılmaz

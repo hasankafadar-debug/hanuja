@@ -9,6 +9,8 @@ paths:
   - "packages/types/**/*"
 model: sonnet
 effort: high
+version: 1.0.0
+last-updated: 2026-09-12
 ---
 
 This skill contains the source guidance for Hanuja admin finance flow behavior.

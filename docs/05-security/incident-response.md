@@ -76,7 +76,7 @@ Payout eligibility must be re-evaluated order by order before re-enabling normal
 ### 2. Payout Batch Error
 
 Symptoms: `payout-maturity.job.ts` or `payout-batch.job.ts` releases payout before the
-30-day hold expires, releases payout with an open return or dispute, or applies an incorrect
+invoice due date (first Friday after the approved seller invoice date + 30 days), releases payout with an open return or dispute, or applies an incorrect
 net payout calculation.
 
 Containment:

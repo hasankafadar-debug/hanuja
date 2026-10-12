@@ -141,7 +141,7 @@ payout happens when that payout is processed.
 ## Invoice Relationship
 
 Hanuja issues a service or advertising fee invoice to the seller for each charged fee.
-This is separate from the per-order commission invoice.
+This is separate from the per-order commission (which is deducted from the seller's invoice to Hanuja; no commission invoice is issued since 2026-10).
 
 - The seller receives a Hanuja-issued ad/service invoice.
 - The invoice amount corresponds to the ledger entry amount.

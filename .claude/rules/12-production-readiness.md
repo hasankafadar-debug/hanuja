@@ -1036,6 +1036,54 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   `required-server-files.json`'a yazıldığı için restart yetmez; worker, admin ve web gerekmez.
 - **Deploy sonrası:** Coolify seller-panel logunda `Request body exceeded 10MB` uyarısı görünmemeli.
 
+### 45. Satıcı Hanuja modeli: satıcının Hanuja'ya faturası, müşteri faturası, faturaya bağlı hakediş (yeni — 2026-10-11)
+
+- **Neden:** ödeme kuruluşları düz sanal POS için malın satıcısının üye işyeri olmasını istiyor; iyzico'nun
+  pazaryeri ürünü mobilyayı kabul etmiyor. Sözleşmelerde satıcı Hanuja, tasarımcı tedarikçi. Sipariş →
+  kargo → teslim onayı akışı aynı; değişen faturanın yönü ve hakediş vadesi. Anahtar/çift model yok;
+  canlıda yalnız iç test verisi var, geriye dönük veri düzeltmesi yapılmadı (iş sahibi kararı).
+- **Satıcının Hanuja'ya faturası** (`OrderSellerInvoice`): tutar = KDV dahil satış − satıcı kupon payı −
+  KDV dahil komisyon, ürünün KDV oranıyla (`api/domain/seller-purchase-invoice.ts`). Satıcı sipariş
+  detayında dökümü, sipariş numarası talimatını ve Hanuja'nın unvan/VKN/MERSİS bilgisini görür; müşterinin
+  TC/VKN'si ve fatura adresi satıcıya artık seçilmez. Kargo girişi engellenmez; bir saat sonra fatura yoksa
+  tek seferlik `seller_invoice_reminder` gider (15 dakikalık `seller-invoice-reminder` işi, ceza yok).
+- **Admin onayı:** fatura no + fatura tarihi ile onay (tarih ileri olamaz, ödeme tarihinden önce olamaz)
+  veya gerekçeli red (`seller_invoice_rejected` bildirimi). İkisi de `If-Match` ve denetim kaydı ister.
+  Onaylı fatura yeniden değerlendirilemez; satıcı onaylı faturayı değiştiremez/silemez (e-postayla da).
+- **Hakediş:** kayıt yine teslim onayında oluşur; vade = onaylı fatura tarihi + `payoutHoldDays` (30)
+  sonrasındaki ilk cuma (Europe/Istanbul, cuma tatilse sonraki iş günü). Onay vadeyi `Payout.holdUntil`'a
+  yazar; `payout-maturity` işi eksik vadeleri tamamlar. Uygunluk ayrıca teslim onayı ve açık iade/uyuşmazlık
+  yokluğu ister. Komisyon ledger kaydı artık baştan satıcıya görünür; komisyon faturası kesilmez
+  (admin `commission-invoice` route'u ve `seller-invoices` route'undaki `commission` tipi kaldırıldı).
+- **Müşteri faturası** (`OrderCustomerInvoice`): Hanuja Uyumsoft'ta keser (kargoya verilişten itibaren
+  7 gün), admin PDF'i yükler; müşteri "Faturalarım" ve sipariş detayında yalnız bunu görür. Satıcı
+  faturası müşteriye hiçbir yoldan gitmez: eski `/documents/invoices/[sellerId]` linkleri yeni
+  `/documents/customer-invoice` route'una yönlenir; kuyrukta kalmış eski `invoice:` olaylı
+  `invoice_uploaded` bildirimleri `SELLER_INVOICE_NOT_CUSTOMER_FACING` ile atlanır.
+- **Kart ödemesi:** yeni opsiyonel env `IYZICO_CARD_PAYMENTS_ENABLED` (yalnız web, varsayılan kapalı);
+  eski `CARD_PAYMENTS_ENABLED` kart ödemesini artık açmaz. iyzico onayı ve yeni sözleşme metinleri
+  gelmeden açılmaz. `.env.example`'a `IYZICO_CARD_PAYMENTS_ENABLED=` satırı elle eklenmelidir (agent izin
+  kısıtı — §18 emsali).
+- **Migration VAR:** `20261011120000_seller_purchase_invoice_customer_invoice` — yalnız ekleme
+  (`SellerInvoiceReviewStatus` enum'u, `order_seller_invoices` inceleme alanları, `order_customer_invoices`
+  tablosu, `NotificationType`/`AdminActionType` değerleri `ADD VALUE IF NOT EXISTS`). Ödeme tekilliğine
+  dokunmaz → `check-duplicate-payments` gerekmez. Mevcut faturalar `pending` olarak kalır.
+- **Redeploy: dört servis**, sıra **worker → admin-panel → seller-panel → web**. Worker önce: migration'ı
+  açılışta uygular, yeni kuyruk/şablonlar ve bildirim atlama mantığı oradadır.
+- **Canlıya etkisi:** onaylı satıcı faturası olmayan mevcut hakedişler "Satıcının Hanuja'ya faturası
+  onaylanmadı" ile beklemede kalır (iç test siparişleri dahil); ödenmiş hakedişler etkilenmez.
+- **Testler:** `tests/unit/domain/seller-purchase-invoice.test.ts`, `seller-invoice-review.service.test.ts`,
+  `customer-invoice.service.test.ts`, `payout-eligibility-invoice.test.ts`, `seller-invoice-reminder.service.test.ts`,
+  `seller-purchase-invoice-card.test.ts`, `tests/security/seller-invoice-admin-routes.test.ts`,
+  `tests/postgres/seller-purchase-invoice-flow.test.ts` (gerçek PostgreSQL: onay → vade cuması, red → bildirim
+  ve bloke, hatırlatma tekilliği, müşteri faturası bildirimi).
+- **Açık uçlar:** sözleşme/hukuki metinler (mesafeli satış, ön bilgilendirme, satıcı sözleşmesi) iş sahibi
+  tarafından hazırlanacak — `docs/08-legal/` altındaki satıcı sözleşmesi ve mesafeli satış notları hâlâ aracı
+  modeli anlatıyor. Mali müşavire sorulacaklar: irsaliye kopyasının sisteme alınması, müşteri iadesinde
+  Hanuja → satıcı iade faturası, ceza belgesinin türü. Yerel geliştirme ortamında özel belge deposu
+  (`PRIVATE_DOCUMENT_ROOT`, `PRIVATE_DOCUMENT_ENCRYPTION_KEY`) tanımlı olmadığı için fatura dosyası yükleme
+  yerelde denenemez (bu işten önce de böyleydi).
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

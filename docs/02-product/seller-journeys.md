@@ -109,8 +109,9 @@ Source of truth: `.claude/rules/09-seller-panel-rules.md`, `CLAUDE.md` sections 
 1. Seller opens the finance section of the seller panel.
 2. Seller sees the earnings summary split into four explicit buckets:
    - Pending: orders not yet at delivery_confirmed
-   - On hold: delivery_confirmed reached, within the mandatory 30-day hold period
-   - Payout-ready: hold period completed, no blocking conditions remain
+   - On hold: delivery_confirmed reached, waiting for the approval of the seller's invoice to Hanuja
+     or for its due date (first Friday on or after invoice date + 30 days)
+   - Payout-ready: due date reached, no blocking conditions remain
    - Paid: amounts already released by Hanuja
 3. Seller drills into a specific order to see a full deduction breakdown:
    - Gross product amount

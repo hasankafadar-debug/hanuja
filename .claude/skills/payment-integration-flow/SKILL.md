@@ -10,6 +10,8 @@ paths:
   - "api/repositories/payment*"
 model: sonnet
 effort: high
+version: 1.0.0
+last-updated: 2026-09-12
 ---
 
 This skill defines Hanuja payment integration discipline.
@@ -49,6 +51,14 @@ Webhook rules:
 - Process asynchronously via BullMQ queue if needed
 - Log every incoming webhook with full payload (masked sensitive data)
 - Handle: payment success, payment failure, refund completed, chargeback
+
+Confirm-time binding invariants (card payment confirmation must fail closed on any mismatch):
+- Provider-reported amount (`paidPrice`) must exactly equal `Order.totalAmount`; a mismatch is
+  rejected and recorded as `amount_mismatch_rejected` (no state change)
+- A given Iyzico `paymentId` may confirm only one order (`Payment.providerPaymentId` is unique;
+  reuse is rejected as `providerRef_reuse_rejected`)
+- The 3DS callback's `conversationId` must match the target order's `conversationId`
+- `fraudStatus = -1` must be rejected
 
 Refund API rules:
 - Refund must be triggered by platform business logic, not by seller directly

@@ -211,7 +211,7 @@ Payout operations must be treated as security-sensitive finance actions.
 
 ### Rules
 
-1. Payout countdown starts only from `delivery_confirmed`.
+1. A payout needs `delivery_confirmed` and an admin-approved seller invoice to Hanuja; its term runs from the invoice date. Only an admin may approve or reject that invoice (`If-Match`, audited).
 2. Payout release must be blocked if any risk or review flag is open.
 3. Manual payout release must be auditable.
 4. Payout batch actions should support review and traceable execution.

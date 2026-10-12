@@ -10,6 +10,8 @@ paths:
   - "apps/seller-panel/src/**/upload*"
 model: sonnet
 effort: medium
+version: 1.0.0
+last-updated: 2026-09-12
 ---
 
 This skill defines Hanuja media storage discipline.

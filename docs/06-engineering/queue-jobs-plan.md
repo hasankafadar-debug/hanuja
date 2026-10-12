@@ -173,3 +173,14 @@ back to `reserved` on a definite failure, or to `uncertain` (counted, never retr
 The history itself does not depend on this queue: every hooked write records in its own transaction, rule
 boundaries are written ahead with their exact times, and database triggers mark every other change. See
 [phase 6 operations report](../07-operations/email-phase-6-report.md).
+
+## Active queue: `seller-invoice-reminder` — 2026-10-11 (satıcı Hanuja modeli)
+
+- Repeatable job `sweep` every 15 minutes (worker concurrency 1).
+- Visits, page by page (500, ordered by id), every shipment handed to cargo between 1 hour and 7 days
+  ago. For each order/seller without an `OrderSellerInvoice` it writes one `seller_invoice_reminder`
+  (transactional lane, `noreply`) with event key `seller-invoice-reminder:{orderId}:{sellerId}` through
+  `recordNotifications` (`skipDuplicates`), so the reminder is written once and repeated runs only count
+  new rows. No penalty; cargo entry is never blocked.
+- `payout-maturity` also gained `sweepMissingDueDates`: unsettled payouts without `holdUntil` whose
+  seller invoice is approved get their due date (`syncInvoiceDueDate`).

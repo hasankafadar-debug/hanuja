@@ -26,7 +26,7 @@ Source of truth for rules: `.claude/rules/05-security-rules.md`
 
 ## 1. Design Principle
 
-Hanuja collects all customer payments centrally and holds seller funds for 30 days after `delivery_confirmed`. This makes the platform financially sensitive at every layer. Security is not only about account protection — it includes finance integrity, payout safety, admin action traceability, and seller identity protection.
+Hanuja collects all customer payments centrally (as seller of record since 2026-10) and pays sellers on the first Friday after their approved invoice to Hanuja + 30 days, once delivery is confirmed. This makes the platform financially sensitive at every layer. Security is not only about account protection — it includes finance integrity, payout safety, admin action traceability, and seller identity protection.
 
 The guiding principles are:
 

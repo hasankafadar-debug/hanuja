@@ -1,5 +1,5 @@
-# Son güncelleme: 2026-09-15
-# Durum: taslak v1
+# Son güncelleme: 2026-10-11 (satıcı Hanuja modeli: faturaya bağlı vade)
+# Durum: taslak v2
 
 # Payout Lifecycle — Satıcı Ödeme Döngüsü
 
@@ -9,23 +9,27 @@ Kaynak kurallar: `.claude/rules/07-marketplace-finance-rules.md`, `.claude/rules
 
 ## 1. Temel İlke
 
-Satıcı ödemesi yalnızca `delivery_confirmed` sonrasında başlar.
+Satıcı Hanuja modeli (2026-10): Hanuja müşteriye satıcıdır; satıcı (tasarımcı) siparişi kargoya
+verirken Hanuja'ya faturalar. Hakediş bu faturanın ödemesidir.
 
-Aşağıdaki durumlar payout sayacını **başlatmaz**:
+- Payout **kaydı** yalnızca `delivery_confirmed` olduğunda oluşur.
+- Payout **vadesi** onaylı satıcı faturasının tarihinden hesaplanır (§3).
+- Ödeme için üçü birden gerekir: onaylı satıcı faturası, `delivery_confirmed`, vadeye ulaşılmış olması
+  (artı §5'teki bloklama koşullarının temiz olması).
 
-| Durum | Payout başlar mı? |
+| Durum | Payout kaydı oluşur mu? |
 |-------|------------------|
 | `payment_confirmed` | Hayır |
 | `seller_accepted` | Hayır |
-| `shipped` | Hayır |
+| `shipped` | Hayır (satıcı bu aşamada Hanuja'ya fatura keser) |
 | `delivered` | Hayır |
-| `delivery_confirmed` | **Evet — sayaç buradan başlar** |
+| `delivery_confirmed` | **Evet — kayıt oluşur; vade fatura tarihinden işler** |
 
 `delivered` ile `delivery_confirmed` arasındaki fark platform sabiti olarak uygulanır. Hiçbir kod, yorumlama veya kısayol bu ayrımı geçersiz kılamaz.
 
 ---
 
-## 2. Payout Sayacı Nasıl Başlar
+## 2. Payout Kaydı Nasıl Oluşur
 
 `order.deliveryConfirmedAt` alanına zaman damgası yazılır. Bu değer üç yoldan biriyle oluşur:
 
@@ -36,7 +40,8 @@ Aşağıdaki durumlar payout sayacını **başlatmaz**:
 `Payout` kaydı oluşturulur:
 - `status = hold_active`
 - `holdStartedAt = deliveryConfirmedAt`
-- `holdUntil = deliveryConfirmedAt + 30 gün`
+- `holdUntil` = satıcı faturası o anda onaylıysa vade günü (§3); değilse boş kalır ve fatura
+  onaylandığında yazılır (`syncInvoiceDueDate`). `payout-maturity` işi eksik vadeleri tamamlar.
 
 ### Faz 1: işlem bütünlüğü ve kurtarma (2026-09-14)
 
@@ -62,11 +67,20 @@ başarılı sürümüne dönülür; ekstre kayıtları geri alınmaz veya silinm
 
 ---
 
-## 3. 30 Günlük Bekleme Dönemi
+## 3. Vade: Onaylı Satıcı Faturası + 30 Gün, İlk Cuma
 
-`delivery_confirmed` tarihinden itibaren 30 gün bekletme zorunludur.
+```
+vade = (fatura tarihi + PlatformSettings.payoutHoldDays) günü veya sonrasındaki ilk cuma   // varsayılan 30
+```
 
-Bu süre içinde sistem şunları değerlendirir:
+- Günler Europe/Istanbul takvim günüdür; cuma resmi tatilse sonraki iş günü.
+- Fatura tarihi, admin onaylarken girdiği tarihtir (ileri tarih olamaz, ödeme tarihinden önce olamaz).
+- Örnek: fatura 7 Eylül 2026 Pzt → 7 Ekim Çrş → **9 Ekim Cuma**; fatura 10 Ekim Cmt → 9 Kasım Pzt →
+  **13 Kasım Cuma**.
+- Vade gününde bir engel varsa ödeme, engel kalktıktan sonraki ilk cumaya kalır.
+- Fatura reddedilir ya da dosyası değiştirilirse vade silinir; yeni onayla yeniden yazılır.
+
+Vadeye kadar sistem şunları değerlendirir:
 
 - Açık iade talebi var mı?
 - Açık uyuşmazlık var mı?
@@ -77,7 +91,7 @@ Bu süre içinde sistem şunları değerlendirir:
 - Fraud veya risk incelemesi açık mı?
 - Tutarsız finans kaydı var mı?
 
-Bu süre toplu ödeme tarihiyle kısaltılamaz. Satıcı haftalık/aylık batch döngüsüne girse bile, bireysel sipariş seviyesindeki 30 günlük hold koşulu geçerliliğini korur.
+Bu süre toplu ödeme tarihiyle kısaltılamaz. Satıcı haftalık/aylık batch döngüsüne girse bile, bireysel sipariş seviyesindeki fatura vadesi geçerliliğini korur.
 
 ---
 
@@ -85,7 +99,7 @@ Bu süre toplu ödeme tarihiyle kısaltılamaz. Satıcı haftalık/aylık batch 
 
 | PayoutStatus | Açıklama |
 |-------------|----------|
-| `hold_active` | 30 günlük bekleme süresi devam ediyor |
+| `hold_active` | Satıcı faturası onayı veya vade bekleniyor |
 | `payout_blocked` | Bloke eden koşul var; ödeme yapılamaz |
 | `payout_ready` | Tüm kontroller geçti; batch'e alınabilir |
 | `payout_scheduled` | Toplu ödeme batch'ine dahil edildi |
@@ -102,6 +116,9 @@ Aşağıdaki koşullardan herhangi biri karşılandığında payout `payout_bloc
 
 | Koşul | Kaynak |
 |-------|--------|
+| Satıcının Hanuja'ya faturası yok, onay bekliyor veya reddedildi | `OrderSellerInvoice.reviewStatus` |
+| Fatura vadesi dolmadı | Onaylı `invoiceDate` + 30 gün, ilk cuma |
+| Teslim onayı yok | `Order.deliveryConfirmedAt` |
 | Açık iade talebi (`return_requested`, `return_under_review`) | `ReturnRequest` tablosu |
 | Açık uyuşmazlık (`dispute_open`, `under_review`) | `Dispute.payoutBlocked = true` |
 | Admin hold (`payout_blocked` aksiyonu) | `AdminAuditLog` |
@@ -123,7 +140,7 @@ kontrol eder. Manuel bloke otomatik olarak kaldırılmaz.
 
 Ödeme kaydı sırasında satıcı aktifliği, doğrulanmış ACTIVE banka, bekleyen banka
 değişikliği, satıcıya ait açık iade/uyuşmazlık, tamamlanmamış iadeler, pozitif tutar
-ve teslim onayından sonraki 30 gün yeniden kontrol edilir. Müşteri lehine çözülmüş
+ve onaylı satıcı faturasının vadesi (teslim onayıyla birlikte) yeniden kontrol edilir. Müşteri lehine çözülmüş
 uyuşmazlığın iadesi tamamlanana kadar ödeme açılmaz. Satıcısı belirli olmayan
 iade/uyuşmazlık siparişin tüm satıcılarını korumalı olarak bloke eder.
 
@@ -255,7 +272,7 @@ Manual override için sadece yüksek yetkili admin (`finance_admin` veya `super_
 
 | Payout Durumu | Satıcı Panelinde Gösterilen |
 |--------------|----------------------------|
-| `hold_active` | "Beklemede — X tarihine kadar" (holdUntil gösterilir) |
+| `hold_active` | "Fatura onayı bekleniyor" veya "Ödeme vadesi: X" (onaylı faturanın vade günü) |
 | `payout_blocked` | "Bloke — [sebep]" (blockedReason satıcı-güvenli versiyonu) |
 | `payout_ready` | "Ödeme Hazır" |
 | `payout_scheduled` | "Ödeme Planlandı — Batch #REF" |
@@ -302,7 +319,7 @@ yazılmaz. Aynı kapanışın tekrarı yeni tahsilat oluşturmaz.
 
 Tamamı borca giden hakediş `settleWithoutTransfer: true` ile açıkça kapatılır:
 durum `payout_offset`, kapanış `settledAt`, transfer alanları ve `paidAt` boş kalır.
-Bu işlem 30 günlük beklemeyi, manuel blokeyi veya diğer ödeme koşullarını aşmaz.
+Bu işlem fatura vadesini, manuel blokeyi veya diğer ödeme koşullarını aşmaz.
 Sonradan gelen iadeler kapanmış hakedişi değiştirmez; sonraki ödemeye borç olur.
 
 Örnekler: 1.000 TL hakediş / 300 TL borç → 300 TL mahsup + 700 TL transfer.
@@ -354,7 +371,8 @@ Payout lifecycle otomasyonu için aşağıdaki job'lar gereklidir:
 
 | Job | Tetikleyici | Görev |
 |-----|-------------|-------|
-| `payout-maturity` | Periyodik (günlük) | `holdUntil` dolmuş ve koşullar temiz payoutları `payout_ready` yapar |
+| `payout-maturity` | Periyodik (günlük) | Eksik hakediş kayıtlarını ve onaylı faturası olup vadesi yazılmamış kayıtları tamamlar; vadesi dolmuş ve koşulları temiz payoutları `payout_ready` yapar |
+| `seller-invoice-reminder` | 15 dakikada bir | Kargoya verilişten 1 saat sonra hâlâ faturası olmayan sipariş/satıcı için tek seferlik `seller_invoice_reminder` yazar (ceza yok) |
 | `delivery-silent-confirm` | `delivered` geçişinden 72 saat sonra | İtiraz yoksa `delivery_confirmed`'e geçirir |
 | `payout-batch-prepare` | Admin tetiklemesi veya zamanlı | `payout_ready` kayıtlarını batch'e toplar |
 

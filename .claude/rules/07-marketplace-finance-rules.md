@@ -30,6 +30,21 @@ This means:
 
 Never model Hanuja as a simple listing platform with direct customer-to-seller payment.
 
+### Seller of record (satıcı Hanuja modeli, 2026-10)
+
+Hanuja is the seller in customer contracts. The designer/brand ("seller" in code and panels) is
+Hanuja's supplier:
+
+- Hanuja issues the sales invoice to the customer (manually in Uyumsoft for now, within 7 days of
+  handover to cargo; the admin uploads the PDF — `OrderCustomerInvoice`).
+- The seller invoices Hanuja for the order when shipping (`OrderSellerInvoice`). The amount is the
+  order's seller payout before later returns: KDV-inclusive sale − seller coupon share − KDV-inclusive
+  commission, at the product's own KDV rate. Cargo is included in the product price and is not on it.
+  Single source: `api/domain/seller-purchase-invoice.ts`.
+- The seller's invoice is internal: it is never shown or sent to the customer.
+- No separate commission invoice is issued; commission ledger entries are visible to the seller at once.
+  Penalty invoices from Hanuja to the seller remain.
+
 ## Payment Collection Rules
 
 ### 1. Payment owner
@@ -195,24 +210,30 @@ Recommended separation:
 
 ## Payout Eligibility Rules
 
-### 1. Payout start condition
+### 1. Payout record and term
 
-Seller payout countdown starts only when the order reaches:
+The payout record is created only when the order reaches `delivery_confirmed` — never at
+`delivered`, `shipped`, `tracking_entered` or `payment_confirmed`.
 
-`delivery_confirmed`
+The payout **term** runs from the approved seller invoice to Hanuja:
 
-It does **not** start at:
+```
+dueDate = first Friday on or after (invoiceDate + PlatformSettings.payoutHoldDays)   // default 30
+          (Europe/Istanbul calendar days; a Friday public holiday → next business day)
+```
 
-- `delivered`
-- `shipped`
-- `tracking_entered`
-- `payment_confirmed`
+`invoiceDate` is the date the admin records when approving the invoice (it may not be in the future
+or before the order's payment date). Implementation: `calculatePayoutDueDate`
+(`api/domain/payout-calculator.ts`), `readInvoicePayoutDueDate` (`api/services/payout-eligibility.ts`).
+Approval writes the due date to `Payout.holdUntil`; a rejection or a replaced file clears it.
 
-### 2. Mandatory hold period
+### 2. Mandatory preconditions until the due date
 
-After `delivery_confirmed`, a **30-day hold** applies.
+A payout matures only when the seller invoice is approved, the order is `delivery_confirmed` and the
+due date has been reached. If a blocker is open on the due date, the payout is paid on the first
+Friday after the blocker clears.
 
-During this hold period, the system must evaluate:
+Until then, the system must evaluate:
 
 - return risk
 - open disputes
@@ -229,6 +250,8 @@ An order or payout item becomes payout-ready only if all required checks pass.
 
 At minimum, payout must not be released when there is:
 
+- no approved seller invoice to Hanuja, or its due date not yet reached
+- no delivery confirmation
 - open return flow
 - unresolved dispute
 - unresolved fraud review
@@ -245,7 +268,7 @@ Hanuja may pay sellers in payout batches such as:
 - biweekly
 - monthly
 
-But the **30-day order-level hold** is still mandatory.
+But the **order-level invoice term** (approved invoice date + 30 days, first Friday) is still mandatory.
 
 Do not replace order-level maturity with a simple calendar payout date.
 
@@ -523,6 +546,8 @@ When implementing finance logic:
 Do not:
 
 - pay seller immediately after delivery
+- pay a seller whose invoice to Hanuja is missing, rejected or not yet due
+- show or send the seller's invoice to Hanuja to the customer
 - treat `delivered` as `delivery_confirmed`
 - collapse all deductions into one opaque field
 - remove auditability for manual finance actions

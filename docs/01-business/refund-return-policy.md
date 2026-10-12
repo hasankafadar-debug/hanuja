@@ -161,7 +161,7 @@ If a return or refund is finalized **before** the seller's payout has been relea
 - the seller does not receive payout for the refunded amount
 - admin finance screens show why the payout was reduced
 
-This is the normal and expected path. Most returns happen during the 30-day hold period,
+This is the normal and expected path. Most returns happen before the payout due date,
 so payout has not yet been released when the return is resolved.
 
 ---

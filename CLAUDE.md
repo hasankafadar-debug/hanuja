@@ -60,16 +60,23 @@ Claude must treat this repository as a **business-critical marketplace system**,
 ## 2) Non-negotiable business truths
 These rules are the base reality of the project. Do not silently weaken, bypass, or reinterpret them.
 
-### 2.1 Centralized collection model
+### 2.1 Centralized collection model — Hanuja is the seller of record
+- **Hanuja is the seller in customer contracts** (satıcı Hanuja modeli, 2026-10). Designers/brands
+  (called "sellers" in the codebase and panels) are Hanuja's **suppliers**; their brand and store
+  pages stay on the storefront.
 - Customer payments are collected by **Hanuja**, not by sellers.
 - Hanuja is the financial collection point in the product flow.
 - This means payout, refund, fraud, reconciliation, and audit behavior are all first-class concerns.
 
 ### 2.2 Seller payout model
-- Seller payout begins only after `delivery_confirmed` status.
+- The payout record is created only at `delivery_confirmed`.
 - `shipped`, `delivered`, and `delivery_confirmed` are different states.
-- Seller payout is held for **30 days** after `delivery_confirmed`.
-- During that hold period, returns, disputes, fraud, chargeback risk, and manual review may block or reduce payout.
+- The payout term runs from the **approved invoice the seller issued to Hanuja**: due on the first
+  Friday on or after `invoiceDate + PlatformSettings.payoutHoldDays` (default **30**), counted in
+  Europe/Istanbul calendar days. A Friday public holiday moves it to the next business day.
+- A payout matures only when all hold: seller invoice approved, `delivery_confirmed`, no open return
+  or dispute. If something blocks it on the due day, it is paid on the first Friday after the block clears.
+- Until it matures, returns, disputes, fraud, chargeback risk, and manual review may block or reduce payout.
 
 ### 2.3 Seller net payout formula
 Seller net payout is calculated from:
@@ -80,6 +87,11 @@ Seller net payout is calculated from:
 - minus ad or service fees
 - minus penalty invoices
 - equals seller net payout
+
+For an order, the seller's invoice to Hanuja carries the same amount: KDV-inclusive sale − seller
+coupon share − KDV-inclusive commission, issued at the product's own KDV rate (`OrderLine.taxRate`).
+Cargo is included in the product price and does not appear on that invoice. The single calculation is
+`api/domain/seller-purchase-invoice.ts`.
 
 ### 2.4 Penalty model
 - Standard penalty rate is **20% of product price**.
@@ -103,7 +115,8 @@ Every seller must be treated as having a current account (`cari hesap`) containi
 ### 2.6 Delivery semantics
 - Raw shipment is not enough for payout.
 - Delivery confirmation can come from cargo integration, manual admin verification, customer confirmation, or silent confirmation rules.
-- Payout logic starts from verified delivery confirmation, not from seller claim.
+- Verified delivery confirmation is a payout precondition, never a seller claim. The payout term
+  itself runs from the approved seller invoice date (§2.2).
 
 ### 2.7 Return and dispute logic
 - Return and dispute flows are tightly connected to payout blocking and reconciliation.
@@ -386,7 +399,7 @@ If you propose a replacement, document the reason, migration impact, and rollout
 - **Finance math is always server-side** — payout calculations, penalty amounts, and ledger mutations never happen in the browser.
 - **PostgreSQL is the source of truth** — Meilisearch is a read projection only; never trust it for finance or lifecycle state.
 - **Status transitions are append-only** — use event/history tables alongside current state; do not overwrite without a trace.
-- **Payout countdown starts only at `delivery_confirmed`** — never at `delivered`, `shipped`, or any earlier state.
+- **A payout needs both an approved seller invoice and `delivery_confirmed`** — the term runs from the invoice date (§2.2); `delivered`, `shipped`, or any earlier state never matures a payout.
 - **Sellers see only payment-confirmed orders** — all seller-scoped queries must enforce ownership + payment status on the server.
 
 ### Critical docs before implementing
@@ -574,17 +587,25 @@ When calculating seller commission, use the first rate that exists in this prior
 3. Seller general rate
 4. System default rate
 
-### 15.2 Invoice relationship
-- Seller issues the **product invoice** to the customer.
-- Hanuja issues the **commission invoice** and any **service/ad fee invoices** to the seller.
+### 15.2 Invoice relationship (satıcı Hanuja modeli)
+- **Hanuja issues the sales invoice to the customer**, within 7 days of the shipment being handed to
+  cargo. For now it is issued manually in Uyumsoft and the admin uploads the PDF to the order; it does
+  not wait for the seller's invoice.
+- **The seller invoices Hanuja** for the order when shipping: amount per §2.3, the product's KDV rate,
+  the order number in the description. The admin checks amount, KDV rate and order number, then
+  approves it with the invoice number and date (or rejects it with a reason).
+- A missing seller invoice never blocks cargo entry; the seller gets one reminder an hour after the
+  shipment is entered. No penalty.
+- No separate commission invoice is issued — the commission is already deducted from the seller's
+  invoice amount. Hanuja still issues **penalty invoices** (and any service/ad fee invoices) to the seller.
 
 ### 15.3 Net ruling sentences
 These are platform constants. Do not contradict them in code or documentation.
 
-1. Hanuja collects all customer payments (card and bank transfer/EFT).
-2. The seller issues the product invoice to the customer.
-3. Hanuja issues commission and other service invoices to the seller.
-4. Seller net payout is made 30 days after `delivery_confirmed`.
+1. Hanuja is the seller of record and collects all customer payments (card and bank transfer/EFT).
+2. Hanuja issues the sales invoice to the customer; the seller (designer) issues its invoice to Hanuja.
+3. No separate commission invoice: the commission is deducted from the seller's invoice to Hanuja. Hanuja issues penalty and other service invoices to the seller.
+4. Seller net payout is due on the first Friday on or after the approved seller invoice date + 30 days (`PlatformSettings.payoutHoldDays`, Europe/Istanbul); a Friday holiday moves it to the next business day. `delivery_confirmed` and no open return/dispute remain preconditions.
 5. If the seller rejects a paid order, a penalty of 20% of the product amount is applied.
 6. If shipment is delayed past the commitment date, a penalty of 1% of the product amount accrues per overdue day; on the 20th overdue day the order is auto-cancelled and customer refund is initiated. The commitment date is per product: the seller enters `Product.fulfillmentDays` (business days) as a mandatory field at product creation, snapshotted to `OrderLine.promisedFulfillmentDays` at order time.
 7. An additional 10-day extension may be granted only with customer awareness and an explicit admin decision.
@@ -596,3 +617,36 @@ These are platform constants. Do not contradict them in code or documentation.
 13. The commission deduction is itself KDV-inclusive: `commissionAmount = roundMoney(base × commissionRate × (1 + commissionVatRate))`, where `commissionVatRate` is `PlatformSettings.commissionVatRate` (default 0.2000).
 14. Seller coupon (`Coupon.sellerId` set) and seller discount rule cost belongs to the seller: the coupon discount is allocated to the seller's lines as `OrderLine.couponDiscountAmount`, reduces the commission base, and reduces net payout (`netPayoutAmount = totalPrice − couponDiscountAmount − commissionAmount`).
 15. Platform coupon (`Coupon.sellerId` null) and EFT/Havale channel discount (`Order.eftDiscountAmount`) are absorbed by Hanuja. They do not reduce the commission base, `Payout.grossAmount`, or `Payout.netAmount`.
+16. The seller invoices Hanuja when shipping, with the order number in the description: KDV-inclusive sale − seller coupon share − KDV-inclusive commission, at the product's KDV rate. Cargo is not on it. A missing invoice does not block cargo entry; the seller is reminded, without penalty.
+
+---
+
+## 16) Working Discipline Rules
+
+These rules govern how Claude must behave while working in this repository, in addition to the rules above.
+
+### 16.1 Never assume — ask when unsure
+- Do not guess intent on an ambiguous request.
+- If a requirement is unclear, or the codebase supports more than one valid interpretation, state every viable option instead of silently picking one and proceeding.
+
+### 16.2 Prefer the simplest solution
+- Do not add features, abstractions, or configuration that were not requested.
+- Do not add complexity to handle cases that do not exist yet.
+
+### 16.3 Touch only what was asked
+- Do not modify unrelated working code "while you're in there."
+- Do not refactor, rename, or clean up adjacent code as a side effect of an unrelated task.
+- If you notice an unrelated issue, name it to the user instead of fixing it inline.
+
+### 16.4 Verify before declaring done
+- Before reporting a task complete, check that the actual result matches what was asked.
+- If the change is verifiable (build, test, run), verify it — do not declare success from code review alone.
+- If verification is not possible, say so explicitly instead of claiming success.
+
+### 16.5 No filler in responses
+- Remove sentences that carry no information for the task at hand (e.g. "Sure, happy to help", "Of course").
+- Responses should be direct and relevant to the code/task.
+
+### 16.6 Always respond to the user in Turkish
+- All chat responses to the user must be written in Turkish, regardless of the language of code, file contents, or this document.
+- Code, identifiers, commit messages, and file content follow their own existing language conventions (see rules above) — this rule is about the chat reply only.

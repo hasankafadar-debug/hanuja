@@ -1,10 +1,11 @@
 # Invoice PDF Receiving (Resend)
 
 Each paid order/seller pair has one permanent random invoice address under
-`fatura.hanuja.com.tr`. The seller sees this address inside **Fatura Bilgileri**,
-directly below delivery information. The customer's account email is never
-selected for the seller view. A separate billing address takes precedence;
-delivery information is used when no separate billing address was selected.
+`fatura.hanuja.com.tr`. In the seller-Hanuja model (2026-10) this address receives the
+**seller's invoice to Hanuja** for the order. The seller sees it inside **Fatura Bilgileri**,
+together with Hanuja's legal invoice identity (name, address, tax office/number, MERSİS) and the
+waybill note. The customer's account email, identity number and billing address are never selected
+for the seller view.
 
 ## Production configuration
 
@@ -50,13 +51,18 @@ References: [custom receiving domains](https://resend.com/docs/dashboard/receivi
   actual byte limit of 20 MB. XML, images and link-only emails are recorded as
   `no_valid_attachment`; the seller uses manual upload for these cases.
 - `resend:<email_id>` is the unique processing ID. Concurrent/redelivered events
-  cannot create a second invoice or customer notification. Invoice and notification
-  commit in one transaction; failed writes remove the newly stored file.
+  cannot create a second invoice or audit record. The invoice and its audit record
+  commit in one transaction; failed writes remove the newly stored file. The seller's
+  invoice never notifies the customer.
 - Unknown/ambiguous recipients and invalid attachments are terminal, acknowledged
   outcomes. Transient API/download/storage/DB failures return 503 for Resend retry.
   Download links are retrieved afresh from the provider API on each attempt.
-- The existing order/seller invoice slot is replaced on a new invoice; customer
-  order details and Faturalarım use the existing authorized PDF view/download.
+- E-mail can fill only an empty order/designer invoice slot. Any existing PDF, including
+  a pending or rejected invoice, is preserved; further e-mails record `blocked_invoice_policy`.
+  Concurrent PDFs are serialized under the same pair lock. Corrections require an authorized
+  panel upload with the current revision; provider signature verification does not establish
+  the attachment sender's identity. The first PDF always requires manual admin review.
+  Customers see only Hanuja's own invoice (`docs/07-operations/invoice-management.md`).
 - Manual invoice upload remains available regardless of receiving status.
 
 ## Existing orders and release verification
@@ -69,9 +75,10 @@ No schema migration is required. Deploy affected apps in the runbook order:
 admin-panel, seller-panel, web.
 
 Verify a dedicated test PDF sent to an order alias appears in the correct seller
-invoice slot and in the customer's order detail, can be viewed/downloaded, and
-does not appear on another order/seller. Replay its webhook and verify one invoice
-notification. Also verify manual PDF upload and the three application health endpoints.
+invoice slot (seller panel and admin order detail, "Onay bekliyor"), can be viewed/downloaded
+there, does not appear on another order/seller and does **not** appear for the customer.
+Replay its webhook and verify a single invoice and audit record. Also verify manual PDF
+upload and the three application health endpoints.
 
 The legacy Postmark invoice/RET endpoints remain available for older integrations;
 their Basic Auth credentials are optional and are not requirements for Resend.

@@ -1,5 +1,5 @@
-# Son güncelleme: 2026-04-18
-# Durum: taslak v1
+# Son güncelleme: 2026-10-11 (satıcı Hanuja modeli: fatura ilişkisi)
+# Durum: taslak v2
 
 # Commission Policy
 
@@ -177,31 +177,45 @@ confirmation (for example, via admin adjustment).
 
 ## Invoice Relationship
 
-Hanuja operates a centralized collection model. The invoice structure reflects this.
+Hanuja operates a centralized collection model and, since 2026-10, is the **seller of record**
+in customer contracts (satıcı Hanuja modeli). The designer/brand is Hanuja's supplier.
 
-### Product invoice — seller issues to customer
+### Sales invoice — Hanuja issues to customer
 
-The seller (as the product supplier) issues a VAT invoice directly to the customer for
-the product amount. This is the seller's legal obligation as the product seller.
+Hanuja issues the VAT invoice to the customer for the order, within 7 days of handover to cargo.
+For now it is issued manually in Uyumsoft and uploaded to the order by an admin
+(`OrderCustomerInvoice`). It does not wait for the seller's invoice.
 
-### Commission invoice — Hanuja issues to seller
+### Supplier invoice — seller issues to Hanuja
 
-Hanuja issues a commission invoice to the seller for the commission amount earned by
-Hanuja on that sale. This invoice documents Hanuja's service fee.
+The seller invoices Hanuja for the order when shipping (`OrderSellerInvoice`), with the order number
+in the description and at the product's own KDV rate (`OrderLine.taxRate`):
+
+```
+invoiceAmount = KDV-inclusive sale − seller coupon share − KDV-inclusive commission
+```
+
+Example: 1.000 TL sale, %20 commission, %20 commission KDV → commission 240 TL → invoice 760 TL
+KDV-inclusive. Cargo is included in the product price and is not on the invoice. Cancelled units are
+excluded; an exempted line has no commission. Single calculation: `api/domain/seller-purchase-invoice.ts`.
+An admin checks amount, KDV rate and order number, then approves it with the invoice number and date.
+
+### No separate commission invoice
+
+The commission is Hanuja's margin, already deducted from the seller's invoice amount; no commission
+invoice is issued for new orders. Older commission invoices remain as read-only history.
 
 ### Other service invoices — Hanuja issues to seller
 
 If applicable, Hanuja also issues separate invoices to the seller for:
 - advertising or listing service fees (see `ad-fee-policy.md`)
-- shipping/cargo charges reflected to the seller (see `cargo-shipping-policy.md`)
 - penalty invoices if applicable (see `penalty-policy.md`)
 
 ### Implementation constraint
 
-Commission must not be described as a simple price split or as a marketplace cut without
-an invoice. The invoice relationship is the legal mechanism. Any code that records commission
-in the seller ledger must do so with a reference that corresponds to a real or future invoice
-record.
+The commission ledger entry references the payout and is visible to the seller as soon as it is
+written. The seller's invoice to Hanuja and the payout must reconcile: with no returns, the invoice
+amount equals the payout net (`tests/unit/domain/seller-purchase-invoice.test.ts`).
 
 ---
 
@@ -233,7 +247,7 @@ The admin panel must provide visibility into:
 - which resolution level was used (product override / category / seller / system default)
 - total commission collected by period
 - commission deductions in each seller's ledger
-- commission invoice reference where available
+- the seller's approved invoice to Hanuja for the order (older orders: commission invoice reference)
 
 Admin must be able to trace how any individual commission was calculated.
 

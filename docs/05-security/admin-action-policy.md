@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-09-25
+# Son güncelleme: 2026-10-11
 # Durum: taslak v1
 
 # Admin Action Policy
@@ -370,6 +370,44 @@ failures of live sellers are flagged; the dispatch sweep requeues them within th
 | `targetType` | `announcement` |
 | `newData` | `{ requestedCount, eligibleHash }` |
 | `reason` | admin-entered reason |
+
+### 14. Seller Invoice Approved / Rejected (satıcı Hanuja modeli, 2026-10-11)
+
+The seller's invoice to Hanuja is reviewed on the order detail page
+(`POST /api/admin/orders/[id]/invoices/[sellerId]/review`). Admin session, CSRF and `If-Match`
+(current file revision) are required; the actor always comes from the session. Approval needs the
+invoice number (1–64 characters: letters, digits, space, `. _ / -`) and the invoice date (Türkiye
+calendar day, not in the future, not before the order's payment date) and sets the payout due date.
+Rejection needs a reason (5–1000 characters), notifies the seller and keeps the payout blocked.
+An approved invoice cannot be decided again.
+
+| Field | Value |
+|---|---|
+| `actionType` | `seller_invoice_approved` / `seller_invoice_rejected` |
+| `targetType` | `order` |
+| `targetId` | order ID |
+| `previousData` | invoice audit data + previous `reviewStatus` |
+| `newData` | `{ sellerId, revision, reviewStatus, invoiceNumber, invoiceDate }` |
+| `reason` | `Satıcı faturası onaylandı: <no>` or the rejection reason |
+
+### 15. Customer Invoice Uploaded / Replaced / Removed
+
+Hanuja's sales invoice to the customer (`GET/POST/DELETE /api/admin/orders/[id]/customer-invoice`).
+Admin session and CSRF are required; upload only for a payment-confirmed order. Replacement needs the
+current revision and a reason; removal needs a reason (5–1000 characters). Each new file notifies the
+customer once.
+
+| Field | Value |
+|---|---|
+| `actionType` | `customer_invoice_uploaded` / `customer_invoice_replaced` / `customer_invoice_removed` |
+| `targetType` | `order` |
+| `targetId` | order ID |
+| `previousData` | previous file data (replace/remove) |
+| `newData` | `{ invoiceId, fileName, mimeType, sizeBytes, invoiceNumber, revision }` or `{ removed: true }` |
+| `reason` | admin-entered reason (first upload: default text) |
+
+Commission invoices are no longer issued: `POST /api/admin/order-lines/[id]/commission-invoice` was
+removed and `POST /api/admin/seller-invoices` accepts only `penalty`.
 
 ---
 
