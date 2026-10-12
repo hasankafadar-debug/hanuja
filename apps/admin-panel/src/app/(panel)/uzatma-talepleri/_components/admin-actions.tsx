@@ -69,7 +69,7 @@ export function AdminActions({
             Kabul Et
           </ActionButton>
           <ActionButton onClick={() => setActive('escalate')}>Müşteriye Sor</ActionButton>
-          <ActionButton onClick={() => setActive('seller')}>Satıcıdan Bilgi Bekle</ActionButton>
+          <ActionButton onClick={() => setActive('seller')}>Tasarımcıdan Bilgi Bekle</ActionButton>
           <ActionButton onClick={() => setActive('reject')} danger>
             Reddet
           </ActionButton>
@@ -101,7 +101,7 @@ export function AdminActions({
                   ? 'Red Gerekçesi'
                   : active === 'escalate'
                     ? 'Müşteriye Soru'
-                    : 'Satıcıdan İstenecek Bilgi'}
+                    : 'Tasarımcıdan İstenecek Bilgi'}
             </span>
             <textarea
               value={note}

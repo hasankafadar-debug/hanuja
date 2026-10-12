@@ -192,18 +192,21 @@ describe('deliveryConfirmedTemplate', () => {
 })
 
 describe('invoiceUploadedTemplate', () => {
-  it('links the invoice viewer and names the seller', () => {
+  // Satıcı Hanuja modeli: the sales invoice is Hanuja's; no designer is named.
+  it("links Hanuja's invoice and never names the designer", () => {
     const template = invoiceUploadedTemplate({
       ...base,
-      invoiceUrl: 'https://www.hanuja.com.tr/api/orders/order-1/documents/invoices/seller-1',
+      invoiceUrl: 'https://www.hanuja.com.tr/api/orders/order-1/documents/customer-invoice',
       sellerName: 'Atelier Noa',
       items: [line],
     })
     expect(template.subject).toBe('Faturanız Oluşturuldu — #26050042')
     expect(template.html).toContain('Faturayı Görüntüle')
-    expect(template.html).toContain('href="https://www.hanuja.com.tr/api/orders/order-1/documents/invoices/seller-1"')
-    expect(template.html).toContain('Atelier Noa')
-    expect(template.text).toContain('Fatura: https://www.hanuja.com.tr/api/orders/order-1/documents/invoices/seller-1')
+    expect(template.html).toContain('href="https://www.hanuja.com.tr/api/orders/order-1/documents/customer-invoice"')
+    expect(template.html).toContain('siparişinizin faturası oluşturuldu')
+    expect(template.html).not.toContain('Atelier Noa')
+    expect(template.text).not.toContain('Atelier Noa')
+    expect(template.text).toContain('Fatura: https://www.hanuja.com.tr/api/orders/order-1/documents/customer-invoice')
   })
 })
 
@@ -229,7 +232,7 @@ describe('customerOrderCancelledTemplate', () => {
   it('explains seller rejection, 20-day auto cancel and payment failure without a refund line', () => {
     const seller = customerOrderCancelledTemplate({ ...base, items: [line], partial: false, actorRole: 'seller' })
     expect(seller.subject).toBe('Siparişiniz İptal Edilmiştir — #26050042')
-    expect(seller.html).toContain('satıcı tarafından iptal edildi')
+    expect(seller.html).toContain('tasarımcı tarafından iptal edildi')
 
     const system = customerOrderCancelledTemplate({ ...base, items: [line], partial: false, actorRole: 'system' })
     expect(system.html).toContain('sevk süresini aştığı için')

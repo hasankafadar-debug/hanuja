@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Sorularım',
-  description: 'Satıcılara sorduğunuz sorular ve yanıtları.',
+  description: 'Tasarımcılara sorduğunuz sorular ve yanıtları.',
   robots: { index: false, follow: false },
 }
 
@@ -45,8 +45,8 @@ export default async function MyQuestionsPage({ searchParams }: Props) {
           Sorularım
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-          Ürünler hakkında satıcılara sorduğunuz sorular. Konuşma herkese açık değildir. Siz, ilgili
-          satıcı ve denetim amacıyla yetkili yöneticiler erişebilir.
+          Ürünler hakkında tasarımcılara sorduğunuz sorular. Konuşma herkese açık değildir. Siz, ilgili
+          tasarımcı ve denetim amacıyla yetkili yöneticiler erişebilir.
         </p>
       </div>
 
@@ -54,7 +54,7 @@ export default async function MyQuestionsPage({ searchParams }: Props) {
         <EmptyState
           icon={<MessageCircleQuestion className="h-12 w-12" />}
           title="Henüz soru sormadınız"
-          description="Bir ürün sayfasındaki “Soru Sor” butonuyla satıcıya soru sorabilirsiniz."
+          description="Bir ürün sayfasındaki “Soru Sor” butonuyla tasarımcıya soru sorabilirsiniz."
         />
       ) : (
         <ul className="divide-y rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>
@@ -91,7 +91,7 @@ export default async function MyQuestionsPage({ searchParams }: Props) {
                       className="rounded-full border px-2 py-0.5"
                       style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
                     >
-                      {thread.status === 'waiting_for_seller' ? 'Satıcı yanıtı bekleniyor' : 'Yanıtlandı'}
+                      {thread.status === 'waiting_for_seller' ? 'Tasarımcı yanıtı bekleniyor' : 'Yanıtlandı'}
                     </span>
                   </div>
                 </div>

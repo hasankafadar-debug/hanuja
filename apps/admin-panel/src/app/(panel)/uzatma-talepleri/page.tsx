@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: 'Ek Sure Talepleri' }
 const STATUS_LABELS: Record<ExtensionRequestStatus, string> = {
   pending_admin_review: 'Admin Incelemesi Bekliyor',
   awaiting_customer_decision: 'Musteri Yaniti Bekleniyor',
-  awaiting_seller_followup: 'Saticidan Bilgi Bekleniyor',
+  awaiting_seller_followup: 'Tasarımcıdan Bilgi Bekleniyor',
   approved: 'Onaylandi',
   rejected_by_admin: 'Admin Reddetti',
   rejected_by_customer: 'Musteri Reddetti',
@@ -114,7 +114,7 @@ export default async function UzatmaTalepleriPage({
     { value: 'all', label: 'Tumu' },
     { value: 'pending_admin_review', label: 'Admin Bekleniyor' },
     { value: 'awaiting_customer_decision', label: 'Musteri Bekleniyor' },
-    { value: 'awaiting_seller_followup', label: 'Satici Bekleniyor' },
+    { value: 'awaiting_seller_followup', label: 'Tasarımcı Bekleniyor' },
     { value: 'approved', label: 'Onaylanmis' },
     { value: 'rejected_by_admin', label: 'Admin Reddetti' },
     { value: 'rejected_by_customer', label: 'Musteri Reddetti' },
@@ -165,7 +165,7 @@ export default async function UzatmaTalepleriPage({
           <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Tarih', 'Siparis', 'Satici', 'Talep', 'Onaylanan', 'Durum', 'Sebep', 'Aksiyon'].map(
+                {['Tarih', 'Siparis', 'Tasarımcı', 'Talep', 'Onaylanan', 'Durum', 'Sebep', 'Aksiyon'].map(
                   (heading) => (
                     <th
                       key={heading}

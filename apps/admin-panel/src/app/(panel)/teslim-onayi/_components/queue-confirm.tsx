@@ -173,7 +173,7 @@ export function QueueConfirm({ lines,
                 className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide"
                 style={{ color: 'var(--color-muted-fg)' }}
               >
-                Satıcı
+                Tasarımcı
               </th>
               <th
                 className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide"
@@ -198,7 +198,7 @@ export function QueueConfirm({ lines,
                   className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide"
                   style={{ color: 'var(--color-muted-fg)' }}
                 >
-                  Satıcı Bildirimi
+                  Tasarımcı Bildirimi
                 </th>
               ) : null}
               <th

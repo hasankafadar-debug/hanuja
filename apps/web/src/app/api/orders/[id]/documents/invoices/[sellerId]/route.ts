@@ -1,40 +1,21 @@
-import { headers } from 'next/headers'
 import { type NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
-import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { handleError } from '@hanuja/api/lib/response'
-import { createBinaryFileResponse } from '@hanuja/api/lib/file-response'
-import { createOrderDocumentService } from '@hanuja/api/services/order-document.service'
-import { loginRedirectUrl } from '@/lib/login-redirect'
+import { getCustomerInvoiceUrl } from '@hanuja/api/lib/platform-info'
 
 interface Context {
   params: Promise<{ id: string; sellerId: string }>
 }
 
+/**
+ * Links in earlier e-mails pointed at the designer's invoice. In the seller-Hanuja model
+ * the customer only receives Hanuja's own invoice, so these links now open that invoice;
+ * login and order ownership are enforced by the target route.
+ */
 export async function GET(req: NextRequest, ctx: Context) {
-  try {
-    const { id, sellerId } = await ctx.params
-    const session = await auth.api.getSession({ headers: await headers() })
-    // Linked from invoice e-mails: send a signed-out reader through login and back here.
-    if (!session?.user) {
-      return NextResponse.redirect(
-        loginRedirectUrl(req, `/api/orders/${id}/documents/invoices/${sellerId}${new URL(req.url).search}`),
-      )
-    }
-
-    const download = new URL(req.url).searchParams.get('download') === '1'
-    const service = createOrderDocumentService({ prisma: createPrismaForRoute() })
-    const invoice = await service.getInvoiceForCustomer(id, session.user.id, sellerId)
-    const file = await service.readInvoiceFile(invoice.fileKey)
-
-    return createBinaryFileResponse({
-      body: file.body,
-      contentType: invoice.mimeType || file.contentType || 'application/octet-stream',
-      fileName: invoice.fileName,
-      disposition: download ? 'attachment' : 'inline',
-      sizeBytes: invoice.sizeBytes || file.sizeBytes,
-    })
-  } catch (err) {
-    return handleError(err)
-  }
+  const { id } = await ctx.params
+  const response = NextResponse.redirect(
+    getCustomerInvoiceUrl(id, req.nextUrl.searchParams.get('download') === '1'),
+    307,
+  )
+  response.headers.set('Cache-Control', 'no-store')
+  return response
 }

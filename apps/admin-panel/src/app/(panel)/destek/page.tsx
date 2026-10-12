@@ -32,7 +32,7 @@ export default async function AdminSupportTicketsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Destek Talepleri"
-        description="Satıcılardan gelen destek taleplerini inceleyin, yanıtlayın ve çözümleyin."
+        description="Tasarımcılardan gelen destek taleplerini inceleyin, yanıtlayın ve çözümleyin."
       />
 
       <div

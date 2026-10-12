@@ -195,7 +195,7 @@ export default function OrderWorkflowCard({
       {actions.includes('accept') ? (
         <div className="space-y-4">
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Sipariş ödeme onaylı olarak satıcı kuyruğuna düştü.
+            Sipariş ödeme onaylı olarak tasarımcı kuyruğuna düştü.
           </p>
           <div className={`grid gap-3 ${actionColumns}`}>
             <Button

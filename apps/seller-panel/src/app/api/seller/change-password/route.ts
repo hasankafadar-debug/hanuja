@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   if (csrfError) return csrfError
   const session = await auth.api.getSession({ headers: request.headers })
   if (!session?.user) return NextResponse.json({ message: 'Oturum açmanız gerekiyor.' }, { status: 401 })
-  if (session.user.role !== 'seller') return NextResponse.json({ message: 'Bu işlem satıcı hesabına özeldir.' }, { status: 403 })
+  if (session.user.role !== 'seller') return NextResponse.json({ message: 'Bu işlem tasarımcı hesabına özeldir.' }, { status: 403 })
   const limit = await checkUserRateLimit(session.user.id, 'seller:change-password', HIGH_RISK_RATE_LIMIT)
   if (!limit.allowed) return limit.response!
   const parsed = schema.safeParse(await request.json().catch(() => null))

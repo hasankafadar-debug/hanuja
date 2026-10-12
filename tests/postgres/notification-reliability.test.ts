@@ -131,12 +131,14 @@ describe('notification persistence against PostgreSQL', () => {
     const user = await prisma.user.create({
       data: { email: `${randomUUID()}@example.test`, role: 'customer' },
     })
+    // A customer event without its own document check; invoice e-mails additionally
+    // verify Hanuja's stored customer invoice (order-invoice-management.test.ts).
     const payload = {
       userId: user.id,
       eventKey: randomUUID(),
-      type: 'invoice_uploaded' as const,
-      title: 'Fatura',
-      body: 'Hazır',
+      type: 'return_requested' as const,
+      title: 'İade talebi',
+      body: 'Alındı',
       data: {
         orderNumber: '123',
         orderUrl: 'https://www.hanuja.com.tr/siparis/test',

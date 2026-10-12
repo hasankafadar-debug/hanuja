@@ -3,6 +3,9 @@ import { maskIban, HIGH_RISK_RATE_LIMIT, rateLimit } from '@hanuja/security'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { createNotificationService } from './notification.service'
 import { recordNotification } from './notification-outbox.service'
+import { lockSellerFinance } from '../lib/seller-finance-lock'
+import { invalidatePayoutSchedule } from './payout-eligibility'
+import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
 
 export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
   const auditLog = createAdminAuditLogRepository(prisma)
@@ -36,7 +39,7 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
     }
 
     if (seller.status !== 'active') {
-      throw new Error('Banka bilgisi yalnızca aktif satıcı hesabında değiştirilebilir.')
+      throw new Error('Banka bilgisi yalnızca aktif tasarımcı hesabında değiştirilebilir.')
     }
 
     const limit = rateLimit(`seller-bank-change:${seller.id}`, HIGH_RISK_RATE_LIMIT)
@@ -68,6 +71,8 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
     }
 
     const created = await prisma.$transaction(async (tx) => {
+      await lockSellerFinance(tx, [seller.id])
+      await invalidatePayoutSchedule(tx, undefined, seller.id)
       const detail = await tx.sellerBankDetail.create({
         data: {
           sellerId: seller.id,
@@ -138,6 +143,7 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
     }
 
     await prisma.$transaction(async (tx) => {
+      await lockSellerFinance(tx, [detail.sellerId])
       await tx.sellerBankDetail.update({
         where: { id: detail.id },
         data: { status: 'CANCELLED', cancelledAt: new Date() },
@@ -156,6 +162,7 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
         },
       })
     })
+    await syncChangedPayoutSchedules(prisma, { sellerId: detail.sellerId })
   }
 
   async function approvePending(params: {
@@ -283,6 +290,7 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
 
     for (const detail of pending) {
       const activated = await prisma.$transaction(async (tx) => {
+        await lockSellerFinance(tx, [detail.sellerId])
         const activation = await tx.sellerBankDetail.updateMany({
           where: {
             id: detail.id,
@@ -329,6 +337,7 @@ export function createSellerBankService({ prisma }: { prisma: PrismaClient }) {
 
       if (!activated) continue
       activatedCount += 1
+      await syncChangedPayoutSchedules(prisma, { sellerId: detail.sellerId })
 
       await notifications.send({
         userId: detail.seller.user.id,

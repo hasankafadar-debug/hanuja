@@ -98,7 +98,7 @@ const _auth = betterAuth({
     before: createAuthMiddleware(async (ctx) => {
       if (sellerForbiddenTwoFactorPaths.has(ctx.path)) {
         throw new APIError("FORBIDDEN", {
-          message: "Satıcı paneli yalnızca e-posta doğrulama kodunu destekler.",
+          message: "Tasarımcı paneli yalnızca e-posta doğrulama kodunu destekler.",
         });
       }
 
@@ -167,7 +167,7 @@ const _auth = betterAuth({
     // OTP records are stored hashed by Better Auth. Seller accounts only use
     // email OTP; the TOTP provider is disabled for this panel.
     twoFactor({
-      issuer: "Hanuja Satici",
+      issuer: "Hanuja Tasarımcı",
       totpOptions: { disable: true },
       otpOptions: {
         digits: 6,
@@ -178,7 +178,7 @@ const _auth = betterAuth({
           try {
             await sendEmail({
               to: user.email,
-              subject: "Hanuja satıcı giriş kodunuz",
+              subject: "Hanuja tasarımcı giriş kodunuz",
               text: `Giriş kodunuz: ${otp}. Kod 10 dakika geçerlidir.`,
               html: `<p>Giriş kodunuz: <strong>${otp}</strong></p><p>Kod 10 dakika geçerlidir.</p>`,
               suppressDevelopmentRecipientLog: true,

@@ -64,8 +64,8 @@ export async function firePaymentConfirmedNotifications(
     title: paymentMethod === 'card' ? `Siparişiniz Alındı - #${orderNumber}` : 'Ödemeniz Onaylandı',
     body:
       paymentMethod === 'card'
-        ? 'Ödemeniz alındı ve siparişiniz satıcıya iletildi.'
-        : 'Siparişiniz ödeme onayı aldı ve satıcıya iletildi.',
+        ? 'Ödemeniz alındı ve siparişiniz tasarımcıya iletildi.'
+        : 'Siparişiniz ödeme onayı aldı ve tasarımcıya iletildi.',
     data: customerData,
   })
 
@@ -317,7 +317,7 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
             orderId: params.orderId,
             toStatus: 'seller_queue_ready',
             actorId: 'system',
-            reason: 'Satıcı kuyruğuna düştü',
+            reason: 'Tasarımcı kuyruğuna düştü',
           },
         })
         await (tx as PrismaClient).cartItem.deleteMany({

@@ -173,7 +173,7 @@ export function MediaLibraryClient({
 
         {/* Arama */}
         <Input
-          placeholder={isSellerProducts ? 'Ürün, model veya satıcı ara…' : 'Dosya adı ara…'}
+          placeholder={isSellerProducts ? 'Ürün, model veya tasarımcı ara…' : 'Dosya adı ara…'}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-48"
@@ -221,7 +221,7 @@ export function MediaLibraryClient({
             {debouncedSearch || (!isSellerProducts && (kind !== 'all' || folder !== 'all'))
               ? 'Farklı filtre deneyin.'
               : isSellerProducts
-                ? 'Yayındaki ürünlere bağlı satıcı görseli bulunmuyor.'
+                ? 'Yayındaki ürünlere bağlı tasarımcı görseli bulunmuyor.'
                 : 'İlk dosyayı yüklemek için Yükle butonunu kullanın.'}
           </p>
         </div>

@@ -237,7 +237,7 @@ export function SlideEditor({ open, slide, sellers, nextSortOrder, onClose, onSa
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="slide-seller">Atfedilen satıcı</Label>
+                <Label htmlFor="slide-seller">Atfedilen tasarımcı</Label>
                 <select
                   id="slide-seller"
                   value={form.sellerId}
@@ -245,7 +245,7 @@ export function SlideEditor({ open, slide, sellers, nextSortOrder, onClose, onSa
                   className="h-10 w-full rounded-md border px-3 text-sm"
                   style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-primary)' }}
                 >
-                  <option value="">Satıcı yok</option>
+                  <option value="">Tasarımcı yok</option>
                   {sellers.map((seller) => (
                     <option key={seller.id} value={seller.id}>
                       {seller.displayName}

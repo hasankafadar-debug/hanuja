@@ -71,6 +71,7 @@ export function createPayoutRepository(prisma: PrismaClient | Prisma.Transaction
         netAmount: Decimal
         holdStartedAt?: Date
         holdUntil?: Date
+        nextPaymentAt?: Date
         bankDetailId?: string
       },
       tx?: PrismaClient,

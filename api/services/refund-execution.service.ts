@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
 import {
   createRefundProcessor,
   RefundProviderError,
@@ -130,6 +131,7 @@ export function createRefundExecutionService({
       return { updated, allCompleted }
     })
     if (result.allCompleted) {
+      await syncChangedPayoutSchedules(prisma, { orderId: result.updated.orderId, sellerId: result.updated.sellerId })
       void enqueueCustomerRefundCompletedNotification(prisma, refundTransactionId).catch((error) =>
         console.error('[refund-execution] İade bildirimi kuyruğa eklenemedi:', error),
       )

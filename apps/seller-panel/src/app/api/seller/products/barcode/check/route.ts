@@ -22,12 +22,12 @@ export async function POST(req: NextRequest) {
   })
 
   if (!seller) {
-    return NextResponse.json({ error: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
+    return NextResponse.json({ error: 'Tasarımcı hesabı bulunamadı.' }, { status: 404 })
   }
 
   if (seller.status !== 'active') {
     return NextResponse.json(
-      { error: 'Satıcı hesabınız aktif değil.' },
+      { error: 'Tasarımcı hesabınız aktif değil.' },
       { status: 403 },
     )
   }

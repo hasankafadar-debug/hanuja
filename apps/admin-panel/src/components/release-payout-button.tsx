@@ -127,7 +127,7 @@ export function ReleasePayoutButton({
       </Button>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Satıcı ödemesini kaydet</DialogTitle>
+          <DialogTitle>Tasarımcı ödemesini kaydet</DialogTitle>
           <DialogDescription>
             {context?.amount === '0.00' ? 'Hakedişin tamamı borca mahsup edilecek. Banka transferi kaydedilmez.'
               : 'Güncel mahsup, transfer tutarı ve banka hesabını kontrol ederek yaptığınız transferi kaydedin.'}

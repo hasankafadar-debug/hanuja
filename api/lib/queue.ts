@@ -19,6 +19,7 @@ export const QUEUE_NAMES = {
   ANNOUNCEMENT_DISPATCH: 'announcement-dispatch',
   PRICE_HISTORY: 'price-history',
   PRIVATE_DOCUMENT_CLEANUP: 'private-document-cleanup',
+  SELLER_INVOICE_REMINDER: 'seller-invoice-reminder',
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
@@ -89,3 +90,4 @@ export const refundProcessingQueue = createQueueProxy(
 )
 export const priceHistoryQueue = createQueueProxy(QUEUE_NAMES.PRICE_HISTORY)
 export const privateDocumentCleanupQueue = createQueueProxy(QUEUE_NAMES.PRIVATE_DOCUMENT_CLEANUP)
+export const sellerInvoiceReminderQueue = createQueueProxy(QUEUE_NAMES.SELLER_INVOICE_REMINDER)

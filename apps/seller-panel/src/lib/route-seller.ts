@@ -12,7 +12,7 @@ export async function getActiveSellerIdOrThrow() {
 
   const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
   if (!seller || seller.status !== 'active') {
-    throw new ForbiddenError('Aktif satici hesabi gerekli')
+    throw new ForbiddenError('Aktif tasarımcı hesabi gerekli')
   }
 
   return seller.id
@@ -27,7 +27,7 @@ export async function getOperationalSellerIdOrThrow() {
 
   const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
   if (!seller || (seller.status !== 'active' && seller.status !== 'suspended')) {
-    throw new ForbiddenError('Satıcı hesabı sipariş işlemlerine kapalı')
+    throw new ForbiddenError('Tasarımcı hesabı sipariş işlemlerine kapalı')
   }
 
   return seller.id

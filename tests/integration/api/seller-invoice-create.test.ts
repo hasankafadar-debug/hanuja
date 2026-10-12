@@ -81,17 +81,13 @@ describe('POST /api/admin/seller-invoices — happy path', () => {
     getSessionMock.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } })
   })
 
-  it('delegates commission invoice creation to service with admin actor + order link', async () => {
+  // Satıcı Hanuja modeli: commission is deducted from the seller's invoice to Hanuja, so no
+  // commission invoice is issued any more; only penalty invoices are recorded.
+  it('rejects commission invoices without calling the service', async () => {
     const route = await import('../../../apps/admin-panel/src/app/api/admin/seller-invoices/route')
     const res = await route.POST(buildRequest(validBody))
-    expect(res.status).toBe(200)
-
-    const args = invoiceCreateMock.mock.calls[0]?.[0]
-    expect(args.type).toBe('commission')
-    expect(args.sellerId).toBe('seller-1')
-    expect(args.invoiceNumber).toBe('F-001')
-    expect(args.sourceOrderId).toBe('order-1')
-    expect(args.createdByAdminId).toBe('admin-1')
+    expect(res.status).toBe(422)
+    expect(invoiceCreateMock).not.toHaveBeenCalled()
   })
 
   it('passes penalty type with sourcePenaltyId for penalty invoices', async () => {
@@ -110,6 +106,29 @@ describe('POST /api/admin/seller-invoices — happy path', () => {
     const args = invoiceCreateMock.mock.calls[0]?.[0]
     expect(args.type).toBe('penalty')
     expect(args.sourcePenaltyId).toBe('pen-1')
+    expect(args.createdByAdminId).toBe('admin-1')
+  })
+
+  it('passes the extra invoice gross total and description to the service', async () => {
+    const route = await import('../../../apps/admin-panel/src/app/api/admin/seller-invoices/route')
+    const response = await route.POST(buildRequest({ ...validBody, type: 'additional',
+      sourceOrderId: undefined, amount: undefined, grossInvoiceAmount: '123.45', description: 'Fiyat farkı faturası' }))
+    expect(response.status).toBe(200)
+    expect(invoiceCreateMock.mock.calls[0]?.[0]).toMatchObject({
+      type: 'additional', description: 'Fiyat farkı faturası', createdByAdminId: 'admin-1',
+    })
+    expect(invoiceCreateMock.mock.calls[0]?.[0].grossInvoiceAmount.toFixed(2)).toBe('123.45')
+  })
+
+  it.each([
+    { description: '' }, { grossInvoiceAmount: undefined }, { sourcePenaltyId: 'pen-1' }, { payoutId: 'payout-1' },
+    { grossInvoiceAmount: 'abc' }, { grossInvoiceAmount: 'NaN' }, { grossInvoiceAmount: '1.001' },
+  ])('rejects an invalid extra invoice contract %j', async (patch) => {
+    const route = await import('../../../apps/admin-panel/src/app/api/admin/seller-invoices/route')
+    const response = await route.POST(buildRequest({ ...validBody, type: 'additional', sourceOrderId: undefined,
+      grossInvoiceAmount: '123.45', description: 'Fiyat farkı faturası', ...patch }))
+    expect(response.status).toBe(422)
+    expect(invoiceCreateMock).not.toHaveBeenCalled()
   })
 })
 

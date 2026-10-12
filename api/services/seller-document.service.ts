@@ -28,7 +28,7 @@ export const CONTRACT_MAX_TOTAL_SIZE_BYTES = 100 * 1024 * 1024
 export const IDENTITY_PARTS = new Set<SellerDocumentIdentityPart>(['combined', 'front', 'back'])
 
 export const LEGACY_DOCUMENT_REUPLOAD_MESSAGE =
-  'Bu belge eski depolama sisteminde kaldığı için kullanılamıyor. Satıcıdan belgeyi yeniden yüklemesini isteyin.'
+  'Bu belge eski depolama sisteminde kaldığı için kullanılamıyor. Tasarımcıdan belgeyi yeniden yüklemesini isteyin.'
 
 export const DOCUMENT_TYPE_LABELS: Record<SellerDocumentType, string> = {
   identity: 'Kimlik Belgesi (TC Kimlik / Pasaport)',
@@ -476,7 +476,7 @@ export function createSellerDocumentService(deps: {
         await storage().read(doc.fileKey)
       } catch {
         throw new ValidationError(
-          'Belge dosyası özel depoda doğrulanamadı. Satıcıdan belgeyi yeniden yüklemesini isteyin.',
+          'Belge dosyası özel depoda doğrulanamadı. Tasarımcıdan belgeyi yeniden yüklemesini isteyin.',
         )
       }
     }
@@ -545,7 +545,7 @@ export function createSellerDocumentService(deps: {
           await storage().read(document.fileKey)
         } catch {
           throw new ValidationError(
-            'Sözleşme dosyalarından biri özel depoda doğrulanamadı. Satıcıdan sözleşmeyi yeniden yüklemesini isteyin.',
+            'Sözleşme dosyalarından biri özel depoda doğrulanamadı. Tasarımcıdan sözleşmeyi yeniden yüklemesini isteyin.',
           )
         }
       }

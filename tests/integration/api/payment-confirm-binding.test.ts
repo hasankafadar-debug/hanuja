@@ -168,7 +168,7 @@ describe('confirmCardPayment — tutar bağlama', () => {
     )
   })
 
-  it('tam tutar eşleşmesinde onaylar ve satıcı kuyruğuna alır', async () => {
+  it('tam tutar eşleşmesinde onaylar ve tasarımcı kuyruğuna alır', async () => {
     const prisma = buildPrismaMock({
       payment: { id: 'p1', orderId: 'o1', status: 'pending' },
       order: { totalAmount: new Decimal('1499.90') },

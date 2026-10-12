@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 const ROLE_LABELS: Record<string, string> = {
   customer: 'Müşteri',
-  seller: 'Satıcı',
+  seller: 'Tasarımcı',
   admin: 'Admin',
 }
 
@@ -67,7 +67,7 @@ export default async function AdminProductQuestionDetailPage({ params }: Props) 
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         <div>
-          <dt style={{ color: 'var(--color-muted-fg)' }}>Satıcı</dt>
+          <dt style={{ color: 'var(--color-muted-fg)' }}>Tasarımcı</dt>
           <dd className="font-medium">
             <Link href={`/saticilar/${thread.sellerId}`} className="hover:underline">
               {thread.seller.displayName}
@@ -95,7 +95,7 @@ export default async function AdminProductQuestionDetailPage({ params }: Props) 
         <div>
           <dt style={{ color: 'var(--color-muted-fg)' }}>Durum</dt>
           <dd className="font-medium">
-            {thread.status === 'waiting_for_seller' ? 'Satıcı yanıtı bekleniyor' : 'Yanıtlandı'}
+            {thread.status === 'waiting_for_seller' ? 'Tasarımcı yanıtı bekleniyor' : 'Yanıtlandı'}
           </dd>
         </div>
       </dl>

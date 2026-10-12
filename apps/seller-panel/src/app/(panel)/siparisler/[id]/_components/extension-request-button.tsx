@@ -116,7 +116,7 @@ export default function ExtensionRequestButton({
           rows={3}
           className="w-full rounded-md border px-3 py-2 text-sm"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-          placeholder="Orn. tedarikci gecikmesi nedeniyle..."
+          placeholder="Orn. tasarımcı gecikmesi nedeniyle..."
         />
       </label>
 

@@ -17,7 +17,7 @@ const PAGE_SIZE = 30
 
 const FILTER_TABS = [
   { value: 'all', label: 'Tümü' },
-  { value: 'waiting_for_seller', label: 'Satıcı yanıtı bekleniyor' },
+  { value: 'waiting_for_seller', label: 'Tasarımcı yanıtı bekleniyor' },
   { value: 'waiting_for_customer', label: 'Yanıtlandı' },
 ] as const
 
@@ -57,7 +57,7 @@ export default async function AdminProductQuestionsPage({ searchParams }: Props)
     <div className="space-y-6">
       <PageHeader
         title="Müşteri Soruları"
-        description="Müşteri ile satıcı arasındaki özel ürün konuşmaları. Salt okunurdur; her görüntüleme denetim günlüğüne yazılır."
+        description="Müşteri ile tasarımcı arasındaki özel ürün konuşmaları. Salt okunurdur; her görüntüleme denetim günlüğüne yazılır."
       />
 
       <div className="flex flex-wrap gap-2">
@@ -86,7 +86,7 @@ export default async function AdminProductQuestionsPage({ searchParams }: Props)
           <thead>
             <tr className="border-b text-left text-xs uppercase tracking-wide" style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}>
               <th className="px-4 py-3">Ürün</th>
-              <th className="px-4 py-3">Satıcı</th>
+              <th className="px-4 py-3">Tasarımcı</th>
               <th className="px-4 py-3">Müşteri</th>
               <th className="px-4 py-3">Sipariş</th>
               <th className="px-4 py-3">Durum</th>
@@ -113,7 +113,7 @@ export default async function AdminProductQuestionsPage({ searchParams }: Props)
                   <td className="px-4 py-3">{item.counterpartName}</td>
                   <td className="px-4 py-3">{item.orderNumber ? `#${item.orderNumber}` : 'Satış öncesi'}</td>
                   <td className="px-4 py-3">
-                    {item.status === 'waiting_for_seller' ? 'Satıcı yanıtı bekleniyor' : 'Yanıtlandı'}
+                    {item.status === 'waiting_for_seller' ? 'Tasarımcı yanıtı bekleniyor' : 'Yanıtlandı'}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--color-muted-fg)' }}>
                     {formatDate(item.lastMessageAt)}

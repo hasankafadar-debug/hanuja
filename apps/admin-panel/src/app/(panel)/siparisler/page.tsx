@@ -9,7 +9,6 @@ import { createFulfillmentRiskService } from '@hanuja/api/services/fulfillment-r
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { AdminListControls } from '@/components/admin-list-controls'
-import { IssueSellerInvoiceButton } from '@/components/issue-seller-invoice-button'
 import { UrlPagination } from '@/components/url-pagination'
 import { pendingSellerNames, formatApprovalWait, formatPaymentConfirmedAt } from '@/lib/seller-approval-presentation'
 import { buildOrderExportHref } from '@/lib/admin-order-export'
@@ -35,10 +34,10 @@ const STATUS_OPTIONS = [
   { value: 'payment_confirmed', label: 'Ödeme onaylandı' },
   { value: 'payment_failed', label: 'Ödeme başarısız' },
   { value: 'payment_cancelled', label: 'Ödeme iptal' },
-  { value: 'seller_queue_ready', label: 'Satici kuyrugu' },
-  { value: 'seller_reviewing', label: 'Satici inceliyor' },
-  { value: 'seller_accepted', label: 'Satici onayladi' },
-  { value: 'seller_rejected', label: 'Satici reddetti' },
+  { value: 'seller_queue_ready', label: 'Tasarımcı kuyrugu' },
+  { value: 'seller_reviewing', label: 'Tasarımcı inceliyor' },
+  { value: 'seller_accepted', label: 'Tasarımcı onayladi' },
+  { value: 'seller_rejected', label: 'Tasarımcı reddetti' },
   { value: 'preparing', label: 'Hazirlaniyor' },
   { value: 'awaiting_shipment', label: 'Kargo bekliyor' },
   { value: 'shipped', label: 'Kargoda' },
@@ -48,7 +47,7 @@ const STATUS_OPTIONS = [
   { value: 'cancelled_by_customer', label: 'Musteri iptali' },
   { value: 'cancelled_by_admin', label: 'Admin iptali' },
   { value: 'cancelled_due_to_payment_failure', label: 'Ödeme nedeniyle iptal' },
-  { value: 'cancelled_due_to_seller_rejection', label: 'Satici reddi iptali' },
+  { value: 'cancelled_due_to_seller_rejection', label: 'Tasarımcı reddi iptali' },
   { value: 'cancelled_due_to_20day_breach', label: '20 gun ihlali iptali' },
   { value: 'return_requested', label: 'Iade talep edildi' },
   { value: 'return_under_review', label: 'Iade inceleniyor' },
@@ -62,10 +61,18 @@ const STATUS_OPTIONS = [
   { value: 'dispute_resolved', label: 'Uyusmazlik cozuldu' },
 ]
 
+// Satıcı Hanuja modeli: "invoice" filters the seller's invoice to Hanuja; the quick
+// "billing" tabs filter Hanuja's own customer invoice.
 const INVOICE_OPTIONS = [
-  { value: 'missing', label: 'Faturasi olmayanlar' },
-  { value: 'present', label: 'Faturasi olanlar' },
+  { value: 'missing', label: 'Tasarımcı faturası olmayanlar' },
+  { value: 'present', label: 'Tasarımcı faturası olanlar' },
 ]
+
+const SELLER_INVOICE_STATUS_LABELS: Record<string, string> = {
+  pending: 'onay bekliyor',
+  approved: 'onaylı',
+  rejected: 'reddedildi',
+}
 
 function normalizeInvoiceFilter(value: string): 'missing' | 'present' | undefined {
   return value === 'missing' || value === 'present' ? value : undefined
@@ -129,7 +136,7 @@ export default async function AdminOrdersPage({
     ...(params.q ? { query: params.q } : {}),
     ...(params.seller ? { sellerId: params.seller } : {}),
     ...(invoiceFilter ? { invoice: invoiceFilter } : {}),
-    ...(billingFilter ? { financeInvoice: billingFilter } : {}),
+    ...(billingFilter ? { customerInvoice: billingFilter } : {}),
     ...buildDateRange(params),
     ...getPagination(params),
   })
@@ -148,8 +155,9 @@ export default async function AdminOrdersPage({
       commissionAmount: { toNumber(): number } | number
     }>
     payments: Array<{ method: string; status: string }>
-    sellerInvoices: Array<{ id: string }>
-    financeInvoices: Array<{ id: string; invoiceNumber: string; amount: { toNumber(): number } | number }>
+    sellerInvoices: Array<{ id: string; reviewStatus: string }>
+    customerInvoice: { id: string; invoiceNumber: string | null } | null
+    shipments: Array<{ sellerId: string; handedAt: Date | null }>
     fulfillmentRisks?: Array<{
       status: string
       deadlineAt: Date
@@ -164,7 +172,7 @@ export default async function AdminOrdersPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={sellerApprovalOverdue ? 'Satıcı Onayı Bekleyenler' : 'Siparisler'}
+        title={sellerApprovalOverdue ? 'Tasarımcı Onayı Bekleyenler' : 'Siparisler'}
         description={sellerApprovalOverdue ? `24 saati aşan siparişler · ${result.total} sipariş` : `${result.total} siparis`}
         actions={
           <Link href={exportHref}>
@@ -178,7 +186,7 @@ export default async function AdminOrdersPage({
 
       {sellerApprovalOverdue && (
         <Link href={clearOverdueHref} className="inline-block text-sm underline" style={{ color: 'var(--color-accent)' }}>
-          Satıcı onayı gecikme filtresini kaldır
+          Tasarımcı onayı gecikme filtresini kaldır
         </Link>
       )}
 
@@ -190,7 +198,7 @@ export default async function AdminOrdersPage({
         invoiceValue={params.invoice}
         invoiceOptions={INVOICE_OPTIONS}
         sellerValue={params.seller}
-        sellerPlaceholder="Satici ID"
+        sellerPlaceholder="Tasarımcı ID"
         fromValue={params.from}
         toValue={params.to}
         pageSize={params.pageSize}
@@ -201,8 +209,8 @@ export default async function AdminOrdersPage({
         {/* Hızlı durum sekmeleri */}
         {[
           { key: 'cancelled', label: 'İptal Edilenler', paramType: 'tab' as const },
-          { key: 'missing', label: 'Faturalandırılmamış', paramType: 'billing' as const },
-          { key: 'present', label: 'Faturalandırılmış', paramType: 'billing' as const },
+          { key: 'missing', label: 'Müşteri faturası bekleyen', paramType: 'billing' as const },
+          { key: 'present', label: 'Müşteri faturası kesilmiş', paramType: 'billing' as const },
         ].map((tab) => {
           const next = new URLSearchParams()
           next.set(tab.paramType, tab.key)
@@ -239,13 +247,13 @@ export default async function AdminOrdersPage({
       >
         {rows.length === 0 ? (
           <p className="p-6 text-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            {sellerApprovalOverdue ? 'Seçili filtrelerde 24 saati aşan satıcı onayı bekleyen sipariş yok.' : 'Siparis yok.'}
+            {sellerApprovalOverdue ? 'Seçili filtrelerde 24 saati aşan tasarımcı onayı bekleyen sipariş yok.' : 'Siparis yok.'}
           </p>
         ) : (
           <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Siparis No', sellerApprovalOverdue ? 'Onayı Bekleyen Satıcılar' : 'Satici', ...(sellerApprovalOverdue ? ['Ödeme Onayı (İstanbul)', 'Bekleme Süresi'] : []), 'Tutar', 'Durum', 'Fatura', 'Tarih', ''].map((heading) => (
+                {['Siparis No', sellerApprovalOverdue ? 'Onayı Bekleyen Tasarımcılar' : 'Tasarımcı', ...(sellerApprovalOverdue ? ['Ödeme Onayı (İstanbul)', 'Bekleme Süresi'] : []), 'Tutar', 'Durum', 'Fatura', 'Tarih', ''].map((heading) => (
                   <th
                     key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
@@ -315,23 +323,35 @@ export default async function AdminOrdersPage({
                       <StatusBadge status={order.status as never} />
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                      {order.financeInvoices.length > 0 ? (
-                        <span style={{ color: 'var(--color-success)' }}>
-                          {order.financeInvoices[0]?.invoiceNumber ?? 'Faturalandirildi'}
-                        </span>
-                      ) : order.status === 'delivery_confirmed' && order.lines[0]?.seller?.id ? (
-                        <IssueSellerInvoiceButton
-                          sellerId={order.lines[0].seller.id}
-                          type="commission"
-                          sourceOrderId={order.id}
-                          orderNumber={formatOrderDisplayNumber(order.publicNumber, order.id)}
-                          defaultDescription={`Order ${formatOrderDisplayNumber(order.publicNumber, order.id)} commission`}
-                          defaultAmount={String(order.lines.reduce((sum, line) => sum + (typeof line.commissionAmount === 'number' ? line.commissionAmount : line.commissionAmount?.toNumber?.() ?? 0), 0))}
-                          buttonLabel="Faturalandir"
-                        />
-                      ) : (
-                        'Yok'
-                      )}
+                      {(() => {
+                        const handedAt = order.shipments
+                          .map((shipment) => shipment.handedAt)
+                          .filter((value): value is Date => value !== null)
+                          .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0]
+                        const deadline = handedAt ? new Date(new Date(handedAt).getTime() + 7 * 24 * 60 * 60 * 1000) : null
+                        const sellerStatus = order.sellerInvoices.length
+                          ? order.sellerInvoices.map((invoice) => SELLER_INVOICE_STATUS_LABELS[invoice.reviewStatus] ?? invoice.reviewStatus).join(', ')
+                          : 'yok'
+                        return (
+                          <>
+                            <span className="block">
+                              Müşteri:{' '}
+                              {order.customerInvoice ? (
+                                <span style={{ color: 'var(--color-success)' }}>
+                                  {order.customerInvoice.invoiceNumber ?? 'kesildi'}
+                                </span>
+                              ) : deadline ? (
+                                <span style={{ color: deadline < now ? 'var(--color-destructive)' : '#b45309' }}>
+                                  bekliyor · son gün {deadline.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}
+                                </span>
+                              ) : (
+                                '-'
+                              )}
+                            </span>
+                            <span className="block text-xs">Tasarımcı: {sellerStatus}</span>
+                          </>
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
                       {new Date(order.createdAt).toLocaleDateString('tr-TR', {

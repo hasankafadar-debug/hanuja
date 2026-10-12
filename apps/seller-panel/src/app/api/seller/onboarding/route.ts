@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
           message:
             existingSeller.status === 'pending'
               ? 'Basvurunuz zaten alinmis durumda.'
-              : 'Bu hesap zaten bir satici hesabina bagli.',
+              : 'Bu hesap zaten bir tasarımcı hesabina bagli.',
         },
         { status: 409 },
       )
@@ -248,7 +248,7 @@ export async function POST(request: NextRequest) {
         event: 'seller_application',
         type: 'admin_seller_application',
         eventKey: `seller:${seller.id}:application:${seller.applicationSubmissionSeq}`,
-        title: 'Yeni satıcı başvurusu',
+        title: 'Yeni tasarımcı başvurusu',
         body: `${magaza.storeName} mağazası başvuru gönderdi.`,
         data: {
           sellerId: seller.id,

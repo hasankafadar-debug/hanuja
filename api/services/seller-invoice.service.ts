@@ -4,11 +4,13 @@ import { roundMoney } from '@hanuja/security/money'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors'
 import { lockSellerFinance } from '../lib/seller-finance-lock'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
+import { createAdditionalSellerInvoiceService } from './additional-seller-invoice.service'
 
 // Commission invoices carry 20% VAT; penalty invoices carry 0% VAT (default rates).
 const DEFAULT_VAT_RATE: Record<SellerInvoiceType, Decimal> = {
   commission: new Decimal('0.2000'),
   penalty: new Decimal('0.0000'),
+  additional: new Decimal('0.0000'),
 }
 
 const ONE = new Decimal(1)
@@ -40,6 +42,12 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
       payoutId?: string
       createdByAdminId: string
     }) {
+      if (params.type === 'additional') {
+        if (params.sourcePenaltyId || params.sourceOrderId || params.sourceOrderLineId || params.payoutId) {
+          throw new ValidationError('Ek fatura mevcut bir ceza veya hakedişe bağlanamaz.')
+        }
+        return createAdditionalSellerInvoiceService({ prisma }).create(params)
+      }
       const invoiceNumber = params.invoiceNumber.trim()
       if (!invoiceNumber) {
         throw new ValidationError('Invoice number is required.')
@@ -96,7 +104,7 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
           })
           if (!penalty) throw new NotFoundError('Penalty', params.sourcePenaltyId)
           if (penalty.sellerId !== params.sellerId || (params.sourceOrderId && penalty.orderId !== params.sourceOrderId)) {
-            throw new ValidationError('Ceza satıcı veya sipariş ile eşleşmiyor.')
+            throw new ValidationError('Ceza tasarımcı veya sipariş ile eşleşmiyor.')
           }
           if (penalty.status === 'waived') {
             throw new ValidationError('Waived penalties cannot be invoiced.')
@@ -160,7 +168,7 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
         if (params.sourceOrderLineId) {
           const line = await tx.orderLine.findUnique({ where: { id: params.sourceOrderLineId } })
           if (!line || line.sellerId !== params.sellerId || line.orderId !== params.sourceOrderId) {
-            throw new ValidationError('Fatura satırı satıcı veya sipariş ile eşleşmiyor.')
+            throw new ValidationError('Fatura satırı tasarımcı veya sipariş ile eşleşmiyor.')
           }
           if (line.commissionInvoiceId || line.commissionExemptedAt) {
             throw new ConflictError('Satır zaten faturalandırılmış veya komisyondan muaf.')
@@ -170,14 +178,14 @@ export function createSellerInvoiceService({ prisma }: { prisma: PrismaClient })
         if (params.payoutId) {
           const payout = await tx.payout.findUnique({ where: { id: params.payoutId } })
           if (!payout || payout.sellerId !== params.sellerId || payout.orderId !== params.sourceOrderId) {
-            throw new ValidationError('Hakediş satıcı veya sipariş ile eşleşmiyor.')
+            throw new ValidationError('Hakediş tasarımcı veya sipariş ile eşleşmiyor.')
           }
         }
         if (params.type === 'commission' && params.sourceOrderId) {
           const sellerLine = await tx.orderLine.findFirst({
             where: { orderId: params.sourceOrderId, sellerId: params.sellerId }, select: { id: true },
           })
-          if (!sellerLine) throw new ValidationError('Sipariş bu satıcıya ait ürün içermiyor.')
+          if (!sellerLine) throw new ValidationError('Sipariş bu tasarımcıya ait ürün içermiyor.')
         }
         const invoice = await tx.sellerInvoice.create({
           data: {

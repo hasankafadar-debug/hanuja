@@ -36,7 +36,7 @@ export const ADMIN_NOTIFICATION_EVENT_LABELS: Record<
   support_ticket: 'Yeni destek bileti',
   eft_pending: 'Havale / EFT onayı bekliyor',
   fulfillment_risk: 'Sevk riski',
-  seller_application: 'Yeni satıcı başvurusu',
+  seller_application: 'Yeni tasarımcı başvurusu',
 }
 
 export function isAdminNotificationEvent(

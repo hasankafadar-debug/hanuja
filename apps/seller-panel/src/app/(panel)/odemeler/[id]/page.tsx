@@ -6,6 +6,7 @@ import { PageHeader, StatusBadge } from '@hanuja/ui'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createPayoutRepository } from '@hanuja/api/repositories/payout.repository'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
+import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { formatMoney, maskIban } from '@hanuja/security'
 import { holdDaysRemainingLabel, formatTrDate, payoutStatusDisplay } from '../_lib/payout-display'
@@ -33,7 +34,9 @@ export default async function PayoutDetailPage({ params }: Props) {
   const { id } = await params
   const { seller } = await getSellerFromSession({ allowSuspended: true })
 
-  const payoutRepo = createPayoutRepository(createPrismaForRoute())
+  const prisma = createPrismaForRoute()
+  const payoutRepo = createPayoutRepository(prisma)
+  const { payoutHoldDays } = await createPlatformSettingsService({ prisma }).get()
   const payout = await payoutRepo.findByIdForSeller(id, seller.id)
   if (!payout) notFound()
 
@@ -195,13 +198,14 @@ export default async function PayoutDetailPage({ params }: Props) {
         <dl className="space-y-2 text-sm">
           <BreakdownRow label="Teslimat onayı" value={formatTrDate(payout.holdStartedAt)} />
           <BreakdownRow
-            label="Bloke bitiş"
+            label="Ödeme vadesi"
             value={
               payout.holdUntil
                 ? `${formatTrDate(payout.holdUntil)} (${holdRemaining === 'Doldu' ? 'Doldu' : `${holdRemaining} gün`})`
-                : '-'
+                : 'Fatura onayından sonra hesaplanır'
             }
           />
+          <BreakdownRow label="Planlanan ödeme günü" value={payout.nextPaymentAt ? formatTrDate(payout.nextPaymentAt) : 'Ödeme koşulları bekleniyor'} />
           <div className="flex items-center justify-between">
             <dt style={{ color: 'var(--color-muted-fg)' }}>Durum</dt>
             <dd>
@@ -250,8 +254,8 @@ export default async function PayoutDetailPage({ params }: Props) {
         style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-muted-fg)' }}
       >
         <strong style={{ color: 'var(--color-primary)' }}>Bilgi:</strong>{' '}
-        Teslimat onayından itibaren 30 gün sonra ödeme yapılır. Açık iade veya uyuşmazlık ödemeyi bloke
-        edebilir.
+        Hakediş, Hanuja&apos;ya kestiğiniz ve onaylanan faturanın tarihinden {payoutHoldDays} gün sonraki ilk cuma
+        ödenir. Teslim onayı gelmemiş, açık iade veya uyuşmazlığı olan siparişlerde ödeme bekler.
       </div>
     </div>
   )

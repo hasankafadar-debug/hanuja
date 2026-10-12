@@ -17,15 +17,17 @@ const sellerVisibleAddressSelect = {
   postalCode: true,
 } satisfies Prisma.AddressSelect
 
-const sellerVisibleBillingAddressSelect = {
-  ...sellerVisibleAddressSelect,
-  invoiceType: true,
-  tcNumber: true,
-  isForeignNational: true,
-  companyName: true,
-  taxOffice: true,
-  taxNumber: true,
-} satisfies Prisma.AddressSelect
+// Satıcı Hanuja modeli: satıcı faturasını Hanuja'ya keser, müşterinin fatura kimliğine
+// (TC/VKN, kurumsal bilgiler) ihtiyacı yoktur; yalnız teslimat bilgisi görünür.
+
+const customerInvoiceSummarySelect = {
+  id: true,
+  invoiceNumber: true,
+  fileName: true,
+  mimeType: true,
+  sizeBytes: true,
+  uploadedAt: true,
+} satisfies Prisma.OrderCustomerInvoiceSelect
 
 /**
  * Sellers only ever see orders whose payment was collected. Status alone is not
@@ -74,18 +76,7 @@ export function createOrderRepository(prisma: PrismaClient) {
           refundTransactions: { orderBy: { createdAt: 'desc' } },
           address: true,
           legalSnapshot: true,
-          sellerInvoices: {
-            include: {
-              seller: {
-                select: {
-                  id: true,
-                  displayName: true,
-                  slug: true,
-                },
-              },
-            },
-            orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
-          },
+          customerInvoice: { select: customerInvoiceSummarySelect },
           returnRequests: {
             select: { id: true, status: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
@@ -121,8 +112,7 @@ export function createOrderRepository(prisma: PrismaClient) {
             include: { items: true },
             orderBy: { createdAt: 'desc' },
           },
-          address: { select: sellerVisibleBillingAddressSelect },
-          billingAddress: { select: sellerVisibleBillingAddressSelect },
+          address: { select: sellerVisibleAddressSelect },
           customer: {
             select: {
               id: true,
@@ -186,18 +176,7 @@ export function createOrderRepository(prisma: PrismaClient) {
         include: {
           lines: { include: { product: { include: { images: { take: 1 } } } } },
           legalSnapshot: true,
-          sellerInvoices: {
-            include: {
-              seller: {
-                select: {
-                  id: true,
-                  displayName: true,
-                  slug: true,
-                },
-              },
-            },
-            orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
-          },
+          customerInvoice: { select: customerInvoiceSummarySelect },
           returnRequests: {
             select: { id: true, status: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
@@ -342,7 +321,7 @@ export function createOrderRepository(prisma: PrismaClient) {
       customerId?: string
       query?: string
       invoice?: 'missing' | 'present'
-      financeInvoice?: 'missing' | 'present'
+      customerInvoice?: 'missing' | 'present'
       from?: Date
       to?: Date
       skip?: number
@@ -378,20 +357,11 @@ export function createOrderRepository(prisma: PrismaClient) {
               },
             }
           : {}),
-        ...(params.financeInvoice === 'missing'
-          ? {
-              financeInvoices: {
-                none: { type: 'commission' },
-              },
-            }
+        // Hanuja's customer invoice is due once the goods are handed to the carrier.
+        ...(params.customerInvoice === 'missing'
+          ? { customerInvoice: null, shipments: { some: { handedAt: { not: null } } } }
           : {}),
-        ...(params.financeInvoice === 'present'
-          ? {
-              financeInvoices: {
-                some: { type: 'commission' },
-              },
-            }
-          : {}),
+        ...(params.customerInvoice === 'present' ? { customerInvoice: { isNot: null } } : {}),
         ...(params.from !== undefined || params.to !== undefined
           ? {
               createdAt: {
@@ -450,10 +420,8 @@ export function createOrderRepository(prisma: PrismaClient) {
               },
               orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
             },
-            financeInvoices: {
-              where: { type: 'commission' },
-              orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
-            },
+            customerInvoice: { select: { id: true, invoiceNumber: true } },
+            shipments: { select: { sellerId: true, handedAt: true } },
             fulfillmentRisks: {
               where: { status: { in: ['warning', 'breached'] } },
               orderBy: [{ status: 'asc' }, { deadlineAt: 'asc' }],

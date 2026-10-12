@@ -12,6 +12,7 @@ import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { AdminListControls } from '@/components/admin-list-controls'
 import { UrlPagination } from '@/components/url-pagination'
 import { formatMoney } from '@hanuja/security'
+import { AdditionalInvoices, InvoiceTabs, type InvoiceTab } from './_components/additional-invoices'
 import {
   buildDateRange,
   getPagination,
@@ -22,7 +23,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = { title: 'Cezalar' }
+export const metadata: Metadata = { title: 'Cezalar ve Ek Faturalar' }
 
 const REASON_MAP: Record<string, string> = {
   seller_rejected_paid_order: 'Siparis reddi',
@@ -39,10 +40,10 @@ const STATUS_OPTIONS = [
 
 function readPenaltyTab(
   searchParams: RawAdminSearchParams | undefined,
-): 'unbilled' | 'billed' | 'waived' {
+): InvoiceTab {
   const tabRaw = searchParams?.tab
   const tabValue = Array.isArray(tabRaw) ? tabRaw[0] : tabRaw
-  if (tabValue === 'unbilled' || tabValue === 'billed' || tabValue === 'waived') {
+  if (tabValue === 'unbilled' || tabValue === 'billed' || tabValue === 'waived' || tabValue === 'additional') {
     return tabValue
   }
 
@@ -88,15 +89,21 @@ export default async function PenaltiesPage({
   const currentTab = readPenaltyTab(resolvedSearchParams)
 
   const prisma = createPrismaForRoute()
+  const sellersPromise = prisma.seller.findMany({ orderBy: { displayName: 'asc' },
+    select: { id: true, displayName: true },
+  }).then((sellers) => sellers.map((seller) => ({ id: seller.id, name: seller.displayName })))
+  if (currentTab === 'additional') {
+    return <AdditionalInvoices prisma={prisma} params={params} sellers={await sellersPromise} />
+  }
   const svc = createPenaltyService({ prisma })
-  const result = await svc.listForAdmin({
+  const [result, sellers] = await Promise.all([svc.listForAdmin({
     ...(params.status[0] ? { status: params.status[0] as PenaltyStatus } : {}),
     ...(params.q ? { query: params.q } : {}),
     ...(params.seller ? { sellerId: params.seller } : {}),
     tab: currentTab,
     ...buildDateRange(params),
     ...getPagination(params),
-  })
+  }), sellersPromise])
 
   const rows = result.rows as unknown as PenaltyRow[]
   const totalPages = Math.max(1, Math.ceil(result.total / params.pageSize))
@@ -127,40 +134,10 @@ export default async function PenaltiesPage({
 
   return (
     <div className="space-y-6" data-testid="admin-penalties-page">
-      <PageHeader title="Cezalar" description={`${result.total} ceza kaydi`} />
+      <PageHeader title="Cezalar ve Ek Faturalar" description={`${result.total} ceza kaydi`}
+        actions={<IssueSellerInvoiceButton type="additional" sellers={sellers} defaultDescription="" defaultAmount="" buttonLabel="Fatura Ekle" />} />
 
-      <div className="flex flex-wrap gap-2">
-        {[
-          { key: 'unbilled', label: 'Faturalandirilmamis' },
-          { key: 'billed', label: 'Faturalandirilmis' },
-          { key: 'waived', label: 'Muaflar' },
-        ].map((tab) => {
-          const next = new URLSearchParams()
-          next.set('tab', tab.key)
-          if (params.q) next.set('q', params.q)
-          if (params.status.length > 0) next.set('status', params.status.join(','))
-          if (params.seller) next.set('seller', params.seller)
-          if (params.from) next.set('from', params.from)
-          if (params.to) next.set('to', params.to)
-          if (params.pageSize !== 20) next.set('pageSize', String(params.pageSize))
-
-          const active = currentTab === tab.key
-          return (
-            <Link
-              key={tab.key}
-              href={`/cezalar?${next.toString()}`}
-              className="rounded-full border px-4 py-2 text-sm font-medium transition-colors"
-              style={{
-                borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
-                backgroundColor: active ? 'var(--color-muted)' : 'transparent',
-                color: active ? 'var(--color-primary)' : 'var(--color-muted-fg)',
-              }}
-            >
-              {tab.label}
-            </Link>
-          )
-        })}
-      </div>
+      <InvoiceTabs current={currentTab} params={params} />
 
       <div
         className="rounded-xl border p-4 text-sm"
@@ -174,11 +151,11 @@ export default async function PenaltiesPage({
 
       <AdminListControls
         searchValue={params.q}
-        searchPlaceholder="Siparis veya satici ara"
+        searchPlaceholder="Siparis veya tasarımcı ara"
         statusValue={getPrimaryStatusValue(params.status)}
         statusOptions={STATUS_OPTIONS}
         sellerValue={params.seller}
-        sellerPlaceholder="Satici ID"
+        sellerPlaceholder="Tasarımcı ID"
         fromValue={params.from}
         toValue={params.to}
         pageSize={params.pageSize}
@@ -197,7 +174,7 @@ export default async function PenaltiesPage({
           <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Siparis', 'Satici', 'Tutar', 'Sebep', 'Tarih', 'Durum', ''].map((heading) => (
+                {['Siparis', 'Tasarımcı', 'Tutar', 'Sebep', 'Tarih', 'Durum', ''].map((heading) => (
                   <th
                     key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"

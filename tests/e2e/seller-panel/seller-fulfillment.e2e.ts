@@ -39,7 +39,7 @@ async function loginAsSeller(page: Page) {
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 
 test.describe('auth — giriş / çıkış', () => {
-  test('satıcı giris sayfası yükleniyor', async ({ page }) => {
+  test('tasarımcı giris sayfası yükleniyor', async ({ page }) => {
     await mockTurnstile(page)
     const hydration = trackHydrationErrors(page)
     await page.goto('/giris')
@@ -468,12 +468,12 @@ test.describe('medya kütüphanesi', () => {
 
 // ─── VERİ İZOLASYONU ─────────────────────────────────────────────────────────
 
-test.describe('veri izolasyonu — diğer satıcı verisi görünmemeli', () => {
+test.describe('veri izolasyonu — diğer tasarımcı verisi görünmemeli', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsSeller(page)
   })
 
-  test('ürünler sayfası yalnızca kendi satıcı ürünlerini gösteriyor', async ({ page }) => {
+  test('ürünler sayfası yalnızca kendi tasarımcı ürünlerini gösteriyor', async ({ page }) => {
     await page.goto('/urunler')
     await page.waitForLoadState('networkidle')
     // Woodform satıcısına ait veri bu satıcıda görünmemeli
@@ -481,7 +481,7 @@ test.describe('veri izolasyonu — diğer satıcı verisi görünmemeli', () => 
     expect(woodformRefs).toBe(0)
   })
 
-  test('siparişler başka satıcının müşteri verisini içermiyor', async ({ page }) => {
+  test('siparişler başka tasarımcının müşteri verisini içermiyor', async ({ page }) => {
     await page.goto('/siparisler')
     await page.waitForLoadState('networkidle')
     // Diğer satıcı adı satır içinde geçmemeli

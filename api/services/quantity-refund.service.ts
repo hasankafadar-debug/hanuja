@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient, RefundSourceType } from '@prisma/client'
+import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
 import { Decimal } from '@prisma/client/runtime/client'
 import { ConflictError, NotFoundError } from '../lib/errors'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
@@ -318,7 +319,7 @@ export function createQuantityRefundService({
                 effectiveAt: refund.createdAt,
                 referenceType: 'refund_transaction',
                 referenceId: refund.id,
-                description: 'İptal/iade edilen ürünlerin satıcı kuponu düzeltmesi',
+                description: 'İptal/iade edilen ürünlerin tasarımcı kuponu düzeltmesi',
                 visibleToSeller: true,
               },
               tx,
@@ -364,6 +365,7 @@ export function createQuantityRefundService({
             where: { id: payout.id },
             data: {
               refundAmount: { increment: refund.grossProductAmount },
+              nextPaymentAt: null,
               couponShareAmount: Decimal.max(
                 new Decimal(0),
                 payout.couponShareAmount.sub(refund.couponAdjustmentAmount),
@@ -390,7 +392,10 @@ export function createQuantityRefundService({
     const result = transaction ? await write(transaction) : await prisma.$transaction(write)
     // An outer transaction has not committed yet. Its caller owns post-commit
     // dispatch; legacy refunds use this path and require manual processing.
-    if (!transaction) await dispatchRefundProcessingAfterCommit(result)
+    if (!transaction) {
+      if (!params.manualReviewReason) await syncChangedPayoutSchedules(prisma, { orderId: result.orderId, sellerId: result.sellerId })
+      await dispatchRefundProcessingAfterCommit(result)
+    }
     return result
   }
 
@@ -582,6 +587,7 @@ export function createQuantityRefundService({
     // Stable notification event keys deduplicate delivery; preserve retry recovery
     // if the previous completion committed but enqueueing failed.
     if (result.status === 'completed') {
+      await syncChangedPayoutSchedules(prisma, { orderId: result.orderId, sellerId: result.sellerId })
       void enqueueCustomerRefundCompletedNotification(prisma, result.id).catch((error) =>
         console.error('[quantity-refund] İade bildirimi kuyruğa eklenemedi:', error),
       )

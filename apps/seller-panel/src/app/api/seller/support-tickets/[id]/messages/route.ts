@@ -12,7 +12,7 @@ async function getSellerContext() {
 
   const prisma = createPrismaForRoute()
   const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
-  if (!seller) throw new UnauthorizedError('Satıcı hesabı bulunamadı.')
+  if (!seller) throw new UnauthorizedError('Tasarımcı hesabı bulunamadı.')
 
   return { session, seller, prisma }
 }

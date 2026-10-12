@@ -34,7 +34,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     select: { id: true },
   })
   if (!seller) {
-    return NextResponse.json({ message: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
+    return NextResponse.json({ message: 'Tasarımcı hesabı bulunamadı.' }, { status: 404 })
   }
 
   const { id } = await params

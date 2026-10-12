@@ -26,7 +26,7 @@ describe('admin dashboard attention cards', () => {
       expressions.filter((expression) => expression !== 'false').every((expression) => expression?.endsWith('> 0')),
     ).toBe(true)
 
-    const activeSellerStart = source.indexOf("title: 'Aktif Satıcı'")
+    const activeSellerStart = source.indexOf("title: 'Aktif Tasarımcı'")
     const activeSellerEnd = source.indexOf('},', activeSellerStart)
     expect(activeSellerStart).toBeGreaterThan(-1)
     expect(source.slice(activeSellerStart, activeSellerEnd)).toContain('attention: false')
@@ -43,10 +43,10 @@ describe('admin dashboard attention cards', () => {
   })
 
   it.each([
-    ['Satıcı Onayı Bekleyenler', 'overdueSellerApprovals.total'],
+    ['Tasarımcı Onayı Bekleyenler', 'overdueSellerApprovals.total'],
     ['Manuel İade Bekleyen', 'manualRefunds.total'],
     ['Başarısız Kart İadesi', 'failedCardRefunds.total'],
-    ['Satıcı Teslim Bildirimleri', 'sellerDeliveryReports.orderCount'],
+    ['Tasarımcı Teslim Bildirimleri', 'sellerDeliveryReports.orderCount'],
   ])('uses the existing green attention rule for %s', async (title, counter) => {
     const source = await readFile(DASHBOARD_PAGE, 'utf8')
     const start = source.indexOf(`title: '${title}'`)

@@ -48,7 +48,7 @@ const PRESALE_REJECTION: Record<string, string> = {
 }
 
 const ORDER_REJECTION: Record<string, string> = {
-  payment_not_confirmed: 'Ödemesi onaylanmamış sipariş için satıcıya soru sorulamaz.',
+  payment_not_confirmed: 'Ödemesi onaylanmamış sipariş için tasarımcıya soru sorulamaz.',
   product_not_in_order: 'Bu ürün seçilen siparişte bulunmuyor.',
   seller_not_operational: 'Bu mağaza şu anda soru kabul etmiyor.',
 }
@@ -465,7 +465,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
     }) {
       const body = prepareQuestionMessageBody(params.body)
       if (params.customerRole !== 'customer') {
-        throw new ForbiddenError('Yalnız müşteri hesapları satıcıya soru sorabilir.')
+        throw new ForbiddenError('Yalnız müşteri hesapları tasarımcıya soru sorabilir.')
       }
       const orderId = params.orderId ?? null
       const { sellerId } = await resolveTarget({

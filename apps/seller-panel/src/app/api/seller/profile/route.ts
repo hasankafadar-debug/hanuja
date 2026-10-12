@@ -55,7 +55,7 @@ export async function PATCH(req: NextRequest) {
     where: { userId: session.user.id },
   })
   if (!seller) {
-    return NextResponse.json({ error: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
+    return NextResponse.json({ error: 'Tasarımcı hesabı bulunamadı.' }, { status: 404 })
   }
 
   const body = await req.json().catch(() => ({}))

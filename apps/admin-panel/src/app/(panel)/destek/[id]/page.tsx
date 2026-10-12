@@ -32,7 +32,7 @@ function formatDate(date: Date) {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  seller: 'Satıcı',
+  seller: 'Tasarımcı',
   admin: 'Admin',
 }
 
@@ -56,7 +56,7 @@ export default async function AdminSupportTicketDetailPage({ params }: Props) {
           <ArrowLeft className="h-4 w-4" />
           Destek Taleplerine Dön
         </Link>
-        <PageHeader title={ticket.subject} description="Satıcı destek talebi detayı" />
+        <PageHeader title={ticket.subject} description="Tasarımcı destek talebi detayı" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
@@ -80,7 +80,7 @@ export default async function AdminSupportTicketDetailPage({ params }: Props) {
 
                 <div className="grid gap-3 text-sm md:grid-cols-2">
                   <div>
-                    <p style={{ color: 'var(--color-muted-fg)' }}>Satıcı</p>
+                    <p style={{ color: 'var(--color-muted-fg)' }}>Tasarımcı</p>
                     <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
                       {ticket.seller.displayName}
                     </p>

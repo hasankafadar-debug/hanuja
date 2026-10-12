@@ -177,7 +177,7 @@ export function SliderList({ slides, sellers, onSlidesChange, onRefresh, onMessa
                     </p>
                     {slide.seller && (
                       <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                        Satıcı: {slide.seller.displayName}
+                        Tasarımcı: {slide.seller.displayName}
                       </p>
                     )}
                   </div>

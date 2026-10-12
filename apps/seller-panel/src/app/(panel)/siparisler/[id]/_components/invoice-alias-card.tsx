@@ -52,7 +52,7 @@ export default function InvoiceAliasCard({ aliasEmail, status }: Props) {
         </p>
       )}
       {aliasEmail ? <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-        PDF faturayı bu adrese gönderin. Fatura otomatik olarak bu siparişe eklenecektir.
+        İlk PDF faturayı bu adrese gönderebilirsiniz. Mevcut faturayı düzeltmek için yukarıdaki yükleme alanını kullanın.
       </p> : null}
       {copyError ? <p role="alert" className="text-xs">Adres kopyalanamadı. Yukarıdaki adresi seçerek kopyalayabilirsiniz.</p> : null}
       <span role="status" className="sr-only">{copied ? 'Fatura e-posta adresi kopyalandı' : ''}</span>

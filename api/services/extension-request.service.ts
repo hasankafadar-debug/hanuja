@@ -196,14 +196,14 @@ export function createExtensionRequestService({ prisma }: ExtensionRequestServic
       adminNote: string
     }) {
       const note = params.adminNote.trim()
-      if (!note) throw new ValidationError('Satıcıdan istenecek bilgi gerekli.')
+      if (!note) throw new ValidationError('Tasarımcıdan istenecek bilgi gerekli.')
 
       const request = await prisma.fulfillmentExtensionRequest.findUnique({
         where: { id: params.requestId },
       })
       if (!request) throw new NotFoundError('FulfillmentExtensionRequest', params.requestId)
       if (request.status === 'approved' || request.status === 'rejected_by_admin') {
-        throw new ConflictError('Sonuçlanmış talep satıcıya gönderilemez.')
+        throw new ConflictError('Sonuçlanmış talep tasarımcıya gönderilemez.')
       }
 
       return prisma.fulfillmentExtensionRequest.update({

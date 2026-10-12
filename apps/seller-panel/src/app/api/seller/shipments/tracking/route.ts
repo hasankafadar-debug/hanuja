@@ -9,7 +9,7 @@ import prisma from '@hanuja/api/lib/prisma'
 
 async function getSellerIdOrThrow(userId: string): Promise<string> {
   const seller = await prisma.seller.findUnique({ where: { userId } })
-  if (!seller || (seller.status !== 'active' && seller.status !== 'suspended')) throw new ForbiddenError('Satıcı hesabı sipariş işlemlerine kapalı')
+  if (!seller || (seller.status !== 'active' && seller.status !== 'suspended')) throw new ForbiddenError('Tasarımcı hesabı sipariş işlemlerine kapalı')
   return seller.id
 }
 

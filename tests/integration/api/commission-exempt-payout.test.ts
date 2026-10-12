@@ -52,6 +52,9 @@ function buildActivateHoldPrisma(lines: FakeLine[]) {
       }),
     },
     sellerInvoice: { findFirst: vi.fn(async () => null) },
+    // Satıcı Hanuja modeli: the due date is read from the approved seller invoice.
+    orderSellerInvoice: { findUnique: vi.fn(async () => null) },
+    platformSettings: { findUnique: vi.fn(async () => null) },
     refundTransaction: { findMany: vi.fn(async () => []) },
     orderLine: {
       findMany: vi.fn(async () => lines),

@@ -19,6 +19,14 @@ import { ManualRefundCompletion } from './_components/manual-refund-completion'
 import { AdminOrderNotes } from './_components/admin-order-notes'
 import { SellerDeliveryReports } from './_components/seller-delivery-reports'
 import { AdminInvoiceCard } from './_components/admin-invoice-card'
+import { AdminCustomerInvoiceCard } from './_components/admin-customer-invoice-card'
+import { createCustomerInvoiceService } from '@hanuja/api/services/customer-invoice.service'
+import {
+  calculateSellerPurchaseInvoice,
+  formatPurchaseInvoiceAmount,
+  formatPurchaseInvoiceRate,
+} from '@hanuja/api/domain/seller-purchase-invoice'
+import { getWebBaseUrl } from '@hanuja/api/lib/platform-info'
 import { isDeliveryReviewLine } from '@hanuja/api/domain/delivery-review'
 
 export const dynamic = 'force-dynamic'
@@ -134,6 +142,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
     include: {
       customer: { select: { id: true, name: true, email: true } },
       address: true,
+      billingAddress: true,
       lines: {
         include: {
           product: { select: { id: true, name: true, slug: true } },
@@ -212,8 +221,10 @@ export default async function AdminOrderDetailPage({ params }: Props) {
   })
 
   if (!order) notFound()
-  const invoiceManagement = await createOrderDocumentService({ prisma })
-    .getInvoiceManagementForAdmin(id, session.user.id)
+  const [invoiceManagement, customerInvoice] = await Promise.all([
+    createOrderDocumentService({ prisma }).getInvoiceManagementForAdmin(id, session.user.id),
+    createCustomerInvoiceService({ prisma }).getForAdmin(id, session.user.id),
+  ])
 
   const total = moneyToNumber(order.totalAmount)
   const grossAmount = moneyToNumber(order.grossAmount)
@@ -334,6 +345,29 @@ export default async function AdminOrderDetailPage({ params }: Props) {
       return sum + value
     }, 0)
   const canApplyManualPenalty = sellerId !== null && order.penalties.length === 0
+  // Satıcı Hanuja modeli: expected seller invoice per seller and the customer invoice deadline.
+  const expectedSellerInvoices = new Map(
+    invoiceManagement.sellers.map((seller) => {
+      const invoice = calculateSellerPurchaseInvoice(order.lines.filter((line) => line.sellerId === seller.sellerId))
+      return [seller.sellerId, {
+        amount: formatPurchaseInvoiceAmount(invoice.invoiceAmount),
+        vatGroups: invoice.vatGroups.map((group) => ({
+          rate: formatPurchaseInvoiceRate(group.taxRate),
+          net: formatPurchaseInvoiceAmount(group.netAmount),
+          vat: formatPurchaseInvoiceAmount(group.vatAmount),
+        })),
+      }]
+    }),
+  )
+  const firstHandedAt = order.shipments
+    .map((shipment) => shipment.handedAt)
+    .filter((value): value is Date => value !== null)
+    .sort((a, b) => a.getTime() - b.getTime())[0] ?? null
+  const customerInvoiceDeadline = firstHandedAt
+    ? new Date(firstHandedAt.getTime() + 7 * 24 * 60 * 60 * 1000)
+    : null
+  const invoiceParty = order.billingAddress ?? order.address
+  const confirmedPayment = order.payments.find((payment) => payment.confirmedAt)
   const distanceSalesDownloadHref = `/api/admin/orders/${order.id}/contracts/distance-sales`
   const preInformationDownloadHref = `/api/admin/orders/${order.id}/contracts/pre-information`
 
@@ -506,7 +540,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                   : '—',
               },
               {
-                label: 'Satıcı',
+                label: 'Tasarımcı',
                 value: sellerId ? (
                   <Link
                     href={`/saticilar/${sellerId}`}
@@ -607,9 +641,9 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                   { label: 'Müşteriye ürün iadesi', value: formatMoney(refundTotals.productAmount) },
                   { label: 'Müşteriye kargo iadesi', value: formatMoney(refundTotals.shippingAmount) },
                   { label: 'Müşteriye ürün + kargo iadesi', value: formatMoney(refundTotals.customerAmount) },
-                  { label: 'Satıcı payı', value: formatMoney(refundTotals.sellerAdjustmentAmount) },
+                  { label: 'Tasarımcı payı', value: formatMoney(refundTotals.sellerAdjustmentAmount) },
                   { label: 'Komisyon düzeltmesi', value: formatMoney(refundTotals.commissionAdjustmentAmount) },
-                  { label: 'Satıcı kuponu düzeltmesi', value: formatMoney(refundTotals.couponAdjustmentAmount) },
+                  { label: 'Tasarımcı kuponu düzeltmesi', value: formatMoney(refundTotals.couponAdjustmentAmount) },
                   { label: 'Platform payı', value: formatMoney(refundTotals.platformFundedAmount) },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between gap-4">
@@ -856,61 +890,123 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         </section>
       ) : null}
 
-      {(order.legalSnapshot || invoiceManagement.sellers.length > 0) ? (
-        <section
-          className="rounded-xl border p-5"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-        >
-          <div className="mb-4 flex items-center gap-2">
-            <FileText className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
-            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
-              Belgeler
-            </h2>
+      <section
+        className="rounded-xl border p-5"
+        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+      >
+        <div className="mb-4 flex items-center gap-2">
+          <FileText className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+          <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+            Belgeler ve Faturalar
+          </h2>
+        </div>
+
+        {order.legalSnapshot ? (
+          <div className="mb-4 flex flex-wrap gap-2">
+            <LegalDocumentDialog
+              title="Mesafeli Satış Sözleşmesi"
+              html={order.legalSnapshot.distanceSalesHtml}
+              triggerLabel="Mesafeli Satış Sözleşmesi"
+              triggerVariant="outline"
+              downloadHref={distanceSalesDownloadHref}
+            />
+            <LegalDocumentDialog
+              title="Ön Bilgilendirme Formu"
+              html={order.legalSnapshot.preInformationHtml}
+              triggerLabel="Ön Bilgilendirme Formu"
+              triggerVariant="outline"
+              downloadHref={preInformationDownloadHref}
+            />
+          </div>
+        ) : null}
+
+        <div className="space-y-3">
+          <AdminCustomerInvoiceCard
+            orderId={order.id}
+            invoice={customerInvoice ? {
+              fileName: customerInvoice.fileName,
+              uploadedAt: customerInvoice.uploadedAt.toISOString(),
+              revision: customerInvoice.revision,
+            } : null}
+            deadline={customerInvoiceDeadline?.toISOString() ?? null}
+          />
+
+          <div className="rounded-lg border p-4 text-sm" style={{ borderColor: 'var(--color-border)' }}>
+            <h3 className="mb-2 font-semibold" style={{ color: 'var(--color-primary)' }}>e-Arşiv için bilgiler</h3>
+            <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-[auto,1fr]" style={{ color: 'var(--color-muted-fg)' }}>
+              <dt>Alıcı</dt>
+              <dd style={{ color: 'var(--color-primary)' }}>
+                {invoiceParty
+                  ? invoiceParty.invoiceType === 'corporate'
+                    ? `${invoiceParty.companyName || invoiceParty.fullName} · VD ${invoiceParty.taxOffice ?? '-'} · VKN ${invoiceParty.taxNumber ?? '-'}`
+                    : `${invoiceParty.fullName} · ${invoiceParty.isForeignNational ? 'Yabancı uyruklu' : `TCKN ${invoiceParty.tcNumber ?? '-'}`}`
+                  : '-'}
+              </dd>
+              <dt>Fatura adresi</dt>
+              <dd>
+                {invoiceParty
+                  ? [invoiceParty.addressLine1, invoiceParty.addressLine2, `${invoiceParty.district} / ${invoiceParty.city}`]
+                      .filter(Boolean)
+                      .join(', ')
+                  : '-'}
+              </dd>
+              <dt>Ödeme</dt>
+              <dd>
+                {confirmedPayment
+                  ? `${confirmedPayment.method === 'card' ? 'Kredi/banka kartı' : 'Havale/EFT'} · ${new Date(confirmedPayment.confirmedAt!).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}`
+                  : 'Onaylı ödeme yok'}
+              </dd>
+              <dt>Gönderim</dt>
+              <dd>
+                {order.shipments[0]?.handedAt
+                  ? `${order.shipments[0].cargoProvider} · ${new Date(order.shipments[0].handedAt).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}`
+                  : 'Henüz kargoya verilmedi'}
+              </dd>
+              <dt>Satış adresi</dt>
+              <dd>{getWebBaseUrl()} · &quot;Bu satış internet üzerinden yapılmıştır&quot;</dd>
+              <dt>Satırlar</dt>
+              <dd>
+                {order.lines.map((line) => {
+                  const active = line.quantity - line.cancelledQuantity
+                  if (active <= 0) return null
+                  return (
+                    <span key={line.id} className="block">
+                      {line.productName} × {active} · KDV {formatPurchaseInvoiceRate(line.taxRate)}
+                    </span>
+                  )
+                })}
+              </dd>
+            </dl>
+            <p className="mt-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Tutarlar, kupon/havale indirimleri ve kargo ücreti yukarıdaki sipariş özetindedir.
+            </p>
           </div>
 
-          {order.legalSnapshot ? (
-            <div className="mb-4 flex flex-wrap gap-2">
-              <LegalDocumentDialog
-                title="Mesafeli Satış Sözleşmesi"
-                html={order.legalSnapshot.distanceSalesHtml}
-                triggerLabel="Mesafeli Satış Sözleşmesi"
-                triggerVariant="outline"
-                downloadHref={distanceSalesDownloadHref}
-              />
-              <LegalDocumentDialog
-                title="Ön Bilgilendirme Formu"
-                html={order.legalSnapshot.preInformationHtml}
-                triggerLabel="Ön Bilgilendirme Formu"
-                triggerVariant="outline"
-                downloadHref={preInformationDownloadHref}
-              />
-            </div>
-          ) : null}
-
-          {invoiceManagement.sellers.length > 0 ? (
-            <div className="space-y-3">
-              {invoiceManagement.sellers.map(seller => (
-                <AdminInvoiceCard
-                  key={seller.sellerId}
-                  orderId={order.id}
-                  sellerId={seller.sellerId}
-                  sellerName={seller.sellerName}
-                  invoice={seller.invoice ? {
-                    fileName: seller.invoice.fileName,
-                    uploadedAt: seller.invoice.uploadedAt.toISOString(),
-                    revision: seller.invoice.revision,
-                  } : null}
-                  managementEnabled={invoiceManagement.managementEnabled}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-              Satıcı faturası henüz yüklenmedi.
-            </p>
-          )}
-        </section>
-      ) : null}
+          <h3 className="pt-2 text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+            Tasarımcıların Hanuja&apos;ya kestiği faturalar
+          </h3>
+          {invoiceManagement.sellers.map((seller) => (
+            <AdminInvoiceCard
+              key={seller.sellerId}
+              orderId={order.id}
+              orderNumber={formatOrderDisplayNumber(order.publicNumber, order.id)}
+              sellerId={seller.sellerId}
+              sellerName={seller.sellerName}
+              invoice={seller.invoice ? {
+                fileName: seller.invoice.fileName,
+                uploadedAt: seller.invoice.uploadedAt.toISOString(),
+                revision: seller.invoice.revision,
+                reviewStatus: seller.invoice.reviewStatus,
+                reviewNote: seller.invoice.reviewNote,
+                invoiceNumber: seller.invoice.invoiceNumber,
+                invoiceDate: seller.invoice.invoiceDate?.toISOString() ?? null,
+              } : null}
+              expected={expectedSellerInvoices.get(seller.sellerId) ?? { amount: '-', vatGroups: [] }}
+              managementEnabled={invoiceManagement.managementEnabled}
+            />
+          ))}
+        </div>
+      </section>
 
       {order.payouts.length > 0 ? (
         <section
@@ -931,8 +1027,11 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                   <span style={{ color: 'var(--color-muted-fg)' }}>
                     {payout.status}
                     {payout.holdUntil
-                      ? ` · Bekleme: ${new Date(payout.holdUntil).toLocaleDateString('tr-TR')}`
-                      : ''}
+                      ? ` · Fatura vadesi: ${new Date(payout.holdUntil).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}`
+                      : ' · Vade: tasarımcı faturası onayından sonra'}
+                    {payout.nextPaymentAt
+                      ? ` · Planlanan ödeme: ${new Date(payout.nextPaymentAt).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}`
+                      : ' · Ödeme koşulları bekleniyor'}
                   </span>
                   <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
                     {formatMoney(net)}

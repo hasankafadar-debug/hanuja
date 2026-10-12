@@ -46,6 +46,9 @@ function buildActivateHoldPrisma(lines: FakeLine[]) {
       }),
     },
     sellerInvoice: { findFirst: vi.fn(async () => null) },
+    // Satıcı Hanuja modeli: the due date is read from the approved seller invoice.
+    orderSellerInvoice: { findUnique: vi.fn(async () => null) },
+    platformSettings: { findUnique: vi.fn(async () => null) },
     refundTransaction: { findMany: vi.fn(async () => []) },
     orderLine: {
       findMany: vi.fn(async () => lines),
@@ -71,7 +74,7 @@ function buildActivateHoldPrisma(lines: FakeLine[]) {
 
 const DELIVERY_CONFIRMED_AT = new Date('2026-05-01T00:00:00Z')
 
-describe('activateHold — satıcı kuponu payı payout snapshot', () => {
+describe('activateHold — tasarımcı kuponu payı payout snapshot', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })

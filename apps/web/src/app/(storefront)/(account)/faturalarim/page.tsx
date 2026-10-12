@@ -6,7 +6,8 @@ import { Button, PageHeader } from '@hanuja/ui'
 import { Download, FileText } from 'lucide-react'
 import { auth } from '@/lib/auth'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
-import { createOrderDocumentService } from '@hanuja/api/services/order-document.service'
+import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { createCustomerInvoiceService } from '@hanuja/api/services/customer-invoice.service'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,14 +22,14 @@ export default async function CustomerInvoicesPage() {
     redirect('/giris?redirect=/faturalarim')
   }
 
-  const service = createOrderDocumentService({ prisma: createPrismaForRoute() })
-  const invoices = await service.listInvoicesForCustomer(session.user.id)
+  const service = createCustomerInvoiceService({ prisma: createPrismaForRoute() })
+  const invoices = await service.listForCustomer(session.user.id)
 
   return (
     <div className="max-w-4xl">
       <PageHeader
         title="Faturalarım"
-        description="Siparişleriniz için tasarımcıların yüklediği faturalar."
+        description="Siparişleriniz için Hanuja'nın düzenlediği faturalar."
       />
 
       <div className="mt-6 space-y-3">
@@ -38,19 +39,17 @@ export default async function CustomerInvoicesPage() {
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
           >
             <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-              Henüz yüklenmiş fatura bulunmuyor.
+              Henüz düzenlenmiş fatura bulunmuyor. Faturanız, siparişiniz kargoya verildikten sonra burada görünür.
             </p>
           </section>
         ) : (
           invoices.map((invoice) => {
-            const viewHref = `/api/orders/${invoice.orderId}/documents/invoices/${invoice.sellerId}`
+            const viewHref = `/api/orders/${invoice.orderId}/documents/customer-invoice`
             const downloadHref = `${viewHref}?download=1`
             const uploadedAt = new Date(invoice.uploadedAt).toLocaleDateString('tr-TR', {
               day: 'numeric',
               month: 'long',
               year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
             })
 
             return (
@@ -63,11 +62,11 @@ export default async function CustomerInvoicesPage() {
                   <div className="mb-2 flex items-center gap-2">
                     <FileText className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
                     <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
-                      {invoice.seller.displayName}
+                      {invoice.invoiceNumber ? `Fatura No: ${invoice.invoiceNumber}` : 'Satış faturası'}
                     </p>
                   </div>
                   <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                    Sipariş #{invoice.orderId.slice(-8).toUpperCase()} · {uploadedAt}
+                    Sipariş {formatOrderDisplayNumber(invoice.order.publicNumber, invoice.orderId)} · {uploadedAt}
                   </p>
                   <p className="mt-1 truncate text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                     {invoice.fileName}

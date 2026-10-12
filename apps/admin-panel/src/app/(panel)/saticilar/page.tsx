@@ -10,7 +10,7 @@ import { buildDateRange, getPagination, getPrimaryStatusValue, parseAdminListPar
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = { title: 'Satıcılar' }
+export const metadata: Metadata = { title: 'Tasarımcılar' }
 
 const STATUS_MAP: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' | 'secondary' }> = {
   active: { label: 'Aktif', variant: 'success' },
@@ -75,11 +75,11 @@ export default async function SellersPage({
 
   return (
     <div className="space-y-6" data-testid="admin-sellers-page">
-      <PageHeader title="Satıcılar" description={`${result.total} satıcı`} />
+      <PageHeader title="Tasarımcılar" description={`${result.total} tasarımcı`} />
 
       <AdminListControls
         searchValue={params.q}
-        searchPlaceholder="Satıcı, şehir veya e-posta ara"
+        searchPlaceholder="Tasarımcı, şehir veya e-posta ara"
         statusValue={getPrimaryStatusValue(params.status)}
         statusOptions={STATUS_OPTIONS}
         fromValue={params.from}
@@ -93,13 +93,13 @@ export default async function SellersPage({
       >
         {sellers.length === 0 ? (
           <p className="p-6 text-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Satıcı yok.
+            Tasarımcı yok.
           </p>
         ) : (
           <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Satıcı', 'Şehir', 'Ürün', 'Bekleyen Hakediş', 'Bakiye', 'Durum', ''].map((heading) => (
+                {['Tasarımcı', 'Şehir', 'Ürün', 'Bekleyen Hakediş', 'Bakiye', 'Durum', ''].map((heading) => (
                   <th
                     key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"

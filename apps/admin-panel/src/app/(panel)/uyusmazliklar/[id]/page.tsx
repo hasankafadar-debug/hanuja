@@ -74,7 +74,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
   }
   const roleLabels: Record<string, string> = {
     customer: 'Müşteri',
-    seller: 'Satıcı',
+    seller: 'Tasarımcı',
     admin: 'Admin',
   }
 
@@ -157,7 +157,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
               className="text-xs uppercase tracking-wide"
               style={{ color: 'var(--color-muted-fg)' }}
             >
-              Satıcı
+              Tasarımcı
             </span>
             <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
               {sellerName}
@@ -230,7 +230,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
               className="rounded-lg p-3"
               style={{ backgroundColor: '#fef2f2', color: '#dc2626' }}
             >
-              <strong>Satıcı red sebebi:</strong> {rr.sellerRejectReason}
+              <strong>Tasarımcı red sebebi:</strong> {rr.sellerRejectReason}
               {rr.sellerRejectDescription ? (
                 <p className="mt-1">{rr.sellerRejectDescription}</p>
               ) : null}

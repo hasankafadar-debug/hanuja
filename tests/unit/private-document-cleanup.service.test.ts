@@ -38,6 +38,7 @@ function fixture(overrides: Partial<Intent> = {}) {
       upsert: vi.fn().mockResolvedValue(row),
     },
     orderSellerInvoice: { findFirst: vi.fn().mockResolvedValue(null) },
+    orderCustomerInvoice: { findFirst: vi.fn().mockResolvedValue(null) },
   }
   const db = {
     privateDocumentCleanup: {
@@ -96,6 +97,14 @@ describe('durable private document cleanup', () => {
     expect(f.row.attempts).toBe(0)
     expect(f.row.status).toBe('pending')
     expect(f.row.nextAttemptAt).toEqual(new Date(NOW.getTime() + 5 * 60_000))
+  })
+
+  it("defers keys still referenced by Hanuja's customer invoice", async () => {
+    const f = fixture()
+    f.tx.orderCustomerInvoice.findFirst.mockResolvedValue({ id: 'customer-invoice' })
+    expect((await f.run()).deferred).toBe(1)
+    expect(f.deleteFile).not.toHaveBeenCalled()
+    expect(f.row.status).toBe('pending')
   })
 
   it('defers a concurrent runner when another process holds the file cleanup lock', async () => {

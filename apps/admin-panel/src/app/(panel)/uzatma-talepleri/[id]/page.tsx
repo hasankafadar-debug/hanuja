@@ -125,7 +125,7 @@ export default async function UzatmaTalebiDetay({
           </p>
         </Card>
 
-        <Card label="Satici">
+        <Card label="Tasarımcı">
           {extensionRequest.seller ? (
             <Link
               href={`/saticilar/${extensionRequest.seller.id}`}
@@ -156,7 +156,7 @@ export default async function UzatmaTalebiDetay({
           <p>{new Date(extensionRequest.createdAt).toLocaleString('tr-TR')}</p>
         </Card>
 
-        <Card label="Satici Gerekcesi" full>
+        <Card label="Tasarımcı Gerekcesi" full>
           <p className="whitespace-pre-wrap">{extensionRequest.sellerReason}</p>
         </Card>
 

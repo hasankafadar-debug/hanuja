@@ -9,6 +9,7 @@ import { createOrderDocumentService } from '../../api/services/order-document.se
 import { createPrivateDocumentStorage, type PrivateDocumentStorage } from '../../api/lib/private-document-storage'
 import { getInvoiceRevision, SELLER_INVOICE_EDIT_WINDOW_MS } from '../../api/lib/invoice-management'
 import { processPrivateDocumentCleanup, schedulePrivateDocumentCleanup } from '../../api/services/private-document-cleanup.service'
+import { createCustomerInvoiceService } from '../../api/services/customer-invoice.service'
 
 // These tests never use the application's DATABASE_URL. Both database name and
 // host are checked before any migration, fixture write or cleanup is possible.
@@ -127,6 +128,7 @@ const removeParams = (f: Fixture, revision: string, extra = {}) => ({
 })
 const invoice = (f: Fixture) => prisma.orderSellerInvoice.findUnique({ where: pairWhere(f) })
 const policy = (f: Fixture) => prisma.orderSellerInvoicePolicy.findUniqueOrThrow({ where: pairWhere(f) })
+// Satıcı Hanuja modeli: the seller's invoice to Hanuja never notifies the customer.
 const uploadedOutboxCount = (f: Fixture) => prisma.notificationOutbox.count({
   where: { userId: f.customer.id, type: 'invoice_uploaded' },
 })
@@ -156,7 +158,7 @@ describe('invoice lifecycle on real PostgreSQL', () => {
     expect(management.sellerEditDeadline).toEqual(new Date(backfillFirstUploadedAt.getTime() + SELLER_INVOICE_EDIT_WINDOW_MS))
   })
 
-  it('keeps the first upload after replacement, removal and re-upload; removal sends no notification', async () => {
+  it('keeps the first upload after replacement, removal and re-upload without notifying the customer', async () => {
     const f = await seed()
     const first = await service().uploadInvoiceForSeller(uploadParams(f))
     const firstDate = (await policy(f)).firstUploadedAt
@@ -173,7 +175,8 @@ describe('invoice lifecycle on real PostgreSQL', () => {
     expect((await policy(f)).firstUploadedAt).toEqual(firstDate)
     await service().uploadInvoiceForSeller(uploadParams(f))
     expect((await policy(f)).firstUploadedAt).toEqual(firstDate)
-    expect(await uploadedOutboxCount(f)).toBe(beforeRemoval + 1)
+    expect(beforeRemoval).toBe(0)
+    expect(await uploadedOutboxCount(f)).toBe(0)
     const audit = await prisma.adminAuditLog.findMany({ where: { targetType: 'order', targetId: f.order.id }, orderBy: { createdAt: 'asc' } })
     expect(audit.map(row => row.actionType)).toEqual(['order_invoice_uploaded', 'order_invoice_replaced', 'order_invoice_removed', 'order_invoice_uploaded'])
     expect(audit.every(row => row.actorId === f.sellerUser.id && !!row.reason)).toBe(true)
@@ -207,7 +210,9 @@ describe('invoice lifecycle on real PostgreSQL', () => {
     await expect(service().removeInvoiceForAdmin(removeParams(f, first.revision, { actorId: f.sellerUser.id })))
       .rejects.toMatchObject({ statusCode: 403 })
     expect(getInvoiceRevision((await invoice(f))!)).toBe(first.revision)
-    await expect(service().getInvoiceForCustomer(f.order.id, f.outsider.id, f.seller.id))
+    // The seller's invoice has no customer read path at all; customers read Hanuja's invoice.
+    expect(service()).not.toHaveProperty('getInvoiceForCustomer')
+    await expect(createCustomerInvoiceService({ prisma, storage }).getForCustomer(f.order.id, f.customer.id))
       .rejects.toMatchObject({ statusCode: 404 })
   })
 
@@ -274,7 +279,7 @@ describe('invoice lifecycle on real PostgreSQL', () => {
     expect(results.map(result => result.status).sort()).toEqual(['duplicate', 'processed'])
     expect(await prisma.orderSellerInvoice.count({ where: pair(f) })).toBe(1)
     expect(await prisma.inboundEmail.count({ where: { messageId: mail.messageId } })).toBe(1)
-    expect(await uploadedOutboxCount(f)).toBe(1)
+    expect(await uploadedOutboxCount(f)).toBe(0)
     expect(await prisma.adminAuditLog.count({ where: { targetId: f.order.id } })).toBe(1)
     expect(await prisma.privateDocumentCleanup.count({ where: { status: 'pending' } })).toBe(0)
   })
@@ -323,7 +328,7 @@ describe('invoice lifecycle on real PostgreSQL', () => {
     expect(active).not.toBeNull()
     expect(await storage.exists(active!.fileKey)).toBe(true)
     expect(await service().readInvoiceFile(active!.fileKey)).toMatchObject({ body: PDF })
-    expect(await uploadedOutboxCount(f)).toBe(1)
+    expect(await uploadedOutboxCount(f)).toBe(0)
     const intent = await prisma.privateDocumentCleanup.findUniqueOrThrow({ where: { fileKey: active!.fileKey } })
     expect(intent.status).toBe('pending')
     expect(intent.lastError).toBe('File is still referenced by an active invoice.')

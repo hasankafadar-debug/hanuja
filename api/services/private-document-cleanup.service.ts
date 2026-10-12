@@ -96,10 +96,10 @@ export async function processPrivateDocumentCleanup(
       if (!intent || intent.status !== 'pending') return null
       if (!options.fileKey && intent.nextAttemptAt > now) return null
 
-      const activeInvoice = await tx.orderSellerInvoice.findFirst({
-        where: { fileKey: item.fileKey },
-        select: { id: true },
-      })
+      // Both the seller's invoice to Hanuja and Hanuja's customer invoice share private storage.
+      const activeInvoice =
+        (await tx.orderSellerInvoice.findFirst({ where: { fileKey: item.fileKey }, select: { id: true } })) ??
+        (await tx.orderCustomerInvoice.findFirst({ where: { fileKey: item.fileKey }, select: { id: true } }))
       if (activeInvoice) {
         await tx.privateDocumentCleanup.update({
           where: { id: intent.id },

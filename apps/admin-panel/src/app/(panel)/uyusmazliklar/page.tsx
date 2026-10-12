@@ -17,7 +17,7 @@ const STATUS_OPTIONS = [
   { value: 'open', label: 'Açık' },
   { value: 'under_review', label: 'İncelemede' },
   { value: 'resolved_for_customer', label: 'Müşteri lehine' },
-  { value: 'resolved_for_seller', label: 'Satıcı lehine' },
+  { value: 'resolved_for_seller', label: 'Tasarımcı lehine' },
 ]
 
 export default async function DisputesAdminPage({
@@ -79,7 +79,7 @@ export default async function DisputesAdminPage({
         <strong style={{ color: 'var(--color-primary)' }}>Önemli:</strong>{' '}
         <span style={{ color: 'var(--color-muted-fg)' }}>
           Açık uyuşmazlıklar ilgili siparişin hakedişini bloke eder. Müşteri lehine çözümde ödeme iadesi
-          tetiklenir; satıcı lehine çözümde hakediş serbest kalır.
+          tetiklenir; tasarımcı lehine çözümde hakediş serbest kalır.
         </span>
       </div>
 
@@ -89,7 +89,7 @@ export default async function DisputesAdminPage({
         statusValue={getPrimaryStatusValue(params.status)}
         statusOptions={STATUS_OPTIONS}
         sellerValue={params.seller}
-        sellerPlaceholder="Satıcı ID"
+        sellerPlaceholder="Tasarımcı ID"
         fromValue={params.from}
         toValue={params.to}
         pageSize={params.pageSize}
@@ -103,7 +103,7 @@ export default async function DisputesAdminPage({
         <table className="w-full whitespace-nowrap text-sm">
           <thead style={{ backgroundColor: 'var(--color-muted)' }}>
             <tr>
-              {['Uyuşmazlık', 'Sipariş', 'Satıcı', 'Müşteri', 'Sebep', 'Açılış', 'Durum', ''].map((heading) => (
+              {['Uyuşmazlık', 'Sipariş', 'Tasarımcı', 'Müşteri', 'Sebep', 'Açılış', 'Durum', ''].map((heading) => (
                 <th
                   key={heading}
                   className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"

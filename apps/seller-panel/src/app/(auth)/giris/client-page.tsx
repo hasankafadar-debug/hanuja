@@ -20,7 +20,7 @@ function getSellerSignInErrorMessage(authError: TurnstileClientError | null | un
   if (turnstileMessage) return turnstileMessage
 
   if (isDatabaseUnavailableError(authError)) {
-    return 'Satıcı girişi şu anda veritabanı bağlantısı nedeniyle kullanılamıyor. Lütfen biraz sonra tekrar deneyin.'
+    return 'Tasarımcı girişi şu anda veritabanı bağlantısı nedeniyle kullanılamıyor. Lütfen biraz sonra tekrar deneyin.'
   }
 
   if (authError?.status === 401 || authError?.status === 403) {
@@ -28,7 +28,7 @@ function getSellerSignInErrorMessage(authError: TurnstileClientError | null | un
   }
 
   if (authError?.status === 500 || authError?.status === 503) {
-    return 'Satıcı giriş hizmetine şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.'
+    return 'Tasarımcı giriş hizmetine şu anda ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.'
   }
 
   if (authError?.message) {
@@ -97,7 +97,7 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
 
   return (
     <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-      <h1 className="mb-6 text-xl font-semibold text-neutral-900">Satıcı Girişi</h1>
+      <h1 className="mb-6 text-xl font-semibold text-neutral-900">Tasarımcı Girişi</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -151,7 +151,7 @@ export function SellerLoginPageClient({ turnstileSiteKey }: SellerLoginPageClien
       </form>
 
       <p className="mt-6 text-center text-sm text-neutral-500">
-        Satıcı hesabın yok mu?{' '}
+        Tasarımcı hesabın yok mu?{' '}
         <a href="/basvuru" className="font-medium text-neutral-900 hover:underline">
           Başvuruyu başlat
         </a>

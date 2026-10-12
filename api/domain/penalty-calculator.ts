@@ -13,7 +13,7 @@ import { addBusinessDays, countBusinessDaysBetween } from './business-days'
 export const STANDARD_PENALTY_RATE = new Decimal('0.2000') // 20%
 export const DAILY_LATE_SHIPMENT_PENALTY_RATE = new Decimal('0.0100') // 1%
 export const FULFILLMENT_DAYS = 20 // 20-business-day shipment commitment
-export const PAYOUT_HOLD_DAYS = 30 // 30-day hold after delivery_confirmed
+export const PAYOUT_HOLD_DAYS = 30 // Varsayılan: satıcı faturası tarihinden 30 gün (PlatformSettings.payoutHoldDays)
 export const RETURN_WINDOW_DAYS = 14 // 14-day right-of-withdrawal
 export const SILENT_DELIVERY_CONFIRMATION_HOURS = 72 // 72-hour auto-confirm
 export const FULFILLMENT_EXTENSION_DAYS = 10 // Optional 10-business-day extension (admin only)

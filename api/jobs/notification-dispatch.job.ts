@@ -52,6 +52,8 @@ import {
   sellerProductQuestionTemplate,
   customerProductQuestionAnsweredTemplate,
   productPriceDropTemplate,
+  sellerInvoiceRejectedTemplate,
+  sellerInvoiceReminderTemplate,
   type BankTransferInstruction,
   type CancellationActorRole,
   type EmailOrderLineInput,
@@ -179,87 +181,42 @@ function contractLinks(data: EmailData): OrderContractLinks {
   return value && typeof value === 'object' ? (value as OrderContractLinks) : {}
 }
 
-function trustedInvoiceUrl(value: unknown) {
-  if (typeof value !== 'string') return null
-  try {
-    const url = new URL(value)
-    const origins = [getWebBaseUrl(), getSellerPanelUrl(), getAdminPanelUrl()]
-      .map((base) => new URL(base).origin)
-    return origins.includes(url.origin) && !url.username && !url.password ? url : null
-  } catch {
-    return null
-  }
+/**
+ * Customer invoice e-mails announce Hanuja's own sales invoice (satıcı Hanuja modeli). The
+ * event key carries the order and the stored file revision. Older `invoice:<order>:<seller>`
+ * events announced the seller's invoice, which is no longer customer-facing.
+ */
+function invoiceIdentity(eventKey: string) {
+  const event = /^customer-invoice:([^:]+):([a-f0-9]{64})$/.exec(eventKey)
+  return event ? { orderId: event[1]!, revision: event[2]! } : null
 }
 
-function invoiceIdentity(data: EmailData | undefined, eventKey: string) {
-  const orderId = data && optStr(data, 'orderId')
-  const sellerId = data && optStr(data, 'sellerId')
-  if (orderId && sellerId) return { orderId, sellerId }
-  const event = /^invoice:([^:]+):([^:]+):[^:]+$/.exec(eventKey)
-  if (event) return { orderId: event[1]!, sellerId: event[2]! }
-  const url = trustedInvoiceUrl(data?.['invoiceUrl'])
-  const path = url && /^\/api\/orders\/([^/]+)\/documents\/invoices\/([^/]+)$/.exec(url.pathname)
-  if (!path) return null
-  try {
-    return { orderId: decodeURIComponent(path[1]!), sellerId: decodeURIComponent(path[2]!) }
-  } catch {
-    return null
-  }
-}
-
-/** Rebuild pending invoice links instead of trusting the producer's panel origin. */
+/** Rebuild invoice links from the order instead of trusting the producer's payload. */
 function canonicalInvoiceData(data: EmailData | undefined, eventKey: string) {
   if (!data) return data
-  const identity = invoiceIdentity(data, eventKey)
-  if (identity) {
-    return {
-      ...data,
-      ...identity,
-      orderUrl: getCustomerOrderUrl(identity.orderId),
-      invoiceUrl: getCustomerInvoiceUrl(identity.orderId, identity.sellerId),
-    }
+  const identity = invoiceIdentity(eventKey)
+  if (!identity) return data
+  return {
+    ...data,
+    orderId: identity.orderId,
+    orderUrl: getCustomerOrderUrl(identity.orderId),
+    invoiceUrl: getCustomerInvoiceUrl(identity.orderId),
   }
-  // Very old payloads have no invoice identity. Only rewrite our known panel
-  // origins; never turn a URL supplied by another host into a trusted link.
-  const result = { ...data }
-  for (const key of ['orderUrl', 'invoiceUrl']) {
-    const url = trustedInvoiceUrl(data[key])
-    if (url && [getSellerPanelUrl(), getAdminPanelUrl()].some((base) => new URL(base).origin === url.origin)) {
-      const target = new URL(getWebBaseUrl())
-      target.pathname = url.pathname
-      if (key === 'invoiceUrl' && url.searchParams.get('download') === '1') target.search = '?download=1'
-      result[key] = target.toString()
-    }
-  }
-  return result
 }
 
 async function invoiceDispatchSkipReason(
   prisma: PrismaClient,
   userId: string,
-  data: EmailData | undefined,
   eventKey: string,
 ) {
-  const identity = invoiceIdentity(data, eventKey)
-  if (!identity) return null
-  const invoice = await prisma.orderSellerInvoice.findFirst({
-    where: { ...identity, order: { customerId: userId } },
-    select: { id: true, fileKey: true, uploadedAt: true },
+  const identity = invoiceIdentity(eventKey)
+  if (!identity) return 'SELLER_INVOICE_NOT_CUSTOMER_FACING'
+  const invoice = await prisma.orderCustomerInvoice.findFirst({
+    where: { orderId: identity.orderId, order: { customerId: userId } },
+    select: { id: true, fileKey: true },
   })
   if (!invoice) return 'INVOICE_REMOVED_OR_UNAUTHORIZED'
-  const eventVersion = /^invoice:[^:]+:[^:]+:([^:]+)$/.exec(eventKey)?.[1]
-  const revision = data && optStr(data, 'invoiceRevision')
-  if (revision || (eventVersion && /^[a-f0-9]{64}$/.test(eventVersion))) {
-    return (revision ?? eventVersion) === getInvoiceRevision(invoice) ? null : 'INVOICE_SUPERSEDED'
-  }
-  // Pre-migration events identified the upload by its millisecond timestamp.
-  const uploadedAt = data && optStr(data, 'uploadedAt')
-  const expectedTime = eventVersion && /^\d+$/.test(eventVersion)
-    ? Number(eventVersion)
-    : uploadedAt ? new Date(uploadedAt).getTime() : null
-  return expectedTime !== null && expectedTime !== invoice.uploadedAt.getTime()
-    ? 'INVOICE_SUPERSEDED'
-    : null
+  return identity.revision === getInvoiceRevision(invoice) ? null : 'INVOICE_SUPERSEDED'
 }
 
 async function skipUnstartedInvoiceDeliveries(
@@ -536,6 +493,21 @@ async function buildEmailPayload(
         penaltyReason: str(data, 'penaltyReason'),
       })
 
+    case NotificationTypeEnum.seller_invoice_reminder:
+      return sellerInvoiceReminderTemplate({
+        sellerName: str(data, 'sellerName', 'Değerli Tasarımcımız'),
+        orderNumber: str(data, 'orderNumber'),
+        ...(optStr(data, 'panelUrl') ? { panelUrl: optStr(data, 'panelUrl')! } : {}),
+      })
+
+    case NotificationTypeEnum.seller_invoice_rejected:
+      return sellerInvoiceRejectedTemplate({
+        sellerName: str(data, 'sellerName', 'Değerli Tasarımcımız'),
+        orderNumber: str(data, 'orderNumber'),
+        reason: str(data, 'reason'),
+        ...(optStr(data, 'panelUrl') ? { panelUrl: optStr(data, 'panelUrl')! } : {}),
+      })
+
     case NotificationTypeEnum.invoice_uploaded:
       return invoiceUploadedTemplate({
         customerName: str(data, 'customerName'),
@@ -700,7 +672,7 @@ export async function processNotificationDispatch(
   const now = new Date()
   const deliveryUserId = isOps ? null : userId
   if (!isOps && type === NotificationTypeEnum.invoice_uploaded) {
-    const reason = await invoiceDispatchSkipReason(prisma, userId, data, eventKey)
+    const reason = await invoiceDispatchSkipReason(prisma, userId, eventKey)
     if (reason) {
       await skipUnstartedInvoiceDeliveries(prisma, {
         userId, emailTo: (job.data.emailTo ?? user?.email ?? '').trim().toLowerCase(),
@@ -936,7 +908,7 @@ export async function processNotificationDispatch(
       }
     }
     if (!isOps && type === NotificationTypeEnum.invoice_uploaded) {
-      const reason = await invoiceDispatchSkipReason(prisma, userId, data, eventKey)
+      const reason = await invoiceDispatchSkipReason(prisma, userId, eventKey)
       if (reason) {
         await prisma.notificationDelivery.updateMany({
           where: { id: email.id, leaseToken: token },

@@ -39,7 +39,7 @@ export function AdminListControls({
   invoiceValue = '',
   invoiceOptions = [],
   sellerValue = '',
-  sellerPlaceholder = 'Satici ara',
+  sellerPlaceholder = 'Tasarımcı ara',
   fromValue = '',
   toValue = '',
   pageSize = 20,
@@ -84,7 +84,7 @@ export function AdminListControls({
         value: invoiceOptions.find((option) => option.value === invoiceValue)?.label ?? invoiceValue,
       })
     }
-    if (sellerValue) chips.push({ key: 'seller', label: 'Satici', value: sellerValue })
+    if (sellerValue) chips.push({ key: 'seller', label: 'Tasarımcı', value: sellerValue })
     if (fromValue) chips.push({ key: 'from', label: 'Baslangic', value: fromValue })
     if (toValue) chips.push({ key: 'to', label: 'Bitis', value: toValue })
     if (pageSize !== 20) chips.push({ key: 'pageSize', label: 'Sayfa boyutu', value: String(pageSize) })

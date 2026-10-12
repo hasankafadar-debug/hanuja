@@ -26,8 +26,8 @@ export async function POST(req: NextRequest) {
     where: { userId: session.user.id },
     select: { id: true, status: true },
   })
-  if (!seller) return NextResponse.json({ error: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
-  if (seller.status !== 'active') return NextResponse.json({ error: 'Satıcı hesabınız aktif değil.' }, { status: 403 })
+  if (!seller) return NextResponse.json({ error: 'Tasarımcı hesabı bulunamadı.' }, { status: 404 })
+  if (seller.status !== 'active') return NextResponse.json({ error: 'Tasarımcı hesabınız aktif değil.' }, { status: 403 })
 
   if (parsed.data.excludeProductId) {
     const owned = await prisma.product.findFirst({

@@ -153,7 +153,7 @@ export async function GET(_request: NextRequest) {
   if ('error' in result) {
     return result.error === 'unauthorized'
       ? NextResponse.json({ message: 'Oturum açmanız gerekiyor.' }, { status: 401 })
-      : NextResponse.json({ message: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
+      : NextResponse.json({ message: 'Tasarımcı hesabı bulunamadı.' }, { status: 404 })
   }
 
   const service = createSellerDocumentService({ prisma })
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
   if ('error' in result) {
     return result.error === 'unauthorized'
       ? NextResponse.json({ message: 'Oturum açmanız gerekiyor.' }, { status: 401 })
-      : NextResponse.json({ message: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
+      : NextResponse.json({ message: 'Tasarımcı hesabı bulunamadı.' }, { status: 404 })
   }
   const { seller } = result
 

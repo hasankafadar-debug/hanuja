@@ -119,7 +119,7 @@ export function CancelOrderButton({ orderId, lines, wholeOrderOnly = false }: Pr
               {wholeOrder
                 ? 'Havale/EFT ödemeniz henüz onaylanmadığı için yalnız siparişin tamamı iptal edilebilir.'
                 : lines
-                  ? 'Satıcı kargoya vermeden önce seçtiğiniz adetler hemen iptal edilir.'
+                  ? 'Tasarımcı kargoya vermeden önce seçtiğiniz adetler hemen iptal edilir.'
                   : 'Bu işlem geri alınamaz. İptal etmek istediğinizden emin misiniz?'}
             </DialogDescription>
           </DialogHeader>

@@ -10,6 +10,7 @@ const {
   penaltyUpdateMock,
   sellerInvoiceFindUniqueMock,
   sellerInvoiceUpdateMock,
+  additionalInvoiceUpdateMock,
 } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   createPrismaForRouteMock: vi.fn(),
@@ -19,6 +20,7 @@ const {
   penaltyUpdateMock: vi.fn(),
   sellerInvoiceFindUniqueMock: vi.fn(),
   sellerInvoiceUpdateMock: vi.fn(),
+  additionalInvoiceUpdateMock: vi.fn(),
 }))
 
 vi.mock('next/headers', () => ({
@@ -35,6 +37,9 @@ vi.mock('@hanuja/api/lib/prisma', () => ({
 
 vi.mock('@hanuja/api/services/penalty.service', () => ({
   createPenaltyService: createPenaltyServiceMock,
+}))
+vi.mock('@hanuja/api/services/additional-seller-invoice.service', () => ({
+  createAdditionalSellerInvoiceService: () => ({ update: additionalInvoiceUpdateMock }),
 }))
 
 describe('admin finance edit routes', () => {
@@ -190,5 +195,31 @@ describe('admin finance edit routes', () => {
 
     expect(res.status).toBe(422)
     expect(sellerInvoiceUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates extra invoice edits to the atomic ledger service', async () => {
+    sellerInvoiceFindUniqueMock.mockResolvedValue({ id: 'extra-1', type: 'additional' })
+    additionalInvoiceUpdateMock.mockResolvedValue({ id: 'extra-1' })
+    const route = await import('../../../apps/admin-panel/src/app/api/admin/seller-invoices/[id]/route')
+    const response = await route.PUT(new Request('http://localhost/api/admin/seller-invoices/extra-1', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grossInvoiceAmount: '125.55', description: 'Fiyat farkı düzeltmesi' }),
+    }) as never, { params: Promise.resolve({ id: 'extra-1' }) })
+    expect(response.status).toBe(200)
+    const args = additionalInvoiceUpdateMock.mock.calls[0]?.[0]
+    expect(args).toMatchObject({ invoiceId: 'extra-1', adminActorId: 'admin-1', description: 'Fiyat farkı düzeltmesi' })
+    expect(args.grossInvoiceAmount.toFixed(2)).toBe('125.55')
+    expect(sellerInvoiceUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it.each([null, 'customer', 'seller'])('prevents extra invoice edits with role %s', async (role) => {
+    getSessionMock.mockResolvedValue(role ? { user: { id: 'outsider', role } } : null)
+    const route = await import('../../../apps/admin-panel/src/app/api/admin/seller-invoices/[id]/route')
+    const response = await route.PUT(new Request('http://localhost/api/admin/seller-invoices/extra-1', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ grossInvoiceAmount: '125.55' }),
+    }) as never, { params: Promise.resolve({ id: 'extra-1' }) })
+    expect(response.status).toBe(role ? 403 : 401)
+    expect(additionalInvoiceUpdateMock).not.toHaveBeenCalled()
+    expect(sellerInvoiceFindUniqueMock).not.toHaveBeenCalled()
   })
 })

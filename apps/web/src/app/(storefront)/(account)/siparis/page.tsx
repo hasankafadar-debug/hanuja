@@ -70,12 +70,7 @@ export default async function OrdersPage() {
       distanceSalesHtml: string
       preInformationHtml: string
     } | null
-    sellerInvoices: Array<{
-      id: string
-      sellerId: string
-      fileName: string
-      seller: { id: string; displayName: string; slug: string | null }
-    }>
+    customerInvoice: { id: string; fileName: string } | null
     returnRequests: Array<{ id: string; status: string; createdAt: Date }>
   }
 
@@ -173,11 +168,11 @@ export default async function OrdersPage() {
                   </>
                 ) : null}
 
-                {order.sellerInvoices.length === 1 && order.sellerInvoices[0] ? (
+                {order.customerInvoice ? (
                   <div className="flex items-center gap-1.5">
                     <Button asChild variant="outline" size="sm">
                       <a
-                        href={`/api/orders/${order.id}/documents/invoices/${order.sellerInvoices[0].sellerId}`}
+                        href={`/api/orders/${order.id}/documents/customer-invoice`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-1.5"
@@ -188,37 +183,13 @@ export default async function OrdersPage() {
                     </Button>
                     <Button asChild variant="outline" size="sm">
                       <a
-                        href={`/api/orders/${order.id}/documents/invoices/${order.sellerInvoices[0].sellerId}?download=1`}
+                        href={`/api/orders/${order.id}/documents/customer-invoice?download=1`}
                         aria-label="Faturayı indir"
                       >
                         <Download className="h-3.5 w-3.5" />
                       </a>
                     </Button>
                   </div>
-                ) : order.sellerInvoices.length > 1 ? (
-                  order.sellerInvoices.map((invoice, idx) => (
-                    <div key={invoice.id} className="flex items-center gap-1.5">
-                      <Button asChild variant="outline" size="sm">
-                        <a
-                          href={`/api/orders/${order.id}/documents/invoices/${invoice.sellerId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5"
-                        >
-                          <Receipt className="h-3.5 w-3.5" />
-                          {`Fatura ${idx + 1}`}
-                        </a>
-                      </Button>
-                      <Button asChild variant="outline" size="sm">
-                        <a
-                          href={`/api/orders/${order.id}/documents/invoices/${invoice.sellerId}?download=1`}
-                          aria-label={`Fatura ${idx + 1} indir`}
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                        </a>
-                      </Button>
-                    </div>
-                  ))
                 ) : null}
               </div>
             </div>

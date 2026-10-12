@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Button,
@@ -19,10 +19,13 @@ import {
   SelectValue,
   Textarea,
 } from '@hanuja/ui'
+import { csrfFetch } from '@/lib/csrf-fetch'
+import { SearchableDesignerSelect } from './searchable-designer-select'
 
 interface IssueSellerInvoiceButtonProps {
-  sellerId: string
-  type: 'commission' | 'penalty'
+  sellerId?: string
+  sellers?: Array<{ id: string; name: string }>
+  type: 'commission' | 'penalty' | 'additional'
   sourceOrderId?: string
   sourcePenaltyId?: string
   orderNumber?: string
@@ -35,31 +38,35 @@ const INVOICE_CATEGORIES = ['e-Arsiv', 'e-Fatura', 'Diger']
 
 export function IssueSellerInvoiceButton(props: IssueSellerInvoiceButtonProps) {
   const router = useRouter()
+  const formId = useId()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10))
+  const [invoiceDate, setInvoiceDate] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' }))
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [invoiceCategory, setInvoiceCategory] = useState(INVOICE_CATEGORIES[0]!)
   const [description, setDescription] = useState(props.defaultDescription)
   const [amount, setAmount] = useState(props.defaultAmount)
+  const [sellerId, setSellerId] = useState(props.sellerId ?? '')
+  const additional = props.type === 'additional'
+  const canSubmit = Boolean(sellerId && invoiceNumber.trim() && invoiceDate && Number(amount) > 0 && (!additional || description.trim()))
 
   async function handleSubmit() {
     setLoading(true)
     setError(null)
 
     try {
-      const response = await fetch('/api/admin/seller-invoices', {
+      const response = await csrfFetch('/api/admin/seller-invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sellerId: props.sellerId,
+          sellerId,
           type: props.type,
           invoiceNumber,
           invoiceDate: new Date(`${invoiceDate}T12:00:00.000Z`).toISOString(),
           invoiceCategory,
           description,
-          amount,
+          grossInvoiceAmount: amount,
           ...(props.sourceOrderId ? { sourceOrderId: props.sourceOrderId } : {}),
           ...(props.sourcePenaltyId ? { sourcePenaltyId: props.sourcePenaltyId } : {}),
         }),
@@ -67,12 +74,18 @@ export function IssueSellerInvoiceButton(props: IssueSellerInvoiceButtonProps) {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
-        setError(payload.error ?? 'Invoice could not be created.')
+        setError(payload.message ?? 'Fatura kaydedilemedi. Alanları kontrol edin.')
         return
       }
 
       setOpen(false)
+      setInvoiceNumber('')
+      setDescription(props.defaultDescription)
+      setAmount(props.defaultAmount)
+      if (additional) router.push('/cezalar?tab=additional')
       router.refresh()
+    } catch {
+      setError('Fatura kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin.')
     } finally {
       setLoading(false)
     }
@@ -86,26 +99,32 @@ export function IssueSellerInvoiceButton(props: IssueSellerInvoiceButtonProps) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{props.type === 'commission' ? 'Issue commission invoice' : 'Issue penalty invoice'}</DialogTitle>
+            <DialogTitle>{additional ? 'Ek Fatura Kaydet' : props.type === 'commission' ? 'Komisyon Faturası Kaydet' : 'Ceza Faturası Kaydet'}</DialogTitle>
             <DialogDescription>
-              Record the invoice metadata for the seller finance timeline.
+              {additional ? 'Kestiğiniz faturayı kaydedin. KDV dahil toplam tasarımcı ekstresine borç olarak işlenir ve hakedişlerinden düşülür.' : 'Kestiğiniz faturayı mevcut ceza kaydına bağlayın. Aynı borç tekrar eklenmez.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            {!props.sellerId ? (
+              <div className="space-y-1.5">
+                <Label htmlFor={`${formId}-seller`}>Tasarımcı</Label>
+                <SearchableDesignerSelect id={`${formId}-seller`} sellers={props.sellers ?? []} value={sellerId} onChange={setSellerId} />
+              </div>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="invoice-date">Invoice date</Label>
-                <Input id="invoice-date" type="date" value={invoiceDate} onChange={(event) => setInvoiceDate(event.target.value)} />
+                <Label htmlFor={`${formId}-date`}>Fatura tarihi</Label>
+                <Input id={`${formId}-date`} type="date" value={invoiceDate} onChange={(event) => setInvoiceDate(event.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="invoice-number">Invoice number</Label>
-                <Input id="invoice-number" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} />
+                <Label htmlFor={`${formId}-number`}>Fatura numarası</Label>
+                <Input id={`${formId}-number`} maxLength={120} value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Invoice type</Label>
+                <Label htmlFor={`${formId}-category`}>Fatura tipi</Label>
                 <Select value={invoiceCategory} onValueChange={setInvoiceCategory}>
-                  <SelectTrigger>
+                  <SelectTrigger id={`${formId}-category`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -116,18 +135,20 @@ export function IssueSellerInvoiceButton(props: IssueSellerInvoiceButtonProps) {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="invoice-amount">Amount</Label>
-                <Input id="invoice-amount" type="number" step="0.01" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} />
+                <Label htmlFor={`${formId}-amount`}>Tutar (KDV dahil)</Label>
+                <Input id={`${formId}-amount`} type="number" step="0.01" min="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} />
               </div>
+              {!additional ? (
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="invoice-order-number">Order</Label>
-                <Input id="invoice-order-number" value={props.orderNumber ?? '—'} readOnly />
+                <Label htmlFor={`${formId}-order`}>Sipariş</Label>
+                <Input id={`${formId}-order`} value={props.orderNumber ?? '—'} readOnly />
               </div>
+              ) : null}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="invoice-description">Description</Label>
-              <Textarea id="invoice-description" rows={4} value={description} onChange={(event) => setDescription(event.target.value)} />
+              <Label htmlFor={`${formId}-description`}>Açıklama</Label>
+              <Textarea id={`${formId}-description`} rows={4} maxLength={5000} placeholder={additional ? 'Örneğin: Fiyat farkı faturası' : undefined} value={description} onChange={(event) => setDescription(event.target.value)} />
             </div>
 
             {error ? (
@@ -139,10 +160,10 @@ export function IssueSellerInvoiceButton(props: IssueSellerInvoiceButtonProps) {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>
-              Cancel
+                Vazgeç
             </Button>
-            <Button onClick={handleSubmit} disabled={loading}>
-              {loading ? 'Saving...' : 'Create invoice'}
+            <Button onClick={handleSubmit} disabled={loading || !canSubmit}>
+              {loading ? 'Kaydediliyor...' : 'Faturayı Kaydet'}
             </Button>
           </DialogFooter>
         </DialogContent>

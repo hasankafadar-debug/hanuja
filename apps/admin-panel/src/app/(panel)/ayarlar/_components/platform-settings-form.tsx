@@ -106,7 +106,7 @@ export function PlatformSettingsForm({ initialValues }: Props) {
     },
     {
       key: 'defaultSellerCommissionRate',
-      label: 'Genel satici komisyonu',
+      label: 'Genel tasarımcı komisyonu',
       suffix: '%',
       step: '0.01',
       min: '0',

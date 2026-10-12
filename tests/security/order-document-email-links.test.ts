@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { getSession, getContractForCustomer, getInvoiceForCustomer, readInvoiceFile } = vi.hoisted(
+const { getSession, getContractForCustomer, getForCustomer, readFile, sellerInvoiceLookup } = vi.hoisted(
   () => ({
     getSession: vi.fn(),
     getContractForCustomer: vi.fn(),
-    getInvoiceForCustomer: vi.fn(),
-    readInvoiceFile: vi.fn(),
+    getForCustomer: vi.fn(),
+    readFile: vi.fn(),
+    sellerInvoiceLookup: vi.fn(),
   }),
 )
 
@@ -22,16 +23,23 @@ vi.mock('@hanuja/api/lib/prisma', () => ({ createPrismaForRoute: () => ({}) }))
 vi.mock('@hanuja/api/services/order-document.service', () => ({
   createOrderDocumentService: () => ({
     getContractForCustomer,
-    getInvoiceForCustomer,
-    readInvoiceFile,
+    // The seller's invoice to Hanuja must never be read for a customer request.
+    getInvoiceForSeller: sellerInvoiceLookup,
+    getInvoiceForAdmin: sellerInvoiceLookup,
+    readInvoiceFile: sellerInvoiceLookup,
   }),
+}))
+vi.mock('@hanuja/api/services/customer-invoice.service', () => ({
+  createCustomerInvoiceService: () => ({ getForCustomer, readFile }),
 }))
 
 import { GET as contractGet } from '../../apps/web/src/app/api/orders/[id]/documents/contracts/[kind]/route'
-import { GET as invoiceGet } from '../../apps/web/src/app/api/orders/[id]/documents/invoices/[sellerId]/route'
+import { GET as invoiceGet } from '../../apps/web/src/app/api/orders/[id]/documents/customer-invoice/route'
+import { GET as legacyInvoiceGet } from '../../apps/web/src/app/api/orders/[id]/documents/invoices/[sellerId]/route'
 
 const contractParams = { params: Promise.resolve({ id: 'order-1', kind: 'distance-sales' }) }
-const invoiceParams = { params: Promise.resolve({ id: 'order-1', sellerId: 'seller-1' }) }
+const invoiceParams = { params: Promise.resolve({ id: 'order-1' }) }
+const legacyInvoiceParams = { params: Promise.resolve({ id: 'order-1', sellerId: 'seller-1' }) }
 
 function req(url: string) {
   return new NextRequest(url)
@@ -44,13 +52,13 @@ describe('order document links used in e-mails', () => {
       distanceSalesHtml: '<html>sozlesme</html>',
       preInformationHtml: '<html>on bilgi</html>',
     })
-    getInvoiceForCustomer.mockResolvedValue({
+    getForCustomer.mockResolvedValue({
       fileKey: 'private/v1/aa/x.bin',
       fileName: 'fatura.pdf',
       mimeType: 'application/pdf',
       sizeBytes: 10,
     })
-    readInvoiceFile.mockResolvedValue({ body: new Uint8Array([1]), contentType: 'application/pdf', sizeBytes: 1 })
+    readFile.mockResolvedValue({ body: new Uint8Array([1]), sizeBytes: 1 })
   })
   afterEach(() => vi.unstubAllEnvs())
 
@@ -72,14 +80,14 @@ describe('order document links used in e-mails', () => {
   it('sends a signed-out invoice reader to login and back, keeping the download flag', async () => {
     getSession.mockResolvedValue(null)
     const response = await invoiceGet(
-      req('http://localhost/api/orders/order-1/documents/invoices/seller-1?download=1'),
+      req('http://localhost/api/orders/order-1/documents/customer-invoice?download=1'),
       invoiceParams,
     )
     expect(response.status).toBe(307)
     expect(new URL(response.headers.get('location')!).searchParams.get('callbackUrl')).toBe(
-      '/api/orders/order-1/documents/invoices/seller-1?download=1',
+      '/api/orders/order-1/documents/customer-invoice?download=1',
     )
-    expect(getInvoiceForCustomer).not.toHaveBeenCalled()
+    expect(getForCustomer).not.toHaveBeenCalled()
   })
 
   it('uses the customer origin behind a production reverse proxy, ignoring panel and forwarded hosts', async () => {
@@ -88,14 +96,14 @@ describe('order document links used in e-mails', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://satici.hanuja.com.tr')
     getSession.mockResolvedValue(null)
     const response = await invoiceGet(new NextRequest(
-      'https://0.0.0.0:3000/api/orders/order-1/documents/invoices/seller-1?download=1',
+      'https://0.0.0.0:3000/api/orders/order-1/documents/customer-invoice?download=1',
       { headers: { 'x-forwarded-host': 'attacker.example.test' } },
     ), invoiceParams)
     const location = new URL(response.headers.get('location')!)
     expect(location.origin).toBe('https://www.hanuja.com.tr')
     expect(location.pathname).toBe('/giris')
-    expect(location.searchParams.get('callbackUrl')).toBe('/api/orders/order-1/documents/invoices/seller-1?download=1')
-    expect(getInvoiceForCustomer).not.toHaveBeenCalled()
+    expect(location.searchParams.get('callbackUrl')).toBe('/api/orders/order-1/documents/customer-invoice?download=1')
+    expect(getForCustomer).not.toHaveBeenCalled()
   })
 
   it('scopes the document lookup to the signed-in customer', async () => {
@@ -103,8 +111,33 @@ describe('order document links used in e-mails', () => {
     await contractGet(req('http://localhost/api/orders/order-1/documents/contracts/distance-sales'), contractParams)
     expect(getContractForCustomer).toHaveBeenCalledWith('order-1', 'customer-1')
 
-    await invoiceGet(req('http://localhost/api/orders/order-1/documents/invoices/seller-1'), invoiceParams)
-    expect(getInvoiceForCustomer).toHaveBeenCalledWith('order-1', 'customer-1', 'seller-1')
+    await invoiceGet(req('http://localhost/api/orders/order-1/documents/customer-invoice'), invoiceParams)
+    expect(getForCustomer).toHaveBeenCalledWith('order-1', 'customer-1')
+    expect(sellerInvoiceLookup).not.toHaveBeenCalled()
+  })
+
+  it("redirects old designer-invoice links to Hanuja's invoice without reading the seller's file", async () => {
+    vi.stubEnv('NEXT_PUBLIC_WEB_URL', 'https://www.hanuja.com.tr')
+    getSession.mockResolvedValue({ user: { id: 'customer-1' } })
+    const response = await legacyInvoiceGet(
+      req('http://localhost/api/orders/order-1/documents/invoices/seller-1?download=1'),
+      legacyInvoiceParams,
+    )
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe(
+      'https://www.hanuja.com.tr/api/orders/order-1/documents/customer-invoice?download=1',
+    )
+    expect(sellerInvoiceLookup).not.toHaveBeenCalled()
+    expect(getForCustomer).not.toHaveBeenCalled()
+  })
+
+  it("returns not-found when another customer opens the order's invoice", async () => {
+    getSession.mockResolvedValue({ user: { id: 'other-customer' } })
+    const { NotFoundError } = await import('../../api/lib/errors')
+    getForCustomer.mockRejectedValue(new NotFoundError('Fatura'))
+    const response = await invoiceGet(req('http://localhost/api/orders/order-1/documents/customer-invoice'), invoiceParams)
+    expect(response.status).toBe(404)
+    expect(readFile).not.toHaveBeenCalled()
   })
 
   it('renders inline only for the e-mail view link and downloads otherwise', async () => {

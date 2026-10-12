@@ -13,7 +13,7 @@ export async function GET() {
 
     const prisma = createPrismaForRoute()
     const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
-    if (!seller) throw new UnauthorizedError('Satıcı hesabı bulunamadı.')
+    if (!seller) throw new UnauthorizedError('Tasarımcı hesabı bulunamadı.')
 
     const service = createSupportTicketService({ prisma })
     const items = await service.listForSeller(seller.id)
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     const prisma = createPrismaForRoute()
     const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
-    if (!seller) throw new UnauthorizedError('Satıcı hesabı bulunamadı.')
+    if (!seller) throw new UnauthorizedError('Tasarımcı hesabı bulunamadı.')
 
     const body = (await req.json().catch(() => ({}))) as {
       subject?: string

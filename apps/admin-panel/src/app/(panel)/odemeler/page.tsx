@@ -155,7 +155,7 @@ export default async function AdminPaymentsPage() {
             <table className="w-full text-sm">
               <thead style={{ backgroundColor: 'var(--color-muted)' }}>
                 <tr>
-                  {['Sipariş', 'Satıcı', 'Yöntem', 'Tutar', 'Durum', 'Tarih'].map((h) => (
+                  {['Sipariş', 'Tasarımcı', 'Yöntem', 'Tutar', 'Durum', 'Tarih'].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"

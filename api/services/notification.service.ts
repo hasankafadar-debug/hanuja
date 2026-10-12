@@ -89,7 +89,7 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
       userId,
       type: 'order_payment_confirmed',
       title: 'Ödemeniz Onaylandı',
-      body: 'Siparişiniz ödeme onayı aldı ve satıcıya iletildi.',
+      body: 'Siparişiniz ödeme onayı aldı ve tasarımcıya iletildi.',
       data: { orderId },
     })
   }

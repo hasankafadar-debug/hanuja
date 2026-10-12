@@ -197,7 +197,7 @@ describe('penalty attribution: only seller-fault statuses', () => {
 
 describe('security error types: correct status codes', () => {
   it('ForbiddenError has 403 status', () => {
-    const err = new ForbiddenError('Satıcı bu siparişe erişemez')
+    const err = new ForbiddenError('Tasarımcı bu siparişe erişemez')
     expect(err.statusCode).toBe(403)
     expect(err.code).toBe('FORBIDDEN')
   })
@@ -274,7 +274,7 @@ describe('payout security: blocked by open return/dispute', () => {
     const reasons = [
       'Açık iade talebi',
       'Açık uyuşmazlık',
-      'Satıcı banka bilgileri doğrulanmadı',
+      'Tasarımcı banka bilgileri doğrulanmadı',
       'Admin incelemesi bekleniyor',
       'Fraud risk flag',
     ]

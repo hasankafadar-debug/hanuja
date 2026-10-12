@@ -58,7 +58,7 @@ export function SentContentEdit({ announcementId, version, title, body, onSaved 
   return (
     <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
       <p className="text-sm" style={{ color: 'var(--color-warning)' }}>
-        E-posta yeniden gönderilmez; satıcı panelinde "Güncellendi" olarak görünür. Medya gönderimden sonra
+        E-posta yeniden gönderilmez; tasarımcı panelinde "Güncellendi" olarak görünür. Medya gönderimden sonra
         değiştirilemez.
       </p>
 

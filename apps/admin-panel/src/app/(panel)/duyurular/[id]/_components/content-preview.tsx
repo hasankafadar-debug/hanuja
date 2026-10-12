@@ -47,7 +47,7 @@ export function ContentPreview({ announcementId, title, body, displayMedia, ensu
       </p>
       <Tabs defaultValue="panel">
         <TabsList>
-          <TabsTrigger value="panel">Satıcı panelinde</TabsTrigger>
+          <TabsTrigger value="panel">Tasarımcı panelinde</TabsTrigger>
           <TabsTrigger value="email">E-posta</TabsTrigger>
         </TabsList>
         <TabsContent value="panel">

@@ -75,7 +75,7 @@ export async function GET() {
   })
 
   if (!seller) {
-    return NextResponse.json({ error: 'Satici hesabi bulunamadi.' }, { status: 404 })
+    return NextResponse.json({ error: 'Tasarımcı hesabi bulunamadi.' }, { status: 404 })
   }
 
   const [products, categories] = await Promise.all([

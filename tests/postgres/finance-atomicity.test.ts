@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
@@ -9,6 +9,7 @@ import { createPayoutService } from '../../api/services/payout.service'
 import { createPenaltyService } from '../../api/services/penalty.service'
 import { createSellerFinanceService } from '../../api/services/seller-finance.service'
 import { createSellerInvoiceService } from '../../api/services/seller-invoice.service'
+import { createAdditionalSellerInvoiceService } from '../../api/services/additional-seller-invoice.service'
 import { createQuantityRefundService } from '../../api/services/quantity-refund.service'
 import { createCommissionExemptionService } from '../../api/services/commission-exemption.service'
 import { allocateProductRefund } from '../../api/domain/quantity-allocation'
@@ -43,6 +44,10 @@ url.searchParams.set('schema', schema)
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } })
 const confirmedAt = new Date('2026-01-01T00:00:00Z')
 
+// Freeze only eligibility-recovery scenarios; ledger tests use real DB timestamps.
+function paymentFriday() { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-16T10:00:00Z')) }
+afterEach(() => vi.useRealTimers())
+
 beforeAll(async () => {
   execFileSync(process.execPath, [
     resolve('../db/node_modules/prisma/build/index.js'), 'db', 'push',
@@ -57,6 +62,26 @@ afterAll(async () => {
   await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
   await prisma.$disconnect()
 })
+
+// Satıcı Hanuja modeli: a payout matures only on an approved seller invoice. Dated at the
+// confirmation day, its due date (first Friday after 30 days) lies well in the past here.
+async function approveSellerInvoice(orderId: string, sellerId: string) {
+  await prisma.orderSellerInvoice.create({ data: {
+    orderId, sellerId, fileUrl: 'private://seller-invoice', fileKey: `private/v1/test/${randomUUID()}.bin`,
+    fileName: 'fatura.pdf', mimeType: 'application/pdf', sizeBytes: 10, source: 'manual',
+    reviewStatus: 'approved', invoiceNumber: `TST${randomUUID().slice(0, 8)}`, invoiceDate: confirmedAt,
+    reviewedAt: confirmedAt,
+  } })
+}
+
+// The term now runs from the invoice date: re-dating the approved invoice to today puts the
+// due date in the future, as moving the delivery date used to under the old 30-day hold.
+async function restartInvoiceTerm(orderId: string, sellerId: string) {
+  await prisma.orderSellerInvoice.update({
+    where: { orderId_sellerId: { orderId, sellerId } },
+    data: { invoiceDate: new Date() },
+  })
+}
 
 async function fixture(sellerCount = 1) {
   const tag = randomUUID()
@@ -84,6 +109,7 @@ async function fixture(sellerCount = 1) {
       sellerId: seller.id, orderId: order.id, productId: product.id, productName: product.name,
       quantity: 10, unitPrice: 100, totalPrice: 1000, commissionAmount: 180, netPayoutAmount: 820,
     } })
+    await approveSellerInvoice(order.id, seller.id)
     sellerIds.push(seller.id)
     lineIds.push(line.id)
   }
@@ -250,6 +276,7 @@ describe('phase 4 source debt offsets', () => {
       grossAmount: 1000, totalAmount: 1000, deliveryConfirmedAt: confirmedAt, paymentConfirmedAt: confirmedAt,
       lines: { create: { sellerId: f.sellerIds[0]!, productId: line.productId, productName: 'Next sale',
         quantity: 1, unitPrice: 1000, totalPrice: 1000, commissionAmount: 0, netPayoutAmount: 1000 } } } })
+    await approveSellerInvoice(order.id, f.sellerIds[0]!)
     const [payout] = await hold(order.id)
     await f.service.reevaluate(payout!.id)
     return payout!.id
@@ -259,6 +286,126 @@ describe('phase 4 source debt offsets', () => {
     return f.service.markPaid({ payoutId, adminActorId: f.adminId, expectedSnapshot: context.snapshot,
       transferDate: new Date(), settleWithoutTransfer: context.amount === '0.00' })
   }
+  const extraInvoice = (f: Awaited<ReturnType<typeof offsetFixture>>, total = '300.03', invoiceNumber = `EXTRA-${randomUUID()}`) => ({
+    sellerId: f.sellerIds[0]!, type: 'additional' as const, invoiceNumber,
+    invoiceDate: new Date('2026-01-03T12:00:00Z'), description: 'Fiyat farkı faturası',
+    grossInvoiceAmount: new Decimal(total), createdByAdminId: f.adminId,
+  })
+
+  it('posts the extra invoice gross total, number and description to only its designer statement', async () => {
+    const f = await offsetFixture()
+    const other = await offsetFixture()
+    const invoice = await createSellerInvoiceService({ prisma }).create(extraInvoice(f))
+    const statement = await createSellerFinanceService({ prisma }).getStatement({
+      sellerId: f.sellerIds[0]!, from: new Date('2026-01-01'), to: new Date('2027-01-01'),
+    })
+    expect(statement.rows.find((row) => row.reference === invoice.invoiceNumber)).toMatchObject({
+      topic: 'Ek Fatura', description: 'Fiyat farkı faturası', debit: 300.03, credit: 0,
+    })
+    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({ amount: '699.97', offsetAmount: '300.03' })
+    const otherStatement = await createSellerFinanceService({ prisma }).getStatement({
+      sellerId: other.sellerIds[0]!, from: new Date('2026-01-01'), to: new Date('2027-01-01'),
+    })
+    expect(otherStatement.rows.some((row) => row.reference === invoice.invoiceNumber)).toBe(false)
+    expect(await other.service.paymentContext(other.payoutId)).toMatchObject({ offsetAmount: '0.00' })
+  })
+
+  it('records simultaneous duplicate extra invoices once, including across designers', async () => {
+    const f = await offsetFixture()
+    const other = await offsetFixture()
+    const params = extraInvoice(f)
+    const service = createSellerInvoiceService({ prisma })
+    const results = await Promise.allSettled([
+      service.create(params), service.create(params), service.create({ ...params, sellerId: other.sellerIds[0]! }),
+    ])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'rejected').every((result) =>
+      result.status === 'rejected' && result.reason.code === 'CONFLICT')).toBe(true)
+    const invoice = await prisma.sellerInvoice.findUniqueOrThrow({ where: { invoiceNumber: params.invoiceNumber } })
+    expect(await prisma.sellerLedgerEntry.count({ where: { referenceType: 'seller_invoice', referenceId: invoice.id } })).toBe(1)
+  })
+
+  it('carries extra invoice debt across payouts once and prevents edits after partial deduction', async () => {
+    const f = await offsetFixture()
+    const invoice = await createSellerInvoiceService({ prisma }).create(extraInvoice(f, '1200.05'))
+    await close(f)
+    await close(f)
+    expect((await outstandingPayoutDebts(prisma, f.sellerIds[0]!))[0]?.remaining.toFixed(2)).toBe('200.05')
+    await expect(createAdditionalSellerInvoiceService({ prisma }).update({
+      invoiceId: invoice.id, adminActorId: f.adminId, grossInvoiceAmount: new Decimal(100),
+    })).rejects.toThrow('Hakedişten kesilmiş')
+    const next = await nextPayout(f)
+    expect(await f.service.paymentContext(next)).toMatchObject({ amount: '799.95', offsetAmount: '200.05' })
+    await close(f, next)
+    expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
+    expect((await prisma.sellerInvoice.findUniqueOrThrow({ where: { id: invoice.id } })).grossInvoiceAmount.toFixed(2)).toBe('1200.05')
+  })
+
+  it('corrects an unpaid extra invoice with immutable entries and moves its statement date', async () => {
+    const f = await offsetFixture()
+    const invoice = await createSellerInvoiceService({ prisma }).create(extraInvoice(f))
+    const service = createAdditionalSellerInvoiceService({ prisma })
+    const update = { invoiceId: invoice.id, adminActorId: f.adminId, grossInvoiceAmount: new Decimal('125.55'),
+      invoiceDate: new Date('2026-02-05T12:00:00Z'), description: 'Düzeltilmiş fiyat farkı faturası' }
+    await service.update(update)
+    await service.update(update)
+    const entries = await prisma.sellerLedgerEntry.findMany({ where: { referenceType: 'seller_invoice', referenceId: invoice.id } })
+    expect(entries).toHaveLength(3)
+    expect(entries.reduce((sum, entry) => sum.plus(entry.amount), new Decimal(0)).toFixed(2)).toBe('-125.55')
+    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({ offsetAmount: '125.55', amount: '874.45' })
+    const statement = await createSellerFinanceService({ prisma }).getStatement({
+      sellerId: f.sellerIds[0]!, from: new Date('2026-02-01'), to: new Date('2026-02-28'),
+    })
+    expect(statement.rows.filter((row) => row.reference === invoice.invoiceNumber)).toHaveLength(1)
+    expect(statement.rows.find((row) => row.reference === invoice.invoiceNumber)).toMatchObject({
+      debit: 125.55, description: update.description, date: new Date('2026-02-04T21:00:00Z'),
+    })
+  })
+
+  it('makes a today-dated extra invoice deductible immediately after midnight in Istanbul', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-11T21:30:00Z'))
+    const f = await offsetFixture()
+    const invoice = await createSellerInvoiceService({ prisma }).create({
+      ...extraInvoice(f), invoiceDate: new Date('2026-10-12T12:00:00Z'),
+    })
+    expect(invoice.invoiceDate.toISOString()).toBe('2026-10-11T21:00:00.000Z')
+    expect((await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).find((debt) => debt.remaining.toFixed(2) === '300.03')).toBeDefined()
+  })
+
+  it('rolls the extra invoice and debt back when its audit write fails', async () => {
+    const f = await offsetFixture()
+    const failing = prisma.$extends({ query: { adminAuditLog: { async create() { throw new Error('extra audit failed') } } } }) as unknown as PrismaClient
+    const params = extraInvoice(f)
+    await expect(createSellerInvoiceService({ prisma: failing }).create(params)).rejects.toThrow('extra audit failed')
+    expect(await prisma.sellerInvoice.count({ where: { invoiceNumber: params.invoiceNumber } })).toBe(0)
+    expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
+  })
+
+  it('rejects invalid extra invoice totals, blank descriptions and future dates without a debt', async () => {
+    const f = await offsetFixture()
+    const service = createSellerInvoiceService({ prisma })
+    for (const total of ['0', '-1', '1.001', 'NaN', 'Infinity', '10000000000']) {
+      await expect(service.create(extraInvoice(f, total))).rejects.toThrow()
+    }
+    await expect(service.create({ ...extraInvoice(f), description: ' ' })).rejects.toThrow()
+    await expect(service.create({ ...extraInvoice(f), invoiceDate: new Date('2099-01-01') })).rejects.toThrow()
+    expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
+  })
+
+  it('documents an existing penalty without adding its principal a second time', async () => {
+    const f = await offsetFixture()
+    const penalty = await createPenaltyService({ prisma }).applyManually({
+      orderId: f.orderId, sellerId: f.sellerIds[0]!, adminActorId: f.adminId,
+      manualReason: 'Ceza faturası çift kesinti kontrolü', penaltyAmount: new Decimal(100),
+    })
+    await createSellerInvoiceService({ prisma }).create({
+      sellerId: f.sellerIds[0]!, type: 'penalty', invoiceNumber: `PEN-${randomUUID()}`,
+      invoiceDate: confirmedAt, grossInvoiceAmount: new Decimal(100), sourcePenaltyId: penalty.id,
+      sourceOrderId: f.orderId, createdByAdminId: f.adminId,
+    })
+    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({ offsetAmount: '100.00', amount: '900.00' })
+  })
   it('deducts 300 from 1000 once without writing another debt movement', async () => {
     const f = await offsetFixture()
     const source = await debt(f, 300)
@@ -349,7 +496,7 @@ describe('phase 4 source debt offsets', () => {
     await debt(f, 1200)
     await f.service.block({ payoutId: f.payoutId, adminActorId: f.adminId, reason: 'Manual risk review' })
     await expect(close(f)).rejects.toThrow()
-    await prisma.order.update({ where: { id: f.orderId }, data: { deliveryConfirmedAt: new Date() } })
+    await restartInvoiceTerm(f.orderId, f.sellerIds[0]!)
     await f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true, reason: 'Manual review done' })
     await expect(close(f)).rejects.toThrow()
     expect(await prisma.payoutDebtOffset.count({ where: { payoutId: f.payoutId } })).toBe(0)
@@ -418,6 +565,7 @@ describe('phase 4 source debt offsets', () => {
     expect((await f.service.paymentContext(f.payoutId)).amount).toBe('1000.00')
   })
   it('does not turn a pre-settlement refund into debt after that payout closes', async () => {
+    paymentFriday()
     const f = await offsetFixture()
     const refund = await createQuantityRefundService({ prisma }).queue({ orderId: f.orderId, sellerId: f.sellerIds[0]!,
       sourceType: 'return_request', sourceId: randomUUID(), customerAmount: new Decimal(100),
@@ -460,6 +608,7 @@ describe('phase 4 source debt offsets', () => {
 
 describe('phase 3 payout eligibility', () => {
   it('automatically recovers a bank block after verification', async () => {
+    paymentFriday()
     const f = await readyFixture()
     await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: false } })
     const blocked = await f.service.reevaluate(f.payoutId)
@@ -486,7 +635,7 @@ describe('phase 3 payout eligibility', () => {
     expect(released.manualBlockedAt).toBeNull()
     expect(released.status).toBe('payout_blocked')
     await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: true } })
-    await prisma.order.update({ where: { id: f.orderId }, data: { deliveryConfirmedAt: new Date() } })
+    await restartInvoiceTerm(f.orderId, f.sellerIds[0]!)
     expect((await f.service.reevaluate(f.payoutId)).payout.status).toBe('hold_active')
     await expect(f.service.markPaid(f.pay)).rejects.toThrow()
   })
@@ -534,6 +683,7 @@ describe('phase 3 payout eligibility', () => {
   })
 
   it('keeps batch totals synchronized through concurrent refunds, manual blocks and releases', async () => {
+    paymentFriday()
     const f = await readyFixture(2)
     const results = await Promise.all([createReadyPayoutBatch(prisma), createReadyPayoutBatch(prisma)])
     const assigned = await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })
@@ -543,7 +693,8 @@ describe('phase 3 payout eligibility', () => {
     const initial = await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })
     // Other fixtures may be ready too; isolate changes relative to the stored total.
     await Promise.all([refund(f, 100, randomUUID()), refund(f, 200, randomUUID())])
-    expect((await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(2)).toBe(initial.totalAmount.sub(246).toFixed(2))
+    // Pending refunds remove the whole payout from the transfer batch until completion.
+    expect((await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(2)).toBe(initial.totalAmount.sub(820).toFixed(2))
     await f.service.block({ payoutId: f.payoutId, adminActorId: f.adminId, reason: 'Batch manual review' })
     expect((await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(2)).toBe(initial.totalAmount.sub(820).toFixed(2))
     await prisma.refundTransaction.updateMany({ where: { orderId: f.orderId }, data: { status: 'completed' } })
@@ -571,6 +722,7 @@ describe('phase 3 payout eligibility', () => {
   })
 
   it('keeps a resolved customer dispute blocked until its refund is complete', async () => {
+    paymentFriday()
     const f = await readyFixture()
     const dispute = await prisma.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId, reason: 'Customer resolution', status: 'resolved_for_customer', payoutBlocked: true } })
     expect((await f.service.checkReadiness(f.payoutId)).ready).toBe(false)
@@ -585,6 +737,7 @@ describe('phase 3 payout eligibility', () => {
   })
 
   it('releases a completed legacy whole-return dispute without a quantity refund record', async () => {
+    paymentFriday()
     const f = await readyFixture()
     const dispute = await prisma.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId,
       reason: 'Legacy customer resolution', status: 'resolved_for_customer', payoutBlocked: true } })
@@ -1183,15 +1336,16 @@ describe('phase 6 legacy refund safeguards', () => {
 })
 
 describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', () => {
-  it('reveals the original commission and refund reversal when the first invoice follows both hidden entries', async () => {
+  it('shows the commission and its refund reversal at once; a legacy commission invoice adds only VAT', async () => {
     const f = await fixture()
     const [payout] = await hold(f.orderId)
-    const hiddenBeforeRefund = await prisma.sellerLedgerEntry.findMany({
+    const beforeRefund = await prisma.sellerLedgerEntry.findMany({
       where: { sellerId: f.sellerIds[0]!, type: 'commission', referenceType: 'payout', referenceId: payout!.id },
     })
-    expect(hiddenBeforeRefund).toHaveLength(1)
-    expect(hiddenBeforeRefund[0]!.amount.toFixed(2)).toBe('-180.00')
-    expect(hiddenBeforeRefund[0]!.visibleToSeller).toBe(false)
+    expect(beforeRefund).toHaveLength(1)
+    expect(beforeRefund[0]!.amount.toFixed(2)).toBe('-180.00')
+    // Satıcı Hanuja modeli: already deducted from the seller's invoice amount, so visible at once.
+    expect(beforeRefund[0]!.visibleToSeller).toBe(true)
 
     const refund = await createQuantityRefundService({ prisma }).queue({
       orderId: f.orderId,
@@ -1204,12 +1358,13 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
       commissionAdjustmentAmount: new Decimal(90),
       items: [{ orderLineId: f.lineIds[0]!, quantity: 5, amount: new Decimal(500) }],
     })
-    const hiddenAfterRefund = await prisma.sellerLedgerEntry.findMany({
+    const afterRefund = await prisma.sellerLedgerEntry.findMany({
       where: { sellerId: f.sellerIds[0]!, type: 'commission', referenceType: { in: ['payout', 'refund_transaction'] },
         OR: [{ referenceId: payout!.id }, { referenceId: refund.id }] },
     })
-    expect(hiddenAfterRefund).toHaveLength(2)
-    expect(hiddenAfterRefund.every((entry) => !entry.visibleToSeller)).toBe(true)
+    expect(afterRefund).toHaveLength(2)
+    // The reversal inherits the original entry's visibility.
+    expect(afterRefund.every((entry) => entry.visibleToSeller)).toBe(true)
 
     const invoice = await createSellerInvoiceService({ prisma }).create({
       sellerId: f.sellerIds[0]!,
@@ -1411,7 +1566,8 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     })
     expect(otherCommission).toHaveLength(1)
     expect(otherCommission[0]!.amount.toFixed(2)).toBe('-360.00')
-    expect(otherCommission[0]!.visibleToSeller).toBe(false)
+    // Visible at once in the seller-Hanuja model; the other seller's invoice did not change it.
+    expect(otherCommission[0]!.visibleToSeller).toBe(true)
 
     const invoiceTopUps = await prisma.sellerLedgerEntry.findMany({
       where: { sellerId: f.sellerIds[0]!, type: 'commission_invoice_issued' },
@@ -1492,6 +1648,7 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     expect(waivedContext).toMatchObject({ amount: '1000.00', offsetAmount: '0.00', remainingDebt: '0.00' })
     const waivedEntries = await prisma.sellerLedgerEntry.findMany({
       where: { sellerId: waived.sellerIds[0]!, referenceType: 'penalty', referenceId: waived.penalty.id },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     })
     expect(waivedEntries.map((entry) => entry.amount.toFixed(2))).toEqual(['-300.00', '300.00'])
     expect(await prisma.payoutDebtOffset.count({ where: { payoutId: waived.payoutId } })).toBe(0)

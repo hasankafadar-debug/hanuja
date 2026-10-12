@@ -143,7 +143,7 @@ export function ModerationTableClient({ rows }: { rows: ProductRow[] }) {
       <table className="w-full whitespace-nowrap text-sm">
         <thead style={{ backgroundColor: 'var(--color-muted)' }}>
           <tr>
-            {['', 'Urun', 'Satici', 'Kategori', 'Gonderim', 'Durum', ''].map((heading) => (
+            {['', 'Urun', 'Tasarımcı', 'Kategori', 'Gonderim', 'Durum', ''].map((heading) => (
               <th
                 key={heading}
                 className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"

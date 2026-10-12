@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     select: { id: true },
   })
   if (!seller) {
-    return NextResponse.json({ message: 'Satıcı bulunamadı.' }, { status: 404 })
+    return NextResponse.json({ message: 'Tasarımcı bulunamadı.' }, { status: 404 })
   }
 
   const service = createSellerDocumentService({ prisma })

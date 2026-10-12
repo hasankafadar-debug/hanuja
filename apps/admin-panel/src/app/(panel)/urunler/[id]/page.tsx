@@ -53,7 +53,7 @@ export default async function AdminProductDetailPage({
     <div className="space-y-8">
       <PageHeader
         title={product.name}
-        description={`${product.seller?.displayName ?? 'Satici yok'} • ${product.category?.name ?? 'Kategori yok'}`}
+        description={`${product.seller?.displayName ?? 'Tasarımcı yok'} • ${product.category?.name ?? 'Kategori yok'}`}
       />
 
       <div className="grid gap-8 lg:grid-cols-[1.4fr_0.9fr]">
@@ -141,7 +141,7 @@ export default async function AdminProductDetailPage({
           <div className="rounded-xl border p-5" style={{ borderColor: 'var(--color-border)' }}>
             <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Urun Ozeti</h2>
             <dl className="mt-4 space-y-3 text-sm">
-              <MetaRow label="Satici" value={product.seller?.displayName ?? '—'} />
+              <MetaRow label="Tasarımcı" value={product.seller?.displayName ?? '—'} />
               <MetaRow label="Sehir" value={product.seller?.profile?.city ?? '—'} />
               <MetaRow label="Kategori" value={product.category?.name ?? '—'} />
               <MetaRow label="Fiyat" value={formatMoney(product.price.toNumber())} />
@@ -158,7 +158,7 @@ export default async function AdminProductDetailPage({
             </h2>
             <p className="mt-2 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
               {product.status === 'pending_review'
-                ? 'Bulgular saticiya gosterilecek ret metni icin baslangic noktasi saglar.'
+                ? 'Bulgular tasarımcıya gosterilecek ret metni icin baslangic noktasi saglar.'
                 : 'Yayin durumunu degistirebilir veya siparis gecmisi yoksa urunu silebilirsiniz.'}
             </p>
             <div className="mt-4">

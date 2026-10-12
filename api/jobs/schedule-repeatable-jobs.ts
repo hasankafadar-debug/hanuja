@@ -33,9 +33,20 @@ import {
   announcementDispatchQueue,
   priceHistoryQueue,
   privateDocumentCleanupQueue,
+  sellerInvoiceReminderQueue,
 } from '../lib/queue'
 
 export async function scheduleRepeatableJobs(): Promise<void> {
+  // Seller invoice to Hanuja still missing an hour after shipment → one reminder e-mail.
+  await sellerInvoiceReminderQueue.add(
+    'sweep',
+    {},
+    {
+      repeat: { every: 15 * 60 * 1000 },
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  )
   await privateDocumentCleanupQueue.add(
     'sweep',
     {},
@@ -176,4 +187,5 @@ export async function scheduleRepeatableJobs(): Promise<void> {
   console.log('  - fulfillment-risk-daily         → 08:00 UTC daily')
   console.log('  - iban-activation-hourly         → every hour')
   console.log('  - campaign-discount-activation   → every 15 min')
+  console.log('  - seller-invoice-reminder        → every 15 min')
 }

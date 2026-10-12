@@ -80,7 +80,7 @@ export function SellerCommissionSettings({ sellerId, defaultRate, overrideRate }
       </div>
 
       <div className="mb-4 space-y-1.5">
-        <Label htmlFor="seller-commission-override">Saticiya ozel komisyon (%)</Label>
+        <Label htmlFor="seller-commission-override">Tasarımcıya ozel komisyon (%)</Label>
         <div className="flex items-center gap-2">
           <Input
             id="seller-commission-override"
@@ -96,7 +96,7 @@ export function SellerCommissionSettings({ sellerId, defaultRate, overrideRate }
           </span>
         </div>
         <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          Bos birakirsaniz satici icin genel platform komisyonu kullanilir. 0 gecerli bir ozel
+          Bos birakirsaniz tasarımcı icin genel platform komisyonu kullanilir. 0 gecerli bir ozel
           orandir.
         </p>
       </div>

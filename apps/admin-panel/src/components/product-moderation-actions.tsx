@@ -136,7 +136,7 @@ export function ProductModerationActions({
           <DialogHeader>
             <DialogTitle>Urunu Reddet</DialogTitle>
             <DialogDescription>
-              Saticiya gosterilecek gerekceyi duzenleyin. Bulgulara gore onerilen metni degistirebilirsiniz.
+              Tasarımcıya gosterilecek gerekceyi duzenleyin. Bulgulara gore onerilen metni degistirebilirsiniz.
             </DialogDescription>
           </DialogHeader>
 

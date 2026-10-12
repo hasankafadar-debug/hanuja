@@ -30,6 +30,7 @@ export type Payout = {
   settledAt: Date | null
   status: PayoutStatus
   holdUntil: Date | null
+  nextPaymentAt: Date | null
   paidAt: Date | null
   createdAt: Date
 }

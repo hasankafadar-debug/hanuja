@@ -75,14 +75,14 @@ async function readAndValidateActivation(
 
   if (seller.status !== 'pending' && seller.status !== 'rejected') {
     throw activationValidationError(
-      `Satıcı ilk aktivasyon akışıyla aktifleştirilemez; mevcut durum: ${seller.status}.`,
+      `Tasarımcı ilk aktivasyon akışıyla aktifleştirilemez; mevcut durum: ${seller.status}.`,
     )
   }
 
   const requiredDocumentTypes = getRequiredDocumentTypes(seller.requiredDocumentTypes)
   if (requiredDocumentTypes.length === 0) {
     throw activationValidationError(
-      'Satıcı aktifleştirilmeden önce en az bir belge talep edilmelidir.',
+      'Tasarımcı aktifleştirilmeden önce en az bir belge talep edilmelidir.',
       { missingDocumentTypes: [] },
     )
   }
@@ -133,13 +133,13 @@ async function readAndValidateActivation(
   )
   if (missingDocumentTypes.length > 0) {
     throw activationValidationError(
-      'Talep edilen tüm belgeler onaylanmadan satıcı aktifleştirilemez.',
+      'Talep edilen tüm belgeler onaylanmadan tasarımcı aktifleştirilemez.',
       { missingDocumentTypes },
     )
   }
 
   if (!seller.profile) {
-    throw activationValidationError('Satıcı profili bulunamadığı için aktivasyon tamamlanamadı.')
+    throw activationValidationError('Tasarımcı profili bulunamadığı için aktivasyon tamamlanamadı.')
   }
 
   const pendingBankDetail = seller.bankDetails[0] ?? null
@@ -195,7 +195,7 @@ export function createAdminSellerActivationService({ prisma }: { prisma: PrismaC
             previousIbanMasked: detail.previousIbanMasked,
             actorId: params.adminActorId,
             actorRole: 'admin',
-            reason: 'Satıcı başvurusu aktivasyonu sırasında pasifleştirildi.',
+            reason: 'Tasarımcı başvurusu aktivasyonu sırasında pasifleştirildi.',
           })),
         })
       }
@@ -229,7 +229,7 @@ export function createAdminSellerActivationService({ prisma }: { prisma: PrismaC
           previousIbanMasked: pendingBankDetail.previousIbanMasked,
           actorId: params.adminActorId,
           actorRole: 'admin',
-          reason: 'Satıcı başvurusu onaylandı.',
+          reason: 'Tasarımcı başvurusu onaylandı.',
         },
       })
 
@@ -256,7 +256,7 @@ export function createAdminSellerActivationService({ prisma }: { prisma: PrismaC
       await recordNotification(tx, {
         eventKey: 'seller:' + params.sellerId + ':approved:' + readiness.pendingBankDetailId,
         userId: recipient.userId, emailTo: recipient.user.email, type: 'seller_approved',
-        title: 'Satıcı hesabınız aktif edildi', body: 'Başvurunuz onaylandı. Satıcı panelinize giriş yapabilirsiniz.',
+        title: 'Tasarımcı hesabınız aktif edildi', body: 'Başvurunuz onaylandı. Tasarımcı panelinize giriş yapabilirsiniz.',
         data: { email: recipient.user.email, stage: 'activation_confirmed' },
       })
       return readiness

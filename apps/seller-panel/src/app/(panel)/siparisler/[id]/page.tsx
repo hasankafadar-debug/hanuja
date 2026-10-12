@@ -9,10 +9,14 @@ import { createOrderService } from '@hanuja/api/services/order.service'
 import { createOrderDocumentService } from '@hanuja/api/services/order-document.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
+import { calculateSellerPurchaseInvoice } from '@hanuja/api/domain/seller-purchase-invoice'
+import { calculatePayoutDueDate } from '@hanuja/api/domain/payout-calculator'
+import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 import BillingInformationCard from './_components/billing-information-card'
 import InvoiceUploadCard from './_components/invoice-upload-card'
 import OrderTimeline from './_components/order-timeline'
 import OrderWorkflowCard from './_components/order-workflow-card'
+import PurchaseInvoiceCard from './_components/purchase-invoice-card'
 import { DELIVERY_REVIEW_STATUSES, isDeliveryReviewLine } from '@hanuja/api/domain/delivery-review'
 
 export const dynamic = 'force-dynamic'
@@ -43,7 +47,7 @@ export default async function SellerOrderDetailPage({ params }: Props) {
   if (!order) notFound()
 
   const documentService = createOrderDocumentService({ prisma })
-  const [invoiceManagement, invoiceAlias] = await Promise.all([
+  const [invoiceManagement, invoiceAlias, platformSettings] = await Promise.all([
     documentService.getInvoiceManagementForSeller(id, seller.id),
     documentService.ensureInvoiceAliasForSeller(id, seller.id)
       .then(alias => ({ aliasEmail: alias?.aliasEmail ?? null, status: alias ? 'ready' as const : 'disabled' as const }))
@@ -51,7 +55,26 @@ export default async function SellerOrderDetailPage({ params }: Props) {
         console.error('[seller-order] Invoice alias generation failed', { orderId: id, sellerId: seller.id })
         return { aliasEmail: null, status: 'error' as const }
       }),
+    createPlatformSettingsService({ prisma }).get(),
   ])
+
+  // Satıcı Hanuja modeli: the seller invoices Hanuja for the active (non-cancelled) quantity.
+  const purchaseInvoice = calculateSellerPurchaseInvoice(order.lines)
+  const managedInvoice = invoiceManagement.invoice
+  const approvedInvoiceDate =
+    managedInvoice?.reviewStatus === 'approved' ? managedInvoice.invoiceDate : null
+  const purchaseInvoiceStatus = {
+    reviewStatus: managedInvoice?.reviewStatus ?? null,
+    reviewNote: managedInvoice?.reviewNote ?? null,
+    invoiceNumber: managedInvoice?.invoiceNumber ?? null,
+    invoiceDate: approvedInvoiceDate?.toISOString() ?? null,
+    expectedPayoutDate: order.payouts.length > 0
+      ? order.payouts[0]?.nextPaymentAt?.toISOString() ?? null
+      : approvedInvoiceDate
+        ? calculatePayoutDueDate(approvedInvoiceDate, platformSettings.payoutHoldDays).toISOString()
+        : null,
+    shipped: (order.shipments ?? []).some((shipment) => shipment.handedAt !== null),
+  }
 
   const fulfillment = order.sellerFulfillments?.[0]
   const fulfillmentStatusMap: Record<string, string> = {
@@ -194,8 +217,8 @@ export default async function SellerOrderDetailPage({ params }: Props) {
         <StatusBadge status={operationalStatus as Parameters<typeof StatusBadge>[0]['status']} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.6fr,1fr]">
-        <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.6fr,1fr]">
+        <div className="min-w-0 space-y-6">
           <section
             className="rounded-xl border p-5"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
@@ -256,6 +279,12 @@ export default async function SellerOrderDetailPage({ params }: Props) {
             pendingRequestId={openExtensionRequest?.id ?? null}
           />
 
+          <PurchaseInvoiceCard
+            orderNumber={formatOrderDisplayNumber(order.publicNumber, order.id)}
+            invoice={purchaseInvoice}
+            status={purchaseInvoiceStatus}
+          />
+
           <OrderTimeline items={statusHistory} />
 
           <section
@@ -305,14 +334,15 @@ export default async function SellerOrderDetailPage({ params }: Props) {
             }
             firstUploadedAt={invoiceManagement.firstUploadedAt?.toISOString() ?? null}
             sellerEditDeadline={invoiceManagement.sellerEditDeadline?.toISOString() ?? null}
-            canEdit={invoiceManagement.canEdit}
+            canEdit={invoiceManagement.canEdit && managedInvoice?.reviewStatus !== 'approved'}
+            approved={managedInvoice?.reviewStatus === 'approved'}
             managementEnabled={invoiceManagement.managementEnabled}
           />
 
 
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <section
             className="rounded-xl border p-5"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
@@ -354,7 +384,7 @@ export default async function SellerOrderDetailPage({ params }: Props) {
           </section>
 
           <BillingInformationCard
-            address={order.billingAddress ?? order.address ?? null}
+            recipientName={address?.fullName ?? null}
             aliasEmail={invoiceAlias.aliasEmail}
             aliasStatus={invoiceAlias.status}
           />

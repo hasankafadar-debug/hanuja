@@ -10,7 +10,7 @@ import { escapeHtml, greeting, heading, isSafeHttpUrl, layout, paragraph, render
 
 const SUBJECT_PREFIX = 'Hanuja Duyurusu: '
 const SUBJECT_MAX_LENGTH = 120
-const FOOTNOTE = 'Bu e-posta, Hanuja satıcı hesabınıza gönderilen operasyonel bir duyurudur.'
+const FOOTNOTE = 'Bu e-posta, Hanuja tasarımcı hesabınıza gönderilen operasyonel bir duyurudur.'
 
 function subjectFor(title: string): string {
   const subject = `${SUBJECT_PREFIX}${title}`

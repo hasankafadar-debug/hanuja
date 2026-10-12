@@ -163,11 +163,11 @@ function fallbackText(value: string | null | undefined, placeholder: string) {
 function buildSellerSnapshot(seller: DraftSeller) {
   return {
     sellerId: seller.id,
-    storeName: fallbackText(seller.displayName, 'Satıcı Mağazası'),
+    storeName: fallbackText(seller.displayName, 'Tasarımcı Mağazası'),
     companyName: fallbackText(seller.profile?.companyName, seller.displayName),
     legalAddress: fallbackText(
       seller.profile?.legalAddress,
-      'Satıcı açık adres bilgisi panelde güncellenecektir.',
+      'Tasarımcı açık adres bilgisi panelde güncellenecektir.',
     ),
     district: fallbackText(seller.profile?.district, '-'),
     city: fallbackText(seller.profile?.city, '-'),
@@ -488,7 +488,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           lineTotal: decimalToNumber(line.totalPrice),
           sellerId: line.sellerId,
           sellerStoreName:
-            sellerMap.get(line.sellerId)?.storeName ?? 'Satıcı Mağazası',
+            sellerMap.get(line.sellerId)?.storeName ?? 'Tasarımcı Mağazası',
           ...(rawLines[index]?.legalCharacteristics ?? EMPTY_LEGAL_CHARACTERISTICS),
           promisedFulfillmentDays: line.promisedFulfillmentDays,
         })),
@@ -837,7 +837,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
               type: 'admin_bank_transfer_pending',
               eventKey: `order:${order.id}:eft-pending`,
               title: `Havale/EFT onayı bekliyor - ${formatOrderDisplayNumber(order.publicNumber, order.id)}`,
-              body: 'Müşteri havale/EFT ile ödeme seçti. Ödeme onaylanana kadar sipariş satıcıya düşmez.',
+              body: 'Müşteri havale/EFT ile ödeme seçti. Ödeme onaylanana kadar sipariş tasarımcıya düşmez.',
               data: {
                 orderNumber: formatOrderNumber(order.publicNumber, order.id),
                 adminUrl: adminPanelLink('/odemeler'),

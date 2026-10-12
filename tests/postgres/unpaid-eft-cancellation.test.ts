@@ -65,7 +65,7 @@ async function eftOrder(options: { paid?: boolean; method?: 'eft' | 'card' } = {
   const customer = await prisma.user.create({ data: { email: `customer-${tag}@example.test`, name: 'Test Müşteri' } })
   const sellerUser = await prisma.user.create({ data: { email: `seller-${tag}@example.test` } })
   const seller = await prisma.seller.create({ data: {
-    userId: sellerUser.id, slug: `seller-${tag}`, displayName: 'Test Satıcı', status: 'active',
+    userId: sellerUser.id, slug: `seller-${tag}`, displayName: 'Test Tasarımcı', status: 'active',
   } })
   const product = await prisma.product.create({ data: {
     sellerId: seller.id, name: 'Test Sehpa', slug: `product-${tag}`, price: 500,

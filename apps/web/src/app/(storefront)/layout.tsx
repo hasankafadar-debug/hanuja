@@ -155,7 +155,7 @@ async function SiteFooter() {
       }}
     >
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-3">
           <div className="col-span-2 md:col-span-1">
             <HanujaLogo scale={0.5} variant="dark" />
             <div className="w-full max-w-xs">
@@ -255,23 +255,12 @@ async function SiteFooter() {
                   İletişim
                 </Link>
               </li>
-            </ul>
-          </div>
-
-          <div>
-            <p
-              className="text-sm font-semibold uppercase tracking-wider"
-              style={{ color: 'rgba(255,255,255,0.5)' }}
-            >
-              Başvuru
-            </p>
-            <ul className="mt-4 space-y-2 text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
               <li>
                 <a
                   href={`${SELLER_PANEL_URL}/basvuru`}
                   className="hover:text-white transition-colors"
                 >
-                  Mağaza Başvurusu
+                  Tasarımcı Katılımı
                 </a>
               </li>
             </ul>
@@ -293,13 +282,13 @@ async function SiteFooter() {
             )}
             {/* The combined brand artwork is a fixed transparent public asset. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            {cardPaymentsEnabled ? <img
               src="/payment/visa-mastercard.png"
               alt="Visa ve Mastercard"
               width="1875"
               height="839"
               className="h-[52px] w-auto shrink-0 object-contain"
-            />
+            /> : null}
             <div
               className="flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold"
               style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }}

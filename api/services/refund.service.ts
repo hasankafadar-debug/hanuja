@@ -11,6 +11,7 @@
  *   - always writes a negative seller ledger entry so payout reconciles
  */
 import { Prisma, type PrismaClient } from '@prisma/client'
+import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
 import { Decimal } from '@prisma/client/runtime/client'
 import { createReturnRequestRepository } from '../repositories/return-request.repository'
 import {
@@ -63,7 +64,7 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
       })
       if (existing) {
         if (existing.orderId !== params.orderId || existing.sellerId !== params.sellerId) {
-          throw new ConflictError('İade anahtarı başka sipariş veya satıcıya ait')
+          throw new ConflictError('İade anahtarı başka sipariş veya tasarımcıya ait')
         }
         if (!review) return existing
         const actor = await tx.user.findUniqueOrThrow({ where: { id: review.actorId }, select: { role: true } })
@@ -196,6 +197,7 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
       (tx) => queueLegacyRefundInTransaction(tx, params, review),
       { timeout: 30_000 },
     )
+    if (refund.accountingAppliedAt) await syncChangedPayoutSchedules(prisma, { orderId: refund.orderId, sellerId: refund.sellerId })
     await dispatchRefundProcessingAfterCommit(refund)
     return refund
   }
@@ -203,7 +205,7 @@ export function createRefundService({ prisma }: RefundServiceDeps) {
   return {
     async reassessLegacyRefund(params: { refundId: string; actorId: string; reason: string; expectedUpdatedAt: string }) {
       const refund = await prisma.refundTransaction.findUniqueOrThrow({ where: { id: params.refundId } })
-      if (!refund.sellerId) throw new ConflictError('Satıcı eşleşmesi eksik')
+      if (!refund.sellerId) throw new ConflictError('Tasarımcı eşleşmesi eksik')
       // Reuse the amount already recorded; never infer a larger refund from a full order.
       return queueLegacyRefund({ orderId: refund.orderId, sellerId: refund.sellerId,
         sourceType: refund.sourceType, sourceId: refund.sourceId, requestedCustomerAmount: refund.customerAmount }, params)

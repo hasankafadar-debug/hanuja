@@ -147,7 +147,7 @@ export default async function AdminDashboardPage() {
   const statCards = [
     {
       href: '/teslim-onayi?sellerReported=1',
-      title: 'Satıcı Teslim Bildirimleri',
+      title: 'Tasarımcı Teslim Bildirimleri',
       description: 'Teslim teyidi bekleyen siparişler',
       value: String(sellerDeliveryReports.orderCount),
       attention: sellerDeliveryReports.orderCount > 0,
@@ -169,7 +169,7 @@ export default async function AdminDashboardPage() {
     },
     {
       href: '/siparisler?sellerApprovalOverdue=1',
-      title: 'Satıcı Onayı Bekleyenler',
+      title: 'Tasarımcı Onayı Bekleyenler',
       description: '24 saati aşan siparişler',
       value: String(overdueSellerApprovals.total),
       attention: overdueSellerApprovals.total > 0,
@@ -206,7 +206,7 @@ export default async function AdminDashboardPage() {
     },
     {
       href: '/siparisler?status=seller_queue_ready,seller_reviewing',
-      title: 'Satıcı Kuyruğunda',
+      title: 'Tasarımcı Kuyruğunda',
       value: String(stats.orders.pendingSellerAction),
       attention: stats.orders.pendingSellerAction > 0,
       icon: <ShoppingBag className="h-5 w-5" />,
@@ -227,7 +227,7 @@ export default async function AdminDashboardPage() {
     },
     {
       href: '/saticilar?status=active',
-      title: 'Aktif Satıcı',
+      title: 'Aktif Tasarımcı',
       value: String(stats.sellers.totalActive),
       attention: false,
       icon: <Store className="h-5 w-5" />,
@@ -283,7 +283,7 @@ export default async function AdminDashboardPage() {
     },
     {
       href: '/destek',
-      title: 'Satıcı Destek',
+      title: 'Tasarımcı Destek',
       value: String(stats.customerSupport.sellerPending),
       attention: stats.customerSupport.sellerPending > 0,
       icon: <LifeBuoy className="h-5 w-5" />,
@@ -404,7 +404,7 @@ export default async function AdminDashboardPage() {
               <table className="w-full text-sm">
                 <thead style={{ backgroundColor: 'var(--color-muted)' }}>
                   <tr>
-                    {['Sipariş', 'Satıcı', 'Tutar', 'Durum', 'Tarih'].map((h) => (
+                    {['Sipariş', 'Tasarımcı', 'Tutar', 'Durum', 'Tarih'].map((h) => (
                       <th
                         key={h}
                         className="px-3 py-2.5 text-left text-xs font-semibold"

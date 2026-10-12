@@ -125,19 +125,15 @@ export function canonicalNotificationEmailData(
     data.orderUrl = getCustomerOrderUrl(orderId)
     if (type === 'order_placed' || data.contracts)
       data.contracts = getCustomerContractLinks(orderId)
-    if (type === 'invoice_uploaded' && data.invoiceUrl) {
-      const sellerId = string(data, 'sellerId')
-      if (sellerId) data.invoiceUrl = getCustomerInvoiceUrl(orderId, sellerId)
-      else
-        assertLink(
-          data,
-          'invoiceUrl',
-          'customer',
-          /^\/api\/orders\/[^/]+\/documents\/invoices\/[^/]+$/,
-        )
-    }
+    // The customer only ever receives Hanuja's own invoice; its link is rebuilt from the order.
+    if (type === 'invoice_uploaded' && data.invoiceUrl) data.invoiceUrl = getCustomerInvoiceUrl(orderId)
   }
-  if (type === 'seller_order_received' || type === 'order_canceled') {
+  if (
+    type === 'seller_order_received' ||
+    type === 'order_canceled' ||
+    type === 'seller_invoice_reminder' ||
+    type === 'seller_invoice_rejected'
+  ) {
     const orderId = requireIdentity(
       identity(
         data,
@@ -210,9 +206,13 @@ export function validateNotificationEmailLinks(
   if (
     type === 'seller_order_received' ||
     type === 'order_canceled' ||
-    type === 'seller_return_request'
+    type === 'seller_return_request' ||
+    type === 'seller_invoice_reminder' ||
+    type === 'seller_invoice_rejected'
   )
     assertLink(data, 'panelUrl', 'seller', sellerPath)
+  if (type === 'invoice_uploaded' && data.invoiceUrl)
+    assertLink(data, 'invoiceUrl', 'customer', /^\/api\/orders\/[^/]+\/documents\/customer-invoice$/, ['download'])
   if (type === 'seller_product_question')
     assertLink(data, 'panelUrl', 'seller', /^\/musteri-sorulari\/[^/]+$/)
   if (type === 'customer_product_question_answered')

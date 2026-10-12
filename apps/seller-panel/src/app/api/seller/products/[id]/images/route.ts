@@ -30,7 +30,7 @@ export async function POST(
   const { id: productId } = await params
   const { session, seller } = await getSeller()
   if (!session?.user) return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
-  if (!seller) return NextResponse.json({ error: 'Satici hesabi bulunamadi.' }, { status: 404 })
+  if (!seller) return NextResponse.json({ error: 'Tasarımcı hesabi bulunamadi.' }, { status: 404 })
 
   const product = await prisma.product.findFirst({
     where: { id: productId, sellerId: seller.id },
@@ -102,7 +102,7 @@ export async function PATCH(
   const { id: productId } = await params
   const { session, seller } = await getSeller()
   if (!session?.user) return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
-  if (!seller) return NextResponse.json({ error: 'Satici hesabi bulunamadi.' }, { status: 404 })
+  if (!seller) return NextResponse.json({ error: 'Tasarımcı hesabi bulunamadi.' }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
   const parsed = setPrimaryImageSchema.safeParse(body)
@@ -136,7 +136,7 @@ export async function GET(
   const { id: productId } = await params
   const { session, seller } = await getSeller()
   if (!session?.user) return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
-  if (!seller) return NextResponse.json({ error: 'Satici hesabi bulunamadi.' }, { status: 404 })
+  if (!seller) return NextResponse.json({ error: 'Tasarımcı hesabi bulunamadi.' }, { status: 404 })
 
   const product = await prisma.product.findFirst({
     where: { id: productId, sellerId: seller.id },
@@ -160,7 +160,7 @@ export async function DELETE(
 
   const { session, seller } = await getSeller()
   if (!session?.user) return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
-  if (!seller) return NextResponse.json({ error: 'Satici hesabi bulunamadi.' }, { status: 404 })
+  if (!seller) return NextResponse.json({ error: 'Tasarımcı hesabi bulunamadi.' }, { status: 404 })
 
   const image = await prisma.productImage.findFirst({
     where: { id: imageId, productId, product: { sellerId: seller.id } },

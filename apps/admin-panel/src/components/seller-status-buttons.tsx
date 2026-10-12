@@ -58,10 +58,10 @@ export function SellerStatusButtons({
 
   async function deleteSeller() {
     const confirmation = window.prompt(
-      `Kalıcı silmeyi onaylamak için satıcı adını yazın: ${displayName}`,
+      `Kalıcı silmeyi onaylamak için tasarımcı adını yazın: ${displayName}`,
     )
     if (confirmation !== displayName) {
-      if (confirmation !== null) alert('Satıcı adı eşleşmedi; silme işlemi iptal edildi.')
+      if (confirmation !== null) alert('Tasarımcı adı eşleşmedi; silme işlemi iptal edildi.')
       return
     }
 
@@ -71,7 +71,7 @@ export function SellerStatusButtons({
       const response = await csrfFetch(`/api/admin/sellers/${sellerId}`, { method: 'DELETE' })
       const payload = (await response.json().catch(() => ({}))) as { message?: string }
       if (!response.ok) {
-        setMessage(payload.message ?? 'Satıcı silinemedi.')
+        setMessage(payload.message ?? 'Tasarımcı silinemedi.')
         return
       }
       router.push('/saticilar')
@@ -93,7 +93,7 @@ export function SellerStatusButtons({
           onClick={() =>
             updateStatus(
               'suspended',
-              'Bu satıcıyı askıya almak istiyor musunuz? Siparişleri ve ürünleri dondurulacak.',
+              'Bu tasarımcıyı askıya almak istiyor musunuz? Siparişleri ve ürünleri dondurulacak.',
             )
           }
         >
@@ -106,7 +106,7 @@ export function SellerStatusButtons({
           size="sm"
           disabled={busy || !!activationDisabledReason}
           title={activationDisabledReason ?? undefined}
-          onClick={() => updateStatus('active', 'Bu satıcıyı aktif hale getirmek istiyor musunuz?')}
+          onClick={() => updateStatus('active', 'Bu tasarımcıyı aktif hale getirmek istiyor musunuz?')}
         >
           {loading === 'active' ? '...' : 'Aktifleştir'}
         </Button>

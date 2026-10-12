@@ -112,6 +112,7 @@ export {
 
 export { sellerAnnouncementTemplate } from './announcements'
 export { productPriceDropTemplate, PRICE_DROP_SUBJECT } from './product-price-drop'
+export { sellerInvoiceRejectedTemplate, sellerInvoiceReminderTemplate } from './seller-invoice'
 
 function customerOrderUrl(
   params: Pick<CustomerOrderEmailInput, 'orderUrl' | 'customerOrderUrl' | 'orderLink'>,
@@ -244,7 +245,7 @@ export function orderConfirmationTemplate(
   const title = pending ? 'Siparişiniz Alındı — Ödeme Bekleniyor' : 'Siparişiniz Alındı'
   const statusCopy = pending
     ? 'Ödemeniz henüz alınmadı. Aşağıdaki hesaba havale / EFT yaptığınızda ödemeniz kontrol edilip onaylanacaktır.'
-    : 'Ödemeniz alındı ve siparişiniz satıcıya iletildi. Kargoya verildiğinde size ayrıca bilgi vereceğiz.'
+    : 'Ödemeniz alındı ve siparişiniz tasarımcıya iletildi. Kargoya verildiğinde size ayrıca bilgi vereceğiz.'
   const bank = pending ? renderBankInstructions(params.bankTransferInstructions, params.orderNumber) : null
   const contracts = params.contracts ?? {}
   const contractLinks = [
@@ -326,7 +327,7 @@ export function orderPaymentConfirmedTemplate(
     ${heading(title)}
     ${greeting(params.customerName)}
     ${paragraph(
-      `<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişinizin ödemesi onaylandı${escapeHtml(paymentCopy)}. Siparişiniz satıcıya iletildi ve hazırlık sürecine alındı; kargoya verildiğinde size ayrıca bilgi vereceğiz.`,
+      `<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişinizin ödemesi onaylandı${escapeHtml(paymentCopy)}. Siparişiniz tasarımcıya iletildi ve hazırlık sürecine alındı; kargoya verildiğinde size ayrıca bilgi vereceğiz.`,
     )}
     ${renderLineItemsTable(params.items, { style: 'margin-bottom:8px;' })}
     ${params.summary ? renderAmountSummary(params.summary, params.totalAmount ?? '') : renderTotal(params.totalAmount)}
@@ -405,14 +406,12 @@ export function invoiceUploadedTemplate(params: CustomerInvoiceEmailInput): Emai
   const items = params.items ?? []
   const invoiceCta = renderCta('Faturayı Görüntüle', params.invoiceUrl)
   const orderCta = renderCta('Siparişimi Görüntüle', params.orderUrl)
-  const sellerCopy = params.sellerName
-    ? `<strong>${escapeHtml(params.sellerName)}</strong> mağazası`
-    : 'satıcı'
+  // Satıcı Hanuja modeli: satış faturasını Hanuja keser; tasarımcı adı faturada geçmez.
   const body = `
     ${heading(title)}
     ${greeting(params.customerName)}
     ${paragraph(
-      `<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz için ${sellerCopy} tarafından ürün faturası oluşturuldu. Faturanızı hesabınıza giriş yaparak görüntüleyebilir ve indirebilirsiniz.`,
+      `<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişinizin faturası oluşturuldu. Faturanızı hesabınıza giriş yaparak görüntüleyebilir ve indirebilirsiniz.`,
     )}
     ${items.length ? renderLineItemsTable(items) : ''}
     ${invoiceCta}
@@ -422,7 +421,7 @@ export function invoiceUploadedTemplate(params: CustomerInvoiceEmailInput): Emai
   return {
     subject: `${title} — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişiniz için ${params.sellerName ? `${params.sellerName} mağazası` : 'satıcı'} tarafından ürün faturası oluşturuldu. Faturanızı hesabınıza giriş yaparak görüntüleyebilirsiniz.${items.length ? `\n${renderLineItemsText(items)}` : ''}${isSafeHttpUrl(params.invoiceUrl) ? `\nFatura: ${params.invoiceUrl.trim()}` : ''}${isSafeHttpUrl(params.orderUrl) ? `\nSipariş detayı: ${params.orderUrl.trim()}` : ''}`,
+    text: `Merhaba ${params.customerName}, #${params.orderNumber} numaralı siparişinizin faturası oluşturuldu. Faturanızı hesabınıza giriş yaparak görüntüleyebilirsiniz.${items.length ? `\n${renderLineItemsText(items)}` : ''}${isSafeHttpUrl(params.invoiceUrl) ? `\nFatura: ${params.invoiceUrl.trim()}` : ''}${isSafeHttpUrl(params.orderUrl) ? `\nSipariş detayı: ${params.orderUrl.trim()}` : ''}`,
   }
 }
 
@@ -438,14 +437,14 @@ export function returnRequestTemplate(params: CustomerReturnRequestEmailInput): 
     ${items.length ? renderLineItemsTable(items, { quantityLabel: 'İade Adedi' }) : ''}
     ${paragraph('<strong>İade Sebebi:</strong>', 'margin:0 0 8px;font-size:14px;color:#555;')}
     ${paragraph(escapeHtml(returnReason), 'margin:0 0 24px;font-size:14px;color:#333;background:#f9f9f9;padding:12px;border-radius:4px;')}
-    ${paragraph('Satıcı talebinizi inceleyip iade kargo bilgilerini iletecek; ürünü kargoya verebilmeniz için size ayrıca e-posta göndereceğiz. Talebinizin durumunu sipariş sayfasından takip edebilirsiniz.', 'margin:0 0 24px;font-size:14px;color:#555;')}
+    ${paragraph('Tasarımcı talebinizi inceleyip iade kargo bilgilerini iletecek; ürünü kargoya verebilmeniz için size ayrıca e-posta göndereceğiz. Talebinizin durumunu sipariş sayfasından takip edebilirsiniz.', 'margin:0 0 24px;font-size:14px;color:#555;')}
     ${renderCta('İade Talebimi Görüntüle', orderUrl)}
   `
 
   return {
     subject: `${title} — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} için iade talebinizi aldık. Sebep: ${returnReason}${items.length ? `\n${renderLineItemsText(items, { quantityLabel: 'İade Adedi' })}` : ''}\nSatıcı iade kargo bilgilerini iletince size ayrıca e-posta göndereceğiz.${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
+    text: `Merhaba ${params.customerName}, #${params.orderNumber} için iade talebinizi aldık. Sebep: ${returnReason}${items.length ? `\n${renderLineItemsText(items, { quantityLabel: 'İade Adedi' })}` : ''}\nTasarımcı iade kargo bilgilerini iletince size ayrıca e-posta göndereceğiz.${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
   }
 }
 
@@ -501,16 +500,16 @@ export function sellerNewOrderTemplate(params: SellerOrderEmailInput): EmailTemp
   const body = `
     ${heading(title)}
     ${greeting(params.sellerName)}
-    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişte ödemesi onaylanmış yeni kalemleriniz var. Lütfen siparişi satıcı panelinden onaylayıp sevk süresi içinde kargoya verin.`)}
+    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişte ödemesi onaylanmış yeni kalemleriniz var. Lütfen siparişi tasarımcı panelinden onaylayıp sevk süresi içinde kargoya verin.`)}
     ${renderLineItemsTable(items)}
     ${renderTotal(params.totalAmount)}
-    ${renderCta('Satıcı Panelinde Görüntüle', orderUrl)}
+    ${renderCta('Tasarımcı Panelinde Görüntüle', orderUrl)}
   `
 
   return {
     subject: `${title} — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı siparişte ödemesi onaylanmış yeni kalemleriniz var.\n${renderLineItemsText(items)}${params.totalAmount === undefined ? '' : `\nToplam: ${amountText(params.totalAmount)}`}${orderUrl ? `\nSatıcı paneli: ${orderUrl}` : ''}`,
+    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı siparişte ödemesi onaylanmış yeni kalemleriniz var.\n${renderLineItemsText(items)}${params.totalAmount === undefined ? '' : `\nToplam: ${amountText(params.totalAmount)}`}${orderUrl ? `\nTasarımcı paneli: ${orderUrl}` : ''}`,
   }
 }
 
@@ -531,13 +530,13 @@ export function sellerOrderCancellationTemplate(
     ${renderLineItemsTable(items, { quantityLabel: 'İptal Adedi' })}
     ${reason ? paragraph(`<strong>İptal Nedeni:</strong> ${escapeHtml(reason)}`, 'margin:0 0 24px;font-size:14px;color:#555;') : ''}
     ${renderTotal(params.totalAmount)}
-    ${renderCta('Satıcı Panelinde Görüntüle', orderUrl)}
+    ${renderCta('Tasarımcı Panelinde Görüntüle', orderUrl)}
   `
 
   return {
     subject: `${title} — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı siparişte ${scope}${actor ? ` ${actor} tarafından` : ''} iptal edildi.\n${renderLineItemsText(items, { quantityLabel: 'İptal Adedi' })}${reason ? `\nİptal nedeni: ${reason}` : ''}${orderUrl ? `\nSatıcı paneli: ${orderUrl}` : ''}`,
+    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı siparişte ${scope}${actor ? ` ${actor} tarafından` : ''} iptal edildi.\n${renderLineItemsText(items, { quantityLabel: 'İptal Adedi' })}${reason ? `\nİptal nedeni: ${reason}` : ''}${orderUrl ? `\nTasarımcı paneli: ${orderUrl}` : ''}`,
   }
 }
 
@@ -553,14 +552,14 @@ export function sellerReturnRequestTemplate(params: SellerReturnRequestEmailInpu
     ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı sipariş için müşteri iade talebi oluşturdu.`)}
     ${renderLineItemsTable(items, { quantityLabel: 'İade Adedi' })}
     ${reason ? paragraph(`<strong>İade Nedeni:</strong> ${escapeHtml(reason)}`, 'margin:0 0 24px;font-size:14px;color:#555;') : ''}
-    ${paragraph('Talebi satıcı panelinden inceleyip iade kargo bilgilerini müşteriye iletin. Ürün size ulaştığında teslim kararını panelden verebilirsiniz.', 'margin:0 0 24px;font-size:14px;color:#555;')}
+    ${paragraph('Talebi tasarımcı panelinden inceleyip iade kargo bilgilerini müşteriye iletin. Ürün size ulaştığında teslim kararını panelden verebilirsiniz.', 'margin:0 0 24px;font-size:14px;color:#555;')}
     ${renderCta('İade Talebini İncele', orderUrl)}
   `
 
   return {
     subject: `${title} — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı sipariş için iade talebi oluşturuldu.\n${renderLineItemsText(items, { quantityLabel: 'İade Adedi' })}${reason ? `\nİade nedeni: ${reason}` : ''}${orderUrl ? `\nSatıcı paneli: ${orderUrl}` : ''}`,
+    text: `Merhaba ${params.sellerName}, #${params.orderNumber} numaralı sipariş için iade talebi oluşturuldu.\n${renderLineItemsText(items, { quantityLabel: 'İade Adedi' })}${reason ? `\nİade nedeni: ${reason}` : ''}${orderUrl ? `\nTasarımcı paneli: ${orderUrl}` : ''}`,
   }
 }
 
@@ -585,7 +584,7 @@ export function payoutProcessedTemplate(params: {
   const body = `
     ${heading('Ödemeniz Gerçekleşti')}
     ${greeting(params.sellerName)}
-    ${paragraph(`<strong>${escapeHtml(params.periodDescription)}</strong> dönemi için satıcı ödemeniz gerçekleştirildi.`)}
+    ${paragraph(`<strong>${escapeHtml(params.periodDescription)}</strong> dönemi için tasarımcı ödemeniz gerçekleştirildi.`)}
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f9f9;border-radius:6px;padding:16px;margin-bottom:24px;">
       <tr>
         <td style="font-size:14px;color:#555;padding:6px 0;"><strong>Net Ödeme Tutarı:</strong></td>
@@ -596,7 +595,7 @@ export function payoutProcessedTemplate(params: {
         <td style="font-size:14px;color:#333;padding:6px 0;">${escapeHtml(params.payoutDate)}</td>
       </tr>
     </table>
-    ${paragraph('Detayları satıcı panelinizden görüntüleyebilirsiniz.', 'margin:0;font-size:14px;color:#555;')}
+    ${paragraph('Detayları tasarımcı panelinizden görüntüleyebilirsiniz.', 'margin:0;font-size:14px;color:#555;')}
   `
 
   return {
@@ -627,7 +626,7 @@ export function penaltyAppliedTemplate(params: {
         <td style="font-size:14px;color:#333;padding:6px 0;">${escapeHtml(params.penaltyReason)}</td>
       </tr>
     </table>
-    ${paragraph('Ceza tutarı bir sonraki ödemenizden mahsup edilecektir. Detaylar için satıcı panelinizi inceleyebilirsiniz.', 'margin:0;font-size:14px;color:#555;')}
+    ${paragraph('Ceza tutarı bir sonraki ödemenizden mahsup edilecektir. Detaylar için tasarımcı panelinizi inceleyebilirsiniz.', 'margin:0;font-size:14px;color:#555;')}
   `
 
   return {

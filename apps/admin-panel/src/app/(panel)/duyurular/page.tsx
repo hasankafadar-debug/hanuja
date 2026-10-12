@@ -49,7 +49,7 @@ export default async function AnnouncementsListPage({
     <div className="space-y-6">
       <PageHeader
         title="Duyuru"
-        description="Satıcılara panelde ve e-posta ile gönderilen duyuruları oluşturun ve gönderim durumlarını takip edin."
+        description="Tasarımcılara panelde ve e-posta ile gönderilen duyuruları oluşturun ve gönderim durumlarını takip edin."
         actions={<NewAnnouncementButton />}
       />
 

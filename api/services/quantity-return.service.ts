@@ -25,6 +25,8 @@ import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 import { formatMoney } from '@hanuja/security/money'
 import { resolveEmailImageUrl } from '../lib/email-line-items'
+import { invalidatePayoutSchedule } from './payout-eligibility'
+import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
 
 interface ReturnSelection {
   orderLineId: string
@@ -137,6 +139,7 @@ export function createQuantityReturnService({
       })
     }
 
+    await syncChangedPayoutSchedules(prisma, { orderId: params.orderId })
     return operations
   }
 
@@ -523,6 +526,7 @@ export function createQuantityReturnService({
         reason: `Adet bazlı iade talebi: ${params.items.reduce((sum, item) => sum + item.quantity, 0)} adet`,
       },
     })
+    for (const request of created) await invalidatePayoutSchedule(tx, order.id, request.sellerId)
     await recordReturnOpenedNotifications(tx, order, created)
     return created
   }
@@ -818,7 +822,7 @@ export function createQuantityReturnService({
               where: { id: params.sellerId },
               select: { userId: true },
             })
-            if (!seller) throw new ForbiddenError('Satıcı bulunamadı')
+            if (!seller) throw new ForbiddenError('Tasarımcı bulunamadı')
             const dispute = await tx.dispute.create({
               data: {
                 orderId: request.orderId,
@@ -841,7 +845,7 @@ export function createQuantityReturnService({
                 ),
                 adminUrl: adminPanelLink(`/uyusmazliklar/${dispute.id}`),
                 reason: rejectedDescriptions.join('\n'),
-                sourceLabel: 'Satıcı iade teslimini reddetti',
+                sourceLabel: 'Tasarımcı iade teslimini reddetti',
               },
             })
           }
@@ -938,6 +942,7 @@ export function createQuantityReturnService({
     const refundTransaction = result.refundTransaction
     // Provider work only; the refund record already survived the commit.
     if (refundTransaction) await dispatchRefundProcessingAfterCommit(refundTransaction)
+    await syncChangedPayoutSchedules(prisma, { orderId: result.request.orderId, sellerId: params.sellerId })
 
     return prisma.returnRequest
       .findUnique({

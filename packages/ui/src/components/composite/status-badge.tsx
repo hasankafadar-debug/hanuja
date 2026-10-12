@@ -26,10 +26,10 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   bank_transfer_confirmed:      { label: "EFT/Havale Onaylandı", variant: "success" },
 
   // ── Seller fulfillment states ─────────────────────────────────
-  seller_queue_ready:           { label: "Satıcıya İletildi",   variant: "info" },
-  seller_reviewing:             { label: "Satıcı İnceliyor",    variant: "warning" },
-  seller_accepted:              { label: "Satıcı Kabul Etti",   variant: "success" },
-  seller_rejected:              { label: "Satıcı Reddetti",     variant: "destructive" },
+  seller_queue_ready:           { label: "Tasarımcıya İletildi",   variant: "info" },
+  seller_reviewing:             { label: "Tasarımcı İnceliyor",    variant: "warning" },
+  seller_accepted:              { label: "Tasarımcı Kabul Etti",   variant: "success" },
+  seller_rejected:              { label: "Tasarımcı Reddetti",     variant: "destructive" },
   preparing:                    { label: "Hazırlanıyor",         variant: "info" },
   awaiting_shipment:            { label: "Kargoya Verilecek",   variant: "warning" },
   shipped:                      { label: "Kargoya Verildi",     variant: "info" },
@@ -43,17 +43,21 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   cancelled_by_customer:              { label: "Müşteri İptal",       variant: "destructive" },
   cancelled_by_admin:                 { label: "Yönetici İptal",      variant: "destructive" },
   cancelled_due_to_payment_failure:   { label: "Ödeme Hatası İptal",  variant: "destructive" },
-  cancelled_due_to_seller_rejection:  { label: "Satıcı Reddi İptal",  variant: "destructive" },
+  cancelled_due_to_seller_rejection:  { label: "Tasarımcı Reddi İptal",  variant: "destructive" },
   cancelled_due_to_20day_breach:      { label: "Süre Aşımı İptal",    variant: "destructive" },
   payment_cancelled:                  { label: "Ödeme İptal",         variant: "destructive" },
   // Legacy aliases (American spelling) — kept for any existing references
   canceled_by_customer:               { label: "Müşteri İptal",       variant: "destructive" },
   canceled_by_admin:                  { label: "Yönetici İptal",      variant: "destructive" },
   canceled_due_to_payment_failure:    { label: "Ödeme Hatası İptal",  variant: "destructive" },
-  canceled_due_to_seller_rejection:   { label: "Satıcı Reddi İptal",  variant: "destructive" },
+  canceled_due_to_seller_rejection:   { label: "Tasarımcı Reddi İptal",  variant: "destructive" },
   canceled_due_to_20_day_breach:      { label: "Süre Aşımı İptal",    variant: "destructive" },
 
   // ── Return / Dispute states ───────────────────────────────────
+  requested:                    { label: "İade Talep Edildi",   variant: "warning" },
+  under_review:                 { label: "İnceleniyor",         variant: "warning" },
+  in_transit:                   { label: "İade Kargoda",        variant: "info" },
+  received:                     { label: "İade Alındı",         variant: "info" },
   return_requested:             { label: "İade Talep Edildi",   variant: "warning" },
   return_under_review:          { label: "İade İnceleniyor",    variant: "warning" },
   return_approved:              { label: "İade Onaylandı",      variant: "success" },
@@ -87,7 +91,7 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   rejected:                     { label: "Reddedilmiş",         variant: "destructive" },
 
   waiting_for_admin:            { label: "Admin Yanıtı Bekleniyor", variant: "warning" },
-  waiting_for_seller:           { label: "Satıcı Yanıtı Bekleniyor", variant: "info" },
+  waiting_for_seller:           { label: "Tasarımcı Yanıtı Bekleniyor", variant: "info" },
   resolved:                     { label: "Çözüldü",             variant: "success" },
 }
 

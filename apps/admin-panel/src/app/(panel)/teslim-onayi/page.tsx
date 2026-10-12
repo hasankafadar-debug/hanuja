@@ -47,8 +47,8 @@ export default async function TeslimOnayiPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={sellerReported ? 'Satıcı Teslim Bildirimleri' : 'Teslim Onayı Bekleyenler'}
-        description={`${orderCount} sipariş, ${lineCount} kalem — ${sellerReported ? 'satıcı teslim bildiriminde bulunmuş, teslim teyidi bekleniyor' : 'sevkten 1+ gün geçmiş, teslim teyidi bekleniyor'}`}
+        title={sellerReported ? 'Tasarımcı Teslim Bildirimleri' : 'Teslim Onayı Bekleyenler'}
+        description={`${orderCount} sipariş, ${lineCount} kalem — ${sellerReported ? 'tasarımcı teslim bildiriminde bulunmuş, teslim teyidi bekleniyor' : 'sevkten 1+ gün geçmiş, teslim teyidi bekleniyor'}`}
       />
 
       {lines.length === 0 ? (

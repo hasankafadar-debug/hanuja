@@ -68,8 +68,9 @@ export function getCustomerOrderUrl(orderId: string) {
   return `${getWebBaseUrl()}/siparis/${encodeURIComponent(orderId)}`
 }
 
-export function getCustomerInvoiceUrl(orderId: string, sellerId: string, download = false) {
-  return `${getWebBaseUrl()}/api/orders/${encodeURIComponent(orderId)}/documents/invoices/${encodeURIComponent(sellerId)}${download ? '?download=1' : ''}`
+/** Hanuja's sales invoice for the order (satıcı Hanuja modeli); ownership is checked by the web route. */
+export function getCustomerInvoiceUrl(orderId: string, download = false) {
+  return `${getWebBaseUrl()}/api/orders/${encodeURIComponent(orderId)}/documents/customer-invoice${download ? '?download=1' : ''}`
 }
 
 export function getSellerPanelUrl() {

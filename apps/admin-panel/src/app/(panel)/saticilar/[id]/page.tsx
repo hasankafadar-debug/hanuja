@@ -51,7 +51,7 @@ function displayApplicationValue(value: string | null | undefined) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  return { title: `Satıcı — ${id.slice(-8).toUpperCase()}` }
+  return { title: `Tasarımcı — ${id.slice(-8).toUpperCase()}` }
 }
 
 const STATUS_MAP: Record<
@@ -285,7 +285,7 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
           : !pendingBankDetail
             ? 'Aktifleştirilecek bekleyen banka kaydı bulunamadı.'
             : !seller.profile
-              ? 'Satıcı profili bulunamadı.'
+              ? 'Tasarımcı profili bulunamadı.'
               : null
       : null
   const statusInfo = STATUS_MAP[seller.status] ?? {
@@ -323,7 +323,7 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
           className="mb-3 inline-flex min-h-9 items-center rounded-md px-2 text-sm"
           style={{ color: 'var(--color-muted-fg)' }}
         >
-          <ArrowLeft className="h-4 w-4" /> Satıcılara Dön
+          <ArrowLeft className="h-4 w-4" /> Tasarımcılara Dön
         </PendingLink>
         <div className="flex items-start justify-between gap-4">
           <PageHeader
@@ -393,7 +393,7 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
             İletişim ve Başvuru Bilgileri
           </h2>
           <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Satıcının başvuru sırasında bildirdiği iletişim ve yasal bilgiler.
+            Tasarımcının başvuru sırasında bildirdiği iletişim ve yasal bilgiler.
           </p>
         </div>
         <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
@@ -597,7 +597,7 @@ export default async function SellerDetailPage({ params, searchParams }: Props) 
                 style={{ color: 'var(--color-muted-fg)' }}
               />
               <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                Bu satıcı henüz belge yüklemedi.
+                Bu tasarımcı henüz belge yüklemedi.
               </p>
             </div>
           ) : (

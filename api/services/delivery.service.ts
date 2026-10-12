@@ -21,7 +21,6 @@ import {
   buildSilentConfirmation,
   isSilentConfirmationEligible,
 } from '../domain/delivery-confirmation'
-import { calculateHoldUntil } from '../domain/payout-calculator'
 import { createPayoutService } from './payout.service'
 import { formatOrderNumber } from '../lib/order-number'
 import { getWebBaseUrl } from '../lib/platform-info'
@@ -213,7 +212,7 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
                 },
               })
               if (!fulfillment || fulfillment.status !== 'awaiting_shipment') {
-                throw new ConflictError('Bu satıcı gönderisi kargoya verilebilecek durumda değil')
+                throw new ConflictError('Bu tasarımcı gönderisi kargoya verilebilecek durumda değil')
               }
 
               const lines = await tx.orderLine.findMany({
@@ -298,7 +297,7 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
                 params.orderId,
                 'shipped',
                 params.sellerId,
-                `Satıcı gönderisi kargoya verildi: ${params.trackingNumber}`,
+                `Tasarımcı gönderisi kargoya verildi: ${params.trackingNumber}`,
                 tx as unknown as PrismaClient,
               )
               await recordShippedNotification(tx, {

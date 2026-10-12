@@ -39,7 +39,7 @@ const barcodeSchema = z
   .refine((value) => value === '' || /^\d{13}$/.test(value), 'Barkod 13 haneli rakam olmali')
 
 export const BULK_PRODUCT_COLUMN_CONFIG = [
-  { key: 'modelCode', label: 'Model Kodu*', required: true, helpText: 'Ayni satici ve ayni kategoride ayni Model Kodu verilen urunler, ayni modelin renk/materyal secenekleri kabul edilir ve urun detayinda birlikte gosterilir.' },
+  { key: 'modelCode', label: 'Model Kodu*', required: true, helpText: 'Ayni tasarımcı ve ayni kategoride ayni Model Kodu verilen urunler, ayni modelin renk/materyal secenekleri kabul edilir ve urun detayinda birlikte gosterilir.' },
   { key: 'name', label: 'Urun Adi*', required: true, helpText: 'Urun adini en az 3, en fazla 200 karakter olarak girin.' },
   { key: 'categorySlug', label: 'Kategori*', required: true, helpText: 'Sablonda secilen kategori kapsami icinden bir kategori girin.' },
   { key: 'productColor', label: 'Renk 1', required: false, helpText: 'Istege baglidir. Urunun ana renk secenegini girin. Ikiden fazla renk varsa Mix secin.' },
@@ -54,7 +54,7 @@ export const BULK_PRODUCT_COLUMN_CONFIG = [
   { key: 'variantSize', label: 'Beden', required: false, helpText: 'Beden veya olcu varyasyonunu girin. Bos birakabilirsiniz.' },
   { key: 'variantCustomOptionName', label: 'Ek Ozellik Adi', required: false, helpText: 'Varyasyon icin ek ozellik adini girin; deger girildiyse bu alan da doldurulmalidir.' },
   { key: 'variantCustomOptionValue', label: 'Ek Ozellik Degeri', required: false, helpText: 'Ek ozelligin secilen degerini girin; ad girildiyse bu alan da doldurulmalidir.' },
-  { key: 'sku', label: 'SKU', required: false, helpText: 'Saticinin urunu kendi sisteminde tanimak icin belirledigi istege bagli koddur; varyant iliskilendirmesinde kullanilmaz.' },
+  { key: 'sku', label: 'SKU', required: false, helpText: 'Tasarımcınin urunu kendi sisteminde tanimak icin belirledigi istege bagli koddur; varyant iliskilendirmesinde kullanilmaz.' },
   { key: 'shortDescription', label: 'Kisa Aciklama', required: false, helpText: 'Kisa urun aciklamasini en fazla 500 karakter olarak girin.' },
   { key: 'description', label: 'Aciklama', required: false, helpText: 'Urun aciklamasini en fazla 5000 karakter olarak girin.' },
   { key: 'story', label: 'Hikaye', required: false, helpText: 'Urun hikayesini en fazla 5000 karakter olarak girin.' },

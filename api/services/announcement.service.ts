@@ -554,7 +554,7 @@ export function createAnnouncementService({ prisma }: { prisma: PrismaClient }) 
 
         const audience = parseStoredAudience(draft.audience)
         const sellers = await resolveAudienceSellers(tx, audience)
-        if (!sellers.length) throw new ValidationError('Alıcı listesi boş; en az bir satıcı seçin.')
+        if (!sellers.length) throw new ValidationError('Alıcı listesi boş; en az bir tasarımcı seçin.')
         const audienceHash = hashAudience(sellers.map((seller) => seller.id))
         if (audienceHash !== input.audienceHash)
           throw new ConflictError(

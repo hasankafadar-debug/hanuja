@@ -40,10 +40,10 @@ export function SellerDeliveryReports({
       }}
     >
       <h2 className="mb-1 font-semibold" style={{ color: 'var(--color-primary)' }}>
-        Satıcı Teslim Bildirimleri
+        Tasarımcı Teslim Bildirimleri
       </h2>
       <p className="mb-4 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-        Satıcının bildirimi teslim teyidi değildir. Müşteriye ulaştığını kontrol edip ürünleri
+        Tasarımcının bildirimi teslim teyidi değildir. Müşteriye ulaştığını kontrol edip ürünleri
         onaylayın.
       </p>
       {[...groups].map(([sellerId, reportedLines]) => {
@@ -67,7 +67,7 @@ export function SellerDeliveryReports({
                     {line.productName} × {line.quantity - line.cancelledQuantity}
                   </p>
                   <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                    Satıcı bildirimi:{' '}
+                    Tasarımcı bildirimi:{' '}
                     <time dateTime={line.sellerDeliveryReportedAt!.toISOString()}>
                       {format(line.sellerDeliveryReportedAt!)}
                     </time>

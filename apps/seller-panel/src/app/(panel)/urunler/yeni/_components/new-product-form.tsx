@@ -442,7 +442,7 @@ export default function NewProductForm({ categories }: Props) {
           <Label htmlFor="sku">SKU</Label>
           <Input id="sku" placeholder="SEHPA-001" value={sku} onChange={(e) => setSku(e.target.value)} disabled={loading} />
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Saticinin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde kullanilmaz.
+            Tasarımcınin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde kullanilmaz.
           </p>
         </div>
       </div>

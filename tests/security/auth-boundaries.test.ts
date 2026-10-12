@@ -197,10 +197,10 @@ describe('PayoutBlockedError: must carry blocking reason', () => {
   const blockingReasons = [
     'Açık iade talebi',
     'Açık uyuşmazlık',
-    'Satıcı IBAN doğrulanmadı',
+    'Tasarımcı IBAN doğrulanmadı',
     'Admin tarafından bloke edildi',
     'Fraud riski algılandı',
-    'Eksik satıcı belgesi',
+    'Eksik tasarımcı belgesi',
   ]
 
   blockingReasons.forEach((reason) => {

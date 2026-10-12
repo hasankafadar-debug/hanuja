@@ -26,13 +26,15 @@ function makeBankDetail(isVerified: boolean) {
     previousIbanMasked: null,
     seller: {
       displayName: 'Demo Mağaza',
-      user: { id: 'user-1', email: 'seller@example.test', name: 'Demo Satıcı' },
+      user: { id: 'user-1', email: 'seller@example.test', name: 'Demo Tasarımcı' },
     },
   }
 }
 
 function createPrismaMock(candidate: ReturnType<typeof makeBankDetail>) {
   const prisma = {
+    $queryRaw: vi.fn().mockResolvedValue([]),
+    payout: { findMany: vi.fn().mockResolvedValue([]) },
     sellerBankDetail: {
       findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
         if (where.isVerified === true && !candidate.isVerified) return []
@@ -107,7 +109,7 @@ describe('bank change account-status gate', () => {
           userId: 'user-1',
           status: 'pending',
           bankDetails: [],
-          user: { id: 'user-1', email: 'seller@example.test', name: 'Demo Satıcı' },
+          user: { id: 'user-1', email: 'seller@example.test', name: 'Demo Tasarımcı' },
         }),
       },
       adminAuditLog: { create: vi.fn() },
@@ -120,9 +122,9 @@ describe('bank change account-status gate', () => {
         sellerId: 'seller-1',
         actorId: 'user-1',
         iban: 'TR330006100519786457841326',
-        accountHolder: 'Demo Satıcı',
+        accountHolder: 'Demo Tasarımcı',
         bankName: 'Demo Bank',
       }),
-    ).rejects.toThrow('yalnızca aktif satıcı hesabında')
+    ).rejects.toThrow('yalnızca aktif tasarımcı hesabında')
   })
 })

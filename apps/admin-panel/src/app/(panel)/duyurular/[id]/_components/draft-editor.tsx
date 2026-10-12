@@ -194,7 +194,7 @@ export function DraftEditor({ initial, filterOptions }: DraftEditorProps) {
     <div className="space-y-6">
       <PageHeader
         title="Duyuru taslağı"
-        description="Satıcı panelinde ve e-posta ile gönderilecek duyuruyu hazırlayın."
+        description="Tasarımcı panelinde ve e-posta ile gönderilecek duyuruyu hazırlayın."
         actions={
           <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)}>
             Taslağı sil

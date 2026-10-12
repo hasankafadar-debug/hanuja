@@ -6,15 +6,21 @@ import { auth } from '@/lib/auth'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { ForbiddenError, UnauthorizedError, ValidationError } from '@hanuja/api/lib/errors'
 import { handleError, ok } from '@hanuja/api/lib/response'
+import { createAdditionalSellerInvoiceService } from '@hanuja/api/services/additional-seller-invoice.service'
+
+const invoiceAmountInput = z.union([
+  z.string().trim().regex(/^\d{1,10}(?:\.\d{1,2})?$/),
+  z.number().finite().nonnegative().max(9999999999.99),
+])
 
 const updateSellerInvoiceSchema = z
   .object({
     invoiceDate: z.string().datetime().optional(),
     invoiceCategory: z.string().trim().max(120).nullable().optional(),
     description: z.string().trim().max(5000).nullable().optional(),
-    grossInvoiceAmount: z.union([z.string(), z.number()]).optional(),
-    amount: z.union([z.string(), z.number()]).optional(),
-    vatAmount: z.union([z.string(), z.number()]).optional(),
+    grossInvoiceAmount: invoiceAmountInput.optional(),
+    amount: invoiceAmountInput.optional(),
+    vatAmount: invoiceAmountInput.optional(),
   })
   .refine(
     (data) =>
@@ -56,6 +62,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (!current) {
       throw new ValidationError('Fatura bulunamadi.')
+    }
+    if (current.type === 'additional') {
+      if (body.amount !== undefined || body.vatAmount !== undefined) {
+        throw new ValidationError('Ek fatura için KDV dahil toplamı girin.')
+      }
+      const invoice = await createAdditionalSellerInvoiceService({ prisma }).update({
+        invoiceId: id, adminActorId: session.user.id,
+        ...(body.invoiceDate !== undefined ? { invoiceDate: new Date(body.invoiceDate) } : {}),
+        ...(body.description !== undefined ? { description: body.description } : {}),
+        ...(body.invoiceCategory !== undefined ? { invoiceCategory: body.invoiceCategory } : {}),
+        ...(body.grossInvoiceAmount !== undefined ? { grossInvoiceAmount: new Decimal(body.grossInvoiceAmount) } : {}),
+      })
+      return ok({ invoice })
     }
     if (current.payoutId) {
       throw new ValidationError('Payouta bagli faturalar duzenlenemez.')

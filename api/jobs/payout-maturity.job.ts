@@ -54,13 +54,39 @@ async function sweepMissingPayouts(payoutRepo: ReturnType<typeof createPayoutRep
   return { repaired, failed }
 }
 
+/**
+ * Safety net for the invoice-based due date (satıcı Hanuja modeli): an approval normally
+ * sets `holdUntil` right away, but a failed post-commit sync would leave the payout
+ * without a due date and outside the maturity pass below.
+ */
+async function sweepMissingDueDates(payoutSvc: ReturnType<typeof createPayoutService>) {
+  // Only payouts still waiting for a due date; the approved invoice is checked per pair.
+  const payouts = await prisma.payout.findMany({
+    where: { holdUntil: null, status: { notIn: ['payout_paid', 'payout_offset'] } },
+    select: { orderId: true, sellerId: true },
+  })
+  for (const payout of payouts) {
+    const invoice = await prisma.orderSellerInvoice.findUnique({
+      where: { orderId_sellerId: { orderId: payout.orderId, sellerId: payout.sellerId } },
+      select: { reviewStatus: true },
+    })
+    if (invoice?.reviewStatus !== 'approved') continue
+    try {
+      await payoutSvc.syncInvoiceDueDate(payout)
+    } catch (error) {
+      console.error(`[payout-maturity] due date sync failed for order ${payout.orderId}`, error)
+    }
+  }
+}
+
 async function processPayoutMaturity(_job: Job<PayoutMaturityJobData>) {
   const payoutRepo = createPayoutRepository(prisma)
   const payoutSvc = createPayoutService({ prisma })
 
-  // Self-healing sweep runs first so any newly-repaired payouts are eligible
+  // Self-healing sweeps run first so any newly-repaired payouts are eligible
   // for the same maturity pass below.
   await sweepMissingPayouts(payoutRepo, payoutSvc)
+  await sweepMissingDueDates(payoutSvc)
 
   const readyCandidates = await payoutRepo.findReadyForRelease()
 

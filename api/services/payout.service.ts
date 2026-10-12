@@ -1,9 +1,10 @@
 /**
  * Payout Service — payout hold activation, readiness check, release.
  *
- * INVARIANTS:
- * - Payout countdown starts from delivery_confirmed ONLY.
- * - 30-day hold is mandatory after delivery_confirmed.
+ * INVARIANTS (satıcı Hanuja modeli):
+ * - The payout record is created at delivery_confirmed; no payout before delivery confirmation.
+ * - Due date: first Friday after PlatformSettings.payoutHoldDays (30) from the approved invoice
+ *   the seller issued to Hanuja. Without an approved invoice the payout cannot mature.
  * - Open return or dispute BLOCKS payout; manual release never bypasses eligibility.
  * - All payout state changes are auditable.
  */
@@ -14,8 +15,11 @@ import { lockSellerFinance } from '../lib/seller-finance-lock'
 import { createPayoutRepository } from '../repositories/payout.repository'
 import { createSellerLedgerRepository } from '../repositories/seller-ledger.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
-import { calculateHoldUntil, sumPayoutSnapshot } from '../domain/payout-calculator'
-import { lockPayoutEligibility, manualPayoutBlock, readPayoutEligibility } from './payout-eligibility'
+import { sumPayoutSnapshot } from '../domain/payout-calculator'
+import {
+  lockPayoutEligibility, manualPayoutBlock, readInvoicePayoutDueDate, readInvoicePayoutSchedule,
+  readPayoutEligibility, payoutDayAfterEligibility,
+} from './payout-eligibility'
 import { syncPayoutBatch, syncSellerPayoutBatches } from '../lib/payout-batch-totals'
 import { assertRoleCan } from '../lib/authorize'
 import { isPayoutSettled, previewPayoutOffset, recordPayoutOffsets } from './payout-debt.service'
@@ -39,11 +43,19 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
   }
 
   async function refreshState(tx: Prisma.TransactionClient, payout: Payout) {
-    const eligibility = await readPayoutEligibility(tx, payout)
+    let eligibility = await readPayoutEligibility(tx, payout)
     if (isPayoutSettled(payout.status)) return { ...eligibility, payout }
+    const nextPaymentAt = eligibility.businessBlocked || !eligibility.dueDate
+      ? null
+      : payout.nextPaymentAt ?? payoutDayAfterEligibility(eligibility.dueDate, new Date())
+    if ((payout.nextPaymentAt?.getTime() ?? null) !== (nextPaymentAt?.getTime() ?? null)) {
+      payout = await tx.payout.update({ where: { id: payout.id }, data: { nextPaymentAt } })
+      eligibility = await readPayoutEligibility(tx, payout)
+    }
     const status = eligibility.manualReason ? 'payout_blocked'
       : !eligibility.holdExpired ? 'hold_active'
-      : eligibility.automaticReason ? 'payout_blocked' : 'payout_ready'
+      : eligibility.businessBlocked ? 'payout_blocked'
+      : !eligibility.paymentDayReached ? 'hold_active' : 'payout_ready'
     const blockedReason = eligibility.manualReason || eligibility.automaticReason
     const changed = payout.status !== status || payout.blockedReason !== blockedReason ||
       payout.automaticBlockReason !== eligibility.automaticReason
@@ -86,7 +98,6 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
           const payouts = createPayoutRepository(tx)
           const ledger = createSellerLedgerRepository(tx)
 
-          const holdUntil = calculateHoldUntil(params.deliveryConfirmedAt)
           const sellerIds = [...new Set(lines.map((line) => line.sellerId))]
           const existingPayouts = await payouts.findManyByOrderId(params.orderId)
           const created = []
@@ -149,6 +160,13 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
             )
 
             const existingPayout = existingPayouts.find((payout) => payout.sellerId === sellerId)
+            // Unapproved invoice: holdUntil stays empty until approval sets the due date.
+            const invoiceSchedule = existingPayout
+              ? null
+              : await readInvoicePayoutSchedule(tx, params.orderId, sellerId)
+            const holdUntil = invoiceSchedule?.dueDate ?? null
+            const eligibleAt = invoiceSchedule?.approvedAt && invoiceSchedule.approvedAt > params.deliveryConfirmedAt
+              ? invoiceSchedule.approvedAt : params.deliveryConfirmedAt
             const payout =
               existingPayout ??
               (await payouts.create({
@@ -164,7 +182,8 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
                 adjustmentAmount,
                 netAmount,
                 holdStartedAt: params.deliveryConfirmedAt,
-                holdUntil,
+                ...(holdUntil ? { holdUntil } : {}),
+                ...(holdUntil ? { nextPaymentAt: payoutDayAfterEligibility(holdUntil, eligibleAt) } : {}),
               }))
             const saleEntry = await ledger.findByReference({
               sellerId,
@@ -202,7 +221,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
                   effectiveAt: order.paymentConfirmedAt ?? params.deliveryConfirmedAt,
                   referenceType: 'order',
                   referenceId: params.orderId,
-                  description: 'Satıcı tarafından karşılanan kupon payı',
+                  description: 'Tasarımcı tarafından karşılanan kupon payı',
                   visibleToSeller: true,
                 })
               }
@@ -237,10 +256,8 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
                 : null
             const missingCommission = payout.commissionAmount.plus(reversals?._sum.amount ?? zero)
             if (!commissionEntry && missingCommission.gt(0)) {
-              const issuedInvoice = await tx.sellerInvoice.findFirst({
-                where: { sellerId, sourceOrderId: params.orderId, type: 'commission' },
-                select: { id: true },
-              })
+              // No commission invoice exists in the seller-Hanuja model: the commission is
+              // already deducted from the seller's invoice amount, so the seller sees it at once.
               await ledger.createEntry({
                 sellerId,
                 type: 'commission',
@@ -249,8 +266,8 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
                 effectiveAt: payout.holdStartedAt ?? params.deliveryConfirmedAt,
                 referenceType: 'payout',
                 referenceId: payout.id,
-                description: 'Platform komisyonu (fatura kesilince satıcı ekstresinde görünür)',
-                visibleToSeller: isPayoutSettled(payout.status) || Boolean(issuedInvoice),
+                description: 'Platform komisyonu',
+                visibleToSeller: true,
               })
             }
 
@@ -285,12 +302,37 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
       return withLockedPayout(payoutId, refreshState)
     },
 
+    /**
+     * Applies the approved seller invoice's due date to the order/seller payout and
+     * re-evaluates it. Called after an invoice approval or reset. Until delivery is
+     * confirmed no payout exists; activateHold then reads the invoice itself.
+     */
+    async syncInvoiceDueDate(params: { orderId: string; sellerId: string }) {
+      const targets = await prisma.payout.findMany({
+        where: { orderId: params.orderId, sellerId: params.sellerId },
+        select: { id: true },
+      })
+      const results = []
+      for (const target of targets) {
+        results.push(await withLockedPayout(target.id, async (tx, payout) => {
+          if (isPayoutSettled(payout.status)) return payout
+          const dueDate = await readInvoicePayoutDueDate(tx, payout.orderId, payout.sellerId)
+          const updated = (payout.holdUntil?.getTime() ?? null) === (dueDate?.getTime() ?? null)
+            ? payout
+            : await tx.payout.update({ where: { id: payout.id }, data: { holdUntil: dueDate, nextPaymentAt: null } })
+          return (await refreshState(tx, updated)).payout
+        }))
+      }
+      return results
+    },
+
     async paymentContext(payoutId: string) {
       return withLockedPayout(payoutId, async (tx, payout) => {
         const current = await readPayoutEligibility(tx, payout)
         const offset = await previewPayoutOffset(tx, payout, current.snapshot)
         return {
           ready: current.ready && payout.status === 'payout_ready',
+          nextPaymentAt: current.nextPaymentAt,
           reason: current.reason || (payout.status !== 'payout_ready' ? 'Ödeme uygunluğunu yeniden değerlendirin' : null),
           manualReason: current.manualReason, automaticReason: current.automaticReason,
           amount: offset.transferAmount.toFixed(2), currency: current.currency, snapshot: offset.snapshot,
@@ -339,6 +381,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
           status: 'payout_blocked', blockedReason: params.reason.trim(),
           manualBlockedAt: new Date(), manualBlockedBy: params.adminActorId,
           manualBlockedReason: params.reason.trim(),
+          nextPaymentAt: null,
         } })
         await syncPayoutBatch(tx, payout.batchId)
         await createAdminAuditLogRepository(tx).createEntry({
@@ -393,6 +436,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
             return payout
           }
 
+          if (payout.status === 'payout_blocked') throw new PayoutBlockedError(payout.blockedReason || 'Ödeme uygun değil')
           if (payout.status !== 'payout_ready') {
             throw new ConflictError(`Ödeme hazır değil: ${payout.status}`)
           }
@@ -467,7 +511,7 @@ export function createPayoutService({ prisma }: PayoutServiceDeps) {
               effectiveAt: params.transferDate,
               referenceType: 'payout',
               referenceId: payout.id,
-              description: `Satıcı ödemesi — ${transferLabel}${referenceSuffix}`,
+              description: `Tasarımcı ödemesi — ${transferLabel}${referenceSuffix}`,
               createdBy: params.adminActorId,
               visibleToSeller: true,
             })

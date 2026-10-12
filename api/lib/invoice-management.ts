@@ -3,6 +3,7 @@ import { DomainError, ForbiddenError, ValidationError } from './errors'
 
 export const SELLER_INVOICE_EDIT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 export const INVOICE_EDIT_EXPIRED_MESSAGE = '30 günlük düzeltme süresi doldu. Değişiklik için Hanuja yönetimiyle iletişime geçin.'
+export const APPROVED_SELLER_INVOICE_LOCKED_MESSAGE = 'Onaylanan fatura değiştirilemez. Düzeltme için Hanuja yönetimiyle iletişime geçin.'
 
 export function isInvoiceManagementEnabled() {
   return process.env.INVOICE_MANAGEMENT_ENABLED?.trim().toLowerCase() === 'true'

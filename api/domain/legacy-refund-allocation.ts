@@ -96,7 +96,7 @@ export function allocateLegacyFullRefund(params: {
   }
 
   if (params.lines.length === 0 || params.lines.some((line) => line.sellerId !== params.sellerId)) {
-    return manual('ürünler tek satıcıyla güvenilir biçimde eşleştirilemedi', safeRequestedAmount)
+    return manual('ürünler tek tasarımcıyla güvenilir biçimde eşleştirilemedi', safeRequestedAmount)
   }
 
   let grossProductAmount = ZERO

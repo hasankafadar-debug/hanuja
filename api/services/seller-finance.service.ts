@@ -65,8 +65,11 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
       const refundIds = entries
         .filter((entry) => entry.referenceType === 'refund_transaction')
         .map((entry) => entry.referenceId)
+      const invoiceIds = entries
+        .filter((entry) => entry.referenceType === 'seller_invoice')
+        .map((entry) => entry.referenceId)
 
-      const [payoutRefs, penaltyRefs, refundRefs] = await Promise.all([
+      const [payoutRefs, penaltyRefs, refundRefs, invoiceRefs] = await Promise.all([
         payoutIds.length
           ? prisma.payout.findMany({
               where: { id: { in: payoutIds } },
@@ -85,12 +88,19 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
               select: { id: true, orderId: true, sourceType: true },
             })
           : Promise.resolve([]),
+        invoiceIds.length
+          ? prisma.sellerInvoice.findMany({
+              where: { sellerId: params.sellerId, id: { in: invoiceIds } },
+              select: { id: true, invoiceNumber: true, type: true, description: true },
+            })
+          : Promise.resolve([]),
       ])
 
       const payoutOrderMap = new Map(payoutRefs.map((item) => [item.id, item.orderId]))
       const penaltyOrderMap = new Map(penaltyRefs.map((item) => [item.id, item.orderId]))
       const refundOrderMap = new Map(refundRefs.map((item) => [item.id, item.orderId]))
       const refundSourceTypeMap = new Map(refundRefs.map((item) => [item.id, item.sourceType]))
+      const invoiceMap = new Map(invoiceRefs.map((item) => [item.id, item]))
 
       const resolveOrderId = (entry: (typeof entries)[number]) =>
         entry.referenceType === 'order'
@@ -134,9 +144,10 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
             ? refundSourceTypeMap.get(entry.referenceId)
             : undefined
 
-        const reference = orderId
+        const invoice = entry.referenceType === 'seller_invoice' ? invoiceMap.get(entry.referenceId) : undefined
+        const reference = invoice?.invoiceNumber ?? (orderId
           ? formatOrderDisplayNumber(orderPublicNumberMap.get(orderId), orderId)
-          : `${entry.referenceType}:${entry.referenceId.slice(-8).toUpperCase()}`
+          : `${entry.referenceType}:${entry.referenceId.slice(-8).toUpperCase()}`)
 
         return {
           id: entry.id,
@@ -144,8 +155,10 @@ export function createSellerFinanceService({ prisma }: SellerFinanceServiceDeps)
           reference,
           ...(orderId ? { orderId } : {}),
           ...(refundSourceType ? { refundSourceType } : {}),
-          topic: getSellerStatementTopic(entry.type, refundSourceType),
-          description: entry.description?.trim() || getSellerStatementDescription(entry.type),
+          topic: invoice?.type === 'additional' ? 'Ek Fatura' : getSellerStatementTopic(entry.type, refundSourceType),
+          description: invoice?.type === 'additional' && entry.eventKey?.startsWith('seller-invoice:principal:')
+            ? invoice.description ?? entry.description ?? 'Ek fatura'
+            : entry.description?.trim() || getSellerStatementDescription(entry.type),
           credit: amount.gt(0) ? amount.toNumber() : 0,
           debit: amount.lt(0) ? amount.negated().toNumber() : 0,
           balance: runningBalance.toNumber(),

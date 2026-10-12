@@ -120,6 +120,8 @@ export enum NotificationType {
   seller_support_reply = 'seller_support_reply',
   admin_support_new_ticket = 'admin_support_new_ticket',
   invoice_uploaded = 'invoice_uploaded',
+  seller_invoice_reminder = 'seller_invoice_reminder',
+  seller_invoice_rejected = 'seller_invoice_rejected',
   store_discount_followed_seller = 'store_discount_followed_seller',
   product_review_pending_moderation = 'product_review_pending_moderation',
   product_review_approved = 'product_review_approved',

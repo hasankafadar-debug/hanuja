@@ -5,7 +5,7 @@ const CANCELLATION_REASON_LABELS: Record<string, string> = {
   customer_requested: 'Müşteri isteğiyle iptal',
   admin_cancelled: 'Yönetici kararıyla iptal',
   payment_failed: 'Ödeme başarısızlığı',
-  seller_rejected: 'Satıcı reddi',
+  seller_rejected: 'Tasarımcı reddi',
   auto_canceled_20day_breach: '20 iş günü ihlali — otomatik iptal',
   other: 'Diğer',
 }
@@ -133,14 +133,14 @@ export function CancellationDetailCard({
         {isSellerRejection && sellerRejectionLabel ? (
           <>
             <div className="flex justify-between gap-4">
-              <span style={{ color: '#9b1c1c' }}>Satıcı red sebebi</span>
+              <span style={{ color: '#9b1c1c' }}>Tasarımcı red sebebi</span>
               <span className="font-medium" style={{ color: '#7f1d1d' }}>
                 {sellerRejectionLabel}
               </span>
             </div>
             {sellerRejectionNote ? (
               <div className="flex justify-between gap-4">
-                <span style={{ color: '#9b1c1c' }}>Satıcı açıklaması</span>
+                <span style={{ color: '#9b1c1c' }}>Tasarımcı açıklaması</span>
                 <span className="text-right" style={{ color: '#7f1d1d', maxWidth: '60%' }}>
                   {sellerRejectionNote}
                 </span>

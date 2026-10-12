@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest) {
     select: { id: true },
   })
   if (!seller) {
-    return NextResponse.json({ error: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
+    return NextResponse.json({ error: 'Tasarımcı hesabı bulunamadı.' }, { status: 404 })
   }
 
   try {

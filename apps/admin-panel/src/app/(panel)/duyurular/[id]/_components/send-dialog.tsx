@@ -18,7 +18,7 @@ export function SendDialog({ open, onOpenChange, recipientCount, loading, error,
         <DialogHeader>
           <DialogTitle>Duyuruyu gönder</DialogTitle>
           <DialogDescription className="pt-2">
-            {recipientCount} satıcıya ayrı e-posta gidecek; gönderim geri alınamaz.
+            {recipientCount} tasarımcıya ayrı e-posta gidecek; gönderim geri alınamaz.
           </DialogDescription>
         </DialogHeader>
         <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>

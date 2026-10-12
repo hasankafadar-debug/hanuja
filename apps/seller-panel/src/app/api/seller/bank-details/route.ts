@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
   }
   if (session.user.role !== 'seller' || session.user.mustChangePassword) {
-    return NextResponse.json({ error: 'Satıcı doğrulaması gerekli.' }, { status: 403 })
+    return NextResponse.json({ error: 'Tasarımcı doğrulaması gerekli.' }, { status: 403 })
   }
 
   // IBAN değişikliği payout-kritik: deneme hızını agresif sınırla (OTP brute-force dahil)
@@ -43,12 +43,12 @@ export async function POST(req: NextRequest) {
 
   const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
   if (!seller) {
-    return NextResponse.json({ error: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
+    return NextResponse.json({ error: 'Tasarımcı hesabı bulunamadı.' }, { status: 404 })
   }
 
   if (seller.status !== 'active') {
     return NextResponse.json(
-      { error: 'Banka bilgisi yalnızca aktif satıcı hesabında değiştirilebilir.' },
+      { error: 'Banka bilgisi yalnızca aktif tasarımcı hesabında değiştirilebilir.' },
       { status: 403 },
     )
   }

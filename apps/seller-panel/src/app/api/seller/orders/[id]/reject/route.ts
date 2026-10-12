@@ -20,7 +20,7 @@ export async function POST(
 
   const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
   if (!seller) {
-    return NextResponse.json({ error: 'Satıcı hesabı bulunamadı.' }, { status: 403 })
+    return NextResponse.json({ error: 'Tasarımcı hesabı bulunamadı.' }, { status: 403 })
   }
 
   const { id: orderId } = await params

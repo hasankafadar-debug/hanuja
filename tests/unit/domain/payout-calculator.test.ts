@@ -7,7 +7,9 @@ import { describe, it, expect } from 'vitest'
 import { Decimal } from '../../__mocks__/prisma-runtime'
 import {
   calculateNetPayout,
-  calculateHoldUntil,
+  calculatePayoutDueDate,
+  expectedPayoutDate,
+  nextPayoutDay,
   isHoldExpired,
   resolveCommissionRate,
   calculateCommission,
@@ -129,30 +131,68 @@ describe('calculateNetPayout', () => {
   })
 })
 
-// ─── calculateHoldUntil ───────────────────────────────────────────────────────
+// ─── calculatePayoutDueDate (satıcı Hanuja modeli) ────────────────────────────
+// Vade: onaylı satıcı faturasının tarihinden 30 gün sonraki ilk cuma (Türkiye günü);
+// cuma resmi tatilse sonraki iş günü. Dönen an o günün 00:00'ıdır (UTC+03:00).
 
-describe('calculateHoldUntil', () => {
-  it('is exactly 30 days after delivery_confirmed', () => {
-    const deliveryConfirmedAt = new Date('2026-04-01T00:00:00Z')
-    const holdUntil = calculateHoldUntil(deliveryConfirmedAt)
-    expect(holdUntil.getTime()).toBe(new Date('2026-05-01T00:00:00Z').getTime())
+const istanbulMidnight = (day: string) => new Date(`${day}T00:00:00.000+03:00`).getTime()
+
+describe('calculatePayoutDueDate', () => {
+  it('pays on the 30th day when it is a Friday', () => {
+    // 2026-04-08 (Çar) + 30 = 2026-05-08 (Cum)
+    expect(calculatePayoutDueDate(new Date('2026-04-08T09:00:00+03:00')).getTime())
+      .toBe(istanbulMidnight('2026-05-08'))
   })
 
-  it('preserves time-of-day component', () => {
-    const deliveryConfirmedAt = new Date('2026-04-01T14:30:00Z')
-    const holdUntil = calculateHoldUntil(deliveryConfirmedAt)
-    expect(holdUntil.getTime()).toBe(new Date('2026-05-01T14:30:00Z').getTime())
+  it('otherwise pays on the first Friday after the 30th day', () => {
+    // 2026-04-06 (Pzt) + 30 = 2026-05-06 (Çar) → 2026-05-08 (Cum)
+    expect(calculatePayoutDueDate(new Date('2026-04-06T15:00:00+03:00')).getTime())
+      .toBe(istanbulMidnight('2026-05-08'))
   })
 
-  it('does NOT start from delivered — must be delivery_confirmed', () => {
-    // This test documents the invariant; the actual enforcement is in the
-    // state machine and service layer, not in the calculator itself.
-    const deliveredAt = new Date('2026-04-01T00:00:00Z')
-    const confirmedAt = new Date('2026-04-03T00:00:00Z') // 2 days later (silent confirm)
-    const holdFromDelivered = calculateHoldUntil(deliveredAt)
-    const holdFromConfirmed = calculateHoldUntil(confirmedAt)
-    // countdown from confirmed is later than from delivered
-    expect(holdFromConfirmed.getTime()).toBeGreaterThan(holdFromDelivered.getTime())
+  it('moves a Friday public holiday to the next business day', () => {
+    // 2026-04-01 + 30 = 2026-05-01 (Cum, Emek ve Dayanışma Günü) → 2026-05-04 (Pzt)
+    expect(calculatePayoutDueDate(new Date('2026-04-01T10:00:00+03:00')).getTime())
+      .toBe(istanbulMidnight('2026-05-04'))
+  })
+
+  it('skips the religious holiday block (Kurban Bayramı 2026)', () => {
+    // 2026-04-27 + 30 = 2026-05-27 → Cuma 2026-05-29 bayram → 2026-06-01 (Pzt)
+    expect(calculatePayoutDueDate(new Date('2026-04-27T10:00:00+03:00')).getTime())
+      .toBe(istanbulMidnight('2026-06-01'))
+  })
+
+  it('counts from the Türkiye calendar day of the invoice, not the UTC day', () => {
+    // 2026-04-08T21:30Z = 2026-04-09 00:30 İstanbul → +30 = 2026-05-09 (Cmt) → 2026-05-15
+    expect(calculatePayoutDueDate(new Date('2026-04-08T21:30:00Z')).getTime())
+      .toBe(istanbulMidnight('2026-05-15'))
+  })
+
+  it('uses the configured term and falls back to 30 days for invalid values', () => {
+    // 15 gün: 2026-04-06 + 15 = 2026-04-21 (Sal) → 2026-04-24 (Cum)
+    expect(calculatePayoutDueDate(new Date('2026-04-06T12:00:00+03:00'), 15).getTime())
+      .toBe(istanbulMidnight('2026-04-24'))
+    expect(calculatePayoutDueDate(new Date('2026-04-06T12:00:00+03:00'), -3).getTime())
+      .toBe(istanbulMidnight('2026-05-08'))
+  })
+
+  it('does not depend on shipment or delivery dates: the invoice date is the only input', () => {
+    const due = calculatePayoutDueDate(new Date('2026-04-06T12:00:00+03:00'))
+    expect(due.getTime()).toBe(istanbulMidnight('2026-05-08'))
+  })
+})
+
+describe('nextPayoutDay / expectedPayoutDate', () => {
+  it('returns the same Friday or the next Friday', () => {
+    expect(nextPayoutDay(new Date('2026-05-08T10:00:00+03:00')).getTime()).toBe(istanbulMidnight('2026-05-08'))
+    expect(nextPayoutDay(new Date('2026-05-09T10:00:00+03:00')).getTime()).toBe(istanbulMidnight('2026-05-15'))
+  })
+
+  it('keeps a future due date and rolls a passed one to the next payout day', () => {
+    const due = new Date(istanbulMidnight('2026-05-08'))
+    expect(expectedPayoutDate(due, new Date('2026-05-01T10:00:00+03:00')).getTime()).toBe(due.getTime())
+    expect(expectedPayoutDate(due, new Date('2026-05-12T10:00:00+03:00')).getTime())
+      .toBe(istanbulMidnight('2026-05-15'))
   })
 })
 
@@ -312,7 +352,7 @@ describe('allocateCouponDiscount', () => {
 // müşteri öder 47.421,00; komisyon %15 → 47.421 × 0,15 × 1,20 = 8.535,78;
 // netPayout = 47.421 − 8.535,78 = 38.885,22.
 
-describe('reference example — satıcı kuponu + KDV dahil komisyon', () => {
+describe('reference example — tasarımcı kuponu + KDV dahil komisyon', () => {
   it('matches the documented reference calculation exactly', () => {
     const totalPrice = new Decimal(52690)
     const couponDiscountAmount = allocateCouponDiscount(

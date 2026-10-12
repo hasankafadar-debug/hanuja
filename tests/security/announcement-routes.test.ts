@@ -184,7 +184,7 @@ describe('seller announcement read route', () => {
   })
 
   it('rejects a seller whose application is not approved and an anonymous user', async () => {
-    h.getOperationalSellerIdOrThrow.mockRejectedValue(new ForbiddenError('Satıcı hesabı sipariş işlemlerine kapalı'))
+    h.getOperationalSellerIdOrThrow.mockRejectedValue(new ForbiddenError('Tasarımcı hesabı sipariş işlemlerine kapalı'))
     expect((await sellerReadPost(request('POST', {}), params)).status).toBe(403)
     h.getSession.mockResolvedValue(null)
     expect((await sellerReadPost(request('POST', {}), params)).status).toBe(401)

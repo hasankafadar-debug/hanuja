@@ -44,6 +44,8 @@ type PayoutRow = {
   manualBlockedAt: Date | null
   manualBlockedReason: string | null
   automaticBlockReason: string | null
+  holdUntil: Date | null
+  nextPaymentAt: Date | null
   seller: {
     displayName: string | null
     profile: { storeName: string | null } | null
@@ -77,6 +79,7 @@ function formatDate(value: Date | null | undefined) {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
+    timeZone: 'Europe/Istanbul',
   })
 }
 
@@ -116,9 +119,9 @@ export default async function PayoutsAdminPage({
 
   return (
     <div className="space-y-8" data-testid="admin-payouts-page">
-      <PageHeader title="Hakedisler" description="Satici payout takibi, hold durumu ve odeme kayitlari" />
+      <PageHeader title="Hakedisler" description="Tasarımcı payout takibi, hold durumu ve odeme kayitlari" />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Vadesi Dolan"
           value={formatAmount(Number(readyAgg._sum.netAmount ?? 0))}
@@ -188,7 +191,7 @@ export default async function PayoutsAdminPage({
           <table className="w-full text-sm whitespace-nowrap">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Satici', 'Siparis No', 'Siparis Tarihi', 'Sevk Tarihi', 'Brüt Hakediş', 'Kesintiler', 'Net Hakediş', 'Uygulanan Mahsup', 'Banka Transferi', 'Teslim Onayi', 'Blok Sebebi', 'Durum', ''].map((heading) => (
+                {['Tasarımcı', 'Siparis No', 'Siparis Tarihi', 'Sevk Tarihi', 'Brüt Hakediş', 'Kesintiler', 'Net Hakediş', 'Uygulanan Mahsup', 'Banka Transferi', 'Teslim Onayi', 'Fatura Vadesi', 'Planlanan Ödeme Günü', 'Blok Sebebi', 'Durum', ''].map((heading) => (
                   <th
                     key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
@@ -253,6 +256,8 @@ export default async function PayoutsAdminPage({
                     <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
                       {formatDate(payout.order?.deliveryConfirmedAt)}
                     </td>
+                    <td className="px-4 py-3">{formatDate(payout.holdUntil)}</td>
+                    <td className="px-4 py-3">{payout.nextPaymentAt ? formatDate(payout.nextPaymentAt) : 'Ödeme koşulları bekleniyor'}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-destructive)' }}>
                       <div className="max-w-xs whitespace-normal space-y-1">
                         {payout.manualBlockedAt && <p>Manuel: {payout.manualBlockedReason ?? payout.blockedReason}</p>}

@@ -174,7 +174,7 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
           orderId: params.orderId,
           penaltyId: penalty.id,
           referenceType: 'penalty', referenceId: penalty.id,
-          description: `Ceza: ${params.reason} — ${penaltyAmount.toFixed(2)} TRY (fatura kesilince satıcı ekstresinde görünür)`,
+          description: `Ceza: ${params.reason} — ${penaltyAmount.toFixed(2)} TRY (fatura kesilince tasarımcı ekstresinde görünür)`,
           visibleToSeller: false,
         }, tx)
 
@@ -291,8 +291,8 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
             referenceType: 'penalty', referenceId: penalty.id,
             description:
               incrementalDays === 1
-                ? `Geç sevkiyat günlük ceza birikimi: 1 gün (%${dailyRate.mul(100).toFixed(0)}) — fatura kesilince satıcı ekstresinde görünür`
-                : `Geç sevkiyat günlük ceza birikimi: +${incrementalDays} gün (%${dailyRate.mul(100).toFixed(0)}/gün) — fatura kesilince satıcı ekstresinde görünür`,
+                ? `Geç sevkiyat günlük ceza birikimi: 1 gün (%${dailyRate.mul(100).toFixed(0)}) — fatura kesilince tasarımcı ekstresinde görünür`
+                : `Geç sevkiyat günlük ceza birikimi: +${incrementalDays} gün (%${dailyRate.mul(100).toFixed(0)}/gün) — fatura kesilince tasarımcı ekstresinde görünür`,
             visibleToSeller: Boolean(invoice),
           }, tx)
         }
@@ -368,7 +368,7 @@ export function createPenaltyService({ prisma }: PenaltyServiceDeps) {
           orderId: params.orderId,
           penaltyId: created.id,
           referenceType: 'penalty', referenceId: created.id,
-          description: `Manuel ceza: ${params.manualReason} (fatura kesilince satıcı ekstresinde görünür)`,
+          description: `Manuel ceza: ${params.manualReason} (fatura kesilince tasarımcı ekstresinde görünür)`,
           createdBy: params.adminActorId,
           visibleToSeller: false,
         }, tx)

@@ -61,6 +61,7 @@ const ENV_VARS: EnvVar[] = [
 
   // Payment
   { key: 'CARD_PAYMENTS_ENABLED', required: false, requiredInProd: true, description: 'Card payment feature flag (true/false)', apps: ['all'] },
+  { key: 'IYZICO_CARD_PAYMENTS_ENABLED', required: false, description: 'Opens card sales on the standard iyzico POS after iyzico approval and live sales contracts (true/false, default closed)', apps: ['web'] },
   { key: 'IYZICO_API_KEY', required: false, requiredWhen: 'card-payments', sensitiveInProd: true, description: 'Iyzico API key', apps: ['api'] },
   { key: 'IYZICO_SECRET_KEY', required: false, requiredWhen: 'card-payments', sensitiveInProd: true, description: 'Iyzico secret key', apps: ['api'] },
   { key: 'IYZICO_BASE_URL', required: false, requiredWhen: 'card-payments', description: 'Iyzico base URL (sandbox or live)', apps: ['api'] },
@@ -175,12 +176,12 @@ function haveSameOrigin(left: string, right: string): boolean {
   }
 }
 
-function isEnabledFlag(key: 'CARD_PAYMENTS_ENABLED' | 'INVOICE_ALIASING_ENABLED'): boolean {
+function isEnabledFlag(key: 'CARD_PAYMENTS_ENABLED' | 'IYZICO_CARD_PAYMENTS_ENABLED' | 'INVOICE_ALIASING_ENABLED'): boolean {
   return process.env[key]?.trim().toLowerCase() === 'true'
 }
 
 function isConditionalRequirementActive(requiredWhen: EnvVar['requiredWhen']): boolean {
-  if (requiredWhen === 'card-payments') return isEnabledFlag('CARD_PAYMENTS_ENABLED')
+  if (requiredWhen === 'card-payments') return isEnabledFlag('CARD_PAYMENTS_ENABLED') || isEnabledFlag('IYZICO_CARD_PAYMENTS_ENABLED')
   if (requiredWhen === 'invoice-aliasing') return isEnabledFlag('INVOICE_ALIASING_ENABLED')
   return false
 }
@@ -225,6 +226,7 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
 
     if (
       (envVar.key === 'CARD_PAYMENTS_ENABLED' ||
+        envVar.key === 'IYZICO_CARD_PAYMENTS_ENABLED' ||
         envVar.key === 'INVOICE_ALIASING_ENABLED' ||
         envVar.key === 'INVOICE_MANAGEMENT_ENABLED' ||
         envVar.key === 'PREVIEW_DEPLOYMENT') &&

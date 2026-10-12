@@ -510,7 +510,7 @@ export default function ProductEditForm({
           <Label htmlFor="sku">SKU</Label>
           <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} disabled={loading} />
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Saticinin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde kullanilmaz.
+            Tasarımcınin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde kullanilmaz.
           </p>
         </div>
       </div>

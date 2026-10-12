@@ -28,8 +28,8 @@ import { MobileNav } from './_components/mobile-nav'
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | Hanuja Satıcı Paneli',
-    default: 'Satıcı Paneli',
+    template: '%s | Hanuja Tasarımcı Paneli',
+    default: 'Tasarımcı Paneli',
   },
 }
 
@@ -138,7 +138,7 @@ export default async function SellerPanelLayout({ children }: { children: React.
             className="ml-auto rounded px-1.5 py-0.5 text-xs font-medium"
             style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-muted-fg)' }}
           >
-            Satıcı
+            Tasarımcı
           </span>
         </div>
         <div className="flex-1 overflow-y-auto py-4">
@@ -157,7 +157,7 @@ export default async function SellerPanelLayout({ children }: { children: React.
               className="font-semibold"
               style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
             >
-              Hanuja Satıcı
+              Hanuja Tasarımcı
             </span>
           </div>
           <div className="ml-auto flex items-center gap-3">

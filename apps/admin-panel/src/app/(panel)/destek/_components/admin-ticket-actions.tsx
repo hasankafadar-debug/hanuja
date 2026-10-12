@@ -71,10 +71,10 @@ export function AdminTicketActions({
       >
         <div className="space-y-1">
           <h2 className="text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
-            Satıcıya Yanıt Gönder
+            Tasarımcıya Yanıt Gönder
           </h2>
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Gönderilen yanıt satıcı panelindeki bildirim zilinde yeni uyarı olarak görünecek.
+            Gönderilen yanıt tasarımcı panelindeki bildirim zilinde yeni uyarı olarak görünecek.
           </p>
         </div>
 
@@ -85,7 +85,7 @@ export function AdminTicketActions({
             rows={5}
             value={body}
             onChange={(event) => setBody(event.target.value)}
-            placeholder="Satıcıya yazacağınız cevabı girin"
+            placeholder="Tasarımcıya yazacağınız cevabı girin"
             disabled={isPending}
             required
           />
@@ -133,7 +133,7 @@ export function AdminTicketActions({
                 Talebi Çözüldü Olarak İşaretle
               </h2>
               <p className="text-sm" style={{ color: '#92400e' }}>
-                Bu işlem talebi kapatır. Satıcı yeni bir mesaj gönderirse talep yeniden açılır.
+                Bu işlem talebi kapatır. Tasarımcı yeni bir mesaj gönderirse talep yeniden açılır.
               </p>
             </div>
             <Button type="button" variant="outline" disabled={isPending} onClick={handleResolve}>

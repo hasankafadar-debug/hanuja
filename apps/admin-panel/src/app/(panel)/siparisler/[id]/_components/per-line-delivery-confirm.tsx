@@ -117,7 +117,7 @@ export function PerLineDeliveryConfirm({
 
       <p className="mb-3 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
         Müşteriye ulaştığını teyit ettiğiniz ürünleri seçip onaylayın. Siparişin tüm aktif ürünleri
-        teslim teyidi aldığında hakediş bekleme süresi başlar.
+        teslim teyidi aldığında hakediş kaydı oluşturulur. Ödeme günü, onaylı tasarımcı faturasının tarihine göre belirlenir.
       </p>
 
       <ul className="mb-3 space-y-1">

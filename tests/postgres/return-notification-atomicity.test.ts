@@ -88,7 +88,7 @@ async function seedReturn(
     data: { email: `customer-${suffix}@example.test`, name: 'Ayşe', role: 'customer' },
   })
   const sellerUser = await prisma.user.create({
-    data: { email: `seller-${suffix}@example.test`, name: 'Satıcı', role: 'seller' },
+    data: { email: `seller-${suffix}@example.test`, name: 'Tasarımcı', role: 'seller' },
   })
   const seller = await prisma.seller.create({
     data: {
@@ -246,6 +246,24 @@ function clientWithFailingRefund(): PrismaClient {
 }
 
 describe('legacy return flow atomicity against PostgreSQL', () => {
+  it('processes quantity-return cargo without transitioning the whole delivered order', async () => {
+    const f = await seedQuantityReturn()
+    await prisma.order.update({ where: { id: f.orderId }, data: { status: 'delivery_confirmed' } })
+    await prisma.returnRequest.update({ where: { id: f.returnRequestId }, data: { status: 'requested' } })
+    const service = createReturnService({ prisma })
+    await expect(service.provideSellerCargoInfo({ returnRequestId: f.returnRequestId,
+      sellerId: 'another-seller', address: 'Test iade adresi', carrier: 'Test kargo' })).rejects.toThrow()
+    await service.provideSellerCargoInfo({ returnRequestId: f.returnRequestId,
+      sellerId: f.sellerId, address: 'Test iade adresi', carrier: 'Test kargo' })
+    expect((await prisma.returnRequest.findUniqueOrThrow({ where: { id: f.returnRequestId } })).status).toBe('approved')
+    await service.submitCustomerShipment({ returnRequestId: f.returnRequestId,
+      customerId: f.customerId, carrier: 'Test kargo', trackingNumber: 'LOCAL-RETURN-ONLY' })
+    expect((await prisma.returnRequest.findUniqueOrThrow({ where: { id: f.returnRequestId } })).status).toBe('in_transit')
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: f.orderId } })).status).toBe('delivery_confirmed')
+    const history = await prisma.orderStatusHistory.findMany({ where: { orderId: f.orderId } })
+    expect(history).toHaveLength(2)
+    expect(history.every(row => row.toStatus === 'delivery_confirmed')).toBe(true)
+  })
   it('rolls back every covered flow when the notification cannot be written', async () => {
     // 1. seller provides cargo info
     const cargo = await seedReturn({ status: 'requested' })
@@ -263,7 +281,7 @@ describe('legacy return flow atomicity against PostgreSQL', () => {
     expect(afterCargo.status).toBe('requested')
     expect(afterCargo.sellerReturnAddress).toBeNull()
     expect(await prisma.orderStatusHistory.count({ where: { orderId: cargo.orderId } })).toBe(0)
-    expect(await prisma.notificationOutbox.count()).toBe(0)
+    expect(await prisma.notificationOutbox.count({ where: { userId: cargo.customerId } })).toBe(0)
     // The operator can retry because the status guard still accepts the call.
     await service().provideSellerCargoInfo({
       returnRequestId: cargo.returnRequestId,

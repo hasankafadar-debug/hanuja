@@ -185,7 +185,7 @@ describe('product question routes', () => {
 
   it('rejects the seller route when the seller account is not operational', async () => {
     const { ForbiddenError } = await import('../../api/lib/errors')
-    h.getOperationalSellerIdOrThrow.mockRejectedValue(new ForbiddenError('Satıcı hesabı kapalı'))
+    h.getOperationalSellerIdOrThrow.mockRejectedValue(new ForbiddenError('Tasarımcı hesabı kapalı'))
     const res = await sellerReplyPost(
       request('http://localhost/api/seller/product-questions/t1/messages', { body: 'Merhaba' }),
       params('t1'),

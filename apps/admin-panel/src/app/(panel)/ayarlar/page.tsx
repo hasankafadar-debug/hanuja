@@ -109,13 +109,13 @@ export default async function AdminSettingsPage() {
           </h2>
         </div>
         <p className="mb-4 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          Yeni siparislerde komisyon orani saticiya ozel oran varsa onu, yoksa burada tanimli
-          genel satici komisyonunu kullanir. Siparis olustugunda oran satir bazinda snapshot
+          Yeni siparislerde komisyon orani tasarımcıya ozel oran varsa onu, yoksa burada tanimli
+          genel tasarımcı komisyonunu kullanir. Siparis olustugunda oran satir bazinda snapshot
           olarak saklanir.
         </p>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span style={{ color: 'var(--color-muted-fg)' }}>Aktif satici sayisi</span>
+            <span style={{ color: 'var(--color-muted-fg)' }}>Aktif tasarımcı sayisi</span>
             <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>
               {sellerCount}
             </span>

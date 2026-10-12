@@ -15,8 +15,8 @@ export const WITHDRAWAL_NOTICE_TITLE = 'Cayma Hakkınız (14 Gün)'
 
 export const WITHDRAWAL_NOTICE_PARAGRAPHS: readonly string[] = [
   'Ürünün size veya belirlediğiniz kişiye tesliminden itibaren 14 gün içinde hiçbir gerekçe göstermeksizin ve cezai şart ödemeksizin cayma hakkınızı kullanabilirsiniz. Tek siparişte ayrı ayrı teslim edilen ürünlerde süre, son ürünün teslimiyle başlar; ürün teslim edilmeden önce de cayma hakkı kullanılabilir.',
-  `Cayma hakkınızı sipariş detay sayfasındaki "İade Talebi Oluştur" adımından, destek kanallarımızdan veya ${PLATFORM_LEGAL_INFO.supportEmail} adresine yazarak kullanabilirsiniz. Satıcının anlaşmalı kargo firmasıyla yapılan iadelerde kargo ücreti size yansıtılmaz.`,
-  'Aşağıdaki nitelikteki ürün ve hizmetlerde, mevzuattaki koşullar oluşmuşsa cayma hakkı kullanılamayabilir. Satıcıdan ölçü, renk, malzeme uyarlaması veya özel üretim talep ettiğiniz ürünler, tüketicinin istekleri doğrultusunda hazırlanan mal sayılır. Ayıplı veya sözleşmeye aykırı ürünlere ilişkin yasal haklarınız her durumda saklıdır.',
+  `Cayma hakkınızı sipariş detay sayfasındaki "İade Talebi Oluştur" adımından, destek kanallarımızdan veya ${PLATFORM_LEGAL_INFO.supportEmail} adresine yazarak kullanabilirsiniz. Tasarımcının anlaşmalı kargo firmasıyla yapılan iadelerde kargo ücreti size yansıtılmaz.`,
+  'Aşağıdaki nitelikteki ürün ve hizmetlerde, mevzuattaki koşullar oluşmuşsa cayma hakkı kullanılamayabilir. Tasarımcıdan ölçü, renk, malzeme uyarlaması veya özel üretim talep ettiğiniz ürünler, tüketicinin istekleri doğrultusunda hazırlanan mal sayılır. Ayıplı veya sözleşmeye aykırı ürünlere ilişkin yasal haklarınız her durumda saklıdır.',
 ]
 
 /**

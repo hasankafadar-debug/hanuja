@@ -43,7 +43,7 @@ export function AdminOrderActions({
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
   const [isPenaltyOpen, setIsPenaltyOpen] = useState(false)
-  const [penaltyReason, setPenaltyReason] = useState('Satıcı yükümlülüğünü yerine getirmediği için manuel ceza uygulandı.')
+  const [penaltyReason, setPenaltyReason] = useState('Tasarımcı yükümlülüğünü yerine getirmediği için manuel ceza uygulandı.')
   const [penaltyAmount, setPenaltyAmount] = useState(manualPenalty?.defaultAmount ?? '')
 
   async function doAction(
@@ -121,7 +121,7 @@ export function AdminOrderActions({
                 'payment',
                 `/api/admin/payments/eft/${orderId}/approve`,
                 {},
-                'Bu EFT ödemesini onaylamak istiyor musunuz? Sipariş satıcıya iletilecek.',
+                'Bu EFT ödemesini onaylamak istiyor musunuz? Sipariş tasarımcıya iletilecek.',
               )
             }
           >

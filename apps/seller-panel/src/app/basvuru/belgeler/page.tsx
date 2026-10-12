@@ -63,7 +63,7 @@ export default async function BasvuruBelgelerPage({ searchParams }: PageProps) {
     <main className="min-h-screen bg-neutral-50 px-4 py-8 sm:py-12">
       <div className="mx-auto max-w-4xl space-y-8">
         <section className="border-b border-neutral-200 pb-6">
-          <p className="text-sm font-semibold text-neutral-900">Hanuja Satıcı Başvurusu</p>
+          <p className="text-sm font-semibold text-neutral-900">Hanuja Tasarımcı Başvurusu</p>
           <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
             <div>
               <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">

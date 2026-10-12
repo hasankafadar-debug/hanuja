@@ -23,7 +23,7 @@ export default async function CustomerCampaignsPage({ searchParams }: { searchPa
   ])
   const pages = Math.max(1, Math.ceil(data.total / data.pageSize))
   return <div className="space-y-6">
-    <PageHeader title="Müşteri Kampanyaları" description="Müşterilere yönelik e-posta ve SMS taslakları. Satıcı duyurularından ayrıdır." actions={<NewCampaignButton channel={channel} />} />
+    <PageHeader title="Müşteri Kampanyaları" description="Müşterilere yönelik e-posta ve SMS taslakları. Tasarımcı duyurularından ayrıdır." actions={<NewCampaignButton channel={channel} />} />
     <nav aria-label="Kampanya kanalı" className="flex gap-2">
       <Link href="/musteri-kampanyalari?kanal=email" aria-current={channel === 'email' ? 'page' : undefined} className={`rounded-lg border px-4 py-2 text-sm ${channel === 'email' ? 'font-semibold' : ''}`}>E-posta</Link>
       <Link href="/musteri-kampanyalari?kanal=sms" aria-current={channel === 'sms' ? 'page' : undefined} className={`rounded-lg border px-4 py-2 text-sm ${channel === 'sms' ? 'font-semibold' : ''}`}>SMS</Link>

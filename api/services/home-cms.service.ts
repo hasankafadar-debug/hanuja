@@ -177,7 +177,7 @@ export function createHomeCmsService({ prisma }: HomeCmsServiceDeps) {
     }
 
     throw new ValidationError(
-      'Medya, admin havuzuna veya yayındaki bir satıcı ürününe ait olmalıdır.',
+      'Medya, admin havuzuna veya yayındaki bir tasarımcı ürününe ait olmalıdır.',
     )
   }
 

@@ -161,7 +161,7 @@ test.describe('seller management', () => {
     expect(sellerName).not.toBe('')
     const detailHref = await reviewLink.getAttribute('href')
     expect(detailHref).toMatch(/^\/saticilar\/[^/?]+$/)
-    if (!detailHref) throw new Error('İncele bağlantısında satıcı detay adresi bulunamadı.')
+    if (!detailHref) throw new Error('İncele bağlantısında tasarımcı detay adresi bulunamadı.')
 
     const detailRequestPromise = page.waitForRequest((request) => {
       return new URL(request.url()).pathname === detailHref && request.isNavigationRequest()
@@ -184,7 +184,7 @@ test.describe('seller management', () => {
     await expect(namedReviewLink).toBeVisible()
     const detailHref = await namedReviewLink.getAttribute('href')
     expect(detailHref).toMatch(/^\/saticilar\/[^/?]+$/)
-    if (!detailHref) throw new Error('İncele bağlantısında satıcı detay adresi bulunamadı.')
+    if (!detailHref) throw new Error('İncele bağlantısında tasarımcı detay adresi bulunamadı.')
     const stableReviewLink = page.locator(`a[href=${JSON.stringify(detailHref)}]`).first()
 
     const firstDetailRequestPromise = page.waitForRequest((request) => {

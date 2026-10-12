@@ -101,7 +101,7 @@ export class InvalidTransitionError extends DomainError {
 
 export class SellerNotActiveError extends DomainError {
   constructor() {
-    super('Satıcı hesabı aktif değil', 'SELLER_NOT_ACTIVE', 403)
+    super('Tasarımcı hesabı aktif değil', 'SELLER_NOT_ACTIVE', 403)
     this.name = 'SellerNotActiveError'
   }
 }
@@ -110,8 +110,8 @@ export class SellerSuspendedError extends DomainError {
   constructor(productName?: string) {
     super(
       productName
-        ? `"${productName}" satıcısı askıya alındığı için satın alınamaz.`
-        : 'Satıcı askıya alındığı için bu işlem yapılamaz.',
+        ? `"${productName}" tasarımcısı askıya alındığı için satın alınamaz.`
+        : 'Tasarımcı askıya alındığı için bu işlem yapılamaz.',
       'SELLER_SUSPENDED',
       409,
     )
@@ -147,7 +147,7 @@ export class ProductHasOrderHistoryError extends DomainError {
 export class SellerHasCommercialHistoryError extends DomainError {
   constructor(blockingCounts: Record<string, number>) {
     super(
-      'Ticari geçmişi olan satıcı kalıcı olarak silinemez. Satıcıyı askıya alabilirsiniz.',
+      'Ticari geçmişi olan tasarımcı kalıcı olarak silinemez. Tasarımcıyı askıya alabilirsiniz.',
       'SELLER_HAS_COMMERCIAL_HISTORY',
       409,
       { blockingCounts },

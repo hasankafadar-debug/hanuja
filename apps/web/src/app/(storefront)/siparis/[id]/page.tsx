@@ -157,14 +157,13 @@ export default async function OrderDetailPage({ params }: Props) {
     preInformationHtml: string
   } | null
 
-  type SellerInvoice = {
+  // Hanuja's sales invoice; the designer's invoice to Hanuja is never shown to the customer.
+  type CustomerInvoice = {
     id: string
-    sellerId: string
+    invoiceNumber: string | null
     fileName: string
-    mimeType: string
     uploadedAt: Date
-    seller: { id: string; displayName: string; slug: string | null }
-  }
+  } | null
 
   type ReturnRequest = {
     id: string
@@ -202,7 +201,7 @@ export default async function OrderDetailPage({ params }: Props) {
   const shipments = (order.shipments ?? []) as unknown as Shipment[]
   const address = (order.address ?? null) as Address
   const legalSnapshot = (order.legalSnapshot ?? null) as LegalSnapshot
-  const sellerInvoices = (order.sellerInvoices ?? []) as unknown as SellerInvoice[]
+  const customerInvoice = (order.customerInvoice ?? null) as unknown as CustomerInvoice
   const returnRequests = (order.returnRequests ?? []) as unknown as ReturnRequest[]
 
   const grossAmount = moneyToNumber(order.grossAmount)
@@ -599,54 +598,42 @@ export default async function OrderDetailPage({ params }: Props) {
         </section>
       ) : null}
 
-      {sellerInvoices.length > 0 ? (
+      {customerInvoice ? (
         <section
           className="mt-5 rounded-xl border p-5"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
           <h2 className="mb-3 flex items-center gap-2 font-semibold" style={{ color: 'var(--color-primary)' }}>
-            <FileText className="h-4 w-4" /> Tasarımcı Faturaları
+            <FileText className="h-4 w-4" /> Fatura
           </h2>
-          <div className="space-y-3">
-            {sellerInvoices.map((invoice) => {
-              const viewHref = `/api/orders/${id}/documents/invoices/${invoice.sellerId}`
-              const downloadHref = `${viewHref}?download=1`
-              const uploadedAt = new Date(invoice.uploadedAt).toLocaleDateString('tr-TR', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-
-              return (
-                <div
-                  key={invoice.id}
-                  className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
-                  style={{ borderColor: 'var(--color-border)' }}
-                >
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                      {invoice.seller.displayName}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                      {invoice.fileName} · {uploadedAt}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button asChild variant="outline" size="sm">
-                      <a href={viewHref}>Görüntüle</a>
-                    </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <a href={downloadHref}>
-                        <Download className="h-4 w-4" />
-                        İndir
-                      </a>
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
+          <div
+            className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                {customerInvoice.invoiceNumber ? `Fatura No: ${customerInvoice.invoiceNumber}` : 'Satış faturası'}
+              </p>
+              <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                {customerInvoice.fileName} ·{' '}
+                {new Date(customerInvoice.uploadedAt).toLocaleDateString('tr-TR', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <a href={`/api/orders/${id}/documents/customer-invoice`}>Görüntüle</a>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <a href={`/api/orders/${id}/documents/customer-invoice?download=1`}>
+                  <Download className="h-4 w-4" />
+                  İndir
+                </a>
+              </Button>
+            </div>
           </div>
         </section>
       ) : null}

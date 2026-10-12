@@ -32,7 +32,7 @@ function formatDate(date: Date) {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  seller: 'Satıcı',
+  seller: 'Tasarımcı',
   admin: 'Admin',
 }
 

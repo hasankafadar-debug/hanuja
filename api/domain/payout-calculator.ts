@@ -9,7 +9,9 @@
  */
 import { Decimal } from '@prisma/client/runtime/client'
 import { roundMoney } from '@hanuja/security/money'
+import { addReportingDateDays, getReportingDateKey, reportingDayStart } from '../lib/reporting-time'
 import { PAYOUT_HOLD_DAYS } from './penalty-calculator'
+import { isBusinessDay } from './tr-holidays'
 
 export interface PayoutComponents {
   grossAmount: Decimal
@@ -55,14 +57,46 @@ export function calculateNetPayout(c: PayoutComponents): Decimal {
   return roundMoney(rawNet)
 }
 
+const FRIDAY = 5
+
+function weekdayOfDateKey(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00.000Z`).getUTCDay()
+}
+
+// tr-holidays reads local calendar fields, so build the same calendar day locally.
+function localCalendarDate(dateKey: string) {
+  const [year, month, day] = dateKey.split('-').map(Number)
+  return new Date(year!, month! - 1, day!)
+}
+
+/** First Friday on or after the Türkiye calendar day; a Friday holiday moves to the next business day. */
+function payoutDayOnOrAfter(dateKey: string) {
+  let key = dateKey
+  while (weekdayOfDateKey(key) !== FRIDAY) key = addReportingDateDays(key, 1)
+  while (!isBusinessDay(localCalendarDate(key))) key = addReportingDateDays(key, 1)
+  return key
+}
+
 /**
- * Payout hold expires 30 days after delivery_confirmed.
- * Countdown starts from delivery_confirmed — not delivered, not shipped.
+ * Hakediş vadesi: satıcının Hanuja'ya kestiği faturanın tarihinden `holdDays` gün sonraki
+ * ilk cuma (Türkiye takvim günü; cuma resmi tatilse sonraki iş günü). Dönen an o günün
+ * 00:00'ıdır (Europe/Istanbul). Vade bir alt sınırdır: teslim onayı, açık iade/uyuşmazlık
+ * ve diğer engeller ayrıca kontrol edilir (payout-eligibility.ts).
  */
-export function calculateHoldUntil(deliveryConfirmedAt: Date): Date {
-  const holdUntil = new Date(deliveryConfirmedAt)
-  holdUntil.setDate(holdUntil.getDate() + PAYOUT_HOLD_DAYS)
-  return holdUntil
+export function calculatePayoutDueDate(invoiceDate: Date, holdDays: number = PAYOUT_HOLD_DAYS): Date {
+  const days = Number.isInteger(holdDays) && holdDays >= 0 ? holdDays : PAYOUT_HOLD_DAYS
+  const dueKey = addReportingDateDays(getReportingDateKey(invoiceDate), days)
+  return reportingDayStart(payoutDayOnOrAfter(dueKey))
+}
+
+/** Next payout day (Friday rule) on or after `from`; used when a blocker clears after the due date. */
+export function nextPayoutDay(from: Date): Date {
+  return reportingDayStart(payoutDayOnOrAfter(getReportingDateKey(from)))
+}
+
+/** Earliest date the seller can expect payment: the due date, or the next payout day once it passed. */
+export function expectedPayoutDate(dueDate: Date, now = new Date()): Date {
+  return dueDate.getTime() >= now.getTime() ? dueDate : nextPayoutDay(now)
 }
 
 export function isHoldExpired(holdUntil: Date, now = new Date()): boolean {

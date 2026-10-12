@@ -56,7 +56,7 @@ function ApplicationStatus({ title, description }: { title: string; description:
   return (
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
       <div className="w-full max-w-xl rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-        <p className="mb-2 text-sm font-semibold text-neutral-900">Hanuja Satıcı Başvurusu</p>
+        <p className="mb-2 text-sm font-semibold text-neutral-900">Hanuja Tasarımcı Başvurusu</p>
         <h1 className="mb-3 text-2xl font-semibold text-neutral-900">{title}</h1>
         <p className="text-sm leading-6 text-neutral-600">{description}</p>
         <a

@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     select: { id: true },
   })
   if (!seller) {
-    return NextResponse.json({ error: 'Satici hesabi bulunamadi.' }, { status: 404 })
+    return NextResponse.json({ error: 'Tasarımcı hesabi bulunamadi.' }, { status: 404 })
   }
 
   const body = await req.json().catch(() => ({}))

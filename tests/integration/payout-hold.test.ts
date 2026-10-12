@@ -1,9 +1,9 @@
 /**
  * Integration tests — payout hold activation and readiness logic
  *
- * Core invariants:
- * - Payout countdown starts ONLY from delivery_confirmed, never delivered/shipped
- * - 30-day mandatory hold after delivery_confirmed
+ * Core invariants (satıcı Hanuja modeli):
+ * - The payout record exists only from delivery_confirmed, never delivered/shipped
+ * - Due date: first Friday after 30 days from the seller's approved invoice to Hanuja
  * - Open return or dispute BLOCKS payout release
  * - Negative seller balance is allowed and tracked
  *
@@ -14,7 +14,7 @@ import { OrderStatus } from '../__mocks__/prisma-client'
 import { Decimal } from '../__mocks__/prisma-runtime'
 import {
   calculateNetPayout,
-  calculateHoldUntil,
+  calculatePayoutDueDate,
   isHoldExpired,
   resolveCommissionRate,
   calculateCommission,
@@ -54,41 +54,30 @@ describe('hold activation: only from delivery_confirmed', () => {
     expect(PAYOUT_HOLD_DAYS).toBe(30)
   })
 
-  it('hold expires 30 days after delivery_confirmed', () => {
-    const deliveryConfirmedAt = new Date('2026-04-01T00:00:00Z')
-    const holdUntil = calculateHoldUntil(deliveryConfirmedAt)
-    const expectedHoldUntil = new Date('2026-05-01T00:00:00Z')
-    expect(holdUntil.getTime()).toBe(expectedHoldUntil.getTime())
+  it('due date is the first Friday after 30 days from the invoice date', () => {
+    // 2026-04-06 (Pzt) + 30 = 2026-05-06 (Çar) → 2026-05-08 (Cum), İstanbul 00:00
+    const due = calculatePayoutDueDate(new Date('2026-04-06T12:00:00+03:00'))
+    expect(due.getTime()).toBe(new Date('2026-05-08T00:00:00+03:00').getTime())
   })
 
-  it('delivered → hold is later than shipped → hold (confirms correct countdown start)', () => {
-    const shippedDate = new Date('2026-03-25T00:00:00Z')
-    const deliveredDate = new Date('2026-03-28T00:00:00Z')
-    const confirmedDate = new Date('2026-03-31T00:00:00Z')
-
-    // If we mistakenly started hold from shipped date
-    const wrongHold = calculateHoldUntil(shippedDate)
-    // Correct hold starts from delivery_confirmed
-    const correctHold = calculateHoldUntil(confirmedDate)
-
-    // Wrong hold expires before correct hold — this shows the financial impact
-    expect(correctHold.getTime()).toBeGreaterThan(wrongHold.getTime())
+  it('a later invoice date never produces an earlier due date', () => {
+    const early = calculatePayoutDueDate(new Date('2026-03-25T12:00:00+03:00'))
+    const late = calculatePayoutDueDate(new Date('2026-03-31T12:00:00+03:00'))
+    expect(late.getTime()).toBeGreaterThanOrEqual(early.getTime())
   })
 })
 
 // ─── Hold expiry checks ───────────────────────────────────────────────────────
 
 describe('isHoldExpired', () => {
-  it('hold is not expired before 30 days', () => {
-    const deliveryConfirmedAt = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) // 10 days ago
-    const holdUntil = calculateHoldUntil(deliveryConfirmedAt)
-    expect(isHoldExpired(holdUntil)).toBe(false)
+  it('hold is not expired before 30 days from the invoice date', () => {
+    const invoiceDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) // 10 days ago
+    expect(isHoldExpired(calculatePayoutDueDate(invoiceDate))).toBe(false)
   })
 
-  it('hold is expired after 30 days', () => {
-    const deliveryConfirmedAt = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000) // 31 days ago
-    const holdUntil = calculateHoldUntil(deliveryConfirmedAt)
-    expect(isHoldExpired(holdUntil)).toBe(true)
+  it('hold is expired well after the due date', () => {
+    const invoiceDate = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) // 60 days ago
+    expect(isHoldExpired(calculatePayoutDueDate(invoiceDate))).toBe(true)
   })
 })
 

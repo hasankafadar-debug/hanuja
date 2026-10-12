@@ -34,7 +34,7 @@ run('admin seller delete (dedicated database)', () => {
           create: {
             id: 'seller-delete-seller',
             slug: 'seller-delete-seller',
-            displayName: 'Silinebilir Satıcı',
+            displayName: 'Silinebilir Tasarımcı',
             products: {
               create: {
                 id: 'seller-delete-product',

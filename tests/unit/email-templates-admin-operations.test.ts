@@ -86,7 +86,7 @@ describe('admin operation e-mail templates', () => {
       requesterName: 'Ayşe Y.',
       categoryLabel: 'Kargo gecikmesi',
     })
-    expect(seller.subject).toContain('Satıcı destek bileti')
+    expect(seller.subject).toContain('Tasarımcı destek bileti')
     expect(seller.html).toContain('/destek/t-1')
     expect(customer.subject).toContain('Müşteri destek bileti')
     expect(customer.html).toContain('/musteri-destek/t-2')
@@ -101,7 +101,7 @@ describe('admin operation e-mail templates', () => {
       customerName: 'Ayşe Y.',
     })
     expect(mail.subject).toContain('Havale / EFT')
-    expect(mail.html).toContain('satıcıya düşmez')
+    expect(mail.html).toContain('tasarımcıya düşmez')
     expect(mail.html).toContain('5.000 TL')
   })
 
@@ -135,7 +135,7 @@ describe('admin operation e-mail templates', () => {
       adminUrl: 'https://admin.hanuja.com.tr/saticilar/s-1',
       submissionSeq: 2,
     })
-    expect(first.subject).toContain('Yeni satıcı başvurusu')
+    expect(first.subject).toContain('Yeni tasarımcı başvurusu')
     expect(first.html).toContain('İlk başvuru')
     expect(again.subject).toContain('yeniden gönderildi')
     expect(again.html).toContain('2. gönderim')

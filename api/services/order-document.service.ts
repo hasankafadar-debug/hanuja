@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client'
 import { randomBytes } from 'crypto'
-import { ForbiddenError, NotFoundError, ValidationError } from '../lib/errors'
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../lib/errors'
 import {
   deleteObject,
   DOCUMENT_ALLOWED_MIME_TYPES,
@@ -14,17 +14,19 @@ import {
 } from '../lib/private-document-storage'
 import type { Prisma } from '@prisma/client'
 import { recordNotification } from './notification-outbox.service'
-import { getWebBaseUrl } from '../lib/platform-info'
+import { getSellerOrderUrl } from '../lib/platform-info'
 import { formatOrderNumber } from '../lib/order-number'
-import { EMAIL_LINE_IMAGE_SELECT, toEmailOrderLine } from '../lib/email-line-items'
 import { toSellerSafeLegalSnapshot } from '../lib/seller-legal-snapshot'
 import { SELLER_VISIBLE_PAYMENT_WHERE } from '../repositories/order.repository'
 import {
+  APPROVED_SELLER_INVOICE_LOCKED_MESSAGE,
   assertInvoiceRevision, assertSellerInvoiceWindow, getInvoiceRevision,
   invoiceEditDeadline, isInvoiceManagementEnabled, requireInvoiceManagement,
   validateInvoiceReason,
 } from '../lib/invoice-management'
+import { getReportingDateKey, isReportingDateKey, reportingDayStart } from '../lib/reporting-time'
 import { processPrivateDocumentCleanup, schedulePrivateDocumentCleanup } from './private-document-cleanup.service'
+import { createPayoutService } from './payout.service'
 
 interface OrderDocumentServiceDeps {
   prisma: PrismaClient
@@ -44,6 +46,20 @@ interface InvoiceUploadParams extends InvoiceActorParams {
   mimeType: string
   sizeBytes: number
   body: Uint8Array
+}
+
+export interface SellerInvoiceReviewParams {
+  orderId: string
+  sellerId: string
+  actorId: string
+  expectedRevision: string
+  decision: 'approve' | 'reject'
+  /** Required when approving: the number printed on the seller's invoice. */
+  invoiceNumber?: string | null
+  /** Required when approving: the invoice date as a Türkiye calendar day (YYYY-MM-DD). */
+  invoiceDate?: string | null
+  /** Required when rejecting; shown to the seller. */
+  note?: string | null
 }
 
 export interface InboundInvoiceAttachment {
@@ -84,6 +100,11 @@ const invoiceSummarySelect = {
   sizeBytes: true,
   source: true,
   uploadedAt: true,
+  invoiceNumber: true,
+  invoiceDate: true,
+  reviewStatus: true,
+  reviewedAt: true,
+  reviewNote: true,
   seller: {
     select: {
       id: true,
@@ -94,6 +115,28 @@ const invoiceSummarySelect = {
 } as const
 
 const invoiceWriteSelect = { ...invoiceSummarySelect, fileKey: true, createdAt: true } as const
+
+// A new file is a new document: the earlier approval and its invoice data no longer apply.
+const RESET_INVOICE_REVIEW = {
+  invoiceNumber: null,
+  invoiceDate: null,
+  reviewStatus: 'pending',
+  reviewedAt: null,
+  reviewedByAdminId: null,
+  reviewNote: null,
+} as const
+
+const INVOICE_NUMBER_PATTERN = /^[\p{L}\p{N} ._/-]{1,64}$/u
+
+const customerInvoiceSummarySelect = {
+  id: true,
+  orderId: true,
+  invoiceNumber: true,
+  fileName: true,
+  mimeType: true,
+  sizeBytes: true,
+  uploadedAt: true,
+} as const
 
 async function lockInvoicePair(tx: Prisma.TransactionClient, orderId: string, sellerId: string) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([orderId, sellerId])}, 0))`
@@ -123,10 +166,16 @@ function invoiceAuditData(invoice: { id: string; fileKey: string; fileName: stri
   }
 }
 
-function toManagementInvoice(invoice: { id: string; fileKey: string; fileName: string; mimeType: string; uploadedAt: Date } | null) {
+function toManagementInvoice(invoice: {
+  id: string; fileKey: string; fileName: string; mimeType: string; uploadedAt: Date
+  invoiceNumber: string | null; invoiceDate: Date | null
+  reviewStatus: 'pending' | 'approved' | 'rejected'; reviewedAt: Date | null; reviewNote: string | null
+} | null) {
   return invoice ? {
     id: invoice.id, fileName: invoice.fileName, mimeType: invoice.mimeType,
     uploadedAt: invoice.uploadedAt, revision: getInvoiceRevision(invoice),
+    invoiceNumber: invoice.invoiceNumber, invoiceDate: invoice.invoiceDate,
+    reviewStatus: invoice.reviewStatus, reviewedAt: invoice.reviewedAt, reviewNote: invoice.reviewNote,
   } : null
 }
 
@@ -174,78 +223,39 @@ function normalizeEmail(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? ''
 }
 
-function buildOrderUrl(orderId: string) {
-  return `${getWebBaseUrl()}/siparis/${orderId}`
-}
-
-function buildInvoiceUrl(orderId: string, sellerId: string) {
-  return `${getWebBaseUrl()}/api/orders/${orderId}/documents/invoices/${sellerId}`
-}
-
 /**
- * "Faturanız Oluşturuldu" for the customer. Written through the caller's
- * transaction client; a re-upload (replace) is a new event on purpose so the
- * customer learns the invoice changed.
+ * The seller's invoice to Hanuja is internal (satıcı Hanuja modeli): no customer
+ * notification is written for it. Hanuja's own customer invoice notifies the customer
+ * from customer-invoice.service.ts.
  */
-async function recordInvoiceUploadedNotification(
+async function recordSellerInvoiceRejectedNotification(
   tx: Pick<Prisma.TransactionClient, 'order' | 'seller' | 'notificationOutbox'>,
-  params: { orderId: string; sellerId: string; uploadedAt: Date; invoiceRevision: string },
+  params: { orderId: string; sellerId: string; invoiceRevision: string; reason: string },
 ) {
   const [order, seller] = await Promise.all([
-    tx.order.findUnique({
-      where: { id: params.orderId },
-      select: {
-        id: true,
-        publicNumber: true,
-        customerId: true,
-        customer: { select: { email: true, name: true } },
-        address: { select: { fullName: true } },
-        lines: {
-          where: { sellerId: params.sellerId },
-          select: {
-            productName: true,
-            variantName: true,
-            sellerId: true,
-            unitPrice: true,
-            totalPrice: true,
-            quantity: true,
-            cancelledQuantity: true,
-            product: { select: EMAIL_LINE_IMAGE_SELECT },
-          },
-        },
-      },
+    tx.order.findUnique({ where: { id: params.orderId }, select: { id: true, publicNumber: true } }),
+    tx.seller.findUnique({
+      where: { id: params.sellerId },
+      select: { userId: true, displayName: true, user: { select: { email: true } } },
     }),
-    tx.seller.findUnique({ where: { id: params.sellerId }, select: { displayName: true } }),
   ])
-  if (!order) return
+  if (!order || !seller) return
+  const orderNumber = formatOrderNumber(order.publicNumber, order.id)
   await recordNotification(tx, {
-    eventKey: `invoice:${params.orderId}:${params.sellerId}:${params.invoiceRevision}`,
-    userId: order.customerId,
-    type: 'invoice_uploaded',
-    title: 'Faturanız oluşturuldu',
-    body: 'Siparişiniz için satıcı faturası yüklendi.',
+    eventKey: `seller-invoice-rejected:${params.orderId}:${params.sellerId}:${params.invoiceRevision}`,
+    userId: seller.userId,
+    type: 'seller_invoice_rejected',
+    title: 'Faturanız onaylanmadı',
+    body: `#${orderNumber} numaralı sipariş için Hanuja'ya kestiğiniz fatura onaylanmadı.`,
     data: {
       orderId: params.orderId,
       sellerId: params.sellerId,
-      invoiceRevision: params.invoiceRevision,
-      uploadedAt: params.uploadedAt.toISOString(),
-      ...(seller ? { sellerName: seller.displayName } : {}),
-      customerName:
-        order.customer.name?.trim() || order.address?.fullName?.trim() || 'Değerli Müşterimiz',
-      orderNumber: formatOrderNumber(order.publicNumber, order.id),
-      orderUrl: buildOrderUrl(params.orderId),
-      invoiceUrl: buildInvoiceUrl(params.orderId, params.sellerId),
-      items: order.lines
-        .filter((line) => line.quantity - line.cancelledQuantity > 0)
-        .map((line) =>
-          toEmailOrderLine(line, line.quantity - line.cancelledQuantity, {
-            lineTotal: line.totalPrice
-              .div(line.quantity)
-              .mul(line.quantity - line.cancelledQuantity),
-          }),
-        ),
+      sellerName: seller.displayName,
+      orderNumber,
+      reason: params.reason,
+      panelUrl: getSellerOrderUrl(params.orderId),
     },
-    ...(order.customer.email ? { emailTo: order.customer.email } : {}),
+    ...(seller.user.email ? { emailTo: seller.user.email } : {}),
   })
 }
 
@@ -381,16 +391,14 @@ export function createOrderDocumentService({
     return Promise.all(sellerIds.map((sellerId) => ensureInvoiceAliasForSeller(orderId, sellerId)))
   }
 
+  // The customer never sees the seller's invoice to Hanuja, only Hanuja's own invoice.
   async function getDocumentsForCustomer(orderId: string, customerId: string) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, customerId },
       select: {
         id: true,
         legalSnapshot: { select: legalSnapshotSelect },
-        sellerInvoices: {
-          select: invoiceSummarySelect,
-          orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
-        },
+        customerInvoice: { select: customerInvoiceSummarySelect },
       },
     })
 
@@ -442,37 +450,6 @@ export function createOrderDocumentService({
     return order
   }
 
-  async function listInvoicesForCustomer(customerId: string) {
-    return prisma.orderSellerInvoice.findMany({
-      where: { order: { customerId } },
-      select: {
-        id: true,
-        orderId: true,
-        sellerId: true,
-        fileName: true,
-        mimeType: true,
-        sizeBytes: true,
-        source: true,
-        uploadedAt: true,
-        order: {
-          select: {
-            id: true,
-            createdAt: true,
-            status: true,
-          },
-        },
-        seller: {
-          select: {
-            id: true,
-            displayName: true,
-            slug: true,
-          },
-        },
-      },
-      orderBy: { uploadedAt: 'desc' },
-    })
-  }
-
   async function getContractForCustomer(orderId: string, customerId: string) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, customerId },
@@ -508,26 +485,6 @@ export function createOrderDocumentService({
     if (!order) throw new NotFoundError('Sipariş', orderId)
     if (!order.legalSnapshot) throw new NotFoundError('Sözleşme')
     return order.legalSnapshot
-  }
-
-  async function getInvoiceForCustomer(orderId: string, customerId: string, sellerId: string) {
-    const invoice = await prisma.orderSellerInvoice.findFirst({
-      where: {
-        orderId,
-        sellerId,
-        order: { customerId },
-      },
-      select: {
-        fileKey: true,
-        fileName: true,
-        mimeType: true,
-        sizeBytes: true,
-        seller: { select: { id: true, displayName: true } },
-      },
-    })
-
-    if (!invoice) throw new NotFoundError('Fatura')
-    return invoice
   }
 
   async function getInvoiceForSeller(orderId: string, sellerId: string) {
@@ -576,7 +533,7 @@ export function createOrderDocumentService({
     } else {
       const seller = await db.seller.findUnique({ where: { id: params.sellerId }, select: { userId: true, status: true } })
       if (!seller || seller.userId !== params.actorId || !['active', 'suspended'].includes(seller.status)) {
-        throw new ForbiddenError('Bu satıcının faturalarını yönetme yetkiniz yok.')
+        throw new ForbiddenError('Bu tasarımcının faturalarını yönetme yetkiniz yok.')
       }
     }
     const order = await db.order.findFirst({
@@ -610,6 +567,18 @@ export function createOrderDocumentService({
       await cleanupNow(fileKey)
     } catch (error) {
       console.error('[invoice-cleanup] Staged file cleanup could not be recorded', error)
+    }
+  }
+
+  /**
+   * The payout due date follows the approved invoice. Runs after the invoice change has
+   * committed; eligibility re-reads the invoice anyway, so a failed sync never pays early.
+   */
+  async function syncPayoutDueDate(orderId: string, sellerId: string) {
+    try {
+      await createPayoutService({ prisma }).syncInvoiceDueDate({ orderId, sellerId })
+    } catch (error) {
+      console.error('[seller-invoice] Payout due date sync deferred', { orderId, sellerId, error })
     }
   }
 
@@ -664,14 +633,17 @@ export function createOrderDocumentService({
     await authorizeInvoiceActor(prisma, params, role)
     const uploaded = await storage().write(params.body)
     let obsoleteKey: string | null = null
-    let invoice: Prisma.OrderSellerInvoiceGetPayload<{ select: typeof invoiceWriteSelect }> & { revision: string }
+    let invoice: Prisma.OrderSellerInvoiceGetPayload<{ select: typeof invoiceWriteSelect }> & { revision: string; wasApproved: boolean }
     try {
       const saved = await prisma.$transaction(async tx => {
         await lockInvoicePair(tx, params.orderId, params.sellerId)
         await authorizeInvoiceActor(tx, params, role)
         const { current, policy } = await findInvoiceState(tx, params.orderId, params.sellerId)
         const uploadedAt = new Date()
-        if (role === 'seller') assertSellerInvoiceWindow(policy?.firstUploadedAt ?? null, uploadedAt)
+        if (role === 'seller') {
+          if (current?.reviewStatus === 'approved') throw new ForbiddenError(APPROVED_SELLER_INVOICE_LOCKED_MESSAGE)
+          assertSellerInvoiceWindow(policy?.firstUploadedAt ?? null, uploadedAt)
+        }
         assertInvoiceRevision(current, params.expectedRevision)
         const reason = current ? validateInvoiceReason(params.reason) : (params.reason?.trim() || 'Fatura ilk kez yüklendi.')
         await tx.orderSellerInvoicePolicy.upsert({
@@ -682,7 +654,7 @@ export function createOrderDocumentService({
         const data = {
           fileUrl: 'private://seller-invoice', fileKey: uploaded.key,
           fileName: params.fileName, mimeType: params.mimeType, sizeBytes: params.body.byteLength,
-          source: 'manual', inboundEmailId: null, uploadedAt,
+          source: 'manual', inboundEmailId: null, uploadedAt, ...RESET_INVOICE_REVIEW,
         }
         const saved = await tx.orderSellerInvoice.upsert({
           where: { orderId_sellerId: { orderId: params.orderId, sellerId: params.sellerId } },
@@ -699,9 +671,7 @@ export function createOrderDocumentService({
           ...(current ? { previousData: invoiceAuditData(current) } : {}),
           newData: { ...invoiceAuditData(saved), actorRole: role },
         } })
-        const revision = getInvoiceRevision(saved)
-        await recordInvoiceUploadedNotification(tx, { orderId: params.orderId, sellerId: params.sellerId, uploadedAt, invoiceRevision: revision })
-        return { ...saved, revision }
+        return { ...saved, revision: getInvoiceRevision(saved), wasApproved: current?.reviewStatus === 'approved' }
       })
       invoice = saved
     } catch (error) {
@@ -709,7 +679,9 @@ export function createOrderDocumentService({
       throw error
     }
     if (obsoleteKey) await cleanupNow(obsoleteKey)
-    const { fileKey: _fileKey, createdAt: _createdAt, ...summary } = invoice
+    const { fileKey: _fileKey, createdAt: _createdAt, wasApproved, ...summary } = invoice
+    // Only an admin can replace an approved invoice; the reset approval clears the due date.
+    if (wasApproved) await syncPayoutDueDate(params.orderId, params.sellerId)
     return summary
   }
 
@@ -720,7 +692,10 @@ export function createOrderDocumentService({
       await lockInvoicePair(tx, params.orderId, params.sellerId)
       await authorizeInvoiceActor(tx, params, role)
       const { current, policy } = await findInvoiceState(tx, params.orderId, params.sellerId)
-      if (role === 'seller') assertSellerInvoiceWindow(policy?.firstUploadedAt ?? null)
+      if (role === 'seller') {
+        if (current?.reviewStatus === 'approved') throw new ForbiddenError(APPROVED_SELLER_INVOICE_LOCKED_MESSAGE)
+        assertSellerInvoiceWindow(policy?.firstUploadedAt ?? null)
+      }
       assertInvoiceRevision(current, params.expectedRevision)
       if (!current) throw new NotFoundError('Fatura')
       await tx.orderSellerInvoice.delete({ where: { id: current.id } })
@@ -733,7 +708,87 @@ export function createOrderDocumentService({
       return current
     })
     await cleanupNow(removed.fileKey)
+    if (removed.reviewStatus === 'approved') await syncPayoutDueDate(params.orderId, params.sellerId)
     return { removed: true }
+  }
+
+  /**
+   * Admin review of the seller's invoice to Hanuja. Approval records the invoice number and
+   * date (the payout term starts from that date); rejection notifies the seller with a reason.
+   * The revision guard ensures the admin decided on the file currently stored.
+   */
+  async function reviewSellerInvoice(params: SellerInvoiceReviewParams) {
+    const actor = await prisma.user.findUnique({ where: { id: params.actorId }, select: { role: true } })
+    if (actor?.role !== 'admin') throw new ForbiddenError('Admin yetkisi gerekli')
+
+    let invoiceNumber: string | null = null
+    let invoiceDate: Date | null = null
+    let note: string | null = null
+    if (params.decision === 'approve') {
+      invoiceNumber = params.invoiceNumber?.trim() ?? ''
+      if (!INVOICE_NUMBER_PATTERN.test(invoiceNumber)) {
+        throw new ValidationError('Fatura numarası 1-64 karakter olmalı; harf, rakam, boşluk ve . _ / - içerebilir.')
+      }
+      const dateKey = params.invoiceDate?.trim() ?? ''
+      if (!isReportingDateKey(dateKey)) throw new ValidationError('Geçerli bir fatura tarihi girin.')
+      if (dateKey > getReportingDateKey(new Date())) throw new ValidationError('Fatura tarihi ileri bir tarih olamaz.')
+      invoiceDate = reportingDayStart(dateKey)
+    } else {
+      note = validateInvoiceReason(params.note)
+    }
+
+    const reviewed = await prisma.$transaction(async tx => {
+      await lockInvoicePair(tx, params.orderId, params.sellerId)
+      const { current } = await findInvoiceState(tx, params.orderId, params.sellerId)
+      if (!current) throw new NotFoundError('Fatura')
+      assertInvoiceRevision(current, params.expectedRevision)
+      // The approval fixes the payout term; a repeated submission must not move it.
+      if (current.reviewStatus === 'approved') {
+        throw new ConflictError('Fatura zaten onaylandı. Düzeltme için faturayı kaldırıp yeniden yükleyin.')
+      }
+      const order = await tx.order.findUnique({
+        where: { id: params.orderId },
+        select: { paymentConfirmedAt: true, payments: { where: { confirmedAt: { not: null } }, select: { confirmedAt: true } } },
+      })
+      const paidAt = order?.paymentConfirmedAt ?? order?.payments[0]?.confirmedAt ?? null
+      if (invoiceDate && paidAt && getReportingDateKey(invoiceDate) < getReportingDateKey(paidAt)) {
+        throw new ValidationError('Fatura tarihi siparişin ödeme tarihinden önce olamaz.')
+      }
+      const updated = await tx.orderSellerInvoice.update({
+        where: { id: current.id },
+        data: {
+          reviewStatus: params.decision === 'approve' ? 'approved' : 'rejected',
+          reviewedAt: new Date(),
+          reviewedByAdminId: params.actorId,
+          invoiceNumber,
+          invoiceDate,
+          reviewNote: note,
+        },
+        select: invoiceWriteSelect,
+      })
+      const revision = getInvoiceRevision(updated)
+      await tx.adminAuditLog.create({ data: {
+        actorId: params.actorId,
+        actionType: params.decision === 'approve' ? 'seller_invoice_approved' : 'seller_invoice_rejected',
+        targetType: 'order', targetId: params.orderId,
+        reason: note ?? `Tasarımcı faturası onaylandı: ${invoiceNumber}`,
+        previousData: { ...invoiceAuditData(current), reviewStatus: current.reviewStatus },
+        newData: {
+          sellerId: params.sellerId, revision, reviewStatus: updated.reviewStatus,
+          invoiceNumber, invoiceDate: invoiceDate ? getReportingDateKey(invoiceDate) : null,
+        },
+      } })
+      if (params.decision === 'reject') {
+        await recordSellerInvoiceRejectedNotification(tx, {
+          orderId: params.orderId, sellerId: params.sellerId, invoiceRevision: revision, reason: note!,
+        })
+      }
+      return { ...updated, revision }
+    })
+
+    await syncPayoutDueDate(params.orderId, params.sellerId)
+    const { fileKey: _fileKey, createdAt: _createdAt, ...summary } = reviewed
+    return summary
   }
 
   const uploadInvoiceForSeller = (params: InvoiceUploadParams) => uploadInvoice(params, 'seller')
@@ -831,7 +886,10 @@ export function createOrderDocumentService({
         const { current, policy } = await findInvoiceState(tx, alias.orderId, alias.sellerId)
         const uploadedAt = new Date()
         const deadline = invoiceEditDeadline(policy?.firstUploadedAt ?? null)
-        const blocked = !!deadline && uploadedAt >= deadline
+        // An approved invoice fixes the payout term; a later e-mail must not silently reset it.
+        const existingInvoice = !!current
+        const approved = current?.reviewStatus === 'approved'
+        const blocked = existingInvoice || (!!deadline && uploadedAt >= deadline)
         const inboundEmail = await tx.inboundEmail.create({
           data: {
             messageId,
@@ -841,7 +899,10 @@ export function createOrderDocumentService({
             fromEmail: payload.fromEmail ?? null,
             subject: payload.subject ?? null,
             status: blocked ? 'blocked_invoice_policy' : 'processed',
-            errorReason: blocked ? 'Seller invoice correction window expired' : null,
+            errorReason: approved
+              ? 'Approved seller invoice cannot be replaced by e-mail'
+              : existingInvoice ? 'Existing seller invoice cannot be replaced by e-mail'
+              : blocked ? 'Seller invoice correction window expired' : null,
             selectedAttachment: {
               fileName,
               mimeType,
@@ -861,14 +922,8 @@ export function createOrderDocumentService({
           create: { orderId: alias.orderId, sellerId: alias.sellerId, firstUploadedAt: uploadedAt }, update: {},
         })
 
-        const invoice = await tx.orderSellerInvoice.upsert({
-          where: {
-            orderId_sellerId: {
-              orderId: alias.orderId,
-              sellerId: alias.sellerId,
-            },
-          },
-          create: {
+        const invoice = await tx.orderSellerInvoice.create({
+          data: {
             orderId: alias.orderId,
             sellerId: alias.sellerId,
             inboundEmailId: inboundEmail.id,
@@ -879,36 +934,15 @@ export function createOrderDocumentService({
             sizeBytes,
             source: 'inbound_email',
             uploadedAt,
-          },
-          update: {
-            inboundEmailId: inboundEmail.id,
-            fileUrl: 'private://seller-invoice',
-            fileKey: uploaded.key,
-            fileName,
-            mimeType,
-            sizeBytes,
-            source: 'inbound_email',
-            uploadedAt,
+            ...RESET_INVOICE_REVIEW,
           },
           select: invoiceWriteSelect,
         })
-        if (current && current.fileKey !== uploaded.key) {
-          await schedulePrivateDocumentCleanup(tx, current.fileKey)
-          cleanupKey = current.fileKey
-        }
         await tx.adminAuditLog.create({ data: {
-          actorId: 'system:invoice-inbound', actionType: current ? 'order_invoice_replaced' : 'order_invoice_uploaded',
+          actorId: 'system:invoice-inbound', actionType: 'order_invoice_uploaded',
           targetType: 'order', targetId: alias.orderId, reason: 'Doğrulanmış gelen e-posta olayıyla fatura yüklendi.',
-          ...(current ? { previousData: invoiceAuditData(current) } : {}),
           newData: { ...invoiceAuditData(invoice), actorRole: 'system', inboundEmailId: inboundEmail.id },
         } })
-
-        await recordInvoiceUploadedNotification(tx, {
-          orderId: alias.orderId,
-          sellerId: alias.sellerId,
-          uploadedAt,
-          invoiceRevision: getInvoiceRevision(invoice),
-        })
 
         const { fileKey: _fileKey, createdAt: _createdAt, ...summary } = invoice
         return { status: 'processed' as const, inboundEmail, invoice: summary }
@@ -964,11 +998,9 @@ export function createOrderDocumentService({
     getDocumentsForCustomer,
     getDocumentsForSeller,
     getDocumentsForAdmin,
-    listInvoicesForCustomer,
     getContractForCustomer,
     getContractForSeller,
     getContractForAdmin,
-    getInvoiceForCustomer,
     getInvoiceForSeller,
     getInvoiceForAdmin,
     readInvoiceFile,
@@ -978,6 +1010,7 @@ export function createOrderDocumentService({
     removeInvoiceForAdmin,
     getInvoiceManagementForSeller,
     getInvoiceManagementForAdmin,
+    reviewSellerInvoice,
     ingestInboundInvoiceEmail,
     ingestPostmarkInboundEmail,
   }

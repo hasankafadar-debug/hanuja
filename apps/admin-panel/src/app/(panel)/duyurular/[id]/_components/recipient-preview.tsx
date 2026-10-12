@@ -65,7 +65,7 @@ export function RecipientPreview({
   async function exclude(sellerId: string) {
     setError(null)
     if ((await onExclude(sellerId)) === null) {
-      setError('Satıcı listeden çıkarılamadı; taslak kaydedilemedi.')
+      setError('Tasarımcı listeden çıkarılamadı; taslak kaydedilemedi.')
       return
     }
     await loadPreview(1)
@@ -74,7 +74,7 @@ export function RecipientPreview({
   async function unexclude(sellerId: string) {
     setError(null)
     if ((await onUnexclude(sellerId)) === null) {
-      setError('Satıcı listeye geri alınamadı; taslak kaydedilemedi.')
+      setError('Tasarımcı listeye geri alınamadı; taslak kaydedilemedi.')
       return
     }
     await loadPreview(1)
@@ -169,7 +169,7 @@ export function RecipientPreview({
           {result.excluded.count > 0 && (
             <div className="space-y-2 rounded-lg border p-3" style={{ borderColor: 'var(--color-border)' }}>
               <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                Çıkarılan satıcılar ({result.excluded.count})
+                Çıkarılan tasarımcılar ({result.excluded.count})
               </p>
               <div className="flex flex-wrap gap-2">
                 {result.excluded.rows.map((row) => (

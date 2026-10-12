@@ -40,14 +40,14 @@ export function AudienceBuilder({
           Alıcılar
         </p>
         <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          Yalnız aktif ve askıdaki satıcılar alıcı olabilir.
+          Yalnız aktif ve askıdaki tasarımcılar alıcı olabilir.
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Alıcı seçim yöntemi">
         {(
           [
-            { value: 'all', label: 'Tüm satıcılar' },
+            { value: 'all', label: 'Tüm tasarımcılar' },
             { value: 'manual', label: 'Elle seçim' },
             { value: 'filter', label: 'Filtre' },
           ] as const
@@ -92,7 +92,7 @@ export function AudienceBuilder({
 
       {audience.excludedSellerIds.length > 0 && (
         <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          {audience.excludedSellerIds.length} satıcı önizleme listesinden çıkarıldı. "Alıcıları önizle" bölümünden
+          {audience.excludedSellerIds.length} tasarımcı önizleme listesinden çıkarıldı. "Alıcıları önizle" bölümünden
           geri alabilirsiniz.
         </p>
       )}
@@ -136,7 +136,7 @@ function ManualAudience({
         const payload = (await response.json()) as { data: SellerSearchResult[] }
         setResults(payload.data)
       } catch {
-        setSearchError('Satıcılar aranamadı. Lütfen tekrar deneyin.')
+        setSearchError('Tasarımcılar aranamadı. Lütfen tekrar deneyin.')
       } finally {
         setSearching(false)
       }
@@ -217,12 +217,12 @@ function ManualAudience({
 
       <div className="space-y-1.5">
         <p className="text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-          Seçilen satıcılar ({audience.manualSellerIds.length})
+          Seçilen tasarımcılar ({audience.manualSellerIds.length})
         </p>
         <div className="flex flex-wrap gap-2">
           {audience.manualSellerIds.length === 0 && (
             <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Henüz satıcı eklenmedi.
+              Henüz tasarımcı eklenmedi.
             </p>
           )}
           {audience.manualSellerIds.map((id) => (
@@ -234,7 +234,7 @@ function ManualAudience({
               {manualSellers[id]?.displayName ?? id}
               <button
                 type="button"
-                aria-label={`${manualSellers[id]?.displayName ?? id} satıcısını kaldır`}
+                aria-label={`${manualSellers[id]?.displayName ?? id} tasarımcısını kaldır`}
                 disabled={disabled}
                 onClick={() => removeSeller(id)}
                 style={{ color: 'var(--color-destructive)' }}
@@ -536,7 +536,7 @@ function FilterAudience({
           Kategori
         </legend>
         <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          Alt kategoriler dahil; en az bir yayındaki ürünü olan satıcılar.
+          Alt kategoriler dahil; en az bir yayındaki ürünü olan tasarımcılar.
         </p>
         <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border p-2" style={{ borderColor: 'var(--color-border)' }}>
           {rootCategories.length === 0 && (

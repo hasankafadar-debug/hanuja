@@ -168,7 +168,7 @@ describe('Dispute — audit trail', () => {
   })
 
   it('resolution type is recorded in newData', () => {
-    const newData = { status: 'resolved_for_seller', resolution: 'Satıcı haklı' }
+    const newData = { status: 'resolved_for_seller', resolution: 'Tasarımcı haklı' }
     expect(newData.status).toBe('resolved_for_seller')
   })
 })

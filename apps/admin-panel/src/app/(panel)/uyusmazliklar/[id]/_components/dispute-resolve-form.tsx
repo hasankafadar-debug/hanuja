@@ -79,7 +79,7 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-          Not / Mesaj Ekle {returnRequestId ? '(müşteri-satıcı yazışmasına yazılır)' : ''}
+          Not / Mesaj Ekle {returnRequestId ? '(müşteri-tasarımcı yazışmasına yazılır)' : ''}
         </p>
         <Textarea
           value={note}
@@ -106,7 +106,7 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
           </div>
           <p className="text-xs" style={{ color: '#92400e' }}>
             Bu işlem geri alınamaz. Müşteri lehine çözümde (tutar girilirse) para iadesi başlatılır ve
-            hakediş bloke kalır. Satıcı lehine çözümde hakediş serbest kalır.
+            hakediş bloke kalır. Tasarımcı lehine çözümde hakediş serbest kalır.
           </p>
           <Textarea
             value={resolution}
@@ -139,7 +139,7 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
               disabled={pending}
               onClick={() => resolve('resolved_for_seller')}
             >
-              Satıcı Lehine Kapat
+              Tasarımcı Lehine Kapat
             </Button>
           </div>
         </div>

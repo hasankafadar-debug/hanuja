@@ -155,10 +155,22 @@ export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
     category: 'noreply',
     required: ['orderNumber', 'penaltyAmount'],
   },
+  // Hanuja's sales invoice to the customer (satıcı Hanuja modeli).
   invoice_uploaded: {
     role: 'customer',
     category: 'fatura',
     required: ['orderNumber', 'orderUrl'],
+  },
+  // The seller's invoice to Hanuja: reminder after shipment and rejection on review.
+  seller_invoice_reminder: {
+    role: 'seller',
+    category: 'noreply',
+    required: ['orderNumber', 'orderId', 'panelUrl'],
+  },
+  seller_invoice_rejected: {
+    role: 'seller',
+    category: 'noreply',
+    required: ['orderNumber', 'orderId', 'panelUrl', 'reason'],
   },
   // Closed in phase 6 (2026-09-24): no producer writes these two any more and the send gate
   // skips queued rows (LEGACY_CAMPAIGN_DISABLED). Kept so old records stay readable.

@@ -14,6 +14,8 @@ import type { PrismaClient } from '@prisma/client'
 import { allocateProductRefund } from '../domain/quantity-allocation'
 import { createPayoutService } from './payout.service'
 import { isPayoutSettled } from './payout-debt.service'
+import { invalidatePayoutSchedule } from './payout-eligibility'
+import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
 import { NotFoundError, ConflictError, ForbiddenError } from '../lib/errors'
 import { createDisputeRepository } from '../repositories/dispute.repository'
 import { isPersistableDisputeAuthorRole, type DisputeViewer } from '../lib/dispute-authorization'
@@ -114,6 +116,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
           },
         })
 
+        await invalidatePayoutSchedule(tx, params.orderId)
         return dispute
       })
     },
@@ -270,7 +273,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
         } else {
           const sellerIds = [...new Set(rr.order.lines.map((l) => l.sellerId))]
           if (sellerIds.length !== 1) {
-            throw new ConflictError('Eski iade birden fazla satıcıya ait; otomatik iade yapılamaz')
+            throw new ConflictError('Eski iade birden fazla tasarımcıya ait; otomatik iade yapılamaz')
           }
           const sellerId = sellerIds[0]!
           const refundAmount =
@@ -305,7 +308,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
         dispute.orderId,
         'dispute_resolved' as never,
         params.adminActorId,
-        `Uyuşmazlık çözüldü (${isCustomerFavored ? 'müşteri lehine' : 'satıcı lehine'}): ${params.resolution}`,
+        `Uyuşmazlık çözüldü (${isCustomerFavored ? 'müşteri lehine' : 'tasarımcı lehine'}): ${params.resolution}`,
       )
 
       await auditLog.createEntry({
@@ -321,6 +324,7 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
         ...(params.resolution !== undefined && { reason: params.resolution }),
       })
 
+      await syncChangedPayoutSchedules(prisma, { orderId: dispute.orderId, sellerId: rr?.sellerId })
       return resolved
     },
 

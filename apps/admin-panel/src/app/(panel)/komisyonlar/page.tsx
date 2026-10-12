@@ -6,7 +6,7 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { UrlPagination } from '@/components/url-pagination'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { EditInvoiceDialog } from '@/components/edit-invoice-dialog'
-import { InvoiceRowAction, ExemptRowAction } from './_components/row-actions'
+import { ExemptRowAction } from './_components/row-actions'
 import { formatMoney } from '@hanuja/security'
 
 export const dynamic = 'force-dynamic'
@@ -15,9 +15,11 @@ export const metadata: Metadata = { title: 'Komisyon Yonetimi' }
 
 type TabKey = 'unbilled' | 'billed' | 'exempt'
 
+// Satıcı Hanuja modeli: komisyon, satıcının Hanuja'ya kestiği faturadan düşülür; ayrı komisyon
+// faturası kesilmez. "billed" sekmesi yalnız eski modelde kesilmiş faturaların geçmişidir.
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'unbilled', label: 'Faturalandirilmamis' },
-  { key: 'billed', label: 'Faturalandirilmis' },
+  { key: 'unbilled', label: 'Komisyonlar' },
+  { key: 'billed', label: 'Eski komisyon faturalari' },
   { key: 'exempt', label: 'Muaf' },
 ]
 
@@ -57,7 +59,7 @@ export default async function KomisyonlarPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Komisyon Yonetimi" description="Siparis bazli komisyon faturalari, muafiyetler ve gecmis faturalar" />
+      <PageHeader title="Komisyon Yonetimi" description="Siparis satiri komisyonlari ve muafiyetler. Komisyon tasarımcınin Hanuja'ya kestigi faturadan dusulur; ayri komisyon faturasi kesilmez." />
 
       <div className="flex gap-1 border-b" style={{ borderColor: 'var(--color-border)' }}>
         {TABS.map((tabItem) => (
@@ -134,13 +136,13 @@ async function UnbilledTab({
       >
         {lines.length === 0 ? (
           <p className="p-6 text-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Faturalandirilmamis komisyon satiri yok.
+            Komisyon satiri yok.
           </p>
         ) : (
           <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Siparis', 'Satici', 'Urun', 'Adet', 'KDV Dahil Satis', 'Komisyon Orani', 'Komisyon Net', 'KDV (%20)', 'KDV Dahil', 'Aksiyon'].map((heading) => (
+                {['Siparis', 'Tasarımcı', 'Urun', 'Adet', 'KDV Dahil Satis', 'Komisyon Orani', 'Komisyon Net', 'KDV (%20)', 'KDV Dahil', 'Aksiyon'].map((heading) => (
                   <th
                     key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
@@ -195,13 +197,6 @@ async function UnbilledTab({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <InvoiceRowAction
-                          orderLineId={line.id}
-                          sellerId={line.seller?.id ?? ''}
-                          orderId={line.order.id}
-                          commissionNet={commissionNet}
-                          orderPublicNumber={line.order.publicNumber}
-                        />
                         <ExemptRowAction orderLineId={line.id} />
                       </div>
                     </td>
@@ -273,7 +268,7 @@ async function BilledTab({
           <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Fatura No', 'Tarih', 'Siparis', 'Satici', 'Net Tutar', 'KDV', 'KDV Dahil', 'Olusturan', ''].map((heading) => (
+                {['Fatura No', 'Tarih', 'Siparis', 'Tasarımcı', 'Net Tutar', 'KDV', 'KDV Dahil', 'Olusturan', ''].map((heading) => (
                   <th
                     key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
@@ -409,7 +404,7 @@ async function ExemptTab({
           <table className="w-full whitespace-nowrap text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Siparis', 'Satici', 'Urun', 'KDV Dahil Satis', 'Muafiyet Tarihi', 'Muafiyet Sebebi'].map((heading) => (
+                {['Siparis', 'Tasarımcı', 'Urun', 'KDV Dahil Satis', 'Muafiyet Tarihi', 'Muafiyet Sebebi'].map((heading) => (
                   <th
                     key={heading}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"

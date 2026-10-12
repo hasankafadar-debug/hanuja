@@ -1,28 +1,24 @@
 import { FileText } from 'lucide-react'
 import { Separator } from '@hanuja/ui'
+import { PLATFORM_LEGAL_INFO } from '@hanuja/api/lib/platform-info'
 import InvoiceAliasCard from './invoice-alias-card'
 
-export interface BillingAddress {
-  fullName: string
-  addressLine1: string
-  addressLine2?: string | null
-  district: string
-  city: string
-  postalCode: string
-  invoiceType?: 'individual' | 'corporate' | null
-  tcNumber?: string | null
-  isForeignNational?: boolean
-  companyName?: string | null
-  taxOffice?: string | null
-  taxNumber?: string | null
-}
-
-export default function BillingInformationCard({ address, aliasEmail, aliasStatus }: {
-  address: BillingAddress | null
+/**
+ * Satıcı Hanuja modeli: satıcı faturasını müşteriye değil Hanuja'ya keser. Mal doğrudan
+ * müşteriye gittiği için irsaliyede Hanuja adına müşteriye teslim ibaresi yer alır.
+ */
+export default function BillingInformationCard({ recipientName, aliasEmail, aliasStatus }: {
+  recipientName: string | null
   aliasEmail: string | null
   aliasStatus: 'ready' | 'disabled' | 'error'
 }) {
-  const corporate = address?.invoiceType === 'corporate'
+  const rows: Array<[string, string]> = [
+    ['Unvan', PLATFORM_LEGAL_INFO.companyLegalName],
+    ['Adres', PLATFORM_LEGAL_INFO.address],
+    ['Vergi dairesi', PLATFORM_LEGAL_INFO.taxOffice],
+    ['Vergi numarası', PLATFORM_LEGAL_INFO.taxNumber],
+    ['MERSİS', PLATFORM_LEGAL_INFO.mersis],
+  ]
   return (
     <section className="rounded-xl border p-5" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
       <div className="mb-4 flex items-center gap-2">
@@ -30,26 +26,28 @@ export default function BillingInformationCard({ address, aliasEmail, aliasStatu
         <h2 className="text-base font-semibold" style={{ color: 'var(--color-primary)' }}>Fatura Bilgileri</h2>
       </div>
       <div className="space-y-4 text-sm">
-        {address ? <>
-          <div>
-            <p className="font-medium" style={{ color: 'var(--color-primary)' }}>{corporate ? address.companyName || address.fullName : address.fullName}</p>
-            <p style={{ color: 'var(--color-muted-fg)' }}>{corporate ? 'Kurumsal fatura' : 'Bireysel fatura'}</p>
-          </div>
-          <p style={{ color: 'var(--color-muted-fg)' }}>{[
-            address.addressLine1, address.addressLine2,
-            `${address.district} / ${address.city}`, address.postalCode,
-          ].filter(Boolean).join(', ')}</p>
-          <dl className="space-y-2" style={{ color: 'var(--color-muted-fg)' }}>
-            {corporate ? <>
-              <div><dt className="font-medium">Vergi dairesi</dt><dd>{address.taxOffice || 'Kayıtlı değil'}</dd></div>
-              <div><dt className="font-medium">Vergi numarası</dt><dd>{address.taxNumber || 'Kayıtlı değil'}</dd></div>
-            </> : address.isForeignNational ? (
-              <div><dt className="font-medium">Uyruk bilgisi</dt><dd>Yabancı uyruklu</dd></div>
-            ) : (
-              <div><dt className="font-medium">T.C. kimlik numarası</dt><dd>{address.tcNumber || 'Kayıtlı değil'}</dd></div>
-            )}
-          </dl>
-        </> : <p style={{ color: 'var(--color-muted-fg)' }}>Fatura adresi mevcut değil.</p>}
+        <p style={{ color: 'var(--color-muted-fg)' }}>Faturayı aşağıdaki bilgilerle Hanuja&apos;ya kesin.</p>
+        <dl className="space-y-2" style={{ color: 'var(--color-muted-fg)' }}>
+          {rows.map(([label, value]) => (
+            <div key={label}>
+              <dt className="font-medium">{label}</dt>
+              <dd style={{ color: 'var(--color-primary)' }}>{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <Separator />
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>İrsaliye açıklaması</h3>
+          <p
+            className="rounded-lg border px-3 py-2"
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
+          >
+            {PLATFORM_LEGAL_INFO.companyLegalName} adına müşteriye teslim edilmek üzere
+          </p>
+          {recipientName ? (
+            <p style={{ color: 'var(--color-muted-fg)' }}>Teslim alacak kişi: {recipientName}</p>
+          ) : null}
+        </div>
         <Separator />
         <InvoiceAliasCard aliasEmail={aliasEmail} status={aliasStatus} />
       </div>

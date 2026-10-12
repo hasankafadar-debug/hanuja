@@ -159,7 +159,7 @@ export function ProgressPanel({ announcementId, refreshToken, onCountsChange }: 
                   className="border-b text-left text-xs uppercase tracking-wide"
                   style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
                 >
-                  <th className="px-3 py-2">Satıcı</th>
+                  <th className="px-3 py-2">Tasarımcı</th>
                   <th className="px-3 py-2">Durum</th>
                   <th className="px-3 py-2">Hata kodu</th>
                   <th className="px-3 py-2">SMTP kabul</th>

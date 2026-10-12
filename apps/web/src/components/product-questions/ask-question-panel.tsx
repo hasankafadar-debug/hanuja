@@ -71,14 +71,14 @@ export function AskQuestionPanel({
       onSubmit={handleSubmit}
       className="space-y-3 rounded-lg border p-4"
       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      aria-label="Satıcıya soru sor"
+      aria-label="Tasarımcıya soru sor"
     >
       <div>
         <label htmlFor={`question-${productId}`} className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-          Satıcıya sorunuz
+          Tasarımcıya sorunuz
         </label>
         <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          Konuşma herkese açık değildir. Siz, ilgili satıcı ve denetim amacıyla yetkili yöneticiler
+          Konuşma herkese açık değildir. Siz, ilgili tasarımcı ve denetim amacıyla yetkili yöneticiler
           erişebilir. Telefon, e-posta, adres veya bağlantı paylaşmayın.
         </p>
       </div>

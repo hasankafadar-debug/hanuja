@@ -9,10 +9,10 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | Hanuja Satıcı Paneli',
-    default: 'Hanuja Satıcı Paneli',
+    template: '%s | Hanuja Tasarımcı Paneli',
+    default: 'Hanuja Tasarımcı Paneli',
   },
-  description: 'Hanuja satıcı yönetim paneli.',
+  description: 'Hanuja tasarımcı yönetim paneli.',
   icons: { icon: '/favicon.svg', shortcut: '/favicon.svg' },
   robots: { index: false, follow: false },
 }

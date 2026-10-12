@@ -97,11 +97,11 @@ export default async function BankDetailChangesPage({
 
       <AdminListControls
         searchValue={params.q}
-        searchPlaceholder="Satıcı veya banka ara"
+        searchPlaceholder="Tasarımcı veya banka ara"
         statusValue={getPrimaryStatusValue(params.status)}
         statusOptions={STATUS_OPTIONS}
         sellerValue={params.seller}
-        sellerPlaceholder="Satıcı ID"
+        sellerPlaceholder="Tasarımcı ID"
         fromValue={params.from}
         toValue={params.to}
         pageSize={params.pageSize}

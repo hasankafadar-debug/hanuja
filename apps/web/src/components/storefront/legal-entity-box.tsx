@@ -12,7 +12,7 @@ export function LegalEntityBox() {
       }}
     >
       <p className="mb-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-muted-fg)' }}>
-        Satıcı / İşletme Sahibi Bilgileri
+        Hanuja / İşletme Sahibi Bilgileri
       </p>
       <dl className="grid grid-cols-1 gap-y-1.5 sm:grid-cols-[max-content_1fr] sm:gap-x-6">
         <dt className="font-medium" style={{ color: 'var(--color-muted-fg)' }}>Unvan</dt>

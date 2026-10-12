@@ -1,11 +1,17 @@
 import { DomainError } from './errors'
 
-type PaymentEnvironment = Partial<Record<'CARD_PAYMENTS_ENABLED' | 'NODE_ENV', string | undefined>>
+type PaymentEnvironment = Partial<
+  Record<'CARD_PAYMENTS_ENABLED' | 'IYZICO_CARD_PAYMENTS_ENABLED' | 'NODE_ENV', string | undefined>
+>
 
-export function isCardPaymentsEnabled(_env: PaymentEnvironment = process.env): boolean {
-  // No provider-neutral charge adapter is wired yet. Card sales remain closed
-  // in every environment until the new payment provider integration ships.
-  return false
+/**
+ * Card sales run on Hanuja's standard iyzico virtual POS (satıcı Hanuja modeli). They stay
+ * closed until `IYZICO_CARD_PAYMENTS_ENABLED=true` is set, which happens only after iyzico's
+ * approval and once the new sales contracts are live. The legacy `CARD_PAYMENTS_ENABLED`
+ * flag may still be `true` in older environments and must never reopen card sales.
+ */
+export function isCardPaymentsEnabled(env: PaymentEnvironment = process.env): boolean {
+  return env.IYZICO_CARD_PAYMENTS_ENABLED?.trim().toLowerCase() === 'true'
 }
 
 export function assertPaymentMethodEnabled(

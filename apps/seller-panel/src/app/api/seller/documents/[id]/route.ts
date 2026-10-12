@@ -32,7 +32,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     select: { id: true },
   })
   if (!seller) {
-    return NextResponse.json({ message: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
+    return NextResponse.json({ message: 'Tasarımcı hesabı bulunamadı.' }, { status: 404 })
   }
 
   try {

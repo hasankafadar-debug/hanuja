@@ -72,11 +72,13 @@ function buildOrderCsv(rows: Array<{
     fileName: string
     source: string
     uploadedAt: Date
+    reviewStatus?: string | null
     seller?: {
       displayName?: string | null
       profile?: { companyName?: string | null } | null
     } | null
   }>
+  customerInvoice?: { invoiceNumber?: string | null } | null
 }>) {
   const header = [
     'Siparis No',
@@ -84,13 +86,14 @@ function buildOrderCsv(rows: Array<{
     'Durum',
     'Musteri',
     'Musteri E-posta',
-    'Saticilar',
+    'Tasarımcılar',
     'Urunler',
     'Ödeme',
     'Tutar',
-    'Fatura Durumu',
-    'Fatura Sayisi',
-    'Fatura Kaynaklari',
+    'Musteri Faturasi',
+    'Tasarımcı Faturasi',
+    'Tasarımcı Fatura Sayisi',
+    'Tasarımcı Fatura Kaynaklari',
   ]
 
   const body = rows.map((order) => {
@@ -106,8 +109,8 @@ function buildOrderCsv(rows: Array<{
     const payments = order.payments.map((payment) => `${payment.method}:${payment.status}`).join(', ')
     const invoiceSources = order.sellerInvoices
       .map((invoice) => {
-        const sellerName = invoice.seller?.displayName ?? invoice.seller?.profile?.companyName ?? 'Satici'
-        return `${sellerName} / ${invoice.source} / ${formatDate(new Date(invoice.uploadedAt))}`
+        const sellerName = invoice.seller?.displayName ?? invoice.seller?.profile?.companyName ?? 'Tasarımcı'
+        return `${sellerName} / ${invoice.source} / ${invoice.reviewStatus ?? 'pending'} / ${formatDate(new Date(invoice.uploadedAt))}`
       })
       .join(', ')
 
@@ -121,7 +124,8 @@ function buildOrderCsv(rows: Array<{
       products,
       payments,
       formatAmount(toNumber(order.totalAmount)),
-      order.sellerInvoices.length > 0 ? 'Faturali' : 'Faturasiz',
+      order.customerInvoice ? order.customerInvoice.invoiceNumber || 'Kesildi' : 'Kesilmedi',
+      order.sellerInvoices.length > 0 ? 'Var' : 'Yok',
       order.sellerInvoices.length,
       invoiceSources,
     ].map(escapeCsv).join(';')
@@ -147,12 +151,12 @@ export async function GET(req: NextRequest) {
     const status = readStatuses(url)
     const invoice = normalizeInvoiceFilter(url.searchParams.get('invoice'))
     const sellerApprovalOverdue = url.searchParams.get('sellerApprovalOverdue') === '1'
-    const financeInvoice = normalizeInvoiceFilter(url.searchParams.get('billing'))
+    const customerInvoice = normalizeInvoiceFilter(url.searchParams.get('billing'))
 
     const service = createOrderService({ prisma: createPrismaForRoute() })
     const filters = {
       ...(sellerApprovalOverdue ? { sellerApprovalOverdue: true } : {}),
-      ...(financeInvoice ? { financeInvoice } : {}),
+      ...(customerInvoice ? { customerInvoice } : {}),
       ...(status.length > 0 ? { status } : {}),
       ...(q ? { query: q } : {}),
       ...(seller ? { sellerId: seller } : {}),

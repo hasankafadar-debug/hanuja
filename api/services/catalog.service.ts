@@ -457,7 +457,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       deferVisibilitySync?: boolean
     }) {
       const seller = await sellers.findActiveById(params.sellerId)
-      if (!seller) throw new ForbiddenError('Satıcı hesabı aktif değil')
+      if (!seller) throw new ForbiddenError('Tasarımcı hesabı aktif değil')
 
       const category = await categories.findById(params.categoryId)
       if (!category) throw new NotFoundError('Category', params.categoryId)
@@ -548,7 +548,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       dimensionHeight?: DecimalLike | null
     }) {
       const seller = await sellers.findActiveById(params.sellerId)
-      if (!seller) throw new ForbiddenError('Satıcı hesabı aktif değil')
+      if (!seller) throw new ForbiddenError('Tasarımcı hesabı aktif değil')
 
       const product = await products.findByIdForSeller(params.productId, params.sellerId)
       if (!product) throw new NotFoundError('Product', params.productId)

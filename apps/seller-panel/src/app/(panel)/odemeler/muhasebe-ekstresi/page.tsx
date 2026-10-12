@@ -24,8 +24,8 @@ function getSingleValue(value?: string | string[]) {
 
 function formatCurrency(value: number) {
   const formatted = value.toLocaleString('tr-TR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })
   return `${formatted} TL`
 }

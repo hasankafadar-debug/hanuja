@@ -121,11 +121,11 @@ export async function POST(req: NextRequest) {
 
   const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
   if (!seller) {
-    return NextResponse.json({ error: 'Satici hesabi bulunamadi.' }, { status: 404 })
+    return NextResponse.json({ error: 'Tasarımcı hesabi bulunamadi.' }, { status: 404 })
   }
 
   if (seller.status !== 'active') {
-    return NextResponse.json({ error: 'Urun eklemek icin satici hesabiniz aktif olmali.' }, { status: 403 })
+    return NextResponse.json({ error: 'Urun eklemek icin tasarımcı hesabiniz aktif olmali.' }, { status: 403 })
   }
 
   const body = await req.json().catch(() => ({}))

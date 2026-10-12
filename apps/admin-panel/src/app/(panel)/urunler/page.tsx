@@ -63,13 +63,13 @@ export default async function ProductModerationPage({
 
       <AdminListControls
         searchValue={params.q}
-        searchPlaceholder="Urun, kategori veya satici ara"
+        searchPlaceholder="Urun, kategori veya tasarımcı ara"
         barcodeValue={params.barcode}
         barcodePlaceholder="Barkod ile ara"
         statusValue={getPrimaryStatusValue(params.status)}
         statusOptions={STATUS_OPTIONS}
         sellerValue={params.seller}
-        sellerPlaceholder="Satici ID"
+        sellerPlaceholder="Tasarımcı ID"
         fromValue={params.from}
         toValue={params.to}
         pageSize={params.pageSize}

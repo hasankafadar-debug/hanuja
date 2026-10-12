@@ -84,7 +84,7 @@ export function MediaPickerModal({
             {(
               [
                 { value: 'admin', label: 'Admin Medyası' },
-                { value: 'seller-products', label: 'Satıcı Ürünleri' },
+                { value: 'seller-products', label: 'Tasarımcı Ürünleri' },
               ] as const
             ).map((tab) => (
               <button

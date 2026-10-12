@@ -43,7 +43,7 @@ export async function postPaymentConfirmedSellerAccruals({
     },
   })
   if (lines.length === 0) {
-    throw new ConflictError('Ödeme onayı için satıcı sipariş kalemi bulunamadı')
+    throw new ConflictError('Ödeme onayı için tasarımcı sipariş kalemi bulunamadı')
   }
 
   const bySeller = new Map<string, { grossProductAmount: Decimal; sellerCouponAmount: Decimal }>()
@@ -85,7 +85,7 @@ export async function postPaymentConfirmedSellerAccruals({
           effectiveAt,
           referenceType: 'order',
           referenceId: orderId,
-          description: 'Satıcı tarafından karşılanan kupon payı',
+          description: 'Tasarımcı tarafından karşılanan kupon payı',
           createdBy: actorId,
           visibleToSeller: true,
         },

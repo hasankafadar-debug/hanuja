@@ -33,7 +33,7 @@ export function cancellationActorLabel(role: CancellationActorRole): string {
     case 'customer':
       return 'müşteri'
     case 'seller':
-      return 'satıcı'
+      return 'tasarımcı'
     case 'admin':
       return 'Hanuja'
     case 'payment_failure':
@@ -57,9 +57,9 @@ export function customerOrderCancelledTemplate(
   const reason = params.reason?.trim()
   const actorCopy: Record<CancellationActorRole, string> = {
     customer: 'talebiniz üzerine iptal edildi.',
-    seller: 'satıcı tarafından iptal edildi. Bu durum için üzgünüz.',
+    seller: 'tasarımcı tarafından iptal edildi. Bu durum için üzgünüz.',
     admin: 'Hanuja tarafından iptal edildi.',
-    system: 'satıcı sevk süresini aştığı için otomatik olarak iptal edildi. Bu durum için üzgünüz.',
+    system: 'tasarımcı sevk süresini aştığı için otomatik olarak iptal edildi. Bu durum için üzgünüz.',
     payment_failure: 'ödeme alınamadığı için iptal edildi. Dilerseniz yeni bir sipariş oluşturabilirsiniz.',
   }
   const scope = params.partial ? 'aşağıdaki ürün/adetler' : 'sipariş'
@@ -139,14 +139,14 @@ export function returnCargoInfoReadyTemplate(
   const body = `
     ${heading(title)}
     ${greeting(params.customerName)}
-    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz için iade talebiniz kabul edildi. Satıcı, ürünü göndereceğiniz iade bilgilerini iletti.`)}
+    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz için iade talebiniz kabul edildi. Tasarımcı, ürünü göndereceğiniz iade bilgilerini iletti.`)}
     ${renderInfoBox([
       ['İade Adresi', params.cargoAddress ?? null],
       ['Kargo Firması', params.cargoCarrier ?? null],
       ['Talimat', params.cargoInstructions ?? null],
     ])}
     ${items.length ? renderLineItemsTable(items, { quantityLabel: 'İade Adedi', hideAmounts: true }) : ''}
-    ${paragraph('Ürünü orijinal ambalajı ve aksesuarlarıyla birlikte belirtilen adrese gönderin; ardından sipariş sayfasından kargo takip numaranızı girin. Ürün satıcıya ulaşıp kontrol edildiğinde iade kararı ve geri ödeme bilgisi size e-posta ile iletilecektir.', 'margin:0 0 24px;font-size:14px;color:#555;')}
+    ${paragraph('Ürünü orijinal ambalajı ve aksesuarlarıyla birlikte belirtilen adrese gönderin; ardından sipariş sayfasından kargo takip numaranızı girin. Ürün tasarımcıya ulaşıp kontrol edildiğinde iade kararı ve geri ödeme bilgisi size e-posta ile iletilecektir.', 'margin:0 0 24px;font-size:14px;color:#555;')}
     ${renderCta('Kargo Bilgisi Gir', orderUrl)}
   `
 
@@ -175,7 +175,7 @@ function refundCopy(params: CustomerReturnDecisionEmailInput): string {
       : ` <strong>${escapeHtml(amountText(params.refundAmount))}</strong> tutarındaki`
   switch (params.refundOutcome) {
     case 'awaiting_return':
-      return 'Ürünü iade kargo bilgileriyle gönderin; kargo bilgisi henüz iletilmediyse sipariş sayfanıza eklenecek. Ürün satıcıya ulaşıp kontrol edildikten sonra geri ödeme başlatılır ve tamamlandığında size ayrıca e-posta göndereceğiz.'
+      return 'Ürünü iade kargo bilgileriyle gönderin; kargo bilgisi henüz iletilmediyse sipariş sayfanıza eklenecek. Ürün tasarımcıya ulaşıp kontrol edildikten sonra geri ödeme başlatılır ve tamamlandığında size ayrıca e-posta göndereceğiz.'
     case 'processing':
       return `${amount ? `${amount.trim()} geri ödeme işleminiz` : 'Geri ödeme işleminiz'} oluşturuldu; bankanıza aktarıldığında size ayrıca e-posta göndereceğiz.`
     case 'manual_review':

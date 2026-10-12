@@ -23,7 +23,7 @@ async function getSellerIdOrThrow(userId: string) {
   })
 
   if (!seller || (seller.status !== 'active' && seller.status !== 'suspended')) {
-    throw new ForbiddenError('Aktif satıcı hesabı gerekli')
+    throw new ForbiddenError('Aktif tasarımcı hesabı gerekli')
   }
 
   return seller.id

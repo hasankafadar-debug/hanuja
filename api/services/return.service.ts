@@ -13,6 +13,8 @@
  */
 import { Prisma, type PrismaClient, type ReturnRequestStatus, type UserRole } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
+import { invalidatePayoutSchedule } from './payout-eligibility'
+import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
 import { NotFoundError, ConflictError, ForbiddenError, ValidationError } from '../lib/errors'
 import { createReturnRequestRepository } from '../repositories/return-request.repository'
 import { createOrderRepository } from '../repositories/order.repository'
@@ -318,7 +320,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
       return requireSellerId
     }
     if (sellerIds.length !== 1) {
-      throw new ConflictError('Çok satıcılı sipariş iadesi henüz desteklenmiyor')
+      throw new ConflictError('Çok tasarımcılı sipariş iadesi henüz desteklenmiyor')
     }
     return sellerIds[0]!
   }
@@ -358,7 +360,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
       // both passing the count check.
       for (let attempt = 1; ; attempt += 1) {
         try {
-          return await prisma.$transaction(
+          const opened = await prisma.$transaction(
             async (tx) => {
               const openCount = await tx.returnRequest.count({
                 where: {
@@ -380,6 +382,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
                 },
                 tx,
               )
+              await invalidatePayoutSchedule(tx, params.orderId)
 
               if (params.evidenceAssetIds?.length) {
                 await linkAssets(tx, params.evidenceAssetIds, params.customerId, {
@@ -474,6 +477,8 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
             },
             { ...TX_OPTIONS, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
           )
+          await syncChangedPayoutSchedules(prisma, { orderId: params.orderId })
+          return opened
         } catch (error) {
           if (attempt < 3 && isSerializationFailure(error)) continue
           throw error
@@ -513,13 +518,16 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           )) as typeof rr
         })
 
-        assertTransition(rr.order.status, 'return_approved')
-        await orders.updateStatus(rr.orderId, 'return_approved', tx as PrismaClient)
+        // Quantity returns have their own state; a partial return must not change the whole order.
+        if (rr.items.length === 0) {
+          assertTransition(rr.order.status, 'return_approved')
+          await orders.updateStatus(rr.orderId, 'return_approved', tx as PrismaClient)
+        }
         await orders.appendStatusHistory(
           rr.orderId,
-          'return_approved',
+          rr.items.length > 0 ? rr.order.status : 'return_approved',
           `seller_${params.sellerId}`,
-          'Satıcı iade kargo bilgilerini iletti',
+          'Tasarımcı iade kargo bilgilerini iletti',
           tx as PrismaClient,
         )
 
@@ -530,7 +538,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           ...(context.customerEmail ? { emailTo: context.customerEmail } : {}),
           type: 'return_status_changed',
           title: 'İade Kargo Bilgileri Hazır',
-          body: 'Satıcı iade kargo bilgilerini iletti. Ürünü kargoya verip kargo bilgilerini girebilirsiniz.',
+          body: 'Tasarımcı iade kargo bilgilerini iletti. Ürünü kargoya verip kargo bilgilerini girebilirsiniz.',
           data: {
             stage: 'cargo_info_ready',
             orderId: rr.orderId,
@@ -602,17 +610,19 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           })
         }
 
-        assertTransition(rr.order.status, 'return_in_transit')
-        await orders.updateStatus(rr.orderId, 'return_in_transit', tx as PrismaClient)
+        if (rr.items.length === 0) {
+          assertTransition(rr.order.status, 'return_in_transit')
+          await orders.updateStatus(rr.orderId, 'return_in_transit', tx as PrismaClient)
+        }
         await orders.appendStatusHistory(
           rr.orderId,
-          'return_in_transit',
+          rr.items.length > 0 ? rr.order.status : 'return_in_transit',
           params.customerId,
           `Müşteri ürünü kargoya verdi (${params.carrier})`,
           tx as PrismaClient,
         )
 
-        const sid = resolveOrderSellerId(rr.order.lines)
+        const sid = rr.sellerId ?? resolveOrderSellerId(rr.order.lines)
         const uid = await sellerUserId(tx, sid)
         if (uid) {
           await recordNotification(tx, {
@@ -664,7 +674,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           rr.orderId,
           'return_received',
           `seller_${params.sellerId}`,
-          'Satıcı iade ürününü teslim aldı ve onayladı',
+          'Tasarımcı iade ürününü teslim aldı ve onayladı',
           tx as PrismaClient,
         )
         assertTransition('return_received', 'refund_pending')
@@ -742,7 +752,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           rr.orderId,
           'return_rejected',
           `seller_${params.sellerId}`,
-          `Satıcı iadeyi reddetti: ${params.reason}`,
+          `Tasarımcı iadeyi reddetti: ${params.reason}`,
           tx as PrismaClient,
         )
 
@@ -751,7 +761,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           {
             orderId: rr.orderId,
             openedById: sellerUid ?? `seller_${params.sellerId}`,
-            reason: `Satıcı iade reddi: ${params.reason}`,
+            reason: `Tasarımcı iade reddi: ${params.reason}`,
             ...(params.description !== undefined && { description: params.description }),
           },
           tx,
@@ -788,7 +798,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
             userId: a.id,
             type: 'admin_dispute_opened',
             title: 'Yeni Uyuşmazlık (İade Reddi)',
-            body: `#${params.returnRequestId.slice(-8)} iadesi satıcı tarafından reddedildi ve uyuşmazlığa taşındı.`,
+            body: `#${params.returnRequestId.slice(-8)} iadesi tasarımcı tarafından reddedildi ve uyuşmazlığa taşındı.`,
             data: { orderId: rr.orderId, returnRequestId: rr.id, disputeId: dispute.id },
           })
         }
@@ -797,14 +807,14 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           type: 'admin_dispute_opened',
           eventKey: `dispute:${dispute.id}:ops`,
           title: 'Yeni uyuşmazlık (iade reddi)',
-          body: `#${rr.order.publicNumber} siparişinin iadesi satıcı tarafından reddedildi.`,
+          body: `#${rr.order.publicNumber} siparişinin iadesi tasarımcı tarafından reddedildi.`,
           data: {
             orderNumber: String(rr.order.publicNumber),
             adminUrl: adminPanelLink(`/uyusmazliklar/${dispute.id}`),
             reason: params.description
               ? `${params.reason} — ${params.description}`
               : params.reason,
-            sourceLabel: 'Satıcı iade teslimini reddetti',
+            sourceLabel: 'Tasarımcı iade teslimini reddetti',
           },
         })
       }, TX_OPTIONS)
@@ -821,7 +831,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
       decision: 'approved' | 'rejected'
       reviewNote?: string
     }) {
-      return prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx) => {
         const returnRequest = await tx.returnRequest.findUnique({
           where: { id: params.returnRequestId },
           include: {
@@ -831,7 +841,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         })
         if (!returnRequest) throw new NotFoundError('ReturnRequest', params.returnRequestId)
         if (returnRequest.items.length > 0) {
-          throw new ConflictError('Adet bazlı iadeler satıcı teslim kararı veya uyuşmazlık akışıyla yönetilir')
+          throw new ConflictError('Adet bazlı iadeler tasarımcı teslim kararı veya uyuşmazlık akışıyla yönetilir')
         }
 
         const newStatus = params.decision === 'approved' ? 'approved' : 'rejected'
@@ -892,6 +902,8 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
 
         return updated
       }, TX_OPTIONS)
+      await syncChangedPayoutSchedules(prisma, { orderId: result.orderId, sellerId: result.sellerId })
+      return result
     },
 
     /**

@@ -47,7 +47,7 @@ export function SellerAdminActions({ sellerId }: { sellerId: string }) {
   }
 
   async function resetPassword() {
-    if (!confirm('Bu satıcının şifresi sıfırlansın mı? E-posta ile sıfırlama bağlantısı gidecek.'))
+    if (!confirm('Bu tasarımcının şifresi sıfırlansın mı? E-posta ile sıfırlama bağlantısı gidecek.'))
       return
     setLoading('reset')
     try {

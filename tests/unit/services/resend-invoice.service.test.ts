@@ -34,7 +34,7 @@ function fixture() {
       findMany: vi.fn().mockResolvedValue([{ id: 'alias-1', orderId: 'order-1', sellerId: 'seller-1', aliasEmail: alias }]),
       update: vi.fn(),
     },
-    orderSellerInvoice: { findUnique: vi.fn().mockResolvedValue(null), upsert: vi.fn(async ({ create }) => ({ id: 'invoice-1', createdAt: new Date(), ...create })) },
+    orderSellerInvoice: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn(async ({ data }) => ({ id: 'invoice-1', createdAt: new Date(), ...data })) },
     orderSellerInvoicePolicy: { findUnique: vi.fn().mockResolvedValue(null), upsert: vi.fn(async ({ create }) => ({ id: 'policy-1', ...create })) },
     adminAuditLog: { create: vi.fn().mockResolvedValue({}) },
     $executeRaw: vi.fn().mockResolvedValue(1),
@@ -87,7 +87,7 @@ describe('Resend invoice PDF receiving', () => {
     expect(() => verifyResendInvoiceWebhook(wrongBody, signedRequest(wrongBody).headers, secret)).toThrow()
   })
 
-  it('downloads the PDF and atomically attaches it to its order/seller with a customer notification', async () => {
+  it('downloads the PDF and atomically attaches it to its order/seller for admin review, without a customer notification', async () => {
     const { db, storage, fetcher, service } = fixture()
     expect((await service.ingest(event)).status).toBe('processed')
     expect(fetcher).toHaveBeenCalledTimes(2)
@@ -95,11 +95,13 @@ describe('Resend invoice PDF receiving', () => {
     expect(fetcher.mock.calls[1]?.[1]?.headers).toBeUndefined()
     expect(storage.write).toHaveBeenCalledWith(new Uint8Array(Buffer.from(pdf)))
     expect(db.inboundEmail.create).toHaveBeenCalledWith({ data: expect.objectContaining({ messageId: `resend:${emailId}`, status: 'processed' }) })
-    expect(db.orderSellerInvoice.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      where: { orderId_sellerId: { orderId: 'order-1', sellerId: 'seller-1' } },
-      create: expect.objectContaining({ mimeType: 'application/pdf', source: 'inbound_email', sizeBytes: pdf.length }),
+    expect(db.orderSellerInvoice.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        mimeType: 'application/pdf', source: 'inbound_email', sizeBytes: pdf.length, reviewStatus: 'pending',
+      }),
     }))
-    expect(recordNotificationMock).toHaveBeenCalledTimes(1)
+    // Satıcı Hanuja modeli: the seller's invoice is addressed to Hanuja, never sent to the customer.
+    expect(recordNotificationMock).not.toHaveBeenCalled()
     expect(db.$transaction).toHaveBeenCalledTimes(1)
   })
 
@@ -118,7 +120,7 @@ describe('Resend invoice PDF receiving', () => {
     const result = await service.ingest(event)
     expect(result.status).toBe(aliases.length ? 'ambiguous_alias' : 'unknown_alias')
     expect(fetcher).not.toHaveBeenCalled()
-    expect(db.orderSellerInvoice.upsert).not.toHaveBeenCalled()
+    expect(db.orderSellerInvoice.create).not.toHaveBeenCalled()
   })
 
   it('uses the actual receiving recipient for forwarded messages', async () => {
@@ -133,7 +135,7 @@ describe('Resend invoice PDF receiving', () => {
     expect((await service.ingest(event)).status).toBe('no_valid_attachment')
     expect(fetcher).toHaveBeenCalledTimes(1)
     expect(storage.write).not.toHaveBeenCalled()
-    expect(db.orderSellerInvoice.upsert).not.toHaveBeenCalled()
+    expect(db.orderSellerInvoice.create).not.toHaveBeenCalled()
   })
 
   it('rejects a declared oversized PDF and a fake PDF without storage writes', async () => {
@@ -171,7 +173,7 @@ describe('Resend invoice PDF receiving', () => {
     f.db.inboundEmail.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'winner' })
     f.db.inboundEmail.create.mockRejectedValue({ code: 'P2002' })
     expect((await f.service.ingest(event)).status).toBe('duplicate')
-    expect(f.db.orderSellerInvoice.upsert).not.toHaveBeenCalled()
+    expect(f.db.orderSellerInvoice.create).not.toHaveBeenCalled()
     expect(recordNotificationMock).not.toHaveBeenCalled()
     expect(f.storage.delete).toHaveBeenCalledWith('private/v1/aa/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.bin')
   })

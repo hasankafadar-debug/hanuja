@@ -35,9 +35,9 @@ export function MobileNav({ sections }: { sections: NavSection[] }) {
           aria-describedby={undefined}
         >
           <DialogHeader className="border-b px-4 py-4 text-left" style={{ borderColor: 'var(--color-border)' }}>
-            <DialogTitle>Hanuja Satıcı</DialogTitle>
+            <DialogTitle>Hanuja Tasarımcı</DialogTitle>
             <DialogDescription id="mobile-seller-nav-description">
-              Satıcı paneli bölümleri
+              Tasarımcı paneli bölümleri
             </DialogDescription>
           </DialogHeader>
           <div className="overflow-y-auto px-3 py-4">

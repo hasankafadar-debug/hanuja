@@ -43,7 +43,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Pazar Yeri',
     items: [
-      { label: 'Satıcılar', href: '/saticilar', icon: <Store className="h-4 w-4" /> },
+      { label: 'Tasarımcılar', href: '/saticilar', icon: <Store className="h-4 w-4" /> },
       { label: 'Siparişler', href: '/siparisler', icon: <ShoppingBag className="h-4 w-4" /> },
       { label: 'Teslim Onayı', href: '/teslim-onayi', icon: <Package className="h-4 w-4" /> },
       { label: 'Ürün Moderasyon', href: '/urunler', icon: <Package className="h-4 w-4" /> },
@@ -55,8 +55,8 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Ödemeler', href: '/odemeler', icon: <CreditCard className="h-4 w-4" /> },
       { label: 'Hakedişler', href: '/hakedisler', icon: <Wallet className="h-4 w-4" /> },
       { label: 'Banka Değişiklikleri', href: '/saticilar/banka-degisiklikleri', icon: <Landmark className="h-4 w-4" /> },
-      { label: 'Cezalar', href: '/cezalar', icon: <AlertOctagon className="h-4 w-4" /> },
-      { label: 'Komisyon Faturaları', href: '/komisyonlar', icon: <Receipt className="h-4 w-4" /> },
+      { label: 'Cezalar ve Ek Faturalar', href: '/cezalar', icon: <AlertOctagon className="h-4 w-4" /> },
+      { label: 'Komisyonlar', href: '/komisyonlar', icon: <Receipt className="h-4 w-4" /> },
       { label: 'Finans Özeti', href: '/finans', icon: <ScrollText className="h-4 w-4" /> },
     ],
   },

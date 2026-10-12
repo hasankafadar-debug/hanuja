@@ -72,7 +72,7 @@ async function fixture(version = 2) {
         data: {
           userId: user.id,
           slug: `seller-${n}-${tag}`,
-          displayName: `Satıcı ${n}`,
+          displayName: `Tasarımcı ${n}`,
           status: 'active',
         },
       })

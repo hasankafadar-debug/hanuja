@@ -83,7 +83,7 @@ export function adminOrderCancellationTemplate(
     ${renderInfoBox([
       ['Sipariş', orderLabel(params.orderNumber)],
       ['İptali yapan', params.actorLabel],
-      ['Satıcı', params.sellerName],
+      ['Tasarımcı', params.sellerName],
       ['Müşteri', params.customerName],
       amountRow,
     ])}
@@ -97,7 +97,7 @@ export function adminOrderCancellationTemplate(
     text: textLines([
       title,
       params.actorLabel ? `İptali yapan: ${params.actorLabel}` : null,
-      params.sellerName ? `Satıcı: ${params.sellerName}` : null,
+      params.sellerName ? `Tasarımcı: ${params.sellerName}` : null,
       params.customerName ? `Müşteri: ${params.customerName}` : null,
       amountRow[1] ? `${amountRow[0]}: ${amountRow[1]}` : null,
       params.reason ? `Gerekçe: ${params.reason}` : null,
@@ -119,7 +119,7 @@ export function adminReturnRequestedTemplate(
     `${heading(title)}
     ${renderInfoBox([
       ['Sipariş', orderLabel(params.orderNumber)],
-      ['Satıcı', params.sellerName],
+      ['Tasarımcı', params.sellerName],
       ['Müşteri', params.customerName],
       ['Akış', params.flowLabel],
     ])}
@@ -132,7 +132,7 @@ export function adminReturnRequestedTemplate(
     html,
     text: textLines([
       title,
-      params.sellerName ? `Satıcı: ${params.sellerName}` : null,
+      params.sellerName ? `Tasarımcı: ${params.sellerName}` : null,
       params.customerName ? `Müşteri: ${params.customerName}` : null,
       params.reason ? `İade gerekçesi: ${params.reason}` : null,
       params.items?.length
@@ -156,7 +156,7 @@ export function adminDisputeOpenedTemplate(
     )}
     ${renderInfoBox([
       ['Sipariş', orderLabel(params.orderNumber)],
-      ['Satıcı', params.sellerName],
+      ['Tasarımcı', params.sellerName],
       ['Müşteri', params.customerName],
       ['Kaynak', params.sourceLabel],
     ])}
@@ -168,7 +168,7 @@ export function adminDisputeOpenedTemplate(
     html,
     text: textLines([
       title,
-      params.sellerName ? `Satıcı: ${params.sellerName}` : null,
+      params.sellerName ? `Tasarımcı: ${params.sellerName}` : null,
       params.customerName ? `Müşteri: ${params.customerName}` : null,
       params.sourceLabel ? `Kaynak: ${params.sourceLabel}` : null,
       params.reason ? `Gerekçe: ${params.reason}` : null,
@@ -181,7 +181,7 @@ function supportTicketTemplate(
   params: AdminSupportTicketEmailInput,
   audience: 'seller' | 'customer',
 ): EmailTemplate {
-  const who = audience === 'seller' ? 'Satıcı' : 'Müşteri'
+  const who = audience === 'seller' ? 'Tasarımcı' : 'Müşteri'
   const title = `${who} destek bileti: ${params.subject}`
   const message = excerpt(params.message)
   const html = layout(
@@ -231,7 +231,7 @@ export function adminBankTransferPendingTemplate(
     title,
     `${heading(title)}
     ${paragraph(
-      'Ödeme onaylanana kadar sipariş satıcıya düşmez. Banka hesabına geçen tutarı doğrulayıp onay verin.',
+      'Ödeme onaylanana kadar sipariş tasarımcıya düşmez. Banka hesabına geçen tutarı doğrulayıp onay verin.',
     )}
     ${renderInfoBox([
       ['Sipariş', orderLabel(params.orderNumber)],
@@ -266,7 +266,7 @@ export function adminFulfillmentRiskTemplate(
     ${renderInfoBox([
       ['Sipariş', orderLabel(params.orderNumber)],
       ['Risk seviyesi', level],
-      ['Satıcı', params.sellerName],
+      ['Tasarımcı', params.sellerName],
       ['Sevk taahhüdü', params.deadlineLabel],
       [
         'Gecikme',
@@ -281,7 +281,7 @@ export function adminFulfillmentRiskTemplate(
     html,
     text: textLines([
       title,
-      params.sellerName ? `Satıcı: ${params.sellerName}` : null,
+      params.sellerName ? `Tasarımcı: ${params.sellerName}` : null,
       params.deadlineLabel ? `Sevk taahhüdü: ${params.deadlineLabel}` : null,
       params.overdueDays && params.overdueDays > 0
         ? `Gecikme: ${params.overdueDays} gün`
@@ -299,8 +299,8 @@ export function adminSellerApplicationTemplate(
 ): EmailTemplate {
   const resubmission = (params.submissionSeq ?? 1) > 1
   const title = resubmission
-    ? `Satıcı başvurusu yeniden incelemeye gönderildi: ${params.sellerName}`
-    : `Yeni satıcı başvurusu: ${params.sellerName}`
+    ? `Tasarımcı başvurusu yeniden incelemeye gönderildi: ${params.sellerName}`
+    : `Yeni tasarımcı başvurusu: ${params.sellerName}`
   const html = layout(
     title,
     `${heading(title)}
@@ -316,7 +316,7 @@ export function adminSellerApplicationTemplate(
   )
   return {
     subject: subjectOf(
-      resubmission ? 'Satıcı başvurusu yeniden gönderildi' : 'Yeni satıcı başvurusu',
+      resubmission ? 'Tasarımcı başvurusu yeniden gönderildi' : 'Yeni tasarımcı başvurusu',
       params.sellerName,
     ),
     html,

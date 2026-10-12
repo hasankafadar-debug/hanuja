@@ -19,12 +19,12 @@ export async function POST(req: NextRequest) {
 
   const seller = await prisma.seller.findUnique({ where: { userId: session.user.id } })
   if (!seller) {
-    return NextResponse.json({ error: 'Satıcı hesabı bulunamadı.' }, { status: 404 })
+    return NextResponse.json({ error: 'Tasarımcı hesabı bulunamadı.' }, { status: 404 })
   }
 
   if (seller.status !== 'active') {
     return NextResponse.json(
-      { error: 'Banka bilgisi yalnızca aktif satıcı hesabında değiştirilebilir.' },
+      { error: 'Banka bilgisi yalnızca aktif tasarımcı hesabında değiştirilebilir.' },
       { status: 403 },
     )
   }

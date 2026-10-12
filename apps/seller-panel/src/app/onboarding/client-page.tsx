@@ -308,7 +308,7 @@ export function OnboardingPageClient({ turnstileSiteKey }: OnboardingPageClientP
   return (
     <div className="min-h-screen bg-neutral-50">
       <div className="border-b border-neutral-200 bg-white px-6 py-4">
-        <p className="text-sm font-semibold text-neutral-900">Hanuja Satıcı Başvurusu</p>
+        <p className="text-sm font-semibold text-neutral-900">Hanuja Tasarımcı Başvurusu</p>
       </div>
 
       <div className="mx-auto max-w-3xl px-4 py-10">

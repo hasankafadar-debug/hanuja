@@ -5,6 +5,7 @@ import { CheckCircle, Clock, Download, Lock, Wallet } from 'lucide-react'
 import { getSellerFromSession } from '@/lib/seller-session'
 import { createPayoutRepository } from '@hanuja/api/repositories/payout.repository'
 import { outstandingPayoutDebts } from '@hanuja/api/services/payout-debt.service'
+import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { formatMoney } from '@hanuja/security'
@@ -18,10 +19,11 @@ export default async function PayoutsPage() {
   const { seller } = await getSellerFromSession({ allowSuspended: true })
   const prisma = createPrismaForRoute()
   const payoutRepo = createPayoutRepository(prisma)
-  const [payouts, summary, debts] = await Promise.all([
+  const [payouts, summary, debts, platformSettings] = await Promise.all([
     payoutRepo.listBySeller({ sellerId: seller.id, skip: 0, take: 50 }),
     payoutRepo.getSummaryBySeller(seller.id),
     outstandingPayoutDebts(prisma, seller.id),
+    createPlatformSettingsService({ prisma }).get(),
   ])
 
   type PayoutRow = {
@@ -35,6 +37,7 @@ export default async function PayoutsPage() {
     status: string
     holdStartedAt: Date | null
     holdUntil: Date | null
+    nextPaymentAt: Date | null
   }
 
   type SummaryRow = { status: string; _sum: { netAmount: unknown; offsetAmount: unknown } }
@@ -82,7 +85,7 @@ export default async function PayoutsPage() {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard title="Bekliyor (30 gün)" value={formatMoney(holdAmount)} icon={<Clock className="h-5 w-5" />} />
+        <StatCard title="Vadesi Bekleyen" value={formatMoney(holdAmount)} icon={<Clock className="h-5 w-5" />} />
         <StatCard title="Ödeme Hazır" value={formatMoney(readyAmount)} icon={<CheckCircle className="h-5 w-5" />} />
         <StatCard title="Toplam Ödendi" value={formatMoney(paidAmount)} icon={<Wallet className="h-5 w-5" />} />
         <StatCard
@@ -97,8 +100,8 @@ export default async function PayoutsPage() {
         style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-muted-fg)' }}
       >
         <strong style={{ color: 'var(--color-primary)' }}>Ödeme Takvimi:</strong>{' '}
-        Teslimat onayından itibaren 30 gün sonra ödeme yapılır. Açık iade veya uyuşmazlık
-        durumunda ödeme bloke edilebilir.
+        Hakediş, Hanuja&apos;ya kestiğiniz ve onaylanan faturanın tarihinden {platformSettings.payoutHoldDays} gün sonraki ilk cuma
+        ödenir. Teslim onayı gelmemiş, açık iade veya uyuşmazlığı olan siparişlerde ödeme bekler.
       </div>
 
       <div
@@ -139,7 +142,7 @@ export default async function PayoutsPage() {
             <table className="w-full whitespace-nowrap text-sm">
               <thead style={{ backgroundColor: 'var(--color-muted)' }}>
                 <tr>
-                  {['Tarih', 'Sipariş No', 'Bloke Süresi (gün)', 'Ödeme Durumu', 'Brüt Hakediş', 'Kesintiler', 'Net Hakediş', 'Uygulanan Mahsup', 'Banka Transferi', ''].map(
+                  {['Teslim Onayı', 'Sipariş No', 'Ödemeye Kalan (gün)', 'Ödeme Durumu', 'Brüt Hakediş', 'Kesintiler', 'Net Hakediş', 'Uygulanan Mahsup', 'Banka Transferi', ''].map(
                     (header) => (
                       <th
                         key={header || 'detay'}
@@ -166,7 +169,7 @@ export default async function PayoutsPage() {
                         {formatOrderDisplayNumber(payout.order?.publicNumber, payout.orderId)}
                       </td>
                       <td className="px-4 py-3" style={{ color: 'var(--color-muted-fg)' }}>
-                        {holdDaysRemainingLabel(payout.holdUntil)}
+                        {payout.nextPaymentAt ? holdDaysRemainingLabel(payout.nextPaymentAt) : 'Ödeme koşulları bekleniyor'}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge

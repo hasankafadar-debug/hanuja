@@ -23,7 +23,7 @@ interface EditInvoiceDialogProps {
   invoiceCategory?: string | null
   description?: string | null
   grossInvoiceAmount: string
-  type: 'commission' | 'penalty'
+  type: 'commission' | 'penalty' | 'additional'
   disabled?: boolean
 }
 
@@ -61,7 +61,7 @@ export function EditInvoiceDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
-    invoiceDate: invoiceDate.slice(0, 10),
+    invoiceDate: new Date(invoiceDate).toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' }),
     invoiceCategory: invoiceCategory ?? '',
     description: description ?? '',
     grossInvoiceAmount,
@@ -72,7 +72,7 @@ export function EditInvoiceDialog({
     setError(null)
 
     try {
-      const response = await fetch(`/api/admin/seller-invoices/${invoiceId}`, {
+      const response = await csrfFetch(`/api/admin/seller-invoices/${invoiceId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -105,7 +105,7 @@ export function EditInvoiceDialog({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {type === 'commission' ? 'Komisyon Faturasini Duzenle' : 'Ceza Faturasini Duzenle'}
+              {type === 'additional' ? 'Ek Faturayı Düzenle' : type === 'commission' ? 'Komisyon Faturasini Duzenle' : 'Ceza Faturasini Duzenle'}
             </DialogTitle>
             <DialogDescription>Fatura numarasi sabittir: {invoiceNumber}</DialogDescription>
           </DialogHeader>

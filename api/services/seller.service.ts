@@ -12,6 +12,9 @@
  * - Suspended sellers cannot receive payouts.
  */
 import type { PrismaClient } from '@prisma/client'
+import { lockSellerFinance } from '../lib/seller-finance-lock'
+import { invalidatePayoutSchedule } from './payout-eligibility'
+import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
 import { createSellerRepository } from '../repositories/seller.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import {
@@ -70,7 +73,7 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
     // Check user doesn't already have a seller account
     const existing = await sellerRepo.findByUserId(input.userId)
     if (existing) {
-      throw new ValidationError('Bu kullanıcı zaten bir satıcı hesabına sahip.')
+      throw new ValidationError('Bu kullanıcı zaten bir tasarımcı hesabına sahip.')
     }
 
     // Check slug is not taken
@@ -104,7 +107,7 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
     const seller = await sellerRepo.findById(sellerId)
     if (!seller) throw new NotFoundError('Seller', sellerId)
     if (seller.status !== 'pending') {
-      throw new ValidationError(`Satıcı onaylanamaz — mevcut durum: ${seller.status}`)
+      throw new ValidationError(`Tasarımcı onaylanamaz — mevcut durum: ${seller.status}`)
     }
 
     await prisma.$transaction(async (tx) => {
@@ -131,10 +134,12 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
     const seller = await sellerRepo.findById(sellerId)
     if (!seller) throw new NotFoundError('Seller', sellerId)
     if (seller.status === 'suspended') {
-      throw new ValidationError('Satıcı zaten askıya alınmış.')
+      throw new ValidationError('Tasarımcı zaten askıya alınmış.')
     }
 
     await prisma.$transaction(async (tx) => {
+      await lockSellerFinance(tx, [sellerId])
+      await invalidatePayoutSchedule(tx, undefined, sellerId)
       await tx.seller.update({
         where: { id: sellerId },
         data: { status: 'suspended' },
@@ -158,10 +163,11 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
     const seller = await sellerRepo.findById(sellerId)
     if (!seller) throw new NotFoundError('Seller', sellerId)
     if (seller.status !== 'suspended') {
-      throw new ValidationError(`Satıcı yeniden aktif edilemez — mevcut durum: ${seller.status}`)
+      throw new ValidationError(`Tasarımcı yeniden aktif edilemez — mevcut durum: ${seller.status}`)
     }
 
     await prisma.$transaction(async (tx) => {
+      await lockSellerFinance(tx, [sellerId])
       await tx.seller.update({
         where: { id: sellerId },
         data: { status: 'active' },
@@ -175,6 +181,7 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
         newData: { status: 'active' },
       })
     })
+    await syncChangedPayoutSchedules(prisma, { sellerId })
   }
 
   async function updateProfile(
@@ -297,6 +304,8 @@ export function createSellerService(deps: { prisma: PrismaClient }) {
     const previous = seller.bankDetails?.[0] ?? null
 
     await prisma.$transaction(async (tx) => {
+      await lockSellerFinance(tx, [sellerId])
+      await invalidatePayoutSchedule(tx, undefined, sellerId)
       // Create a new bank detail record — isActive=false until admin activates
       await tx.sellerBankDetail.create({
         data: {

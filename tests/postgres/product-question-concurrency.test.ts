@@ -72,7 +72,7 @@ async function seed(): Promise<Fixture> {
     data: { email: `c-${suffix}@example.test`, name: 'Ayşe Yılmaz', role: 'customer' },
   })
   const sellerUser = await prisma.user.create({
-    data: { email: `s-${suffix}@example.test`, name: 'Satıcı', role: 'seller' },
+    data: { email: `s-${suffix}@example.test`, name: 'Tasarımcı', role: 'seller' },
   })
   const seller = await prisma.seller.create({
     data: {

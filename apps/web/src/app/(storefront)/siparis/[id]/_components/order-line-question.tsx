@@ -17,7 +17,7 @@ export function OrderLineQuestion({ orderId, productId }: { orderId: string; pro
         style={{ color: 'var(--color-accent)' }}
       >
         <MessageCircleQuestion className="h-3.5 w-3.5" />
-        Satıcıya Soru Sor
+        Tasarımcıya Soru Sor
       </button>
       {open ? (
         <div className="mt-2">

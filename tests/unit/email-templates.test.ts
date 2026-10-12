@@ -114,7 +114,7 @@ describe('phase 4 transactional order email templates', () => {
     expect(template.html).toContain('Atelier Noa')
     expect(template.html).toContain('Gea Berjer')
     expect(template.html).toContain('href="https://satici.hanuja.com.tr/siparisler/order-1"')
-    expect(template.html).toContain('Satıcı Panelinde Görüntüle')
+    expect(template.html).toContain('Tasarımcı Panelinde Görüntüle')
     expect(template.text).toContain('Birim Fiyat: ₺4.850,00')
   })
 

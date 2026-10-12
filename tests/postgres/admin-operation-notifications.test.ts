@@ -97,7 +97,7 @@ async function seedOrder(
     data: { email: `c-${suffix}@example.test`, name: 'Ayşe', role: 'customer' },
   })
   const sellerUser = await prisma.user.create({
-    data: { email: `s-${suffix}@example.test`, name: 'Satıcı', role: 'seller' },
+    data: { email: `s-${suffix}@example.test`, name: 'Tasarımcı', role: 'seller' },
   })
   const adminIds: string[] = []
   for (let index = 0; index < (options.adminCount ?? 2); index += 1) {

@@ -20,7 +20,8 @@ export async function createReadyPayoutBatch(prisma: PrismaClient, dryRun = fals
       const check = await readPayoutEligibility(tx, payout)
       if (check.ready) ready.push(payout)
       else if (!dryRun) await tx.payout.update({ where: { id: payout.id }, data: {
-        status: check.manualReason || check.holdExpired ? 'payout_blocked' : 'hold_active',
+        status: check.manualReason || (check.holdExpired && check.businessBlocked) ? 'payout_blocked' : 'hold_active',
+        ...(check.businessBlocked ? { nextPaymentAt: null } : {}),
         automaticBlockReason: check.automaticReason, blockedReason: check.reason,
       } })
     }

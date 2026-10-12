@@ -209,11 +209,19 @@ enum OrderCancellationReason {
 enum SellerInvoiceType {
   commission
   penalty
+  additional
 }
 
 enum InvoiceType {
   individual
   corporate
+}
+
+// Satıcının Hanuja'ya kestiği faturanın admin kontrolü
+enum SellerInvoiceReviewStatus {
+  pending
+  approved
+  rejected
 }
 
 enum FulfillmentRiskStatus {
@@ -380,6 +388,11 @@ enum AdminActionType {
   announcement_sent
   announcement_updated_after_send
   announcement_retry_requested
+  seller_invoice_approved
+  seller_invoice_rejected
+  customer_invoice_uploaded
+  customer_invoice_replaced
+  customer_invoice_removed
 }
 
 enum ExtensionRequestStatus {
@@ -458,6 +471,8 @@ enum NotificationType {
   customer_product_question_answered
   seller_announcement
   product_price_drop
+  seller_invoice_reminder
+  seller_invoice_rejected
 }
 
 enum NotificationChannel {
@@ -1256,6 +1271,7 @@ model Order {
   statusHistory          OrderStatusHistory[]
   legalSnapshot          OrderLegalSnapshot?
   sellerInvoices         OrderSellerInvoice[]
+  customerInvoice        OrderCustomerInvoice?
   sellerInvoicePolicies  OrderSellerInvoicePolicy[]
   emailAliases           OrderEmailAlias[]
   inboundEmails          InboundEmail[]
@@ -1307,20 +1323,28 @@ model OrderLegalSnapshot {
   @@map("order_legal_snapshots")
 }
 
+// Satıcının Hanuja'ya kestiği alış faturası (satıcı Hanuja modeli). Müşteriye gösterilmez.
+// Hakediş vadesi admin onayındaki fatura tarihinden hesaplanır; yeniden yükleme onayı sıfırlar.
 model OrderSellerInvoice {
-  id             String   @id @default(cuid())
-  orderId        String
-  sellerId       String
-  inboundEmailId String?  @unique
-  fileUrl        String
-  fileKey        String
-  fileName       String
-  mimeType       String
-  sizeBytes      Int
-  source         String   @default("manual")
-  uploadedAt     DateTime @default(now())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                String                    @id @default(cuid())
+  orderId           String
+  sellerId          String
+  inboundEmailId    String?                   @unique
+  fileUrl           String
+  fileKey           String
+  fileName          String
+  mimeType          String
+  sizeBytes         Int
+  source            String                    @default("manual")
+  uploadedAt        DateTime                  @default(now())
+  invoiceNumber     String? // Admin onayında faturadan girilir
+  invoiceDate       DateTime? // Admin onayında girilir; hakediş vadesinin başlangıcı
+  reviewStatus      SellerInvoiceReviewStatus @default(pending)
+  reviewedAt        DateTime?
+  reviewedByAdminId String?
+  reviewNote        String? // Red gerekçesi; satıcıya gösterilir
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
 
   order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   seller       Seller        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
@@ -1330,7 +1354,29 @@ model OrderSellerInvoice {
   @@index([orderId])
   @@index([sellerId])
   @@index([source])
+  @@index([reviewStatus])
   @@map("order_seller_invoices")
+}
+
+// Hanuja'nın müşteriye kestiği satış faturası. İlk aşamada Uyumsoft'ta manuel kesilir,
+// PDF'i admin yükler; müşteri "Faturalarım" ve sipariş detayında görür.
+model OrderCustomerInvoice {
+  id                String   @id @default(cuid())
+  orderId           String   @unique
+  invoiceNumber     String?
+  fileUrl           String
+  fileKey           String
+  fileName          String
+  mimeType          String
+  sizeBytes         Int
+  uploadedAt        DateTime @default(now())
+  uploadedByAdminId String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_customer_invoices")
 }
 
 // Retained after invoice removal: replacing or re-uploading never resets the seller window.
@@ -1734,7 +1780,8 @@ model Payout {
 
   // Hold period
   holdStartedAt        DateTime? // deliveryConfirmedAt ile aynı
-  holdUntil            DateTime? // holdStartedAt + 30 gün
+  holdUntil            DateTime? // Onaylı tasarımcı faturasından hesaplanan vade
+  nextPaymentAt        DateTime? // Bloke kalkınca kaydedilen en erken ödeme günü
   blockedReason        String? // Neden bloke — görünür olmalı
   manualBlockedAt      DateTime?
   manualBlockedBy      String?
@@ -1765,6 +1812,7 @@ model Payout {
   @@index([sellerId, status])
   @@index([orderId])
   @@index([holdUntil, status])
+  @@index([nextPaymentAt, status])
   @@index([paidByAdminId])
   @@map("payouts")
 }

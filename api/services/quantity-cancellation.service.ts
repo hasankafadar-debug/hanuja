@@ -67,7 +67,7 @@ const ADMIN_CANCELLATION_ACTOR_LABELS: Record<
   string
 > = {
   customer: 'Müşteri',
-  seller: 'Satıcı',
+  seller: 'Tasarımcı',
   admin: 'Yönetim',
 }
 

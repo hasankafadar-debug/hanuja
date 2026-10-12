@@ -145,7 +145,7 @@ export function createDiscountService({ prisma }: { prisma: PrismaClient }) {
       })
 
       if (ownedProducts.length !== input.productIds.length) {
-        throw new Error('Seçilen ürünlerden bazıları bu satıcıya ait değil.')
+        throw new Error('Seçilen ürünlerden bazıları bu tasarımcıya ait değil.')
       }
     }
 
@@ -296,7 +296,7 @@ export function createDiscountService({ prisma }: { prisma: PrismaClient }) {
         select: { id: true },
       })
       if (ownedProducts.length !== productIds.length) {
-        throw new Error('Seçilen ürünlerden bazıları bu satıcıya ait değil.')
+        throw new Error('Seçilen ürünlerden bazıları bu tasarımcıya ait değil.')
       }
     }
 

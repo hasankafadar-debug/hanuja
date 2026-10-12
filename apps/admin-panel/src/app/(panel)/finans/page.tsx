@@ -61,19 +61,19 @@ export default async function FinanceSummaryPage({
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard title="Toplam Tahsilat" value={fmt(totalCollected)} icon={<CreditCard className="h-5 w-5" />} />
         <StatCard title="Komisyon Geliri" value={fmt(totalCommission)} icon={<TrendingUp className="h-5 w-5" />} />
-        <StatCard title="Satıcı Ödemeleri" value={fmt(totalPaid)} icon={<Wallet className="h-5 w-5" />} />
+        <StatCard title="Tasarımcı Ödemeleri" value={fmt(totalPaid)} icon={<Wallet className="h-5 w-5" />} />
         <StatCard title="Toplam Ceza" value={fmt(totalPenalties)} icon={<AlertOctagon className="h-5 w-5" />} />
         <StatCard title="İade Tutarı" value={fmt(totalRefunds)} icon={<RotateCcw className="h-5 w-5" />} />
       </div>
 
       <section className="space-y-4">
         <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
-          Satıcı Bazlı Finansal Durum
+          Tasarımcı Bazlı Finansal Durum
         </h2>
 
         <AdminListControls
           searchValue={params.q}
-          searchPlaceholder="Satıcı ara"
+          searchPlaceholder="Tasarımcı ara"
           pageSize={params.pageSize}
           showDateRange={false}
         />
@@ -84,13 +84,13 @@ export default async function FinanceSummaryPage({
         >
           {sellerSummariesResult.rows.length === 0 ? (
             <p className="p-6 text-center text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-              Satıcı finansal verisi yok.
+              Tasarımcı finansal verisi yok.
             </p>
           ) : (
             <table className="w-full whitespace-nowrap text-sm">
               <thead style={{ backgroundColor: 'var(--color-muted)' }}>
                 <tr>
-                  {['Satıcı', 'Bekleyen', 'Hazır', 'Ödenen', 'Komisyon', 'Ceza', 'Bakiye'].map((heading) => (
+                  {['Tasarımcı', 'Bekleyen', 'Hazır', 'Ödenen', 'Komisyon', 'Ceza', 'Bakiye'].map((heading) => (
                     <th
                       key={heading}
                       className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"

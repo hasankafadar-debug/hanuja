@@ -121,7 +121,7 @@ export function NotificationBell({ apiPath = '/api/notifications', className }: 
             )}
           </div>
           <DialogDescription className="sr-only">
-            Satıcı paneli bildirimleri
+            Tasarımcı paneli bildirimleri
           </DialogDescription>
         </DialogHeader>
 

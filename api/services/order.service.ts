@@ -181,7 +181,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
             },
           })
           if (!fulfillment || !['queue_ready', 'reviewing'].includes(fulfillment.status)) {
-            throw new ConflictError('Bu satıcı gönderisi onaylanabilecek durumda değil')
+            throw new ConflictError('Bu tasarımcı gönderisi onaylanabilecek durumda değil')
           }
 
           const changed = await tx.orderSellerFulfillment.updateMany({
@@ -198,7 +198,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
             params.orderId,
             'seller_accepted',
             params.sellerId,
-            'Satıcı tarafından onaylandı',
+            'Tasarımcı tarafından onaylandı',
             tx as PrismaClient,
           )
           return tx.orderSellerFulfillment.findUniqueOrThrow({ where: { id: fulfillment.id } })
@@ -213,7 +213,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
           params.orderId,
           'seller_accepted',
           params.sellerId,
-          'Satıcı tarafından onaylandı',
+          'Tasarımcı tarafından onaylandı',
           tx as PrismaClient,
         )
       })
@@ -247,7 +247,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
           orderId: params.orderId,
           customerId: order.customerId,
           actorId: params.sellerId,
-          reason: `Satıcı reddi: ${params.reason}`,
+          reason: `Tasarımcı reddi: ${params.reason}`,
           idempotencyKey: `seller-reject:${params.orderId}:${params.sellerId}`,
           fullCancellationStatus: 'cancelled_due_to_seller_rejection',
           items,
@@ -274,7 +274,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
           params.orderId,
           'seller_rejected',
           params.sellerId,
-          `Satıcı reddi: ${params.reason}`,
+          `Tasarımcı reddi: ${params.reason}`,
           tx as PrismaClient,
         )
 

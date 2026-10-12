@@ -12,7 +12,7 @@ function getFriendlyMessage(error: Error) {
     message.includes('column')
 
   if (isSchemaMismatch) {
-    return 'Satici paneline su anda ulasilamiyor. Lutfen biraz sonra tekrar deneyin.'
+    return 'Tasarımcı paneline su anda ulasilamiyor. Lutfen biraz sonra tekrar deneyin.'
   }
 
   return 'Sayfa yuklenirken beklenmeyen bir hata meydana geldi. Lutfen tekrar deneyin.'

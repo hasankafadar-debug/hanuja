@@ -52,7 +52,7 @@ export function createShipmentService({ prisma }: ShipmentServiceDeps) {
             },
           })
           if (!fulfillment || fulfillment.status !== 'accepted') {
-            throw new ConflictError('Bu satıcı gönderisi hazırlamaya başlamak için uygun durumda değil')
+            throw new ConflictError('Bu tasarımcı gönderisi hazırlamaya başlamak için uygun durumda değil')
           }
 
           const changed = await tx.orderSellerFulfillment.updateMany({
@@ -72,7 +72,7 @@ export function createShipmentService({ prisma }: ShipmentServiceDeps) {
             params.orderId,
             'preparing',
             params.sellerId,
-            'Satıcı hazırlamaya başladı',
+            'Tasarımcı hazırlamaya başladı',
             tx as unknown as PrismaClient,
           )
           return tx.orderSellerFulfillment.findUniqueOrThrow({ where: { id: fulfillment.id } })
@@ -87,7 +87,7 @@ export function createShipmentService({ prisma }: ShipmentServiceDeps) {
           params.orderId,
           'preparing',
           params.sellerId,
-          'Satıcı hazırlamaya başladı',
+          'Tasarımcı hazırlamaya başladı',
           tx as unknown as PrismaClient,
         )
       })
@@ -114,7 +114,7 @@ export function createShipmentService({ prisma }: ShipmentServiceDeps) {
             },
           })
           if (!fulfillment || fulfillment.status !== 'preparing') {
-            throw new ConflictError('Bu satıcı gönderisi kargo bekliyor durumuna alınamaz')
+            throw new ConflictError('Bu tasarımcı gönderisi kargo bekliyor durumuna alınamaz')
           }
 
           const changed = await tx.orderSellerFulfillment.updateMany({

@@ -21,6 +21,8 @@ export interface InvoiceFileCardProps {
   allowDelete?: boolean
   firstUploadedAt?: string | null
   sellerEditDeadline?: string | null
+  /** Shown while no file is stored; defaults to the seller invoice wording. */
+  emptyMessage?: string
 }
 
 const ALLOWED_TYPES = [
@@ -52,6 +54,7 @@ export function InvoiceFileCard({
   allowDelete = true,
   firstUploadedAt,
   sellerEditDeadline,
+  emptyMessage = 'Tasarımcı faturası henüz yüklenmedi.',
 }: InvoiceFileCardProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const id = useId()
@@ -241,7 +244,7 @@ export function InvoiceFileCard({
         </div>
       ) : (
         <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-          Satıcı faturası henüz yüklenmedi.
+          {emptyMessage}
         </p>
       )}
 
@@ -255,7 +258,7 @@ export function InvoiceFileCard({
           Düzeltme için son tarih: {formatDate(sellerEditDeadline)}
         </p>
       ) : null}
-      {!editable && sellerEditDeadline ? (
+      {deadline !== null && now >= deadline ? (
         <p
           role="status"
           className="rounded-lg border px-3 py-2 text-sm"
@@ -269,7 +272,7 @@ export function InvoiceFileCard({
         </p>
       ) : null}
 
-      {allowUpload ? (
+      {allowUpload && canEdit ? (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div
             className="rounded-lg border-2 border-dashed px-4 py-6 text-center"

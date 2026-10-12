@@ -12,7 +12,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <span className="text-2xl font-semibold tracking-tight text-neutral-900">
             Hanuja
           </span>
-          <p className="text-sm text-neutral-500 mt-1">Satıcı Paneli</p>
+          <p className="text-sm text-neutral-500 mt-1">Tasarımcı Paneli</p>
         </div>
         {children}
       </div>

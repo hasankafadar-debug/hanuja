@@ -10,7 +10,7 @@ import { randomBytes, scrypt } from 'node:crypto'
 
 export const TEST_SELLER_EMAIL = 'test-seller@hanuja.test'
 export const TEST_SELLER_PASSWORD = 'SellerPassword123!'
-export const TEST_SELLER_NAME = 'Test Satıcı'
+export const TEST_SELLER_NAME = 'Test Tasarımcı'
 
 function hashPasswordBetterAuth(password: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -119,7 +119,7 @@ async function main() {
       console.log('📋 SellerProfile oluşturuldu')
     }
 
-    console.log(`\n✅ Test satıcı hazır`)
+    console.log(`\n✅ Test tasarımcı hazır`)
     console.log(`   E-posta : ${TEST_SELLER_EMAIL}`)
     console.log(`   Şifre   : ${TEST_SELLER_PASSWORD}`)
   } finally {
