@@ -1,3 +1,4 @@
+import { validateVariantDescriptor } from '@hanuja/api/services/category-schema.service'
 import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
@@ -15,11 +16,29 @@ import {
 } from '@hanuja/api/domain/barcode-registry'
 import { generateUniqueProductBarcode } from '@hanuja/api/domain/barcode-generate'
 import { requireModelCode } from '@hanuja/api/domain/model-code'
+import { lockProductStocks } from '@hanuja/api/domain/product-stock'
+import {
+  resolveCategorySchema,
+  lockCatalogSchema,
+  categoryChangePreview,
+  validateSharedAttributes,
+  normalizedVariantProperties,
+} from '@hanuja/api/services/category-schema.service'
+import { propertyLabel, variantPropertyKey } from '@hanuja/api/domain/category-schema'
+import { enqueueProductSync } from '@hanuja/api/jobs/search-index-sync.job'
 
 const variantSchema = z.object({
   id: z.string().cuid().optional(), // Mevcut varyantlarda DB ID — upsert için kullanılır
-  color: z.string().trim().max(80).optional(),
-  material: z.string().trim().max(80).optional(),
+  color: z
+    .never({ invalid_type_error: 'Varyant rengi desteklenmiyor; ayrı ürün ekleyin.' })
+    .optional(),
+  material: z
+    .never({ invalid_type_error: 'Varyant materyali desteklenmiyor; ayrı ürün ekleyin.' })
+    .optional(),
+  properties: z
+    .record(z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .optional()
+    .default({}),
   size: z.string().trim().max(80).optional(),
   customOptionName: z.string().trim().max(80).optional(),
   customOptionValue: z.string().trim().max(120).optional(),
@@ -27,54 +46,81 @@ const variantSchema = z.object({
   barcode: z
     .string()
     .trim()
-    .refine((value) => value === '' || /^\d{13}$/.test(value), 'Varyasyon barkodu 13 haneli rakam olmali')
+    .refine(
+      (value) => value === '' || /^\d{13}$/.test(value),
+      'Varyasyon barkodu 13 haneli rakam olmali',
+    )
     .optional(),
   price: z.number().positive('Varyasyon fiyati 0dan buyuk olmali'),
   stockQuantity: z.number().int().min(0, 'Varyasyon stoku negatif olamaz'),
 })
 
-const updateProductSchema = z.object({
-  name: z.string().min(3).max(200).optional(),
-  categoryId: z.string().min(1).nullable().optional(),
-  description: z.string().max(5000).optional(),
-  shortDescription: z.string().max(500).optional(),
-  story: z.string().max(5000).optional(),
-  careInstructions: z.string().max(5000).optional(),
-  price: z.number().nonnegative().optional(),
-  compareAtPrice: z.number().positive('Liste fiyati 0dan buyuk olmali').nullable().optional(),
-  fulfillmentDays: z.number().int().min(1, 'Sevk suresi en az 1 is gunu olmali').max(90, 'Sevk suresi en fazla 90 is gunu olabilir').optional(),
-  stockQuantity: z.number().int().min(0).optional(),
-  sku: z.string().max(120).nullable().optional(),
-  modelCode: z.string().min(1, 'Model Kodu zorunludur').max(120).optional(),
-  barcode: z
-    .string()
-    .trim()
-    .refine((value) => value === '' || /^\d{13}$/.test(value), 'Barkod 13 haneli rakam olmali')
-    .nullable()
-    .optional(),
-  weight: z.number().positive().nullable().optional(),
-  // Boyutlar (cm) — opsiyonel; null = temizle. En → dimensionWidth, Boy → dimensionLength, Yukseklik → dimensionHeight.
-  dimensionLength: z.number().positive().nullable().optional(),
-  dimensionWidth: z.number().positive().nullable().optional(),
-  dimensionHeight: z.number().positive().nullable().optional(),
-  colorOptionId: z.string().min(1).nullable().optional(),
-  // Renk 2 (opsiyonel): null/boş = ikinci rengi kaldır. Renk 1'den farklı olmalı.
-  secondColorOptionId: z.string().min(1).nullable().optional(),
-  materialOptionId: z.string().min(1).nullable().optional(),
-  variants: z.array(variantSchema).max(100).optional(),
-}).superRefine((data, ctx) => {
-  if (data.variants && data.variants.length > 0 && data.barcode?.trim()) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['barcode'], message: 'Varyasyonlu urunde ana barkod bos birakilmali.' })
-  }
-  if (data.secondColorOptionId && !data.colorOptionId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['secondColorOptionId'], message: 'Ikinci renk icin birinci renk secilmelidir.' })
-  if (data.secondColorOptionId && data.secondColorOptionId === data.colorOptionId) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['secondColorOptionId'], message: 'Ikinci renk birinci renkten farkli olmalidir.' })
-  }
-})
+const updateProductSchema = z
+  .object({
+    name: z.string().min(3).max(200).optional(),
+    categoryId: z.string().min(1).nullable().optional(),
+    description: z.string().max(5000).optional(),
+    shortDescription: z.string().max(500).optional(),
+    story: z.string().max(5000).optional(),
+    careInstructions: z.string().max(5000).optional(),
+    price: z.number().nonnegative().optional(),
+    compareAtPrice: z.number().positive('Liste fiyati 0dan buyuk olmali').nullable().optional(),
+    fulfillmentDays: z
+      .number()
+      .int()
+      .min(1, 'Sevk suresi en az 1 is gunu olmali')
+      .max(90, 'Sevk suresi en fazla 90 is gunu olabilir')
+      .optional(),
+    stockQuantity: z.number().int().min(0).optional(),
+    sku: z.string().max(120).nullable().optional(),
+    modelCode: z.string().min(1, 'Model Kodu zorunludur').max(120).optional(),
+    barcode: z
+      .string()
+      .trim()
+      .refine((value) => value === '' || /^\d{13}$/.test(value), 'Barkod 13 haneli rakam olmali')
+      .nullable()
+      .optional(),
+    weight: z.number().positive().nullable().optional(),
+    // Boyutlar (cm) — opsiyonel; null = temizle. En → dimensionWidth, Boy → dimensionLength, Yukseklik → dimensionHeight.
+    dimensionLength: z.number().positive().nullable().optional(),
+    dimensionWidth: z.number().positive().nullable().optional(),
+    dimensionHeight: z.number().positive().nullable().optional(),
+    colorOptionId: z.string().min(1).nullable().optional(),
+    // Renk 2 (opsiyonel): null/boş = ikinci rengi kaldır. Renk 1'den farklı olmalı.
+    secondColorOptionId: z.string().min(1).nullable().optional(),
+    materialOptionId: z.string().min(1).nullable().optional(),
+    variants: z.array(variantSchema).max(100).optional(),
+    properties: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+    contentUnit: z.enum(['ml', 'g', 'adet']).optional(),
+    categoryChangeConfirmation: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.variants && data.variants.length > 0 && data.barcode?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['barcode'],
+        message: 'Varyasyonlu urunde ana barkod bos birakilmali.',
+      })
+    }
+    if (data.secondColorOptionId && !data.colorOptionId)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['secondColorOptionId'],
+        message: 'Ikinci renk icin birinci renk secilmelidir.',
+      })
+    if (data.secondColorOptionId && data.secondColorOptionId === data.colorOptionId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['secondColorOptionId'],
+        message: 'Ikinci renk birinci renkten farkli olmalidir.',
+      })
+    }
+  })
 
 type VariantInput = z.infer<typeof variantSchema>
 
 function normalizeVariant(input: VariantInput) {
+  validateVariantDescriptor(input.customOptionName)
   const options: Record<string, string> = {}
   if (input.size?.trim()) options.Beden = input.size.trim()
   if (input.customOptionName?.trim() && input.customOptionValue?.trim()) {
@@ -85,7 +131,9 @@ function normalizeVariant(input: VariantInput) {
     id: input.id,
     // Barcode may be blank (auto-generated on save); name falls back to the
     // resolved barcode at write time.
-    name: Object.entries(options).map(([key, value]) => `${key}: ${value}`).join(' / '),
+    name: Object.entries(options)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(' / '),
     options,
     barcode: input.barcode?.trim() ?? '',
     price: new Decimal(input.price),
@@ -133,10 +181,7 @@ async function assertVariantBarcodesAvailable(params: {
   }
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const prisma = createPrismaForRoute()
   const seller = await getSellerOrFail(prisma)
   if (!seller) return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })
@@ -171,8 +216,84 @@ export async function PATCH(
     ])
 
     const updated = await prisma.$transaction(async (tx) => {
+      await lockCatalogSchema(tx)
+      await lockProductStocks(tx, [id])
+      const existing = await tx.product.findFirst({
+        where: { id, sellerId: seller.id },
+        include: { variants: true, attributeValues: { include: { option: true } } },
+      })
+      if (!existing) throw new ValidationError('Ürün bulunamadı.')
+      const schema = await resolveCategorySchema(
+        tx,
+        parsed.data.categoryId ?? existing.categoryId ?? '',
+      )
+      await validateSharedAttributes(
+        tx,
+        schema,
+        parsed.data,
+        parsed.data.categoryId !== undefined && parsed.data.categoryId !== existing.categoryId
+          ? []
+          : existing.attributeValues.map((a) => a.optionId),
+      )
+      if (parsed.data.categoryId !== undefined && parsed.data.categoryId !== existing.categoryId) {
+        const preview = categoryChangePreview(existing, schema, parsed.data.contentUnit)
+        if (
+          preview.removed.length &&
+          preview.confirmationToken !== parsed.data.categoryChangeConfirmation
+        )
+          throw new ValidationError(
+            'Kategori değişirken silinecek özellikleri önizleyip onaylayın.',
+          )
+      }
+      if (variants)
+        for (const [index, variant] of variants.entries()) {
+          const input = parsed.data.variants![index]!
+          const old = existing.variants.find((v) => v.id === input.id)
+          const key = variantPropertyKey(schema, parsed.data.contentUnit)
+          const raw = { ...input.properties }
+          if (key && raw[key] === undefined && input.size) raw[key] = input.size
+          const changed =
+            parsed.data.categoryId !== undefined && parsed.data.categoryId !== existing.categoryId
+          const previous = (old?.properties ??
+            {}) as import('@hanuja/api/domain/category-schema').ProductProperties
+          const properties = normalizedVariantProperties(
+            schema,
+            raw,
+            {
+              ...(existing.properties as import('@hanuja/api/domain/category-schema').ProductProperties),
+              ...parsed.data.properties,
+            },
+            parsed.data.contentUnit,
+            changed
+              ? Object.fromEntries(Object.entries(previous).filter(([k]) => k === key))
+              : previous,
+            !old || changed,
+          )
+          validateVariantDescriptor(input.customOptionName, schema.config.variantLabel ?? undefined)
+          if (old && !changed) {
+            const legacy = old.options as Record<string, string>
+            for (const label of ['Renk', 'Materyal'])
+              if (legacy[label]) variant.options[label] = legacy[label]!
+          }
+          const definition = schema.definitions.find((f) => f.key === key)
+          if (definition && key) {
+            delete variant.options.Beden
+            variant.options[schema.config.variantLabel ?? definition.label] = propertyLabel(
+              definition,
+              properties[key] ?? null,
+            )
+          }
+          Object.assign(variant, {
+            properties,
+            name: Object.entries(variant.options)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(' / '),
+          })
+        }
       if (variants !== undefined) {
-        const incomingIds = variants.filter((variant) => variant.id).map((variant) => variant.id as string)
+        const incomingIds = variants
+          .filter((variant) => variant.id)
+          .map((variant) => variant.id as string)
         if (incomingIds.length > 0) {
           const ownedVariantCount = await tx.productVariant.count({
             where: { productId: id, id: { in: incomingIds } },
@@ -186,9 +307,20 @@ export async function PATCH(
         // and generated ones are "8"-prefixed, so blanks never collide.
         const finalBarcodes = [
           ...variants.map((variant) => variant.barcode).filter(Boolean),
-          ...(variants.length === 0 && parsed.data.barcode?.trim() ? [parsed.data.barcode.trim()] : []),
+          ...(variants.length === 0 && parsed.data.barcode?.trim()
+            ? [parsed.data.barcode.trim()]
+            : []),
         ]
         await prepareVariantBarcodeReplacement(tx, id, finalBarcodes)
+        const deletedIds = existing.variants
+          .filter((v) => !incomingIds.includes(v.id))
+          .map((v) => v.id)
+        if (
+          deletedIds.length &&
+          (await tx.orderLine.count({ where: { productId: id, variantId: { in: deletedIds } } })) >
+            0
+        )
+          throw new ValidationError('Siparişe bağlı varyant silinemez.')
         await tx.productVariant.deleteMany({
           where: {
             productId: id,
@@ -207,7 +339,9 @@ export async function PATCH(
         } else {
           resolvedMainBarcode =
             parsed.data.barcode?.trim() ||
-            (await generateUniqueProductBarcode(tx as unknown as PrismaClient, { used: usedBarcodes }))
+            (await generateUniqueProductBarcode(tx as unknown as PrismaClient, {
+              used: usedBarcodes,
+            }))
         }
       } else if (parsed.data.barcode !== undefined) {
         const entered = parsed.data.barcode?.trim()
@@ -217,7 +351,9 @@ export async function PATCH(
           const variantCount = await tx.productVariant.count({ where: { productId: id } })
           resolvedMainBarcode =
             variantCount === 0
-              ? await generateUniqueProductBarcode(tx as unknown as PrismaClient, { used: usedBarcodes })
+              ? await generateUniqueProductBarcode(tx as unknown as PrismaClient, {
+                  used: usedBarcodes,
+                })
               : null
         }
       }
@@ -226,21 +362,39 @@ export async function PATCH(
       const saved = await service.updateProductForSeller({
         productId: id,
         sellerId: seller.id,
+        properties: parsed.data.properties,
+        contentUnit: parsed.data.contentUnit,
+        categoryChangeConfirmation: parsed.data.categoryChangeConfirmation,
+        categoryChangeValidated: true,
+        deferVisibilitySync: true,
+        variantsManaged: variants !== undefined,
+        hasVariants: variants !== undefined ? variants.length > 0 : existing.variants.length > 0,
         ...(typeof parsed.data.name === 'string' && parsed.data.name.trim()
           ? { name: parsed.data.name.trim() }
           : {}),
-        ...(parsed.data.categoryId !== undefined ? { categoryId: parsed.data.categoryId?.trim() || null } : {}),
-        ...(typeof parsed.data.description === 'string' ? { description: parsed.data.description.trim() || null } : {}),
+        ...(parsed.data.categoryId !== undefined
+          ? { categoryId: parsed.data.categoryId?.trim() || null }
+          : {}),
+        ...(typeof parsed.data.description === 'string'
+          ? { description: parsed.data.description.trim() || null }
+          : {}),
         ...(typeof parsed.data.shortDescription === 'string'
           ? { shortDescription: parsed.data.shortDescription.trim() || null }
           : {}),
-        ...(typeof parsed.data.story === 'string' ? { story: parsed.data.story.trim() || null } : {}),
+        ...(typeof parsed.data.story === 'string'
+          ? { story: parsed.data.story.trim() || null }
+          : {}),
         ...(typeof parsed.data.careInstructions === 'string'
           ? { careInstructions: parsed.data.careInstructions.trim() || null }
           : {}),
         ...(typeof parsed.data.price === 'number' ? { price: new Decimal(parsed.data.price) } : {}),
         ...(parsed.data.compareAtPrice !== undefined
-          ? { compareAtPrice: parsed.data.compareAtPrice !== null ? new Decimal(parsed.data.compareAtPrice) : null }
+          ? {
+              compareAtPrice:
+                parsed.data.compareAtPrice !== null
+                  ? new Decimal(parsed.data.compareAtPrice)
+                  : null,
+            }
           : {}),
         ...(typeof parsed.data.fulfillmentDays === 'number'
           ? { fulfillmentDays: parsed.data.fulfillmentDays }
@@ -251,19 +405,36 @@ export async function PATCH(
             ? { stockQuantity: Math.floor(parsed.data.stockQuantity) }
             : {}),
         ...(parsed.data.sku !== undefined ? { sku: parsed.data.sku?.trim() || null } : {}),
-        ...(parsed.data.modelCode !== undefined ? { modelCode: requireModelCode(parsed.data.modelCode) } : {}),
+        ...(parsed.data.modelCode !== undefined
+          ? { modelCode: requireModelCode(parsed.data.modelCode) }
+          : {}),
         ...(resolvedMainBarcode !== undefined ? { barcode: resolvedMainBarcode } : {}),
         ...(parsed.data.weight !== undefined
           ? { weight: parsed.data.weight !== null ? new Decimal(parsed.data.weight) : null }
           : {}),
         ...(parsed.data.dimensionLength !== undefined
-          ? { dimensionLength: parsed.data.dimensionLength !== null ? new Decimal(parsed.data.dimensionLength) : null }
+          ? {
+              dimensionLength:
+                parsed.data.dimensionLength !== null
+                  ? new Decimal(parsed.data.dimensionLength)
+                  : null,
+            }
           : {}),
         ...(parsed.data.dimensionWidth !== undefined
-          ? { dimensionWidth: parsed.data.dimensionWidth !== null ? new Decimal(parsed.data.dimensionWidth) : null }
+          ? {
+              dimensionWidth:
+                parsed.data.dimensionWidth !== null
+                  ? new Decimal(parsed.data.dimensionWidth)
+                  : null,
+            }
           : {}),
         ...(parsed.data.dimensionHeight !== undefined
-          ? { dimensionHeight: parsed.data.dimensionHeight !== null ? new Decimal(parsed.data.dimensionHeight) : null }
+          ? {
+              dimensionHeight:
+                parsed.data.dimensionHeight !== null
+                  ? new Decimal(parsed.data.dimensionHeight)
+                  : null,
+            }
           : {}),
       })
 
@@ -271,13 +442,20 @@ export async function PATCH(
         for (const variant of variants) {
           const variantBarcode =
             variant.barcode ||
-            (await generateUniqueProductBarcode(tx as unknown as PrismaClient, { used: usedBarcodes }))
+            (await generateUniqueProductBarcode(tx as unknown as PrismaClient, {
+              used: usedBarcodes,
+            }))
           if (variant.id) {
             const updatedVariant = await tx.productVariant.update({
               where: { id: variant.id },
               data: {
                 name: variant.name || variantBarcode,
                 options: variant.options,
+                properties: (
+                  variant as typeof variant & {
+                    properties: import('@hanuja/api/domain/category-schema').ProductProperties
+                  }
+                ).properties,
                 barcode: variantBarcode,
                 price: variant.price,
                 stockQuantity: variant.stockQuantity,
@@ -290,6 +468,11 @@ export async function PATCH(
                 productId: id,
                 name: variant.name || variantBarcode,
                 options: variant.options,
+                properties: (
+                  variant as typeof variant & {
+                    properties: import('@hanuja/api/domain/category-schema').ProductProperties
+                  }
+                ).properties,
                 barcode: variantBarcode,
                 price: variant.price,
                 stockQuantity: variant.stockQuantity,
@@ -311,15 +494,16 @@ export async function PATCH(
             option: { type: 'color' },
           },
         })
-        if (colorOptionId) await tx.productAttributeValue.createMany({
-          data: [
-            { productId: id, optionId: colorOptionId, sortOrder: 0 },
-            ...(secondColorOptionId
-              ? [{ productId: id, optionId: secondColorOptionId, sortOrder: 1 }]
-              : []),
-          ],
-          skipDuplicates: true,
-        })
+        if (colorOptionId)
+          await tx.productAttributeValue.createMany({
+            data: [
+              { productId: id, optionId: colorOptionId, sortOrder: 0 },
+              ...(secondColorOptionId
+                ? [{ productId: id, optionId: secondColorOptionId, sortOrder: 1 }]
+                : []),
+            ],
+            skipDuplicates: true,
+          })
       }
       if (materialOptionId !== undefined) {
         await tx.productAttributeValue.deleteMany({
@@ -328,9 +512,10 @@ export async function PATCH(
             option: { type: 'material' },
           },
         })
-        if (materialOptionId) await tx.productAttributeValue.create({
-          data: { productId: id, optionId: materialOptionId, sortOrder: 0 },
-        })
+        if (materialOptionId)
+          await tx.productAttributeValue.create({
+            data: { productId: id, optionId: materialOptionId, sortOrder: 0 },
+          })
       }
 
       // Price, category and variant changes reach the price history in this transaction
@@ -340,6 +525,7 @@ export async function PATCH(
       return saved
     })
 
+    await enqueueProductSync({ operation: 'upsert', entityId: id }).catch(() => {})
     return NextResponse.json({
       product: {
         id: updated.id,
@@ -358,16 +544,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'Urun bulunamadi.' }, { status: 404 })
     }
     if (isBarcodeConflict(error)) {
-      return NextResponse.json({ error: 'Bu barkod başka bir ürün veya varyantta kullanılmıştır.' }, { status: 409 })
+      return NextResponse.json(
+        { error: 'Bu barkod başka bir ürün veya varyantta kullanılmıştır.' },
+        { status: 409 },
+      )
     }
     throw error
   }
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const prisma = createPrismaForRoute()
   const seller = await getSellerOrFail(prisma)
   if (!seller) return NextResponse.json({ error: 'Yetkisiz.' }, { status: 401 })

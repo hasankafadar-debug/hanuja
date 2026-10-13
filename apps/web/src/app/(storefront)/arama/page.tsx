@@ -9,7 +9,11 @@ import {
 } from '@hanuja/api/domain/search'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createSearchService } from '@hanuja/api/services/search.service'
-import StorefrontProductGrid, { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
+import PropertyFilters from '@/components/storefront/property-filters'
+import { parsePropertyFilters } from '@hanuja/api/domain/property-filters'
+import StorefrontProductGrid, {
+  type StorefrontGridProduct,
+} from '@/components/storefront/storefront-product-grid'
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -49,6 +53,9 @@ async function fetchSearchResults(
   try {
     const service = createSearchService({ prisma: createPrismaForRoute() })
     return await service.searchProducts({
+      includePropertyFacets: true,
+      propertyFilters: parsePropertyFilters(new URLSearchParams(params)),
+      inStockOnly: params.stokta === 'true' || params.stokta === '1',
       q,
       ...(params.categorySlug ? { categorySlug: params.categorySlug } : {}),
       page: Math.max(1, Number(params.page ?? 1)),
@@ -109,8 +116,17 @@ export default async function SearchPage({ searchParams }: Props) {
         )}
 
         {results && (
+          <details className="mb-4 lg:hidden">
+            <summary className="cursor-pointer text-sm font-semibold">
+              Ürün özelliklerine göre filtrele
+            </summary>
+            <PropertyFilters facets={results.propertyFacets ?? []} pageParam="page" showStock />
+          </details>
+        )}
+        {results && (
           <div className="flex gap-8">
-            {results.facets && Object.keys(results.facets).length > 0 && (
+            {((results.facets && Object.keys(results.facets).length > 0) ||
+              Boolean(results.propertyFacets?.length)) && (
               <aside className="hidden w-56 flex-shrink-0 lg:block">
                 <div className="sticky top-4">
                   <div className="mb-4 flex items-center gap-2">
@@ -118,7 +134,7 @@ export default async function SearchPage({ searchParams }: Props) {
                     <span className="text-sm font-medium">Filtrele</span>
                   </div>
 
-                  {results.facets.categorySlug && (
+                  {results.facets?.categorySlug && (
                     <div className="mb-6">
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Kategori
@@ -134,9 +150,7 @@ export default async function SearchPage({ searchParams }: Props) {
                               <Link
                                 href={href}
                                 className={`flex items-center justify-between rounded px-2 py-1 text-sm transition-colors ${
-                                  isActive
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'hover:bg-muted'
+                                  isActive ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
                                 }`}
                               >
                                 <span className="truncate">{slug.replace(/-/g, ' ')}</span>
@@ -149,6 +163,7 @@ export default async function SearchPage({ searchParams }: Props) {
                     </div>
                   )}
                 </div>
+                <PropertyFilters facets={results.propertyFacets ?? []} pageParam="page" showStock />
               </aside>
             )}
 
@@ -157,12 +172,13 @@ export default async function SearchPage({ searchParams }: Props) {
                 <div className="text-sm text-muted-foreground">
                   {results.totalHits > 0 ? (
                     <>
-                      <span className="font-medium text-foreground">{results.totalHits}</span>{' '}
-                      sonuç bulundu
+                      <span className="font-medium text-foreground">{results.totalHits}</span> sonuç
+                      bulundu
                       {q && (
                         <>
                           {' '}
-                          &ldquo;<span className="font-medium text-foreground">{q}</span>&rdquo; için
+                          &ldquo;<span className="font-medium text-foreground">{q}</span>&rdquo;
+                          için
                         </>
                       )}
                     </>

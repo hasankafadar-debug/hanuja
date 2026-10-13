@@ -283,10 +283,14 @@ describe('bulk product import row validator', () => {
 
   it('exports Model Kodu and help text for every template column', () => {
     expect(BULK_PRODUCT_TEMPLATE_HEADERS).toContain('Model Kodu*')
-    expect(BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.every((column) => 'helpText' in column && Boolean(column.helpText))).toBe(true)
+    expect(
+      BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.every(
+        (column) => 'helpText' in column && Boolean(column.helpText),
+      ),
+    ).toBe(true)
   })
 
-  it('keeps legacy Renk header mapped to variant color', () => {
+  it('rejects nonempty legacy variant color columns', () => {
     const result = normalizeBulkProductRow(
       {
         'Model Kodu*': 'SEHPA-001',
@@ -303,9 +307,8 @@ describe('bulk product import row validator', () => {
       2,
     )
 
-    expect(result.errors).toHaveLength(0)
-    expect(result.data?.productColor).toBe('Ceviz')
-    expect(result.data?.variantColor).toBe('Siyah')
+    expect(result.errors.length).toBeGreaterThan(0)
+    expect(result.errors.some((e) => e.includes('Varyant rengi'))).toBe(true)
   })
 
   it('preserves preview image URLs when serializing rows for server revalidation', () => {
@@ -382,7 +385,13 @@ describe('bulk category resolution', () => {
     { id: 'root-ev', slug: 'ev', name: 'Ev', parentId: null, isActive: true },
     { id: 'root-ofis', slug: 'ofis', name: 'Ofis', parentId: null, isActive: true },
     { id: 'ev-mobilya', slug: 'ev-mobilya', name: 'Mobilya', parentId: 'root-ev', isActive: true },
-    { id: 'ofis-mobilya', slug: 'ofis-mobilya', name: 'Mobilya', parentId: 'root-ofis', isActive: true },
+    {
+      id: 'ofis-mobilya',
+      slug: 'ofis-mobilya',
+      name: 'Mobilya',
+      parentId: 'root-ofis',
+      isActive: true,
+    },
   ])
 
   it('resolves Ev and Ofis for the same visible category to different real slugs', () => {
@@ -396,9 +405,27 @@ describe('bulk template areas', () => {
     const areas = buildBulkTemplateAreas([
       { id: 'root-ev', slug: 'ev', name: 'Ev', parentId: null, isActive: true },
       { id: 'root-ofis', slug: 'ofis', name: 'Ofis', parentId: null, isActive: true },
-      { id: 'ev-mobilya', slug: 'ev-mobilya', name: 'Mobilya', parentId: 'root-ev', isActive: true },
-      { id: 'ev-sehpa', slug: 'ev-mobilya-sehpa', name: 'Sehpa', parentId: 'ev-mobilya', isActive: true },
-      { id: 'ofis-mobilya', slug: 'ofis-mobilya', name: 'Mobilya', parentId: 'root-ofis', isActive: true },
+      {
+        id: 'ev-mobilya',
+        slug: 'ev-mobilya',
+        name: 'Mobilya',
+        parentId: 'root-ev',
+        isActive: true,
+      },
+      {
+        id: 'ev-sehpa',
+        slug: 'ev-mobilya-sehpa',
+        name: 'Sehpa',
+        parentId: 'ev-mobilya',
+        isActive: true,
+      },
+      {
+        id: 'ofis-mobilya',
+        slug: 'ofis-mobilya',
+        name: 'Mobilya',
+        parentId: 'root-ofis',
+        isActive: true,
+      },
     ])
 
     expect(areas.map((area) => area.slug)).toEqual(['ev', 'ofis'])
@@ -413,9 +440,27 @@ describe('bulk template areas', () => {
     const areas = buildBulkTemplateAreas([
       { id: 'root-ev', slug: 'ev', name: 'Ev', parentId: null, isActive: true },
       { id: 'root-ofis', slug: 'ofis', name: 'Ofis', parentId: null, isActive: true },
-      { id: 'ev-mobilya', slug: 'ev-mobilya', name: 'Mobilya', parentId: 'root-ev', isActive: true },
-      { id: 'ev-sehpa', slug: 'ev-mobilya-sehpa', name: 'Sehpa', parentId: 'ev-mobilya', isActive: true },
-      { id: 'ofis-mobilya', slug: 'ofis-mobilya', name: 'Mobilya', parentId: 'root-ofis', isActive: true },
+      {
+        id: 'ev-mobilya',
+        slug: 'ev-mobilya',
+        name: 'Mobilya',
+        parentId: 'root-ev',
+        isActive: true,
+      },
+      {
+        id: 'ev-sehpa',
+        slug: 'ev-mobilya-sehpa',
+        name: 'Sehpa',
+        parentId: 'ev-mobilya',
+        isActive: true,
+      },
+      {
+        id: 'ofis-mobilya',
+        slug: 'ofis-mobilya',
+        name: 'Mobilya',
+        parentId: 'root-ofis',
+        isActive: true,
+      },
     ])
 
     // Scope is not the product's category: scoping to `Mobilya` must stay
@@ -425,23 +470,30 @@ describe('bulk template areas', () => {
       { id: 'ev-mobilya-sehpa', name: 'Sehpa', parentId: 'ev-mobilya' },
     ])
     // Each area only exposes its own branch.
-    expect(areas[1]?.scopeNodes).toEqual([
-      { id: 'ofis-mobilya', name: 'Mobilya', parentId: null },
-    ])
+    expect(areas[1]?.scopeNodes).toEqual([{ id: 'ofis-mobilya', name: 'Mobilya', parentId: null }])
   })
 
   it('omits inactive categories from the scope tree', () => {
     const areas = buildBulkTemplateAreas([
       { id: 'root-ev', slug: 'ev', name: 'Ev', parentId: null, isActive: true },
-      { id: 'ev-mobilya', slug: 'ev-mobilya', name: 'Mobilya', parentId: 'root-ev', isActive: true },
-      { id: 'ev-sehpa', slug: 'ev-mobilya-sehpa', name: 'Sehpa', parentId: 'ev-mobilya', isActive: true },
+      {
+        id: 'ev-mobilya',
+        slug: 'ev-mobilya',
+        name: 'Mobilya',
+        parentId: 'root-ev',
+        isActive: true,
+      },
+      {
+        id: 'ev-sehpa',
+        slug: 'ev-mobilya-sehpa',
+        name: 'Sehpa',
+        parentId: 'ev-mobilya',
+        isActive: true,
+      },
       { id: 'ev-eski', slug: 'ev-eski', name: 'Emekli Dal', parentId: 'root-ev', isActive: false },
     ])
 
-    expect(areas[0]?.scopeNodes.map((node) => node.id)).toEqual([
-      'ev-mobilya',
-      'ev-mobilya-sehpa',
-    ])
+    expect(areas[0]?.scopeNodes.map((node) => node.id)).toEqual(['ev-mobilya', 'ev-mobilya-sehpa'])
   })
 })
 
@@ -458,7 +510,6 @@ describe('bulk product group key', () => {
         'Sevk Suresi (is gunu)*': '7',
         'Stok*': '4',
         'Barkod (13 hane)*': '8691234567890',
-        Renk: 'Ceviz',
       },
       2,
     )
@@ -480,7 +531,6 @@ describe('bulk product group key', () => {
         'Stok*': '4',
         'Barkod (13 hane)*': '8691234567890',
         SKU: 'SKU-01',
-        Renk: 'Ceviz',
       },
       2,
     )
@@ -502,7 +552,6 @@ describe('bulk product group key', () => {
         'Stok*': '4',
         'Barkod (13 hane)*': '8691234567890',
         Aciklama: 'Birinci urun',
-        Renk: 'Ceviz',
       },
       2,
     )
@@ -518,7 +567,6 @@ describe('bulk product group key', () => {
         'Stok*': '7',
         'Barkod (13 hane)*': '8691234567891',
         Aciklama: 'Ikinci urun',
-        Renk: 'Siyah',
       },
       3,
     )

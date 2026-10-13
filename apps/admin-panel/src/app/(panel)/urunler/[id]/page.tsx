@@ -1,3 +1,5 @@
+import ProductCategoryEditor from './_components/product-category-editor'
+import type { ProductProperties } from '@hanuja/api/domain/category-schema'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Badge, PageHeader, normalizeMediaDisplayUrl } from '@hanuja/ui'
@@ -11,7 +13,13 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = { title: 'Urun Moderasyon Detayi' }
 
-const STATUS_MAP: Record<string, { label: string; variant: 'warning' | 'success' | 'destructive' | 'secondary' }> = {
+const STATUS_MAP: Record<
+  string,
+  {
+    label: string
+    variant: 'warning' | 'success' | 'destructive' | 'secondary'
+  }
+> = {
   pending_review: { label: 'Inceleme bekliyor', variant: 'warning' },
   published: { label: 'Yayinda', variant: 'success' },
   rejected: { label: 'Reddedildi', variant: 'destructive' },
@@ -40,12 +48,20 @@ export default async function AdminProductDetailPage({
         },
       },
       category: { select: { id: true, name: true } },
+      variants: true,
     },
   })
 
   if (!product) notFound()
+  const categories = await prisma.category.findMany({
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    select: { id: true, name: true, parentId: true },
+  })
 
-  const statusInfo = STATUS_MAP[product.status] ?? { label: product.status, variant: 'secondary' as const }
+  const statusInfo = STATUS_MAP[product.status] ?? {
+    label: product.status,
+    variant: 'secondary' as const,
+  }
   const findings = parseModerationFindings(product.moderationFindings)
   const suggestedRejectReason = buildSuggestedRejectReason(findings)
 
@@ -56,13 +72,27 @@ export default async function AdminProductDetailPage({
         description={`${product.seller?.displayName ?? 'Tasarımcı yok'} • ${product.category?.name ?? 'Kategori yok'}`}
       />
 
+      <ProductCategoryEditor
+        productId={product.id}
+        categoryId={product.categoryId}
+        properties={product.properties as ProductProperties}
+        variants={product.variants.map((v) => ({
+          id: v.id,
+          name: v.name,
+          properties: v.properties as ProductProperties,
+        }))}
+        categories={categories}
+      />
       <div className="grid gap-8 lg:grid-cols-[1.4fr_0.9fr]">
         <section className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2">
             {product.images.length === 0 ? (
               <div
                 className="flex aspect-square items-center justify-center rounded-lg border text-sm"
-                style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
+                style={{
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-muted-fg)',
+                }}
               >
                 Gorsel yok
               </div>
@@ -79,7 +109,10 @@ export default async function AdminProductDetailPage({
             )}
           </div>
 
-          <div className="space-y-4 rounded-xl border p-5" style={{ borderColor: 'var(--color-border)' }}>
+          <div
+            className="space-y-4 rounded-xl border p-5"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
             <div className="flex items-center gap-3">
               <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
               <span className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
@@ -103,8 +136,13 @@ export default async function AdminProductDetailPage({
             <Field label="Bakim talimati" value={product.careInstructions} multiline />
           </div>
 
-          <div className="space-y-4 rounded-xl border p-5" style={{ borderColor: 'var(--color-border)' }}>
-            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Moderasyon Bulgulari</h2>
+          <div
+            className="space-y-4 rounded-xl border p-5"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+              Moderasyon Bulgulari
+            </h2>
             {findings.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
                 Bu urun icin kaydedilmis bir moderasyon bulgusu yok.
@@ -121,7 +159,10 @@ export default async function AdminProductDetailPage({
                       <Badge variant="secondary">{finding.field}</Badge>
                       <Badge variant="secondary">{finding.type}</Badge>
                     </div>
-                    <p className="mt-2 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                    <p
+                      className="mt-2 text-sm font-medium"
+                      style={{ color: 'var(--color-primary)' }}
+                    >
                       {finding.reason}
                     </p>
                     <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
@@ -139,7 +180,9 @@ export default async function AdminProductDetailPage({
 
         <aside className="space-y-4">
           <div className="rounded-xl border p-5" style={{ borderColor: 'var(--color-border)' }}>
-            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>Urun Ozeti</h2>
+            <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+              Urun Ozeti
+            </h2>
             <dl className="mt-4 space-y-3 text-sm">
               <MetaRow label="Tasarımcı" value={product.seller?.displayName ?? '—'} />
               <MetaRow label="Sehir" value={product.seller?.profile?.city ?? '—'} />
@@ -177,10 +220,20 @@ export default async function AdminProductDetailPage({
   )
 }
 
-function Field({ label, value, multiline = false }: { label: string; value?: string | null; multiline?: boolean }) {
+function Field({
+  label,
+  value,
+  multiline = false,
+}: {
+  label: string
+  value?: string | null
+  multiline?: boolean
+}) {
   return (
     <div>
-      <h3 className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>{label}</h3>
+      <h3 className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+        {label}
+      </h3>
       <p
         className={multiline ? 'mt-1 whitespace-pre-wrap text-sm' : 'mt-1 text-sm'}
         style={{ color: 'var(--color-muted-fg)' }}
@@ -195,7 +248,9 @@ function MetaRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <dt style={{ color: 'var(--color-muted-fg)' }}>{label}</dt>
-      <dd className="text-right font-medium" style={{ color: 'var(--color-primary)' }}>{value}</dd>
+      <dd className="text-right font-medium" style={{ color: 'var(--color-primary)' }}>
+        {value}
+      </dd>
     </div>
   )
 }

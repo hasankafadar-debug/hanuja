@@ -7,6 +7,7 @@ import { PRODUCT_SEARCH_SORT_VALUES } from '../domain/search'
 import { createPrismaForRoute } from '../lib/prisma'
 import { ok, handleError } from '../lib/response'
 import { createSearchService } from '../services/search.service'
+import { parsePropertyFilters } from '../domain/property-filters'
 
 const searchQuerySchema = z.object({
   q: z.string().min(1).max(200),
@@ -27,6 +28,9 @@ export async function searchProducts(req: NextRequest) {
       q: params.q,
       page: params.page,
       limit: params.limit,
+      propertyFilters: parsePropertyFilters(url.searchParams),
+      includePropertyFacets: true,
+      inStockOnly: url.searchParams.get('stokta') === 'true',
       ...(params.categorySlug ? { categorySlug: params.categorySlug } : {}),
       ...(params.sort ? { sort: params.sort } : {}),
     })

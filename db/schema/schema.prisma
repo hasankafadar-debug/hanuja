@@ -376,6 +376,9 @@ enum AdminActionType {
   seller_products_imported
   seller_import_permission_granted
   category_tax_rate_changed
+  category_created
+  category_updated
+  catalog_schema_changed
   customer_support_replied
   customer_support_resolved
   customer_support_reopened
@@ -941,12 +944,14 @@ model Category {
   updatedAt          DateTime  @updatedAt
   createdViaImportBy String? // Seller.id — import commit ile açıldıysa; null = admin/seed
   createdViaImportAt DateTime? // Import commit zamanı
+  templateCode       String?
 
   parent           Category?                 @relation("CategoryTree", fields: [parentId], references: [id])
   children         Category[]                @relation("CategoryTree")
   products         Product[]
   discountRules    DiscountRule[]
   attributeOptions CategoryAttributeOption[]
+  template         CatalogTemplate?          @relation(fields: [templateCode], references: [code])
 
   @@index([parentId])
   @@index([slug])
@@ -984,6 +989,8 @@ model Product {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   publishedAt        DateTime?
+  firstPublishedAt   DateTime?
+  properties         Json      @default("{}")
   rejectedAt         DateTime?
   rejectionReason    String?
   moderationFindings Json?
@@ -1122,6 +1129,7 @@ model ProductVariant {
   price         Decimal? @db.Decimal(12, 2) // null ise ürün fiyatı geçerli
   stockQuantity Int      @default(0)
   options       Json // { "Renk": "Krem", "Beden": "L" }
+  properties    Json     @default("{}")
   sortOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -1462,6 +1470,7 @@ model InboundEmail {
 }
 
 model OrderLine {
+  propertiesSnapshot Json?
   id                        String   @id @default(cuid())
   orderId                   String
   productId                 String
@@ -3315,6 +3324,48 @@ model ProductAttributeValue {
   @@index([productId])
   @@index([optionId])
   @@map("product_attribute_values")
+}
+
+// Stable keys and option identities; template edits never rewrite product values.
+model CatalogField {
+  key           String   @id
+  label         String
+  kind          String
+  canonicalUnit String?
+  config        Json     @default("{}")
+  isActive      Boolean  @default(true)
+  everUsed      Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+
+  @@map("catalog_fields")
+}
+
+model CatalogTemplate {
+  code                 String     @id
+  label                String
+  compatibilityVersion Int        @default(1)
+  config               Json
+  updatedAt            DateTime   @updatedAt
+  categories           Category[]
+
+  @@map("catalog_templates")
+}
+
+// No product FK: a deletion must leave a durable index tombstone.
+model SearchIndexDirtyProduct {
+  productId String   @id
+  revision  Int      @default(1)
+  updatedAt DateTime @default(now())
+
+  @@index([updatedAt])
+  @@map("search_index_dirty_products")
+}
+
+model CatalogInstallation {
+  id          String   @id
+  completedAt DateTime @default(now())
+
+  @@map("catalog_installations")
 }
 
 model MarketingConsentAddress {

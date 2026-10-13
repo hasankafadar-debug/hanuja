@@ -1,7 +1,13 @@
 import type { Metadata } from 'next'
+import PropertyFilters from '@/components/storefront/property-filters'
+import type { PropertyFacet } from '@hanuja/api/domain/property-filters'
 import { notFound } from 'next/navigation'
 import { Breadcrumb } from '@hanuja/ui'
-import { CategoryFilters, type FilterSeller, type FilterSubcategory } from './_components/category-filters'
+import {
+  CategoryFilters,
+  type FilterSeller,
+  type FilterSubcategory,
+} from './_components/category-filters'
 import { CategorySort } from './_components/category-sort'
 import { CategoryPageBody } from './_components/category-page-body'
 import { buildCategoryMetadata, buildBreadcrumbStructuredData, JsonLd } from '@hanuja/seo'
@@ -40,7 +46,10 @@ function buildBreadcrumbs(slugParts: string[], category: { name: string } | null
     const label =
       isLast && category
         ? category.name
-        : part.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+        : part
+            .split('-')
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ')
     if (isLast) items.push({ label })
     else items.push({ label, href: `/kategori/${accumulated}` })
   }
@@ -52,8 +61,13 @@ async function getCategoryBySlug(lastSlug: string) {
   return svc.getCategoryBySlug(lastSlug)
 }
 
-export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: CategoryPageProps): Promise<Metadata> {
   const { slug } = await params
+  const applied = await searchParams
+  const filtered = Object.keys(applied).some((k) => k.startsWith('f.') || k.startsWith('r.'))
   const firstSlug = slug[0] ?? 'kategori'
   if (slug.length === 1 && isVirtualCollection(firstSlug)) {
     const labelMap: Record<string, string> = {
@@ -71,11 +85,15 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
       return buildCategoryMetadata({
         label,
         slugParts: slug,
-        ...(hasVisibleMember ? {} : { noindex: true }),
+        ...(hasVisibleMember && !filtered ? {} : { noindex: true }),
       })
     } catch {
       // Transient DB failure must not cache a deindex directive for 30 min.
-      return buildCategoryMetadata({ label, slugParts: slug })
+      return buildCategoryMetadata({
+        label,
+        slugParts: slug,
+        ...(filtered ? { noindex: true } : {}),
+      })
     }
   }
   const lastSlug = slug[slug.length - 1] ?? 'kategori'
@@ -86,7 +104,10 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
     ])
     const label =
       category?.name ??
-      lastSlug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+      lastSlug
+        .split('-')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ')
     // Empty (or unknown) categories are noindex,follow; they become indexable
     // automatically once a published product lands in the subtree.
     const isCustomerVisible =
@@ -94,11 +115,15 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
     return buildCategoryMetadata({
       label,
       slugParts: slug,
-      ...(isCustomerVisible ? {} : { noindex: true }),
+      ...(isCustomerVisible && !filtered ? {} : { noindex: true }),
     })
   } catch {
     // Transient DB failure must not cache a deindex directive for 30 min.
-    return buildCategoryMetadata({ label: lastSlug, slugParts: slug })
+    return buildCategoryMetadata({
+      label: lastSlug,
+      slugParts: slug,
+      ...(filtered ? { noindex: true } : {}),
+    })
   }
 }
 
@@ -137,6 +162,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 
     const [catalogResult, sellers] = await Promise.all([
       svc.listPublishedCurated({
+        includePropertyFacets: true,
         categoryIds,
         ...buildCuratedListOptions(filters, sellerId),
       }),
@@ -149,7 +175,11 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
       ...subcategoryOpt,
     })
 
-    const labelMap: Record<string, string> = { mobilya: 'Mobilya', aydinlatma: 'Aydınlatma', aksesuar: 'Aksesuar' }
+    const labelMap: Record<string, string> = {
+      mobilya: 'Mobilya',
+      aydinlatma: 'Aydınlatma',
+      aksesuar: 'Aksesuar',
+    }
     const categoryLabel = labelMap[firstSlug] ?? firstSlug
     const totalPages = Math.max(1, Math.ceil(catalogResult.total / PAGE_SIZE))
     const breadcrumbs = [{ label: 'Ana Sayfa', href: '/' }, { label: categoryLabel }]
@@ -165,6 +195,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
         categoryLabel={categoryLabel}
         products={catalogResult.items.map(toGridProduct as never)}
         totalProducts={catalogResult.total}
+        propertyFacets={catalogResult.propertyFacets}
         listingQuery={listingQuery}
         initialPage={filters.page}
         paginationHrefs={buildPaginationHrefs({
@@ -206,6 +237,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 
   const [catalogResult, sellers] = await Promise.all([
     svc.listPublishedCurated({
+      includePropertyFacets: true,
       categoryIds,
       ...buildCuratedListOptions(filters, sellerId),
     }),
@@ -235,6 +267,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
       categoryLabel={categoryLabel}
       products={catalogResult.items.map(toGridProduct as never)}
       totalProducts={catalogResult.total}
+      propertyFacets={catalogResult.propertyFacets}
       listingQuery={listingQuery}
       initialPage={filters.page}
       paginationHrefs={buildPaginationHrefs({
@@ -261,6 +294,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 // ── Shared layout ────────────────────────────────────────────────────────────
 
 interface CategoryLayoutProps {
+  propertyFacets?: PropertyFacet[] | undefined
   breadcrumbJsonLd: object
   breadcrumbs: Array<{ label: string; href?: string }>
   categoryLabel: string
@@ -282,6 +316,7 @@ interface CategoryLayoutProps {
 }
 
 function CategoryLayout({
+  propertyFacets = [],
   breadcrumbJsonLd,
   breadcrumbs,
   categoryLabel,
@@ -337,17 +372,20 @@ function CategoryLayout({
           paginationHrefs={paginationHrefs}
           pageSize={PAGE_SIZE}
           filterContent={
-            <CategoryFilters
-              {...(minPrice !== undefined ? { minPrice } : {})}
-              {...(maxPrice !== undefined ? { maxPrice } : {})}
-              inStockOnly={inStockOnly}
-              onSaleOnly={onSaleOnly}
-              {...(activeSeller !== undefined ? { activeSeller } : {})}
-              {...(activeSubcategory !== undefined ? { activeSubcategory } : {})}
-              sellers={sellers}
-              subcategories={subcategories}
-              categoryTrail={categoryTrail}
-            />
+            <>
+              <CategoryFilters
+                {...(minPrice !== undefined ? { minPrice } : {})}
+                {...(maxPrice !== undefined ? { maxPrice } : {})}
+                inStockOnly={inStockOnly}
+                onSaleOnly={onSaleOnly}
+                {...(activeSeller !== undefined ? { activeSeller } : {})}
+                {...(activeSubcategory !== undefined ? { activeSubcategory } : {})}
+                sellers={sellers}
+                subcategories={subcategories}
+                categoryTrail={categoryTrail}
+              />
+              <PropertyFilters facets={propertyFacets} />
+            </>
           }
           sortContent={
             <CategorySort

@@ -1,9 +1,10 @@
 import type { Prisma } from '@prisma/client'
 import { ConflictError } from '../lib/errors'
+import { lockProductStocks } from '../domain/product-stock'
 
 type LineReleaseClient = Pick<
   Prisma.TransactionClient,
-  'orderLine' | 'product' | 'productVariant' | 'orderSellerFulfillment'
+  'orderLine' | 'product' | 'productVariant' | 'orderSellerFulfillment' | '$queryRaw'
 >
 
 interface ReleasableLine {
@@ -24,11 +25,17 @@ export async function releaseLineQuantity(
   line: ReleasableLine,
   quantity: number,
 ) {
+  if (!Number.isInteger(quantity) || quantity <= 0)
+    throw new ConflictError('İptal miktarı pozitif tam sayı olmalıdır.')
+  await lockProductStocks(tx, [line.productId])
   const updated = await tx.orderLine.updateMany({
     where: {
       id: line.id,
       cancelledQuantity: line.cancelledQuantity,
       shippedQuantity: line.shippedQuantity,
+      quantity: {
+        gte: quantity + line.cancelledQuantity + line.shippedQuantity,
+      },
     },
     data: { cancelledQuantity: { increment: quantity } },
   })
@@ -41,12 +48,11 @@ export async function releaseLineQuantity(
       where: { id: line.variantId },
       data: { stockQuantity: { increment: quantity } },
     })
-  } else {
-    await tx.product.update({
-      where: { id: line.productId },
-      data: { stockQuantity: { increment: quantity } },
-    })
   }
+  await tx.product.update({
+    where: { id: line.productId },
+    data: { stockQuantity: { increment: quantity } },
+  })
 }
 
 /** Marks a seller's shipment cancelled once every one of its lines is fully cancelled. */
@@ -96,6 +102,10 @@ export async function releaseRemainingOrderLines(tx: LineReleaseClient, orderId:
     },
   })
   const sellerIds = new Set<string>()
+  await lockProductStocks(
+    tx,
+    lines.map((line) => line.productId),
+  )
   for (const line of lines) {
     const remaining = line.quantity - line.cancelledQuantity - line.shippedQuantity
     if (remaining <= 0) continue

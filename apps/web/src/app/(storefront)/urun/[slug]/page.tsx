@@ -1,4 +1,7 @@
 import type { Metadata } from 'next'
+import { resolveCategorySchema } from '@hanuja/api/services/category-schema.service'
+import { buildStructuredCharacteristics } from '@hanuja/api/domain/product-characteristics'
+import type { ProductProperties } from '@hanuja/api/domain/category-schema'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -55,7 +58,11 @@ async function getProduct(slug: string) {
   }
 }
 
-async function getVisualSiblings(params: { sellerId: string; categoryId: string; modelCode: string }) {
+async function getVisualSiblings(params: {
+  sellerId: string
+  categoryId: string
+  modelCode: string
+}) {
   const prisma = createPrismaForRoute()
   return prisma.product.findMany({
     where: buildPublicProductWhere({
@@ -83,7 +90,10 @@ async function getVisualSiblings(params: { sellerId: string; categoryId: string;
 
 function getAttributeLabel(
   attributeValues:
-    | Array<{ sortOrder?: number; option?: { type?: string; label?: string; hexColor?: string | null } }>
+    | Array<{
+        sortOrder?: number
+        option?: { type?: string; label?: string; hexColor?: string | null }
+      }>
     | undefined,
   type: 'color' | 'material',
 ) {
@@ -95,7 +105,9 @@ function getAttributeLabel(
 }
 
 function buildVisualOptionLabel(
-  attributeValues: Array<{ option?: { type?: string; label?: string; hexColor?: string | null } }> | undefined,
+  attributeValues:
+    | Array<{ option?: { type?: string; label?: string; hexColor?: string | null } }>
+    | undefined,
   fallback: string,
 ) {
   const color = getAttributeLabel(attributeValues, 'color')?.label
@@ -111,7 +123,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
   return buildProductMetadata({
     name: product.name,
-    description: product.shortDescription ?? product.description ?? `${product.name} — Hanuja'da satışta.`,
+    description:
+      product.shortDescription ?? product.description ?? `${product.name} — Hanuja'da satışta.`,
     slug,
     price: Number(product.price),
   })
@@ -133,14 +146,16 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
   const category = product.category as { id: string; name: string; slug: string } | null
   const images = (product.images ?? []) as Array<{ url: string; altText?: string | null }>
   // Variant prices arrive as the effective price the cart charges (catalog.service).
-  const variants = ((product.variants ?? []) as Array<{
-    id: string
-    name: string
-    price: { toNumber(): number } | number | null
-    compareAtPrice?: { toNumber(): number } | number | null
-    stockQuantity: number
-    options: unknown
-  }>).map((variant) => ({
+  const variants = (
+    (product.variants ?? []) as Array<{
+      id: string
+      name: string
+      price: { toNumber(): number } | number | null
+      compareAtPrice?: { toNumber(): number } | number | null
+      stockQuantity: number
+      options: unknown
+    }>
+  ).map((variant) => ({
     id: variant.id,
     name: variant.name,
     price:
@@ -177,19 +192,73 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
   const productAttributeValues = product.attributeValues as
     | Array<{ sortOrder?: number; option?: { type?: string; label?: string } }>
     | undefined
-  const colorValue = formatProductColors(getProductColorLabels(productAttributeValues))
-  const materialValue = getProductMaterialLabel(productAttributeValues)
-  const dimensionText = formatProductDimensions({
-    widthCm: product.dimensionWidth != null ? Number(product.dimensionWidth) : null,
-    lengthCm: product.dimensionLength != null ? Number(product.dimensionLength) : null,
-    heightCm: product.dimensionHeight != null ? Number(product.dimensionHeight) : null,
-  })
-  const visualSiblings = product.modelCode?.trim() && category?.id
-    ? await getVisualSiblings({ sellerId: product.sellerId, categoryId: category.id, modelCode: product.modelCode.trim() })
+  const schema = product.categoryId
+    ? await resolveCategorySchema(createPrismaForRoute(), product.categoryId)
+    : null
+  const properties = product.properties as ProductProperties
+  const structuredVariants = product.variants.map((v) => ({
+    properties: v.properties as ProductProperties,
+  }))
+  const characteristicRows = schema
+    ? buildStructuredCharacteristics(schema, properties, structuredVariants)
     : []
-  const hasVisualSiblingColor = visualSiblings.some((sibling) => Boolean(getAttributeLabel(sibling.attributeValues, 'color')))
-  const hasVisualSiblingMaterial = visualSiblings.some((sibling) => Boolean(getAttributeLabel(sibling.attributeValues, 'material')))
-  const visualSiblingTitle = hasVisualSiblingColor && hasVisualSiblingMaterial ? 'Renk / Materyal' : hasVisualSiblingColor ? 'Renk' : hasVisualSiblingMaterial ? 'Materyal' : 'Seçenekler'
+  const variantKeys =
+    schema?.config.variantKey === 'net_icerik'
+      ? schema.config.contentKeys
+      : schema?.config.variantKey
+        ? [schema.config.variantKey]
+        : []
+  const variantCharacteristics = schema
+    ? Object.fromEntries(
+        product.variants.map((v) => [
+          v.id,
+          buildStructuredCharacteristics(
+            schema,
+            properties,
+            structuredVariants,
+            v.properties as ProductProperties,
+          ).filter((row) => variantKeys.includes(row.key)),
+        ]),
+      )
+    : {}
+  const colorValue =
+    schema?.config.shared.color === false
+      ? null
+      : formatProductColors(getProductColorLabels(productAttributeValues))
+  const materialValue =
+    schema?.config.shared.material === false
+      ? null
+      : getProductMaterialLabel(productAttributeValues)
+  const dimensionText =
+    schema?.config.shared.dimensions === false
+      ? null
+      : formatProductDimensions({
+          widthCm: product.dimensionWidth != null ? Number(product.dimensionWidth) : null,
+          lengthCm: product.dimensionLength != null ? Number(product.dimensionLength) : null,
+          heightCm: product.dimensionHeight != null ? Number(product.dimensionHeight) : null,
+        })
+  const visualSiblings =
+    product.modelCode?.trim() && category?.id
+      ? await getVisualSiblings({
+          sellerId: product.sellerId,
+          categoryId: category.id,
+          modelCode: product.modelCode.trim(),
+        })
+      : []
+  const hasVisualSiblingColor = visualSiblings.some((sibling) =>
+    Boolean(getAttributeLabel(sibling.attributeValues, 'color')),
+  )
+  const hasVisualSiblingMaterial = visualSiblings.some((sibling) =>
+    Boolean(getAttributeLabel(sibling.attributeValues, 'material')),
+  )
+  const visualSiblingTitle =
+    hasVisualSiblingColor && hasVisualSiblingMaterial
+      ? 'Renk / Materyal'
+      : hasVisualSiblingColor
+        ? 'Renk'
+        : hasVisualSiblingMaterial
+          ? 'Materyal'
+          : 'Seçenekler'
   const story = product.story?.trim()
   const careInstructions = product.careInstructions?.trim()
   const hasSpecs = Boolean(category) || typeof product.stockQuantity === 'number'
@@ -207,9 +276,7 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
     price,
     availability: (product.stockQuantity ?? 0) > 0 ? 'InStock' : 'OutOfStock',
     sku: product.id,
-    ...(reviewCount > 0
-      ? { aggregateRating: { ratingValue: avgRating, reviewCount } }
-      : {}),
+    ...(reviewCount > 0 ? { aggregateRating: { ratingValue: avgRating, reviewCount } } : {}),
   })
 
   const breadcrumbJsonLd = buildBreadcrumbStructuredData([
@@ -239,7 +306,10 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
         <div className="flex flex-col gap-6">
           <div>
             {seller?.slug && (
-              <div className="flex flex-wrap items-center gap-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+              <div
+                className="flex flex-wrap items-center gap-3 text-sm"
+                style={{ color: 'var(--color-muted-fg)' }}
+              >
                 <p>
                   <Link
                     href={`/magaza/${seller.slug}`}
@@ -259,15 +329,22 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
               {product.name}
             </h1>
             {reviewCount > 0 && (
-              <div className="mt-2 flex items-center gap-2 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+              <div
+                className="mt-2 flex items-center gap-2 text-sm"
+                style={{ color: 'var(--color-muted-fg)' }}
+              >
                 <ReviewStars value={avgRating} size={16} />
                 <span>
-                  {avgRating.toFixed(1)} <span className="text-xs">({reviewCount} değerlendirme)</span>
+                  {avgRating.toFixed(1)}{' '}
+                  <span className="text-xs">({reviewCount} değerlendirme)</span>
                 </span>
               </div>
             )}
             {product.shortDescription && (
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>
+              <p
+                className="mt-3 max-w-2xl text-sm leading-relaxed"
+                style={{ color: 'var(--color-muted-fg)' }}
+              >
                 {product.shortDescription}
               </p>
             )}
@@ -288,9 +365,20 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
                 )}
               </div>
               {(colorValue || materialValue) && (
-                <div className="mt-2 flex flex-wrap gap-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                  {colorValue ? <span><strong>Renk:</strong> {colorValue}</span> : null}
-                  {materialValue ? <span><strong>Materyal:</strong> {materialValue}</span> : null}
+                <div
+                  className="mt-2 flex flex-wrap gap-3 text-sm"
+                  style={{ color: 'var(--color-muted-fg)' }}
+                >
+                  {colorValue ? (
+                    <span>
+                      <strong>Renk:</strong> {colorValue}
+                    </span>
+                  ) : null}
+                  {materialValue ? (
+                    <span>
+                      <strong>Materyal:</strong> {materialValue}
+                    </span>
+                  ) : null}
                 </div>
               )}
               {dimensionText ? (
@@ -301,16 +389,23 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
 
               <Separator />
 
-              <div className="flex items-center gap-4 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+              <div
+                className="flex items-center gap-4 text-sm"
+                style={{ color: 'var(--color-muted-fg)' }}
+              >
                 <span className="flex items-center gap-1">
                   <span
                     className="inline-block h-2 w-2 rounded-full"
                     style={{
                       backgroundColor:
-                        (product.stockQuantity ?? 0) > 0 ? 'var(--color-success)' : 'var(--color-destructive)',
+                        (product.stockQuantity ?? 0) > 0
+                          ? 'var(--color-success)'
+                          : 'var(--color-destructive)',
                     }}
                   />
-                  {(product.stockQuantity ?? 0) > 0 ? `Stokta (${product.stockQuantity} adet)` : 'Stokta yok'}
+                  {(product.stockQuantity ?? 0) > 0
+                    ? `Stokta (${product.stockQuantity} adet)`
+                    : 'Stokta yok'}
                 </span>
                 {fulfillmentText ? <span>{fulfillmentText}</span> : null}
               </div>
@@ -323,17 +418,47 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
             productName={product.name}
             basePrice={price}
             compareAtPrice={compareAtPrice}
-            fulfillmentDays={typeof product.fulfillmentDays === 'number' ? product.fulfillmentDays : null}
+            fulfillmentDays={
+              typeof product.fulfillmentDays === 'number' ? product.fulfillmentDays : null
+            }
             stock={product.stockQuantity}
             dimensionText={dimensionText}
             variants={variants}
+            variantCharacteristics={variantCharacteristics}
             initialVariantId={
-              typeof requestedVariant === 'string' && variants.some((variant) => variant.id === requestedVariant)
+              typeof requestedVariant === 'string' &&
+              variants.some((variant) => variant.id === requestedVariant)
                 ? requestedVariant
                 : null
             }
           />
 
+          {characteristicRows.length || colorValue || materialValue || dimensionText ? (
+            <section
+              className="space-y-3 border-t pt-5"
+              style={{ borderColor: 'var(--color-border)' }}
+              aria-label="Ürün Özellikleri"
+            >
+              <h2 className="text-base font-semibold">Ürün Özellikleri</h2>
+              <dl className="space-y-2 text-sm">
+                {[
+                  ...(colorValue ? [{ key: 'color', label: 'Renk', value: colorValue }] : []),
+                  ...(materialValue
+                    ? [{ key: 'material', label: 'Materyal', value: materialValue }]
+                    : []),
+                  ...(dimensionText
+                    ? [{ key: 'dimensions', label: 'Ölçüler', value: dimensionText }]
+                    : []),
+                  ...characteristicRows,
+                ].map((row) => (
+                  <div key={row.key} className="grid grid-cols-[minmax(120px,1fr)_2fr] gap-3">
+                    <dt style={{ color: 'var(--color-muted-fg)' }}>{row.label}</dt>
+                    <dd>{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ) : null}
           {visualSiblings.length > 1 ? (
             <div className="space-y-2">
               <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
@@ -360,7 +485,10 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
                       {color?.hexColor ? (
                         <span
                           className="inline-block h-3 w-3 rounded-full border"
-                          style={{ backgroundColor: color.hexColor, borderColor: 'var(--color-border)' }}
+                          style={{
+                            backgroundColor: color.hexColor,
+                            borderColor: 'var(--color-border)',
+                          }}
                         />
                       ) : null}
                       {label}
@@ -376,19 +504,31 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
             className="grid grid-cols-2 gap-3 rounded-xl p-4 text-center text-xs md:grid-cols-4"
             style={{ backgroundColor: 'var(--color-muted)' }}
           >
-            <div className="flex flex-col items-center gap-1" style={{ color: 'var(--color-muted-fg)' }}>
+            <div
+              className="flex flex-col items-center gap-1"
+              style={{ color: 'var(--color-muted-fg)' }}
+            >
               <RotateCcw className="h-5 w-5" />
               <span>14 Gün İade</span>
             </div>
-            <div className="flex flex-col items-center gap-1" style={{ color: 'var(--color-muted-fg)' }}>
+            <div
+              className="flex flex-col items-center gap-1"
+              style={{ color: 'var(--color-muted-fg)' }}
+            >
               <Shield className="h-5 w-5" />
               <span>Güvenli Ödeme</span>
             </div>
-            <div className="flex flex-col items-center gap-1" style={{ color: 'var(--color-muted-fg)' }}>
+            <div
+              className="flex flex-col items-center gap-1"
+              style={{ color: 'var(--color-muted-fg)' }}
+            >
               <BadgePercent className="h-5 w-5" />
               <span>En İyi Fiyat Garantisi</span>
             </div>
-            <div className="flex flex-col items-center gap-1" style={{ color: 'var(--color-muted-fg)' }}>
+            <div
+              className="flex flex-col items-center gap-1"
+              style={{ color: 'var(--color-muted-fg)' }}
+            >
               <Truck className="h-5 w-5" />
               <span>Ücretsiz Kargo</span>
             </div>
@@ -433,12 +573,16 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
                 {category && (
                   <div className="flex justify-between py-3 text-sm">
                     <dt style={{ color: 'var(--color-muted-fg)' }}>Kategori</dt>
-                    <dd className="font-medium" style={{ color: 'var(--color-primary)' }}>{category.name}</dd>
+                    <dd className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                      {category.name}
+                    </dd>
                   </div>
                 )}
                 <div className="flex justify-between py-3 text-sm">
                   <dt style={{ color: 'var(--color-muted-fg)' }}>Stok</dt>
-                  <dd className="font-medium" style={{ color: 'var(--color-primary)' }}>{product.stockQuantity ?? 0} adet</dd>
+                  <dd className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                    {product.stockQuantity ?? 0} adet
+                  </dd>
                 </div>
               </dl>
             </TabsContent>
@@ -448,7 +592,10 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
             <div className="space-y-10">
               <ReviewList reviews={reviews} total={reviewTotal} />
               <div>
-                <h3 className="text-base font-semibold mb-3" style={{ color: 'var(--color-primary)' }}>
+                <h3
+                  className="text-base font-semibold mb-3"
+                  style={{ color: 'var(--color-primary)' }}
+                >
                   Değerlendirme yaz
                 </h3>
                 <ReviewForm productSlug={slug} />

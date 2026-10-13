@@ -13,7 +13,9 @@ import {
  * (farklı sevk süreleri, renk/malzeme/ölçü/SKU/barkod). Tutarlar checkout
  * formülüyle tutarlıdır: gross − kupon − eft + kargo = toplam.
  */
-function buildSampleOrderContext(overrides: Partial<LegalContractContext> = {}): LegalContractContext {
+function buildSampleOrderContext(
+  overrides: Partial<LegalContractContext> = {},
+): LegalContractContext {
   const base = buildPublicLegalDocumentContext()
   return {
     ...base,
@@ -90,8 +92,8 @@ describe('legal documents', () => {
     expect(bundle.preInformationHtml).toContain(
       `<strong>Belge Sürümü:</strong> ${PRE_INFORMATION_DOCUMENT_VERSION}`,
     )
-    expect(bundle.distanceSalesVersion).toBe('distance-sales-2026-10-12-v5')
-    expect(bundle.preInformationVersion).toBe('pre-information-2026-10-12-v5')
+    expect(bundle.distanceSalesVersion).toBe('distance-sales-2026-10-13-v6')
+    expect(bundle.preInformationVersion).toBe('pre-information-2026-10-13-v6')
     expect(bundle.distanceSalesVersion).not.toBe('distance-sales-2026-09-03-v3')
     expect(bundle.preInformationVersion).not.toBe('pre-information-2026-09-03-v3')
   })
@@ -218,9 +220,7 @@ describe('legal documents — essential characteristics snapshot', () => {
   it('describes the snapshot intent in the pre-information product section', () => {
     const bundle = renderLegalDocuments(buildSampleOrderContext())
 
-    expect(bundle.preInformationHtml).toContain(
-      'Seçtiğiniz ürünlerin adı ve temel özellikleri',
-    )
+    expect(bundle.preInformationHtml).toContain('Seçtiğiniz ürünlerin adı ve temel özellikleri')
   })
 })
 
@@ -243,7 +243,9 @@ describe('legal documents — fulfillment commitment', () => {
     const bundle = renderLegalDocuments(buildSampleOrderContext())
 
     for (const html of [bundle.distanceSalesHtml, bundle.preInformationHtml]) {
-      expect(html).toContain('mal satışlarında teslimat süresi her hâlükârda mevzuattaki azami süre olan')
+      expect(html).toContain(
+        'mal satışlarında teslimat süresi her hâlükârda mevzuattaki azami süre olan',
+      )
       expect(html).toContain('30 günü geçemez')
       expect(html).toContain('Taahhüt Edilen Sevk Süresi')
       expect(html).not.toContain('en geç 30 gün içinde tamamlanır')
@@ -253,7 +255,9 @@ describe('legal documents — fulfillment commitment', () => {
   it('falls back to a product-page reference on the public sample documents', () => {
     const bundle = renderLegalDocuments(buildPublicLegalDocumentContext())
 
-    expect(bundle.distanceSalesHtml).toContain('<span>ürün sayfasında belirtilen sevk süresi</span>')
+    expect(bundle.distanceSalesHtml).toContain(
+      '<span>ürün sayfasında belirtilen sevk süresi</span>',
+    )
     expect(bundle.distanceSalesHtml).toContain('<td>-</td>')
   })
 })

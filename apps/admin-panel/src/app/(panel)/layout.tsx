@@ -37,56 +37,157 @@ export const metadata: Metadata = {
 const NAV_SECTIONS: NavSection[] = [
   {
     items: [
-      { label: 'Kontrol Paneli', href: '/dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+      {
+        label: 'Kontrol Paneli',
+        href: '/dashboard',
+        icon: <LayoutDashboard className="h-4 w-4" />,
+      },
     ],
   },
   {
     title: 'Pazar Yeri',
     items: [
-      { label: 'Tasarımcılar', href: '/saticilar', icon: <Store className="h-4 w-4" /> },
-      { label: 'Siparişler', href: '/siparisler', icon: <ShoppingBag className="h-4 w-4" /> },
-      { label: 'Teslim Onayı', href: '/teslim-onayi', icon: <Package className="h-4 w-4" /> },
-      { label: 'Ürün Moderasyon', href: '/urunler', icon: <Package className="h-4 w-4" /> },
+      {
+        label: 'Tasarımcılar',
+        href: '/saticilar',
+        icon: <Store className="h-4 w-4" />,
+      },
+      {
+        label: 'Siparişler',
+        href: '/siparisler',
+        icon: <ShoppingBag className="h-4 w-4" />,
+      },
+      {
+        label: 'Teslim Onayı',
+        href: '/teslim-onayi',
+        icon: <Package className="h-4 w-4" />,
+      },
+      {
+        label: 'Ürün Moderasyon',
+        href: '/urunler',
+        icon: <Package className="h-4 w-4" />,
+      },
+      {
+        label: 'Kategori ve Özellikler',
+        href: '/kategoriler',
+        icon: <LayoutTemplate className="h-4 w-4" />,
+      },
     ],
   },
   {
     title: 'Finans',
     items: [
-      { label: 'Ödemeler', href: '/odemeler', icon: <CreditCard className="h-4 w-4" /> },
-      { label: 'Hakedişler', href: '/hakedisler', icon: <Wallet className="h-4 w-4" /> },
-      { label: 'Banka Değişiklikleri', href: '/saticilar/banka-degisiklikleri', icon: <Landmark className="h-4 w-4" /> },
-      { label: 'Cezalar ve Ek Faturalar', href: '/cezalar', icon: <AlertOctagon className="h-4 w-4" /> },
-      { label: 'Komisyonlar', href: '/komisyonlar', icon: <Receipt className="h-4 w-4" /> },
-      { label: 'Finans Özeti', href: '/finans', icon: <ScrollText className="h-4 w-4" /> },
+      {
+        label: 'Ödemeler',
+        href: '/odemeler',
+        icon: <CreditCard className="h-4 w-4" />,
+      },
+      {
+        label: 'Hakedişler',
+        href: '/hakedisler',
+        icon: <Wallet className="h-4 w-4" />,
+      },
+      {
+        label: 'Banka Değişiklikleri',
+        href: '/saticilar/banka-degisiklikleri',
+        icon: <Landmark className="h-4 w-4" />,
+      },
+      {
+        label: 'Cezalar ve Ek Faturalar',
+        href: '/cezalar',
+        icon: <AlertOctagon className="h-4 w-4" />,
+      },
+      {
+        label: 'Komisyonlar',
+        href: '/komisyonlar',
+        icon: <Receipt className="h-4 w-4" />,
+      },
+      {
+        label: 'Finans Özeti',
+        href: '/finans',
+        icon: <ScrollText className="h-4 w-4" />,
+      },
     ],
   },
   {
     title: 'Operasyon',
     items: [
-      { label: 'İadeler', href: '/iadeler', icon: <RotateCcw className="h-4 w-4" /> },
-      { label: 'Duyuru', href: '/duyurular', icon: <Megaphone className="h-4 w-4" /> },
-      { label: 'Müşteri Kampanyaları', href: '/musteri-kampanyalari', icon: <Megaphone className="h-4 w-4" /> },
-      { label: 'Ek Süre Talepleri', href: '/uzatma-talepleri', icon: <Clock className="h-4 w-4" /> },
-      { label: 'Uyuşmazlıklar', href: '/uyusmazliklar', icon: <MessageCircleWarning className="h-4 w-4" /> },
-      { label: 'Yorumlar', href: '/yorumlar', icon: <MessageSquare className="h-4 w-4" /> },
-      { label: 'Müşteri Destek', href: '/musteri-destek', icon: <LifeBuoy className="h-4 w-4" /> },
-      { label: 'Müşteri Soruları', href: '/musteri-sorulari', icon: <MessageCircleQuestion className="h-4 w-4" /> },
-      { label: 'Destek Talepleri', href: '/destek', icon: <MessageSquare className="h-4 w-4" /> },
-      { label: 'Denetim Günlüğü', href: '/denetim', icon: <Shield className="h-4 w-4" /> },
+      {
+        label: 'İadeler',
+        href: '/iadeler',
+        icon: <RotateCcw className="h-4 w-4" />,
+      },
+      {
+        label: 'Duyuru',
+        href: '/duyurular',
+        icon: <Megaphone className="h-4 w-4" />,
+      },
+      {
+        label: 'Müşteri Kampanyaları',
+        href: '/musteri-kampanyalari',
+        icon: <Megaphone className="h-4 w-4" />,
+      },
+      {
+        label: 'Ek Süre Talepleri',
+        href: '/uzatma-talepleri',
+        icon: <Clock className="h-4 w-4" />,
+      },
+      {
+        label: 'Uyuşmazlıklar',
+        href: '/uyusmazliklar',
+        icon: <MessageCircleWarning className="h-4 w-4" />,
+      },
+      {
+        label: 'Yorumlar',
+        href: '/yorumlar',
+        icon: <MessageSquare className="h-4 w-4" />,
+      },
+      {
+        label: 'Müşteri Destek',
+        href: '/musteri-destek',
+        icon: <LifeBuoy className="h-4 w-4" />,
+      },
+      {
+        label: 'Müşteri Soruları',
+        href: '/musteri-sorulari',
+        icon: <MessageCircleQuestion className="h-4 w-4" />,
+      },
+      {
+        label: 'Destek Talepleri',
+        href: '/destek',
+        icon: <MessageSquare className="h-4 w-4" />,
+      },
+      {
+        label: 'Denetim Günlüğü',
+        href: '/denetim',
+        icon: <Shield className="h-4 w-4" />,
+      },
     ],
   },
   {
     title: 'İçerik',
     items: [
-      { label: 'Ana Sayfa', href: '/anasayfa', icon: <LayoutTemplate className="h-4 w-4" /> },
+      {
+        label: 'Ana Sayfa',
+        href: '/anasayfa',
+        icon: <LayoutTemplate className="h-4 w-4" />,
+      },
       { label: 'Medya', href: '/medya', icon: <Image className="h-4 w-4" /> },
     ],
   },
   {
     title: 'Sistem',
     items: [
-      { label: 'Ayarlar', href: '/ayarlar', icon: <Settings className="h-4 w-4" /> },
-      { label: 'E-posta Gönderimleri', href: '/e-posta', icon: <MessageSquare className="h-4 w-4" /> },
+      {
+        label: 'Ayarlar',
+        href: '/ayarlar',
+        icon: <Settings className="h-4 w-4" />,
+      },
+      {
+        label: 'E-posta Gönderimleri',
+        href: '/e-posta',
+        icon: <MessageSquare className="h-4 w-4" />,
+      },
     ],
   },
 ]
@@ -101,14 +202,23 @@ export default async function AdminPanelLayout({ children }: { children: React.R
       {/* Sidebar */}
       <aside
         className="hidden w-60 shrink-0 border-r md:flex md:flex-col"
-        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)',
+        }}
       >
         <div
           className="flex h-14 items-center gap-2 border-b px-4"
           style={{ borderColor: 'var(--color-border)' }}
         >
           <Shield className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
-          <span className="font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}>
+          <span
+            className="font-semibold"
+            style={{
+              fontFamily: 'var(--font-display)',
+              color: 'var(--color-primary)',
+            }}
+          >
             Hanuja
           </span>
           <span
@@ -127,11 +237,20 @@ export default async function AdminPanelLayout({ children }: { children: React.R
       <div className="flex flex-1 flex-col overflow-hidden">
         <header
           className="flex h-14 items-center justify-between border-b px-4 sm:px-6"
-          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+          }}
         >
           <div className="flex items-center gap-3 md:hidden">
             <MobileNav sections={NAV_SECTIONS} />
-            <span className="font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}>
+            <span
+              className="font-semibold"
+              style={{
+                fontFamily: 'var(--font-display)',
+                color: 'var(--color-primary)',
+              }}
+            >
               Hanuja Admin
             </span>
           </div>
@@ -140,9 +259,7 @@ export default async function AdminPanelLayout({ children }: { children: React.R
             <UserMenu displayName={displayName} initial={initial} />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>
   )

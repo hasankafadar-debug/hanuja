@@ -40,14 +40,62 @@ const FEATURED_CATEGORIES: Array<{
   Icon: typeof House
   visibilitySlugs: readonly string[]
 }> = [
-  { label: 'Ev', description: 'Eviniz için her şey', href: '/kategori/ev', Icon: House, visibilitySlugs: ['ev'] },
-  { label: 'Ofis', description: 'Üretken çalışma alanları', href: '/kategori/ofis', Icon: BriefcaseBusiness, visibilitySlugs: ['ofis'] },
-  { label: 'Mobilya', description: 'Masif ahşaptan modern tasarımlara', href: '/kategori/mobilya', Icon: Sofa, visibilitySlugs: VIRTUAL_COLLECTION_MAP.mobilya },
-  { label: 'Mutfak & Sofra', description: 'Sofranıza zarafet katın', href: '/kategori/ev-mutfak', Icon: UtensilsCrossed, visibilitySlugs: ['ev-mutfak'] },
-  { label: 'Aydınlatma', description: 'Doğru ışık, doğru atmosfer', href: '/kategori/aydinlatma', Icon: Lamp, visibilitySlugs: VIRTUAL_COLLECTION_MAP.aydinlatma },
-  { label: 'Dekorasyon', description: 'Mekanınıza ruh katan objeler', href: '/kategori/ev-dekorasyon', Icon: Flower2, visibilitySlugs: ['ev-dekorasyon'] },
-  { label: 'Aksesuar', description: 'Tamamlayıcı dokunuşlar', href: '/kategori/aksesuar', Icon: Package, visibilitySlugs: VIRTUAL_COLLECTION_MAP.aksesuar },
-  { label: 'Tekstil', description: 'Sıcaklık ve konfor', href: '/kategori/ev-tekstil', Icon: Layers, visibilitySlugs: ['ev-tekstil'] },
+  {
+    label: 'Ev',
+    description: 'Eviniz için her şey',
+    href: '/kategori/ev',
+    Icon: House,
+    visibilitySlugs: ['ev'],
+  },
+  {
+    label: 'Ofis',
+    description: 'Üretken çalışma alanları',
+    href: '/kategori/ofis',
+    Icon: BriefcaseBusiness,
+    visibilitySlugs: ['ofis'],
+  },
+  {
+    label: 'Mobilya',
+    description: 'Masif ahşaptan modern tasarımlara',
+    href: '/kategori/mobilya',
+    Icon: Sofa,
+    visibilitySlugs: VIRTUAL_COLLECTION_MAP.mobilya,
+  },
+  {
+    label: 'Mutfak & Sofra',
+    description: 'Sofranıza zarafet katın',
+    href: '/kategori/ev-mutfak',
+    Icon: UtensilsCrossed,
+    visibilitySlugs: ['ev-mutfak'],
+  },
+  {
+    label: 'Aydınlatma',
+    description: 'Doğru ışık, doğru atmosfer',
+    href: '/kategori/aydinlatma',
+    Icon: Lamp,
+    visibilitySlugs: VIRTUAL_COLLECTION_MAP.aydinlatma,
+  },
+  {
+    label: 'Dekorasyon',
+    description: 'Mekanınıza ruh katan objeler',
+    href: '/kategori/ev-dekorasyon',
+    Icon: Flower2,
+    visibilitySlugs: ['ev-dekorasyon'],
+  },
+  {
+    label: 'Ev Aksesuarları',
+    description: 'Tamamlayıcı dokunuşlar',
+    href: '/kategori/aksesuar',
+    Icon: Package,
+    visibilitySlugs: VIRTUAL_COLLECTION_MAP.aksesuar,
+  },
+  {
+    label: 'Tekstil',
+    description: 'Sıcaklık ve konfor',
+    href: '/kategori/ev-tekstil',
+    Icon: Layers,
+    visibilitySlugs: ['ev-tekstil'],
+  },
 ]
 
 // Rendered when the showcase data could not be loaded at all (DB outage on a cold
@@ -121,7 +169,10 @@ export default async function HomePage() {
                   ctaHref={resolvedTopPromo.ctaHref}
                 />
               ) : (
-                <div className="flex-1 rounded-xl" style={{ backgroundColor: 'var(--color-muted)' }} />
+                <div
+                  className="flex-1 rounded-xl"
+                  style={{ backgroundColor: 'var(--color-muted)' }}
+                />
               )}
               {resolvedBottomPromo ? (
                 <PromoCard
@@ -133,7 +184,10 @@ export default async function HomePage() {
                   ctaHref={resolvedBottomPromo.ctaHref}
                 />
               ) : (
-                <div className="flex-1 rounded-xl" style={{ backgroundColor: 'var(--color-muted)' }} />
+                <div
+                  className="flex-1 rounded-xl"
+                  style={{ backgroundColor: 'var(--color-muted)' }}
+                />
               )}
             </div>
           )}
@@ -144,7 +198,10 @@ export default async function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="mb-10 flex items-end justify-between">
           <div>
-            <h2 className="text-3xl font-medium" style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}>
+            <h2
+              className="text-3xl font-medium"
+              style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}
+            >
               Kategoriler
             </h2>
             <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
@@ -167,7 +224,10 @@ export default async function HomePage() {
               key={cat.href}
               href={cat.href}
               className="group flex flex-col items-center gap-3 rounded-xl border p-6 text-center transition-shadow hover:shadow-md"
-              style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+              }}
             >
               <div
                 className="flex h-12 w-12 items-center justify-center rounded-full transition-colors group-hover:bg-[var(--color-accent)]"
@@ -179,8 +239,15 @@ export default async function HomePage() {
                 />
               </div>
               <div>
-                <p className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>{cat.label}</p>
-                <p className="mt-0.5 text-xs leading-snug" style={{ color: 'var(--color-muted-fg)' }}>{cat.description}</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                  {cat.label}
+                </p>
+                <p
+                  className="mt-0.5 text-xs leading-snug"
+                  style={{ color: 'var(--color-muted-fg)' }}
+                >
+                  {cat.description}
+                </p>
               </div>
             </Link>
           ))}
@@ -240,7 +307,11 @@ export default async function HomePage() {
               <div>
                 <h2
                   className="text-3xl font-medium"
-                  style={{ fontFamily: 'var(--font-display)', color: '#3d3529', marginLeft: '-1px' }}
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    color: '#3d3529',
+                    marginLeft: '-1px',
+                  }}
                 >
                   Haftanın Favorileri
                 </h2>
@@ -271,7 +342,11 @@ export default async function HomePage() {
               <div>
                 <h2
                   className="text-3xl font-medium"
-                  style={{ fontFamily: 'var(--font-display)', color: '#3d3529', marginLeft: '-1px' }}
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    color: '#3d3529',
+                    marginLeft: '-1px',
+                  }}
                 >
                   Özel Kampanyalı Ürünler
                 </h2>
@@ -313,9 +388,12 @@ export default async function HomePage() {
             >
               Evi Sıfırdan mı Döşüyorsunuz?
             </h2>
-            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
-              Uzman içeriklerimiz ve ilham veren rehberlerimizle doğru ürünleri daha kolay bulun. Mobilyadan
-              aydınlatmaya her şey için fikirler blog&apos;da sizi bekliyor.
+            <p
+              className="mx-auto mt-4 max-w-xl text-base leading-relaxed"
+              style={{ color: 'rgba(255,255,255,0.7)' }}
+            >
+              Uzman içeriklerimiz ve ilham veren rehberlerimizle doğru ürünleri daha kolay bulun.
+              Mobilyadan aydınlatmaya her şey için fikirler blog&apos;da sizi bekliyor.
             </p>
             <Link
               href="/blog"

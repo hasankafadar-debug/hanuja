@@ -1,0 +1,7687 @@
+{
+  "fields": [
+    {
+      "key": "hacim_ml",
+      "label": "Hacim",
+      "kind": "number",
+      "canonicalUnit": "ml",
+      "config": {
+        "measurement": "Hacim",
+        "inputUnits": "ml, L (×1000)",
+        "integer": false
+      }
+    },
+    {
+      "key": "net_agirlik_g",
+      "label": "Net Ağırlık",
+      "kind": "number",
+      "canonicalUnit": "g",
+      "config": {
+        "measurement": "Ağırlık",
+        "inputUnits": "g, kg (×1000)",
+        "integer": false
+      }
+    },
+    {
+      "key": "paket_adedi",
+      "label": "Paket Adedi",
+      "kind": "number",
+      "canonicalUnit": "adet",
+      "config": {
+        "measurement": "Sayı",
+        "inputUnits": "adet",
+        "integer": true
+      }
+    },
+    {
+      "key": "parca_sayisi",
+      "label": "Parça Sayısı",
+      "kind": "number",
+      "canonicalUnit": "adet",
+      "config": {
+        "measurement": "Sayı",
+        "inputUnits": "adet",
+        "integer": true
+      }
+    },
+    {
+      "key": "kisi_sayisi",
+      "label": "Kişi Sayısı",
+      "kind": "number",
+      "canonicalUnit": "kişi",
+      "config": {
+        "measurement": "Sayı",
+        "inputUnits": "kişi",
+        "integer": true
+      }
+    },
+    {
+      "key": "kart_bolmesi",
+      "label": "Kart Bölmesi",
+      "kind": "number",
+      "canonicalUnit": "adet",
+      "config": {
+        "measurement": "Sayı",
+        "inputUnits": "adet",
+        "integer": true
+      }
+    },
+    {
+      "key": "vites_sayisi",
+      "label": "Vites Sayısı",
+      "kind": "number",
+      "canonicalUnit": "adet",
+      "config": {
+        "measurement": "Sayı",
+        "inputUnits": "adet",
+        "integer": true
+      }
+    },
+    {
+      "key": "uzunluk_cm",
+      "label": "Uzunluk",
+      "kind": "number",
+      "canonicalUnit": "cm",
+      "config": {
+        "measurement": "Uzunluk",
+        "inputUnits": "cm, mm (÷10)",
+        "integer": false
+      }
+    },
+    {
+      "key": "genislik_cm",
+      "label": "Kemer Genişliği",
+      "kind": "number",
+      "canonicalUnit": "cm",
+      "config": {
+        "measurement": "Uzunluk",
+        "inputUnits": "cm, mm (÷10)",
+        "integer": false
+      }
+    },
+    {
+      "key": "topuk_yuksekligi_cm",
+      "label": "Topuk Yüksekliği",
+      "kind": "number",
+      "canonicalUnit": "cm",
+      "config": {
+        "measurement": "Uzunluk",
+        "inputUnits": "cm, mm (÷10)",
+        "integer": false
+      }
+    },
+    {
+      "key": "kasa_capi_mm",
+      "label": "Kasa Çapı",
+      "kind": "number",
+      "canonicalUnit": "mm",
+      "config": {
+        "measurement": "Uzunluk",
+        "inputUnits": "mm",
+        "integer": false
+      }
+    },
+    {
+      "key": "ekran_boyutu_inc",
+      "label": "Ekran Boyutu",
+      "kind": "number",
+      "canonicalUnit": "inç",
+      "config": {
+        "measurement": "Uzunluk",
+        "inputUnits": "inç",
+        "integer": false
+      }
+    },
+    {
+      "key": "laptop_bolmesi_inc",
+      "label": "Laptop Bölmesi",
+      "kind": "number",
+      "canonicalUnit": "inç",
+      "config": {
+        "measurement": "Uzunluk",
+        "inputUnits": "inç",
+        "integer": false
+      }
+    },
+    {
+      "key": "teker_boyutu_inc",
+      "label": "Teker Boyutu",
+      "kind": "number",
+      "canonicalUnit": "inç",
+      "config": {
+        "measurement": "Uzunluk",
+        "inputUnits": "inç",
+        "integer": false
+      }
+    },
+    {
+      "key": "menzil_km",
+      "label": "Menzil",
+      "kind": "number",
+      "canonicalUnit": "km",
+      "config": {
+        "measurement": "Uzunluk",
+        "inputUnits": "km",
+        "integer": false
+      }
+    },
+    {
+      "key": "ram_gb",
+      "label": "RAM",
+      "kind": "number",
+      "canonicalUnit": "GB",
+      "config": {
+        "measurement": "Bellek",
+        "inputUnits": "GB, TB (×1000)",
+        "integer": false
+      }
+    },
+    {
+      "key": "depolama_gb",
+      "label": "Depolama",
+      "kind": "number",
+      "canonicalUnit": "GB",
+      "config": {
+        "measurement": "Bellek",
+        "inputUnits": "GB, TB (×1000)",
+        "integer": false
+      }
+    },
+    {
+      "key": "pil_kapasitesi_mah",
+      "label": "Pil Kapasitesi",
+      "kind": "number",
+      "canonicalUnit": "mAh",
+      "config": {
+        "measurement": "Elektrik yükü",
+        "inputUnits": "mAh",
+        "integer": false
+      }
+    },
+    {
+      "key": "guc_w",
+      "label": "Güç",
+      "kind": "number",
+      "canonicalUnit": "W",
+      "config": {
+        "measurement": "Güç",
+        "inputUnits": "W, kW (×1000)",
+        "integer": false
+      }
+    },
+    {
+      "key": "yenileme_hizi_hz",
+      "label": "Yenileme Hızı",
+      "kind": "number",
+      "canonicalUnit": "Hz",
+      "config": {
+        "measurement": "Frekans",
+        "inputUnits": "Hz",
+        "integer": false
+      }
+    },
+    {
+      "key": "pil_omru_saat",
+      "label": "Pil Ömrü",
+      "kind": "number",
+      "canonicalUnit": "saat",
+      "config": {
+        "measurement": "Süre",
+        "inputUnits": "saat, gün (×24)",
+        "integer": false
+      }
+    },
+    {
+      "key": "ucus_suresi_dk",
+      "label": "Uçuş Süresi",
+      "kind": "number",
+      "canonicalUnit": "dk",
+      "config": {
+        "measurement": "Süre",
+        "inputUnits": "dk",
+        "integer": false
+      }
+    },
+    {
+      "key": "garanti_ay",
+      "label": "Garanti Süresi",
+      "kind": "number",
+      "canonicalUnit": "ay",
+      "config": {
+        "measurement": "Süre",
+        "inputUnits": "ay, yıl (×12)",
+        "integer": false
+      }
+    },
+    {
+      "key": "minimum_yas_ay",
+      "label": "Minimum Yaş",
+      "kind": "number",
+      "canonicalUnit": "ay",
+      "config": {
+        "measurement": "Süre",
+        "inputUnits": "ay, yıl (×12)",
+        "integer": false
+      }
+    },
+    {
+      "key": "tasima_kapasitesi_kg",
+      "label": "Taşıma Kapasitesi",
+      "kind": "number",
+      "canonicalUnit": "kg",
+      "config": {
+        "measurement": "Ağırlık",
+        "inputUnits": "kg",
+        "integer": false
+      }
+    },
+    {
+      "key": "su_gecirmezlik_atm",
+      "label": "Su Geçirmezlik",
+      "kind": "number",
+      "canonicalUnit": "ATM",
+      "config": {
+        "measurement": "Basınç",
+        "inputUnits": "ATM",
+        "integer": false
+      }
+    },
+    {
+      "key": "konfor_sicakligi_c",
+      "label": "Konfor Sıcaklığı",
+      "kind": "number",
+      "canonicalUnit": "°C",
+      "config": {
+        "measurement": "Sıcaklık",
+        "inputUnits": "°C",
+        "integer": false
+      }
+    },
+    {
+      "key": "cozunurluk_mp",
+      "label": "Çözünürlük",
+      "kind": "number",
+      "canonicalUnit": "MP",
+      "config": {
+        "measurement": "Piksel",
+        "inputUnits": "MP",
+        "integer": false
+      }
+    },
+    {
+      "key": "spf",
+      "label": "SPF",
+      "kind": "number",
+      "canonicalUnit": "—",
+      "config": {
+        "measurement": "Endeks",
+        "inputUnits": "—",
+        "integer": false
+      }
+    },
+    {
+      "key": "cinsiyet",
+      "label": "Cinsiyet",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "kadin",
+            "label": "Kadın",
+            "isActive": true
+          },
+          {
+            "id": "erkek",
+            "label": "Erkek",
+            "isActive": true
+          },
+          {
+            "id": "unisex",
+            "label": "Unisex",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "yas_grubu",
+      "label": "Yaş Grubu",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "yetiskin",
+            "label": "Yetişkin",
+            "isActive": true
+          },
+          {
+            "id": "cocuk",
+            "label": "Çocuk",
+            "isActive": true
+          },
+          {
+            "id": "bebek",
+            "label": "Bebek",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "kullanim",
+      "label": "Kullanım",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "gunluk",
+            "label": "Günlük",
+            "isActive": true
+          },
+          {
+            "id": "spor",
+            "label": "Spor",
+            "isActive": true
+          },
+          {
+            "id": "outdoor",
+            "label": "Outdoor",
+            "isActive": true
+          },
+          {
+            "id": "kablolu",
+            "label": "Kablolu",
+            "isActive": true
+          },
+          {
+            "id": "sarjli",
+            "label": "Şarjlı",
+            "isActive": true
+          },
+          {
+            "id": "ikisi",
+            "label": "İkisi",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "sezon",
+      "label": "Sezon",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "yaz",
+            "label": "Yaz",
+            "isActive": true
+          },
+          {
+            "id": "kis",
+            "label": "Kış",
+            "isActive": true
+          },
+          {
+            "id": "4-mevsim",
+            "label": "4 Mevsim",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "buyuk_beden",
+      "label": "Büyük Beden",
+      "kind": "boolean",
+      "canonicalUnit": null,
+      "config": {}
+    },
+    {
+      "key": "tesettur",
+      "label": "Tesettür",
+      "kind": "boolean",
+      "canonicalUnit": null,
+      "config": {}
+    },
+    {
+      "key": "beden",
+      "label": "Beden",
+      "kind": "size",
+      "canonicalUnit": null,
+      "config": {
+        "subsets": {
+          "B1": ["XXS", "XS", "S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL", "6XL"],
+          "B2": ["XS/S", "S/M", "M/L", "L/XL", "XL/XXL", "XXL/3XL"],
+          "B3": ["Standart (Tek Ebat)"],
+          "B4": [
+            "32",
+            "34",
+            "36",
+            "38",
+            "40",
+            "42",
+            "44",
+            "46",
+            "48",
+            "50",
+            "52",
+            "54",
+            "56",
+            "58",
+            "60"
+          ],
+          "B5": [
+            "24",
+            "25",
+            "26",
+            "27",
+            "28",
+            "29",
+            "30",
+            "31",
+            "32",
+            "33",
+            "34",
+            "35",
+            "36",
+            "37",
+            "38",
+            "39",
+            "40",
+            "41",
+            "42",
+            "43",
+            "44"
+          ],
+          "B6": ["34-36", "36-38", "38-40", "40-42", "42-44", "44-46", "46-48"],
+          "B7": [
+            "35",
+            "35,5",
+            "36",
+            "36,5",
+            "37",
+            "37,5",
+            "38",
+            "38,5",
+            "39",
+            "39,5",
+            "40",
+            "40,5",
+            "41",
+            "41,5",
+            "42",
+            "42,5",
+            "43",
+            "43,5",
+            "44",
+            "44,5",
+            "45",
+            "45,5",
+            "46",
+            "46,5",
+            "47",
+            "48"
+          ],
+          "B8": ["23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34"],
+          "B9": ["16", "17", "18", "19", "20", "21", "22"],
+          "B10": ["35-38", "36-40", "39-42", "40-44", "43-46"],
+          "B11": ["19-22", "23-26", "27-30", "31-34"],
+          "B12": ["0-1 Ay", "0-3 Ay", "3-6 Ay", "6-9 Ay", "9-12 Ay", "12-18 Ay", "18-24 Ay"],
+          "B13": [
+            "2-3 Yaş",
+            "3-4 Yaş",
+            "4-5 Yaş",
+            "5-6 Yaş",
+            "6-7 Yaş",
+            "7-8 Yaş",
+            "8-9 Yaş",
+            "9-10 Yaş",
+            "10-11 Yaş",
+            "11-12 Yaş",
+            "12-13 Yaş",
+            "13-14 Yaş",
+            "14-15 Yaş",
+            "15-16 Yaş"
+          ],
+          "B14": [
+            "70A",
+            "70B",
+            "70C",
+            "70D",
+            "70DD",
+            "70E",
+            "75A",
+            "75B",
+            "75C",
+            "75D",
+            "75DD",
+            "75E",
+            "80A",
+            "80B",
+            "80C",
+            "80D",
+            "80DD",
+            "80E",
+            "85A",
+            "85B",
+            "85C",
+            "85D",
+            "85DD",
+            "85E",
+            "90A",
+            "90B",
+            "90C",
+            "90D",
+            "90DD",
+            "90E",
+            "95A",
+            "95B",
+            "95C",
+            "95D",
+            "95DD",
+            "95E",
+            "100A",
+            "100B",
+            "100C",
+            "100D",
+            "100DD",
+            "100E",
+            "105A",
+            "105B",
+            "105C",
+            "105D",
+            "105DD",
+            "105E"
+          ]
+        }
+      }
+    },
+    {
+      "key": "bez_numarasi",
+      "label": "Bez Numarası",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "1",
+            "label": "1",
+            "isActive": true
+          },
+          {
+            "id": "2",
+            "label": "2",
+            "isActive": true
+          },
+          {
+            "id": "3",
+            "label": "3",
+            "isActive": true
+          },
+          {
+            "id": "4",
+            "label": "4",
+            "isActive": true
+          },
+          {
+            "id": "5",
+            "label": "5",
+            "isActive": true
+          },
+          {
+            "id": "6",
+            "label": "6",
+            "isActive": true
+          },
+          {
+            "id": "7",
+            "label": "7",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "olcu",
+      "label": "Ölçü",
+      "kind": "text",
+      "canonicalUnit": null,
+      "config": {}
+    },
+    {
+      "key": "ton",
+      "label": "Ton",
+      "kind": "text",
+      "canonicalUnit": null,
+      "config": {}
+    },
+    {
+      "key": "uyumlu_model",
+      "label": "Uyumlu Model",
+      "kind": "text",
+      "canonicalUnit": null,
+      "config": {}
+    },
+    {
+      "key": "guc_kullanimi",
+      "label": "Güç Kullanımı",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "kablolu",
+            "label": "Kablolu",
+            "isActive": true
+          },
+          {
+            "id": "sarjli",
+            "label": "Şarjlı",
+            "isActive": true
+          },
+          {
+            "id": "ikisi",
+            "label": "İkisi",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "kalip",
+      "label": "Kalıp",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "dar-slim",
+            "label": "Dar/Slim",
+            "isActive": true
+          },
+          {
+            "id": "normal",
+            "label": "Normal",
+            "isActive": true
+          },
+          {
+            "id": "rahat",
+            "label": "Rahat",
+            "isActive": true
+          },
+          {
+            "id": "oversize",
+            "label": "Oversize",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "desen",
+      "label": "Desen",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "duz",
+            "label": "Düz",
+            "isActive": true
+          },
+          {
+            "id": "cizgili",
+            "label": "Çizgili",
+            "isActive": true
+          },
+          {
+            "id": "kareli",
+            "label": "Kareli",
+            "isActive": true
+          },
+          {
+            "id": "cicekli",
+            "label": "Çiçekli",
+            "isActive": true
+          },
+          {
+            "id": "puantiyeli",
+            "label": "Puantiyeli",
+            "isActive": true
+          },
+          {
+            "id": "baskili",
+            "label": "Baskılı",
+            "isActive": true
+          },
+          {
+            "id": "geometrik",
+            "label": "Geometrik",
+            "isActive": true
+          },
+          {
+            "id": "kamuflaj",
+            "label": "Kamuflaj",
+            "isActive": true
+          },
+          {
+            "id": "hayvan-deseni",
+            "label": "Hayvan Deseni",
+            "isActive": true
+          },
+          {
+            "id": "etnik",
+            "label": "Etnik",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "kumas_tipi",
+      "label": "Kumaş Tipi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "orme",
+            "label": "Örme",
+            "isActive": true
+          },
+          {
+            "id": "dokuma",
+            "label": "Dokuma",
+            "isActive": true
+          },
+          {
+            "id": "triko",
+            "label": "Triko",
+            "isActive": true
+          },
+          {
+            "id": "denim",
+            "label": "Denim",
+            "isActive": true
+          },
+          {
+            "id": "kadife",
+            "label": "Kadife",
+            "isActive": true
+          },
+          {
+            "id": "saten",
+            "label": "Saten",
+            "isActive": true
+          },
+          {
+            "id": "sifon",
+            "label": "Şifon",
+            "isActive": true
+          },
+          {
+            "id": "polar",
+            "label": "Polar",
+            "isActive": true
+          },
+          {
+            "id": "kase",
+            "label": "Kaşe",
+            "isActive": true
+          },
+          {
+            "id": "dantel",
+            "label": "Dantel",
+            "isActive": true
+          },
+          {
+            "id": "tul",
+            "label": "Tül",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "yaka_tipi",
+      "label": "Yaka Tipi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "bisiklet",
+            "label": "Bisiklet",
+            "isActive": true
+          },
+          {
+            "id": "v",
+            "label": "V",
+            "isActive": true
+          },
+          {
+            "id": "polo",
+            "label": "Polo",
+            "isActive": true
+          },
+          {
+            "id": "gomlek",
+            "label": "Gömlek",
+            "isActive": true
+          },
+          {
+            "id": "hakim",
+            "label": "Hakim",
+            "isActive": true
+          },
+          {
+            "id": "balikci",
+            "label": "Balıkçı",
+            "isActive": true
+          },
+          {
+            "id": "kapusonlu",
+            "label": "Kapüşonlu",
+            "isActive": true
+          },
+          {
+            "id": "kare",
+            "label": "Kare",
+            "isActive": true
+          },
+          {
+            "id": "straplez",
+            "label": "Straplez",
+            "isActive": true
+          },
+          {
+            "id": "halter",
+            "label": "Halter",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "kol_boyu",
+      "label": "Kol Boyu",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "kolsuz",
+            "label": "Kolsuz",
+            "isActive": true
+          },
+          {
+            "id": "kisa",
+            "label": "Kısa",
+            "isActive": true
+          },
+          {
+            "id": "3-4",
+            "label": "3/4",
+            "isActive": true
+          },
+          {
+            "id": "uzun",
+            "label": "Uzun",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "bel",
+      "label": "Bel",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "yuksek",
+            "label": "Yüksek",
+            "isActive": true
+          },
+          {
+            "id": "normal",
+            "label": "Normal",
+            "isActive": true
+          },
+          {
+            "id": "dusuk",
+            "label": "Düşük",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "paca",
+      "label": "Paça",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "dar",
+            "label": "Dar",
+            "isActive": true
+          },
+          {
+            "id": "duz",
+            "label": "Düz",
+            "isActive": true
+          },
+          {
+            "id": "bol",
+            "label": "Bol",
+            "isActive": true
+          },
+          {
+            "id": "ispanyol",
+            "label": "İspanyol",
+            "isActive": true
+          },
+          {
+            "id": "jogger",
+            "label": "Jogger",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "boy",
+      "label": "Boy",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "mini",
+            "label": "Mini",
+            "isActive": true
+          },
+          {
+            "id": "midi",
+            "label": "Midi",
+            "isActive": true
+          },
+          {
+            "id": "maksi",
+            "label": "Maksi",
+            "isActive": true
+          },
+          {
+            "id": "bilek",
+            "label": "Bilek",
+            "isActive": true
+          },
+          {
+            "id": "standart",
+            "label": "Standart",
+            "isActive": true
+          },
+          {
+            "id": "kisa",
+            "label": "Kısa",
+            "isActive": true
+          },
+          {
+            "id": "orta",
+            "label": "Orta",
+            "isActive": true
+          },
+          {
+            "id": "uzun",
+            "label": "Uzun",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "kapuson",
+      "label": "Kapüşon",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "var",
+            "label": "Var",
+            "isActive": true
+          },
+          {
+            "id": "yok",
+            "label": "Yok",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "kapama",
+      "label": "Kapama",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "fermuarli",
+            "label": "Fermuarlı",
+            "isActive": true
+          },
+          {
+            "id": "dugmeli",
+            "label": "Düğmeli",
+            "isActive": true
+          },
+          {
+            "id": "citcitli",
+            "label": "Çıtçıtlı",
+            "isActive": true
+          },
+          {
+            "id": "kemerli",
+            "label": "Kemerli",
+            "isActive": true
+          },
+          {
+            "id": "acik",
+            "label": "Açık",
+            "isActive": true
+          },
+          {
+            "id": "miknatisli",
+            "label": "Mıknatıslı",
+            "isActive": true
+          },
+          {
+            "id": "kapakli",
+            "label": "Kapaklı",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "dolgu",
+      "label": "Dolgu",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "kaz-tuyu",
+            "label": "Kaz Tüyü",
+            "isActive": true
+          },
+          {
+            "id": "elyaf",
+            "label": "Elyaf",
+            "isActive": true
+          },
+          {
+            "id": "dolgusuz",
+            "label": "Dolgusuz",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "kap_tipi",
+      "label": "Kap Tipi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "balenli",
+            "label": "Balenli",
+            "isActive": true
+          },
+          {
+            "id": "balensiz",
+            "label": "Balensiz",
+            "isActive": true
+          },
+          {
+            "id": "dolgulu",
+            "label": "Dolgulu",
+            "isActive": true
+          },
+          {
+            "id": "dolgusuz",
+            "label": "Dolgusuz",
+            "isActive": true
+          },
+          {
+            "id": "toparlayici-sutyen-grubunda",
+            "label": "Toparlayıcı; sütyen grubunda",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "ic_materyal",
+      "label": "İç Materyal",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "deri",
+            "label": "Deri",
+            "isActive": true
+          },
+          {
+            "id": "tekstil",
+            "label": "Tekstil",
+            "isActive": true
+          },
+          {
+            "id": "sentetik",
+            "label": "Sentetik",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "taban_materyali",
+      "label": "Taban Materyali",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "kaucuk",
+            "label": "Kauçuk",
+            "isActive": true
+          },
+          {
+            "id": "eva",
+            "label": "EVA",
+            "isActive": true
+          },
+          {
+            "id": "termo",
+            "label": "Termo",
+            "isActive": true
+          },
+          {
+            "id": "poliuretan",
+            "label": "Poliüretan",
+            "isActive": true
+          },
+          {
+            "id": "deri",
+            "label": "Deri",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "baglama",
+      "label": "Bağlama",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "bagcikli",
+            "label": "Bağcıklı",
+            "isActive": true
+          },
+          {
+            "id": "cirtli",
+            "label": "Cırtlı",
+            "isActive": true
+          },
+          {
+            "id": "fermuarli",
+            "label": "Fermuarlı",
+            "isActive": true
+          },
+          {
+            "id": "bagciksiz",
+            "label": "Bağcıksız",
+            "isActive": true
+          },
+          {
+            "id": "tokali",
+            "label": "Tokalı",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "topuk_tipi",
+      "label": "Topuk Tipi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "duz",
+            "label": "Düz",
+            "isActive": true
+          },
+          {
+            "id": "kalin",
+            "label": "Kalın",
+            "isActive": true
+          },
+          {
+            "id": "ince",
+            "label": "İnce",
+            "isActive": true
+          },
+          {
+            "id": "dolgu",
+            "label": "Dolgu",
+            "isActive": true
+          },
+          {
+            "id": "platform",
+            "label": "Platform",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "su_gecirmez",
+      "label": "Su Geçirmez",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "evet",
+            "label": "Evet",
+            "isActive": true
+          },
+          {
+            "id": "hayir",
+            "label": "Hayır",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "uyumlu_malzeme",
+      "label": "Uyumlu Malzeme",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "deri",
+            "label": "Deri",
+            "isActive": true
+          },
+          {
+            "id": "suet",
+            "label": "Süet",
+            "isActive": true
+          },
+          {
+            "id": "tekstil",
+            "label": "Tekstil",
+            "isActive": true
+          },
+          {
+            "id": "tumu",
+            "label": "Tümü",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "aski_tipi",
+      "label": "Askı Tipi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "el",
+            "label": "El",
+            "isActive": true
+          },
+          {
+            "id": "omuz",
+            "label": "Omuz",
+            "isActive": true
+          },
+          {
+            "id": "capraz",
+            "label": "Çapraz",
+            "isActive": true
+          },
+          {
+            "id": "sirt",
+            "label": "Sırt",
+            "isActive": true
+          },
+          {
+            "id": "ayarlanabilir",
+            "label": "Ayarlanabilir",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "bozuk_para_bolmesi",
+      "label": "Bozuk Para Bölmesi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "var",
+            "label": "Var",
+            "isActive": true
+          },
+          {
+            "id": "yok",
+            "label": "Yok",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "rfid_koruma",
+      "label": "RFID Koruma",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "var",
+            "label": "Var",
+            "isActive": true
+          },
+          {
+            "id": "yok",
+            "label": "Yok",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "ayar",
+      "label": "Ayar",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "8",
+            "label": "8",
+            "isActive": true
+          },
+          {
+            "id": "14",
+            "label": "14",
+            "isActive": true
+          },
+          {
+            "id": "18",
+            "label": "18",
+            "isActive": true
+          },
+          {
+            "id": "22-ayar",
+            "label": "22 Ayar",
+            "isActive": true
+          },
+          {
+            "id": "925-gumus",
+            "label": "925 Gümüş",
+            "isActive": true
+          },
+          {
+            "id": "yok",
+            "label": "Yok",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "tas",
+      "label": "Taş",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "tassiz",
+            "label": "Taşsız",
+            "isActive": true
+          },
+          {
+            "id": "zirkon",
+            "label": "Zirkon",
+            "isActive": true
+          },
+          {
+            "id": "pirlanta",
+            "label": "Pırlanta",
+            "isActive": true
+          },
+          {
+            "id": "dogal-tas",
+            "label": "Doğal Taş",
+            "isActive": true
+          },
+          {
+            "id": "inci",
+            "label": "İnci",
+            "isActive": true
+          },
+          {
+            "id": "kristal",
+            "label": "Kristal",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "mekanizma",
+      "label": "Mekanizma",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "quartz",
+            "label": "Quartz",
+            "isActive": true
+          },
+          {
+            "id": "otomatik",
+            "label": "Otomatik",
+            "isActive": true
+          },
+          {
+            "id": "mekanik",
+            "label": "Mekanik",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "kordon",
+      "label": "Kordon",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "celik",
+            "label": "Çelik",
+            "isActive": true
+          },
+          {
+            "id": "deri",
+            "label": "Deri",
+            "isActive": true
+          },
+          {
+            "id": "silikon",
+            "label": "Silikon",
+            "isActive": true
+          },
+          {
+            "id": "hasir",
+            "label": "Hasır",
+            "isActive": true
+          },
+          {
+            "id": "kumas",
+            "label": "Kumaş",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "cerceve_sekli",
+      "label": "Çerçeve Şekli",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "aviator",
+            "label": "Aviator",
+            "isActive": true
+          },
+          {
+            "id": "kare",
+            "label": "Kare",
+            "isActive": true
+          },
+          {
+            "id": "dikdortgen",
+            "label": "Dikdörtgen",
+            "isActive": true
+          },
+          {
+            "id": "yuvarlak",
+            "label": "Yuvarlak",
+            "isActive": true
+          },
+          {
+            "id": "oval",
+            "label": "Oval",
+            "isActive": true
+          },
+          {
+            "id": "cat-eye",
+            "label": "Cat Eye",
+            "isActive": true
+          },
+          {
+            "id": "kelebek",
+            "label": "Kelebek",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "cam_ozelligi",
+      "label": "Cam Özelliği",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "polarize",
+            "label": "Polarize",
+            "isActive": true
+          },
+          {
+            "id": "uv400",
+            "label": "UV400",
+            "isActive": true
+          },
+          {
+            "id": "aynali",
+            "label": "Aynalı",
+            "isActive": true
+          },
+          {
+            "id": "degrade",
+            "label": "Degrade",
+            "isActive": true
+          },
+          {
+            "id": "fotokromik",
+            "label": "Fotokromik",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "yas_kilo_araligi",
+      "label": "Yaş/Kilo Aralığı",
+      "kind": "text",
+      "canonicalUnit": null,
+      "config": {}
+    },
+    {
+      "key": "katlanabilir",
+      "label": "Katlanabilir",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "evet",
+            "label": "Evet",
+            "isActive": true
+          },
+          {
+            "id": "hayir",
+            "label": "Hayır",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "grup",
+      "label": "Grup",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "grup-0",
+            "label": "Grup 0+",
+            "isActive": true
+          },
+          {
+            "id": "0-1",
+            "label": "0+/1",
+            "isActive": true
+          },
+          {
+            "id": "1-2-3",
+            "label": "1/2/3",
+            "isActive": true
+          },
+          {
+            "id": "2-3",
+            "label": "2/3",
+            "isActive": true
+          },
+          {
+            "id": "i-size",
+            "label": "i-Size",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "kilo_araligi",
+      "label": "Kilo Aralığı",
+      "kind": "text",
+      "canonicalUnit": null,
+      "config": {}
+    },
+    {
+      "key": "isofix",
+      "label": "Isofix",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "var",
+            "label": "Var",
+            "isActive": true
+          },
+          {
+            "id": "yok",
+            "label": "Yok",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "yon",
+      "label": "Yön",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "ileri",
+            "label": "İleri",
+            "isActive": true
+          },
+          {
+            "id": "geri",
+            "label": "Geri",
+            "isActive": true
+          },
+          {
+            "id": "cift-yonlu",
+            "label": "Çift Yönlü",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "bpa_icermez",
+      "label": "BPA İçermez",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "evet",
+            "label": "Evet",
+            "isActive": true
+          },
+          {
+            "id": "hayir",
+            "label": "Hayır",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "yas_araligi",
+      "label": "Yaş Aralığı",
+      "kind": "text",
+      "canonicalUnit": null,
+      "config": {}
+    },
+    {
+      "key": "kurulum_gerekir",
+      "label": "Kurulum Gerekir",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "evet",
+            "label": "Evet",
+            "isActive": true
+          },
+          {
+            "id": "hayir",
+            "label": "Hayır",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "enerji",
+      "label": "Enerji",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "pilsiz",
+            "label": "Pilsiz",
+            "isActive": true
+          },
+          {
+            "id": "pilli",
+            "label": "Pilli",
+            "isActive": true
+          },
+          {
+            "id": "sarjli",
+            "label": "Şarjlı",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "form",
+      "label": "Form",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "sivi",
+            "label": "Sıvı",
+            "isActive": true
+          },
+          {
+            "id": "krem",
+            "label": "Krem",
+            "isActive": true
+          },
+          {
+            "id": "pudra",
+            "label": "Pudra",
+            "isActive": true
+          },
+          {
+            "id": "stick",
+            "label": "Stick",
+            "isActive": true
+          },
+          {
+            "id": "jel",
+            "label": "Jel",
+            "isActive": true
+          },
+          {
+            "id": "kalem",
+            "label": "Kalem",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "bitis",
+      "label": "Bitiş",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "mat",
+            "label": "Mat",
+            "isActive": true
+          },
+          {
+            "id": "saten",
+            "label": "Saten",
+            "isActive": true
+          },
+          {
+            "id": "parlak",
+            "label": "Parlak",
+            "isActive": true
+          },
+          {
+            "id": "isiltili",
+            "label": "Işıltılı",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "cilt_tipi",
+      "label": "Cilt Tipi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "tum",
+            "label": "Tüm",
+            "isActive": true
+          },
+          {
+            "id": "kuru",
+            "label": "Kuru",
+            "isActive": true
+          },
+          {
+            "id": "yagli",
+            "label": "Yağlı",
+            "isActive": true
+          },
+          {
+            "id": "karma",
+            "label": "Karma",
+            "isActive": true
+          },
+          {
+            "id": "hassas",
+            "label": "Hassas",
+            "isActive": true
+          },
+          {
+            "id": "normal",
+            "label": "Normal",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "sac_tipi",
+      "label": "Saç Tipi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "tum",
+            "label": "Tüm",
+            "isActive": true
+          },
+          {
+            "id": "kuru",
+            "label": "Kuru",
+            "isActive": true
+          },
+          {
+            "id": "yagli",
+            "label": "Yağlı",
+            "isActive": true
+          },
+          {
+            "id": "normal",
+            "label": "Normal",
+            "isActive": true
+          },
+          {
+            "id": "boyali",
+            "label": "Boyalı",
+            "isActive": true
+          },
+          {
+            "id": "kivircik",
+            "label": "Kıvırcık",
+            "isActive": true
+          },
+          {
+            "id": "ince-telli",
+            "label": "İnce Telli",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "etki",
+      "label": "Etki",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "nemlendirici",
+            "label": "Nemlendirici",
+            "isActive": true
+          },
+          {
+            "id": "arindirici",
+            "label": "Arındırıcı",
+            "isActive": true
+          },
+          {
+            "id": "yaslanma-karsiti",
+            "label": "Yaşlanma Karşıtı",
+            "isActive": true
+          },
+          {
+            "id": "aydinlatici",
+            "label": "Aydınlatıcı",
+            "isActive": true
+          },
+          {
+            "id": "akne-karsiti",
+            "label": "Akne Karşıtı",
+            "isActive": true
+          },
+          {
+            "id": "onarici",
+            "label": "Onarıcı",
+            "isActive": true
+          },
+          {
+            "id": "besleyici",
+            "label": "Besleyici",
+            "isActive": true
+          },
+          {
+            "id": "hacim-verici",
+            "label": "Hacim Verici",
+            "isActive": true
+          },
+          {
+            "id": "dokulme-karsiti",
+            "label": "Dökülme Karşıtı",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "konsantrasyon",
+      "label": "Konsantrasyon",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "extrait",
+            "label": "Extrait",
+            "isActive": true
+          },
+          {
+            "id": "edp",
+            "label": "EDP",
+            "isActive": true
+          },
+          {
+            "id": "edt",
+            "label": "EDT",
+            "isActive": true
+          },
+          {
+            "id": "edc",
+            "label": "EDC",
+            "isActive": true
+          },
+          {
+            "id": "body-mist",
+            "label": "Body Mist",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "koku_ailesi",
+      "label": "Koku Ailesi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "ciceksi",
+            "label": "Çiçeksi",
+            "isActive": true
+          },
+          {
+            "id": "odunsu",
+            "label": "Odunsu",
+            "isActive": true
+          },
+          {
+            "id": "oryantal",
+            "label": "Oryantal",
+            "isActive": true
+          },
+          {
+            "id": "fresh",
+            "label": "Fresh",
+            "isActive": true
+          },
+          {
+            "id": "meyveli",
+            "label": "Meyveli",
+            "isActive": true
+          },
+          {
+            "id": "baharatli",
+            "label": "Baharatlı",
+            "isActive": true
+          },
+          {
+            "id": "aromatik",
+            "label": "Aromatik",
+            "isActive": true
+          },
+          {
+            "id": "gurme",
+            "label": "Gurme",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "set_icerigi",
+      "label": "Set İçeriği",
+      "kind": "text",
+      "canonicalUnit": null,
+      "config": {}
+    },
+    {
+      "key": "islemci",
+      "label": "İşlemci",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "intel-core-i3-i5-i7-i9",
+            "label": "Intel Core i3/i5/i7/i9",
+            "isActive": true
+          },
+          {
+            "id": "core-ultra",
+            "label": "Core Ultra",
+            "isActive": true
+          },
+          {
+            "id": "amd-ryzen-3-5-7-9",
+            "label": "AMD Ryzen 3/5/7/9",
+            "isActive": true
+          },
+          {
+            "id": "apple-m-serisi",
+            "label": "Apple M serisi",
+            "isActive": true
+          },
+          {
+            "id": "diger",
+            "label": "Diğer",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "ram_tipi",
+      "label": "RAM Tipi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "ddr4",
+            "label": "DDR4",
+            "isActive": true
+          },
+          {
+            "id": "ddr5",
+            "label": "DDR5",
+            "isActive": true
+          },
+          {
+            "id": "lpddr5",
+            "label": "LPDDR5",
+            "isActive": true
+          },
+          {
+            "id": "birlesik",
+            "label": "Birleşik",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "depolama_tipi",
+      "label": "Depolama Tipi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "ssd",
+            "label": "SSD",
+            "isActive": true
+          },
+          {
+            "id": "hdd",
+            "label": "HDD",
+            "isActive": true
+          },
+          {
+            "id": "ssd-hdd",
+            "label": "SSD+HDD",
+            "isActive": true
+          },
+          {
+            "id": "emmc",
+            "label": "eMMC",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "ekran_karti",
+      "label": "Ekran Kartı",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "dahili",
+            "label": "Dahili",
+            "isActive": true
+          },
+          {
+            "id": "harici",
+            "label": "Harici",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "cozunurluk",
+      "label": "Çözünürlük",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "hd",
+            "label": "HD",
+            "isActive": true
+          },
+          {
+            "id": "full-hd",
+            "label": "Full HD",
+            "isActive": true
+          },
+          {
+            "id": "qhd",
+            "label": "QHD",
+            "isActive": true
+          },
+          {
+            "id": "4k",
+            "label": "4K",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "isletim_sistemi",
+      "label": "İşletim Sistemi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "windows",
+            "label": "Windows",
+            "isActive": true
+          },
+          {
+            "id": "macos",
+            "label": "macOS",
+            "isActive": true
+          },
+          {
+            "id": "linux",
+            "label": "Linux",
+            "isActive": true
+          },
+          {
+            "id": "freedos",
+            "label": "FreeDOS",
+            "isActive": true
+          },
+          {
+            "id": "chromeos",
+            "label": "ChromeOS",
+            "isActive": true
+          },
+          {
+            "id": "ipados",
+            "label": "iPadOS",
+            "isActive": true
+          },
+          {
+            "id": "android",
+            "label": "Android",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "baglanti",
+      "label": "Bağlantı",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "wi-fi",
+            "label": "Wi-Fi",
+            "isActive": true
+          },
+          {
+            "id": "wi-fi-hucresel",
+            "label": "Wi-Fi + Hücresel",
+            "isActive": true
+          },
+          {
+            "id": "kablolu",
+            "label": "Kablolu",
+            "isActive": true
+          },
+          {
+            "id": "kablosuz",
+            "label": "Kablosuz",
+            "isActive": true
+          },
+          {
+            "id": "bluetooth",
+            "label": "Bluetooth",
+            "isActive": true
+          },
+          {
+            "id": "yok",
+            "label": "Yok",
+            "isActive": true
+          },
+          {
+            "id": "zigbee",
+            "label": "Zigbee",
+            "isActive": true
+          },
+          {
+            "id": "matter",
+            "label": "Matter",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "panel",
+      "label": "Panel",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "ips",
+            "label": "IPS",
+            "isActive": true
+          },
+          {
+            "id": "va",
+            "label": "VA",
+            "isActive": true
+          },
+          {
+            "id": "tn",
+            "label": "TN",
+            "isActive": true
+          },
+          {
+            "id": "oled",
+            "label": "OLED",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "uyumlu_cihaz",
+      "label": "Uyumlu Cihaz",
+      "kind": "text",
+      "canonicalUnit": null,
+      "config": {}
+    },
+    {
+      "key": "uyumlu_marka",
+      "label": "Uyumlu Marka",
+      "kind": "text",
+      "canonicalUnit": null,
+      "config": {}
+    },
+    {
+      "key": "giris",
+      "label": "Giriş",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "usb-c",
+            "label": "USB-C",
+            "isActive": true
+          },
+          {
+            "id": "lightning",
+            "label": "Lightning",
+            "isActive": true
+          },
+          {
+            "id": "micro-usb",
+            "label": "Micro USB",
+            "isActive": true
+          },
+          {
+            "id": "kablosuz-magsafe",
+            "label": "Kablosuz/MagSafe",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "kulaklik_tipi",
+      "label": "Kulaklık Tipi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "kulak-ici",
+            "label": "Kulak İçi",
+            "isActive": true
+          },
+          {
+            "id": "kulak-ustu",
+            "label": "Kulak Üstü",
+            "isActive": true
+          },
+          {
+            "id": "kulak-cevresi",
+            "label": "Kulak Çevresi",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "gurultu_engelleme",
+      "label": "Gürültü Engelleme",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "var",
+            "label": "Var",
+            "isActive": true
+          },
+          {
+            "id": "yok",
+            "label": "Yok",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "suya_dayaniklilik",
+      "label": "Suya Dayanıklılık",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "yok",
+            "label": "Yok",
+            "isActive": true
+          },
+          {
+            "id": "ipx4",
+            "label": "IPX4",
+            "isActive": true
+          },
+          {
+            "id": "ipx5",
+            "label": "IPX5",
+            "isActive": true
+          },
+          {
+            "id": "ipx7",
+            "label": "IPX7",
+            "isActive": true
+          },
+          {
+            "id": "ipx8",
+            "label": "IPX8",
+            "isActive": true
+          },
+          {
+            "id": "ip67",
+            "label": "IP67",
+            "isActive": true
+          },
+          {
+            "id": "ip68",
+            "label": "IP68",
+            "isActive": true
+          },
+          {
+            "id": "5-atm",
+            "label": "5 ATM",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "uyumlu_isletim_sistemi",
+      "label": "Uyumlu İşletim Sistemi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "ios",
+            "label": "iOS",
+            "isActive": true
+          },
+          {
+            "id": "android",
+            "label": "Android",
+            "isActive": true
+          },
+          {
+            "id": "ikisi",
+            "label": "İkisi",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "video",
+      "label": "Video",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "full-hd",
+            "label": "Full HD",
+            "isActive": true
+          },
+          {
+            "id": "4k",
+            "label": "4K",
+            "isActive": true
+          },
+          {
+            "id": "5k",
+            "label": "5K",
+            "isActive": true
+          },
+          {
+            "id": "8k",
+            "label": "8K",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "goruntu_sabitleme",
+      "label": "Görüntü Sabitleme",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "var",
+            "label": "Var",
+            "isActive": true
+          },
+          {
+            "id": "yok",
+            "label": "Yok",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "uyumlu_asistan",
+      "label": "Uyumlu Asistan",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "google",
+            "label": "Google",
+            "isActive": true
+          },
+          {
+            "id": "alexa",
+            "label": "Alexa",
+            "isActive": true
+          },
+          {
+            "id": "apple-home",
+            "label": "Apple Home",
+            "isActive": true
+          },
+          {
+            "id": "yok",
+            "label": "Yok",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "spor_bransi",
+      "label": "Spor Branşı",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "fitness",
+            "label": "Fitness",
+            "isActive": true
+          },
+          {
+            "id": "yoga-pilates",
+            "label": "Yoga & Pilates",
+            "isActive": true
+          },
+          {
+            "id": "kosu",
+            "label": "Koşu",
+            "isActive": true
+          },
+          {
+            "id": "futbol",
+            "label": "Futbol",
+            "isActive": true
+          },
+          {
+            "id": "basketbol",
+            "label": "Basketbol",
+            "isActive": true
+          },
+          {
+            "id": "voleybol",
+            "label": "Voleybol",
+            "isActive": true
+          },
+          {
+            "id": "tenis",
+            "label": "Tenis",
+            "isActive": true
+          },
+          {
+            "id": "masa-tenisi",
+            "label": "Masa Tenisi",
+            "isActive": true
+          },
+          {
+            "id": "badminton",
+            "label": "Badminton",
+            "isActive": true
+          },
+          {
+            "id": "yuzme-dalis",
+            "label": "Yüzme & Dalış",
+            "isActive": true
+          },
+          {
+            "id": "dagcilik",
+            "label": "Dağcılık",
+            "isActive": true
+          },
+          {
+            "id": "kayak-snowboard",
+            "label": "Kayak & Snowboard",
+            "isActive": true
+          },
+          {
+            "id": "diger",
+            "label": "Diğer",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "elektrikli",
+      "label": "Elektrikli",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "evet",
+            "label": "Evet",
+            "isActive": true
+          },
+          {
+            "id": "hayir",
+            "label": "Hayır",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "stil",
+      "label": "Stil",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "modern",
+            "label": "Modern",
+            "isActive": true
+          },
+          {
+            "id": "klasik",
+            "label": "Klasik",
+            "isActive": true
+          },
+          {
+            "id": "rustik",
+            "label": "Rustik",
+            "isActive": true
+          },
+          {
+            "id": "iskandinav",
+            "label": "İskandinav",
+            "isActive": true
+          },
+          {
+            "id": "endustriyel",
+            "label": "Endüstriyel",
+            "isActive": true
+          },
+          {
+            "id": "bohem",
+            "label": "Bohem",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "duy_tipi",
+      "label": "Duy Tipi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "e27",
+            "label": "E27",
+            "isActive": true
+          },
+          {
+            "id": "e14",
+            "label": "E14",
+            "isActive": true
+          },
+          {
+            "id": "gu10",
+            "label": "GU10",
+            "isActive": true
+          },
+          {
+            "id": "g9",
+            "label": "G9",
+            "isActive": true
+          },
+          {
+            "id": "entegre-led",
+            "label": "Entegre LED",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "ampul_dahil",
+      "label": "Ampul Dahil",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "evet",
+            "label": "Evet",
+            "isActive": true
+          },
+          {
+            "id": "hayir",
+            "label": "Hayır",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "isik_rengi",
+      "label": "Işık Rengi",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "sicak-beyaz",
+            "label": "Sıcak Beyaz",
+            "isActive": true
+          },
+          {
+            "id": "gun-isigi",
+            "label": "Gün Işığı",
+            "isActive": true
+          },
+          {
+            "id": "soguk-beyaz",
+            "label": "Soğuk Beyaz",
+            "isActive": true
+          },
+          {
+            "id": "rgb",
+            "label": "RGB",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "makinede_yikanabilir",
+      "label": "Makinede Yıkanabilir",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "evet",
+            "label": "Evet",
+            "isActive": true
+          },
+          {
+            "id": "hayir",
+            "label": "Hayır",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "bulasik_makinesinde_yikanabilir",
+      "label": "Bulaşık Makinesinde Yıkanabilir",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "evet",
+            "label": "Evet",
+            "isActive": true
+          },
+          {
+            "id": "hayir",
+            "label": "Hayır",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "mikrodalga_uyumlu",
+      "label": "Mikrodalga Uyumlu",
+      "kind": "select",
+      "canonicalUnit": null,
+      "config": {
+        "options": [
+          {
+            "id": "evet",
+            "label": "Evet",
+            "isActive": true
+          },
+          {
+            "id": "hayir",
+            "label": "Hayır",
+            "isActive": true
+          }
+        ]
+      }
+    },
+    {
+      "key": "koku",
+      "label": "Koku",
+      "kind": "text",
+      "canonicalUnit": null,
+      "config": {}
+    }
+  ],
+  "templates": [
+    {
+      "code": "GIY-UST",
+      "label": "GIY-UST",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": true
+          },
+          {
+            "key": "yas_grubu",
+            "required": true
+          },
+          {
+            "key": "kullanim",
+            "required": false,
+            "optionIds": ["gunluk", "spor", "outdoor"]
+          },
+          {
+            "key": "sezon",
+            "required": false
+          },
+          {
+            "key": "kalip",
+            "required": false,
+            "optionIds": ["dar-slim", "normal", "rahat", "oversize"]
+          },
+          {
+            "key": "desen",
+            "required": false,
+            "optionIds": [
+              "duz",
+              "cizgili",
+              "kareli",
+              "cicekli",
+              "puantiyeli",
+              "baskili",
+              "geometrik",
+              "kamuflaj",
+              "hayvan-deseni",
+              "etnik"
+            ]
+          },
+          {
+            "key": "kumas_tipi",
+            "required": false,
+            "optionIds": [
+              "orme",
+              "dokuma",
+              "triko",
+              "denim",
+              "kadife",
+              "saten",
+              "sifon",
+              "polar",
+              "kase",
+              "dantel",
+              "tul"
+            ]
+          },
+          {
+            "key": "buyuk_beden",
+            "required": false
+          },
+          {
+            "key": "tesettur",
+            "required": false
+          },
+          {
+            "key": "yaka_tipi",
+            "required": false,
+            "optionIds": [
+              "bisiklet",
+              "v",
+              "polo",
+              "gomlek",
+              "hakim",
+              "balikci",
+              "kapusonlu",
+              "kare",
+              "straplez",
+              "halter"
+            ]
+          },
+          {
+            "key": "kol_boyu",
+            "required": false,
+            "optionIds": ["kolsuz", "kisa", "3-4", "uzun"]
+          },
+          {
+            "key": "beden",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "beden",
+        "variantLabel": "Beden",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Pamuk",
+          "Organik Pamuk",
+          "Polyester",
+          "Viskon",
+          "Modal",
+          "Keten",
+          "Yün",
+          "Kaşmir",
+          "İpek",
+          "Akrilik",
+          "Poliamid",
+          "Elastan",
+          "Deri",
+          "Suni Deri",
+          "Karışım"
+        ]
+      }
+    },
+    {
+      "code": "GIY-ALT",
+      "label": "GIY-ALT",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": true
+          },
+          {
+            "key": "yas_grubu",
+            "required": true
+          },
+          {
+            "key": "kullanim",
+            "required": false,
+            "optionIds": ["gunluk", "spor", "outdoor"]
+          },
+          {
+            "key": "sezon",
+            "required": false
+          },
+          {
+            "key": "kalip",
+            "required": false,
+            "optionIds": ["dar-slim", "normal", "rahat", "oversize"]
+          },
+          {
+            "key": "desen",
+            "required": false,
+            "optionIds": [
+              "duz",
+              "cizgili",
+              "kareli",
+              "cicekli",
+              "puantiyeli",
+              "baskili",
+              "geometrik",
+              "kamuflaj",
+              "hayvan-deseni",
+              "etnik"
+            ]
+          },
+          {
+            "key": "kumas_tipi",
+            "required": false,
+            "optionIds": [
+              "orme",
+              "dokuma",
+              "triko",
+              "denim",
+              "kadife",
+              "saten",
+              "sifon",
+              "polar",
+              "kase",
+              "dantel",
+              "tul"
+            ]
+          },
+          {
+            "key": "buyuk_beden",
+            "required": false
+          },
+          {
+            "key": "tesettur",
+            "required": false
+          },
+          {
+            "key": "bel",
+            "required": false,
+            "optionIds": ["yuksek", "normal", "dusuk"]
+          },
+          {
+            "key": "paca",
+            "required": false,
+            "optionIds": ["dar", "duz", "bol", "ispanyol", "jogger"]
+          },
+          {
+            "key": "boy",
+            "required": false,
+            "optionIds": ["mini", "midi", "maksi", "bilek", "standart"]
+          },
+          {
+            "key": "beden",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "beden",
+        "variantLabel": "Beden",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Pamuk",
+          "Organik Pamuk",
+          "Polyester",
+          "Viskon",
+          "Modal",
+          "Keten",
+          "Yün",
+          "Kaşmir",
+          "İpek",
+          "Akrilik",
+          "Poliamid",
+          "Elastan",
+          "Deri",
+          "Suni Deri",
+          "Karışım"
+        ]
+      }
+    },
+    {
+      "code": "GIY-ELB",
+      "label": "GIY-ELB",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": true
+          },
+          {
+            "key": "yas_grubu",
+            "required": true
+          },
+          {
+            "key": "kullanim",
+            "required": false,
+            "optionIds": ["gunluk", "spor", "outdoor"]
+          },
+          {
+            "key": "sezon",
+            "required": false
+          },
+          {
+            "key": "kalip",
+            "required": false,
+            "optionIds": ["dar-slim", "normal", "rahat", "oversize"]
+          },
+          {
+            "key": "desen",
+            "required": false,
+            "optionIds": [
+              "duz",
+              "cizgili",
+              "kareli",
+              "cicekli",
+              "puantiyeli",
+              "baskili",
+              "geometrik",
+              "kamuflaj",
+              "hayvan-deseni",
+              "etnik"
+            ]
+          },
+          {
+            "key": "kumas_tipi",
+            "required": false,
+            "optionIds": [
+              "orme",
+              "dokuma",
+              "triko",
+              "denim",
+              "kadife",
+              "saten",
+              "sifon",
+              "polar",
+              "kase",
+              "dantel",
+              "tul"
+            ]
+          },
+          {
+            "key": "buyuk_beden",
+            "required": false
+          },
+          {
+            "key": "tesettur",
+            "required": false
+          },
+          {
+            "key": "yaka_tipi",
+            "required": false
+          },
+          {
+            "key": "kol_boyu",
+            "required": false
+          },
+          {
+            "key": "boy",
+            "required": false,
+            "optionIds": ["mini", "midi", "maksi"]
+          },
+          {
+            "key": "beden",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "beden",
+        "variantLabel": "Beden",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Pamuk",
+          "Organik Pamuk",
+          "Polyester",
+          "Viskon",
+          "Modal",
+          "Keten",
+          "Yün",
+          "Kaşmir",
+          "İpek",
+          "Akrilik",
+          "Poliamid",
+          "Elastan",
+          "Deri",
+          "Suni Deri",
+          "Karışım"
+        ]
+      }
+    },
+    {
+      "code": "GIY-DIS",
+      "label": "GIY-DIS",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": true
+          },
+          {
+            "key": "yas_grubu",
+            "required": true
+          },
+          {
+            "key": "kullanim",
+            "required": false,
+            "optionIds": ["gunluk", "spor", "outdoor"]
+          },
+          {
+            "key": "sezon",
+            "required": false
+          },
+          {
+            "key": "kalip",
+            "required": false,
+            "optionIds": ["dar-slim", "normal", "rahat", "oversize"]
+          },
+          {
+            "key": "desen",
+            "required": false,
+            "optionIds": [
+              "duz",
+              "cizgili",
+              "kareli",
+              "cicekli",
+              "puantiyeli",
+              "baskili",
+              "geometrik",
+              "kamuflaj",
+              "hayvan-deseni",
+              "etnik"
+            ]
+          },
+          {
+            "key": "kumas_tipi",
+            "required": false,
+            "optionIds": [
+              "orme",
+              "dokuma",
+              "triko",
+              "denim",
+              "kadife",
+              "saten",
+              "sifon",
+              "polar",
+              "kase",
+              "dantel",
+              "tul"
+            ]
+          },
+          {
+            "key": "buyuk_beden",
+            "required": false
+          },
+          {
+            "key": "tesettur",
+            "required": false
+          },
+          {
+            "key": "kapuson",
+            "required": false,
+            "optionIds": ["var", "yok"]
+          },
+          {
+            "key": "kapama",
+            "required": false,
+            "optionIds": ["fermuarli", "dugmeli", "citcitli", "kemerli", "acik"]
+          },
+          {
+            "key": "dolgu",
+            "required": false,
+            "optionIds": ["kaz-tuyu", "elyaf", "dolgusuz"]
+          },
+          {
+            "key": "boy",
+            "required": false,
+            "optionIds": ["kisa", "orta", "uzun"]
+          },
+          {
+            "key": "beden",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "beden",
+        "variantLabel": "Beden",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Pamuk",
+          "Organik Pamuk",
+          "Polyester",
+          "Viskon",
+          "Modal",
+          "Keten",
+          "Yün",
+          "Kaşmir",
+          "İpek",
+          "Akrilik",
+          "Poliamid",
+          "Elastan",
+          "Deri",
+          "Suni Deri",
+          "Karışım"
+        ]
+      }
+    },
+    {
+      "code": "GIY-TAK",
+      "label": "GIY-TAK",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": true
+          },
+          {
+            "key": "yas_grubu",
+            "required": true
+          },
+          {
+            "key": "kullanim",
+            "required": false,
+            "optionIds": ["gunluk", "spor", "outdoor"]
+          },
+          {
+            "key": "sezon",
+            "required": false
+          },
+          {
+            "key": "kalip",
+            "required": false,
+            "optionIds": ["dar-slim", "normal", "rahat", "oversize"]
+          },
+          {
+            "key": "desen",
+            "required": false,
+            "optionIds": [
+              "duz",
+              "cizgili",
+              "kareli",
+              "cicekli",
+              "puantiyeli",
+              "baskili",
+              "geometrik",
+              "kamuflaj",
+              "hayvan-deseni",
+              "etnik"
+            ]
+          },
+          {
+            "key": "kumas_tipi",
+            "required": false,
+            "optionIds": [
+              "orme",
+              "dokuma",
+              "triko",
+              "denim",
+              "kadife",
+              "saten",
+              "sifon",
+              "polar",
+              "kase",
+              "dantel",
+              "tul"
+            ]
+          },
+          {
+            "key": "buyuk_beden",
+            "required": false
+          },
+          {
+            "key": "tesettur",
+            "required": false
+          },
+          {
+            "key": "parca_sayisi",
+            "required": false,
+            "displayUnit": "adet"
+          },
+          {
+            "key": "yaka_tipi",
+            "required": false
+          },
+          {
+            "key": "kol_boyu",
+            "required": false
+          },
+          {
+            "key": "beden",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "beden",
+        "variantLabel": "Beden",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Pamuk",
+          "Organik Pamuk",
+          "Polyester",
+          "Viskon",
+          "Modal",
+          "Keten",
+          "Yün",
+          "Kaşmir",
+          "İpek",
+          "Akrilik",
+          "Poliamid",
+          "Elastan",
+          "Deri",
+          "Suni Deri",
+          "Karışım"
+        ]
+      }
+    },
+    {
+      "code": "GIY-IC",
+      "label": "GIY-IC",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": true
+          },
+          {
+            "key": "yas_grubu",
+            "required": true
+          },
+          {
+            "key": "kullanim",
+            "required": false,
+            "optionIds": ["gunluk", "spor", "outdoor"]
+          },
+          {
+            "key": "sezon",
+            "required": false
+          },
+          {
+            "key": "kalip",
+            "required": false,
+            "optionIds": ["dar-slim", "normal", "rahat", "oversize"]
+          },
+          {
+            "key": "desen",
+            "required": false,
+            "optionIds": [
+              "duz",
+              "cizgili",
+              "kareli",
+              "cicekli",
+              "puantiyeli",
+              "baskili",
+              "geometrik",
+              "kamuflaj",
+              "hayvan-deseni",
+              "etnik"
+            ]
+          },
+          {
+            "key": "kumas_tipi",
+            "required": false,
+            "optionIds": [
+              "orme",
+              "dokuma",
+              "triko",
+              "denim",
+              "kadife",
+              "saten",
+              "sifon",
+              "polar",
+              "kase",
+              "dantel",
+              "tul"
+            ]
+          },
+          {
+            "key": "buyuk_beden",
+            "required": false
+          },
+          {
+            "key": "tesettur",
+            "required": false
+          },
+          {
+            "key": "paket_adedi",
+            "required": false,
+            "displayUnit": "adet"
+          },
+          {
+            "key": "kap_tipi",
+            "required": false,
+            "optionIds": [
+              "balenli",
+              "balensiz",
+              "dolgulu",
+              "dolgusuz",
+              "toparlayici-sutyen-grubunda"
+            ]
+          },
+          {
+            "key": "beden",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "beden",
+        "variantLabel": "Beden",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Pamuk",
+          "Organik Pamuk",
+          "Polyester",
+          "Viskon",
+          "Modal",
+          "Keten",
+          "Yün",
+          "Kaşmir",
+          "İpek",
+          "Akrilik",
+          "Poliamid",
+          "Elastan",
+          "Deri",
+          "Suni Deri",
+          "Karışım"
+        ]
+      }
+    },
+    {
+      "code": "GIY-MAYO",
+      "label": "GIY-MAYO",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": true
+          },
+          {
+            "key": "yas_grubu",
+            "required": true
+          },
+          {
+            "key": "kullanim",
+            "required": false,
+            "optionIds": ["gunluk", "spor", "outdoor"]
+          },
+          {
+            "key": "sezon",
+            "required": false
+          },
+          {
+            "key": "kalip",
+            "required": false,
+            "optionIds": ["dar-slim", "normal", "rahat", "oversize"]
+          },
+          {
+            "key": "desen",
+            "required": false,
+            "optionIds": [
+              "duz",
+              "cizgili",
+              "kareli",
+              "cicekli",
+              "puantiyeli",
+              "baskili",
+              "geometrik",
+              "kamuflaj",
+              "hayvan-deseni",
+              "etnik"
+            ]
+          },
+          {
+            "key": "kumas_tipi",
+            "required": false,
+            "optionIds": [
+              "orme",
+              "dokuma",
+              "triko",
+              "denim",
+              "kadife",
+              "saten",
+              "sifon",
+              "polar",
+              "kase",
+              "dantel",
+              "tul"
+            ]
+          },
+          {
+            "key": "buyuk_beden",
+            "required": false
+          },
+          {
+            "key": "tesettur",
+            "required": false
+          },
+          {
+            "key": "beden",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "beden",
+        "variantLabel": "Beden",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Pamuk",
+          "Organik Pamuk",
+          "Polyester",
+          "Viskon",
+          "Modal",
+          "Keten",
+          "Yün",
+          "Kaşmir",
+          "İpek",
+          "Akrilik",
+          "Poliamid",
+          "Elastan",
+          "Deri",
+          "Suni Deri",
+          "Karışım"
+        ]
+      }
+    },
+    {
+      "code": "AYK",
+      "label": "AYK",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": true
+          },
+          {
+            "key": "yas_grubu",
+            "required": true
+          },
+          {
+            "key": "kullanim",
+            "required": false,
+            "optionIds": ["gunluk", "spor", "outdoor"]
+          },
+          {
+            "key": "sezon",
+            "required": false
+          },
+          {
+            "key": "ic_materyal",
+            "required": false,
+            "optionIds": ["deri", "tekstil", "sentetik"]
+          },
+          {
+            "key": "taban_materyali",
+            "required": false,
+            "optionIds": ["kaucuk", "eva", "termo", "poliuretan", "deri"]
+          },
+          {
+            "key": "baglama",
+            "required": false,
+            "optionIds": ["bagcikli", "cirtli", "fermuarli", "bagciksiz", "tokali"]
+          },
+          {
+            "key": "topuk_tipi",
+            "required": false,
+            "optionIds": ["duz", "kalin", "ince", "dolgu", "platform"]
+          },
+          {
+            "key": "topuk_yuksekligi_cm",
+            "required": false,
+            "displayUnit": "cm"
+          },
+          {
+            "key": "su_gecirmez",
+            "required": false,
+            "optionIds": ["evet", "hayir"]
+          },
+          {
+            "key": "beden",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "beden",
+        "variantLabel": "Beden",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Deri",
+          "Süet",
+          "Nubuk",
+          "Rugan",
+          "Tekstil",
+          "Kanvas",
+          "Suni Deri",
+          "Kauçuk",
+          "Hasır"
+        ]
+      }
+    },
+    {
+      "code": "AYK-BAKIM",
+      "label": "AYK-BAKIM",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "hacim_ml",
+            "required": false
+          },
+          {
+            "key": "net_agirlik_g",
+            "required": false
+          },
+          {
+            "key": "paket_adedi",
+            "required": false
+          },
+          {
+            "key": "uyumlu_malzeme",
+            "required": false,
+            "optionIds": ["deri", "suet", "tekstil", "tumu"]
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "AKS-CANTA",
+      "label": "AKS-CANTA",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": false
+          },
+          {
+            "key": "yas_grubu",
+            "required": false
+          },
+          {
+            "key": "kapama",
+            "required": false,
+            "optionIds": ["fermuarli", "miknatisli", "citcitli", "kapakli", "acik"]
+          },
+          {
+            "key": "aski_tipi",
+            "required": false,
+            "optionIds": ["el", "omuz", "capraz", "sirt", "ayarlanabilir"]
+          },
+          {
+            "key": "laptop_bolmesi_inc",
+            "required": false,
+            "displayUnit": "inç"
+          },
+          {
+            "key": "hacim_ml",
+            "required": false,
+            "displayUnit": "L"
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": true
+        },
+        "materialLabels": [
+          "Deri",
+          "Suni Deri",
+          "Kanvas",
+          "Kumaş",
+          "Naylon",
+          "Süet",
+          "Hasır",
+          "Kadife"
+        ]
+      }
+    },
+    {
+      "code": "AKS-CUZDAN",
+      "label": "AKS-CUZDAN",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": false
+          },
+          {
+            "key": "kart_bolmesi",
+            "required": false,
+            "displayUnit": "adet"
+          },
+          {
+            "key": "bozuk_para_bolmesi",
+            "required": false,
+            "optionIds": ["var", "yok"]
+          },
+          {
+            "key": "rfid_koruma",
+            "required": false,
+            "optionIds": ["var", "yok"]
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Deri",
+          "Suni Deri",
+          "Kanvas",
+          "Kumaş",
+          "Naylon",
+          "Süet",
+          "Hasır",
+          "Kadife"
+        ]
+      }
+    },
+    {
+      "code": "AKS-TAKI",
+      "label": "AKS-TAKI",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": false
+          },
+          {
+            "key": "ayar",
+            "required": false,
+            "optionIds": ["8", "14", "18", "22-ayar", "925-gumus", "yok"]
+          },
+          {
+            "key": "tas",
+            "required": false,
+            "optionIds": ["tassiz", "zirkon", "pirlanta", "dogal-tas", "inci", "kristal"]
+          },
+          {
+            "key": "uzunluk_cm",
+            "required": false,
+            "displayUnit": "cm"
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Altın",
+          "Gümüş",
+          "Çelik",
+          "Pirinç",
+          "Bakır",
+          "Titanyum",
+          "Doğal Taş",
+          "İnci",
+          "Boncuk",
+          "Ahşap",
+          "Deri"
+        ]
+      }
+    },
+    {
+      "code": "AKS-SAAT",
+      "label": "AKS-SAAT",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": false
+          },
+          {
+            "key": "mekanizma",
+            "required": false,
+            "optionIds": ["quartz", "otomatik", "mekanik"]
+          },
+          {
+            "key": "kasa_capi_mm",
+            "required": false,
+            "displayUnit": "mm"
+          },
+          {
+            "key": "kordon",
+            "required": false,
+            "optionIds": ["celik", "deri", "silikon", "hasir", "kumas"]
+          },
+          {
+            "key": "su_gecirmezlik_atm",
+            "required": false,
+            "displayUnit": "ATM"
+          },
+          {
+            "key": "garanti_ay",
+            "required": false,
+            "displayUnit": "ay"
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "AKS-GOZLUK",
+      "label": "AKS-GOZLUK",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": false
+          },
+          {
+            "key": "cerceve_sekli",
+            "required": false,
+            "optionIds": ["aviator", "kare", "dikdortgen", "yuvarlak", "oval", "cat-eye", "kelebek"]
+          },
+          {
+            "key": "cam_ozelligi",
+            "required": false,
+            "optionIds": ["polarize", "uv400", "aynali", "degrade", "fotokromik"]
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": ["Asetat", "Metal", "Titanyum", "Plastik", "Ahşap"]
+      }
+    },
+    {
+      "code": "AKS-GIYIM",
+      "label": "AKS-GIYIM",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": true
+          },
+          {
+            "key": "yas_grubu",
+            "required": true
+          },
+          {
+            "key": "sezon",
+            "required": false
+          },
+          {
+            "key": "desen",
+            "required": false
+          },
+          {
+            "key": "tesettur",
+            "required": false
+          },
+          {
+            "key": "beden",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "beden",
+        "variantLabel": "Beden",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Pamuk",
+          "Organik Pamuk",
+          "Polyester",
+          "Viskon",
+          "Modal",
+          "Keten",
+          "Yün",
+          "Kaşmir",
+          "İpek",
+          "Akrilik",
+          "Poliamid",
+          "Elastan",
+          "Deri",
+          "Suni Deri",
+          "Karışım"
+        ]
+      }
+    },
+    {
+      "code": "AKS-KEMER",
+      "label": "AKS-KEMER",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": false
+          },
+          {
+            "key": "genislik_cm",
+            "required": false,
+            "displayUnit": "cm"
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "Deri",
+          "Suni Deri",
+          "Kanvas",
+          "Kumaş",
+          "Naylon",
+          "Süet",
+          "Hasır",
+          "Kadife"
+        ]
+      }
+    },
+    {
+      "code": "BEB-EKIPMAN",
+      "label": "BEB-EKIPMAN",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "yas_kilo_araligi",
+            "required": false
+          },
+          {
+            "key": "tasima_kapasitesi_kg",
+            "required": false,
+            "displayUnit": "kg"
+          },
+          {
+            "key": "katlanabilir",
+            "required": false,
+            "optionIds": ["evet", "hayir"]
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": true
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "BEB-OTO",
+      "label": "BEB-OTO",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "grup",
+            "required": false,
+            "optionIds": ["grup-0", "0-1", "1-2-3", "2-3", "i-size"]
+          },
+          {
+            "key": "kilo_araligi",
+            "required": false
+          },
+          {
+            "key": "isofix",
+            "required": false,
+            "optionIds": ["var", "yok"]
+          },
+          {
+            "key": "yon",
+            "required": false,
+            "optionIds": ["ileri", "geri", "cift-yonlu"]
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "BEB-BESLENME",
+      "label": "BEB-BESLENME",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "minimum_yas_ay",
+            "required": false,
+            "displayUnit": "ay"
+          },
+          {
+            "key": "hacim_ml",
+            "required": false,
+            "displayUnit": "ml"
+          },
+          {
+            "key": "bpa_icermez",
+            "required": false,
+            "optionIds": ["evet", "hayir"]
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "hacim_ml",
+        "variantLabel": "Hacim",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": ["Cam", "Polipropilen", "Silikon", "Tritan", "Paslanmaz Çelik", "Bambu"]
+      }
+    },
+    {
+      "code": "BEB-BAKIM",
+      "label": "BEB-BAKIM",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "hacim_ml",
+            "required": false
+          },
+          {
+            "key": "net_agirlik_g",
+            "required": false
+          },
+          {
+            "key": "paket_adedi",
+            "required": false
+          },
+          {
+            "key": "minimum_yas_ay",
+            "required": false,
+            "displayUnit": "ay"
+          }
+        ],
+        "requiredGroups": [
+          {
+            "label": "Net İçerik",
+            "keys": ["hacim_ml", "net_agirlik_g", "paket_adedi"]
+          }
+        ],
+        "variantKey": "net_icerik",
+        "variantLabel": "Net İçerik",
+        "contentKeys": ["hacim_ml", "net_agirlik_g", "paket_adedi"],
+        "shared": {
+          "color": true,
+          "material": false,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "BEB-BEZ",
+      "label": "BEB-BEZ",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "bez_numarasi",
+            "required": true
+          },
+          {
+            "key": "paket_adedi",
+            "required": true
+          },
+          {
+            "key": "kilo_araligi",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "bez_numarasi",
+        "variantLabel": "Bez Numarası",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": false,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "BEB-ODA",
+      "label": "BEB-ODA",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "yas_araligi",
+            "required": false
+          },
+          {
+            "key": "kurulum_gerekir",
+            "required": false,
+            "optionIds": ["evet", "hayir"]
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": true
+        },
+        "materialLabels": ["Ahşap", "MDF", "Metal", "Pamuk", "Müslin", "Polyester"]
+      }
+    },
+    {
+      "code": "OYUNCAK",
+      "label": "OYUNCAK",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "minimum_yas_ay",
+            "required": true,
+            "displayUnit": "ay"
+          },
+          {
+            "key": "cinsiyet",
+            "required": false
+          },
+          {
+            "key": "enerji",
+            "required": false,
+            "optionIds": ["pilsiz", "pilli", "sarjli"]
+          },
+          {
+            "key": "parca_sayisi",
+            "required": false,
+            "displayUnit": "adet"
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": ["Ahşap", "Plastik", "Peluş", "Metal", "Kumaş", "Karton"]
+      }
+    },
+    {
+      "code": "KOZ-MAKYAJ",
+      "label": "KOZ-MAKYAJ",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "hacim_ml",
+            "required": false
+          },
+          {
+            "key": "net_agirlik_g",
+            "required": false
+          },
+          {
+            "key": "form",
+            "required": false,
+            "optionIds": ["sivi", "krem", "pudra", "stick", "jel", "kalem"]
+          },
+          {
+            "key": "bitis",
+            "required": false,
+            "optionIds": ["mat", "saten", "parlak", "isiltili"]
+          },
+          {
+            "key": "cilt_tipi",
+            "required": false,
+            "optionIds": ["tum", "kuru", "yagli", "karma", "hassas", "normal"]
+          },
+          {
+            "key": "cinsiyet",
+            "required": false
+          },
+          {
+            "key": "ton",
+            "required": false
+          }
+        ],
+        "requiredGroups": [
+          {
+            "label": "Net İçerik",
+            "keys": ["hacim_ml", "net_agirlik_g"]
+          }
+        ],
+        "variantKey": "ton",
+        "variantLabel": "Ton",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": false,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "KOZ-BAKIM",
+      "label": "KOZ-BAKIM",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "hacim_ml",
+            "required": false
+          },
+          {
+            "key": "net_agirlik_g",
+            "required": false
+          },
+          {
+            "key": "paket_adedi",
+            "required": false
+          },
+          {
+            "key": "cilt_tipi",
+            "required": false
+          },
+          {
+            "key": "sac_tipi",
+            "required": false,
+            "optionIds": ["tum", "kuru", "yagli", "normal", "boyali", "kivircik", "ince-telli"]
+          },
+          {
+            "key": "etki",
+            "required": false,
+            "optionIds": [
+              "nemlendirici",
+              "arindirici",
+              "yaslanma-karsiti",
+              "aydinlatici",
+              "akne-karsiti",
+              "onarici",
+              "besleyici",
+              "hacim-verici",
+              "dokulme-karsiti"
+            ]
+          },
+          {
+            "key": "spf",
+            "required": false,
+            "displayUnit": "—"
+          },
+          {
+            "key": "cinsiyet",
+            "required": false
+          }
+        ],
+        "requiredGroups": [
+          {
+            "label": "Net İçerik",
+            "keys": ["hacim_ml", "net_agirlik_g", "paket_adedi"]
+          }
+        ],
+        "variantKey": "net_icerik",
+        "variantLabel": "Net İçerik",
+        "contentKeys": ["hacim_ml", "net_agirlik_g", "paket_adedi"],
+        "shared": {
+          "color": false,
+          "material": false,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "KOZ-PARFUM",
+      "label": "KOZ-PARFUM",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cinsiyet",
+            "required": true
+          },
+          {
+            "key": "hacim_ml",
+            "required": true,
+            "displayUnit": "ml"
+          },
+          {
+            "key": "konsantrasyon",
+            "required": false,
+            "optionIds": ["extrait", "edp", "edt", "edc", "body-mist"]
+          },
+          {
+            "key": "koku_ailesi",
+            "required": false,
+            "optionIds": [
+              "ciceksi",
+              "odunsu",
+              "oryantal",
+              "fresh",
+              "meyveli",
+              "baharatli",
+              "aromatik",
+              "gurme"
+            ]
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "hacim_ml",
+        "variantLabel": "Hacim",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "KOZ-KISISEL",
+      "label": "KOZ-KISISEL",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "hacim_ml",
+            "required": false
+          },
+          {
+            "key": "net_agirlik_g",
+            "required": false
+          },
+          {
+            "key": "paket_adedi",
+            "required": false
+          },
+          {
+            "key": "cinsiyet",
+            "required": false
+          }
+        ],
+        "requiredGroups": [
+          {
+            "label": "Net İçerik",
+            "keys": ["hacim_ml", "net_agirlik_g", "paket_adedi"]
+          }
+        ],
+        "variantKey": "net_icerik",
+        "variantLabel": "Net İçerik",
+        "contentKeys": ["hacim_ml", "net_agirlik_g", "paket_adedi"],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "KOZ-ARAC",
+      "label": "KOZ-ARAC",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "paket_adedi",
+            "required": false,
+            "displayUnit": "adet"
+          },
+          {
+            "key": "cinsiyet",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": [
+          "görünür: Sentetik Kıl",
+          "Doğal Kıl",
+          "Ahşap",
+          "Bambu",
+          "Plastik",
+          "Paslanmaz Çelik"
+        ]
+      }
+    },
+    {
+      "code": "KOZ-SET",
+      "label": "KOZ-SET",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "set_icerigi",
+            "required": true
+          },
+          {
+            "key": "parca_sayisi",
+            "required": false,
+            "displayUnit": "adet"
+          },
+          {
+            "key": "cilt_tipi",
+            "required": false
+          },
+          {
+            "key": "cinsiyet",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-BILGISAYAR",
+      "label": "ELK-BILGISAYAR",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "islemci",
+            "required": false,
+            "optionIds": [
+              "intel-core-i3-i5-i7-i9",
+              "core-ultra",
+              "amd-ryzen-3-5-7-9",
+              "apple-m-serisi",
+              "diger"
+            ]
+          },
+          {
+            "key": "ram_gb",
+            "required": false,
+            "displayUnit": "GB"
+          },
+          {
+            "key": "ram_tipi",
+            "required": false,
+            "optionIds": ["ddr4", "ddr5", "lpddr5", "birlesik"]
+          },
+          {
+            "key": "depolama_tipi",
+            "required": false,
+            "optionIds": ["ssd", "hdd", "ssd-hdd", "emmc"]
+          },
+          {
+            "key": "depolama_gb",
+            "required": false,
+            "displayUnit": "GB"
+          },
+          {
+            "key": "ekran_karti",
+            "required": false,
+            "optionIds": ["dahili", "harici"]
+          },
+          {
+            "key": "ekran_boyutu_inc",
+            "required": false,
+            "displayUnit": "inç"
+          },
+          {
+            "key": "cozunurluk",
+            "required": false,
+            "optionIds": ["hd", "full-hd", "qhd", "4k"]
+          },
+          {
+            "key": "isletim_sistemi",
+            "required": false,
+            "optionIds": ["windows", "macos", "linux", "freedos", "chromeos"]
+          },
+          {
+            "key": "garanti_ay",
+            "required": true,
+            "displayUnit": "ay"
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-TABLET",
+      "label": "ELK-TABLET",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "depolama_gb",
+            "required": false,
+            "displayUnit": "GB"
+          },
+          {
+            "key": "ram_gb",
+            "required": false,
+            "displayUnit": "GB"
+          },
+          {
+            "key": "ekran_boyutu_inc",
+            "required": false,
+            "displayUnit": "inç"
+          },
+          {
+            "key": "isletim_sistemi",
+            "required": false,
+            "optionIds": ["ipados", "android", "windows"]
+          },
+          {
+            "key": "baglanti",
+            "required": false,
+            "optionIds": ["wi-fi", "wi-fi-hucresel"]
+          },
+          {
+            "key": "garanti_ay",
+            "required": true
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-MONITOR",
+      "label": "ELK-MONITOR",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "ekran_boyutu_inc",
+            "required": false,
+            "displayUnit": "inç"
+          },
+          {
+            "key": "cozunurluk",
+            "required": false
+          },
+          {
+            "key": "yenileme_hizi_hz",
+            "required": false,
+            "displayUnit": "Hz"
+          },
+          {
+            "key": "panel",
+            "required": false,
+            "optionIds": ["ips", "va", "tn", "oled"]
+          },
+          {
+            "key": "garanti_ay",
+            "required": true
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-CEVRE",
+      "label": "ELK-CEVRE",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "baglanti",
+            "required": false,
+            "optionIds": ["kablolu", "kablosuz", "bluetooth"]
+          },
+          {
+            "key": "uyumlu_cihaz",
+            "required": false
+          },
+          {
+            "key": "depolama_gb",
+            "required": false,
+            "displayUnit": "GB"
+          },
+          {
+            "key": "garanti_ay",
+            "required": true
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-AKS",
+      "label": "ELK-AKS",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "uyumlu_cihaz",
+            "required": false
+          },
+          {
+            "key": "baglanti",
+            "required": false,
+            "optionIds": ["kablolu", "kablosuz", "bluetooth", "yok"]
+          },
+          {
+            "key": "garanti_ay",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-TEL-AKS",
+      "label": "ELK-TEL-AKS",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "uyumlu_marka",
+            "required": false
+          },
+          {
+            "key": "giris",
+            "required": false,
+            "optionIds": ["usb-c", "lightning", "micro-usb", "kablosuz-magsafe"]
+          },
+          {
+            "key": "pil_kapasitesi_mah",
+            "required": false,
+            "displayUnit": "mAh"
+          },
+          {
+            "key": "guc_w",
+            "required": false,
+            "displayUnit": "W"
+          },
+          {
+            "key": "garanti_ay",
+            "required": false
+          },
+          {
+            "key": "uyumlu_model",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "uyumlu_model",
+        "variantLabel": "Uyumlu Model",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-SES",
+      "label": "ELK-SES",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "baglanti",
+            "required": false,
+            "optionIds": ["bluetooth", "kablolu", "kablosuz"]
+          },
+          {
+            "key": "kulaklik_tipi",
+            "required": false,
+            "optionIds": ["kulak-ici", "kulak-ustu", "kulak-cevresi"]
+          },
+          {
+            "key": "gurultu_engelleme",
+            "required": false,
+            "optionIds": ["var", "yok"]
+          },
+          {
+            "key": "pil_omru_saat",
+            "required": false,
+            "displayUnit": "saat"
+          },
+          {
+            "key": "suya_dayaniklilik",
+            "required": false,
+            "optionIds": ["yok", "ipx4", "ipx5", "ipx7", "ipx8"]
+          },
+          {
+            "key": "guc_w",
+            "required": false,
+            "displayUnit": "W"
+          },
+          {
+            "key": "garanti_ay",
+            "required": true
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-GIYILEBILIR",
+      "label": "ELK-GIYILEBILIR",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "uyumlu_isletim_sistemi",
+            "required": false,
+            "optionIds": ["ios", "android", "ikisi"]
+          },
+          {
+            "key": "kasa_capi_mm",
+            "required": false,
+            "displayUnit": "mm"
+          },
+          {
+            "key": "pil_omru_saat",
+            "required": false,
+            "displayUnit": "gün"
+          },
+          {
+            "key": "suya_dayaniklilik",
+            "required": false,
+            "optionIds": ["yok", "ip67", "ip68", "5-atm"]
+          },
+          {
+            "key": "garanti_ay",
+            "required": true
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-KAMERA",
+      "label": "ELK-KAMERA",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "cozunurluk_mp",
+            "required": false,
+            "displayUnit": "MP"
+          },
+          {
+            "key": "video",
+            "required": false,
+            "optionIds": ["full-hd", "4k", "5k", "8k"]
+          },
+          {
+            "key": "goruntu_sabitleme",
+            "required": false,
+            "optionIds": ["var", "yok"]
+          },
+          {
+            "key": "suya_dayaniklilik",
+            "required": false
+          },
+          {
+            "key": "ucus_suresi_dk",
+            "required": false,
+            "displayUnit": "dk"
+          },
+          {
+            "key": "garanti_ay",
+            "required": true
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-AKILLI-EV",
+      "label": "ELK-AKILLI-EV",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "baglanti",
+            "required": false,
+            "optionIds": ["wi-fi", "bluetooth", "zigbee", "matter"]
+          },
+          {
+            "key": "uyumlu_asistan",
+            "required": false,
+            "optionIds": ["google", "alexa", "apple-home", "yok"]
+          },
+          {
+            "key": "garanti_ay",
+            "required": true
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-BAKIM-ALETI",
+      "label": "ELK-BAKIM-ALETI",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "guc_w",
+            "required": false,
+            "displayUnit": "W"
+          },
+          {
+            "key": "guc_kullanimi",
+            "required": false,
+            "optionIds": ["kablolu", "sarjli", "ikisi"]
+          },
+          {
+            "key": "cinsiyet",
+            "required": false
+          },
+          {
+            "key": "garanti_ay",
+            "required": true
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "ELK-EV-ALETI",
+      "label": "ELK-EV-ALETI",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "guc_w",
+            "required": false,
+            "displayUnit": "W"
+          },
+          {
+            "key": "hacim_ml",
+            "required": false,
+            "displayUnit": "L"
+          },
+          {
+            "key": "garanti_ay",
+            "required": true
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": null,
+        "variantLabel": null,
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "SPR-EKIPMAN",
+      "label": "SPR-EKIPMAN",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "kullanim",
+            "required": false,
+            "optionIds": ["spor", "outdoor"]
+          },
+          {
+            "key": "spor_bransi",
+            "required": false,
+            "optionIds": [
+              "fitness",
+              "yoga-pilates",
+              "kosu",
+              "futbol",
+              "basketbol",
+              "voleybol",
+              "tenis",
+              "masa-tenisi",
+              "badminton",
+              "yuzme-dalis",
+              "dagcilik",
+              "kayak-snowboard",
+              "diger"
+            ]
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "SPR-KAMP",
+      "label": "SPR-KAMP",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "kullanim",
+            "required": false,
+            "optionIds": ["spor", "outdoor"]
+          },
+          {
+            "key": "sezon",
+            "required": false
+          },
+          {
+            "key": "kisi_sayisi",
+            "required": false,
+            "displayUnit": "kişi"
+          },
+          {
+            "key": "su_gecirmez",
+            "required": false,
+            "optionIds": ["evet", "hayir"]
+          },
+          {
+            "key": "konfor_sicakligi_c",
+            "required": false,
+            "displayUnit": "°C"
+          },
+          {
+            "key": "hacim_ml",
+            "required": false,
+            "displayUnit": "L"
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "SPR-BISIKLET",
+      "label": "SPR-BISIKLET",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "kullanim",
+            "required": false,
+            "optionIds": ["spor", "outdoor"]
+          },
+          {
+            "key": "yas_grubu",
+            "required": false,
+            "optionIds": ["yetiskin", "cocuk"]
+          },
+          {
+            "key": "teker_boyutu_inc",
+            "required": false,
+            "displayUnit": "inç"
+          },
+          {
+            "key": "vites_sayisi",
+            "required": false,
+            "displayUnit": "adet"
+          },
+          {
+            "key": "elektrikli",
+            "required": false,
+            "optionIds": ["evet", "hayir"]
+          },
+          {
+            "key": "tasima_kapasitesi_kg",
+            "required": false,
+            "displayUnit": "kg"
+          },
+          {
+            "key": "menzil_km",
+            "required": false,
+            "displayUnit": "km"
+          },
+          {
+            "key": "garanti_ay",
+            "required": false
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": false
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "EV-MOBILYA",
+      "label": "EV-MOBILYA",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "stil",
+            "required": false,
+            "optionIds": ["modern", "klasik", "rustik", "iskandinav", "endustriyel", "bohem"]
+          },
+          {
+            "key": "kurulum_gerekir",
+            "required": false,
+            "optionIds": ["evet", "hayir"]
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": true
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "EV-AYDINLATMA",
+      "label": "EV-AYDINLATMA",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "duy_tipi",
+            "required": false,
+            "optionIds": ["e27", "e14", "gu10", "g9", "entegre-led"]
+          },
+          {
+            "key": "ampul_dahil",
+            "required": false,
+            "optionIds": ["evet", "hayir"]
+          },
+          {
+            "key": "isik_rengi",
+            "required": false,
+            "optionIds": ["sicak-beyaz", "gun-isigi", "soguk-beyaz", "rgb"]
+          },
+          {
+            "key": "guc_w",
+            "required": false,
+            "displayUnit": "W"
+          },
+          {
+            "key": "stil",
+            "required": false
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": true
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "EV-TEKSTIL",
+      "label": "EV-TEKSTIL",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "desen",
+            "required": false
+          },
+          {
+            "key": "makinede_yikanabilir",
+            "required": false,
+            "optionIds": ["evet", "hayir"]
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": true
+        },
+        "materialLabels": [
+          "Pamuk",
+          "Keten",
+          "Yün",
+          "Polyester",
+          "Bambu",
+          "Müslin",
+          "Kadife",
+          "Akrilik"
+        ]
+      }
+    },
+    {
+      "code": "EV-MUTFAK",
+      "label": "EV-MUTFAK",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "hacim_ml",
+            "required": false,
+            "displayUnit": "ml"
+          },
+          {
+            "key": "parca_sayisi",
+            "required": false,
+            "displayUnit": "adet"
+          },
+          {
+            "key": "kisi_sayisi",
+            "required": false,
+            "displayUnit": "kişi"
+          },
+          {
+            "key": "bulasik_makinesinde_yikanabilir",
+            "required": false,
+            "optionIds": ["evet", "hayir"]
+          },
+          {
+            "key": "mikrodalga_uyumlu",
+            "required": false,
+            "optionIds": ["evet", "hayir"]
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": true
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "EV-DEKOR",
+      "label": "EV-DEKOR",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "stil",
+            "required": false
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": true
+        },
+        "materialLabels": []
+      }
+    },
+    {
+      "code": "EV-BAKIM",
+      "label": "EV-BAKIM",
+      "compatibilityVersion": 1,
+      "config": {
+        "fields": [
+          {
+            "key": "hacim_ml",
+            "required": false
+          },
+          {
+            "key": "net_agirlik_g",
+            "required": false
+          },
+          {
+            "key": "paket_adedi",
+            "required": false
+          },
+          {
+            "key": "koku",
+            "required": false
+          },
+          {
+            "key": "olcu",
+            "required": false
+          }
+        ],
+        "requiredGroups": [],
+        "variantKey": "olcu",
+        "variantLabel": "Ölçü",
+        "contentKeys": [],
+        "shared": {
+          "color": true,
+          "material": true,
+          "dimensions": true
+        },
+        "materialLabels": []
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "slug": "giyim",
+      "name": "Giyim",
+      "parentSlug": null,
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ust-giyim",
+      "name": "Üst Giyim",
+      "parentSlug": "giyim",
+      "templateCode": "GIY-UST"
+    },
+    {
+      "slug": "giyim-ust-giyim-tisort",
+      "name": "Tişört",
+      "parentSlug": "giyim-ust-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ust-giyim-gomlek",
+      "name": "Gömlek",
+      "parentSlug": "giyim-ust-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ust-giyim-bluz",
+      "name": "Bluz",
+      "parentSlug": "giyim-ust-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ust-giyim-tunik",
+      "name": "Tunik",
+      "parentSlug": "giyim-ust-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ust-giyim-sweatshirt",
+      "name": "Sweatshirt",
+      "parentSlug": "giyim-ust-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ust-giyim-hirka",
+      "name": "Hırka",
+      "parentSlug": "giyim-ust-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ust-giyim-kazak",
+      "name": "Kazak",
+      "parentSlug": "giyim-ust-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ust-giyim-polar",
+      "name": "Polar",
+      "parentSlug": "giyim-ust-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ust-giyim-yelek",
+      "name": "Yelek",
+      "parentSlug": "giyim-ust-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ust-giyim-forma",
+      "name": "Forma",
+      "parentSlug": "giyim-ust-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ust-giyim-body-zibin",
+      "name": "Body & Zıbın",
+      "parentSlug": "giyim-ust-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-alt-giyim",
+      "name": "Alt Giyim",
+      "parentSlug": "giyim",
+      "templateCode": "GIY-ALT"
+    },
+    {
+      "slug": "giyim-alt-giyim-pantolon",
+      "name": "Pantolon",
+      "parentSlug": "giyim-alt-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-alt-giyim-kot-pantolon",
+      "name": "Kot Pantolon",
+      "parentSlug": "giyim-alt-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-alt-giyim-sort",
+      "name": "Şort",
+      "parentSlug": "giyim-alt-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-alt-giyim-etek",
+      "name": "Etek",
+      "parentSlug": "giyim-alt-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-alt-giyim-tayt",
+      "name": "Tayt",
+      "parentSlug": "giyim-alt-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-alt-giyim-esofman-alti",
+      "name": "Eşofman Altı",
+      "parentSlug": "giyim-alt-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-elbise-tulum",
+      "name": "Elbise & Tulum",
+      "parentSlug": "giyim",
+      "templateCode": "GIY-ELB"
+    },
+    {
+      "slug": "giyim-elbise-tulum-elbise",
+      "name": "Elbise",
+      "parentSlug": "giyim-elbise-tulum",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-elbise-tulum-abiye-elbise",
+      "name": "Abiye Elbise",
+      "parentSlug": "giyim-elbise-tulum",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-elbise-tulum-tulum",
+      "name": "Tulum",
+      "parentSlug": "giyim-elbise-tulum",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-dis-giyim",
+      "name": "Dış Giyim",
+      "parentSlug": "giyim",
+      "templateCode": "GIY-DIS"
+    },
+    {
+      "slug": "giyim-dis-giyim-mont",
+      "name": "Mont",
+      "parentSlug": "giyim-dis-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-dis-giyim-kaban",
+      "name": "Kaban",
+      "parentSlug": "giyim-dis-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-dis-giyim-palto",
+      "name": "Palto",
+      "parentSlug": "giyim-dis-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-dis-giyim-trenckot",
+      "name": "Trençkot",
+      "parentSlug": "giyim-dis-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-dis-giyim-pardosu-ferace",
+      "name": "Pardösü & Ferace",
+      "parentSlug": "giyim-dis-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-dis-giyim-yagmurluk-ruzgarlik",
+      "name": "Yağmurluk & Rüzgarlık",
+      "parentSlug": "giyim-dis-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-dis-giyim-ceket",
+      "name": "Ceket",
+      "parentSlug": "giyim-dis-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-dis-giyim-blazer-ceket",
+      "name": "Blazer Ceket",
+      "parentSlug": "giyim-dis-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-dis-giyim-kot-ceket",
+      "name": "Kot Ceket",
+      "parentSlug": "giyim-dis-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-dis-giyim-deri-ceket-mont",
+      "name": "Deri Ceket & Mont",
+      "parentSlug": "giyim-dis-giyim",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-takim-set",
+      "name": "Takım & Set",
+      "parentSlug": "giyim",
+      "templateCode": "GIY-TAK"
+    },
+    {
+      "slug": "giyim-takim-set-takim-elbise",
+      "name": "Takım Elbise",
+      "parentSlug": "giyim-takim-set",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-takim-set-esofman-takimi",
+      "name": "Eşofman Takımı",
+      "parentSlug": "giyim-takim-set",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-takim-set-alt-ust-takim",
+      "name": "Alt Üst Takım",
+      "parentSlug": "giyim-takim-set",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-takim-set-hastane-cikisi-seti",
+      "name": "Hastane Çıkışı Seti",
+      "parentSlug": "giyim-takim-set",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi",
+      "name": "İç Giyim & Ev Giyimi",
+      "parentSlug": "giyim",
+      "templateCode": "GIY-IC"
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-sutyen",
+      "name": "Sütyen",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-spor-sutyeni",
+      "name": "Spor Sütyeni",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-bralet",
+      "name": "Bralet",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-bustiyer",
+      "name": "Büstiyer",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-kulot",
+      "name": "Külot",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-boxer",
+      "name": "Boxer",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-ic-camasiri-takimi",
+      "name": "İç Çamaşırı Takımı",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-atlet-body",
+      "name": "Atlet & Body",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-iclik",
+      "name": "İçlik",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-korse",
+      "name": "Korse",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-kombinezon",
+      "name": "Kombinezon",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-jartiyer",
+      "name": "Jartiyer",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-fantezi-giyim",
+      "name": "Fantezi Giyim",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-corap",
+      "name": "Çorap",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-pijama-takimi",
+      "name": "Pijama Takımı",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-ic-giyim-ev-giyimi-gecelik",
+      "name": "Gecelik",
+      "parentSlug": "giyim-ic-giyim-ev-giyimi",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-mayo-plaj",
+      "name": "Mayo & Plaj",
+      "parentSlug": "giyim",
+      "templateCode": "GIY-MAYO"
+    },
+    {
+      "slug": "giyim-mayo-plaj-mayo",
+      "name": "Mayo",
+      "parentSlug": "giyim-mayo-plaj",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-mayo-plaj-bikini",
+      "name": "Bikini",
+      "parentSlug": "giyim-mayo-plaj",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-mayo-plaj-deniz-sortu",
+      "name": "Deniz Şortu",
+      "parentSlug": "giyim-mayo-plaj",
+      "templateCode": null
+    },
+    {
+      "slug": "giyim-mayo-plaj-plaj-elbisesi-pareo",
+      "name": "Plaj Elbisesi & Pareo",
+      "parentSlug": "giyim-mayo-plaj",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi",
+      "name": "Ayakkabı",
+      "parentSlug": null,
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-spor-ayakkabi",
+      "name": "Spor Ayakkabı",
+      "parentSlug": "ayakkabi",
+      "templateCode": "AYK"
+    },
+    {
+      "slug": "ayakkabi-spor-ayakkabi-antrenman-ayakkabisi",
+      "name": "Antrenman Ayakkabısı",
+      "parentSlug": "ayakkabi-spor-ayakkabi",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-spor-ayakkabi-kosu-ayakkabisi",
+      "name": "Koşu Ayakkabısı",
+      "parentSlug": "ayakkabi-spor-ayakkabi",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-spor-ayakkabi-yuruyus-ayakkabisi",
+      "name": "Yürüyüş Ayakkabısı",
+      "parentSlug": "ayakkabi-spor-ayakkabi",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-spor-ayakkabi-basketbol-ayakkabisi",
+      "name": "Basketbol Ayakkabısı",
+      "parentSlug": "ayakkabi-spor-ayakkabi",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-spor-ayakkabi-tenis-ayakkabisi",
+      "name": "Tenis Ayakkabısı",
+      "parentSlug": "ayakkabi-spor-ayakkabi",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-spor-ayakkabi-krampon",
+      "name": "Krampon",
+      "parentSlug": "ayakkabi-spor-ayakkabi",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-spor-ayakkabi-outdoor-trekking-ayakkabisi",
+      "name": "Outdoor & Trekking Ayakkabısı",
+      "parentSlug": "ayakkabi-spor-ayakkabi",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-sneaker-gunluk",
+      "name": "Sneaker & Günlük",
+      "parentSlug": "ayakkabi",
+      "templateCode": "AYK"
+    },
+    {
+      "slug": "ayakkabi-sneaker-gunluk-sneaker",
+      "name": "Sneaker",
+      "parentSlug": "ayakkabi-sneaker-gunluk",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-sneaker-gunluk-gunluk-ayakkabi",
+      "name": "Günlük Ayakkabı",
+      "parentSlug": "ayakkabi-sneaker-gunluk",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-sneaker-gunluk-loafer",
+      "name": "Loafer",
+      "parentSlug": "ayakkabi-sneaker-gunluk",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-sneaker-gunluk-babet",
+      "name": "Babet",
+      "parentSlug": "ayakkabi-sneaker-gunluk",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-klasik-topuklu",
+      "name": "Klasik & Topuklu",
+      "parentSlug": "ayakkabi",
+      "templateCode": "AYK"
+    },
+    {
+      "slug": "ayakkabi-klasik-topuklu-klasik-ayakkabi",
+      "name": "Klasik Ayakkabı",
+      "parentSlug": "ayakkabi-klasik-topuklu",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-klasik-topuklu-topuklu-ayakkabi",
+      "name": "Topuklu Ayakkabı",
+      "parentSlug": "ayakkabi-klasik-topuklu",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-bot-cizme",
+      "name": "Bot & Çizme",
+      "parentSlug": "ayakkabi",
+      "templateCode": "AYK"
+    },
+    {
+      "slug": "ayakkabi-bot-cizme-bot",
+      "name": "Bot",
+      "parentSlug": "ayakkabi-bot-cizme",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-bot-cizme-cizme",
+      "name": "Çizme",
+      "parentSlug": "ayakkabi-bot-cizme",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-bot-cizme-kar-botu",
+      "name": "Kar Botu",
+      "parentSlug": "ayakkabi-bot-cizme",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-bot-cizme-outdoor-bot",
+      "name": "Outdoor Bot",
+      "parentSlug": "ayakkabi-bot-cizme",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-sandalet-terlik",
+      "name": "Sandalet & Terlik",
+      "parentSlug": "ayakkabi",
+      "templateCode": "AYK"
+    },
+    {
+      "slug": "ayakkabi-sandalet-terlik-sandalet",
+      "name": "Sandalet",
+      "parentSlug": "ayakkabi-sandalet-terlik",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-sandalet-terlik-terlik",
+      "name": "Terlik",
+      "parentSlug": "ayakkabi-sandalet-terlik",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-sandalet-terlik-ev-terligi",
+      "name": "Ev Terliği",
+      "parentSlug": "ayakkabi-sandalet-terlik",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-bebek-ayakkabisi",
+      "name": "Bebek Ayakkabısı",
+      "parentSlug": "ayakkabi",
+      "templateCode": "AYK"
+    },
+    {
+      "slug": "ayakkabi-bebek-ayakkabisi-bebek-patigi",
+      "name": "Bebek Patiği",
+      "parentSlug": "ayakkabi-bebek-ayakkabisi",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-bebek-ayakkabisi-ilk-adim-ayakkabisi",
+      "name": "İlk Adım Ayakkabısı",
+      "parentSlug": "ayakkabi-bebek-ayakkabisi",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-ayakkabi-bakim-aksesuar",
+      "name": "Ayakkabı Bakım & Aksesuar",
+      "parentSlug": "ayakkabi",
+      "templateCode": "AYK-BAKIM"
+    },
+    {
+      "slug": "ayakkabi-ayakkabi-bakim-aksesuar-ayakkabi-bakim-urunleri",
+      "name": "Ayakkabı Bakım Ürünleri",
+      "parentSlug": "ayakkabi-ayakkabi-bakim-aksesuar",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-ayakkabi-bakim-aksesuar-bagcik",
+      "name": "Bağcık",
+      "parentSlug": "ayakkabi-ayakkabi-bakim-aksesuar",
+      "templateCode": null
+    },
+    {
+      "slug": "ayakkabi-ayakkabi-bakim-aksesuar-tabanlik",
+      "name": "Tabanlık",
+      "parentSlug": "ayakkabi-ayakkabi-bakim-aksesuar",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar",
+      "name": "Aksesuar",
+      "parentSlug": null,
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta",
+      "name": "Çanta",
+      "parentSlug": "taki-aksesuar",
+      "templateCode": "AKS-CANTA"
+    },
+    {
+      "slug": "taki-aksesuar-canta-omuz-cantasi",
+      "name": "Omuz Çantası",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-el-cantasi",
+      "name": "El Çantası",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-capraz-canta",
+      "name": "Çapraz Çanta",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-sirt-cantasi",
+      "name": "Sırt Çantası",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-bel-cantasi",
+      "name": "Bel Çantası",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-postaci-cantasi",
+      "name": "Postacı Çantası",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-tote-canta",
+      "name": "Tote Çanta",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-bez-kanvas-canta",
+      "name": "Bez & Kanvas Çanta",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-abiye-canta",
+      "name": "Abiye Çanta",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-portfoy",
+      "name": "Portföy",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-laptop-cantasi",
+      "name": "Laptop Çantası",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-evrak-cantasi",
+      "name": "Evrak Çantası",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-okul-cantasi",
+      "name": "Okul Çantası",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-beslenme-cantasi",
+      "name": "Beslenme Çantası",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-spor-cantasi",
+      "name": "Spor Çantası",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-makyaj-cantasi",
+      "name": "Makyaj Çantası",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-canta-valiz-bavul",
+      "name": "Valiz & Bavul",
+      "parentSlug": "taki-aksesuar-canta",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-cuzdan-kartlik",
+      "name": "Cüzdan & Kartlık",
+      "parentSlug": "taki-aksesuar",
+      "templateCode": "AKS-CUZDAN"
+    },
+    {
+      "slug": "taki-aksesuar-cuzdan-kartlik-cuzdan",
+      "name": "Cüzdan",
+      "parentSlug": "taki-aksesuar-cuzdan-kartlik",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-cuzdan-kartlik-kartlik",
+      "name": "Kartlık",
+      "parentSlug": "taki-aksesuar-cuzdan-kartlik",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-taki",
+      "name": "Takı",
+      "parentSlug": "taki-aksesuar",
+      "templateCode": "AKS-TAKI"
+    },
+    {
+      "slug": "taki-aksesuar-taki-kolye",
+      "name": "Kolye",
+      "parentSlug": "taki-aksesuar-taki",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-taki-kupe",
+      "name": "Küpe",
+      "parentSlug": "taki-aksesuar-taki",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-taki-bileklik",
+      "name": "Bileklik",
+      "parentSlug": "taki-aksesuar-taki",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-taki-yuzuk",
+      "name": "Yüzük",
+      "parentSlug": "taki-aksesuar-taki",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-taki-bros",
+      "name": "Broş",
+      "parentSlug": "taki-aksesuar-taki",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-taki-taki-seti",
+      "name": "Takı Seti",
+      "parentSlug": "taki-aksesuar-taki",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-saat-gozluk",
+      "name": "Saat & Gözlük",
+      "parentSlug": "taki-aksesuar",
+      "templateCode": "AKS-SAAT"
+    },
+    {
+      "slug": "taki-aksesuar-saat-gozluk-kol-saati",
+      "name": "Kol Saati",
+      "parentSlug": "taki-aksesuar-saat-gozluk",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-saat-gozluk-gunes-gozlugu",
+      "name": "Güneş Gözlüğü",
+      "parentSlug": "taki-aksesuar-saat-gozluk",
+      "templateCode": "AKS-GOZLUK"
+    },
+    {
+      "slug": "taki-aksesuar-sapka-bere-eldiven",
+      "name": "Şapka, Bere & Eldiven",
+      "parentSlug": "taki-aksesuar",
+      "templateCode": "AKS-GIYIM"
+    },
+    {
+      "slug": "taki-aksesuar-sapka-bere-eldiven-sapka",
+      "name": "Şapka",
+      "parentSlug": "taki-aksesuar-sapka-bere-eldiven",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-sapka-bere-eldiven-bere",
+      "name": "Bere",
+      "parentSlug": "taki-aksesuar-sapka-bere-eldiven",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-sapka-bere-eldiven-eldiven",
+      "name": "Eldiven",
+      "parentSlug": "taki-aksesuar-sapka-bere-eldiven",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-sapka-bere-eldiven-boyunluk",
+      "name": "Boyunluk",
+      "parentSlug": "taki-aksesuar-sapka-bere-eldiven",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-atki-sal-esarp",
+      "name": "Atkı, Şal & Eşarp",
+      "parentSlug": "taki-aksesuar",
+      "templateCode": "AKS-GIYIM"
+    },
+    {
+      "slug": "taki-aksesuar-atki-sal-esarp-atki",
+      "name": "Atkı",
+      "parentSlug": "taki-aksesuar-atki-sal-esarp",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-atki-sal-esarp-sal",
+      "name": "Şal",
+      "parentSlug": "taki-aksesuar-atki-sal-esarp",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-atki-sal-esarp-esarp",
+      "name": "Eşarp",
+      "parentSlug": "taki-aksesuar-atki-sal-esarp",
+      "templateCode": null
+    },
+    {
+      "slug": "taki-aksesuar-kemer-kravat",
+      "name": "Kemer & Kravat",
+      "parentSlug": "taki-aksesuar",
+      "templateCode": "AKS-GIYIM"
+    },
+    {
+      "slug": "taki-aksesuar-kemer-kravat-kemer",
+      "name": "Kemer",
+      "parentSlug": "taki-aksesuar-kemer-kravat",
+      "templateCode": "AKS-KEMER"
+    },
+    {
+      "slug": "taki-aksesuar-kemer-kravat-kravat-papyon",
+      "name": "Kravat & Papyon",
+      "parentSlug": "taki-aksesuar-kemer-kravat",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk",
+      "name": "Anne & Çocuk",
+      "parentSlug": null,
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-tasima-guvenlik",
+      "name": "Taşıma & Güvenlik",
+      "parentSlug": "anne-cocuk",
+      "templateCode": "BEB-EKIPMAN"
+    },
+    {
+      "slug": "anne-cocuk-tasima-guvenlik-bebek-arabasi-puset",
+      "name": "Bebek Arabası & Puset",
+      "parentSlug": "anne-cocuk-tasima-guvenlik",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-tasima-guvenlik-baston-puset",
+      "name": "Baston Puset",
+      "parentSlug": "anne-cocuk-tasima-guvenlik",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-tasima-guvenlik-ana-kucagi",
+      "name": "Ana Kucağı",
+      "parentSlug": "anne-cocuk-tasima-guvenlik",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-tasima-guvenlik-portbebe-kanguru",
+      "name": "Portbebe & Kanguru",
+      "parentSlug": "anne-cocuk-tasima-guvenlik",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-tasima-guvenlik-yurutec",
+      "name": "Yürüteç",
+      "parentSlug": "anne-cocuk-tasima-guvenlik",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-tasima-guvenlik-park-yatak",
+      "name": "Park Yatak",
+      "parentSlug": "anne-cocuk-tasima-guvenlik",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-tasima-guvenlik-bebek-salincagi",
+      "name": "Bebek Salıncağı",
+      "parentSlug": "anne-cocuk-tasima-guvenlik",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-tasima-guvenlik-oto-koltugu",
+      "name": "Oto Koltuğu",
+      "parentSlug": "anne-cocuk-tasima-guvenlik",
+      "templateCode": "BEB-OTO"
+    },
+    {
+      "slug": "anne-cocuk-tasima-guvenlik-anne-bebek-cantasi",
+      "name": "Anne Bebek Çantası",
+      "parentSlug": "anne-cocuk-tasima-guvenlik",
+      "templateCode": "AKS-CANTA"
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme",
+      "name": "Beslenme & Emzirme",
+      "parentSlug": "anne-cocuk",
+      "templateCode": "BEB-BESLENME"
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-biberon-emzik",
+      "name": "Biberon & Emzik",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-biberon-seti",
+      "name": "Biberon Seti",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-biberon-temizleyici",
+      "name": "Biberon Temizleyici",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-sterilizator",
+      "name": "Sterilizatör",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-buharli-pisirici",
+      "name": "Buharlı Pişirici",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-mama-sandalyesi",
+      "name": "Mama Sandalyesi",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": "BEB-EKIPMAN"
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-mama-onlugu",
+      "name": "Mama Önlüğü",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-alistirma-bardagi",
+      "name": "Alıştırma Bardağı",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-yemek-seti",
+      "name": "Yemek Seti",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-termal-canta",
+      "name": "Termal Çanta",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-gogus-pompasi",
+      "name": "Göğüs Pompası",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-emzirme-onlugu",
+      "name": "Emzirme Önlüğü",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-emzirme-minderi",
+      "name": "Emzirme Minderi",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-gogus-pedi",
+      "name": "Göğüs Pedi",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-beslenme-emzirme-gogus-kremi",
+      "name": "Göğüs Kremi",
+      "parentSlug": "anne-cocuk-beslenme-emzirme",
+      "templateCode": "BEB-BAKIM"
+    },
+    {
+      "slug": "anne-cocuk-bebek-bakim",
+      "name": "Bebek Bakım",
+      "parentSlug": "anne-cocuk",
+      "templateCode": "BEB-BAKIM"
+    },
+    {
+      "slug": "anne-cocuk-bebek-bakim-bebek-bezi",
+      "name": "Bebek Bezi",
+      "parentSlug": "anne-cocuk-bebek-bakim",
+      "templateCode": "BEB-BEZ"
+    },
+    {
+      "slug": "anne-cocuk-bebek-bakim-islak-mendil",
+      "name": "Islak Mendil",
+      "parentSlug": "anne-cocuk-bebek-bakim",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-bakim-bebek-sampuani",
+      "name": "Bebek Şampuanı",
+      "parentSlug": "anne-cocuk-bebek-bakim",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-bakim-bebek-sabunu",
+      "name": "Bebek Sabunu",
+      "parentSlug": "anne-cocuk-bebek-bakim",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-bakim-bebek-yagi",
+      "name": "Bebek Yağı",
+      "parentSlug": "anne-cocuk-bebek-bakim",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-bakim-bebek-kremi-losyonu",
+      "name": "Bebek Kremi & Losyonu",
+      "parentSlug": "anne-cocuk-bebek-bakim",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-bakim-bebek-deterjani",
+      "name": "Bebek Deterjanı",
+      "parentSlug": "anne-cocuk-bebek-bakim",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-bakim-bebek-buhar-makinesi",
+      "name": "Bebek Buhar Makinesi",
+      "parentSlug": "anne-cocuk-bebek-bakim",
+      "templateCode": "ELK-EV-ALETI"
+    },
+    {
+      "slug": "anne-cocuk-bebek-odasi",
+      "name": "Bebek Odası",
+      "parentSlug": "anne-cocuk",
+      "templateCode": "BEB-ODA"
+    },
+    {
+      "slug": "anne-cocuk-bebek-odasi-besik",
+      "name": "Beşik",
+      "parentSlug": "anne-cocuk-bebek-odasi",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-odasi-bebek-yatagi",
+      "name": "Bebek Yatağı",
+      "parentSlug": "anne-cocuk-bebek-odasi",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-odasi-bebek-nevresimi",
+      "name": "Bebek Nevresimi",
+      "parentSlug": "anne-cocuk-bebek-odasi",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-odasi-bebek-battaniyesi",
+      "name": "Bebek Battaniyesi",
+      "parentSlug": "anne-cocuk-bebek-odasi",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-odasi-cibinlik",
+      "name": "Cibinlik",
+      "parentSlug": "anne-cocuk-bebek-odasi",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-odasi-oyuncak-sepeti",
+      "name": "Oyuncak Sepeti",
+      "parentSlug": "anne-cocuk-bebek-odasi",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-odasi-oyuncak-dolabi",
+      "name": "Oyuncak Dolabı",
+      "parentSlug": "anne-cocuk-bebek-odasi",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-odasi-bebek-odasi-mobilyasi",
+      "name": "Bebek Odası Mobilyası",
+      "parentSlug": "anne-cocuk-bebek-odasi",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-odasi-oyun-mati",
+      "name": "Oyun Matı",
+      "parentSlug": "anne-cocuk-bebek-odasi",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-bebek-odasi-oyun-parki",
+      "name": "Oyun Parkı",
+      "parentSlug": "anne-cocuk-bebek-odasi",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-oyuncak",
+      "name": "Oyuncak",
+      "parentSlug": "anne-cocuk",
+      "templateCode": "OYUNCAK"
+    },
+    {
+      "slug": "anne-cocuk-oyuncak-egitici-oyuncak",
+      "name": "Eğitici Oyuncak",
+      "parentSlug": "anne-cocuk-oyuncak",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-oyuncak-bebek-okul-oncesi-oyuncak",
+      "name": "Bebek & Okul Öncesi Oyuncak",
+      "parentSlug": "anne-cocuk-oyuncak",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-oyuncak-oyuncak-araba",
+      "name": "Oyuncak Araba",
+      "parentSlug": "anne-cocuk-oyuncak",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-oyuncak-oyuncak-bebek",
+      "name": "Oyuncak Bebek",
+      "parentSlug": "anne-cocuk-oyuncak",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-oyuncak-kumandali-oyuncak",
+      "name": "Kumandalı Oyuncak",
+      "parentSlug": "anne-cocuk-oyuncak",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-oyuncak-robot-oyuncak",
+      "name": "Robot Oyuncak",
+      "parentSlug": "anne-cocuk-oyuncak",
+      "templateCode": null
+    },
+    {
+      "slug": "anne-cocuk-oyuncak-cocuk-cizim-tableti",
+      "name": "Çocuk Çizim Tableti",
+      "parentSlug": "anne-cocuk-oyuncak",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim",
+      "name": "Kozmetik & Kişisel Bakım",
+      "parentSlug": null,
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj",
+      "name": "Makyaj",
+      "parentSlug": "kozmetik-kisisel-bakim",
+      "templateCode": "KOZ-MAKYAJ"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-fondoten",
+      "name": "Fondöten",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-kapatici",
+      "name": "Kapatıcı",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-pudra",
+      "name": "Pudra",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-bb-cc-krem",
+      "name": "BB & CC Krem",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-allik-bronzer",
+      "name": "Allık & Bronzer",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-aydinlatici-highlighter",
+      "name": "Aydınlatıcı & Highlighter",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-makyaj-bazi-sabitleyici",
+      "name": "Makyaj Bazı & Sabitleyici",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-goz-fari",
+      "name": "Göz Farı",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-maskara",
+      "name": "Maskara",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-eyeliner-goz-kalemi",
+      "name": "Eyeliner & Göz Kalemi",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-kas-makyaji",
+      "name": "Kaş Makyajı",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-ruj",
+      "name": "Ruj",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-dudak-kalemi-parlatici",
+      "name": "Dudak Kalemi & Parlatıcı",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-oje-tirnak-makyaji",
+      "name": "Oje & Tırnak Makyajı",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-makyaj-temizleyici",
+      "name": "Makyaj Temizleyici",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-makyaj-fircasi-aksesuari",
+      "name": "Makyaj Fırçası & Aksesuarı",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": "KOZ-ARAC"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-makyaj-makyaj-seti",
+      "name": "Makyaj Seti",
+      "parentSlug": "kozmetik-kisisel-bakim-makyaj",
+      "templateCode": "KOZ-SET"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cilt-bakimi",
+      "name": "Cilt Bakımı",
+      "parentSlug": "kozmetik-kisisel-bakim",
+      "templateCode": "KOZ-BAKIM"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cilt-bakimi-yuz-nemlendirici",
+      "name": "Yüz Nemlendirici",
+      "parentSlug": "kozmetik-kisisel-bakim-cilt-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cilt-bakimi-yuz-temizleyici-tonik",
+      "name": "Yüz Temizleyici & Tonik",
+      "parentSlug": "kozmetik-kisisel-bakim-cilt-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cilt-bakimi-serum-yuz-yagi",
+      "name": "Serum & Yüz Yağı",
+      "parentSlug": "kozmetik-kisisel-bakim-cilt-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cilt-bakimi-yuz-maskesi-peeling",
+      "name": "Yüz Maskesi & Peeling",
+      "parentSlug": "kozmetik-kisisel-bakim-cilt-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cilt-bakimi-goz-bakimi",
+      "name": "Göz Bakımı",
+      "parentSlug": "kozmetik-kisisel-bakim-cilt-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cilt-bakimi-dudak-bakimi",
+      "name": "Dudak Bakımı",
+      "parentSlug": "kozmetik-kisisel-bakim-cilt-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cilt-bakimi-vucut-bakimi",
+      "name": "Vücut Bakımı",
+      "parentSlug": "kozmetik-kisisel-bakim-cilt-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cilt-bakimi-gunes-urunleri",
+      "name": "Güneş Ürünleri",
+      "parentSlug": "kozmetik-kisisel-bakim-cilt-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cilt-bakimi-cilt-bakim-seti",
+      "name": "Cilt Bakım Seti",
+      "parentSlug": "kozmetik-kisisel-bakim-cilt-bakimi",
+      "templateCode": "KOZ-SET"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-sac-bakimi",
+      "name": "Saç Bakımı",
+      "parentSlug": "kozmetik-kisisel-bakim",
+      "templateCode": "KOZ-BAKIM"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-sac-bakimi-sampuan",
+      "name": "Şampuan",
+      "parentSlug": "kozmetik-kisisel-bakim-sac-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-sac-bakimi-sac-kremi",
+      "name": "Saç Kremi",
+      "parentSlug": "kozmetik-kisisel-bakim-sac-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-sac-bakimi-sac-maskesi-bakim-yagi",
+      "name": "Saç Maskesi & Bakım Yağı",
+      "parentSlug": "kozmetik-kisisel-bakim-sac-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-sac-bakimi-sac-sekillendirici",
+      "name": "Saç Şekillendirici",
+      "parentSlug": "kozmetik-kisisel-bakim-sac-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-sac-bakimi-sac-boyasi",
+      "name": "Saç Boyası",
+      "parentSlug": "kozmetik-kisisel-bakim-sac-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-sac-bakimi-kuru-sampuan",
+      "name": "Kuru Şampuan",
+      "parentSlug": "kozmetik-kisisel-bakim-sac-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-sac-bakimi-sac-fircasi-tarak",
+      "name": "Saç Fırçası & Tarak",
+      "parentSlug": "kozmetik-kisisel-bakim-sac-bakimi",
+      "templateCode": "KOZ-ARAC"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-parfum-deodorant",
+      "name": "Parfüm & Deodorant",
+      "parentSlug": "kozmetik-kisisel-bakim",
+      "templateCode": "KOZ-PARFUM"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-parfum-deodorant-parfum",
+      "name": "Parfüm",
+      "parentSlug": "kozmetik-kisisel-bakim-parfum-deodorant",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-parfum-deodorant-kolonya",
+      "name": "Kolonya",
+      "parentSlug": "kozmetik-kisisel-bakim-parfum-deodorant",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-parfum-deodorant-deodorant",
+      "name": "Deodorant",
+      "parentSlug": "kozmetik-kisisel-bakim-parfum-deodorant",
+      "templateCode": "KOZ-KISISEL"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-banyo-dus",
+      "name": "Banyo & Duş",
+      "parentSlug": "kozmetik-kisisel-bakim",
+      "templateCode": "KOZ-KISISEL"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-banyo-dus-dus-jeli-kremi",
+      "name": "Duş Jeli & Kremi",
+      "parentSlug": "kozmetik-kisisel-bakim-banyo-dus",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-banyo-dus-kati-sivi-sabun",
+      "name": "Katı & Sıvı Sabun",
+      "parentSlug": "kozmetik-kisisel-bakim-banyo-dus",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-el-ayak-tirnak-bakimi",
+      "name": "El, Ayak & Tırnak Bakımı",
+      "parentSlug": "kozmetik-kisisel-bakim",
+      "templateCode": "KOZ-BAKIM"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-el-ayak-tirnak-bakimi-el-kremi",
+      "name": "El Kremi",
+      "parentSlug": "kozmetik-kisisel-bakim-el-ayak-tirnak-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-el-ayak-tirnak-bakimi-ayak-bakimi",
+      "name": "Ayak Bakımı",
+      "parentSlug": "kozmetik-kisisel-bakim-el-ayak-tirnak-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-el-ayak-tirnak-bakimi-manikur-pedikur",
+      "name": "Manikür & Pedikür",
+      "parentSlug": "kozmetik-kisisel-bakim-el-ayak-tirnak-bakimi",
+      "templateCode": "KOZ-ARAC"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-agiz-dis-bakimi",
+      "name": "Ağız & Diş Bakımı",
+      "parentSlug": "kozmetik-kisisel-bakim",
+      "templateCode": "KOZ-KISISEL"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-agiz-dis-bakimi-dis-macunu",
+      "name": "Diş Macunu",
+      "parentSlug": "kozmetik-kisisel-bakim-agiz-dis-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-agiz-dis-bakimi-dis-fircasi",
+      "name": "Diş Fırçası",
+      "parentSlug": "kozmetik-kisisel-bakim-agiz-dis-bakimi",
+      "templateCode": "KOZ-ARAC"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-agiz-dis-bakimi-agiz-gargarasi",
+      "name": "Ağız Gargarası",
+      "parentSlug": "kozmetik-kisisel-bakim-agiz-dis-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-agiz-dis-bakimi-dis-ipi",
+      "name": "Diş İpi",
+      "parentSlug": "kozmetik-kisisel-bakim-agiz-dis-bakimi",
+      "templateCode": "KOZ-ARAC"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-tiras-erkek-bakimi",
+      "name": "Tıraş & Erkek Bakımı",
+      "parentSlug": "kozmetik-kisisel-bakim",
+      "templateCode": "KOZ-KISISEL"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-tiras-erkek-bakimi-tiras-bicagi",
+      "name": "Tıraş Bıçağı",
+      "parentSlug": "kozmetik-kisisel-bakim-tiras-erkek-bakimi",
+      "templateCode": "KOZ-ARAC"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-tiras-erkek-bakimi-tiras-kopugu-jeli",
+      "name": "Tıraş Köpüğü & Jeli",
+      "parentSlug": "kozmetik-kisisel-bakim-tiras-erkek-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-tiras-erkek-bakimi-tiras-sonrasi",
+      "name": "Tıraş Sonrası",
+      "parentSlug": "kozmetik-kisisel-bakim-tiras-erkek-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-tiras-erkek-bakimi-sakal-bakimi",
+      "name": "Sakal Bakımı",
+      "parentSlug": "kozmetik-kisisel-bakim-tiras-erkek-bakimi",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-epilasyon-agda",
+      "name": "Epilasyon & Ağda",
+      "parentSlug": "kozmetik-kisisel-bakim",
+      "templateCode": "KOZ-KISISEL"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-epilasyon-agda-agda",
+      "name": "Ağda",
+      "parentSlug": "kozmetik-kisisel-bakim-epilasyon-agda",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-epilasyon-agda-tuy-dokucu-krem",
+      "name": "Tüy Dökücü Krem",
+      "parentSlug": "kozmetik-kisisel-bakim-epilasyon-agda",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-kadin-hijyen",
+      "name": "Kadın Hijyen",
+      "parentSlug": "kozmetik-kisisel-bakim",
+      "templateCode": "KOZ-KISISEL"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-kadin-hijyen-hijyenik-ped",
+      "name": "Hijyenik Ped",
+      "parentSlug": "kozmetik-kisisel-bakim-kadin-hijyen",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-kadin-hijyen-gunluk-ped",
+      "name": "Günlük Ped",
+      "parentSlug": "kozmetik-kisisel-bakim-kadin-hijyen",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-kadin-hijyen-tampon",
+      "name": "Tampon",
+      "parentSlug": "kozmetik-kisisel-bakim-kadin-hijyen",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cinsel-saglik",
+      "name": "Cinsel Sağlık",
+      "parentSlug": "kozmetik-kisisel-bakim",
+      "templateCode": "KOZ-KISISEL"
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cinsel-saglik-prezervatif",
+      "name": "Prezervatif",
+      "parentSlug": "kozmetik-kisisel-bakim-cinsel-saglik",
+      "templateCode": null
+    },
+    {
+      "slug": "kozmetik-kisisel-bakim-cinsel-saglik-kayganlastirici",
+      "name": "Kayganlaştırıcı",
+      "parentSlug": "kozmetik-kisisel-bakim-cinsel-saglik",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik",
+      "name": "Elektronik",
+      "parentSlug": null,
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-bilgisayar-tablet",
+      "name": "Bilgisayar & Tablet",
+      "parentSlug": "elektronik",
+      "templateCode": "ELK-CEVRE"
+    },
+    {
+      "slug": "elektronik-bilgisayar-tablet-laptop",
+      "name": "Laptop",
+      "parentSlug": "elektronik-bilgisayar-tablet",
+      "templateCode": "ELK-BILGISAYAR"
+    },
+    {
+      "slug": "elektronik-bilgisayar-tablet-masaustu-bilgisayar",
+      "name": "Masaüstü Bilgisayar",
+      "parentSlug": "elektronik-bilgisayar-tablet",
+      "templateCode": "ELK-BILGISAYAR"
+    },
+    {
+      "slug": "elektronik-bilgisayar-tablet-tablet",
+      "name": "Tablet",
+      "parentSlug": "elektronik-bilgisayar-tablet",
+      "templateCode": "ELK-TABLET"
+    },
+    {
+      "slug": "elektronik-bilgisayar-tablet-monitor",
+      "name": "Monitör",
+      "parentSlug": "elektronik-bilgisayar-tablet",
+      "templateCode": "ELK-MONITOR"
+    },
+    {
+      "slug": "elektronik-bilgisayar-tablet-klavye-mouse",
+      "name": "Klavye & Mouse",
+      "parentSlug": "elektronik-bilgisayar-tablet",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-bilgisayar-tablet-veri-depolama",
+      "name": "Veri Depolama",
+      "parentSlug": "elektronik-bilgisayar-tablet",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-bilgisayar-tablet-ag-modem",
+      "name": "Ağ & Modem",
+      "parentSlug": "elektronik-bilgisayar-tablet",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-bilgisayar-tablet-bilgisayar-aksesuarlari",
+      "name": "Bilgisayar Aksesuarları",
+      "parentSlug": "elektronik-bilgisayar-tablet",
+      "templateCode": "ELK-AKS"
+    },
+    {
+      "slug": "elektronik-bilgisayar-tablet-oyuncu-ekipmanlari",
+      "name": "Oyuncu Ekipmanları",
+      "parentSlug": "elektronik-bilgisayar-tablet",
+      "templateCode": "ELK-AKS"
+    },
+    {
+      "slug": "elektronik-telefon-aksesuarlari",
+      "name": "Telefon Aksesuarları",
+      "parentSlug": "elektronik",
+      "templateCode": "ELK-TEL-AKS"
+    },
+    {
+      "slug": "elektronik-telefon-aksesuarlari-telefon-kilifi",
+      "name": "Telefon Kılıfı",
+      "parentSlug": "elektronik-telefon-aksesuarlari",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-telefon-aksesuarlari-ekran-koruyucu",
+      "name": "Ekran Koruyucu",
+      "parentSlug": "elektronik-telefon-aksesuarlari",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-telefon-aksesuarlari-sarj-cihazi",
+      "name": "Şarj Cihazı",
+      "parentSlug": "elektronik-telefon-aksesuarlari",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-telefon-aksesuarlari-sarj-kablosu",
+      "name": "Şarj Kablosu",
+      "parentSlug": "elektronik-telefon-aksesuarlari",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-telefon-aksesuarlari-powerbank",
+      "name": "Powerbank",
+      "parentSlug": "elektronik-telefon-aksesuarlari",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-telefon-aksesuarlari-telefon-tutucu-stand",
+      "name": "Telefon Tutucu & Stand",
+      "parentSlug": "elektronik-telefon-aksesuarlari",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-ses-kulaklik",
+      "name": "Ses & Kulaklık",
+      "parentSlug": "elektronik",
+      "templateCode": "ELK-SES"
+    },
+    {
+      "slug": "elektronik-ses-kulaklik-kulaklik",
+      "name": "Kulaklık",
+      "parentSlug": "elektronik-ses-kulaklik",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-ses-kulaklik-bluetooth-hoparlor",
+      "name": "Bluetooth Hoparlör",
+      "parentSlug": "elektronik-ses-kulaklik",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-ses-kulaklik-muzik-sistemi-pikap",
+      "name": "Müzik Sistemi & Pikap",
+      "parentSlug": "elektronik-ses-kulaklik",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-giyilebilir-teknoloji",
+      "name": "Giyilebilir Teknoloji",
+      "parentSlug": "elektronik",
+      "templateCode": "ELK-GIYILEBILIR"
+    },
+    {
+      "slug": "elektronik-giyilebilir-teknoloji-akilli-saat",
+      "name": "Akıllı Saat",
+      "parentSlug": "elektronik-giyilebilir-teknoloji",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-giyilebilir-teknoloji-akilli-bileklik",
+      "name": "Akıllı Bileklik",
+      "parentSlug": "elektronik-giyilebilir-teknoloji",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-foto-kamera",
+      "name": "Foto & Kamera",
+      "parentSlug": "elektronik",
+      "templateCode": "ELK-KAMERA"
+    },
+    {
+      "slug": "elektronik-foto-kamera-fotograf-makinesi",
+      "name": "Fotoğraf Makinesi",
+      "parentSlug": "elektronik-foto-kamera",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-foto-kamera-aksiyon-kamerasi",
+      "name": "Aksiyon Kamerası",
+      "parentSlug": "elektronik-foto-kamera",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-foto-kamera-video-kamera",
+      "name": "Video Kamera",
+      "parentSlug": "elektronik-foto-kamera",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-foto-kamera-drone",
+      "name": "Drone",
+      "parentSlug": "elektronik-foto-kamera",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-foto-kamera-kamera-aksesuarlari",
+      "name": "Kamera Aksesuarları",
+      "parentSlug": "elektronik-foto-kamera",
+      "templateCode": "ELK-AKS"
+    },
+    {
+      "slug": "elektronik-akilli-ev-guvenlik",
+      "name": "Akıllı Ev & Güvenlik",
+      "parentSlug": "elektronik",
+      "templateCode": "ELK-AKILLI-EV"
+    },
+    {
+      "slug": "elektronik-akilli-ev-guvenlik-akilli-ev-urunleri",
+      "name": "Akıllı Ev Ürünleri",
+      "parentSlug": "elektronik-akilli-ev-guvenlik",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-akilli-ev-guvenlik-guvenlik-kamerasi",
+      "name": "Güvenlik Kamerası",
+      "parentSlug": "elektronik-akilli-ev-guvenlik",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-kisisel-bakim-aletleri",
+      "name": "Kişisel Bakım Aletleri",
+      "parentSlug": "elektronik",
+      "templateCode": "ELK-BAKIM-ALETI"
+    },
+    {
+      "slug": "elektronik-kisisel-bakim-aletleri-sac-kurutma-makinesi",
+      "name": "Saç Kurutma Makinesi",
+      "parentSlug": "elektronik-kisisel-bakim-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-kisisel-bakim-aletleri-sac-sekillendirme-cihazi",
+      "name": "Saç Şekillendirme Cihazı",
+      "parentSlug": "elektronik-kisisel-bakim-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-kisisel-bakim-aletleri-tiras-sakal-makinesi",
+      "name": "Tıraş & Sakal Makinesi",
+      "parentSlug": "elektronik-kisisel-bakim-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-kisisel-bakim-aletleri-epilator-ipl",
+      "name": "Epilatör & IPL",
+      "parentSlug": "elektronik-kisisel-bakim-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-kisisel-bakim-aletleri-masaj-aleti",
+      "name": "Masaj Aleti",
+      "parentSlug": "elektronik-kisisel-bakim-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-elektrikli-ev-mutfak-aletleri",
+      "name": "Elektrikli Ev & Mutfak Aletleri",
+      "parentSlug": "elektronik",
+      "templateCode": "ELK-EV-ALETI"
+    },
+    {
+      "slug": "elektronik-elektrikli-ev-mutfak-aletleri-kahve-makinesi",
+      "name": "Kahve Makinesi",
+      "parentSlug": "elektronik-elektrikli-ev-mutfak-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-elektrikli-ev-mutfak-aletleri-cay-makinesi",
+      "name": "Çay Makinesi",
+      "parentSlug": "elektronik-elektrikli-ev-mutfak-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-elektrikli-ev-mutfak-aletleri-su-isitici-kettle",
+      "name": "Su Isıtıcı (Kettle)",
+      "parentSlug": "elektronik-elektrikli-ev-mutfak-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-elektrikli-ev-mutfak-aletleri-blender-mutfak-robotu",
+      "name": "Blender & Mutfak Robotu",
+      "parentSlug": "elektronik-elektrikli-ev-mutfak-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-elektrikli-ev-mutfak-aletleri-tost-makinesi",
+      "name": "Tost Makinesi",
+      "parentSlug": "elektronik-elektrikli-ev-mutfak-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-elektrikli-ev-mutfak-aletleri-supurge",
+      "name": "Süpürge",
+      "parentSlug": "elektronik-elektrikli-ev-mutfak-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-elektrikli-ev-mutfak-aletleri-utu",
+      "name": "Ütü",
+      "parentSlug": "elektronik-elektrikli-ev-mutfak-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "elektronik-elektrikli-ev-mutfak-aletleri-hava-temizleyici-nem-alma",
+      "name": "Hava Temizleyici & Nem Alma",
+      "parentSlug": "elektronik-elektrikli-ev-mutfak-aletleri",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor",
+      "name": "Spor & Outdoor",
+      "parentSlug": null,
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-fitness-kondisyon",
+      "name": "Fitness & Kondisyon",
+      "parentSlug": "spor-outdoor",
+      "templateCode": "SPR-EKIPMAN"
+    },
+    {
+      "slug": "spor-outdoor-fitness-kondisyon-yoga-pilates-mati",
+      "name": "Yoga & Pilates Matı",
+      "parentSlug": "spor-outdoor-fitness-kondisyon",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-fitness-kondisyon-agirlik-dambil",
+      "name": "Ağırlık & Dambıl",
+      "parentSlug": "spor-outdoor-fitness-kondisyon",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-fitness-kondisyon-direnc-bandi",
+      "name": "Direnç Bandı",
+      "parentSlug": "spor-outdoor-fitness-kondisyon",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-fitness-kondisyon-spor-aksesuarlari",
+      "name": "Spor Aksesuarları",
+      "parentSlug": "spor-outdoor-fitness-kondisyon",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-takim-raket-sporlari",
+      "name": "Takım & Raket Sporları",
+      "parentSlug": "spor-outdoor",
+      "templateCode": "SPR-EKIPMAN"
+    },
+    {
+      "slug": "spor-outdoor-takim-raket-sporlari-top",
+      "name": "Top",
+      "parentSlug": "spor-outdoor-takim-raket-sporlari",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-takim-raket-sporlari-raket",
+      "name": "Raket",
+      "parentSlug": "spor-outdoor-takim-raket-sporlari",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-takim-raket-sporlari-koruyucu-ekipman",
+      "name": "Koruyucu Ekipman",
+      "parentSlug": "spor-outdoor-takim-raket-sporlari",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-kamp-outdoor",
+      "name": "Kamp & Outdoor",
+      "parentSlug": "spor-outdoor",
+      "templateCode": "SPR-KAMP"
+    },
+    {
+      "slug": "spor-outdoor-kamp-outdoor-cadir",
+      "name": "Çadır",
+      "parentSlug": "spor-outdoor-kamp-outdoor",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-kamp-outdoor-uyku-tulumu",
+      "name": "Uyku Tulumu",
+      "parentSlug": "spor-outdoor-kamp-outdoor",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-kamp-outdoor-kamp-mobilyasi",
+      "name": "Kamp Mobilyası",
+      "parentSlug": "spor-outdoor-kamp-outdoor",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-kamp-outdoor-kamp-mutfagi-termos",
+      "name": "Kamp Mutfağı & Termos",
+      "parentSlug": "spor-outdoor-kamp-outdoor",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-kamp-outdoor-fener-kamp-aydinlatmasi",
+      "name": "Fener & Kamp Aydınlatması",
+      "parentSlug": "spor-outdoor-kamp-outdoor",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-kamp-outdoor-outdoor-ekipmanlari",
+      "name": "Outdoor Ekipmanları",
+      "parentSlug": "spor-outdoor-kamp-outdoor",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-doga-sporlari",
+      "name": "Doğa Sporları",
+      "parentSlug": "spor-outdoor",
+      "templateCode": "SPR-EKIPMAN"
+    },
+    {
+      "slug": "spor-outdoor-doga-sporlari-dagcilik-tirmanis",
+      "name": "Dağcılık & Tırmanış",
+      "parentSlug": "spor-outdoor-doga-sporlari",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-doga-sporlari-kayak-kar-sporlari",
+      "name": "Kayak & Kar Sporları",
+      "parentSlug": "spor-outdoor-doga-sporlari",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-doga-sporlari-dalis-su-sporlari",
+      "name": "Dalış & Su Sporları",
+      "parentSlug": "spor-outdoor-doga-sporlari",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-bisiklet-scooter",
+      "name": "Bisiklet & Scooter",
+      "parentSlug": "spor-outdoor",
+      "templateCode": "SPR-BISIKLET"
+    },
+    {
+      "slug": "spor-outdoor-bisiklet-scooter-bisiklet",
+      "name": "Bisiklet",
+      "parentSlug": "spor-outdoor-bisiklet-scooter",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-bisiklet-scooter-scooter",
+      "name": "Scooter",
+      "parentSlug": "spor-outdoor-bisiklet-scooter",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-bisiklet-scooter-paten-kaykay",
+      "name": "Paten & Kaykay",
+      "parentSlug": "spor-outdoor-bisiklet-scooter",
+      "templateCode": null
+    },
+    {
+      "slug": "spor-outdoor-bisiklet-scooter-bisiklet-scooter-aksesuarlari",
+      "name": "Bisiklet & Scooter Aksesuarları",
+      "parentSlug": "spor-outdoor-bisiklet-scooter",
+      "templateCode": null
+    }
+  ]
+}

@@ -15,11 +15,19 @@ import {
 } from '@hanuja/ui'
 import { FileUpload, type UploadedAsset } from '@hanuja/ui'
 import { Plus, Trash2 } from 'lucide-react'
-import { sortAttributeOptions } from '@/lib/attribute-option-sort'
-import { useBarcodeAvailability, type BarcodeAvailabilityStatus } from '@/lib/use-barcode-availability'
+import {
+  useBarcodeAvailability,
+  type BarcodeAvailabilityStatus,
+} from '@/lib/use-barcode-availability'
 import CategoryPicker from '../../_components/category-picker'
 import { CategorySupportHint } from '../../_components/category-support-hint'
 import type { CategoryNode } from '../../_lib/category-tree'
+import { ProductPropertyFields, PropertyInput } from '../../_components/product-property-fields'
+import {
+  variantPropertyKey,
+  type ResolvedCategorySchema,
+  type ProductProperties,
+} from '@hanuja/api/domain/category-schema'
 
 interface AttributeOption {
   id: string
@@ -59,25 +67,68 @@ function createVariantRow(): VariantFormRow {
   }
 }
 
-function BarcodeStatusHint({ status, message, hidden = false }: { status: BarcodeAvailabilityStatus; message: string | null; hidden?: boolean }) {
+function BarcodeStatusHint({
+  status,
+  message,
+  hidden = false,
+}: {
+  status: BarcodeAvailabilityStatus
+  message: string | null
+  hidden?: boolean
+}) {
   if (hidden || status === 'idle') return null
-  const color = status === 'available'
-    ? 'var(--color-success)'
-    : status === 'checking'
-      ? 'var(--color-muted-fg)'
-      : 'var(--color-destructive)'
-  const fallback = status === 'available'
-    ? 'Barkod kullanilabilir.'
-    : status === 'in_use'
-      ? 'Bu barkod baska bir urun veya varyantta kullanilmistir.'
-      : 'Barkod kontrol ediliyor...'
-  return <p className="text-xs" style={{ color }}>{message ?? fallback}</p>
+  const color =
+    status === 'available'
+      ? 'var(--color-success)'
+      : status === 'checking'
+        ? 'var(--color-muted-fg)'
+        : 'var(--color-destructive)'
+  const fallback =
+    status === 'available'
+      ? 'Barkod kullanilabilir.'
+      : status === 'in_use'
+        ? 'Bu barkod baska bir urun veya varyantta kullanilmistir.'
+        : 'Barkod kontrol ediliyor...'
+  return (
+    <p className="text-xs" style={{ color }}>
+      {message ?? fallback}
+    </p>
+  )
 }
 
 export default function NewProductForm({ categories }: Props) {
   const router = useRouter()
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [schema, setSchema] = useState<ResolvedCategorySchema | null>(null)
+  const [properties, setProperties] = useState<ProductProperties>({})
+  const [contentUnit, setContentUnit] = useState('')
+  useEffect(() => {
+    setSchema(null)
+    if (!categoryId) return
+    const controller = new AbortController()
+    fetch(`/api/categories/${categoryId}/attributes`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error ?? 'Kategori özellikleri yüklenemedi.')
+        setSchema(data)
+        setColorOptions(data.colorOptions ?? [])
+        setMaterialOptions(data.materialOptions ?? [])
+        if (!data.config.shared.color) setColorCount(0)
+        if (!data.config.shared.material) setMaterialOptionId('')
+        setProperties((previous) =>
+          Object.fromEntries(
+            Object.entries(previous).filter(([key]) =>
+              data.config.fields.some((f: { key: string }) => f.key === key),
+            ),
+          ),
+        )
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') setError(error.message)
+      })
+    return () => controller.abort()
+  }, [categoryId])
   const [colorOptionId, setColorOptionId] = useState('')
   // Renk adedi: 1 → tek renk; 2 → Renk 1 + Renk 2 ayrı seçilir. 2'den fazla renk
   // için satıcı adedi 1 tutup "Mix" seçebilir.
@@ -109,16 +160,6 @@ export default function NewProductForm({ categories }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [recoveryProductId, setRecoveryProductId] = useState<string | null>(null)
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/attribute-options?type=color').then((r) => r.json()),
-      fetch('/api/attribute-options?type=material').then((r) => r.json()),
-    ]).then(([colorData, materialData]) => {
-      setColorOptions(sortAttributeOptions((colorData as { options: AttributeOption[] }).options ?? []))
-      setMaterialOptions(sortAttributeOptions((materialData as { options: AttributeOption[] }).options ?? []))
-    }).catch(() => {})
-  }, [])
-
   const hasVariants = variants.length > 0
   const barcodeCheckItems = useMemo(
     () => [
@@ -131,20 +172,30 @@ export default function NewProductForm({ categories }: Props) {
   const requiredBarcodeKeys = hasVariants ? variants.map((variant) => variant.localId) : ['product']
   const hasBarcodeCheckIssue = requiredBarcodeKeys.some((key) => {
     const status = getBarcodeResult(key).status
-    return status === 'checking' || status === 'invalid' || status === 'duplicate_in_request' || status === 'in_use' || status === 'error'
+    return (
+      status === 'checking' ||
+      status === 'invalid' ||
+      status === 'duplicate_in_request' ||
+      status === 'in_use' ||
+      status === 'error'
+    )
   })
-  const totalVariantStock = variants.reduce((sum, variant) => sum + Number(variant.stockQuantity || 0), 0)
+  const totalVariantStock = variants.reduce(
+    (sum, variant) => sum + Number(variant.stockQuantity || 0),
+    0,
+  )
   const variantsValid = variants.every(
     (variant) =>
       Number(variant.price) > 0 &&
       Number.isInteger(Number(variant.stockQuantity)) &&
       Number(variant.stockQuantity) >= 0,
   )
-  const primaryColorMissing = colorCount > 0 && !colorOptionId
+  const primaryColorMissing = schema?.config.shared.color && colorCount > 0 && !colorOptionId
   const secondColorMissing = colorCount === 2 && !secondColorOptionId
   const submitDisabled =
     loading ||
     !categoryId ||
+    !schema ||
     primaryColorMissing ||
     secondColorMissing ||
     Number(fulfillmentDays) < 1 ||
@@ -155,8 +206,8 @@ export default function NewProductForm({ categories }: Props) {
   const missingSubmitReason = !categoryId
     ? 'Urunu gondermek icin kategori secin.'
     : primaryColorMissing
-        ? 'Renk bilgisi secildiginde Renk 1 secin.'
-        : secondColorMissing
+      ? 'Renk bilgisi secildiginde Renk 1 secin.'
+      : secondColorMissing
         ? 'Renk adedi 2 secildiginde ikinci rengi de secin.'
         : Number(fulfillmentDays) < 1
           ? 'Urunu gondermek icin sevk suresi girin.'
@@ -166,9 +217,9 @@ export default function NewProductForm({ categories }: Props) {
               ? 'Urunu gondermek icin Model Kodu girin.'
               : hasBarcodeCheckIssue
                 ? 'Barkod kontrolleri tamamlanmadan urun gonderilemez.'
-            : hasVariants && !variantsValid
-              ? 'Varyasyonlu urunlerde her satir icin fiyat ve stok girin.'
-                : null
+                : hasVariants && !variantsValid
+                  ? 'Varyasyonlu urunlerde her satir icin fiyat ve stok girin.'
+                  : null
 
   async function attachProductImages(productId: string, mediaAssetIds: string[]) {
     const response = await fetch(`/api/seller/products/${productId}/images`, {
@@ -202,10 +253,28 @@ export default function NewProductForm({ categories }: Props) {
         body: JSON.stringify({
           name,
           categoryId,
-          colorOptionId: colorCount > 0 ? colorOptionId : undefined,
+          properties: Object.fromEntries(
+            Object.entries(properties).filter(
+              ([key]) =>
+                !hasVariants ||
+                (key !== variantPropertyKey(schema!, contentUnit) &&
+                  !(
+                    schema!.config.variantKey === 'net_icerik' &&
+                    schema!.config.contentKeys.includes(key)
+                  )),
+            ),
+          ),
+          contentUnit: contentUnit || undefined,
+          colorOptionId: schema?.config.shared.color
+            ? colorCount > 0
+              ? colorOptionId
+              : undefined
+            : undefined,
           secondColorOptionId:
             colorCount === 2 && secondColorOptionId ? secondColorOptionId : undefined,
-          materialOptionId: materialOptionId || undefined,
+          materialOptionId: schema?.config.shared.material
+            ? materialOptionId || undefined
+            : undefined,
           price: parseFloat(price),
           fulfillmentDays: parseInt(fulfillmentDays, 10),
           compareAtPrice: compareAtPrice ? parseFloat(compareAtPrice) : undefined,
@@ -213,14 +282,30 @@ export default function NewProductForm({ categories }: Props) {
           barcode: hasVariants ? null : barcode.trim(),
           sku: sku.trim() || undefined,
           modelCode: modelCode.trim(),
-          dimensionWidth: dimWidth.trim() ? parseFloat(dimWidth) : undefined,
-          dimensionLength: dimLength.trim() ? parseFloat(dimLength) : undefined,
-          dimensionHeight: dimHeight.trim() ? parseFloat(dimHeight) : undefined,
+          dimensionWidth: schema?.config.shared.dimensions
+            ? dimWidth.trim()
+              ? parseFloat(dimWidth)
+              : undefined
+            : undefined,
+          dimensionLength: schema?.config.shared.dimensions
+            ? dimLength.trim()
+              ? parseFloat(dimLength)
+              : undefined
+            : undefined,
+          dimensionHeight: schema?.config.shared.dimensions
+            ? dimHeight.trim()
+              ? parseFloat(dimHeight)
+              : undefined
+            : undefined,
           shortDescription,
           description,
           story,
           careInstructions,
           variants: variants.map((variant) => ({
+            properties:
+              schema && variantPropertyKey(schema, contentUnit)
+                ? { [variantPropertyKey(schema, contentUnit)!]: variant.size.trim() }
+                : {},
             size: variant.size.trim() || undefined,
             customOptionName: variant.customOptionName.trim() || undefined,
             customOptionValue: variant.customOptionValue.trim() || undefined,
@@ -241,7 +326,10 @@ export default function NewProductForm({ categories }: Props) {
 
       if (images.length > 0) {
         try {
-          await attachProductImages(productId, images.map((img) => img.id))
+          await attachProductImages(
+            productId,
+            images.map((img) => img.id),
+          )
         } catch (attachError) {
           setRecoveryProductId(productId)
           setError(
@@ -266,7 +354,14 @@ export default function NewProductForm({ categories }: Props) {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-1.5">
         <Label htmlFor="name">Urun Adi *</Label>
-        <Input id="name" placeholder="Masif Mese Orta Sehpa" value={name} onChange={(e) => setName(e.target.value)} required disabled={loading} />
+        <Input
+          id="name"
+          placeholder="Masif Mese Orta Sehpa"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          disabled={loading}
+        />
       </div>
 
       <CategoryPicker
@@ -278,77 +373,98 @@ export default function NewProductForm({ categories }: Props) {
       <CategorySupportHint />
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="colorCount">Renk Bilgisi</Label>
-          <Select
-            value={String(colorCount)}
-            onValueChange={(value) => {
-              const next: 0 | 1 | 2 = value === '2' ? 2 : value === '1' ? 1 : 0
-              setColorCount(next)
-              if (next < 2) setSecondColorOptionId('')
-              if (next === 0) setColorOptionId('')
-            }}
-            disabled={loading}
-          >
-            <SelectTrigger id="colorCount" aria-label="Renk Adedi">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="0">Renk belirtmeyecegim</SelectItem>
-              <SelectItem value="1">Tek renk</SelectItem>
-              <SelectItem value="2">Iki renk</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="material">Materyal</Label>
-          <Select onValueChange={(value) => setMaterialOptionId(value === '__none__' ? '' : value)} value={materialOptionId} disabled={loading}>
-            <SelectTrigger id="material" aria-label="Materyal">
-              <SelectValue placeholder="Materyal secin" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Belirtilmedi</SelectItem>
-              {materialOptions.map((opt) => (
-                <SelectItem key={opt.id} value={opt.id}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {schema?.config.shared.color ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="colorCount">Renk Bilgisi</Label>
+            <Select
+              value={String(colorCount)}
+              onValueChange={(value) => {
+                const next: 0 | 1 | 2 = value === '2' ? 2 : value === '1' ? 1 : 0
+                setColorCount(next)
+                if (next < 2) setSecondColorOptionId('')
+                if (next === 0) setColorOptionId('')
+              }}
+              disabled={loading}
+            >
+              <SelectTrigger id="colorCount" aria-label="Renk Adedi">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Renk belirtmeyecegim</SelectItem>
+                <SelectItem value="1">Tek renk</SelectItem>
+                <SelectItem value="2">Iki renk</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+        {schema?.config.shared.material ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="material">Materyal</Label>
+            <Select
+              onValueChange={(value) => setMaterialOptionId(value === '__none__' ? '' : value)}
+              value={materialOptionId}
+              disabled={loading}
+            >
+              <SelectTrigger id="material" aria-label="Materyal">
+                <SelectValue placeholder="Materyal secin" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Belirtilmedi</SelectItem>
+                {materialOptions.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="color">{colorCount === 2 ? 'Renk 1' : 'Renk'}</Label>
-          <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading || colorCount === 0}>
-            <SelectTrigger id="color" aria-label={colorCount === 2 ? 'Renk 1' : 'Renk'}>
-              <SelectValue placeholder="Renk secin" />
-            </SelectTrigger>
-            <SelectContent>
-              {colorOptions.map((opt) => (
-                <SelectItem key={opt.id} value={opt.id}>
-                  {opt.hexColor && (
-                    <span
-                      className="mr-2 inline-block h-3 w-3 rounded-full border"
-                      style={{ backgroundColor: opt.hexColor, borderColor: 'var(--color-border)' }}
-                    />
-                  )}
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {colorCount === 1 ? (
-            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Ikiden fazla renk varsa &quot;Mix&quot; secebilirsiniz.
-            </p>
-          ) : null}
-        </div>
-        {colorCount === 2 ? (
+        {schema?.config.shared.color ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="color">{colorCount === 2 ? 'Renk 1' : 'Renk'}</Label>
+            <Select
+              onValueChange={setColorOptionId}
+              value={colorOptionId}
+              disabled={loading || colorCount === 0}
+            >
+              <SelectTrigger id="color" aria-label={colorCount === 2 ? 'Renk 1' : 'Renk'}>
+                <SelectValue placeholder="Renk secin" />
+              </SelectTrigger>
+              <SelectContent>
+                {colorOptions.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
+                    {opt.hexColor && (
+                      <span
+                        className="mr-2 inline-block h-3 w-3 rounded-full border"
+                        style={{
+                          backgroundColor: opt.hexColor,
+                          borderColor: 'var(--color-border)',
+                        }}
+                      />
+                    )}
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {colorCount === 1 ? (
+              <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                Ikiden fazla renk varsa &quot;Mix&quot; secebilirsiniz.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {schema?.config.shared.color && colorCount === 2 ? (
           <div className="space-y-1.5">
             <Label htmlFor="secondColor">Renk 2 *</Label>
-            <Select onValueChange={setSecondColorOptionId} value={secondColorOptionId} disabled={loading}>
+            <Select
+              onValueChange={setSecondColorOptionId}
+              value={secondColorOptionId}
+              disabled={loading}
+            >
               <SelectTrigger id="secondColor" aria-label="Renk 2">
                 <SelectValue placeholder="Ikinci rengi secin" />
               </SelectTrigger>
@@ -360,7 +476,10 @@ export default function NewProductForm({ categories }: Props) {
                       {opt.hexColor && (
                         <span
                           className="mr-2 inline-block h-3 w-3 rounded-full border"
-                          style={{ backgroundColor: opt.hexColor, borderColor: 'var(--color-border)' }}
+                          style={{
+                            backgroundColor: opt.hexColor,
+                            borderColor: 'var(--color-border)',
+                          }}
                         />
                       )}
                       {opt.label}
@@ -378,18 +497,47 @@ export default function NewProductForm({ categories }: Props) {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="price">Fiyat (TL) *</Label>
-          <Input id="price" type="number" min="0" step="0.01" placeholder="0.00" value={price} onChange={(e) => setPrice(e.target.value)} required disabled={loading} />
+          <Input
+            id="price"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            required
+            disabled={loading}
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="fulfillmentDays">Sevk Suresi (is gunu) *</Label>
-          <Input id="fulfillmentDays" type="number" min="1" step="1" placeholder="Orn. 7" value={fulfillmentDays} onChange={(e) => setFulfillmentDays(e.target.value)} required disabled={loading} />
+          <Input
+            id="fulfillmentDays"
+            type="number"
+            min="1"
+            step="1"
+            placeholder="Orn. 7"
+            value={fulfillmentDays}
+            onChange={(e) => setFulfillmentDays(e.target.value)}
+            required
+            disabled={loading}
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="compareAtPrice">Liste Fiyati (ustu cizili)</Label>
-          <Input id="compareAtPrice" type="number" min="0" step="0.01" placeholder="Istege bagli" value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} disabled={loading} />
+          <Input
+            id="compareAtPrice"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Istege bagli"
+            value={compareAtPrice}
+            onChange={(e) => setCompareAtPrice(e.target.value)}
+            disabled={loading}
+          />
         </div>
         <div />
       </div>
@@ -400,7 +548,16 @@ export default function NewProductForm({ categories }: Props) {
 
       <div className="max-w-xs space-y-1.5">
         <Label htmlFor="stock">Stok Adedi *</Label>
-        <Input id="stock" type="number" min="0" placeholder="0" value={stock} onChange={(e) => setStock(e.target.value)} required disabled={loading || hasVariants} />
+        <Input
+          id="stock"
+          type="number"
+          min="0"
+          placeholder="0"
+          value={stock}
+          onChange={(e) => setStock(e.target.value)}
+          required
+          disabled={loading || hasVariants}
+        />
         {hasVariants ? (
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
             Varyasyonlu urunde stok varyasyon satirlarindan hesaplanir. Toplam: {totalVariantStock}
@@ -426,95 +583,210 @@ export default function NewProductForm({ categories }: Props) {
             </p>
           ) : (
             <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Istege baglidir. Bos birakirsaniz 8 ile baslayan benzersiz 13 haneli barkod otomatik uretilir.
+              Istege baglidir. Bos birakirsaniz 8 ile baslayan benzersiz 13 haneli barkod otomatik
+              uretilir.
             </p>
           )}
-          <BarcodeStatusHint status={getBarcodeResult('product').status} message={getBarcodeResult('product').message} hidden={hasVariants} />
+          <BarcodeStatusHint
+            status={getBarcodeResult('product').status}
+            message={getBarcodeResult('product').message}
+            hidden={hasVariants}
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="modelCode">Model Kodu *</Label>
-          <Input id="modelCode" placeholder="SEHPA-001" value={modelCode} onChange={(e) => setModelCode(e.target.value)} required disabled={loading} />
+          <Input
+            id="modelCode"
+            placeholder="SEHPA-001"
+            value={modelCode}
+            onChange={(e) => setModelCode(e.target.value)}
+            required
+            disabled={loading}
+          />
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Ayni Model Kodu, ayni modelin renk veya materyal seceneklerini urun detayinda birlikte gosterir.
+            Ayni Model Kodu, ayni modelin renk veya materyal seceneklerini urun detayinda birlikte
+            gosterir.
           </p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="sku">SKU</Label>
-          <Input id="sku" placeholder="SEHPA-001" value={sku} onChange={(e) => setSku(e.target.value)} disabled={loading} />
+          <Input
+            id="sku"
+            placeholder="SEHPA-001"
+            value={sku}
+            onChange={(e) => setSku(e.target.value)}
+            disabled={loading}
+          />
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Tasarımcınin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde kullanilmaz.
+            Tasarımcınin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde
+            kullanilmaz.
           </p>
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label>Olculer (cm) — istege bagli</Label>
-        <div className="grid grid-cols-3 gap-4">
-          <Input
-            aria-label="En (cm)"
-            type="number"
-            min="0"
-            step="0.1"
-            placeholder="En"
-            value={dimWidth}
-            onChange={(e) => setDimWidth(e.target.value)}
-            disabled={loading}
-          />
-          <Input
-            aria-label="Boy (cm)"
-            type="number"
-            min="0"
-            step="0.1"
-            placeholder="Boy"
-            value={dimLength}
-            onChange={(e) => setDimLength(e.target.value)}
-            disabled={loading}
-          />
-          <Input
-            aria-label="Yukseklik (cm)"
-            type="number"
-            min="0"
-            step="0.1"
-            placeholder="Yukseklik"
-            value={dimHeight}
-            onChange={(e) => setDimHeight(e.target.value)}
-            disabled={loading}
-          />
+      {schema?.config.shared.dimensions ? (
+        <div className="space-y-1.5">
+          <Label>Olculer (cm) — istege bagli</Label>
+          <div className="grid grid-cols-3 gap-4">
+            <Input
+              aria-label="En (cm)"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="En"
+              value={dimWidth}
+              onChange={(e) => setDimWidth(e.target.value)}
+              disabled={loading}
+            />
+            <Input
+              aria-label="Boy (cm)"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="Boy"
+              value={dimLength}
+              onChange={(e) => setDimLength(e.target.value)}
+              disabled={loading}
+            />
+            <Input
+              aria-label="Yukseklik (cm)"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="Yukseklik"
+              value={dimHeight}
+              onChange={(e) => setDimHeight(e.target.value)}
+              disabled={loading}
+            />
+          </div>
+          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            Girilirse urun sayfasinda gosterilir. Bos birakabilirsiniz.
+          </p>
         </div>
-        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          Girilirse urun sayfasinda gosterilir. Bos birakabilirsiniz.
-        </p>
-      </div>
+      ) : null}
 
+      <ProductPropertyFields
+        schema={schema}
+        values={properties}
+        onChange={setProperties}
+        hasVariants={hasVariants}
+        contentUnit={contentUnit}
+        setContentUnit={setContentUnit}
+        disabled={loading}
+      />
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
             <Label>Varyasyonlar</Label>
             <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Beden, olcu veya ek ozellik varsa her varyasyonu ayri barkodla girin. Farkli renk veya materyal kardeslerini baglamak icin ayni Model Kodunu kullanin.
+              Beden, olcu veya ek ozellik varsa her varyasyonu ayri barkodla girin. Farkli renk veya
+              materyal kardeslerini baglamak icin ayni Model Kodunu kullanin.
             </p>
           </div>
-          <Button type="button" variant="outline" onClick={() => setVariants((current) => [...current, createVariantRow()])} disabled={loading}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setVariants((current) => [...current, createVariantRow()])}
+            disabled={loading || !schema?.config.variantKey}
+          >
             <Plus className="h-4 w-4" /> Varyasyon Ekle
           </Button>
         </div>
 
         {variants.map((variant, index) => (
-          <div key={variant.localId} className="rounded-lg border p-3" style={{ borderColor: 'var(--color-border)' }}>
+          <div
+            key={variant.localId}
+            className="rounded-lg border p-3"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-medium">Varyasyon {index + 1}</span>
-              <Button type="button" variant="ghost" size="sm" aria-label="Varyasyonu sil" onClick={() => setVariants((current) => current.filter((item) => item.localId !== variant.localId))} disabled={loading}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label="Varyasyonu sil"
+                onClick={() =>
+                  setVariants((current) =>
+                    current.filter((item) => item.localId !== variant.localId),
+                  )
+                }
+                disabled={loading}
+              >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <Input placeholder="Beden" value={variant.size} onChange={(e) => updateVariant(variant.localId, { size: e.target.value })} disabled={loading} />
-              <Input placeholder="Ek Ozellik Adi" value={variant.customOptionName} onChange={(e) => updateVariant(variant.localId, { customOptionName: e.target.value })} disabled={loading} />
-              <Input placeholder="Ek Ozellik Degeri" value={variant.customOptionValue} onChange={(e) => updateVariant(variant.localId, { customOptionValue: e.target.value })} disabled={loading} />
-              <Input inputMode="numeric" pattern="\d{13}" placeholder="Barkod (bos = otomatik)" value={variant.barcode} onChange={(e) => updateVariant(variant.localId, { barcode: e.target.value.replace(/\D/g, '').slice(0, 13) })} disabled={loading} />
-              <BarcodeStatusHint status={getBarcodeResult(variant.localId).status} message={getBarcodeResult(variant.localId).message} />
-              <Input type="number" min="0" step="0.01" placeholder="Fiyat" value={variant.price} onChange={(e) => updateVariant(variant.localId, { price: e.target.value })} required disabled={loading} />
-              <Input type="number" min="0" step="1" placeholder="Stok" value={variant.stockQuantity} onChange={(e) => updateVariant(variant.localId, { stockQuantity: e.target.value })} required disabled={loading} />
+              {schema && variantPropertyKey(schema, contentUnit) ? (
+                <PropertyInput
+                  schema={schema}
+                  fieldKey={variantPropertyKey(schema, contentUnit)!}
+                  value={variant.size}
+                  age={properties.yas_grubu}
+                  onChange={(value) =>
+                    updateVariant(variant.localId, { size: String(value ?? '') })
+                  }
+                  idPrefix={`variant-${variant.localId}`}
+                  required={
+                    schema.definitions.find(
+                      (d) => d.key === variantPropertyKey(schema, contentUnit),
+                    )?.kind !== 'text'
+                  }
+                  disabled={loading}
+                />
+              ) : null}
+              <Input
+                placeholder="Ek Ozellik Adi"
+                value={variant.customOptionName}
+                onChange={(e) =>
+                  updateVariant(variant.localId, { customOptionName: e.target.value })
+                }
+                disabled={loading}
+              />
+              <Input
+                placeholder="Ek Ozellik Degeri"
+                value={variant.customOptionValue}
+                onChange={(e) =>
+                  updateVariant(variant.localId, { customOptionValue: e.target.value })
+                }
+                disabled={loading}
+              />
+              <Input
+                inputMode="numeric"
+                pattern="\d{13}"
+                placeholder="Barkod (bos = otomatik)"
+                value={variant.barcode}
+                onChange={(e) =>
+                  updateVariant(variant.localId, {
+                    barcode: e.target.value.replace(/\D/g, '').slice(0, 13),
+                  })
+                }
+                disabled={loading}
+              />
+              <BarcodeStatusHint
+                status={getBarcodeResult(variant.localId).status}
+                message={getBarcodeResult(variant.localId).message}
+              />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Fiyat"
+                value={variant.price}
+                onChange={(e) => updateVariant(variant.localId, { price: e.target.value })}
+                required
+                disabled={loading}
+              />
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="Stok"
+                value={variant.stockQuantity}
+                onChange={(e) => updateVariant(variant.localId, { stockQuantity: e.target.value })}
+                required
+                disabled={loading}
+              />
             </div>
           </div>
         ))}
@@ -522,22 +794,46 @@ export default function NewProductForm({ categories }: Props) {
 
       <div className="space-y-1.5">
         <Label htmlFor="shortDescription">Kisa Aciklama</Label>
-        <Textarea id="shortDescription" rows={3} value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} disabled={loading} />
+        <Textarea
+          id="shortDescription"
+          rows={3}
+          value={shortDescription}
+          onChange={(e) => setShortDescription(e.target.value)}
+          disabled={loading}
+        />
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="description">Urun Aciklamasi</Label>
-        <Textarea id="description" rows={5} value={description} onChange={(e) => setDescription(e.target.value)} disabled={loading} />
+        <Textarea
+          id="description"
+          rows={5}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          disabled={loading}
+        />
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="story">Urun Hikayesi</Label>
-        <Textarea id="story" rows={4} value={story} onChange={(e) => setStory(e.target.value)} disabled={loading} />
+        <Textarea
+          id="story"
+          rows={4}
+          value={story}
+          onChange={(e) => setStory(e.target.value)}
+          disabled={loading}
+        />
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="careInstructions">Bakim Tavsiyesi</Label>
-        <Textarea id="careInstructions" rows={4} value={careInstructions} onChange={(e) => setCareInstructions(e.target.value)} disabled={loading} />
+        <Textarea
+          id="careInstructions"
+          rows={4}
+          value={careInstructions}
+          onChange={(e) => setCareInstructions(e.target.value)}
+          disabled={loading}
+        />
       </div>
 
       <div className="space-y-2">
@@ -546,7 +842,8 @@ export default function NewProductForm({ categories }: Props) {
           En fazla 8 gorsel yukleyebilirsiniz. Ilk gorsel ana gorsel olur.
         </p>
         <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          1:1 tavsiye edilir. Farkli oranlar kabul edilir; kare alanlarda uygun sekilde kirpilarak gosterilir.
+          1:1 tavsiye edilir. Farkli oranlar kabul edilir; kare alanlarda uygun sekilde kirpilarak
+          gosterilir.
         </p>
         <FileUpload
           folder="products"
@@ -572,21 +869,37 @@ export default function NewProductForm({ categories }: Props) {
         ) : null}
       </div>
 
-      {error && <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>{error}</p>}
+      {error && (
+        <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>
+          {error}
+        </p>
+      )}
       {recoveryProductId ? (
-        <Button type="button" variant="outline" onClick={() => router.push(`/urunler/${recoveryProductId}`)}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.push(`/urunler/${recoveryProductId}`)}
+        >
           Olusan urunu duzenle
         </Button>
       ) : null}
 
-      <div className="rounded-xl border p-4 text-sm" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}>
+      <div
+        className="rounded-xl border p-4 text-sm"
+        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
+      >
         <p style={{ color: 'var(--color-muted-fg)' }}>
-          Yeni urunler admin incelemesine girebilir. Onaylanmis bir urunde sonraki duzenlemeler yeniden onay beklemeden yayinlanir.
+          Yeni urunler admin incelemesine girebilir. Onaylanmis bir urunde sonraki duzenlemeler
+          yeniden onay beklemeden yayinlanir.
         </p>
       </div>
 
       <div className="flex gap-3 pt-2">
-        <Button type="submit" disabled={submitDisabled} aria-describedby={missingSubmitReason ? 'product-submit-hint' : undefined}>
+        <Button
+          type="submit"
+          disabled={submitDisabled}
+          aria-describedby={missingSubmitReason ? 'product-submit-hint' : undefined}
+        >
           {loading ? 'Kaydediliyor...' : 'Urunu Gonder'}
         </Button>
       </div>

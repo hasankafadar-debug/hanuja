@@ -3,7 +3,7 @@
  * Seller can manage only their own products.
  */
 import { Prisma } from '@prisma/client'
-import type { OrderStatus, PrismaClient, ProductStatus } from '@prisma/client'
+import type { OrderStatus, PrismaClient, ProductStatus, Product } from '@prisma/client'
 import {
   NotFoundError,
   ForbiddenError,
@@ -33,6 +33,27 @@ import { deleteObject } from '../lib/r2'
 import { requireModelCode } from '../domain/model-code'
 import { syncProductBarcodeReservation } from '../domain/barcode-registry'
 import { generateUniqueProductBarcode } from '../domain/barcode-generate'
+import {
+  resolveCategorySchema,
+  normalizedProductProperties,
+  normalizedVariantProperties,
+  categoryChangePreview,
+  loadCategorySchemas,
+  lockCatalogSchema,
+} from './category-schema.service'
+import { lockProductStocks } from '../domain/product-stock'
+import {
+  buildPropertyFacets,
+  filterValuesForProduct,
+  matchesPropertyFilters,
+  type PropertyFilters,
+} from '../domain/property-filters'
+import {
+  variantPropertyKey,
+  categoryVariantPresentation,
+  propertyLabel as importPropertyLabel,
+  type ProductProperties,
+} from '../domain/category-schema'
 
 interface CatalogServiceDeps {
   prisma: PrismaClient
@@ -91,7 +112,10 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
   }
 
   async function loadCustomerVisibleCategoryData() {
-    const [all, counts] = await Promise.all([categories.findAll(), products.countPublishedGroupedByCategory()])
+    const [all, counts] = await Promise.all([
+      categories.findAll(),
+      products.countPublishedGroupedByCategory(),
+    ])
     const countByCategoryId = new Map<string, number>()
     for (const row of counts) {
       if (row.categoryId !== null) countByCategoryId.set(row.categoryId, row._count._all)
@@ -117,6 +141,8 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         },
         seller: true,
         category: true,
+        variants: true,
+        attributeValues: { include: { option: true } },
       },
       orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
     })
@@ -156,7 +182,9 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         ])
       : [[], []]
 
-    const favoriteCountMap = new Map(favoriteCounts.map((row) => [row.productId, row._count.productId]))
+    const favoriteCountMap = new Map(
+      favoriteCounts.map((row) => [row.productId, row._count.productId]),
+    )
     const salesCountMap = new Map(salesCounts.map((row) => [row.productId, row._sum.quantity ?? 0]))
 
     return pricedItems.map((item) => {
@@ -227,7 +255,10 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
     })
   }
 
-  async function ensureUniqueIdentifiers(params: { barcode?: string | null; excludeProductId?: string }) {
+  async function ensureUniqueIdentifiers(params: {
+    barcode?: string | null
+    excludeProductId?: string
+  }) {
     const normalizedBarcode = params.barcode?.trim() || null
 
     if (normalizedBarcode) {
@@ -237,7 +268,10 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
           ...(params.excludeProductId
             ? {
                 NOT: {
-                  OR: [{ productId: params.excludeProductId }, { variant: { productId: params.excludeProductId } }],
+                  OR: [
+                    { productId: params.excludeProductId },
+                    { variant: { productId: params.excludeProductId } },
+                  ],
                 },
               }
             : {}),
@@ -281,12 +315,17 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
     }
 
     return {
-      status: process.env['AUTO_APPROVE_CLEAN_PRODUCTS'] === 'true' ? 'published' : 'pending_review',
+      status:
+        process.env['AUTO_APPROVE_CLEAN_PRODUCTS'] === 'true' ? 'published' : 'pending_review',
       moderationFindings: Prisma.JsonNull,
     }
   }
 
-  async function syncProductVisibility(productId: string, previousStatus: ProductStatus, nextStatus: ProductStatus) {
+  async function syncProductVisibility(
+    productId: string,
+    previousStatus: ProductStatus,
+    nextStatus: ProductStatus,
+  ) {
     if (nextStatus === 'published') {
       await enqueueProductSync({
         operation: 'upsert',
@@ -360,6 +399,8 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
     },
 
     async listPublishedCurated(params: {
+      propertyFilters?: PropertyFilters
+      includePropertyFacets?: boolean
       categoryId?: string
       categoryIds?: string[]
       minPrice?: number
@@ -373,13 +414,34 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
     }) {
       const candidates = await loadPublishedCandidates(params)
       const enriched = await enrichPublishedProducts(candidates)
-      const filtered = params.onSaleOnly === true ? enriched.filter((item) => item.isOnSale) : enriched
+      const base = params.onSaleOnly === true ? enriched.filter((item) => item.isOnSale) : enriched
+      const schemas =
+        params.includePropertyFacets || params.propertyFilters
+          ? await loadCategorySchemas(prisma)
+          : null
+      const filtered =
+        schemas && params.propertyFilters
+          ? base.filter(
+              (item) =>
+                item.categoryId &&
+                schemas.has(item.categoryId) &&
+                matchesPropertyFilters(
+                  filterValuesForProduct(item, schemas.get(item.categoryId)!),
+                  params.propertyFilters!,
+                ),
+            )
+          : base
       const sorted = sortCuratedProducts(filtered, params.sortBy ?? 'newest')
       const start = params.skip ?? 0
       const end = start + (params.take ?? 20)
       return {
         items: sorted.slice(start, end),
         total: sorted.length,
+        ...(schemas && params.includePropertyFacets
+          ? {
+              propertyFacets: buildPropertyFacets(base, schemas, params.propertyFilters),
+            }
+          : {}),
       }
     },
 
@@ -407,7 +469,13 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return products.countPublished(params)
     },
 
-    listBySeller(sellerId: string, status?: ProductStatus, skip?: number, take?: number, query?: string) {
+    listBySeller(
+      sellerId: string,
+      status?: ProductStatus,
+      skip?: number,
+      take?: number,
+      query?: string,
+    ) {
       return products.listBySeller({
         sellerId,
         ...(status !== undefined ? { status } : {}),
@@ -418,12 +486,84 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
     },
 
     async searchPublished(params: {
+      propertyFilters?: PropertyFilters
+      includePropertyFacets?: boolean
+      inStockOnly?: boolean
       q: string
       categorySlug?: string
       sortBy?: 'newest' | 'price-asc' | 'price-desc' | 'name-asc'
       skip?: number
       take?: number
     }) {
+      if (params.propertyFilters || params.includePropertyFacets) {
+        const schemas = await loadCategorySchemas(prisma)
+        const categoryIds = params.categorySlug
+          ? (
+              await prisma.category.findMany({
+                where: {
+                  OR: [
+                    { slug: params.categorySlug },
+                    { slug: { startsWith: `${params.categorySlug}-` } },
+                  ],
+                },
+                select: { id: true },
+              })
+            ).map((c) => c.id)
+          : undefined
+        if (categoryIds?.length === 0) return { items: [], total: 0, propertyFacets: [] }
+        const candidates = await loadPublishedCandidates({
+          ...(categoryIds ? { categoryIds } : {}),
+          ...(params.inStockOnly ? { inStockOnly: true } : {}),
+        })
+        const normalize = (s: string) =>
+          s
+            .toLocaleLowerCase('tr')
+            .normalize('NFKD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/ı/g, 'i')
+        const words = normalize(params.q).split(/\s+/).filter(Boolean)
+        const matched = candidates.filter((p) => {
+          const schema = p.categoryId ? schemas.get(p.categoryId) : null
+          const values = schema ? filterValuesForProduct(p, schema) : {}
+          const text = [
+            p.name,
+            p.description,
+            p.category?.name,
+            p.category?.slug,
+            p.seller.displayName,
+            ...(schema
+              ? schema.definitions.map((d) =>
+                  importPropertyLabel(d, (p.properties as ProductProperties)[d.key] ?? null),
+                )
+              : []),
+          ]
+          if (values.cinsiyet?.includes('unisex')) text.push('Kadın Erkek Kız')
+          const haystack = normalize(text.filter(Boolean).join(' '))
+          return words.every((word) => haystack.includes(word))
+        })
+        const filtered = matched.filter((p) => {
+          const schema = p.categoryId ? schemas.get(p.categoryId) : null
+          return (
+            !params.propertyFilters ||
+            Boolean(
+              schema &&
+              matchesPropertyFilters(filterValuesForProduct(p, schema), params.propertyFilters),
+            )
+          )
+        })
+        const priced = await applyEffectivePricingToProducts(filtered)
+        if (params.sortBy === 'price-asc' || params.sortBy === 'price-desc')
+          priced.sort(
+            (a, b) =>
+              (a.price.toNumber() - b.price.toNumber()) * (params.sortBy === 'price-desc' ? -1 : 1),
+          )
+        if (params.sortBy === 'name-asc') priced.sort((a, b) => a.name.localeCompare(b.name, 'tr'))
+        return {
+          items: priced.slice(params.skip ?? 0, (params.skip ?? 0) + (params.take ?? 20)),
+          total: priced.length,
+          propertyFacets: buildPropertyFacets(matched, schemas, params.propertyFilters),
+        }
+      }
       const result = await products.searchPublished(params)
       return {
         ...result,
@@ -455,13 +595,43 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       dimensionHeight?: DecimalLike | null
       slugOverride?: string
       deferVisibilitySync?: boolean
-    }) {
+      properties?: ProductProperties | undefined
+      hasVariants?: boolean
+      contentUnit?: string | undefined
+    }): Promise<Product> {
+      if (typeof prisma.$transaction === 'function' && typeof prisma.$queryRaw === 'function') {
+        const result = await prisma.$transaction((tx) =>
+          createCatalogService({
+            prisma: tx as unknown as PrismaClient,
+          }).createProduct({
+            ...params,
+            deferVisibilitySync: true,
+          }),
+        )
+        if (!params.deferVisibilitySync)
+          await enqueueProductSync({
+            operation: 'upsert',
+            entityId: result.id,
+          }).catch(() => {})
+        return result
+      }
+      await lockCatalogSchema(prisma)
       const seller = await sellers.findActiveById(params.sellerId)
       if (!seller) throw new ForbiddenError('Tasarımcı hesabı aktif değil')
 
       const category = await categories.findById(params.categoryId)
       if (!category) throw new NotFoundError('Category', params.categoryId)
       assertLeafCategory(category)
+
+      const schema = await resolveCategorySchema(prisma, params.categoryId)
+      const properties = normalizedProductProperties(
+        schema,
+        params.properties ?? {},
+        {},
+        true,
+        variantPropertyKey(schema, params.contentUnit),
+        params.hasVariants,
+      )
 
       if (params.compareAtPrice && params.compareAtPrice.toNumber() <= params.price.toNumber()) {
         throw new ValidationError('Liste fiyatı satış fiyatından büyük olmalıdır.')
@@ -513,6 +683,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         dimensionHeight: params.dimensionHeight ?? null,
         status: moderation.status,
         moderationFindings: moderation.moderationFindings,
+        properties: properties as Prisma.InputJsonValue,
         publishedAt: moderation.status === 'published' ? new Date() : null,
       })
 
@@ -546,22 +717,135 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       dimensionLength?: DecimalLike | null
       dimensionWidth?: DecimalLike | null
       dimensionHeight?: DecimalLike | null
-    }) {
+      properties?: ProductProperties | undefined
+      contentUnit?: string | undefined
+      hasVariants?: boolean
+      categoryChangeConfirmation?: string | undefined
+      adminActorId?: string
+      /** Trusted route validates the original snapshot before barcode replacement. */
+      deferVisibilitySync?: boolean
+      categoryChangeValidated?: boolean
+      variantsManaged?: boolean
+    }): Promise<Product> {
+      if (typeof prisma.$transaction === 'function' && typeof prisma.$queryRaw === 'function') {
+        const result = await prisma.$transaction((tx) =>
+          createCatalogService({
+            prisma: tx as unknown as PrismaClient,
+          }).updateProductForSeller({
+            ...params,
+            deferVisibilitySync: true,
+          }),
+        )
+        if (!params.deferVisibilitySync)
+          await enqueueProductSync({
+            operation: 'upsert',
+            entityId: result.id,
+          }).catch(() => {})
+        return result
+      }
+      await lockCatalogSchema(prisma)
+      if (typeof prisma.$queryRaw === 'function')
+        await lockProductStocks(prisma, [params.productId])
       const seller = await sellers.findActiveById(params.sellerId)
-      if (!seller) throw new ForbiddenError('Tasarımcı hesabı aktif değil')
+      if (!seller && !params.adminActorId) throw new ForbiddenError('Tasarımcı hesabı aktif değil')
 
       const product = await products.findByIdForSeller(params.productId, params.sellerId)
       if (!product) throw new NotFoundError('Product', params.productId)
 
-      const nextCategoryId = params.categoryId === undefined ? product.categoryId : params.categoryId
+      const nextCategoryId =
+        params.categoryId === undefined ? product.categoryId : params.categoryId
+      const categoryChanged = nextCategoryId !== product.categoryId
+      if (
+        categoryChanged &&
+        !params.adminActorId &&
+        (product.firstPublishedAt ||
+          product.status === 'published' ||
+          (await prisma.orderLine.count({ where: { productId: product.id } })) > 0)
+      ) {
+        throw new ValidationError(
+          'Bir kez yayımlanmış veya sipariş almış ürünün kategorisini yalnız admin değiştirebilir.',
+        )
+      }
+      if (
+        !params.variantsManaged &&
+        params.stockQuantity !== undefined &&
+        product.variants.length > 0
+      )
+        throw new ValidationError(
+          'Varyantlı ürünün toplam stoğunu varyant satırlarından düzenleyin.',
+        )
+      let nextProperties: ProductProperties | undefined
+      let removedAttributeIds: string[] = []
+      let clearDimensions = false
+      const nextVariants: Array<{
+        id: string
+        properties: ProductProperties
+        name?: string
+        options?: Record<string, string>
+      }> = []
       if (nextCategoryId) {
         const category = await categories.findById(nextCategoryId)
         if (!category) throw new NotFoundError('Category', nextCategoryId)
         assertLeafCategory(category)
+        const schema = await resolveCategorySchema(prisma, nextCategoryId)
+        const previous = (product.properties ?? {}) as ProductProperties
+        if (categoryChanged) {
+          const preview = categoryChangePreview(product, schema, params.contentUnit)
+          removedAttributeIds = preview.removedAttributeIds
+          clearDimensions = !schema.config.shared.dimensions
+          if (!params.variantsManaged)
+            for (const variant of product.variants) {
+              const key = variantPropertyKey(schema, params.contentUnit)
+              const raw = Object.fromEntries(
+                Object.entries(variant.properties as ProductProperties).filter(([k]) => k === key),
+              )
+              nextVariants.push({
+                id: variant.id,
+                properties: normalizedVariantProperties(
+                  schema,
+                  raw,
+                  { ...previous, ...params.properties },
+                  params.contentUnit,
+                  {},
+                  true,
+                ),
+              })
+            }
+          if (
+            !params.categoryChangeValidated &&
+            preview.removed.length &&
+            params.categoryChangeConfirmation !== preview.confirmationToken
+          )
+            throw new ValidationError(
+              'Kategori değişirken silinecek özellikleri önizleyip onaylayın.',
+            )
+          const allowed = new Set(schema.config.fields.map((f) => f.key))
+          nextProperties = normalizedProductProperties(
+            schema,
+            {
+              ...Object.fromEntries(Object.entries(previous).filter(([key]) => allowed.has(key))),
+              ...(params.properties ?? {}),
+            },
+            {},
+            true,
+            variantPropertyKey(schema, params.contentUnit),
+            params.hasVariants ?? product.variants.length > 0,
+          )
+        } else if (params.properties !== undefined) {
+          nextProperties = normalizedProductProperties(
+            schema,
+            params.properties,
+            previous,
+            false,
+            variantPropertyKey(schema, params.contentUnit),
+            params.hasVariants ?? product.variants.length > 0,
+          )
+        }
       }
 
       const nextPrice = params.price ?? product.price
-      const nextCompareAtPrice = params.compareAtPrice === undefined ? product.compareAtPrice : params.compareAtPrice
+      const nextCompareAtPrice =
+        params.compareAtPrice === undefined ? product.compareAtPrice : params.compareAtPrice
 
       if (nextCompareAtPrice && nextCompareAtPrice.toNumber() <= nextPrice.toNumber()) {
         throw new ValidationError('Liste fiyatı satış fiyatından büyük olmalıdır.')
@@ -589,16 +873,25 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       const moderation = contentFieldsChanged
         ? getModerationDecision({
             name: params.name ?? product.name,
-            description: params.description === undefined ? product.description : params.description,
+            description:
+              params.description === undefined ? product.description : params.description,
             shortDescription:
-              params.shortDescription === undefined ? product.shortDescription : params.shortDescription,
+              params.shortDescription === undefined
+                ? product.shortDescription
+                : params.shortDescription,
             story: params.story === undefined ? product.story : params.story,
             careInstructions:
-              params.careInstructions === undefined ? product.careInstructions : params.careInstructions,
+              params.careInstructions === undefined
+                ? product.careInstructions
+                : params.careInstructions,
           })
         : null
       const nextStatus =
-        moderation === null ? product.status : product.status === 'published' ? 'published' : moderation.status
+        moderation === null
+          ? product.status
+          : product.status === 'published'
+            ? 'published'
+            : moderation.status
       const nextPublishedAt =
         moderation === null
           ? product.publishedAt
@@ -606,26 +899,71 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
             ? (product.publishedAt ?? new Date())
             : null
 
+      for (const variant of nextVariants) {
+        const targetSchema = await resolveCategorySchema(prisma, nextCategoryId!)
+        const presentation = categoryVariantPresentation(
+          targetSchema,
+          variant.properties,
+          params.contentUnit,
+        )
+        await prisma.productVariant.update({
+          where: { id: variant.id },
+          data: {
+            properties: variant.properties as Prisma.InputJsonValue,
+            options: presentation.options,
+            name: presentation.name || product.variants.find((v) => v.id === variant.id)!.barcode,
+          },
+        })
+      }
+      if (removedAttributeIds.length)
+        await prisma.productAttributeValue.deleteMany({
+          where: {
+            productId: product.id,
+            optionId: { in: removedAttributeIds },
+          },
+        })
       const updated = await prisma.product.update({
         where: { id: params.productId },
         data: {
           ...(params.name !== undefined ? { name: params.name } : {}),
           ...(params.categoryId !== undefined ? { categoryId: params.categoryId } : {}),
           ...(params.description !== undefined ? { description: params.description } : {}),
-          ...(params.shortDescription !== undefined ? { shortDescription: params.shortDescription } : {}),
+          ...(params.shortDescription !== undefined
+            ? { shortDescription: params.shortDescription }
+            : {}),
           ...(params.story !== undefined ? { story: params.story } : {}),
-          ...(params.careInstructions !== undefined ? { careInstructions: params.careInstructions } : {}),
+          ...(params.careInstructions !== undefined
+            ? { careInstructions: params.careInstructions }
+            : {}),
           ...(params.price !== undefined ? { price: params.price } : {}),
           ...(params.compareAtPrice !== undefined ? { compareAtPrice: params.compareAtPrice } : {}),
-          ...(params.fulfillmentDays !== undefined ? { fulfillmentDays: params.fulfillmentDays } : {}),
+          ...(params.fulfillmentDays !== undefined
+            ? { fulfillmentDays: params.fulfillmentDays }
+            : {}),
           ...(params.stockQuantity !== undefined ? { stockQuantity: params.stockQuantity } : {}),
           ...(params.sku !== undefined ? { sku: params.sku } : {}),
-          ...(params.modelCode !== undefined ? { modelCode: requireModelCode(params.modelCode) } : {}),
+          ...(params.modelCode !== undefined
+            ? { modelCode: requireModelCode(params.modelCode) }
+            : {}),
           ...(params.barcode !== undefined ? { barcode: params.barcode } : {}),
           ...(params.weight !== undefined ? { weight: params.weight } : {}),
-          ...(params.dimensionLength !== undefined ? { dimensionLength: params.dimensionLength } : {}),
+          ...(params.dimensionLength !== undefined
+            ? { dimensionLength: params.dimensionLength }
+            : {}),
           ...(params.dimensionWidth !== undefined ? { dimensionWidth: params.dimensionWidth } : {}),
-          ...(params.dimensionHeight !== undefined ? { dimensionHeight: params.dimensionHeight } : {}),
+          ...(params.dimensionHeight !== undefined
+            ? { dimensionHeight: params.dimensionHeight }
+            : {}),
+          ...(clearDimensions
+            ? {
+                dimensionWidth: null,
+                dimensionLength: null,
+                dimensionHeight: null,
+              }
+            : {}),
+          ...(nextProperties !== undefined
+            ? { properties: nextProperties as Prisma.InputJsonValue }
+            : {}),
           ...(moderation
             ? {
                 status: nextStatus,
@@ -638,11 +976,22 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         },
       })
 
+      if (params.adminActorId && categoryChanged)
+        await prisma.adminAuditLog.create({
+          data: {
+            actorId: params.adminActorId,
+            actionType: 'catalog_schema_changed',
+            targetType: 'product',
+            targetId: product.id,
+            previousData: { categoryId: product.categoryId },
+            newData: { categoryId: nextCategoryId },
+          },
+        })
       if (params.barcode !== undefined) {
         await syncProductBarcodeReservation(prisma, params.productId, params.barcode)
       }
 
-      if (moderation) {
+      if (moderation && !params.deferVisibilitySync) {
         await syncProductVisibility(updated.id, product.status, updated.status)
       }
 
@@ -668,7 +1017,9 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         },
       })
       if (!updated) {
-        throw new ValidationError('Urun artik inceleme beklemiyor. Sayfayi yenileyip tekrar deneyin.')
+        throw new ValidationError(
+          'Urun artik inceleme beklemiyor. Sayfayi yenileyip tekrar deneyin.',
+        )
       }
 
       await syncProductVisibility(id, product.status, 'published')
@@ -749,7 +1100,9 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       // Search indexing is a read projection — it must never undo an approval
       // that is already committed, and one slow enqueue must not serialize the
       // whole batch.
-      await Promise.allSettled(result.approved.map((id) => syncProductVisibility(id, 'pending_review', 'published')))
+      await Promise.allSettled(
+        result.approved.map((id) => syncProductVisibility(id, 'pending_review', 'published')),
+      )
 
       return result
     },
@@ -950,18 +1303,17 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         throw new ValidationError('Kategori adı boş olamaz.')
       }
 
-      const nextSlugInput = params.slug?.trim()
-      const nextSlug = nextSlugInput !== undefined ? normalizeSlug(nextSlugInput) : existing.slug
-      if (!isValidSlug(nextSlug)) {
-        throw new ValidationError('Kategori slug alanı geçersiz.')
-      }
-
-      if (nextSlug !== existing.slug) {
-        const slugTaken = await categories.findBySlug(nextSlug)
-        if (slugTaken && slugTaken.id !== existing.id) {
-          throw new ConflictError(`Bu slug kullanımda: ${nextSlug}`)
-        }
-      }
+      const nextSlug = existing.slug
+      if (params.slug !== undefined && normalizeSlug(params.slug) !== existing.slug)
+        throw new ValidationError('Kategori adresi oluşturulduktan sonra değiştirilemez.')
+      const duplicate = await prisma.category.findFirst({
+        where: {
+          parentId: existing.parentId,
+          name: { equals: nextName, mode: 'insensitive' },
+          id: { not: existing.id },
+        },
+      })
+      if (duplicate) throw new ConflictError('Aynı üst kategoride bu ad zaten kullanılıyor.')
 
       const updated = await categories.update(params.categoryId, {
         ...(params.name !== undefined ? { name: nextName } : {}),
@@ -980,7 +1332,11 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       return updated
     },
 
-    async updateCategoryTaxGroupForAdmin(params: { categoryIds: string[]; taxRate: number | null; actorId: string }) {
+    async updateCategoryTaxGroupForAdmin(params: {
+      categoryIds: string[]
+      taxRate: number | null
+      actorId: string
+    }) {
       const categoryIds = [...new Set(params.categoryIds.map((id) => id.trim()).filter(Boolean))]
       if (categoryIds.length === 0) {
         throw new ValidationError('En az bir kategori seçilmelidir.')
@@ -1110,12 +1466,11 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
           continue
         }
 
-        await prisma.product.update({
-          where: { id: product.id },
-          data: {
-            ...(row.newPrice !== undefined ? { price: row.newPrice } : {}),
-            ...(row.newStock !== undefined ? { stockQuantity: row.newStock } : {}),
-          },
+        await createCatalogService({ prisma }).updateProductForSeller({
+          productId: product.id,
+          sellerId: params.sellerId,
+          ...(row.newPrice !== undefined ? { price: new Prisma.Decimal(row.newPrice) } : {}),
+          ...(row.newStock !== undefined ? { stockQuantity: row.newStock } : {}),
         })
 
         results.push({
@@ -1137,7 +1492,9 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
      * Returns every leaf category under the given parent slug.
      * Leaf means active category without children.
      */
-    async getLeafDescendants(parentSlug: string): Promise<Array<{ id: string; slug: string; name: string }>> {
+    async getLeafDescendants(
+      parentSlug: string,
+    ): Promise<Array<{ id: string; slug: string; name: string }>> {
       const all = await categories.findAll()
       const byId = new Map(all.map((category) => [category.id, category]))
       const childrenOf = new Map<string | null, typeof all>()

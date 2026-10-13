@@ -1,16 +1,13 @@
 import { customerLegalHtml } from './customer-legal-content'
 import { createHash } from 'node:crypto'
-import {
-  formatProductColors,
-  formatProductDimensions,
-} from '../domain/product-characteristics'
+import { formatProductColors, formatProductDimensions } from '../domain/product-characteristics'
 import { PLATFORM_LEGAL_INFO } from './platform-info'
 
 // v4 (2026-09-18): kupon / Havale-EFT indirim satırları, sipariş anındaki ürün
 // temel nitelikleri (renk, malzeme, ölçü, SKU/barkod), ürün bazlı sevk süresi
 // ve 30 günlük azami teslim süresinin özel üretim istisnası eklendi.
-export const DISTANCE_SALES_DOCUMENT_VERSION = 'distance-sales-2026-10-12-v5'
-export const PRE_INFORMATION_DOCUMENT_VERSION = 'pre-information-2026-10-12-v5'
+export const DISTANCE_SALES_DOCUMENT_VERSION = 'distance-sales-2026-10-13-v6'
+export const PRE_INFORMATION_DOCUMENT_VERSION = 'pre-information-2026-10-13-v6'
 
 export interface LegalBuyerSnapshot {
   fullName: string
@@ -35,6 +32,7 @@ export interface LegalSellerSnapshot {
 }
 
 export interface LegalOrderItemSnapshot {
+  characteristics?: Array<{ label: string; value: string }>
   productId: string
   productName: string
   variantName: string | null
@@ -149,6 +147,7 @@ function formatItemCharacteristics(item: LegalOrderItemSnapshot) {
     dimensions,
     item.sku ? `SKU: ${item.sku}` : null,
     item.barcode ? `Barkod: ${item.barcode}` : null,
+    ...(item.characteristics ?? []).map((row) => `${row.label}: ${row.value}`),
   ].filter((part): part is string => part !== null)
 }
 
@@ -363,23 +362,46 @@ export const RIGHT_OF_WITHDRAWAL_EXCEPTIONS: readonly string[] = [
   'Mevzuatta cayma hakkı dışında bırakılan diğer ürün ve hizmetler.',
 ]
 
-
 function renderCustomerContract(context: LegalContractContext, id: '05' | '06', version: string) {
   let content = customerLegalHtml(id)
-  const dynamic = renderBuyerSection(context.buyer) + renderItemsTable(context.items) + renderOrderSummary(context)
-    + '<p><strong>Cayma istisnası:</strong> Bu standart sipariş için özel üretim istisnası uygulanmamaktadır. Ayıplı mal hakları saklıdır.</p>'
-  const heading = id === '05' ? '<h2>Madde 3 – Sözleşme Konusu Sipariş</h2>' : '<h2>2. Sözleşme Konusu Sipariş</h2>'
+  const dynamic =
+    renderBuyerSection(context.buyer) +
+    renderItemsTable(context.items) +
+    renderOrderSummary(context) +
+    '<p><strong>Cayma istisnası:</strong> Bu standart sipariş için özel üretim istisnası uygulanmamaktadır. Ayıplı mal hakları saklıdır.</p>'
+  const heading =
+    id === '05'
+      ? '<h2>Madde 3 – Sözleşme Konusu Sipariş</h2>'
+      : '<h2>2. Sözleşme Konusu Sipariş</h2>'
   content = content.replace(heading, heading + dynamic)
-  return '<!doctype html><html lang="tr"><head><meta charset="utf-8" />' + renderDocumentStyles() + '</head><body>'
-    + '<p><strong>Belge Sürümü:</strong> ' + escapeHtml(version) + '</p>' + content + '</body></html>'
+  return (
+    '<!doctype html><html lang="tr"><head><meta charset="utf-8" />' +
+    renderDocumentStyles() +
+    '</head><body>' +
+    '<p><strong>Belge Sürümü:</strong> ' +
+    escapeHtml(version) +
+    '</p>' +
+    content +
+    '</body></html>'
+  )
 }
 export function renderLegalDocuments(context: LegalContractContext): LegalDocumentBundle {
   const difference = context.installmentDifferenceAmount
   if (difference != null) {
     if (!Number.isFinite(difference) || difference < 0) throw new Error('Geçersiz taksit farkı')
-    if (difference > 0 && (!Number.isInteger(context.installmentCount) || (context.installmentCount ?? 0) < 2)) throw new Error('Taksit farkı için doğrulanmış taksit seçimi gerekli')
-    const expected = context.subtotalAmount - context.couponDiscountAmount - context.eftDiscountAmount + context.shippingAmount + difference
-    if (Math.round(expected * 100) !== Math.round(context.totalAmount * 100)) throw new Error('Taksit farkı ve nihai toplam uyuşmuyor')
+    if (
+      difference > 0 &&
+      (!Number.isInteger(context.installmentCount) || (context.installmentCount ?? 0) < 2)
+    )
+      throw new Error('Taksit farkı için doğrulanmış taksit seçimi gerekli')
+    const expected =
+      context.subtotalAmount -
+      context.couponDiscountAmount -
+      context.eftDiscountAmount +
+      context.shippingAmount +
+      difference
+    if (Math.round(expected * 100) !== Math.round(context.totalAmount * 100))
+      throw new Error('Taksit farkı ve nihai toplam uyuşmuyor')
   }
   return {
     distanceSalesHtml: renderCustomerContract(context, '05', DISTANCE_SALES_DOCUMENT_VERSION),
@@ -387,7 +409,21 @@ export function renderLegalDocuments(context: LegalContractContext): LegalDocume
     distanceSalesVersion: DISTANCE_SALES_DOCUMENT_VERSION,
     preInformationVersion: PRE_INFORMATION_DOCUMENT_VERSION,
     buyerSnapshot: context.buyer,
-    sellerSnapshot: [{ sellerId: 'hanuja', storeName: 'Hanuja', companyName: PLATFORM_LEGAL_INFO.companyLegalName, legalAddress: PLATFORM_LEGAL_INFO.address, district: PLATFORM_LEGAL_INFO.district, city: PLATFORM_LEGAL_INFO.city, postalCode: '', taxOffice: PLATFORM_LEGAL_INFO.taxOffice, taxNumber: PLATFORM_LEGAL_INFO.taxNumber, mersis: PLATFORM_LEGAL_INFO.mersis, phone: PLATFORM_LEGAL_INFO.phoneDisplay }],
+    sellerSnapshot: [
+      {
+        sellerId: 'hanuja',
+        storeName: 'Hanuja',
+        companyName: PLATFORM_LEGAL_INFO.companyLegalName,
+        legalAddress: PLATFORM_LEGAL_INFO.address,
+        district: PLATFORM_LEGAL_INFO.district,
+        city: PLATFORM_LEGAL_INFO.city,
+        postalCode: '',
+        taxOffice: PLATFORM_LEGAL_INFO.taxOffice,
+        taxNumber: PLATFORM_LEGAL_INFO.taxNumber,
+        mersis: PLATFORM_LEGAL_INFO.mersis,
+        phone: PLATFORM_LEGAL_INFO.phoneDisplay,
+      },
+    ],
     platformSnapshot: PLATFORM_LEGAL_INFO,
   }
 }

@@ -1,114 +1,110 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { findManyMock, fetchMock } = vi.hoisted(() => ({
-  findManyMock: vi.fn(),
-  fetchMock: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  products: vi.fn(),
+  fetch: vi.fn(),
+  ack: vi.fn(),
+  wait: vi.fn(),
+  ensure: vi.fn(),
 }))
-
-vi.mock('../../../api/lib/prisma', () => ({
-  prisma: {
-    product: {
-      findMany: findManyMock,
+vi.mock('../../../api/lib/prisma', () => {
+  const db = {
+    product: { findMany: mocks.products },
+    category: { findMany: vi.fn(async () => []) },
+    catalogTemplate: { findMany: vi.fn(async () => []) },
+    catalogField: { findMany: vi.fn(async () => []) },
+    searchIndexDirtyProduct: {
+      findUnique: vi.fn(async () => ({ productId: 'prod-1', revision: 7 })),
+      deleteMany: mocks.ack,
+      findMany: vi.fn(async () => []),
     },
-  },
-}))
-
+    $executeRaw: vi.fn(async () => 0),
+    $queryRaw: vi.fn(async () => [{ acquired: true }]),
+    $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(db),
+  }
+  return { prisma: db }
+})
 vi.mock('../../../api/lib/meilisearch', () => ({
-  getMeilisearchConfig: () => ({
-    baseUrl: 'http://meili.test',
-    apiKey: 'secret',
-  }),
+  getMeilisearchConfig: () => ({ baseUrl: 'http://meili.test', apiKey: 'test-only' }),
+  ensureIndex: mocks.ensure,
+  waitForMeilisearchTask: mocks.wait,
 }))
-
 import { processSearchIndexSync } from '../../../api/jobs/search-index-sync.job'
-
-describe('search-index-sync.job', () => {
-  beforeEach(() => {
-    findManyMock.mockReset()
-    fetchMock.mockReset()
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => '',
-    })
-    vi.stubGlobal('fetch', fetchMock)
+const document = {
+  id: 'prod-1',
+  slug: 'sehpa',
+  name: 'Sehpa',
+  description: 'Masif',
+  price: { toNumber: () => 1000 },
+  categoryId: null,
+  sellerId: 'seller-1',
+  stockQuantity: 0,
+  properties: {},
+  variants: [],
+  attributeValues: [],
+  images: [],
+  category: null,
+  seller: { slug: 'atolye', displayName: 'Atölye' },
+}
+const job = (data: unknown) => ({ data }) as never
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.products.mockReset()
+  mocks.wait.mockReset()
+  mocks.wait.mockResolvedValue(undefined)
+  mocks.ensure.mockResolvedValue(undefined)
+  mocks.fetch.mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ taskUid: 1 }),
+    text: async () => '',
   })
-
-  it('clears the index before a full product reindex and uploads published documents', async () => {
-    findManyMock
-      .mockResolvedValueOnce([
-        {
-          id: 'prod-1',
-          slug: 'sehpa',
-          name: 'Sehpa',
-          description: 'Masif',
-          price: { toNumber: () => 1000 },
-          categoryId: 'cat-1',
-          sellerId: 'seller-1',
-          stockQuantity: 7,
-          images: [{ url: 'https://cdn.example.com/1.jpg' }],
-          category: { slug: 'mobilya', name: 'Mobilya' },
-          seller: { slug: 'atolye', displayName: 'Atolye' },
-        },
-      ])
-      .mockResolvedValueOnce([])
-
-    await processSearchIndexSync({
-      data: { type: 'product', operation: 'upsert' },
-    } as never)
-
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      'http://meili.test/indexes/products/documents',
-      expect.objectContaining({ method: 'DELETE' }),
+  vi.stubGlobal('fetch', mocks.fetch)
+})
+describe('durable product search projection', () => {
+  it('builds separately and atomically swaps instead of emptying the live index', async () => {
+    mocks.products.mockResolvedValueOnce([document]).mockResolvedValueOnce([])
+    await processSearchIndexSync(job({ type: 'product', operation: 'upsert' }))
+    const requests = mocks.fetch.mock.calls
+    expect(requests.some(([url]) => url === 'http://meili.test/swap-indexes')).toBe(true)
+    expect(
+      requests.some(
+        ([url, options]) =>
+          url === 'http://meili.test/indexes/products/documents' && options.method === 'DELETE',
+      ),
+    ).toBe(false)
+    const upload = requests.find(
+      ([url, options]) =>
+        url.includes('products_build_') && url.endsWith('/documents') && options.method === 'POST',
     )
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
+    expect(JSON.parse(upload?.[1].body)).toEqual([
+      expect.objectContaining({ id: 'prod-1', stock: 0 }),
+    ])
+    expect(mocks.ack).not.toHaveBeenCalled()
+  })
+  it('ignores stale delete jobs and reads the latest committed product', async () => {
+    mocks.products.mockResolvedValueOnce([document])
+    await processSearchIndexSync(job({ type: 'product', operation: 'delete', entityId: 'prod-1' }))
+    expect(mocks.fetch).toHaveBeenCalledWith(
       'http://meili.test/indexes/products/documents',
       expect.objectContaining({ method: 'POST' }),
     )
-    const secondCall = fetchMock.mock.calls[1]
-    const body = JSON.parse(String(secondCall?.[1]?.body ?? '[]'))
-    expect(body).toEqual([
-      expect.objectContaining({
-        id: 'prod-1',
-        categorySlug: 'mobilya',
-        storeSlug: 'atolye',
-      }),
-    ])
+    expect(mocks.ack).toHaveBeenCalledWith({ where: { productId: 'prod-1', revision: 7 } })
   })
-
-  it('reindexes published products for a category scope', async () => {
-    findManyMock.mockResolvedValueOnce([]).mockResolvedValueOnce([])
-    await processSearchIndexSync({
-      data: { type: 'category', operation: 'upsert', entityId: 'cat-42' },
-    } as never)
-
-    expect(findManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          AND: [
-            {
-              status: 'published',
-              seller: { is: { status: 'active', vacationModeEnabled: false } },
-            },
-            { categoryId: 'cat-42' },
-          ],
-        },
-      }),
-    )
-  })
-
-  it('removes a product from the index when a scoped upsert finds no published row', async () => {
-    findManyMock.mockResolvedValueOnce([])
-
-    await processSearchIndexSync({
-      data: { type: 'product', operation: 'upsert', entityId: 'prod-missing' },
-    } as never)
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://meili.test/indexes/products/documents/prod-missing',
+  it('deletes unpublished products and tombstones only after the Meili task succeeds', async () => {
+    mocks.products.mockResolvedValueOnce([])
+    await processSearchIndexSync(job({ type: 'product', operation: 'upsert', entityId: 'prod-1' }))
+    expect(mocks.fetch).toHaveBeenCalledWith(
+      'http://meili.test/indexes/products/documents/prod-1',
       expect.objectContaining({ method: 'DELETE' }),
     )
+    expect(mocks.ack).toHaveBeenCalledWith({ where: { productId: 'prod-1', revision: 7 } })
+  })
+  it('leaves durable dirty state pending when indexing fails', async () => {
+    mocks.products.mockResolvedValueOnce([document])
+    mocks.wait.mockRejectedValueOnce(new Error('index unavailable'))
+    await expect(
+      processSearchIndexSync(job({ type: 'product', operation: 'upsert', entityId: 'prod-1' })),
+    ).rejects.toThrow('index unavailable')
+    expect(mocks.ack).not.toHaveBeenCalled()
   })
 })

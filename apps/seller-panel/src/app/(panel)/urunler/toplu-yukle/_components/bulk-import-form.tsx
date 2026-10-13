@@ -26,7 +26,7 @@ interface TemplateScopeNode {
 }
 
 interface TemplateArea {
-  slug: 'ev' | 'ofis'
+  slug: string
   label: string
   categories: TemplateCategory[]
   scopeNodes: TemplateScopeNode[]
@@ -51,24 +51,13 @@ interface BulkImportFormProps {
 
 type PreviewRow = BulkProductImportRow & { rowNumber: number }
 
-const REQUIRED_BULK_PRODUCT_HEADERS = [
-  'Model Kodu*',
-  'Urun Adi*',
-  'Kategori*',
-  'Renk 1*',
-  'Materyal*',
-  'Fiyat*',
-  'Sevk Suresi (is gunu)*',
-  'Stok*',
-]
-
 function getDownloadFileName(contentDisposition: string | null) {
   const match = contentDisposition?.match(/filename="?([^"]+)"?/)
   return match?.[1] ?? 'toplu-urun-sablonu.xlsx'
 }
 
 export function BulkImportForm({ areas }: BulkImportFormProps) {
-  const [rootCategorySlug, setRootCategorySlug] = useState<'ev' | 'ofis' | ''>('')
+  const [rootCategorySlug, setRootCategorySlug] = useState<string>('')
   const [scopeCategorySlug, setScopeCategorySlug] = useState('')
   // Chosen scope slug per cascade level; the last entry is the active scope.
   const [scopePath, setScopePath] = useState<string[]>([])
@@ -153,7 +142,10 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
       const response = await fetch(templateHref)
 
       if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: string }
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string
+          message?: string
+        }
         setTemplateError(payload.error ?? payload.message ?? 'Sablon indirilemedi.')
         return
       }
@@ -193,25 +185,40 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
       const firstSheetName = workbook.SheetNames[0]
       if (!firstSheetName) {
         setRows([])
-        setPreviewErrors([{ rowNumber: 0, field: 'file', code: 'worksheet_missing', message: 'Calisma sayfasi bulunamadi.' }])
+        setPreviewErrors([
+          {
+            rowNumber: 0,
+            field: 'file',
+            code: 'worksheet_missing',
+            message: 'Calisma sayfasi bulunamadi.',
+          },
+        ])
         return
       }
 
       const worksheet = workbook.Sheets[firstSheetName]
       if (!worksheet) {
         setRows([])
-        setPreviewErrors([{ rowNumber: 0, field: 'file', code: 'worksheet_missing', message: 'Calisma sayfasi bulunamadi.' }])
+        setPreviewErrors([
+          {
+            rowNumber: 0,
+            field: 'file',
+            code: 'worksheet_missing',
+            message: 'Calisma sayfasi bulunamadi.',
+          },
+        ])
         return
       }
 
       const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
         defval: '',
       })
-      const headerRow = XLSX.utils.sheet_to_json<string[]>(worksheet, {
-        header: 1,
-        range: 0,
-        blankrows: false,
-      })[0] ?? []
+      const headerRow =
+        XLSX.utils.sheet_to_json<string[]>(worksheet, {
+          header: 1,
+          range: 0,
+          blankrows: false,
+        })[0] ?? []
 
       const missingHeaders = getMissingBulkProductHeaders(headerRow)
       if (missingHeaders.length > 0) {
@@ -240,16 +247,63 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
         return
       }
 
-      const parsedRows = rawRows.map((row, index) => normalizeBulkProductRow(row, index + 2))
-      const localErrors =
-        parsedRows.flatMap((row) =>
-          row.errors.map((message) => ({ rowNumber: row.rowNumber, field: 'row', code: 'invalid_row', message })),
-        )
-      const validRows = parsedRows.flatMap((row) => (row.data ? [{ ...row.data, rowNumber: row.rowNumber }] : []))
+      const metadataSheet = workbook.Sheets['__schema']
+      const metadata = metadataSheet?.A1?.v
+        ? (JSON.parse(String(metadataSheet.A1.v)) as {
+            categoryId: string
+            templateCode: string
+            schemaVersion: number
+            propertyHeaders: Record<string, string>
+            variantHeader: string | null
+            contentUnitHeader: string | null
+          })
+        : null
+      const parsedRows = rawRows.map((row, index) =>
+        normalizeBulkProductRow(
+          metadata
+            ? {
+                ...row,
+                ...(metadata.variantHeader ? { variantSize: row[metadata.variantHeader] } : {}),
+                properties: Object.fromEntries(
+                  Object.entries(metadata.propertyHeaders).map(([header, key]) => [
+                    key,
+                    row[header] ?? null,
+                  ]),
+                ),
+                contentUnit: metadata.contentUnitHeader
+                  ? row[metadata.contentUnitHeader]
+                  : undefined,
+                schemaMetadata: {
+                  categoryId: metadata.categoryId,
+                  templateCode: metadata.templateCode,
+                  schemaVersion: metadata.schemaVersion,
+                },
+              }
+            : row,
+          index + 2,
+        ),
+      )
+      const localErrors = parsedRows.flatMap((row) =>
+        row.errors.map((message) => ({
+          rowNumber: row.rowNumber,
+          field: 'row',
+          code: 'invalid_row',
+          message,
+        })),
+      )
+      const validRows = parsedRows.flatMap((row) =>
+        row.data ? [{ ...row.data, rowNumber: row.rowNumber }] : [],
+      )
       setRows(validRows)
       setPreviewErrors(localErrors)
 
-      if (localErrors.length > 0 || validRows.length === 0 || !rootCategorySlug || !scopeCategorySlug) return
+      if (
+        localErrors.length > 0 ||
+        validRows.length === 0 ||
+        !rootCategorySlug ||
+        !scopeCategorySlug
+      )
+        return
 
       setIsValidating(true)
       try {
@@ -262,14 +316,35 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ rows: apiRows, rootCategorySlug, scopeCategorySlug }),
         })
-        const payload = (await response.json().catch(() => ({}))) as { errors?: ImportError[]; error?: string }
+        const payload = (await response.json().catch(() => ({}))) as {
+          errors?: ImportError[]
+          error?: string
+        }
         if (!response.ok) {
-          setPreviewErrors(payload.errors?.length ? payload.errors : [{ rowNumber: 0, field: 'file', code: 'validation_failed', message: payload.error ?? 'Dosya dogrulanamadi.' }])
+          setPreviewErrors(
+            payload.errors?.length
+              ? payload.errors
+              : [
+                  {
+                    rowNumber: 0,
+                    field: 'file',
+                    code: 'validation_failed',
+                    message: payload.error ?? 'Dosya dogrulanamadi.',
+                  },
+                ],
+          )
           return
         }
         setPreviewErrors(payload.errors ?? [])
       } catch {
-        setPreviewErrors([{ rowNumber: 0, field: 'file', code: 'validation_unavailable', message: 'Dosya dogrulama servisine baglanilamadi.' }])
+        setPreviewErrors([
+          {
+            rowNumber: 0,
+            field: 'file',
+            code: 'validation_unavailable',
+            message: 'Dosya dogrulama servisine baglanilamadi.',
+          },
+        ])
       } finally {
         setIsValidating(false)
       }
@@ -355,7 +430,7 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
                 aria-label="Alan"
                 value={rootCategorySlug}
                 onChange={(event) => {
-                  const nextValue = event.target.value as 'ev' | 'ofis' | ''
+                  const nextValue = event.target.value
                   setRootCategorySlug(nextValue)
                   setScopeCategorySlug('')
                   setScopePath([])
@@ -367,7 +442,7 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
                   backgroundColor: 'var(--color-surface)',
                 }}
               >
-                <option value="">-- Ev veya Ofis secin --</option>
+                <option value="">-- Ana kategori seçin --</option>
                 {areas.map((area) => (
                   <option key={area.slug} value={area.slug}>
                     {area.label}
@@ -399,7 +474,11 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
                   {scopeLevels.map((options, levelIndex) => (
                     <select
                       key={levelIndex}
-                      id={levelIndex === 0 ? 'bulk-import-category' : `bulk-import-category-${levelIndex}`}
+                      id={
+                        levelIndex === 0
+                          ? 'bulk-import-category'
+                          : `bulk-import-category-${levelIndex}`
+                      }
                       aria-label={levelIndex === 0 ? 'Kategori' : 'Alt kategori'}
                       value={scopePath[levelIndex] ?? ''}
                       onChange={(event) => handleScopeLevelChange(levelIndex, event.target.value)}
@@ -453,9 +532,9 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
           <CategorySupportHint />
 
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            <strong>Uyari:</strong> Excel icindeki <strong>Urun Rengi*</strong> ve <strong>Materyal*</strong>{' '}
-            secimleri kategoriye baglidir. Bu listeler ancak ayni satirda once <strong>Kategori*</strong>{' '}
-            secildikten sonra gorunur.
+            <strong>Uyari:</strong> Excel icindeki <strong>Urun Rengi*</strong> ve{' '}
+            <strong>Materyal*</strong> secimleri kategoriye baglidir. Bu listeler ancak ayni satirda
+            once <strong>Kategori*</strong> secildikten sonra gorunur.
           </p>
         </CardContent>
       </Card>
@@ -465,7 +544,10 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
           <CardTitle>XLSX Yukle</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-xl border border-dashed p-6" style={{ borderColor: 'var(--color-border)' }}>
+          <div
+            className="rounded-xl border border-dashed p-6"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
             <label htmlFor="bulk-import-file" className="sr-only">
               XLSX dosyasi
             </label>
@@ -481,33 +563,45 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
             </p>
           </div>
 
-          <div className="rounded-xl border p-4 text-xs space-y-1" style={{ borderColor: 'var(--color-border)' }}>
+          <div
+            className="rounded-xl border p-4 text-xs space-y-1"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
             <p style={{ color: 'var(--color-muted-fg)' }}>
               Sablon bos satirlarla gelir. Verinizi 2. satirdan itibaren doldurun.
             </p>
             <p style={{ color: 'var(--color-muted-fg)' }}>
-              Zorunlu basliklar: {REQUIRED_BULK_PRODUCT_HEADERS.join(', ')}.
+              Zorunlu alanlar seçilen kategori şablonunda yıldız (*) ile gösterilir.
             </p>
             <p style={{ color: 'var(--color-muted-fg)' }}>
-              Gorsel URL sutunlari istege baglidir; girildiginde ilk URL ana gorsel olarak kaydedilir.
+              Gorsel URL sutunlari istege baglidir; girildiginde ilk URL ana gorsel olarak
+              kaydedilir.
             </p>
             <p style={{ color: 'var(--color-muted-fg)' }}>
-              Urun gorsellerinde 1:1 tavsiye edilir. Farkli oranlar kabul edilir; kare alanlarda uygun sekilde kirpilarak gosterilir.
+              Urun gorsellerinde 1:1 tavsiye edilir. Farkli oranlar kabul edilir; kare alanlarda
+              uygun sekilde kirpilarak gosterilir.
             </p>
             <p style={{ color: 'var(--color-muted-fg)' }}>
-              Indirim gostermek isterseniz <strong>Liste Fiyati (ustu cizili)</strong> alanina daha yuksek tutari yazin.
+              Indirim gostermek isterseniz <strong>Liste Fiyati (ustu cizili)</strong> alanina daha
+              yuksek tutari yazin.
             </p>
             <p style={{ color: 'var(--color-muted-fg)' }}>
-              Yukleme sirasinda kategori seciminiz, ekranin ustunde belirlediginiz Ev/Ofis ve kategori kapsamiyla birlikte kontrol edilir.
+              Yukleme sirasinda kategori seciminiz, ekranin ustunde belirlediginiz ana kategori ve
+              kategori kapsamiyla birlikte kontrol edilir.
             </p>
             <p style={{ color: 'var(--color-muted-fg)' }}>
-              Ayni urun adi kullanilabilir. Varyasyonlu veya varyasyonsuz urunlerde isimler ayni olabilir.
+              Ayni urun adi kullanilabilir. Varyasyonlu veya varyasyonsuz urunlerde isimler ayni
+              olabilir.
             </p>
             <p style={{ color: 'var(--color-warning, #b45309)' }}>
-              Renk veya materyal kardeslerini baglamak icin ayni <strong>Model Kodu</strong> kullanin. SKU yalnizca kendi sisteminizdeki istege bagli urun kodunuzdur.
+              Renk veya materyal kardeslerini baglamak icin ayni <strong>Model Kodu</strong>{' '}
+              kullanin. SKU yalnizca kendi sisteminizdeki istege bagli urun kodunuzdur.
             </p>
             <p style={{ color: 'var(--color-warning, #b45309)' }}>
-              Barkod alani istege baglidir. Bos birakirsaniz sistem 8 ile baslayan benzersiz 13 haneli bir barkod otomatik uretir. Kendiniz girerseniz sistem genelinde benzersiz olmalidir; baska bir urun veya varyasyonda kullaniliyorsa ilgili satir reddedilir ve barkod degistirilmelidir.
+              Barkod alani istege baglidir. Bos birakirsaniz sistem 8 ile baslayan benzersiz 13
+              haneli bir barkod otomatik uretir. Kendiniz girerseniz sistem genelinde benzersiz
+              olmalidir; baska bir urun veya varyasyonda kullaniliyorsa ilgili satir reddedilir ve
+              barkod degistirilmelidir.
             </p>
           </div>
 
@@ -517,7 +611,11 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
                 Dosyada hata var, duzeltmeden yuklenemez:
               </p>
               {previewErrors.slice(0, 5).map((error, index) => (
-                <p key={`hint-${error.rowNumber}-${index}`} className="text-sm" style={{ color: 'var(--color-destructive)' }}>
+                <p
+                  key={`hint-${error.rowNumber}-${index}`}
+                  className="text-sm"
+                  style={{ color: 'var(--color-destructive)' }}
+                >
                   Satir {error.rowNumber}: {error.message}
                 </p>
               ))}
@@ -575,7 +673,9 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           {isValidating ? (
-            <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>Dosya ve barkodlar kontrol ediliyor...</p>
+            <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+              Dosya ve barkodlar kontrol ediliyor...
+            </p>
           ) : previewRows.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
               Onizleme icin bir XLSX dosyasi secin.
@@ -585,11 +685,24 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr>
-                    {['Urun', 'Kategori', 'Renk', 'Materyal', 'Satis Fiyati', 'Liste Fiyati', 'Stok', 'Barkod', 'Gorsel'].map((heading) => (
+                    {[
+                      'Urun',
+                      'Kategori',
+                      'Renk',
+                      'Materyal',
+                      'Satis Fiyati',
+                      'Liste Fiyati',
+                      'Stok',
+                      'Barkod',
+                      'Gorsel',
+                    ].map((heading) => (
                       <th
                         key={heading}
                         className="border-b px-3 py-2 text-left"
-                        style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
+                        style={{
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-muted-fg)',
+                        }}
                       >
                         {heading}
                       </th>
@@ -598,32 +711,73 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
                 </thead>
                 <tbody>
                   {previewRows.map((row, index) => (
-                    <tr key={`${row.name}-${index}`} style={previewErrors.some((error) => error.rowNumber === row.rowNumber) ? { backgroundColor: 'color-mix(in srgb, var(--color-destructive) 10%, transparent)' } : undefined}>
-                      <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
+                    <tr
+                      key={`${row.name}-${index}`}
+                      style={
+                        previewErrors.some((error) => error.rowNumber === row.rowNumber)
+                          ? {
+                              backgroundColor:
+                                'color-mix(in srgb, var(--color-destructive) 10%, transparent)',
+                            }
+                          : undefined
+                      }
+                    >
+                      <td
+                        className="border-b px-3 py-2"
+                        style={{ borderColor: 'var(--color-border)' }}
+                      >
                         {row.name}
                       </td>
-                      <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
+                      <td
+                        className="border-b px-3 py-2"
+                        style={{ borderColor: 'var(--color-border)' }}
+                      >
                         {row.categorySlug}
                       </td>
-                      <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
-                        {row.secondColor ? `${row.productColor} - ${row.secondColor}` : row.productColor}
+                      <td
+                        className="border-b px-3 py-2"
+                        style={{ borderColor: 'var(--color-border)' }}
+                      >
+                        {row.secondColor
+                          ? `${row.productColor} - ${row.secondColor}`
+                          : row.productColor}
                       </td>
-                      <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
+                      <td
+                        className="border-b px-3 py-2"
+                        style={{ borderColor: 'var(--color-border)' }}
+                      >
                         {row.productMaterial}
                       </td>
-                      <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
+                      <td
+                        className="border-b px-3 py-2"
+                        style={{ borderColor: 'var(--color-border)' }}
+                      >
                         {row.price.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL
                       </td>
-                      <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
-                        {row.compareAtPrice ? `${row.compareAtPrice.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL` : '-'}
+                      <td
+                        className="border-b px-3 py-2"
+                        style={{ borderColor: 'var(--color-border)' }}
+                      >
+                        {row.compareAtPrice
+                          ? `${row.compareAtPrice.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL`
+                          : '-'}
                       </td>
-                      <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
+                      <td
+                        className="border-b px-3 py-2"
+                        style={{ borderColor: 'var(--color-border)' }}
+                      >
                         {row.stockQuantity}
                       </td>
-                      <td className="border-b px-3 py-2 font-mono" style={{ borderColor: 'var(--color-border)' }}>
+                      <td
+                        className="border-b px-3 py-2 font-mono"
+                        style={{ borderColor: 'var(--color-border)' }}
+                      >
                         {row.barcode}
                       </td>
-                      <td className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>
+                      <td
+                        className="border-b px-3 py-2"
+                        style={{ borderColor: 'var(--color-border)' }}
+                      >
                         {row.imageUrls.length > 0 ? `${row.imageUrls.length} URL` : '-'}
                       </td>
                     </tr>
@@ -640,7 +794,11 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
               </p>
               <div className="space-y-1">
                 {previewErrors.slice(0, 12).map((error, index) => (
-                  <p key={`${error.rowNumber}-${index}`} className="text-sm" style={{ color: 'var(--color-destructive)' }}>
+                  <p
+                    key={`${error.rowNumber}-${index}`}
+                    className="text-sm"
+                    style={{ color: 'var(--color-destructive)' }}
+                  >
                     Satir {error.rowNumber}: {error.message}
                   </p>
                 ))}
@@ -655,7 +813,11 @@ export function BulkImportForm({ areas }: BulkImportFormProps) {
               </p>
               <div className="space-y-1">
                 {result.errors.slice(0, 12).map((error, index) => (
-                  <p key={`${error.rowNumber}-${index}`} className="text-sm" style={{ color: 'var(--color-destructive)' }}>
+                  <p
+                    key={`${error.rowNumber}-${index}`}
+                    className="text-sm"
+                    style={{ color: 'var(--color-destructive)' }}
+                  >
                     Satir {error.rowNumber}: {error.message}
                   </p>
                 ))}

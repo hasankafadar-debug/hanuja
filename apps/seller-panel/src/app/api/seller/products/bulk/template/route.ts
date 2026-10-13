@@ -1,5 +1,7 @@
 import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { resolveCategorySchema } from '@hanuja/api/services/category-schema.service'
+import { createCategoryWorkbook } from '@hanuja/api/lib/category-workbook'
 import ExcelJS from 'exceljs'
 import { auth } from '@/lib/auth'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
@@ -26,7 +28,8 @@ const PRODUCT_SECOND_COLOR_COL_INDEX =
   BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.findIndex((column) => column.key === 'secondColor') + 1
 const PRODUCT_MATERIAL_COL_INDEX =
   BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.findIndex((column) => column.key === 'productMaterial') + 1
-const PRICE_COL_INDEX = BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.findIndex((column) => column.key === 'price') + 1
+const PRICE_COL_INDEX =
+  BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.findIndex((column) => column.key === 'price') + 1
 const COMPARE_AT_COL_INDEX =
   BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.findIndex((column) => column.key === 'compareAtPrice') + 1
 
@@ -121,13 +124,15 @@ export async function GET(req: NextRequest) {
   const prisma = createPrismaForRoute()
   const catalogSvc = createCatalogService({ prisma })
   const [allCategories, allAttributeOptions, categoriesWithAttributes] = await Promise.all([
-    catalogSvc.listAllCategories() as Promise<Array<{
-    id: string
-    slug: string
-    name: string
-    parentId: string | null
-    isActive: boolean
-    }>>,
+    catalogSvc.listAllCategories() as Promise<
+      Array<{
+        id: string
+        slug: string
+        name: string
+        parentId: string | null
+        isActive: boolean
+      }>
+    >,
     prisma.productAttributeOption.findMany({
       where: { isActive: true },
       select: { id: true, type: true, label: true, slug: true, sortOrder: true },
@@ -144,13 +149,51 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-    }) as Promise<Array<{
-      slug: string
-      attributeOptions: Array<{ option: AttributeOption }>
-    }>>,
+    }) as Promise<
+      Array<{
+        slug: string
+        attributeOptions: Array<{ option: AttributeOption }>
+      }>
+    >,
   ])
 
   const referenceRows = buildBulkCategoryReferenceRows(allCategories)
+  if (scopeCategorySlug) {
+    const selected = await prisma.category.findUnique({
+      where: { slug: scopeCategorySlug },
+      include: { children: { where: { isActive: true }, select: { id: true } } },
+    })
+    const reference = referenceRows.find((row) => row.realSlug === scopeCategorySlug)
+    if (
+      selected &&
+      !selected.children.length &&
+      reference &&
+      reference.rootSlug === rootCategorySlug
+    ) {
+      const schema = await resolveCategorySchema(prisma, selected.id)
+      const options = allAttributeOptions
+        .filter(
+          (o) =>
+            o.type === 'material' &&
+            (!schema.config.materialLabels.length ||
+              schema.config.materialLabels.includes(o.label)),
+        )
+        .map((o) => o.label)
+      const buffer = await createCategoryWorkbook(
+        schema,
+        BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG,
+        reference.displayPath,
+        allAttributeOptions.filter((o) => o.type === 'color').map((o) => o.label),
+        options,
+      )
+      return new NextResponse(new Uint8Array(buffer as unknown as ArrayBuffer), {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="hanuja-${schema.templateCode}-v${schema.schemaVersion}.xlsx"`,
+        },
+      })
+    }
+  }
   const usesScopedSelection = Boolean(rootCategorySlug && scopeCategorySlug)
 
   const scopedReferenceRows = usesScopedSelection
@@ -165,13 +208,11 @@ export async function GET(req: NextRequest) {
     // seller stopped on an intermediate category and must drill down further.
     const scopeRow = findBulkCategoryReferenceRowBySlug(referenceRows, scopeCategorySlug)
     const matchesRoot =
-      scopeRow && normalizeRootCategoryValue(scopeRow.rootSlug) === normalizeRootCategoryValue(rootCategorySlug)
+      scopeRow &&
+      normalizeRootCategoryValue(scopeRow.rootSlug) === normalizeRootCategoryValue(rootCategorySlug)
 
     if (!matchesRoot || scopedReferenceRows.length === 0) {
-      return NextResponse.json(
-        { error: 'En alt kategoriyi seçmelisiniz.' },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: 'En alt kategoriyi seçmelisiniz.' }, { status: 400 })
     }
   }
 
@@ -203,7 +244,9 @@ export async function GET(req: NextRequest) {
     )
     materialLabelsByCategorySlug.set(
       row.realSlug,
-      uniqueLabels(categoryMaterials.length > 0 ? categoryMaterials : fallbackAttributeOptions.material),
+      uniqueLabels(
+        categoryMaterials.length > 0 ? categoryMaterials : fallbackAttributeOptions.material,
+      ),
     )
   }
 
@@ -216,13 +259,16 @@ export async function GET(req: NextRequest) {
 
   BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.forEach((column, index) => {
     const cell = sheet.getCell(1, index + 1)
-    const helpText = ('helpText' in column && column.helpText)
-      ? column.helpText
-      : `${column.label} alanini urun bilgilerinize uygun olarak girin.`
+    const helpText =
+      'helpText' in column && column.helpText
+        ? column.helpText
+        : `${column.label} alanini urun bilgilerinize uygun olarak girin.`
     cell.note = helpText
   })
 
-  sheet.columns = BULK_PRODUCT_TEMPLATE_HEADERS.map((header) => ({ width: Math.max(header.length + 2, 18) }))
+  sheet.columns = BULK_PRODUCT_TEMPLATE_HEADERS.map((header) => ({
+    width: Math.max(header.length + 2, 18),
+  }))
 
   const refSheet = workbook.addWorksheet('Gecerli Kategoriler')
   refSheet.addRow(['Kategori', 'Gercek Slug', '', 'Kategori Dropdown'])
@@ -235,12 +281,7 @@ export async function GET(req: NextRequest) {
     refSheet.getCell(index + 2, 4).value = row.displayPath
   }
 
-  refSheet.columns = [
-    { width: 44 },
-    { width: 40 },
-    { width: 4 },
-    { width: 44 },
-  ]
+  refSheet.columns = [{ width: 44 }, { width: 40 }, { width: 4 }, { width: 44 }]
 
   addAttributeOptionSheet({
     workbook,
@@ -334,14 +375,17 @@ export async function GET(req: NextRequest) {
       errorStyle: 'stop',
       errorTitle: 'Gecersiz Liste Fiyati',
       error: 'Liste fiyati satis fiyatindan buyuk olmalidir.',
-      formulae: [`OR(LEN(${compareAtCol}${rowNum})=0,${compareAtCol}${rowNum}>${priceCol}${rowNum})`],
+      formulae: [
+        `OR(LEN(${compareAtCol}${rowNum})=0,${compareAtCol}${rowNum}>${priceCol}${rowNum})`,
+      ],
     }
 
     BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.forEach((column, index) => {
       const cell = sheet.getCell(rowNum, index + 1)
-      const helpText = ('helpText' in column && column.helpText)
-        ? column.helpText
-        : `${column.label} alanini urun bilgilerinize uygun olarak girin.`
+      const helpText =
+        'helpText' in column && column.helpText
+          ? column.helpText
+          : `${column.label} alanini urun bilgilerinize uygun olarak girin.`
       const validation = cell.dataValidation ?? {}
       cell.dataValidation = {
         ...validation,
@@ -355,7 +399,11 @@ export async function GET(req: NextRequest) {
   const filename = usesScopedSelection
     ? `toplu-urun-${normalizeRootCategoryValue(rootCategorySlug)}-${normalizeCategorySlugValue(scopeCategorySlug)}.xlsx`
     : (() => {
-        const legacyScopeKey = normalizeLegacyScopeKey(templateCategoryKey, legacyScopeSlug, referenceRows)
+        const legacyScopeKey = normalizeLegacyScopeKey(
+          templateCategoryKey,
+          legacyScopeSlug,
+          referenceRows,
+        )
         const filenameKey = legacyScopeKey
           .replace(/[^a-z0-9-]+/gi, '-')
           .replace(/-+/g, '-')

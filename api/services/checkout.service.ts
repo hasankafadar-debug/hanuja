@@ -13,6 +13,11 @@
  * See: cart-checkout-flow skill, 07-marketplace-finance-rules.md
  */
 import type { Prisma, PrismaClient } from '@prisma/client'
+import { lockProductStocks } from '../domain/product-stock'
+import { wakeStockSearchProjection } from './product-stock-sync'
+import { loadCategorySchemas } from './category-schema.service'
+import { buildStructuredCharacteristics } from '../domain/product-characteristics'
+import type { ProductProperties } from '../domain/category-schema'
 import { Decimal } from '@prisma/client/runtime/client'
 import {
   allocateCouponDiscount,
@@ -20,10 +25,7 @@ import {
   resolveCommissionRate,
 } from '../domain/payout-calculator'
 import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
-import {
-  getProductColorLabels,
-  getProductMaterialLabel,
-} from '../domain/product-characteristics'
+import { getProductColorLabels, getProductMaterialLabel } from '../domain/product-characteristics'
 import {
   ConflictError,
   NotFoundError,
@@ -39,10 +41,7 @@ import {
 } from '../lib/legal-documents'
 import type { LegalAcceptanceEvidence } from '../lib/legal-acceptance'
 import { recordNotification } from './notification-outbox.service'
-import {
-  adminPanelLink,
-  recordAdminOperationNotification,
-} from './admin-notification.service'
+import { adminPanelLink, recordAdminOperationNotification } from './admin-notification.service'
 import {
   customerDisplayName,
   customerOrderEmailData,
@@ -66,7 +65,13 @@ import { assertPaymentMethodEnabled } from '../lib/payment-capabilities'
 // sipariş oluşturma kırılmaz.
 const EMPTY_LEGAL_CHARACTERISTICS: Pick<
   LegalOrderItemSnapshot,
-  'sku' | 'barcode' | 'colors' | 'material' | 'dimensionWidthCm' | 'dimensionLengthCm' | 'dimensionHeightCm'
+  | 'sku'
+  | 'barcode'
+  | 'colors'
+  | 'material'
+  | 'dimensionWidthCm'
+  | 'dimensionLengthCm'
+  | 'dimensionHeightCm'
 > = {
   sku: null,
   barcode: null,
@@ -207,9 +212,12 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
 
     if (!address) throw new NotFoundError('Adres', params.addressId)
     if (!customer) throw new NotFoundError('Kullanıcı', params.userId)
-    const billingAddress = params.billingAddressId && params.billingAddressId !== address.id
-      ? await prisma.address.findFirst({ where: { id: params.billingAddressId, userId: params.userId } })
-      : address
+    const billingAddress =
+      params.billingAddressId && params.billingAddressId !== address.id
+        ? await prisma.address.findFirst({
+            where: { id: params.billingAddressId, userId: params.userId },
+          })
+        : address
     if (!billingAddress) throw new NotFoundError('Fatura adresi', params.billingAddressId)
 
     const productIds = cart.items.map((item) => item.productId)
@@ -223,7 +231,9 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           attributeValues: { include: { option: true } },
         },
       }),
-      prisma.category.findMany({ select: { id: true, parentId: true, taxRate: true } }),
+      prisma.category.findMany({
+        select: { id: true, parentId: true, taxRate: true },
+      }),
     ])
     const categoryMap = new Map(categories.map((category) => [category.id, category]))
 
@@ -257,9 +267,17 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         | 'dimensionWidthCm'
         | 'dimensionLengthCm'
         | 'dimensionHeightCm'
+        | 'characteristics'
       >
     }
     const rawLines: RawLine[] = []
+    const schemas = products.some(
+      (p) =>
+        Object.keys(p.properties ?? {}).length ||
+        p.variants.some((v) => Object.keys(v.properties ?? {}).length),
+    )
+      ? await loadCategorySchemas(prisma)
+      : new Map()
     const sellerMap = new Map<string, ReturnType<typeof buildSellerSnapshot>>()
 
     for (const item of cart.items as Array<{
@@ -301,7 +319,11 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       const basePrice = variant?.price ?? product.price
       const unitPrice = applyEffectivePricing(basePrice, effectivePriceMap.get(product.id))
       const totalPrice = unitPrice.mul(item.quantity)
-      const taxRate = resolveCategoryTaxRate(product.categoryId, categoryMap, settings.defaultTaxRate)
+      const taxRate = resolveCategoryTaxRate(
+        product.categoryId,
+        categoryMap,
+        settings.defaultTaxRate,
+      )
       const taxAmount = calculateIncludedTax(totalPrice, taxRate)
       const commissionRate = resolveCommissionRate(
         null,
@@ -333,125 +355,148 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           colors: getProductColorLabels(product.attributeValues),
           material: getProductMaterialLabel(product.attributeValues),
           dimensionWidthCm: product.dimensionWidth != null ? Number(product.dimensionWidth) : null,
-          dimensionLengthCm: product.dimensionLength != null ? Number(product.dimensionLength) : null,
-          dimensionHeightCm: product.dimensionHeight != null ? Number(product.dimensionHeight) : null,
+          dimensionLengthCm:
+            product.dimensionLength != null ? Number(product.dimensionLength) : null,
+          dimensionHeightCm:
+            product.dimensionHeight != null ? Number(product.dimensionHeight) : null,
+          ...(product.categoryId && schemas.has(product.categoryId)
+            ? {
+                characteristics: buildStructuredCharacteristics(
+                  schemas.get(product.categoryId)!,
+                  product.properties as ProductProperties,
+                  product.variants.map((v) => ({
+                    properties: v.properties as ProductProperties,
+                  })),
+                  variant?.properties as ProductProperties | undefined,
+                ),
+              }
+            : {}),
         },
       })
     }
 
-      const grossAmount = rawLines.reduce((sum, line) => sum.add(line.totalPrice), new Decimal(0))
-      const sellerSubtotals = [...rawLines.reduce((map, line) => {
-        map.set(line.sellerId, (map.get(line.sellerId) ?? new Decimal(0)).add(line.totalPrice))
-        return map
-      }, new Map<string, Decimal>()).entries()].map(([sellerId, subtotal]) => ({
-        sellerId,
-        subtotal: Number(roundMoney(subtotal).toFixed(2)),
-      }))
-      const shippingAmount = grossAmount.gte(settings.freeShippingThresholdTry)
-        ? new Decimal(0)
-        : settings.flatShippingFeeTry
-      const couponCode = cart.couponCode?.trim() || null
-      const couponValidation = couponCode
-        ? await couponService.validateCoupon({
-            code: couponCode,
-            userId: params.userId,
-            cartTotal: Number(roundMoney(grossAmount).toFixed(2)),
-            sellerSubtotals,
-          })
-        : null
-      const discountAmount = new Decimal(couponValidation?.discountAmount ?? 0)
-      const couponId = couponValidation?.couponId ?? null
-
-      // Faz 2: satıcı-scope'lu kupon indirimini o satıcının satırlarına dağıt.
-      // Platform kuponunda (couponValidation.sellerId null) satırlar etkilenmez —
-      // indirim maliyeti platform tarafından emilir (mevcut EFT indirimi felsefesi).
-      const couponSellerId = couponValidation?.sellerId ?? null
-      const couponShareByLineIndex: Decimal[] = rawLines.map(() => new Decimal(0))
-      if (couponSellerId && discountAmount.gt(0)) {
-        const sellerLineIndices = rawLines
-          .map((line, index) => ({ line, index }))
-          .filter(({ line }) => line.sellerId === couponSellerId)
-        const shares = allocateCouponDiscount(
-          sellerLineIndices.map(({ line }) => ({ totalPrice: line.totalPrice })),
-          discountAmount,
-        )
-        sellerLineIndices.forEach(({ index }, i) => {
-          couponShareByLineIndex[index] = shares[i] ?? new Decimal(0)
+    const grossAmount = rawLines.reduce((sum, line) => sum.add(line.totalPrice), new Decimal(0))
+    const sellerSubtotals = [
+      ...rawLines
+        .reduce((map, line) => {
+          map.set(line.sellerId, (map.get(line.sellerId) ?? new Decimal(0)).add(line.totalPrice))
+          return map
+        }, new Map<string, Decimal>())
+        .entries(),
+    ].map(([sellerId, subtotal]) => ({
+      sellerId,
+      subtotal: Number(roundMoney(subtotal).toFixed(2)),
+    }))
+    const shippingAmount = grossAmount.gte(settings.freeShippingThresholdTry)
+      ? new Decimal(0)
+      : settings.flatShippingFeeTry
+    const couponCode = cart.couponCode?.trim() || null
+    const couponValidation = couponCode
+      ? await couponService.validateCoupon({
+          code: couponCode,
+          userId: params.userId,
+          cartTotal: Number(roundMoney(grossAmount).toFixed(2)),
+          sellerSubtotals,
         })
-      }
+      : null
+    const discountAmount = new Decimal(couponValidation?.discountAmount ?? 0)
+    const couponId = couponValidation?.couponId ?? null
 
-      // Faz 3: kupon payı düşüldükten sonra KDV dahil komisyon + net hakediş.
-      const lines: CheckoutDraft['lines'] = rawLines.map((line, index) => {
-        const couponDiscountAmount = couponShareByLineIndex[index] ?? new Decimal(0)
-        const commissionBase = roundMoney(line.totalPrice.sub(couponDiscountAmount))
-        const commissionAmount = calculateCommission(
-          commissionBase,
-          line.commissionRate,
-          settings.commissionVatRate,
-        )
-        const netPayoutAmount = roundMoney(
-          line.totalPrice.sub(couponDiscountAmount).sub(commissionAmount),
-        )
-        return {
-          productId: line.productId,
-          sellerId: line.sellerId,
-          variantId: line.variantId,
-          productName: line.productName,
-          variantName: line.variantName,
-          quantity: line.quantity,
-          unitPrice: line.unitPrice,
-          totalPrice: line.totalPrice,
-          customerPaidProductAmount: line.totalPrice,
-          taxRate: line.taxRate,
-          taxAmount: line.taxAmount,
-          couponDiscountAmount,
-          commissionRate: line.commissionRate,
-          commissionAmount,
-          netPayoutAmount,
-          promisedFulfillmentDays: line.promisedFulfillmentDays,
-        }
+    // Faz 2: satıcı-scope'lu kupon indirimini o satıcının satırlarına dağıt.
+    // Platform kuponunda (couponValidation.sellerId null) satırlar etkilenmez —
+    // indirim maliyeti platform tarafından emilir (mevcut EFT indirimi felsefesi).
+    const couponSellerId = couponValidation?.sellerId ?? null
+    const couponShareByLineIndex: Decimal[] = rawLines.map(() => new Decimal(0))
+    if (couponSellerId && discountAmount.gt(0)) {
+      const sellerLineIndices = rawLines
+        .map((line, index) => ({ line, index }))
+        .filter(({ line }) => line.sellerId === couponSellerId)
+      const shares = allocateCouponDiscount(
+        sellerLineIndices.map(({ line }) => ({ totalPrice: line.totalPrice })),
+        discountAmount,
+      )
+      sellerLineIndices.forEach(({ index }, i) => {
+        couponShareByLineIndex[index] = shares[i] ?? new Decimal(0)
       })
+    }
 
-      const taxAmount = lines.reduce((sum, line) => sum.add(line.taxAmount), new Decimal(0))
-      const netSubtotal = grossAmount.sub(taxAmount)
-      const eftDiscountRate = params.paymentMethod === 'eft' ? settings.eftDiscountRate : new Decimal(0)
-      const eftDiscountAmount = eftDiscountRate.gt(0)
-        ? roundMoney(grossAmount.mul(eftDiscountRate))
-        : new Decimal(0)
-      const customerDiscountTotal = discountAmount.add(eftDiscountAmount)
-      if (customerDiscountTotal.gt(0)) {
-        const customerDiscountShares = allocateCouponDiscount(
-          lines.map((line) => ({ totalPrice: line.totalPrice })),
-          customerDiscountTotal,
-        )
-        lines.forEach((line, index) => {
-          line.customerPaidProductAmount = roundMoney(
-            line.totalPrice.sub(customerDiscountShares[index] ?? new Decimal(0)),
-          )
-        })
-      }
-      const taxBreakdownMap = new Map<number, Decimal>()
-      for (const line of lines) {
-        const ratePercent = Number(line.taxRate.mul(100).toFixed(2))
-        taxBreakdownMap.set(ratePercent, (taxBreakdownMap.get(ratePercent) ?? new Decimal(0)).add(line.taxAmount))
-      }
-      const taxBreakdown = [...taxBreakdownMap.entries()]
-        .sort((a, b) => a[0] - b[0])
-        .map(([ratePercent, amount]) => ({
-          ratePercent,
-          taxAmount: roundMoney(amount).toFixed(2),
-        }))
-      const totalAmount = grossAmount.add(shippingAmount).sub(discountAmount).sub(eftDiscountAmount)
-      const deliveryAddress = formatAddress(address)
-      const formattedBillingAddress = formatAddress(billingAddress)
-
+    // Faz 3: kupon payı düşüldükten sonra KDV dahil komisyon + net hakediş.
+    const lines: CheckoutDraft['lines'] = rawLines.map((line, index) => {
+      const couponDiscountAmount = couponShareByLineIndex[index] ?? new Decimal(0)
+      const commissionBase = roundMoney(line.totalPrice.sub(couponDiscountAmount))
+      const commissionAmount = calculateCommission(
+        commissionBase,
+        line.commissionRate,
+        settings.commissionVatRate,
+      )
+      const netPayoutAmount = roundMoney(
+        line.totalPrice.sub(couponDiscountAmount).sub(commissionAmount),
+      )
       return {
-        cart: {
-          id: cart.id,
-          couponCode,
-          items: cart.items.map((item) => ({
-            productId: item.productId,
-            variantId: item.variantId ?? null,
+        productId: line.productId,
+        sellerId: line.sellerId,
+        variantId: line.variantId,
+        productName: line.productName,
+        variantName: line.variantName,
+        propertiesSnapshot: line.legalCharacteristics.characteristics ?? [],
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        totalPrice: line.totalPrice,
+        customerPaidProductAmount: line.totalPrice,
+        taxRate: line.taxRate,
+        taxAmount: line.taxAmount,
+        couponDiscountAmount,
+        commissionRate: line.commissionRate,
+        commissionAmount,
+        netPayoutAmount,
+        promisedFulfillmentDays: line.promisedFulfillmentDays,
+      }
+    })
+
+    const taxAmount = lines.reduce((sum, line) => sum.add(line.taxAmount), new Decimal(0))
+    const netSubtotal = grossAmount.sub(taxAmount)
+    const eftDiscountRate =
+      params.paymentMethod === 'eft' ? settings.eftDiscountRate : new Decimal(0)
+    const eftDiscountAmount = eftDiscountRate.gt(0)
+      ? roundMoney(grossAmount.mul(eftDiscountRate))
+      : new Decimal(0)
+    const customerDiscountTotal = discountAmount.add(eftDiscountAmount)
+    if (customerDiscountTotal.gt(0)) {
+      const customerDiscountShares = allocateCouponDiscount(
+        lines.map((line) => ({ totalPrice: line.totalPrice })),
+        customerDiscountTotal,
+      )
+      lines.forEach((line, index) => {
+        line.customerPaidProductAmount = roundMoney(
+          line.totalPrice.sub(customerDiscountShares[index] ?? new Decimal(0)),
+        )
+      })
+    }
+    const taxBreakdownMap = new Map<number, Decimal>()
+    for (const line of lines) {
+      const ratePercent = Number(line.taxRate.mul(100).toFixed(2))
+      taxBreakdownMap.set(
+        ratePercent,
+        (taxBreakdownMap.get(ratePercent) ?? new Decimal(0)).add(line.taxAmount),
+      )
+    }
+    const taxBreakdown = [...taxBreakdownMap.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([ratePercent, amount]) => ({
+        ratePercent,
+        taxAmount: roundMoney(amount).toFixed(2),
+      }))
+    const totalAmount = grossAmount.add(shippingAmount).sub(discountAmount).sub(eftDiscountAmount)
+    const deliveryAddress = formatAddress(address)
+    const formattedBillingAddress = formatAddress(billingAddress)
+
+    return {
+      cart: {
+        id: cart.id,
+        couponCode,
+        items: cart.items.map((item) => ({
+          productId: item.productId,
+          variantId: item.variantId ?? null,
           quantity: item.quantity,
         })),
       },
@@ -489,8 +534,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           unitPrice: decimalToNumber(line.unitPrice),
           lineTotal: decimalToNumber(line.totalPrice),
           sellerId: line.sellerId,
-          sellerStoreName:
-            sellerMap.get(line.sellerId)?.storeName ?? 'Tasarımcı Mağazası',
+          sellerStoreName: sellerMap.get(line.sellerId)?.storeName ?? 'Tasarımcı Mağazası',
           ...(rawLines[index]?.legalCharacteristics ?? EMPTY_LEGAL_CHARACTERISTICS),
           promisedFulfillmentDays: line.promisedFulfillmentDays,
         })),
@@ -561,14 +605,11 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
 
         const availableStock = variant?.stockQuantity ?? product.stockQuantity
         if (availableStock < item.quantity) {
-          errors.push(
-            `"${product.name}" için yeterli stok yok (mevcut: ${availableStock})`,
-          )
+          errors.push(`"${product.name}" için yeterli stok yok (mevcut: ${availableStock})`)
           continue
         }
 
-        const currentPrice =
-          variant?.price ?? product.price
+        const currentPrice = variant?.price ?? product.price
 
         if (!new Decimal(item.unitPrice).eq(currentPrice)) {
           warnings.push(
@@ -630,6 +671,10 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           : undefined
 
       const result = await prisma.$transaction(async (tx) => {
+        await lockProductStocks(
+          tx,
+          draft.lines.map((line) => line.productId),
+        )
         const unavailableSeller = await tx.seller.findFirst({
           where: {
             id: { in: [...new Set(draft.lines.map((line) => line.sellerId))] },
@@ -737,12 +782,14 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
               amount: line.customerPaidProductAmount ?? line.totalPrice,
             })),
             ...(order.shippingAmount.gt(0)
-              ? [{
-                  paymentId: payment.id,
-                  kind: 'shipping' as const,
-                  providerItemId: `shipping:${order.id}`,
-                  amount: order.shippingAmount,
-                }]
+              ? [
+                  {
+                    paymentId: payment.id,
+                    kind: 'shipping' as const,
+                    providerItemId: `shipping:${order.id}`,
+                    amount: order.shippingAmount,
+                  },
+                ]
               : []),
           ],
         })
@@ -762,9 +809,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
             toStatus: nextStatus,
             actorId: params.userId,
             reason:
-              params.paymentMethod === 'eft'
-                ? 'Havale/EFT bekleniyor'
-                : 'Kart ödemesi bekleniyor',
+              params.paymentMethod === 'eft' ? 'Havale/EFT bekleniyor' : 'Kart ödemesi bekleniyor',
           },
         })
 
@@ -772,7 +817,10 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         for (const line of draft.lines) {
           if (line.variantId) {
             const updated = await tx.productVariant.updateMany({
-              where: { id: line.variantId, stockQuantity: { gte: line.quantity } },
+              where: {
+                id: line.variantId,
+                stockQuantity: { gte: line.quantity },
+              },
               data: { stockQuantity: { decrement: line.quantity } },
             })
             if (updated.count === 0) {
@@ -780,9 +828,16 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
                 `"${line.productName}" varyasyonu için yeterli stok kalmadı. Lütfen sepeti güncelleyin.`,
               )
             }
+            await tx.product.update({
+              where: { id: line.productId },
+              data: { stockQuantity: { decrement: line.quantity } },
+            })
           } else {
             const updated = await tx.product.updateMany({
-              where: { id: line.productId, stockQuantity: { gte: line.quantity } },
+              where: {
+                id: line.productId,
+                stockQuantity: { gte: line.quantity },
+              },
               data: { stockQuantity: { decrement: line.quantity } },
             })
             if (updated.count === 0) {
@@ -860,6 +915,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
 
         return { order, payment, lines: order.lines }
       })
+      await wakeStockSearchProjection()
 
       const resolvedBankInstructions =
         params.paymentMethod === 'eft'
@@ -922,7 +978,9 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           data: { isDefault: false },
         })
       }
-      return prisma.address.create({ data: { ...data, postalCode: data.postalCode ?? '', userId } })
+      return prisma.address.create({
+        data: { ...data, postalCode: data.postalCode ?? '', userId },
+      })
     },
   }
 }

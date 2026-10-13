@@ -5,13 +5,17 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { recordPriceChanges } from '@hanuja/api/services/price-history.service'
+import { lockProductStocks } from '@hanuja/api/domain/product-stock'
+import { enqueueProductSync } from '@hanuja/api/jobs/search-index-sync.job'
 
 const updateVariantSchema = z
   .object({
     price: z.number().positive('Fiyat 0dan buyuk olmali').optional(),
     stockQuantity: z.number().int('Stok tam sayi olmali').min(0, 'Stok negatif olamaz').optional(),
   })
-  .refine((data) => data.price !== undefined || data.stockQuantity !== undefined, { message: 'Fiyat veya stok alanlarindan en az biri gonderilmelidir.' })
+  .refine((data) => data.price !== undefined || data.stockQuantity !== undefined, {
+    message: 'Fiyat veya stok alanlarindan en az biri gonderilmelidir.',
+  })
 
 interface RouteParams {
   params: Promise<{ id: string; variantId: string }>
@@ -39,7 +43,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const body = await req.json().catch(() => ({}))
   const parsed = updateVariantSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Gecersiz veri.' }, { status: 400 })
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? 'Gecersiz veri.' },
+      { status: 400 },
+    )
   }
 
   const { id: productId, variantId } = await params
@@ -48,6 +55,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     try {
       const result = await prisma.$transaction(
         async (tx) => {
+          await lockProductStocks(tx, [productId])
           const existing = await tx.productVariant.findFirst({
             where: {
               id: variantId,
@@ -62,7 +70,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
             where: { id: existing.id },
             data: {
               ...(parsed.data.price !== undefined ? { price: new Decimal(parsed.data.price) } : {}),
-              ...(parsed.data.stockQuantity !== undefined ? { stockQuantity: parsed.data.stockQuantity } : {}),
+              ...(parsed.data.stockQuantity !== undefined
+                ? { stockQuantity: parsed.data.stockQuantity }
+                : {}),
             },
             select: { id: true, price: true, stockQuantity: true },
           })
@@ -85,6 +95,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         { isolationLevel: 'Serializable' },
       )
 
+      await enqueueProductSync({ operation: 'upsert', entityId: productId }).catch(() => {})
       return NextResponse.json({
         variant: {
           id: result.variant.id,
@@ -95,7 +106,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       })
     } catch (error) {
       if (error instanceof Error && error.message === 'VARIANT_NOT_FOUND') {
-        return NextResponse.json({ error: 'Varyasyon bulunamadi veya erisim izniniz yok.' }, { status: 404 })
+        return NextResponse.json(
+          { error: 'Varyasyon bulunamadi veya erisim izniniz yok.' },
+          { status: 404 },
+        )
       }
       if (isSerializableConflict(error) && attempt < 2) continue
       if (isSerializableConflict(error)) {

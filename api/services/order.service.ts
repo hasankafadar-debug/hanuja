@@ -15,6 +15,7 @@ import { createQuantityCancellationService } from './quantity-cancellation.servi
 import { createSellerApprovalQueryService } from './seller-approval-query.service'
 import { recordWholeOrderCancellationNotifications } from './order-email-payload'
 import { releaseRemainingOrderLines } from './order-line-release'
+import { wakeStockSearchProjection } from './product-stock-sync'
 
 interface OrderServiceDeps {
   prisma: PrismaClient
@@ -29,14 +30,19 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
   const payments = createPaymentService({ prisma })
   const quantityCancellations = createQuantityCancellationService({ prisma })
 
-  function withQuantityAvailability<T extends { quantityLifecycleVersion: number; lines: Array<{
-    quantity: number
-    cancelledQuantity: number
-    shippedQuantity: number
-    returnClaimedQuantity: number
-    deliveryConfirmedAt: Date | null
-    deliveredAt: Date | null
-  }> }>(order: T) {
+  function withQuantityAvailability<
+    T extends {
+      quantityLifecycleVersion: number
+      lines: Array<{
+        quantity: number
+        cancelledQuantity: number
+        shippedQuantity: number
+        returnClaimedQuantity: number
+        deliveryConfirmedAt: Date | null
+        deliveredAt: Date | null
+      }>
+    },
+  >(order: T) {
     if (order.quantityLifecycleVersion !== 2) return order
     return {
       ...order,
@@ -58,7 +64,10 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
   async function cancelOrder(params: {
     orderId: string
     actorId: string
-    toStatus: Extract<OrderStatus, 'cancelled_by_admin' | 'cancelled_by_customer' | 'cancelled_due_to_20day_breach'>
+    toStatus: Extract<
+      OrderStatus,
+      'cancelled_by_admin' | 'cancelled_by_customer' | 'cancelled_due_to_20day_breach'
+    >
     note: string
     cancellationReason: OrderCancellationReason
     refund?: {
@@ -130,8 +139,14 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
         actionType: 'order_cancelled',
         targetType: 'order',
         targetId: params.orderId,
-        previousData: { status: order.status, cancellationReason: order.cancellationReason ?? null },
-        newData: { status: params.toStatus, cancellationReason: params.cancellationReason },
+        previousData: {
+          status: order.status,
+          cancellationReason: order.cancellationReason ?? null,
+        },
+        newData: {
+          status: params.toStatus,
+          cancellationReason: params.cancellationReason,
+        },
         ...(params.auditReason ? { reason: params.auditReason } : {}),
       })
 
@@ -151,6 +166,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       if (!paymentCollected) await releaseRemainingOrderLines(tx, params.orderId)
     })
 
+    if (!paymentCollected) await wakeStockSearchProjection()
     if (params.refund) {
       await payments.refundPayment({
         orderId: params.orderId,
@@ -178,7 +194,10 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
         return prisma.$transaction(async (tx) => {
           const fulfillment = await tx.orderSellerFulfillment.findUnique({
             where: {
-              orderId_sellerId: { orderId: params.orderId, sellerId: params.sellerId },
+              orderId_sellerId: {
+                orderId: params.orderId,
+                sellerId: params.sellerId,
+              },
             },
           })
           if (!fulfillment || !['queue_ready', 'reviewing'].includes(fulfillment.status)) {
@@ -189,7 +208,8 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
             where: { id: fulfillment.id, status: fulfillment.status },
             data: { status: 'accepted', acceptedAt: new Date() },
           })
-          if (changed.count !== 1) throw new ConflictError('Gönderi durumu başka bir işlemle değişti')
+          if (changed.count !== 1)
+            throw new ConflictError('Gönderi durumu başka bir işlemle değişti')
 
           await tx.order.updateMany({
             where: { id: params.orderId, status: 'seller_queue_ready' },
@@ -202,7 +222,9 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
             'Tasarımcı tarafından onaylandı',
             tx as PrismaClient,
           )
-          return tx.orderSellerFulfillment.findUniqueOrThrow({ where: { id: fulfillment.id } })
+          return tx.orderSellerFulfillment.findUniqueOrThrow({
+            where: { id: fulfillment.id },
+          })
         })
       }
 
@@ -225,11 +247,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
      * Rejection reason is mandatory and recorded.
      * Rejection penalty remains the fixed 20% policy.
      */
-    async sellerReject(params: {
-      orderId: string
-      sellerId: string
-      reason: string
-    }) {
+    async sellerReject(params: { orderId: string; sellerId: string; reason: string }) {
       const order = await orders.findByIdForSeller(params.orderId, params.sellerId)
       if (!order) throw new NotFoundError('Order', params.orderId)
 
@@ -255,7 +273,10 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
         })
         await prisma.orderSellerFulfillment.update({
           where: {
-            orderId_sellerId: { orderId: params.orderId, sellerId: params.sellerId },
+            orderId_sellerId: {
+              orderId: params.orderId,
+              sellerId: params.sellerId,
+            },
           },
           data: { status: 'cancelled' },
         })
@@ -326,9 +347,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       }
 
       if (isPostShipmentStatus(order.status)) {
-        throw new ConflictError(
-          'Kargo sonrası iptal yapılamaz. İade talebi oluşturun.',
-        )
+        throw new ConflictError('Kargo sonrası iptal yapılamaz. İade talebi oluşturun.')
       }
 
       const noteDetail = params.reason ? `: ${params.reason}` : ''
@@ -349,18 +368,19 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
      * reversal, an unpaid EFT order only closes its pending payment. After
      * dispatch the return flow applies instead.
      */
-    async adminCancel(params: {
-      orderId: string
-      adminActorId: string
-      reason: string
-    }) {
+    async adminCancel(params: { orderId: string; adminActorId: string; reason: string }) {
       const order = await prisma.order.findUnique({
         where: { id: params.orderId },
         select: {
           customerId: true,
           quantityLifecycleVersion: true,
           lines: {
-            select: { id: true, quantity: true, cancelledQuantity: true, shippedQuantity: true },
+            select: {
+              id: true,
+              quantity: true,
+              cancelledQuantity: true,
+              shippedQuantity: true,
+            },
           },
           payments: { select: { confirmedAt: true } },
         },
@@ -457,7 +477,15 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       const safe = withoutAdminOrderNotes(withQuantityAvailability(order))
       return {
         ...safe,
-        returnRequests: safe.returnRequests.map((request) => ({ ...request, status: request.status === 'rejected' && (!request.reviewedAt || (request.sellerRejectedAt && request.sellerRejectedAt > request.reviewedAt)) ? 'under_review' as const : request.status })),
+        returnRequests: safe.returnRequests.map((request) => ({
+          ...request,
+          status:
+            request.status === 'rejected' &&
+            (!request.reviewedAt ||
+              (request.sellerRejectedAt && request.sellerRejectedAt > request.reviewedAt))
+              ? ('under_review' as const)
+              : request.status,
+        })),
       }
     },
 
@@ -479,7 +507,15 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       })
       return rows.map((row) => ({
         ...withoutAdminOrderNotes(row),
-        returnRequests: row.returnRequests.map((request) => ({ ...request, status: request.status === 'rejected' && (!request.reviewedAt || (request.sellerRejectedAt && request.sellerRejectedAt > request.reviewedAt)) ? 'under_review' as const : request.status })),
+        returnRequests: row.returnRequests.map((request) => ({
+          ...request,
+          status:
+            request.status === 'rejected' &&
+            (!request.reviewedAt ||
+              (request.sellerRejectedAt && request.sellerRejectedAt > request.reviewedAt))
+              ? ('under_review' as const)
+              : request.status,
+        })),
       }))
     },
 
@@ -519,12 +555,16 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       return orders.countForSellerQueue(params)
     },
 
-    async listForAdmin(params: Parameters<typeof orders.listForAdmin>[0] & {
-      sellerApprovalOverdue?: boolean
-    }) {
+    async listForAdmin(
+      params: Parameters<typeof orders.listForAdmin>[0] & {
+        sellerApprovalOverdue?: boolean
+      },
+    ) {
       const { sellerApprovalOverdue, ...filters } = params
       const overdue = sellerApprovalOverdue
-        ? await createSellerApprovalQueryService({ prisma }).listOverdueForAdmin()
+        ? await createSellerApprovalQueryService({
+            prisma,
+          }).listOverdueForAdmin()
         : null
       const overdueById = new Map(overdue?.rows.map((row) => [row.orderId, row]))
       const result = await orders.listForAdmin({

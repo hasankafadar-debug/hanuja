@@ -27,6 +27,7 @@ import { createOrderDocumentService } from './order-document.service'
 import { postPaymentConfirmedSellerAccruals } from './seller-payment-accrual.service'
 import { createRefundService } from './refund.service'
 import { releaseRemainingOrderLines } from './order-line-release'
+import { wakeStockSearchProjection } from './product-stock-sync'
 import { roundMoney } from '@hanuja/security/money'
 import { resolveEftAdminDiscount } from '../domain/eft-admin-discount'
 import { formatOrderNumber } from '../lib/order-number'
@@ -221,9 +222,7 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
       })
       const providerTransactions = params.itemTransactions ?? []
       if (providerItems.length > 0) {
-        const byItemId = new Map(
-          providerTransactions.map((item) => [item.itemId, item]),
-        )
+        const byItemId = new Map(providerTransactions.map((item) => [item.itemId, item]))
         if (
           byItemId.size !== providerTransactions.length ||
           providerItems.some((item) => !byItemId.has(item.providerItemId)) ||
@@ -244,113 +243,116 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         }
       }
 
-      return prisma.$transaction(async (tx) => {
-        const confirmedAt = new Date()
-        const order = await tx.order.findUnique({
-          where: { id: params.orderId },
-          select: { id: true, status: true, customerId: true },
-        })
-        if (!order) throw new NotFoundError('Order', params.orderId)
+      return prisma
+        .$transaction(async (tx) => {
+          const confirmedAt = new Date()
+          const order = await tx.order.findUnique({
+            where: { id: params.orderId },
+            select: { id: true, status: true, customerId: true },
+          })
+          if (!order) throw new NotFoundError('Order', params.orderId)
 
-        assertTransition(order.status, 'payment_confirmed')
+          assertTransition(order.status, 'payment_confirmed')
 
-        const updated = await payments.confirm(
-          payment.id,
-          { providerRef: params.providerRef },
-          tx as PrismaClient,
-        )
+          const updated = await payments.confirm(
+            payment.id,
+            { providerRef: params.providerRef },
+            tx as PrismaClient,
+          )
 
-        if (providerItems.length > 0) {
-          for (const item of providerItems) {
-            const providerTransaction = providerTransactions.find(
-              (candidate) => candidate.itemId === item.providerItemId,
-            )!
-            await tx.paymentProviderItem.update({
-              where: { id: item.id },
+          if (providerItems.length > 0) {
+            for (const item of providerItems) {
+              const providerTransaction = providerTransactions.find(
+                (candidate) => candidate.itemId === item.providerItemId,
+              )!
+              await tx.paymentProviderItem.update({
+                where: { id: item.id },
+                data: {
+                  providerTransactionId: providerTransaction.paymentTransactionId,
+                  providerData: providerTransaction as never,
+                },
+              })
+            }
+          } else {
+            await tx.paymentEvent.create({
               data: {
-                providerTransactionId: providerTransaction.paymentTransactionId,
-                providerData: providerTransaction as never,
+                paymentId: payment.id,
+                eventType: 'provider_item_mapping_missing',
+                payload: {
+                  providerRef: params.providerRef,
+                  note: 'Eski kart ödemesi; otomatik kalem iadesi için manuel müdahale gerekir',
+                },
               },
             })
           }
-        } else {
-          await tx.paymentEvent.create({
+
+          await (tx as PrismaClient).order.update({
+            where: { id: params.orderId },
             data: {
-              paymentId: payment.id,
-              eventType: 'provider_item_mapping_missing',
-              payload: {
-                providerRef: params.providerRef,
-                note: 'Eski kart ödemesi; otomatik kalem iadesi için manuel müdahale gerekir',
-              },
+              status: 'payment_confirmed',
+              paymentConfirmedAt: confirmedAt,
             },
           })
-        }
+          await (tx as PrismaClient).orderStatusHistory.create({
+            data: {
+              orderId: params.orderId,
+              toStatus: 'payment_confirmed',
+              actorId: 'system',
+              reason: `Kart ödemesi onaylandı. Ref: ${params.providerRef}`,
+            },
+          })
 
-        await (tx as PrismaClient).order.update({
-          where: { id: params.orderId },
-          data: {
-            status: 'payment_confirmed',
-            paymentConfirmedAt: confirmedAt,
-          },
-        })
-        await (tx as PrismaClient).orderStatusHistory.create({
-          data: {
+          // Move to seller queue
+          assertTransition('payment_confirmed', 'seller_queue_ready')
+          await (tx as PrismaClient).order.update({
+            where: { id: params.orderId },
+            data: {
+              status: 'seller_queue_ready',
+              sellerQueueReadyAt: confirmedAt,
+            },
+          })
+          await stampFulfillmentDueDates(tx as PrismaClient, params.orderId, confirmedAt)
+          await (tx as PrismaClient).orderStatusHistory.create({
+            data: {
+              orderId: params.orderId,
+              toStatus: 'seller_queue_ready',
+              actorId: 'system',
+              reason: 'Tasarımcı kuyruğuna düştü',
+            },
+          })
+          await (tx as PrismaClient).cartItem.deleteMany({
+            where: { cart: { userId: order.customerId } },
+          })
+
+          await postPaymentConfirmedSellerAccruals({
+            prisma,
+            tx,
             orderId: params.orderId,
-            toStatus: 'payment_confirmed',
+            effectiveAt: confirmedAt,
             actorId: 'system',
-            reason: `Kart ödemesi onaylandı. Ref: ${params.providerRef}`,
-          },
-        })
+          })
 
-        // Move to seller queue
-        assertTransition('payment_confirmed', 'seller_queue_ready')
-        await (tx as PrismaClient).order.update({
-          where: { id: params.orderId },
-          data: {
-            status: 'seller_queue_ready',
-            sellerQueueReadyAt: confirmedAt,
-          },
-        })
-        await stampFulfillmentDueDates(tx as PrismaClient, params.orderId, confirmedAt)
-        await (tx as PrismaClient).orderStatusHistory.create({
-          data: {
-            orderId: params.orderId,
-            toStatus: 'seller_queue_ready',
-            actorId: 'system',
-            reason: 'Tasarımcı kuyruğuna düştü',
-          },
-        })
-        await (tx as PrismaClient).cartItem.deleteMany({
-          where: { cart: { userId: order.customerId } },
-        })
+          await firePaymentConfirmedNotifications(tx, params.orderId)
 
-        await postPaymentConfirmedSellerAccruals({
-          prisma,
-          tx,
-          orderId: params.orderId,
-          effectiveAt: confirmedAt,
-          actorId: 'system',
+          return updated
         })
-
-        await firePaymentConfirmedNotifications(tx, params.orderId)
-
-        return updated
-      }).then(async (result) => {
-        // Wait after commit; alias failures must not roll back a collected payment.
-        await fireInvoiceAliasGeneration(prisma, params.orderId)
-        return result
-      }).catch((error: unknown) => {
-        // providerPaymentId @unique yarış penceresi — eşzamanlı çift onayda ikincisi P2002 alır
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          'code' in error &&
-          (error as { code?: string }).code === 'P2002'
-        ) {
-          throw new ConflictError('Ödeme referansı başka bir siparişe ait')
-        }
-        throw error
-      })
+        .then(async (result) => {
+          // Wait after commit; alias failures must not roll back a collected payment.
+          await fireInvoiceAliasGeneration(prisma, params.orderId)
+          return result
+        })
+        .catch((error: unknown) => {
+          // providerPaymentId @unique yarış penceresi — eşzamanlı çift onayda ikincisi P2002 alır
+          if (
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            (error as { code?: string }).code === 'P2002'
+          ) {
+            throw new ConflictError('Ödeme referansı başka bir siparişe ait')
+          }
+          throw error
+        })
     },
 
     /**
@@ -386,203 +388,208 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         ? new Decimal(params.discountAmount).div(100)
         : null
 
-      return prisma.$transaction(async (tx) => {
-        const confirmedAt = new Date()
-        const order = await tx.order.findUnique({
-          where: { id: params.orderId },
-          include: {
-            lines: {
-              select: {
-                id: true,
-                sellerId: true,
-                totalPrice: true,
-                customerPaidProductAmount: true,
+      return prisma
+        .$transaction(async (tx) => {
+          const confirmedAt = new Date()
+          const order = await tx.order.findUnique({
+            where: { id: params.orderId },
+            include: {
+              lines: {
+                select: {
+                  id: true,
+                  sellerId: true,
+                  totalPrice: true,
+                  customerPaidProductAmount: true,
+                },
+                orderBy: { id: 'asc' },
               },
-              orderBy: { id: 'asc' },
             },
-          },
-        })
-        if (!order) throw new NotFoundError('Order', params.orderId)
-        // A cancelled (or otherwise moved-on) order must never be reopened by a
-        // late approval: it would credit the seller and oversell released stock.
-        if (order.status !== 'bank_transfer_waiting') {
-          throw new ConflictError(
-            `Sipariş havale onayı bekleyen durumda değil: ${order.status}`,
-          )
-        }
-        assertTransition(order.status, 'bank_transfer_confirmed')
+          })
+          if (!order) throw new NotFoundError('Order', params.orderId)
+          // A cancelled (or otherwise moved-on) order must never be reopened by a
+          // late approval: it would credit the seller and oversell released stock.
+          if (order.status !== 'bank_transfer_waiting') {
+            throw new ConflictError(`Sipariş havale onayı bekleyen durumda değil: ${order.status}`)
+          }
+          assertTransition(order.status, 'bank_transfer_confirmed')
 
-        // Admin discount is Hanuja-absorbed (like the EFT channel discount): it
-        // lowers only what the customer pays for products — never shipping and
-        // never a seller-side snapshot. See api/domain/eft-admin-discount.ts.
-        const discount = discountDecimal
-          ? resolveEftAdminDiscount({
-              lines: order.lines,
-              discount: discountDecimal,
-              orderTotalAmount: order.totalAmount,
-              shippingAmount: order.shippingAmount,
+          // Admin discount is Hanuja-absorbed (like the EFT channel discount): it
+          // lowers only what the customer pays for products — never shipping and
+          // never a seller-side snapshot. See api/domain/eft-admin-discount.ts.
+          const discount = discountDecimal
+            ? resolveEftAdminDiscount({
+                lines: order.lines,
+                discount: discountDecimal,
+                orderTotalAmount: order.totalAmount,
+                shippingAmount: order.shippingAmount,
+              })
+            : null
+          if (discount?.status === 'exceeds_paid_product_total') {
+            throw new ConflictError('İndirim tutarı ürün tutarını aşamaz')
+          }
+          const previousPaymentAmount = payment.amount
+          const collectedAmount = discountDecimal
+            ? roundMoney(order.totalAmount.sub(discountDecimal))
+            : null
+
+          // Compare-and-swap: a concurrent customer cancellation closes the same
+          // pending payment, so exactly one of the two succeeds.
+          const claimed = await tx.payment.updateMany({
+            where: { id: payment.id, status: 'pending' },
+            data: {
+              status: 'confirmed',
+              confirmedAt,
+              eftConfirmedBy: params.adminActorId,
+              ...(discountDecimal && collectedAmount
+                ? {
+                    amount: collectedAmount,
+                    eftDiscountAmount: discountDecimal,
+                    eftDiscountReason: params.discountReason ?? null,
+                  }
+                : {}),
+            },
+          })
+          if (claimed.count !== 1) {
+            throw new ConflictError('Ödeme durumu değişti; sayfayı yenileyin')
+          }
+          const updated = await tx.payment.findUniqueOrThrow({
+            where: { id: payment.id },
+          })
+
+          if (discountDecimal && collectedAmount && discount?.status === 'ok') {
+            await (tx as PrismaClient).order.update({
+              where: { id: params.orderId },
+              data: {
+                discountAmount: { increment: discountDecimal },
+                totalAmount: collectedAmount,
+              },
             })
-          : null
-        if (discount?.status === 'exceeds_paid_product_total') {
-          throw new ConflictError('İndirim tutarı ürün tutarını aşamaz')
-        }
-        const previousPaymentAmount = payment.amount
-        const collectedAmount = discountDecimal
-          ? roundMoney(order.totalAmount.sub(discountDecimal))
-          : null
+            // Per-line customer-paid snapshots and provider refund caps exist only
+            // on quantity-lifecycle orders. Legacy (v1) orders never carried them
+            // and their refunds are capped by Payment.amount alone, so they are
+            // left untouched.
+            if (order.quantityLifecycleVersion === 2) {
+              for (const line of discount.lines) {
+                await (tx as PrismaClient).orderLine.update({
+                  where: { id: line.orderLineId },
+                  data: { customerPaidProductAmount: line.newPaidAmount },
+                })
+                await (tx as PrismaClient).paymentProviderItem.updateMany({
+                  where: {
+                    paymentId: payment.id,
+                    orderLineId: line.orderLineId,
+                    kind: 'product',
+                  },
+                  data: { amount: line.newPaidAmount },
+                })
+              }
+            }
+          }
 
-        // Compare-and-swap: a concurrent customer cancellation closes the same
-        // pending payment, so exactly one of the two succeeds.
-        const claimed = await tx.payment.updateMany({
-          where: { id: payment.id, status: 'pending' },
-          data: {
-            status: 'confirmed',
-            confirmedAt,
-            eftConfirmedBy: params.adminActorId,
-            ...(discountDecimal && collectedAmount
-              ? {
-                  amount: collectedAmount,
-                  eftDiscountAmount: discountDecimal,
-                  eftDiscountReason: params.discountReason ?? null,
-                }
-              : {}),
-          },
-        })
-        if (claimed.count !== 1) {
-          throw new ConflictError('Ödeme durumu değişti; sayfayı yenileyin')
-        }
-        const updated = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } })
+          await (tx as PrismaClient).order.update({
+            where: { id: params.orderId },
+            data: { status: 'bank_transfer_confirmed' },
+          })
+          await (tx as PrismaClient).orderStatusHistory.create({
+            data: {
+              orderId: params.orderId,
+              toStatus: 'bank_transfer_confirmed',
+              actorId: params.adminActorId,
+              reason: 'Havale/EFT dekontu onaylandı',
+            },
+          })
 
-        if (discountDecimal && collectedAmount && discount?.status === 'ok') {
           await (tx as PrismaClient).order.update({
             where: { id: params.orderId },
             data: {
-              discountAmount: { increment: discountDecimal },
-              totalAmount: collectedAmount,
+              status: 'payment_confirmed',
+              paymentConfirmedAt: confirmedAt,
             },
           })
-          // Per-line customer-paid snapshots and provider refund caps exist only
-          // on quantity-lifecycle orders. Legacy (v1) orders never carried them
-          // and their refunds are capped by Payment.amount alone, so they are
-          // left untouched.
-          if (order.quantityLifecycleVersion === 2) {
-            for (const line of discount.lines) {
-              await (tx as PrismaClient).orderLine.update({
-                where: { id: line.orderLineId },
-                data: { customerPaidProductAmount: line.newPaidAmount },
-              })
-              await (tx as PrismaClient).paymentProviderItem.updateMany({
-                where: { paymentId: payment.id, orderLineId: line.orderLineId, kind: 'product' },
-                data: { amount: line.newPaidAmount },
-              })
-            }
-          }
-        }
+          await (tx as PrismaClient).orderStatusHistory.create({
+            data: {
+              orderId: params.orderId,
+              toStatus: 'payment_confirmed',
+              actorId: params.adminActorId,
+              reason: 'Havale/EFT ödemesi onaylandı',
+            },
+          })
 
-        await (tx as PrismaClient).order.update({
-          where: { id: params.orderId },
-          data: { status: 'bank_transfer_confirmed' },
-        })
-        await (tx as PrismaClient).orderStatusHistory.create({
-          data: {
+          await (tx as PrismaClient).order.update({
+            where: { id: params.orderId },
+            data: {
+              status: 'seller_queue_ready',
+              sellerQueueReadyAt: confirmedAt,
+            },
+          })
+          await stampFulfillmentDueDates(tx as PrismaClient, params.orderId, confirmedAt)
+          await (tx as PrismaClient).orderStatusHistory.create({
+            data: {
+              orderId: params.orderId,
+              toStatus: 'seller_queue_ready',
+              actorId: params.adminActorId,
+              // Sellers read this timeline: admin evidence and the discount stay
+              // in the audit log only.
+              reason: 'Havale onaylandı',
+            },
+          })
+          await (tx as PrismaClient).cartItem.deleteMany({
+            where: { cart: { userId: order.customerId } },
+          })
+
+          await postPaymentConfirmedSellerAccruals({
+            prisma,
+            tx,
             orderId: params.orderId,
-            toStatus: 'bank_transfer_confirmed',
+            effectiveAt: confirmedAt,
             actorId: params.adminActorId,
-            reason: 'Havale/EFT dekontu onaylandı',
-          },
-        })
+          })
 
-        await (tx as PrismaClient).order.update({
-          where: { id: params.orderId },
-          data: {
-            status: 'payment_confirmed',
-            paymentConfirmedAt: confirmedAt,
-          },
-        })
-        await (tx as PrismaClient).orderStatusHistory.create({
-          data: {
-            orderId: params.orderId,
-            toStatus: 'payment_confirmed',
+          await auditLog.createEntry({
             actorId: params.adminActorId,
-            reason: 'Havale/EFT ödemesi onaylandı',
-          },
-        })
+            actionType: 'payment_approved',
+            targetType: 'payment',
+            targetId: payment.id,
+            previousData: {
+              status: payment.status,
+              amount: previousPaymentAmount.toFixed(2),
+            },
+            newData: {
+              status: 'confirmed',
+              amount: updated.amount.toFixed(2),
+              ...(discountDecimal
+                ? {
+                    eftDiscountAmount: discountDecimal.toFixed(2),
+                    eftDiscountReason: params.discountReason,
+                    ...(discount?.status === 'ok' && order.quantityLifecycleVersion === 2
+                      ? {
+                          lineDiscountShares: discount.lines.map((line) => ({
+                            orderLineId: line.orderLineId,
+                            discountShare: line.discountShare.toFixed(2),
+                            customerPaidProductAmount: line.newPaidAmount.toFixed(2),
+                          })),
+                        }
+                      : {}),
+                  }
+                : {}),
+            },
+            ...(params.evidenceNote !== undefined ? { reason: params.evidenceNote } : {}),
+          })
 
-        await (tx as PrismaClient).order.update({
-          where: { id: params.orderId },
-          data: {
-            status: 'seller_queue_ready',
-            sellerQueueReadyAt: confirmedAt,
-          },
-        })
-        await stampFulfillmentDueDates(tx as PrismaClient, params.orderId, confirmedAt)
-        await (tx as PrismaClient).orderStatusHistory.create({
-          data: {
-            orderId: params.orderId,
-            toStatus: 'seller_queue_ready',
-            actorId: params.adminActorId,
-            // Sellers read this timeline: admin evidence and the discount stay
-            // in the audit log only.
-            reason: 'Havale onaylandı',
-          },
-        })
-        await (tx as PrismaClient).cartItem.deleteMany({
-          where: { cart: { userId: order.customerId } },
-        })
+          await firePaymentConfirmedNotifications(tx, params.orderId)
 
-        await postPaymentConfirmedSellerAccruals({
-          prisma,
-          tx,
-          orderId: params.orderId,
-          effectiveAt: confirmedAt,
-          actorId: params.adminActorId,
+          return updated
         })
-
-        await auditLog.createEntry({
-          actorId: params.adminActorId,
-          actionType: 'payment_approved',
-          targetType: 'payment',
-          targetId: payment.id,
-          previousData: { status: payment.status, amount: previousPaymentAmount.toFixed(2) },
-          newData: {
-            status: 'confirmed',
-            amount: updated.amount.toFixed(2),
-            ...(discountDecimal
-              ? {
-                  eftDiscountAmount: discountDecimal.toFixed(2),
-                  eftDiscountReason: params.discountReason,
-                  ...(discount?.status === 'ok' && order.quantityLifecycleVersion === 2
-                    ? {
-                        lineDiscountShares: discount.lines.map((line) => ({
-                          orderLineId: line.orderLineId,
-                          discountShare: line.discountShare.toFixed(2),
-                          customerPaidProductAmount: line.newPaidAmount.toFixed(2),
-                        })),
-                      }
-                    : {}),
-                }
-              : {}),
-          },
-          ...(params.evidenceNote !== undefined ? { reason: params.evidenceNote } : {}),
+        .then(async (result) => {
+          await fireInvoiceAliasGeneration(prisma, params.orderId)
+          return result
         })
-
-        await firePaymentConfirmedNotifications(tx, params.orderId)
-
-        return updated
-      }).then(async (result) => {
-        await fireInvoiceAliasGeneration(prisma, params.orderId)
-        return result
-      })
     },
 
     /**
      * Reject an EFT payment — admin only.
      */
-    async rejectEftPayment(params: {
-      orderId: string
-      adminActorId: string
-      reason: string
-    }) {
+    async rejectEftPayment(params: { orderId: string; adminActorId: string; reason: string }) {
       const payment = await payments.findByOrderId(params.orderId)
       if (!payment) throw new NotFoundError('Payment', params.orderId)
       if (payment.method !== 'eft') {
@@ -592,7 +599,7 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         throw new ConflictError(`Ödeme durumu reddetmeye uygun değil: ${payment.status}`)
       }
 
-      return prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx) => {
         const order = await tx.order.findUnique({
           where: { id: params.orderId },
           select: { status: true },
@@ -601,9 +608,7 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         // An order the customer already cancelled keeps its own status and is
         // not mailed a second cancellation.
         if (order.status !== 'bank_transfer_waiting') {
-          throw new ConflictError(
-            `Sipariş havale onayı bekleyen durumda değil: ${order.status}`,
-          )
+          throw new ConflictError(`Sipariş havale onayı bekleyen durumda değil: ${order.status}`)
         }
         assertTransition(order.status, 'cancelled_due_to_payment_failure')
 
@@ -614,7 +619,9 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         if (claimed.count !== 1) {
           throw new ConflictError('Ödeme durumu değişti; sayfayı yenileyin')
         }
-        const updated = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } })
+        const updated = await tx.payment.findUniqueOrThrow({
+          where: { id: payment.id },
+        })
 
         await orders.updateStatus(
           params.orderId,
@@ -647,6 +654,8 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
 
         return updated
       })
+      await wakeStockSearchProjection()
+      return result
     },
 
     /**

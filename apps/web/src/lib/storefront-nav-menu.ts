@@ -94,7 +94,25 @@ export function buildMenuItem(
       href: buildCategoryHref(c.slug, allCats),
     })),
   }
-  return { label: item.label, href: item.href, columns: [column] }
+  const columns = children.map((child) => {
+    const descendants = childrenOf(child.slug, allCats)
+    const leaves = (node: FlatCategory): FlatCategory[] => {
+      const sub = childrenOf(node.slug, allCats)
+      return sub.length ? sub.flatMap(leaves) : [node]
+    }
+    return {
+      header: child.name,
+      href: buildCategoryHref(child.slug, allCats),
+      items: descendants
+        .flatMap(leaves)
+        .map((c) => ({ label: c.name, href: buildCategoryHref(c.slug, allCats) })),
+    }
+  })
+  return {
+    label: item.label,
+    href: item.href,
+    columns: columns.some((c) => c.items.length) ? columns : [column],
+  }
 }
 
 /** A nav item stays visible only if its category subtree has published products. */
@@ -104,9 +122,7 @@ export function isNavItemVisible(
 ): boolean {
   if (item.kind === 'link') return true
   if (item.kind === 'tree') return visibleSlugs.has(item.rootSlug)
-  return VIRTUAL_COLLECTION_MAP[item.collectionSlug].some((slug) =>
-    visibleSlugs.has(slug),
-  )
+  return VIRTUAL_COLLECTION_MAP[item.collectionSlug].some((slug) => visibleSlugs.has(slug))
 }
 
 /**
@@ -120,10 +136,19 @@ export function buildStorefrontMenuItems(
   allCats: FlatCategory[],
   categoryLoadFailed: boolean,
 ): MegaMenuItem[] {
-  const visibleSlugs = new Set(allCats.map((c) => c.slug))
   const shownItems = categoryLoadFailed
     ? STOREFRONT_NAV_ITEMS
-    : STOREFRONT_NAV_ITEMS.filter((item) => isNavItemVisible(item, visibleSlugs))
+    : [
+        ...allCats
+          .filter((c) => !c.parentId)
+          .map((c) => ({
+            kind: 'tree' as const,
+            label: c.name,
+            href: `/kategori/${c.slug}`,
+            rootSlug: c.slug,
+          })),
+        { kind: 'link' as const, label: 'İndirim', href: '/urunler?indirimli=1' },
+      ]
 
   return shownItems.map((item) => buildMenuItem(item, allCats))
 }

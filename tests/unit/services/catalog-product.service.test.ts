@@ -34,8 +34,29 @@ describe('catalog.service product creation', () => {
       },
       category: {
         // findById() always includes children; the leaf-category rule reads them.
-        findUnique: vi.fn().mockResolvedValue({ id: 'cat-1', slug: 'mobilya', children: [] }),
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'cat-1',
+          slug: 'mobilya',
+          children: [],
+          templateCode: 'EV-MOBILYA',
+        }),
       },
+      catalogTemplate: {
+        findUnique: vi.fn().mockResolvedValue({
+          code: 'EV-MOBILYA',
+          compatibilityVersion: 1,
+          config: {
+            fields: [],
+            requiredGroups: [],
+            variantKey: null,
+            variantLabel: null,
+            contentKeys: [],
+            shared: { color: true, material: true, dimensions: true },
+            materialLabels: [],
+          },
+        }),
+      },
+      catalogField: { findMany: vi.fn().mockResolvedValue([]) },
       product: {
         findUnique: vi
           .fn()
@@ -45,7 +66,11 @@ describe('catalog.service product creation', () => {
         create: productCreateMock,
         update: vi.fn(),
       },
-      barcodeRegistry: { findFirst: vi.fn().mockResolvedValue(null), deleteMany: vi.fn(), create: vi.fn() },
+      barcodeRegistry: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        deleteMany: vi.fn(),
+        create: vi.fn(),
+      },
     } as never
 
     const service = createCatalogService({ prisma })
@@ -87,8 +112,29 @@ describe('catalog.service product creation', () => {
       },
       category: {
         // findById() always includes children; the leaf-category rule reads them.
-        findUnique: vi.fn().mockResolvedValue({ id: 'cat-1', slug: 'mobilya', children: [] }),
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'cat-1',
+          slug: 'mobilya',
+          children: [],
+          templateCode: 'EV-MOBILYA',
+        }),
       },
+      catalogTemplate: {
+        findUnique: vi.fn().mockResolvedValue({
+          code: 'EV-MOBILYA',
+          compatibilityVersion: 1,
+          config: {
+            fields: [],
+            requiredGroups: [],
+            variantKey: null,
+            variantLabel: null,
+            contentKeys: [],
+            shared: { color: true, material: true, dimensions: true },
+            materialLabels: [],
+          },
+        }),
+      },
+      catalogField: { findMany: vi.fn().mockResolvedValue([]) },
       product: {
         findUnique: vi.fn().mockResolvedValue(null),
         findFirst: vi.fn().mockResolvedValue(null),
@@ -124,6 +170,22 @@ describe('catalog.service product creation', () => {
 
   it('does not expose a published product owned by a suspended seller', async () => {
     const prisma = {
+      catalogTemplate: {
+        findUnique: vi.fn().mockResolvedValue({
+          code: 'EV-MOBILYA',
+          compatibilityVersion: 1,
+          config: {
+            fields: [],
+            requiredGroups: [],
+            variantKey: null,
+            variantLabel: null,
+            contentKeys: [],
+            shared: { color: true, material: true, dimensions: true },
+            materialLabels: [],
+          },
+        }),
+      },
+      catalogField: { findMany: vi.fn().mockResolvedValue([]) },
       product: {
         findUnique: vi.fn().mockResolvedValue({
           id: 'prod-suspended',
@@ -148,6 +210,22 @@ describe('catalog.service product creation', () => {
   // page must still hide what is no longer sellable at click time.
   it('does not expose a product that is no longer published', async () => {
     const prisma = {
+      catalogTemplate: {
+        findUnique: vi.fn().mockResolvedValue({
+          code: 'EV-MOBILYA',
+          compatibilityVersion: 1,
+          config: {
+            fields: [],
+            requiredGroups: [],
+            variantKey: null,
+            variantLabel: null,
+            contentKeys: [],
+            shared: { color: true, material: true, dimensions: true },
+            materialLabels: [],
+          },
+        }),
+      },
+      catalogField: { findMany: vi.fn().mockResolvedValue([]) },
       product: {
         findUnique: vi.fn().mockResolvedValue({
           id: 'prod-unlisted',
@@ -170,6 +248,22 @@ describe('catalog.service product creation', () => {
 
   it('does not expose a published product whose seller is in Tatil Modu', async () => {
     const prisma = {
+      catalogTemplate: {
+        findUnique: vi.fn().mockResolvedValue({
+          code: 'EV-MOBILYA',
+          compatibilityVersion: 1,
+          config: {
+            fields: [],
+            requiredGroups: [],
+            variantKey: null,
+            variantLabel: null,
+            contentKeys: [],
+            shared: { color: true, material: true, dimensions: true },
+            materialLabels: [],
+          },
+        }),
+      },
+      catalogField: { findMany: vi.fn().mockResolvedValue([]) },
       product: {
         findUnique: vi.fn().mockResolvedValue({
           id: 'prod-vacation',

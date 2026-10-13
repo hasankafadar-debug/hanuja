@@ -1,24 +1,17 @@
+import { lockProductStocks } from '../domain/product-stock'
+import { wakeStockSearchProjection } from './product-stock-sync'
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors'
-import {
-  allocateProductRefund,
-  isQuantityFullyClosed,
-} from '../domain/quantity-allocation'
+import { allocateProductRefund, isQuantityFullyClosed } from '../domain/quantity-allocation'
 import { createQuantityRefundService } from './quantity-refund.service'
 import { recordNotification } from './notification-outbox.service'
-import {
-  adminPanelLink,
-  recordAdminOperationNotification,
-} from './admin-notification.service'
+import { adminPanelLink, recordAdminOperationNotification } from './admin-notification.service'
 import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 import { formatMoney } from '@hanuja/security/money'
 import { resolveEmailImageUrl } from '../lib/email-line-items'
-import {
-  closeFullyCancelledSellerFulfillment,
-  releaseLineQuantity,
-} from './order-line-release'
+import { closeFullyCancelledSellerFulfillment, releaseLineQuantity } from './order-line-release'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 
 interface CancellationSelection {
@@ -49,11 +42,7 @@ function assertSelections(items: CancellationSelection[]) {
   if (items.length === 0) throw new ValidationError('En az bir ürün seçin')
   const ids = new Set<string>()
   for (const item of items) {
-    if (
-      !item.orderLineId ||
-      !Number.isInteger(item.quantity) ||
-      item.quantity <= 0
-    ) {
+    if (!item.orderLineId || !Number.isInteger(item.quantity) || item.quantity <= 0) {
       throw new ValidationError('İptal adetleri pozitif tam sayı olmalı')
     }
     if (ids.has(item.orderLineId))
@@ -62,20 +51,13 @@ function assertSelections(items: CancellationSelection[]) {
   }
 }
 
-const ADMIN_CANCELLATION_ACTOR_LABELS: Record<
-  'customer' | 'seller' | 'admin',
-  string
-> = {
+const ADMIN_CANCELLATION_ACTOR_LABELS: Record<'customer' | 'seller' | 'admin', string> = {
   customer: 'Müşteri',
   seller: 'Tasarımcı',
   admin: 'Yönetim',
 }
 
-export function createQuantityCancellationService({
-  prisma,
-}: {
-  prisma: PrismaClient
-}) {
+export function createQuantityCancellationService({ prisma }: { prisma: PrismaClient }) {
   const refunds = createQuantityRefundService({ prisma })
 
   async function create(params: {
@@ -106,13 +88,12 @@ export function createQuantityCancellationService({
           'code' in error &&
           error.code === 'P2034'
         ) {
-          throw new ConflictError(
-            'İptal başka bir işlemle çakıştı; güncel durumu yenileyin',
-          )
+          throw new ConflictError('İptal başka bir işlemle çakıştı; güncel durumu yenileyin')
         }
         throw error
       })
 
+    await wakeStockSearchProjection()
     // Nothing was collected: no refund record and no seller ledger movement.
     // Checked after the transaction so idempotent replays behave the same.
     const collectedPayment = await prisma.payment.findFirst({
@@ -120,7 +101,10 @@ export function createQuantityCancellationService({
       select: { id: true },
     })
     if (!collectedPayment) {
-      return operations.map((operation) => ({ ...operation, refundTransaction: null }))
+      return operations.map((operation) => ({
+        ...operation,
+        refundTransaction: null,
+      }))
     }
 
     const queued: Array<Awaited<ReturnType<typeof refunds.queue>>> = []
@@ -207,9 +191,7 @@ export function createQuantityCancellationService({
     const sellerIds = [...new Set(operations.map((operation) => operation.sellerId))]
     const productIds = [
       ...new Set(
-        operations.flatMap((operation) =>
-          operation.items.map((item) => item.orderLine.productId),
-        ),
+        operations.flatMap((operation) => operation.items.map((item) => item.orderLine.productId)),
       ),
     ]
     const [sellers, admins, images] = await Promise.all([
@@ -225,7 +207,12 @@ export function createQuantityCancellationService({
       tx.productImage.findMany({
         where: { productId: { in: productIds } },
         orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
-        select: { productId: true, url: true, isPrimary: true, sortOrder: true },
+        select: {
+          productId: true,
+          url: true,
+          isPrimary: true,
+          sortOrder: true,
+        },
       }),
     ])
     const sellerById = new Map(sellers.map((seller) => [seller.id, seller]))
@@ -240,8 +227,7 @@ export function createQuantityCancellationService({
       order.customer.name?.trim() || order.address?.fullName?.trim() || 'Değerli Müşterimiz'
     const totalOrderedQuantity = order.lines.reduce((sum, line) => sum + line.quantity, 0)
     const cancelledNow = operations.reduce(
-      (sum, operation) =>
-        sum + operation.items.reduce((inner, item) => inner + item.quantity, 0),
+      (sum, operation) => sum + operation.items.reduce((inner, item) => inner + item.quantity, 0),
       0,
     )
     const partial = cancelledNow < totalOrderedQuantity
@@ -254,14 +240,10 @@ export function createQuantityCancellationService({
         sellerId: operation.sellerId,
         quantity: item.quantity,
         unitPrice: formatMoney(item.orderLine.unitPrice.toNumber()),
-        lineTotal: formatMoney(
-          item.orderLine.unitPrice.mul(item.quantity).toNumber(),
-        ),
+        lineTotal: formatMoney(item.orderLine.unitPrice.mul(item.quantity).toNumber()),
         imageUrl: resolveEmailImageUrl(imagesByProduct.get(item.orderLine.productId)),
       }))
-      const summary = items
-        .map((item) => `${item.productName} (${item.quantity})`)
-        .join(', ')
+      const summary = items.map((item) => `${item.productName} (${item.quantity})`).join(', ')
       const data: Record<string, unknown> = {
         operationId: operation.id,
         orderId: order.id,
@@ -273,7 +255,9 @@ export function createQuantityCancellationService({
         paymentMethod,
         cancellationReason: operation.reason,
         ...(paymentCollected
-          ? { refundAmount: formatMoney(operation.customerRefundAmount.toNumber()) }
+          ? {
+              refundAmount: formatMoney(operation.customerRefundAmount.toNumber()),
+            }
           : { paymentNotCollected: true }),
         orderUrl: `${getWebBaseUrl()}/siparis/${order.id}`,
         items,
@@ -334,7 +318,9 @@ export function createQuantityCancellationService({
           customerName,
           sellerName: sellerById.get(operation.sellerId)?.displayName,
           ...(paymentCollected
-            ? { refundAmount: formatMoney(operation.customerRefundAmount.toNumber()) }
+            ? {
+                refundAmount: formatMoney(operation.customerRefundAmount.toNumber()),
+              }
             : {
                 paymentCollected: false,
                 ...(netAmount ? { netAmount: formatMoney(netAmount.toNumber()) } : {}),
@@ -395,21 +381,20 @@ export function createQuantityCancellationService({
       )
     }
 
-    const requestedById = new Map(
-      params.items.map((item) => [item.orderLineId, item.quantity]),
-    )
-    const selectedLines = order.lines.filter((line) =>
-      requestedById.has(line.id),
-    )
+    const requestedById = new Map(params.items.map((item) => [item.orderLineId, item.quantity]))
+    const selectedLines = order.lines.filter((line) => requestedById.has(line.id))
     if (selectedLines.length !== params.items.length) {
       throw new ValidationError('Seçilen ürünlerden biri bu siparişe ait değil')
     }
 
+    await lockProductStocks(
+      tx,
+      selectedLines.map((line) => line.productId),
+    )
     const bySeller = new Map<string, typeof selectedLines>()
     for (const line of selectedLines) {
       const requested = requestedById.get(line.id)!
-      const cancellable =
-        line.quantity - line.cancelledQuantity - line.shippedQuantity
+      const cancellable = line.quantity - line.cancelledQuantity - line.shippedQuantity
       if (requested > cancellable) {
         throw new ConflictError(
           `"${line.productName}" için en fazla ${Math.max(0, cancellable)} adet iptal edilebilir`,
@@ -423,8 +408,7 @@ export function createQuantityCancellationService({
     if (!paymentCollected) {
       // The transfer amount is fixed; a partial cancellation would change it.
       const coversWholeOrder = order.lines.every((line) => {
-        const cancellable =
-          line.quantity - line.cancelledQuantity - line.shippedQuantity
+        const cancellable = line.quantity - line.cancelledQuantity - line.shippedQuantity
         return cancellable === 0 || requestedById.get(line.id) === cancellable
       })
       if (!coversWholeOrder) {
@@ -493,8 +477,7 @@ export function createQuantityCancellationService({
         grossProductAmount = grossProductAmount.add(allocation.grossAmount)
         couponAdjustmentAmount = couponAdjustmentAmount.add(couponAmount)
         sellerAdjustmentAmount = sellerAdjustmentAmount.add(sellerAmount)
-        commissionAdjustmentAmount =
-          commissionAdjustmentAmount.add(commissionAmount)
+        commissionAdjustmentAmount = commissionAdjustmentAmount.add(commissionAmount)
         itemData.push({
           orderLineId: line.id,
           quantity,
@@ -511,9 +494,7 @@ export function createQuantityCancellationService({
           orderId: order.id,
           sellerId,
           customerId: params.customerId,
-          ...(params.idempotencyKey
-            ? { requestKey: params.idempotencyKey }
-            : {}),
+          ...(params.idempotencyKey ? { requestKey: params.idempotencyKey } : {}),
           reason: params.reason.trim(),
           ...(paymentCollected ? {} : { status: 'completed' as const }),
           customerRefundAmount,
@@ -553,10 +534,8 @@ export function createQuantityCancellationService({
     const acceptedReturnQuantity =
       (acceptedReturns._sum.acceptedQuantity ?? 0) +
       (disputeResolvedReturns._sum.rejectedQuantity ?? 0)
-    const isFullyCancelled =
-      totalQuantity > 0 && totalQuantity === cancelledQuantity
-    const fullCancellationStatus =
-      params.fullCancellationStatus ?? 'cancelled_by_customer'
+    const isFullyCancelled = totalQuantity > 0 && totalQuantity === cancelledQuantity
+    const fullCancellationStatus = params.fullCancellationStatus ?? 'cancelled_by_customer'
     const fullCancellationFields = {
       status: fullCancellationStatus,
       cancelledAt: new Date(),
@@ -569,9 +548,7 @@ export function createQuantityCancellationService({
     })
 
     if (isFullyClosed && created.length > 0) {
-      const outstandingShipping = order.shippingAmount.sub(
-        order.refundedShippingAmount,
-      )
+      const outstandingShipping = order.shippingAmount.sub(order.refundedShippingAmount)
       const last = created[created.length - 1]!
       if (!paymentCollected && outstandingShipping.gt(0)) {
         // Part of the order net amount shown to admins; nothing is refunded.
@@ -652,6 +629,4 @@ export function createQuantityCancellationService({
   return { create, recordCancellationNotifications }
 }
 
-export type QuantityCancellationService = ReturnType<
-  typeof createQuantityCancellationService
->
+export type QuantityCancellationService = ReturnType<typeof createQuantityCancellationService>

@@ -1,8 +1,8 @@
 /**
- * Guard for patches/next@15.5.22.patch — backport of the React fix
+ * Guard for patches/next@15.5.27.patch — backport of the React fix
  * facebook/react c0d218f0f3 (#36134, "Fix useDeferredValue getting stuck").
  *
- * The React 19.2 canary bundled in next@15.5.22 drops a ping that arrives during
+ * The React 19.2 canary bundled in next@15.5.27 drops a ping that arrives during
  * render while the root has exited RootSuspendedWithDelay. React Flight defers any
  * element past 3200 serialized bytes into a lazy row; when such a row lands while
  * React yields, the later ping listener resolves it synchronously and the ping is
@@ -18,7 +18,7 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const PATCHED_NEXT_VERSION = '15.5.22'
+const PATCHED_NEXT_VERSION = '15.5.27'
 const APPS = ['web', 'seller-panel', 'admin-panel'] as const
 
 const PRODUCTION_BUILDS = ['react-dom-client.production.js', 'react-dom-profiling.profiling.js']
@@ -29,7 +29,8 @@ const PRODUCTION_FIXED =
 const PRODUCTION_BUGGY = /0 === \(executionContext & 2\) && prepareFreshStack\(root, 0\)/
 const DEVELOPMENT_FIXED =
   /\(executionContext & RenderContext\) === NoContext\s*\?\s*prepareFreshStack\(root, 0\)\s*:\s*\(workInProgressRootPingedLanes \|= pingedLanes\)/
-const DEVELOPMENT_BUGGY = /\(executionContext & RenderContext\) === NoContext &&\s*prepareFreshStack\(root, 0\)/
+const DEVELOPMENT_BUGGY =
+  /\(executionContext & RenderContext\) === NoContext &&\s*prepareFreshStack\(root, 0\)/
 
 function resolveNext(app: (typeof APPS)[number]) {
   const appPackageJson = fileURLToPath(new URL(`../../apps/${app}/package.json`, import.meta.url))
@@ -51,17 +52,23 @@ describe.each(APPS)('%s: next bundled react-dom ping backport', (app) => {
     expect(version).toBe(PATCHED_NEXT_VERSION)
   })
 
-  it.each(PRODUCTION_BUILDS)('%s records a render-phase ping instead of dropping it', async (file) => {
-    const source = await reactDomBuild(resolveNext(app), file)
+  it.each(PRODUCTION_BUILDS)(
+    '%s records a render-phase ping instead of dropping it',
+    async (file) => {
+      const source = await reactDomBuild(resolveNext(app), file)
 
-    expect(source).toMatch(PRODUCTION_FIXED)
-    expect(source).not.toMatch(PRODUCTION_BUGGY)
-  })
+      expect(source).toMatch(PRODUCTION_FIXED)
+      expect(source).not.toMatch(PRODUCTION_BUGGY)
+    },
+  )
 
-  it.each(DEVELOPMENT_BUILDS)('%s records a render-phase ping instead of dropping it', async (file) => {
-    const source = await reactDomBuild(resolveNext(app), file)
+  it.each(DEVELOPMENT_BUILDS)(
+    '%s records a render-phase ping instead of dropping it',
+    async (file) => {
+      const source = await reactDomBuild(resolveNext(app), file)
 
-    expect(source).toMatch(DEVELOPMENT_FIXED)
-    expect(source).not.toMatch(DEVELOPMENT_BUGGY)
-  })
+      expect(source).toMatch(DEVELOPMENT_FIXED)
+      expect(source).not.toMatch(DEVELOPMENT_BUGGY)
+    },
+  )
 })

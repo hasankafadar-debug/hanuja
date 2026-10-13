@@ -13,6 +13,8 @@ import {
 import { searchIndex } from '../lib/meilisearch'
 import { createCatalogService } from './catalog.service'
 import { buildPublicProductWhere } from '../domain/product-visibility'
+import { loadCategorySchemas } from './category-schema.service'
+import { meiliPropertyFilter, propertyFacetsFromSearch } from '../domain/property-filters'
 
 export function createSearchService(deps: { prisma: PrismaClient }) {
   const { prisma } = deps
@@ -34,7 +36,29 @@ export function createSearchService(deps: { prisma: PrismaClient }) {
     }
 
     const offset = (page - 1) * limit
-    const filter = buildProductSearchFilter(categorySlug)
+    const schemas =
+      params.includePropertyFacets || params.propertyFilters
+        ? await loadCategorySchemas(prisma)
+        : null
+    const filterParts = schemas
+      ? [
+          ...(categorySlug ? [`categoryPathSlugs = ${JSON.stringify(categorySlug)}`] : []),
+          ...meiliPropertyFilter(params.propertyFilters ?? {}, schemas),
+          ...(params.inStockOnly ? ['stock > 0'] : []),
+        ]
+      : [buildProductSearchFilter(categorySlug)].filter(Boolean)
+    const filter = filterParts.join(' AND ')
+    const facetKeys = schemas
+      ? Array.from(
+          new Set([
+            'properties.color',
+            'properties.material',
+            ...[...schemas.values()].flatMap((s) =>
+              s.definitions.flatMap((f) => [`properties.${f.key}`, `${f.key}_stokta`]),
+            ),
+          ]),
+        )
+      : []
     const sortTokens = sort ? [sort] : undefined
 
     try {
@@ -45,13 +69,15 @@ export function createSearchService(deps: { prisma: PrismaClient }) {
         ...(sortTokens ? { sort: sortTokens } : {}),
         limit,
         offset,
-        facets: [...PRODUCT_SEARCH_FACETS],
+        facets: [...PRODUCT_SEARCH_FACETS, ...facetKeys],
         attributesToRetrieve: [...PRODUCT_SEARCH_ATTRIBUTES],
       })
 
-      if (result.totalHits > 0) {
+      if (result.totalHits > 0 || params.includePropertyFacets) {
         const visibleRows = await prisma.product.findMany({
-          where: buildPublicProductWhere({ id: { in: result.hits.map((hit) => hit.id) } }),
+          where: buildPublicProductWhere({
+            id: { in: result.hits.map((hit) => hit.id) },
+          }),
           select: { id: true },
         })
         const visibleIds = new Set(visibleRows.map((row) => row.id))
@@ -59,6 +85,19 @@ export function createSearchService(deps: { prisma: PrismaClient }) {
           throw new Error('Search projection contains non-public products')
         }
         const response = {
+          ...(schemas && params.includePropertyFacets
+            ? {
+                propertyFacets: propertyFacetsFromSearch(
+                  result.facetDistribution ?? {},
+                  result.facetStats ?? {},
+                  schemas,
+                  params.propertyFilters ?? {},
+                  await prisma.productAttributeOption.findMany({
+                    select: { id: true, label: true, type: true },
+                  }),
+                ),
+              }
+            : {}),
           hits: result.hits,
           totalHits: result.totalHits,
           page,
@@ -85,9 +124,13 @@ export function createSearchService(deps: { prisma: PrismaClient }) {
       sortBy: mapProductSearchSortToCatalogSort(sort),
       skip: offset,
       take: limit,
+      ...(params.inStockOnly ? { inStockOnly: true } : {}),
+      ...(params.propertyFilters ? { propertyFilters: params.propertyFilters } : {}),
+      ...(params.includePropertyFacets ? { includePropertyFacets: true } : {}),
     })
 
     const response = {
+      ...('propertyFacets' in fallback ? { propertyFacets: fallback.propertyFacets } : {}),
       hits: fallback.items.map(mapProductToSearchHit),
       totalHits: fallback.total,
       page,

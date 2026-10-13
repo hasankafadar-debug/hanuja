@@ -12,7 +12,12 @@ import { STOREFRONT_NAV_ITEMS } from '../../apps/web/src/config/storefront-nav'
  * leaves out empty branches.
  */
 const ev: FlatCategory = { id: 'ev', parentId: null, slug: 'ev', name: 'Ev' }
-const evMobilya: FlatCategory = { id: 'ev-mobilya', parentId: 'ev', slug: 'ev-mobilya', name: 'Mobilya' }
+const evMobilya: FlatCategory = {
+  id: 'ev-mobilya',
+  parentId: 'ev',
+  slug: 'ev-mobilya',
+  name: 'Mobilya',
+}
 const sehpa: FlatCategory = {
   id: 'sehpa',
   parentId: 'ev-mobilya',
@@ -51,33 +56,30 @@ function labels(categories: FlatCategory[], loadFailed = false) {
 
 describe('storefront header menu visibility', () => {
   it('shows only branches with published products', () => {
-    expect(labels([ev, evMobilya, sehpa])).toEqual(['Ev', 'Mobilya', 'İndirim'])
+    expect(labels([ev, evMobilya, sehpa])).toEqual(['Ev', 'İndirim'])
   })
 
   it('shows a branch again once a product is published in it', () => {
     expect(labels([ev, evMobilya, sehpa])).not.toContain('Dekorasyon')
-    expect(labels([ev, evMobilya, sehpa, evDekorasyon, vazo])).toEqual([
-      'Ev',
-      'Mobilya',
-      'Dekorasyon',
-      'İndirim',
-    ])
+    expect(labels([ev, evMobilya, sehpa, evDekorasyon, vazo])).toEqual(['Ev', 'İndirim'])
   })
 
-  it('shows a virtual collection when either its home or its office branch is visible', () => {
-    expect(labels([ofis, ofisMobilya, calismaMasasi])).toEqual(['Ofis', 'Mobilya', 'İndirim'])
+  it('shows the office root when a product is published in its subtree', () => {
+    expect(labels([ofis, ofisMobilya, calismaMasasi])).toEqual(['Ofis', 'İndirim'])
   })
 
   it('lists only visible sub-categories in the dropdown', () => {
     const mobilya = buildStorefrontMenuItems([ev, evMobilya, sehpa], false).find(
-      (item) => item.label === 'Mobilya',
+      (item) => item.label === 'Ev',
     )
 
     expect(mobilya?.columns).toEqual([
       {
-        header: 'EV MOBİLYASI',
+        header: 'Mobilya',
         href: '/kategori/ev/ev-mobilya',
-        items: [{ label: 'Sehpa Modelleri', href: '/kategori/ev/ev-mobilya/ev-mobilya-sehpa-modelleri' }],
+        items: [
+          { label: 'Sehpa Modelleri', href: '/kategori/ev/ev-mobilya/ev-mobilya-sehpa-modelleri' },
+        ],
       },
     ])
   })

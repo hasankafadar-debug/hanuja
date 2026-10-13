@@ -1,0 +1,2211 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`approved initial category contract > matches every new leaf and template assignment in Appendix B 1`] = `
+{
+  "Akıllı Ev & Güvenlik > Akıllı Ev Ürünleri": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-AKILLI-EV",
+  },
+  "Akıllı Ev & Güvenlik > Güvenlik Kamerası": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-AKILLI-EV",
+  },
+  "Alt Giyim > Etek": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-ALT",
+  },
+  "Alt Giyim > Eşofman Altı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-ALT",
+  },
+  "Alt Giyim > Kot Pantolon": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-ALT",
+  },
+  "Alt Giyim > Pantolon": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-ALT",
+  },
+  "Alt Giyim > Tayt": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-ALT",
+  },
+  "Alt Giyim > Şort": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-ALT",
+  },
+  "Atkı, Şal & Eşarp > Atkı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AKS-GIYIM",
+  },
+  "Atkı, Şal & Eşarp > Eşarp": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AKS-GIYIM",
+  },
+  "Atkı, Şal & Eşarp > Şal": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AKS-GIYIM",
+  },
+  "Ayakkabı Bakım & Aksesuar > Ayakkabı Bakım Ürünleri": {
+    "fields": [],
+    "groups": [],
+    "template": "AYK-BAKIM",
+  },
+  "Ayakkabı Bakım & Aksesuar > Bağcık": {
+    "fields": [],
+    "groups": [],
+    "template": "AYK-BAKIM",
+  },
+  "Ayakkabı Bakım & Aksesuar > Tabanlık": {
+    "fields": [],
+    "groups": [],
+    "template": "AYK-BAKIM",
+  },
+  "Ağız & Diş Bakımı > Ağız Gargarası": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Ağız & Diş Bakımı > Diş Fırçası": {
+    "fields": [],
+    "groups": [],
+    "template": "KOZ-ARAC",
+  },
+  "Ağız & Diş Bakımı > Diş Macunu": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Ağız & Diş Bakımı > Diş İpi": {
+    "fields": [],
+    "groups": [],
+    "template": "KOZ-ARAC",
+  },
+  "Banyo & Duş > Duş Jeli & Kremi": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Banyo & Duş > Katı & Sıvı Sabun": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Bebek Ayakkabısı > Bebek Patiği": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Bebek Ayakkabısı > İlk Adım Ayakkabısı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Bebek Bakım > Bebek Bezi": {
+    "fields": [
+      "bez_numarasi",
+      "paket_adedi",
+    ],
+    "groups": [],
+    "template": "BEB-BEZ",
+  },
+  "Bebek Bakım > Bebek Buhar Makinesi": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-EV-ALETI",
+  },
+  "Bebek Bakım > Bebek Deterjanı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "BEB-BAKIM",
+  },
+  "Bebek Bakım > Bebek Kremi & Losyonu": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "BEB-BAKIM",
+  },
+  "Bebek Bakım > Bebek Sabunu": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "BEB-BAKIM",
+  },
+  "Bebek Bakım > Bebek Yağı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "BEB-BAKIM",
+  },
+  "Bebek Bakım > Bebek Şampuanı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "BEB-BAKIM",
+  },
+  "Bebek Bakım > Islak Mendil": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "BEB-BAKIM",
+  },
+  "Bebek Odası > Bebek Battaniyesi": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-ODA",
+  },
+  "Bebek Odası > Bebek Nevresimi": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-ODA",
+  },
+  "Bebek Odası > Bebek Odası Mobilyası": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-ODA",
+  },
+  "Bebek Odası > Bebek Yatağı": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-ODA",
+  },
+  "Bebek Odası > Beşik": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-ODA",
+  },
+  "Bebek Odası > Cibinlik": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-ODA",
+  },
+  "Bebek Odası > Oyun Matı": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-ODA",
+  },
+  "Bebek Odası > Oyun Parkı": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-ODA",
+  },
+  "Bebek Odası > Oyuncak Dolabı": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-ODA",
+  },
+  "Bebek Odası > Oyuncak Sepeti": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-ODA",
+  },
+  "Beslenme & Emzirme > Alıştırma Bardağı": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Biberon & Emzik": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Biberon Seti": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Biberon Temizleyici": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Buharlı Pişirici": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Emzirme Minderi": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Emzirme Önlüğü": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Göğüs Kremi": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "BEB-BAKIM",
+  },
+  "Beslenme & Emzirme > Göğüs Pedi": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Göğüs Pompası": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Mama Sandalyesi": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-EKIPMAN",
+  },
+  "Beslenme & Emzirme > Mama Önlüğü": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Sterilizatör": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Termal Çanta": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Beslenme & Emzirme > Yemek Seti": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-BESLENME",
+  },
+  "Bilgisayar & Tablet > Ağ & Modem": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-CEVRE",
+  },
+  "Bilgisayar & Tablet > Bilgisayar Aksesuarları": {
+    "fields": [],
+    "groups": [],
+    "template": "ELK-AKS",
+  },
+  "Bilgisayar & Tablet > Klavye & Mouse": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-CEVRE",
+  },
+  "Bilgisayar & Tablet > Laptop": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-BILGISAYAR",
+  },
+  "Bilgisayar & Tablet > Masaüstü Bilgisayar": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-BILGISAYAR",
+  },
+  "Bilgisayar & Tablet > Monitör": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-MONITOR",
+  },
+  "Bilgisayar & Tablet > Oyuncu Ekipmanları": {
+    "fields": [],
+    "groups": [],
+    "template": "ELK-AKS",
+  },
+  "Bilgisayar & Tablet > Tablet": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-TABLET",
+  },
+  "Bilgisayar & Tablet > Veri Depolama": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-CEVRE",
+  },
+  "Bisiklet & Scooter > Bisiklet": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-BISIKLET",
+  },
+  "Bisiklet & Scooter > Bisiklet & Scooter Aksesuarları": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-BISIKLET",
+  },
+  "Bisiklet & Scooter > Paten & Kaykay": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-BISIKLET",
+  },
+  "Bisiklet & Scooter > Scooter": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-BISIKLET",
+  },
+  "Bot & Çizme > Bot": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Bot & Çizme > Kar Botu": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Bot & Çizme > Outdoor Bot": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Bot & Çizme > Çizme": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Cilt Bakımı > Cilt Bakım Seti": {
+    "fields": [
+      "set_icerigi",
+    ],
+    "groups": [],
+    "template": "KOZ-SET",
+  },
+  "Cilt Bakımı > Dudak Bakımı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Cilt Bakımı > Göz Bakımı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Cilt Bakımı > Güneş Ürünleri": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Cilt Bakımı > Serum & Yüz Yağı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Cilt Bakımı > Vücut Bakımı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Cilt Bakımı > Yüz Maskesi & Peeling": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Cilt Bakımı > Yüz Nemlendirici": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Cilt Bakımı > Yüz Temizleyici & Tonik": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Cinsel Sağlık > Kayganlaştırıcı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Cinsel Sağlık > Prezervatif": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Cüzdan & Kartlık > Cüzdan": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CUZDAN",
+  },
+  "Cüzdan & Kartlık > Kartlık": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CUZDAN",
+  },
+  "Doğa Sporları > Dalış & Su Sporları": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-EKIPMAN",
+  },
+  "Doğa Sporları > Dağcılık & Tırmanış": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-EKIPMAN",
+  },
+  "Doğa Sporları > Kayak & Kar Sporları": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-EKIPMAN",
+  },
+  "Dış Giyim > Blazer Ceket": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-DIS",
+  },
+  "Dış Giyim > Ceket": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-DIS",
+  },
+  "Dış Giyim > Deri Ceket & Mont": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-DIS",
+  },
+  "Dış Giyim > Kaban": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-DIS",
+  },
+  "Dış Giyim > Kot Ceket": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-DIS",
+  },
+  "Dış Giyim > Mont": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-DIS",
+  },
+  "Dış Giyim > Palto": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-DIS",
+  },
+  "Dış Giyim > Pardösü & Ferace": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-DIS",
+  },
+  "Dış Giyim > Trençkot": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-DIS",
+  },
+  "Dış Giyim > Yağmurluk & Rüzgarlık": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-DIS",
+  },
+  "El, Ayak & Tırnak Bakımı > Ayak Bakımı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "El, Ayak & Tırnak Bakımı > El Kremi": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "El, Ayak & Tırnak Bakımı > Manikür & Pedikür": {
+    "fields": [],
+    "groups": [],
+    "template": "KOZ-ARAC",
+  },
+  "Elbise & Tulum > Abiye Elbise": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-ELB",
+  },
+  "Elbise & Tulum > Elbise": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-ELB",
+  },
+  "Elbise & Tulum > Tulum": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-ELB",
+  },
+  "Elektrikli Ev & Mutfak Aletleri > Blender & Mutfak Robotu": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-EV-ALETI",
+  },
+  "Elektrikli Ev & Mutfak Aletleri > Hava Temizleyici & Nem Alma": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-EV-ALETI",
+  },
+  "Elektrikli Ev & Mutfak Aletleri > Kahve Makinesi": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-EV-ALETI",
+  },
+  "Elektrikli Ev & Mutfak Aletleri > Su Isıtıcı (Kettle)": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-EV-ALETI",
+  },
+  "Elektrikli Ev & Mutfak Aletleri > Süpürge": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-EV-ALETI",
+  },
+  "Elektrikli Ev & Mutfak Aletleri > Tost Makinesi": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-EV-ALETI",
+  },
+  "Elektrikli Ev & Mutfak Aletleri > Çay Makinesi": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-EV-ALETI",
+  },
+  "Elektrikli Ev & Mutfak Aletleri > Ütü": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-EV-ALETI",
+  },
+  "Epilasyon & Ağda > Ağda": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Epilasyon & Ağda > Tüy Dökücü Krem": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Fitness & Kondisyon > Ağırlık & Dambıl": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-EKIPMAN",
+  },
+  "Fitness & Kondisyon > Direnç Bandı": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-EKIPMAN",
+  },
+  "Fitness & Kondisyon > Spor Aksesuarları": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-EKIPMAN",
+  },
+  "Fitness & Kondisyon > Yoga & Pilates Matı": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-EKIPMAN",
+  },
+  "Foto & Kamera > Aksiyon Kamerası": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-KAMERA",
+  },
+  "Foto & Kamera > Drone": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-KAMERA",
+  },
+  "Foto & Kamera > Fotoğraf Makinesi": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-KAMERA",
+  },
+  "Foto & Kamera > Kamera Aksesuarları": {
+    "fields": [],
+    "groups": [],
+    "template": "ELK-AKS",
+  },
+  "Foto & Kamera > Video Kamera": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-KAMERA",
+  },
+  "Giyilebilir Teknoloji > Akıllı Bileklik": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-GIYILEBILIR",
+  },
+  "Giyilebilir Teknoloji > Akıllı Saat": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-GIYILEBILIR",
+  },
+  "Kadın Hijyen > Günlük Ped": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Kadın Hijyen > Hijyenik Ped": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Kadın Hijyen > Tampon": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Kamp & Outdoor > Fener & Kamp Aydınlatması": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-KAMP",
+  },
+  "Kamp & Outdoor > Kamp Mobilyası": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-KAMP",
+  },
+  "Kamp & Outdoor > Kamp Mutfağı & Termos": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-KAMP",
+  },
+  "Kamp & Outdoor > Outdoor Ekipmanları": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-KAMP",
+  },
+  "Kamp & Outdoor > Uyku Tulumu": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-KAMP",
+  },
+  "Kamp & Outdoor > Çadır": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-KAMP",
+  },
+  "Kemer & Kravat > Kemer": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-KEMER",
+  },
+  "Kemer & Kravat > Kravat & Papyon": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AKS-GIYIM",
+  },
+  "Kişisel Bakım Aletleri > Epilatör & IPL": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-BAKIM-ALETI",
+  },
+  "Kişisel Bakım Aletleri > Masaj Aleti": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-BAKIM-ALETI",
+  },
+  "Kişisel Bakım Aletleri > Saç Kurutma Makinesi": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-BAKIM-ALETI",
+  },
+  "Kişisel Bakım Aletleri > Saç Şekillendirme Cihazı": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-BAKIM-ALETI",
+  },
+  "Kişisel Bakım Aletleri > Tıraş & Sakal Makinesi": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-BAKIM-ALETI",
+  },
+  "Klasik & Topuklu > Klasik Ayakkabı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Klasik & Topuklu > Topuklu Ayakkabı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Makyaj > Allık & Bronzer": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Aydınlatıcı & Highlighter": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > BB & CC Krem": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Dudak Kalemi & Parlatıcı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Eyeliner & Göz Kalemi": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Fondöten": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Göz Farı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Kapatıcı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Kaş Makyajı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Makyaj Bazı & Sabitleyici": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Makyaj Fırçası & Aksesuarı": {
+    "fields": [],
+    "groups": [],
+    "template": "KOZ-ARAC",
+  },
+  "Makyaj > Makyaj Seti": {
+    "fields": [
+      "set_icerigi",
+    ],
+    "groups": [],
+    "template": "KOZ-SET",
+  },
+  "Makyaj > Makyaj Temizleyici": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Maskara": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Oje & Tırnak Makyajı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Pudra": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Makyaj > Ruj": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-MAKYAJ",
+  },
+  "Mayo & Plaj > Bikini": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-MAYO",
+  },
+  "Mayo & Plaj > Deniz Şortu": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-MAYO",
+  },
+  "Mayo & Plaj > Mayo": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-MAYO",
+  },
+  "Mayo & Plaj > Plaj Elbisesi & Pareo": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-MAYO",
+  },
+  "Oyuncak > Bebek & Okul Öncesi Oyuncak": {
+    "fields": [
+      "minimum_yas_ay",
+    ],
+    "groups": [],
+    "template": "OYUNCAK",
+  },
+  "Oyuncak > Eğitici Oyuncak": {
+    "fields": [
+      "minimum_yas_ay",
+    ],
+    "groups": [],
+    "template": "OYUNCAK",
+  },
+  "Oyuncak > Kumandalı Oyuncak": {
+    "fields": [
+      "minimum_yas_ay",
+    ],
+    "groups": [],
+    "template": "OYUNCAK",
+  },
+  "Oyuncak > Oyuncak Araba": {
+    "fields": [
+      "minimum_yas_ay",
+    ],
+    "groups": [],
+    "template": "OYUNCAK",
+  },
+  "Oyuncak > Oyuncak Bebek": {
+    "fields": [
+      "minimum_yas_ay",
+    ],
+    "groups": [],
+    "template": "OYUNCAK",
+  },
+  "Oyuncak > Robot Oyuncak": {
+    "fields": [
+      "minimum_yas_ay",
+    ],
+    "groups": [],
+    "template": "OYUNCAK",
+  },
+  "Oyuncak > Çocuk Çizim Tableti": {
+    "fields": [
+      "minimum_yas_ay",
+    ],
+    "groups": [],
+    "template": "OYUNCAK",
+  },
+  "Parfüm & Deodorant > Deodorant": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Parfüm & Deodorant > Kolonya": {
+    "fields": [
+      "cinsiyet",
+      "hacim_ml",
+    ],
+    "groups": [],
+    "template": "KOZ-PARFUM",
+  },
+  "Parfüm & Deodorant > Parfüm": {
+    "fields": [
+      "cinsiyet",
+      "hacim_ml",
+    ],
+    "groups": [],
+    "template": "KOZ-PARFUM",
+  },
+  "Saat & Gözlük > Güneş Gözlüğü": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-GOZLUK",
+  },
+  "Saat & Gözlük > Kol Saati": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-SAAT",
+  },
+  "Sandalet & Terlik > Ev Terliği": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Sandalet & Terlik > Sandalet": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Sandalet & Terlik > Terlik": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Saç Bakımı > Kuru Şampuan": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Saç Bakımı > Saç Boyası": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Saç Bakımı > Saç Fırçası & Tarak": {
+    "fields": [],
+    "groups": [],
+    "template": "KOZ-ARAC",
+  },
+  "Saç Bakımı > Saç Kremi": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Saç Bakımı > Saç Maskesi & Bakım Yağı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Saç Bakımı > Saç Şekillendirici": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Saç Bakımı > Şampuan": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-BAKIM",
+  },
+  "Ses & Kulaklık > Bluetooth Hoparlör": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-SES",
+  },
+  "Ses & Kulaklık > Kulaklık": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-SES",
+  },
+  "Ses & Kulaklık > Müzik Sistemi & Pikap": {
+    "fields": [
+      "garanti_ay",
+    ],
+    "groups": [],
+    "template": "ELK-SES",
+  },
+  "Sneaker & Günlük > Babet": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Sneaker & Günlük > Günlük Ayakkabı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Sneaker & Günlük > Loafer": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Sneaker & Günlük > Sneaker": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Spor Ayakkabı > Antrenman Ayakkabısı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Spor Ayakkabı > Basketbol Ayakkabısı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Spor Ayakkabı > Koşu Ayakkabısı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Spor Ayakkabı > Krampon": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Spor Ayakkabı > Outdoor & Trekking Ayakkabısı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Spor Ayakkabı > Tenis Ayakkabısı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Spor Ayakkabı > Yürüyüş Ayakkabısı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AYK",
+  },
+  "Takı > Bileklik": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-TAKI",
+  },
+  "Takı > Broş": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-TAKI",
+  },
+  "Takı > Kolye": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-TAKI",
+  },
+  "Takı > Küpe": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-TAKI",
+  },
+  "Takı > Takı Seti": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-TAKI",
+  },
+  "Takı > Yüzük": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-TAKI",
+  },
+  "Takım & Raket Sporları > Koruyucu Ekipman": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-EKIPMAN",
+  },
+  "Takım & Raket Sporları > Raket": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-EKIPMAN",
+  },
+  "Takım & Raket Sporları > Top": {
+    "fields": [],
+    "groups": [],
+    "template": "SPR-EKIPMAN",
+  },
+  "Takım & Set > Alt Üst Takım": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-TAK",
+  },
+  "Takım & Set > Eşofman Takımı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-TAK",
+  },
+  "Takım & Set > Hastane Çıkışı Seti": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-TAK",
+  },
+  "Takım & Set > Takım Elbise": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-TAK",
+  },
+  "Taşıma & Güvenlik > Ana Kucağı": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-EKIPMAN",
+  },
+  "Taşıma & Güvenlik > Anne Bebek Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Taşıma & Güvenlik > Baston Puset": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-EKIPMAN",
+  },
+  "Taşıma & Güvenlik > Bebek Arabası & Puset": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-EKIPMAN",
+  },
+  "Taşıma & Güvenlik > Bebek Salıncağı": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-EKIPMAN",
+  },
+  "Taşıma & Güvenlik > Oto Koltuğu": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-OTO",
+  },
+  "Taşıma & Güvenlik > Park Yatak": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-EKIPMAN",
+  },
+  "Taşıma & Güvenlik > Portbebe & Kanguru": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-EKIPMAN",
+  },
+  "Taşıma & Güvenlik > Yürüteç": {
+    "fields": [],
+    "groups": [],
+    "template": "BEB-EKIPMAN",
+  },
+  "Telefon Aksesuarları > Ekran Koruyucu": {
+    "fields": [],
+    "groups": [],
+    "template": "ELK-TEL-AKS",
+  },
+  "Telefon Aksesuarları > Powerbank": {
+    "fields": [],
+    "groups": [],
+    "template": "ELK-TEL-AKS",
+  },
+  "Telefon Aksesuarları > Telefon Kılıfı": {
+    "fields": [],
+    "groups": [],
+    "template": "ELK-TEL-AKS",
+  },
+  "Telefon Aksesuarları > Telefon Tutucu & Stand": {
+    "fields": [],
+    "groups": [],
+    "template": "ELK-TEL-AKS",
+  },
+  "Telefon Aksesuarları > Şarj Cihazı": {
+    "fields": [],
+    "groups": [],
+    "template": "ELK-TEL-AKS",
+  },
+  "Telefon Aksesuarları > Şarj Kablosu": {
+    "fields": [],
+    "groups": [],
+    "template": "ELK-TEL-AKS",
+  },
+  "Tıraş & Erkek Bakımı > Sakal Bakımı": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Tıraş & Erkek Bakımı > Tıraş Bıçağı": {
+    "fields": [],
+    "groups": [],
+    "template": "KOZ-ARAC",
+  },
+  "Tıraş & Erkek Bakımı > Tıraş Köpüğü & Jeli": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Tıraş & Erkek Bakımı > Tıraş Sonrası": {
+    "fields": [],
+    "groups": [
+      {
+        "keys": [
+          "hacim_ml",
+          "net_agirlik_g",
+          "paket_adedi",
+        ],
+        "label": "Net İçerik",
+      },
+    ],
+    "template": "KOZ-KISISEL",
+  },
+  "Çanta > Abiye Çanta": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Bel Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Beslenme Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Bez & Kanvas Çanta": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > El Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Evrak Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Laptop Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Makyaj Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Okul Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Omuz Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Portföy": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Postacı Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Spor Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Sırt Çantası": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Tote Çanta": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Valiz & Bavul": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Çanta > Çapraz Çanta": {
+    "fields": [],
+    "groups": [],
+    "template": "AKS-CANTA",
+  },
+  "Üst Giyim > Bluz": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-UST",
+  },
+  "Üst Giyim > Body & Zıbın": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-UST",
+  },
+  "Üst Giyim > Forma": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-UST",
+  },
+  "Üst Giyim > Gömlek": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-UST",
+  },
+  "Üst Giyim > Hırka": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-UST",
+  },
+  "Üst Giyim > Kazak": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-UST",
+  },
+  "Üst Giyim > Polar": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-UST",
+  },
+  "Üst Giyim > Sweatshirt": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-UST",
+  },
+  "Üst Giyim > Tişört": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-UST",
+  },
+  "Üst Giyim > Tunik": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-UST",
+  },
+  "Üst Giyim > Yelek": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-UST",
+  },
+  "İç Giyim & Ev Giyimi > Atlet & Body": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Boxer": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Bralet": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Büstiyer": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Fantezi Giyim": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Gecelik": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Jartiyer": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Kombinezon": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Korse": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Külot": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Pijama Takımı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Spor Sütyeni": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Sütyen": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > Çorap": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > İç Çamaşırı Takımı": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "İç Giyim & Ev Giyimi > İçlik": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "GIY-IC",
+  },
+  "Şapka, Bere & Eldiven > Bere": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AKS-GIYIM",
+  },
+  "Şapka, Bere & Eldiven > Boyunluk": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AKS-GIYIM",
+  },
+  "Şapka, Bere & Eldiven > Eldiven": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AKS-GIYIM",
+  },
+  "Şapka, Bere & Eldiven > Şapka": {
+    "fields": [
+      "cinsiyet",
+      "yas_grubu",
+    ],
+    "groups": [],
+    "template": "AKS-GIYIM",
+  },
+}
+`;

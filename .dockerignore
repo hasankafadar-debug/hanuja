@@ -11,6 +11,16 @@ node_modules
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
+
+# Private test access, browser traces, and local artifacts
+.tmp
+.playwright-cli
+.agents
+.codex
+outputs
+output
 
 # Dev tools
 .git

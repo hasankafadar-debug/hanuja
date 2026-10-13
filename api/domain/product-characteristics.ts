@@ -7,6 +7,57 @@
  * sayfalara kopyalanmaz.
  */
 
+import {
+  propertyLabel,
+  type ProductProperties,
+  type ResolvedCategorySchema,
+} from './category-schema'
+
+export interface StructuredCharacteristic {
+  key: string
+  label: string
+  value: string
+}
+export function buildStructuredCharacteristics(
+  schema: ResolvedCategorySchema,
+  properties: ProductProperties,
+  variants: Array<{ properties: ProductProperties }> = [],
+  selected?: ProductProperties,
+): StructuredCharacteristic[] {
+  const rows: StructuredCharacteristic[] = []
+  const variable =
+    schema.config.variantKey === 'net_icerik'
+      ? schema.config.contentKeys
+      : schema.config.variantKey
+        ? [schema.config.variantKey]
+        : []
+  for (const field of schema.config.fields) {
+    const definition = schema.definitions.find((d) => d.key === field.key)
+    if (!definition || definition.isActive === false) continue
+    const values =
+      variable.includes(field.key) && variants.length
+        ? selected
+          ? [selected[field.key] ?? null]
+          : variants.map((v) => v.properties[field.key] ?? null)
+        : [properties[field.key] ?? null]
+    const unique = [...new Set(values.filter((v) => v !== null && v !== ''))]
+    if (!unique.length) continue
+    let value = unique.map((v) => propertyLabel(definition, v, field.displayUnit)).join(' · ')
+    if (definition.kind === 'number' && unique.length > 1) {
+      const sorted = unique.map(Number).sort((a, b) => a - b)
+      const low = propertyLabel(definition, sorted[0]!, field.displayUnit),
+        high = propertyLabel(definition, sorted[sorted.length - 1]!, field.displayUnit)
+      const unit = field.displayUnit ?? definition.canonicalUnit
+      value =
+        unit && unit !== '—'
+          ? `${low.replace(new RegExp(` ${unit}$`), '')}–${high}`
+          : `${low}–${high}`
+    }
+    rows.push({ key: field.key, label: definition.label, value })
+  }
+  return rows
+}
+
 export interface ProductAttributeValueLike {
   sortOrder?: number | null
   option?: { type?: string | null; label?: string | null } | null
@@ -34,7 +85,8 @@ export function getProductColorLabels(
 export function getProductMaterialLabel(
   attributeValues: ProductAttributeValueLike[] | null | undefined,
 ): string | null {
-  const label = (attributeValues ?? []).find((attribute) => attribute.option?.type === 'material')
+  const label = (attributeValues ?? [])
+    .find((attribute) => attribute.option?.type === 'material')
     ?.option?.label?.trim()
   return label && label.length > 0 ? label : null
 }

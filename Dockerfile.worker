@@ -44,9 +44,11 @@ RUN pnpm --filter @hanuja/db run generate
 ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs \
- && adduser --system --uid 1001 worker
+ && adduser --system --uid 1001 worker \
+ && mkdir -p /app/.tmp/category-expansion \
+ && chown -R worker:nodejs /app/.tmp
 USER worker
 
 # Apply pending Prisma migrations before any BullMQ process can use the new
 # schema. `exec` keeps SIGTERM/SIGINT delivery correct for graceful shutdown.
-CMD ["sh", "-c", "pnpm db:migrate:deploy && exec pnpm exec tsx api/jobs/worker-entrypoint.ts"]
+CMD ["sh", "-c", "pnpm db:migrate:deploy && pnpm exec tsx tools/scripts/install-category-catalog.ts --apply && pnpm exec tsx tools/scripts/backfill-category-publication.ts --apply && pnpm exec tsx tools/scripts/prepare-category-search.ts && exec pnpm exec tsx api/jobs/worker-entrypoint.ts"]

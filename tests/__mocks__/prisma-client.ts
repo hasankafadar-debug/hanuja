@@ -191,6 +191,9 @@ export const Prisma = {
   sql(strings: TemplateStringsArray, ...values: unknown[]) {
     return { strings: Array.from(strings), values }
   },
+  join(values: unknown[]) {
+    return { strings: Array(values.length + 1).fill(','), values }
+  },
   empty: { strings: [''], values: [] },
 }
 

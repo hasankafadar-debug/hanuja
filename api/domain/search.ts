@@ -50,6 +50,9 @@ export interface ProductSearchHit {
 }
 
 export interface ProductSearchParams {
+  propertyFilters?: import('./property-filters').PropertyFilters
+  includePropertyFacets?: boolean
+  inStockOnly?: boolean
   q: string
   categorySlug?: string
   page?: number
@@ -58,6 +61,7 @@ export interface ProductSearchParams {
 }
 
 export interface ProductSearchResponse {
+  propertyFacets?: import('./property-filters').PropertyFacet[]
   hits: ProductSearchHit[]
   totalHits: number
   page: number
@@ -82,6 +86,11 @@ export function mapProductSearchSortToCatalogSort(
 }
 
 export function mapProductToSearchHit(product: {
+  filterProperties?: Record<string, Array<string | number | boolean>>
+  stockVariantKeys?: string[]
+  categoryPathSlugs?: string[]
+  categoryPathLabels?: string[]
+  propertySearchText?: string[]
   id: string
   slug: string
   name: string
@@ -94,12 +103,27 @@ export function mapProductToSearchHit(product: {
   category?: { slug: string; name: string } | null
   seller?: { slug: string | null; displayName: string | null } | null
 }): ProductSearchHit {
-  const price =
-    typeof product.price === 'number'
-      ? product.price
-      : product.price.toNumber()
+  const price = typeof product.price === 'number' ? product.price : product.price.toNumber()
 
   return {
+    ...(product.filterProperties
+      ? {
+          properties: Object.fromEntries(
+            Object.entries(product.filterProperties).filter(
+              ([key]) => !product.stockVariantKeys?.includes(key),
+            ),
+          ),
+          ...Object.fromEntries(
+            (product.stockVariantKeys ?? []).map((key) => [
+              `${key}_stokta`,
+              product.filterProperties?.[key] ?? [],
+            ]),
+          ),
+          categoryPathSlugs: product.categoryPathSlugs ?? [],
+          categoryPathLabels: product.categoryPathLabels ?? [],
+          propertySearchText: product.propertySearchText ?? [],
+        }
+      : {}),
     id: product.id,
     slug: product.slug,
     name: product.name,

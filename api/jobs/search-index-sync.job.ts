@@ -7,16 +7,24 @@
  *
  * See: architecture rules — search must not be source of truth.
  */
+import type { Prisma } from '@prisma/client'
 import { Worker, Job } from 'bullmq'
-import { PRODUCT_SEARCH_INDEX, mapProductToSearchHit } from '../domain/search'
+import {
+  PRODUCT_SEARCH_INDEX,
+  PRODUCT_SEARCH_SETTINGS,
+  mapProductToSearchHit,
+} from '../domain/search'
 import { redis } from '../lib/redis'
 import { QUEUE_NAMES } from '../lib/queue'
-import { getMeilisearchConfig } from '../lib/meilisearch'
+import { getMeilisearchConfig, waitForMeilisearchTask, ensureIndex } from '../lib/meilisearch'
+import { loadCategorySchemas } from '../services/category-schema.service'
+import { filterValuesForProduct } from '../domain/property-filters'
+import { propertyLabel, type ProductProperties } from '../domain/category-schema'
 import { prisma } from '../lib/prisma'
 import { buildPublicProductWhere } from '../domain/product-visibility'
 
 export interface SearchIndexSyncJobData {
-  type: 'product' | 'category' | 'store'
+  type: 'product' | 'category' | 'store' | 'dirty'
   entityId?: string
   operation: 'upsert' | 'delete'
 }
@@ -29,12 +37,20 @@ type PublishedProductScope = {
   sellerId?: string
 }
 
-async function listPublishedProductDocuments(scope: PublishedProductScope) {
+async function listPublishedProductDocuments(
+  scope: PublishedProductScope,
+  db: Prisma.TransactionClient = prisma,
+) {
+  const schemas = await loadCategorySchemas(db)
+  const categories = await db.category.findMany({
+    select: { id: true, name: true, slug: true, parentId: true },
+  })
+  const categoryMap = new Map(categories.map((c) => [c.id, c]))
   const documents: ReturnType<typeof mapProductToSearchHit>[] = []
   let cursor: string | undefined
 
   while (true) {
-    const products = await prisma.product.findMany({
+    const products = await db.product.findMany({
       where: buildPublicProductWhere({
         ...(scope.productId ? { id: scope.productId } : {}),
         ...(scope.categoryId ? { categoryId: scope.categoryId } : {}),
@@ -46,6 +62,8 @@ async function listPublishedProductDocuments(scope: PublishedProductScope) {
           orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
         },
         category: { select: { slug: true, name: true } },
+        variants: true,
+        attributeValues: { include: { option: true } },
         seller: { select: { slug: true, displayName: true } },
       },
       orderBy: { id: 'asc' },
@@ -55,7 +73,49 @@ async function listPublishedProductDocuments(scope: PublishedProductScope) {
 
     if (products.length === 0) break
 
-    documents.push(...products.map(mapProductToSearchHit))
+    for (const product of products) {
+      const schema = product.categoryId ? schemas.get(product.categoryId) : null
+      const path: Array<{ slug: string; name: string }> = []
+      let category = product.categoryId ? categoryMap.get(product.categoryId) : undefined
+      const seen = new Set<string>()
+      while (category && !seen.has(category.id)) {
+        seen.add(category.id)
+        path.unshift(category)
+        category = category.parentId ? categoryMap.get(category.parentId) : undefined
+      }
+      const values = schema ? filterValuesForProduct(product, schema) : {}
+      const text = schema
+        ? schema.definitions
+            .map((d) =>
+              propertyLabel(d, ((product.properties ?? {}) as ProductProperties)[d.key] ?? null),
+            )
+            .filter(Boolean)
+        : []
+      if (values.cinsiyet?.includes('unisex')) text.push('Kadın', 'Erkek', 'Kız')
+      if (
+        values.cinsiyet?.includes('kadin') &&
+        values.yas_grubu?.some((v) => ['cocuk', 'bebek'].includes(String(v)))
+      )
+        text.push('Kız')
+      documents.push(
+        mapProductToSearchHit({
+          ...product,
+          filterProperties: values,
+          stockVariantKeys: schema
+            ? schema.config.variantKey === 'net_icerik'
+              ? schema.config.contentKeys
+              : schema.config.variantKey &&
+                  schema.definitions.find((d) => d.key === schema.config.variantKey)?.kind !==
+                    'text'
+                ? [schema.config.variantKey]
+                : []
+            : [],
+          categoryPathSlugs: path.map((c) => c.slug),
+          categoryPathLabels: path.map((c) => c.name),
+          propertySearchText: text,
+        }),
+      )
+    }
     cursor = products[products.length - 1]?.id
 
     if (scope.productId) break
@@ -68,6 +128,7 @@ async function syncProductDocuments(
   meiliUrl: string,
   meiliKey: string,
   params: { entityId?: string; operation: 'upsert' | 'delete' },
+  db: Prisma.TransactionClient = prisma,
 ) {
   const { entityId, operation } = params
 
@@ -76,13 +137,12 @@ async function syncProductDocuments(
     return
   }
 
-  if (!entityId) {
-    await clearIndex(meiliUrl, meiliKey, PRODUCT_SEARCH_INDEX)
-  }
-
-  const documents = await listPublishedProductDocuments({
-    ...(entityId ? { productId: entityId } : {}),
-  })
+  const documents = await listPublishedProductDocuments(
+    {
+      ...(entityId ? { productId: entityId } : {}),
+    },
+    db,
+  )
 
   if (documents.length > 0) {
     await upsertDocuments(meiliUrl, meiliKey, PRODUCT_SEARCH_INDEX, documents)
@@ -94,66 +154,35 @@ async function syncProductDocuments(
   }
 }
 
-async function syncScopedProductDocuments(
-  meiliUrl: string,
-  meiliKey: string,
-  scope: PublishedProductScope,
-) {
-  const documents = await listPublishedProductDocuments(scope)
-  if (documents.length === 0) return
-  await upsertDocuments(meiliUrl, meiliKey, PRODUCT_SEARCH_INDEX, documents)
-}
-
-async function deleteSellerProductDocuments(
-  meiliUrl: string,
-  meiliKey: string,
-  sellerId: string,
-) {
-  const products = await prisma.product.findMany({
-    where: { sellerId },
-    select: { id: true },
-  })
-  if (products.length === 0) return
-  await deleteBatchFromIndex(
-    meiliUrl,
-    meiliKey,
-    PRODUCT_SEARCH_INDEX,
-    products.map((product) => product.id),
-  )
-}
-
 export async function processSearchIndexSync(job: Job<SearchIndexSyncJobData>) {
-  const { type, entityId, operation } = job.data
+  const { type, entityId } = job.data
 
   const { baseUrl: meiliUrl, apiKey: meiliKey } = getMeilisearchConfig()
-
-  if (type === 'product') {
-    await syncProductDocuments(meiliUrl, meiliKey, {
-      operation,
-      ...(entityId ? { entityId } : {}),
+  await ensureDynamicSearchSettings(meiliUrl, meiliKey)
+  if (type === 'dirty') {
+    const dirty = await prisma.searchIndexDirtyProduct.findMany({
+      orderBy: { updatedAt: 'asc' },
+      take: 100,
     })
+    for (const row of dirty) await syncDurableProduct(meiliUrl, meiliKey, row.productId)
+    return
   }
-
-  if (type === 'category') {
-    await syncScopedProductDocuments(meiliUrl, meiliKey, {
-      ...(entityId ? { categoryId: entityId } : {}),
+  if (type === 'product' && entityId) {
+    await syncDurableProduct(meiliUrl, meiliKey, entityId)
+    return
+  }
+  if (type === 'product' && !entityId) {
+    await rebuildProductSearchIndex(meiliUrl, meiliKey)
+    return
+  }
+  if (type === 'category' || type === 'store') {
+    const products = await prisma.product.findMany({
+      where: type === 'store' && entityId ? { sellerId: entityId } : {},
+      select: { id: true },
     })
+    for (const product of products) await syncDurableProduct(meiliUrl, meiliKey, product.id)
+    return
   }
-
-  if (type === 'store') {
-    if (entityId) {
-      await deleteSellerProductDocuments(meiliUrl, meiliKey, entityId)
-      if (operation === 'upsert') {
-        await syncScopedProductDocuments(meiliUrl, meiliKey, { sellerId: entityId })
-      }
-    } else if (operation === 'upsert') {
-      await syncProductDocuments(meiliUrl, meiliKey, { operation: 'upsert' })
-    }
-  }
-
-  console.log(
-    `[search-index-sync] type=${type} operation=${operation} count=${entityId ? 1 : 'batch'}`,
-  )
 }
 
 async function upsertDocuments(
@@ -174,14 +203,11 @@ async function upsertDocuments(
   if (!res.ok) {
     throw new Error(`Meilisearch upsert failed: ${res.status} ${await res.text()}`)
   }
+  const task = (await res.json()) as { taskUid: number }
+  await waitForMeilisearchTask(baseUrl, apiKey, task.taskUid)
 }
 
-async function deleteFromIndex(
-  baseUrl: string,
-  apiKey: string,
-  index: string,
-  id: string,
-) {
+async function deleteFromIndex(baseUrl: string, apiKey: string, index: string, id: string) {
   const res = await fetch(`${baseUrl}/indexes/${index}/documents/${id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -190,40 +216,9 @@ async function deleteFromIndex(
   if (!res.ok && res.status !== 404) {
     throw new Error(`Meilisearch delete failed: ${res.status}`)
   }
-}
-
-async function deleteBatchFromIndex(
-  baseUrl: string,
-  apiKey: string,
-  index: string,
-  ids: string[],
-) {
-  const res = await fetch(`${baseUrl}/indexes/${index}/documents/delete-batch`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(ids),
-  })
-
-  if (!res.ok) {
-    throw new Error(`Meilisearch batch delete failed: ${res.status}`)
-  }
-}
-
-async function clearIndex(
-  baseUrl: string,
-  apiKey: string,
-  index: string,
-) {
-  const res = await fetch(`${baseUrl}/indexes/${index}/documents`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${apiKey}` },
-  })
-
-  if (!res.ok) {
-    throw new Error(`Meilisearch clear failed: ${res.status}`)
+  if (res.ok) {
+    const task = (await res.json()) as { taskUid: number }
+    await waitForMeilisearchTask(baseUrl, apiKey, task.taskUid)
   }
 }
 
@@ -244,6 +239,21 @@ export async function enqueueProductSync(
     `product-${params.operation}-${params.entityId ?? 'all'}`,
     { type: 'product', operation: params.operation, entityId: params.entityId },
     { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+  )
+}
+
+/** Post-commit wake-up; database dirty revisions remain the durable backstop. */
+export async function enqueueDirtyProductSync() {
+  const { searchIndexSyncQueue } = await import('../lib/queue')
+  await searchIndexSyncQueue.add(
+    'product-dirty',
+    { type: 'dirty', operation: 'upsert' },
+    {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
   )
 }
 
@@ -281,4 +291,110 @@ export function startSearchIndexSyncWorker() {
   })
 
   return worker
+}
+
+let settingsFingerprint = ''
+export async function ensureDynamicSearchSettings(
+  baseUrl: string,
+  apiKey: string,
+  index = PRODUCT_SEARCH_INDEX,
+  force = false,
+  db: Prisma.TransactionClient = prisma,
+) {
+  const fields = await db.catalogField.findMany({
+    where: { isActive: true },
+    select: { key: true, updatedAt: true },
+  })
+  const fingerprint = JSON.stringify(fields)
+  if (index === PRODUCT_SEARCH_INDEX && !force && fingerprint === settingsFingerprint) return
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+  }
+  await ensureIndex(index, 'id', { baseUrl, apiKey })
+  const response = await fetch(`${baseUrl}/indexes/${index}/settings`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({
+      ...PRODUCT_SEARCH_SETTINGS,
+      searchableAttributes: [
+        ...PRODUCT_SEARCH_SETTINGS.searchableAttributes,
+        'categoryPathLabels',
+        'propertySearchText',
+      ],
+      filterableAttributes: [
+        ...PRODUCT_SEARCH_SETTINGS.filterableAttributes,
+        'categoryPathSlugs',
+        'properties.color',
+        'properties.material',
+        ...fields.flatMap((f) => [`properties.${f.key}`, `${f.key}_stokta`]),
+      ],
+      faceting: { maxValuesPerFacet: 1000 },
+    }),
+  })
+  if (!response.ok) throw new Error(`Meilisearch settings failed: ${response.status}`)
+  const task = (await response.json()) as { taskUid: number }
+  await waitForMeilisearchTask(baseUrl, apiKey, task.taskUid)
+  if (index === PRODUCT_SEARCH_INDEX) settingsFingerprint = fingerprint
+}
+
+export async function syncDurableProduct(baseUrl: string, apiKey: string, productId: string) {
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock_shared(82910213)`
+      const [lock] = await tx.$queryRaw<
+        Array<{ acquired: boolean }>
+      >`SELECT pg_try_advisory_xact_lock(hashtext(${productId})::bigint) AS acquired`
+      if (!lock?.acquired) return
+      const dirty = await tx.searchIndexDirtyProduct.findUnique({
+        where: { productId },
+      })
+      await syncProductDocuments(baseUrl, apiKey, { entityId: productId, operation: 'upsert' }, tx)
+      if (dirty)
+        await tx.searchIndexDirtyProduct.deleteMany({
+          where: { productId, revision: dirty.revision },
+        })
+    },
+    { timeout: 150_000, maxWait: 150_000 },
+  )
+}
+
+export async function rebuildProductSearchIndex(baseUrl: string, apiKey: string) {
+  await ensureDynamicSearchSettings(baseUrl, apiKey)
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(82910213)`
+      const index = `products_build_${Date.now()}`,
+        headers = {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        }
+      try {
+        await ensureDynamicSearchSettings(baseUrl, apiKey, index, false, tx)
+        const documents = await listPublishedProductDocuments({}, tx)
+        for (let offset = 0; offset < documents.length; offset += SEARCH_SYNC_BATCH_SIZE)
+          await upsertDocuments(
+            baseUrl,
+            apiKey,
+            index,
+            documents.slice(offset, offset + SEARCH_SYNC_BATCH_SIZE),
+          )
+        const response = await fetch(`${baseUrl}/swap-indexes`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify([{ indexes: [PRODUCT_SEARCH_INDEX, index] }]),
+        })
+        if (!response.ok) throw new Error(`Meilisearch index swap failed: ${response.status}`)
+        const task = (await response.json()) as { taskUid: number }
+        await waitForMeilisearchTask(baseUrl, apiKey, task.taskUid)
+      } finally {
+        await fetch(`${baseUrl}/indexes/${index}`, {
+          method: 'DELETE',
+          headers,
+        }).catch(() => {})
+      }
+      // Dirty rows stay pending: edits during the build are replayed after the swap.
+    },
+    { timeout: 600_000, maxWait: 600_000 },
+  )
 }

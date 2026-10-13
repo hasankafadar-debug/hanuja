@@ -37,10 +37,11 @@ describe('catalog.service category updates', () => {
             parent: null,
           })
           .mockResolvedValueOnce(null),
+        findFirst: vi.fn().mockResolvedValue(null),
         update: vi.fn().mockResolvedValue({
           id: 'cat-1',
           name: 'Yeni Mobilya',
-          slug: 'yeni-mobilya',
+          slug: 'mobilya',
         }),
       },
     } as never
@@ -49,7 +50,7 @@ describe('catalog.service category updates', () => {
     const result = await service.updateCategoryForAdmin({
       categoryId: 'cat-1',
       name: 'Yeni Mobilya',
-      slug: 'Yeni Mobilya',
+      slug: 'mobilya',
       sortOrder: 3,
       isActive: false,
     })
@@ -58,7 +59,7 @@ describe('catalog.service category updates', () => {
       where: { id: 'cat-1' },
       data: {
         name: 'Yeni Mobilya',
-        slug: 'yeni-mobilya',
+        slug: 'mobilya',
         sortOrder: 3,
         isActive: false,
       },
@@ -67,11 +68,11 @@ describe('catalog.service category updates', () => {
     expect(result).toEqual({
       id: 'cat-1',
       name: 'Yeni Mobilya',
-      slug: 'yeni-mobilya',
+      slug: 'mobilya',
     })
   })
 
-  it('rejects duplicate category slug', async () => {
+  it('rejects changing an existing category address', async () => {
     const prisma = {
       category: {
         findUnique: vi
@@ -108,7 +109,7 @@ describe('catalog.service category updates', () => {
         categoryId: 'cat-1',
         slug: 'dekorasyon',
       }),
-    ).rejects.toThrow('Bu slug kullanımda: dekorasyon')
+    ).rejects.toThrow('Kategori adresi oluşturulduktan sonra değiştirilemez.')
 
     expect(enqueueCategorySyncMock).not.toHaveBeenCalled()
   })

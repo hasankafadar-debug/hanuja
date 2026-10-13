@@ -13,6 +13,7 @@
 // the shared vitest config, and this module is unit-tested directly.
 import { isVirtualCollection, VIRTUAL_COLLECTION_MAP } from '../config/storefront-nav'
 import type { StorefrontGridProduct } from '../components/storefront/storefront-product-grid'
+import { parsePropertyFilters } from '@hanuja/api/domain/property-filters'
 
 export const PAGE_SIZE = 20
 
@@ -22,6 +23,7 @@ const SORT_VALUES: readonly ListingSort[] = ['newest', 'favorited', 'price-asc',
 
 /** Raw storefront query string, as Next hands it to the page. */
 export interface ListingSearchParams {
+  [key: string]: string | undefined
   sayfa?: string
   siralama?: string
   /** Legacy format: "500-1500" or "3000+" */
@@ -40,6 +42,7 @@ export interface ListingSearchParams {
 
 /** Normalized filters — the single shape both the page and the API route use. */
 export interface ListingFilters {
+  propertyFilters?: import('@hanuja/api/domain/property-filters').PropertyFilters
   page: number
   sort?: ListingSort
   minPrice?: number
@@ -65,11 +68,10 @@ export interface ListingCategoryRef {
 }
 
 /** Parse fiyat params: new fiyatMin/fiyatMax take priority; legacy fiyat as fallback */
-export function parsePriceParams(p: {
-  fiyatMin?: string
-  fiyatMax?: string
-  fiyat?: string
-}): { minPrice?: number; maxPrice?: number } {
+export function parsePriceParams(p: { fiyatMin?: string; fiyatMax?: string; fiyat?: string }): {
+  minPrice?: number
+  maxPrice?: number
+} {
   if (p.fiyatMin !== undefined || p.fiyatMax !== undefined) {
     const min = Number(p.fiyatMin)
     const max = Number(p.fiyatMax)
@@ -90,6 +92,11 @@ export function parsePriceParams(p: {
 }
 
 export function parseListingSearchParams(sp: ListingSearchParams): ListingFilters {
+  const propertyFilters = parsePropertyFilters(
+    new URLSearchParams(
+      Object.entries(sp).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+    ),
+  )
   const requestedSort = SORT_VALUES.find((value) => value === sp.siralama)
   const vitrin = sp.vitrin
   // /urunler shelves imply a sort/filter; /kategori never carries vitrin.
@@ -105,6 +112,7 @@ export function parseListingSearchParams(sp: ListingSearchParams): ListingFilter
     ...(sort !== undefined ? { sort } : {}),
     ...priceRange,
     inStockOnly: sp.stokta === '1',
+    ...(Object.keys(propertyFilters).length ? { propertyFilters } : {}),
     onSaleOnly: sp.indirimli === '1' || vitrin === 'discounts',
     ...(sp.tasarimci !== undefined ? { sellerSlug: sp.tasarimci } : {}),
     ...(sp.alt !== undefined ? { subcategorySlug: sp.alt } : {}),
@@ -120,6 +128,7 @@ export function buildCuratedListOptions(
 ) {
   return {
     skip: (page - 1) * PAGE_SIZE,
+    ...(filters.propertyFilters ? { propertyFilters: filters.propertyFilters } : {}),
     take: PAGE_SIZE,
     ...(filters.sort !== undefined ? { sortBy: filters.sort } : {}),
     ...(filters.minPrice !== undefined ? { minPrice: filters.minPrice } : {}),
@@ -171,8 +180,7 @@ export function resolveScopeParentIds(params: {
   }
 
   const lastSlug = slugParts[slugParts.length - 1] ?? ''
-  const categoryId =
-    resolvedCategoryId ?? allCategories.find((c) => c.slug === lastSlug)?.id
+  const categoryId = resolvedCategoryId ?? allCategories.find((c) => c.slug === lastSlug)?.id
   return categoryId ? [categoryId] : []
 }
 
@@ -275,10 +283,7 @@ export function resolveCategoryDrilldown(params: {
  * Serialized filters the client appends `&sayfa=N` to when loading more.
  * `categoryPath` is the /kategori/... slug path; omit it for /urunler.
  */
-export function buildListingQueryString(
-  filters: ListingFilters,
-  categoryPath?: string,
-): string {
+export function buildListingQueryString(filters: ListingFilters, categoryPath?: string): string {
   const params = new URLSearchParams()
   if (categoryPath) params.set('kategori', categoryPath)
   if (filters.sort) params.set('siralama', filters.sort)
@@ -288,6 +293,11 @@ export function buildListingQueryString(
   if (filters.onSaleOnly) params.set('indirimli', '1')
   if (filters.sellerSlug) params.set('tasarimci', filters.sellerSlug)
   if (filters.subcategorySlug) params.set('alt', filters.subcategorySlug)
+  for (const [key, filter] of Object.entries(filters.propertyFilters ?? {})) {
+    if (filter.values?.length) params.set(`f.${key}`, JSON.stringify(filter.values))
+    if (filter.min !== undefined) params.set(`r.${key}.min`, String(filter.min))
+    if (filter.max !== undefined) params.set(`r.${key}.max`, String(filter.max))
+  }
   return params.toString()
 }
 

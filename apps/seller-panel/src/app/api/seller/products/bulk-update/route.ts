@@ -1,6 +1,9 @@
 import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { z } from 'zod'
+import { lockProductStocks } from '@hanuja/api/domain/product-stock'
+import { enqueueProductSync } from '@hanuja/api/jobs/search-index-sync.job'
 import { auth } from '@/lib/auth'
 import { MAX_BULK_UPDATE_ROWS } from '@/lib/bulk-product-update'
 import { recordPriceChanges } from '@hanuja/api/services/price-history.service'
@@ -9,7 +12,11 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 const prisma = globalForPrisma.prisma ?? new PrismaClient()
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
-type BulkUpdateInputRow = { identifier: string; newPrice?: number; newStock?: number }
+type BulkUpdateInputRow = {
+  identifier: string
+  newPrice?: number | undefined
+  newStock?: number | undefined
+}
 
 async function buildPreview(sellerId: string, rows: BulkUpdateInputRow[]) {
   const results: Array<{
@@ -61,9 +68,9 @@ async function buildPreview(sellerId: string, rows: BulkUpdateInputRow[]) {
       productId: product.id,
       productName: product.name,
       oldPrice,
-      newPrice,
+      ...(row.newPrice !== undefined ? { newPrice } : {}),
       oldStock,
-      newStock,
+      ...(row.newStock !== undefined ? { newStock } : {}),
       ...(sameValues ? { message: 'Ayni degerler oldugu icin atlanacak' } : {}),
     })
   }
@@ -82,10 +89,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Tasarımcı hesabi bulunamadi.' }, { status: 404 })
   }
 
-  const body = (await req.json().catch(() => ({}))) as {
-    rows?: BulkUpdateInputRow[]
-    apply?: boolean
-  }
+  const parsed = z
+    .object({
+      apply: z.boolean().optional(),
+      rows: z
+        .array(
+          z.object({
+            identifier: z.string().trim().min(1).max(80),
+            newPrice: z.number().finite().positive().optional(),
+            newStock: z.number().int().nonnegative().optional(),
+          }),
+        )
+        .max(MAX_BULK_UPDATE_ROWS),
+    })
+    .safeParse(await req.json().catch(() => null))
+  if (!parsed.success)
+    return NextResponse.json({ error: 'Geçersiz fiyat veya stok girdisi.' }, { status: 400 })
+  const body = parsed.data
   const rows = Array.isArray(body.rows) ? body.rows : []
 
   if (rows.length === 0) {
@@ -120,6 +140,12 @@ export async function POST(req: NextRequest) {
     const productId = row.productId
     // The price and its history are written together (e-mail plan phase 6).
     await prisma.$transaction(async (tx) => {
+      await lockProductStocks(tx, [productId])
+      if (
+        row.newStock !== undefined &&
+        (await tx.productVariant.count({ where: { productId } })) > 0
+      )
+        throw new Error('Varyantlı ürünün stoğunu varyant satırlarından düzenleyin.')
       await tx.product.update({
         where: { id: productId },
         data: {
@@ -129,6 +155,7 @@ export async function POST(req: NextRequest) {
       })
       await recordPriceChanges(tx, { productIds: [productId], source: 'product_write' })
     })
+    await enqueueProductSync({ operation: 'upsert', entityId: productId }).catch(() => {})
 
     if (
       row.oldPrice &&

@@ -16,11 +16,19 @@ import {
 } from '@hanuja/ui'
 import { FileUpload, type UploadedAsset } from '@hanuja/ui'
 import { Plus, Star, Trash2 } from 'lucide-react'
-import { sortAttributeOptions } from '@/lib/attribute-option-sort'
-import { useBarcodeAvailability, type BarcodeAvailabilityStatus } from '@/lib/use-barcode-availability'
+import {
+  useBarcodeAvailability,
+  type BarcodeAvailabilityStatus,
+} from '@/lib/use-barcode-availability'
 import CategoryPicker from '../../_components/category-picker'
 import { CategorySupportHint } from '../../_components/category-support-hint'
 import type { CategoryNode } from '../../_lib/category-tree'
+import { ProductPropertyFields, PropertyInput } from '../../_components/product-property-fields'
+import {
+  variantPropertyKey,
+  type ResolvedCategorySchema,
+  type ProductProperties,
+} from '@hanuja/api/domain/category-schema'
 
 interface AttributeOption {
   id: string
@@ -48,6 +56,9 @@ interface ExistingImage extends UploadedAsset {
 }
 
 interface Props {
+  initialProperties?: ProductProperties
+  initialContentUnit?: string
+  categoryLocked?: boolean
   productId: string
   initialName: string
   initialDescription: string
@@ -88,14 +99,39 @@ function createVariantRow(): VariantFormRow {
   }
 }
 
-function BarcodeStatusHint({ status, message, hidden = false }: { status: BarcodeAvailabilityStatus; message: string | null; hidden?: boolean }) {
+function BarcodeStatusHint({
+  status,
+  message,
+  hidden = false,
+}: {
+  status: BarcodeAvailabilityStatus
+  message: string | null
+  hidden?: boolean
+}) {
   if (hidden || status === 'idle') return null
-  const color = status === 'available' ? 'var(--color-success)' : status === 'checking' ? 'var(--color-muted-fg)' : 'var(--color-destructive)'
-  const fallback = status === 'available' ? 'Barkod kullanilabilir.' : status === 'in_use' ? 'Bu barkod baska bir urun veya varyantta kullanilmistir.' : 'Barkod kontrol ediliyor...'
-  return <p className="text-xs" style={{ color }}>{message ?? fallback}</p>
+  const color =
+    status === 'available'
+      ? 'var(--color-success)'
+      : status === 'checking'
+        ? 'var(--color-muted-fg)'
+        : 'var(--color-destructive)'
+  const fallback =
+    status === 'available'
+      ? 'Barkod kullanilabilir.'
+      : status === 'in_use'
+        ? 'Bu barkod baska bir urun veya varyantta kullanilmistir.'
+        : 'Barkod kontrol ediliyor...'
+  return (
+    <p className="text-xs" style={{ color }}>
+      {message ?? fallback}
+    </p>
+  )
 }
 
 export default function ProductEditForm({
+  initialProperties = {},
+  initialContentUnit = '',
+  categoryLocked = false,
   productId,
   initialName,
   initialDescription,
@@ -128,21 +164,54 @@ export default function ProductEditForm({
   const [story, setStory] = useState(initialStory)
   const [careInstructions, setCareInstructions] = useState(initialCareInstructions)
   const [categoryId, setCategoryId] = useState(initialCategoryId)
+  const [schema, setSchema] = useState<ResolvedCategorySchema | null>(null)
+  const [properties, setProperties] = useState<ProductProperties>(initialProperties)
+  const [contentUnit, setContentUnit] = useState(initialContentUnit)
+  useEffect(() => {
+    setSchema(null)
+    if (!categoryId) return
+    const controller = new AbortController()
+    fetch(
+      `/api/categories/${categoryId}/attributes${categoryId === initialCategoryId ? `?productId=${encodeURIComponent(productId)}` : ''}`,
+      { signal: controller.signal },
+    )
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error ?? 'Kategori özellikleri yüklenemedi.')
+        setSchema(data)
+        setColorOptions(data.colorOptions ?? [])
+        setMaterialOptions(data.materialOptions ?? [])
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') setError(error.message)
+      })
+    return () => controller.abort()
+  }, [categoryId, initialCategoryId, productId])
   const [colorOptionId, setColorOptionId] = useState(initialColorOptionId)
   // Renk adedi mevcut ikinci renkten türetilir; 2 → Renk 1 + Renk 2.
-  const [colorCount, setColorCount] = useState<0 | 1 | 2>(initialColorOptionId ? (initialSecondColorOptionId ? 2 : 1) : 0)
+  const [colorCount, setColorCount] = useState<0 | 1 | 2>(
+    initialColorOptionId ? (initialSecondColorOptionId ? 2 : 1) : 0,
+  )
   const [secondColorOptionId, setSecondColorOptionId] = useState(initialSecondColorOptionId)
   const [materialOptionId, setMaterialOptionId] = useState(initialMaterialOptionId)
   // Boyutlar (cm) — opsiyonel. En → dimensionWidth, Boy → dimensionLength, Yükseklik → dimensionHeight.
-  const [dimWidth, setDimWidth] = useState(initialDimensionWidth != null ? String(initialDimensionWidth) : '')
-  const [dimLength, setDimLength] = useState(initialDimensionLength != null ? String(initialDimensionLength) : '')
-  const [dimHeight, setDimHeight] = useState(initialDimensionHeight != null ? String(initialDimensionHeight) : '')
+  const [dimWidth, setDimWidth] = useState(
+    initialDimensionWidth != null ? String(initialDimensionWidth) : '',
+  )
+  const [dimLength, setDimLength] = useState(
+    initialDimensionLength != null ? String(initialDimensionLength) : '',
+  )
+  const [dimHeight, setDimHeight] = useState(
+    initialDimensionHeight != null ? String(initialDimensionHeight) : '',
+  )
   const [colorOptions, setColorOptions] = useState<AttributeOption[]>([])
   const [materialOptions, setMaterialOptions] = useState<AttributeOption[]>([])
   const [price, setPrice] = useState(initialPrice)
   const [fulfillmentDays, setFulfillmentDays] = useState(initialFulfillmentDays)
   const [compareAtPrice, setCompareAtPrice] = useState(
-    initialCompareAtPrice !== null && initialCompareAtPrice !== undefined ? String(initialCompareAtPrice) : '',
+    initialCompareAtPrice !== null && initialCompareAtPrice !== undefined
+      ? String(initialCompareAtPrice)
+      : '',
   )
   const [stock, setStock] = useState(initialStock)
   const [sku, setSku] = useState(initialSku)
@@ -150,21 +219,13 @@ export default function ProductEditForm({
   const [barcode, setBarcode] = useState(initialBarcode)
   const [images, setImages] = useState<UploadedAsset[]>(existingImages)
   const [pendingImageUploads, setPendingImageUploads] = useState(0)
-  const [primaryImageId, setPrimaryImageId] = useState(existingImages.find((image) => image.isPrimary)?.id ?? existingImages[0]?.id ?? '')
+  const [primaryImageId, setPrimaryImageId] = useState(
+    existingImages.find((image) => image.isPrimary)?.id ?? existingImages[0]?.id ?? '',
+  )
   const [variants, setVariants] = useState<VariantFormRow[]>(initialVariants)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
-
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/attribute-options?type=color').then((r) => r.json()),
-      fetch('/api/attribute-options?type=material').then((r) => r.json()),
-    ]).then(([colorData, materialData]) => {
-      setColorOptions(sortAttributeOptions((colorData as { options: AttributeOption[] }).options ?? []))
-      setMaterialOptions(sortAttributeOptions((materialData as { options: AttributeOption[] }).options ?? []))
-    }).catch(() => {})
-  }, [])
 
   const hasVariants = variants.length > 0
   const barcodeCheckItems = useMemo(
@@ -178,9 +239,18 @@ export default function ProductEditForm({
   const requiredBarcodeKeys = hasVariants ? variants.map((variant) => variant.localId) : ['product']
   const hasBarcodeCheckIssue = requiredBarcodeKeys.some((key) => {
     const status = getBarcodeResult(key).status
-    return status === 'checking' || status === 'invalid' || status === 'duplicate_in_request' || status === 'in_use' || status === 'error'
+    return (
+      status === 'checking' ||
+      status === 'invalid' ||
+      status === 'duplicate_in_request' ||
+      status === 'in_use' ||
+      status === 'error'
+    )
   })
-  const totalVariantStock = variants.reduce((sum, variant) => sum + Number(variant.stockQuantity || 0), 0)
+  const totalVariantStock = variants.reduce(
+    (sum, variant) => sum + Number(variant.stockQuantity || 0),
+    0,
+  )
   const variantsValid = variants.every(
     (variant) =>
       Number(variant.price) > 0 &&
@@ -189,7 +259,7 @@ export default function ProductEditForm({
   )
   const canSubmit =
     Boolean(categoryId) &&
-    (colorCount === 0 || Boolean(colorOptionId)) &&
+    (!schema?.config.shared.color || colorCount === 0 || Boolean(colorOptionId)) &&
     (colorCount === 2 ? Boolean(secondColorOptionId) : true) &&
     Boolean(modelCode.trim()) &&
     fulfillmentDays >= 1 &&
@@ -236,6 +306,26 @@ export default function ProductEditForm({
     setSaved(false)
 
     try {
+      let categoryChangeConfirmation: string | undefined
+      if (categoryId !== initialCategoryId) {
+        const response = await fetch(`/api/seller/products/${productId}/category-preview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ categoryId, contentUnit: contentUnit || undefined }),
+        })
+        const preview = await response.json()
+        if (!response.ok) throw new Error(preview.error ?? 'Kategori önizlemesi alınamadı.')
+        if (
+          preview.removed.length &&
+          !window.confirm(
+            `Kategori değişirken şu özellikler kaldırılacak:\n${preview.removed.map((v: { key: string; value: unknown }) => `${v.key}: ${v.value}`).join('\n')}\nDevam edilsin mi?`,
+          )
+        ) {
+          setLoading(false)
+          return
+        }
+        categoryChangeConfirmation = preview.confirmationToken
+      }
       const res = await fetch(`/api/seller/products/${productId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -246,10 +336,32 @@ export default function ProductEditForm({
           story,
           careInstructions,
           categoryId,
-          colorOptionId: colorCount > 0 ? colorOptionId || null : null,
+          categoryChangeConfirmation,
+          properties: Object.fromEntries(
+            Object.entries(properties).filter(
+              ([key]) =>
+                schema?.config.fields.some((f) => f.key === key) &&
+                (!hasVariants ||
+                  (key !== variantPropertyKey(schema, contentUnit) &&
+                    !(
+                      schema.config.variantKey === 'net_icerik' &&
+                      schema.config.contentKeys.includes(key)
+                    ))),
+            ),
+          ),
+          contentUnit: contentUnit || undefined,
+          colorOptionId: schema?.config.shared.color
+            ? colorCount > 0
+              ? colorOptionId || null
+              : null
+            : undefined,
           // colorCount 1 → null (ikinci rengi kaldır); 2 → seçilen ikinci renk.
-          secondColorOptionId: colorCount === 2 ? secondColorOptionId || null : null,
-          materialOptionId: materialOptionId || null,
+          secondColorOptionId: schema?.config.shared.color
+            ? colorCount === 2
+              ? secondColorOptionId || null
+              : null
+            : undefined,
+          materialOptionId: schema?.config.shared.material ? materialOptionId || null : undefined,
           price,
           fulfillmentDays,
           compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
@@ -258,10 +370,26 @@ export default function ProductEditForm({
           modelCode: modelCode.trim(),
           barcode: hasVariants ? null : barcode.trim(),
           // Boş → null (temizle); dolu → sayı.
-          dimensionWidth: dimWidth.trim() ? Number(dimWidth) : null,
-          dimensionLength: dimLength.trim() ? Number(dimLength) : null,
-          dimensionHeight: dimHeight.trim() ? Number(dimHeight) : null,
+          dimensionWidth: schema?.config.shared.dimensions
+            ? dimWidth.trim()
+              ? Number(dimWidth)
+              : null
+            : undefined,
+          dimensionLength: schema?.config.shared.dimensions
+            ? dimLength.trim()
+              ? Number(dimLength)
+              : null
+            : undefined,
+          dimensionHeight: schema?.config.shared.dimensions
+            ? dimHeight.trim()
+              ? Number(dimHeight)
+              : null
+            : undefined,
           variants: variants.map((variant) => ({
+            properties:
+              schema && variantPropertyKey(schema, contentUnit)
+                ? { [variantPropertyKey(schema, contentUnit)!]: variant.size.trim() }
+                : {},
             ...(variant.dbId ? { id: variant.dbId } : {}),
             size: variant.size.trim() || undefined,
             customOptionName: variant.customOptionName.trim() || undefined,
@@ -324,7 +452,9 @@ export default function ProductEditForm({
     setError(null)
 
     try {
-      const res = await fetch(`/api/seller/products/${productId}?permanent=true`, { method: 'DELETE' })
+      const res = await fetch(`/api/seller/products/${productId}?permanent=true`, {
+        method: 'DELETE',
+      })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         setError(data.error ?? 'Bir hata olustu.')
@@ -342,103 +472,166 @@ export default function ProductEditForm({
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-1.5">
         <Label htmlFor="name">Urun Adi *</Label>
-        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required disabled={loading} />
+        <Input
+          id="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          disabled={loading}
+        />
       </div>
 
       <CategoryPicker
         categories={categories}
         value={categoryId}
         onChange={setCategoryId}
-        disabled={loading}
+        disabled={loading || categoryLocked}
       />
       <CategorySupportHint />
+      {categoryLocked ? (
+        <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+          Yayımlanmış veya sipariş almış ürünün kategorisini değiştirmek için destek ekibine
+          başvurun.
+        </p>
+      ) : null}
+      <ProductPropertyFields
+        schema={schema}
+        values={properties}
+        onChange={setProperties}
+        hasVariants={hasVariants}
+        contentUnit={contentUnit}
+        contentUnitLocked={Boolean(initialContentUnit) && categoryId === initialCategoryId}
+        setContentUnit={setContentUnit}
+        editing={categoryId === initialCategoryId}
+        initialValues={initialProperties}
+        disabled={loading}
+      />
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="price">Fiyat (TL) *</Label>
-          <Input id="price" type="number" min={0} step={0.01} value={price} onChange={(e) => setPrice(Number(e.target.value))} required disabled={loading} />
+          <Input
+            id="price"
+            type="number"
+            min={0}
+            step={0.01}
+            value={price}
+            onChange={(e) => setPrice(Number(e.target.value))}
+            required
+            disabled={loading}
+          />
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="fulfillmentDays">Sevk Suresi (is gunu) *</Label>
-          <Input id="fulfillmentDays" type="number" min={1} step={1} value={fulfillmentDays} onChange={(e) => setFulfillmentDays(Number(e.target.value))} required disabled={loading} />
+          <Input
+            id="fulfillmentDays"
+            type="number"
+            min={1}
+            step={1}
+            value={fulfillmentDays}
+            onChange={(e) => setFulfillmentDays(Number(e.target.value))}
+            required
+            disabled={loading}
+          />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-material">Materyal</Label>
-          <Select onValueChange={(value) => setMaterialOptionId(value === '__none__' ? '' : value)} value={materialOptionId} disabled={loading}>
-            <SelectTrigger id="edit-material" aria-label="Materyal">
-              <SelectValue placeholder="Materyal secin" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Belirtilmedi</SelectItem>
-              {materialOptions.map((opt) => (
-                <SelectItem key={opt.id} value={opt.id}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {schema?.config.shared.material ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-material">Materyal</Label>
+            <Select
+              onValueChange={(value) => setMaterialOptionId(value === '__none__' ? '' : value)}
+              value={materialOptionId}
+              disabled={loading}
+            >
+              <SelectTrigger id="edit-material" aria-label="Materyal">
+                <SelectValue placeholder="Materyal secin" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Belirtilmedi</SelectItem>
+                {materialOptions.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-colorCount">Renk Bilgisi</Label>
-          <Select
-            value={String(colorCount)}
-            onValueChange={(value) => {
-              const next: 0 | 1 | 2 = value === '2' ? 2 : value === '1' ? 1 : 0
-              setColorCount(next)
-              if (next < 2) setSecondColorOptionId('')
-              if (next === 0) setColorOptionId('')
-            }}
-            disabled={loading}
-          >
-            <SelectTrigger id="edit-colorCount" aria-label="Renk Adedi">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="0">Renk belirtmeyecegim</SelectItem>
-              <SelectItem value="1">Tek renk</SelectItem>
-              <SelectItem value="2">Iki renk</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-color">{colorCount === 2 ? 'Renk 1' : 'Renk'}</Label>
-          <Select onValueChange={setColorOptionId} value={colorOptionId} disabled={loading || colorCount === 0}>
-            <SelectTrigger id="edit-color" aria-label={colorCount === 2 ? 'Renk 1' : 'Renk'}>
-              <SelectValue placeholder="Renk secin" />
-            </SelectTrigger>
-            <SelectContent>
-              {colorOptions.map((opt) => (
-                <SelectItem key={opt.id} value={opt.id}>
-                  {opt.hexColor && (
-                    <span
-                      className="mr-2 inline-block h-3 w-3 rounded-full border"
-                      style={{ backgroundColor: opt.hexColor, borderColor: 'var(--color-border)' }}
-                    />
-                  )}
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {colorCount === 1 ? (
-            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              Ikiden fazla renk varsa &quot;Mix&quot; secebilirsiniz.
-            </p>
-          ) : null}
-        </div>
+        {schema?.config.shared.color ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-colorCount">Renk Bilgisi</Label>
+            <Select
+              value={String(colorCount)}
+              onValueChange={(value) => {
+                const next: 0 | 1 | 2 = value === '2' ? 2 : value === '1' ? 1 : 0
+                setColorCount(next)
+                if (next < 2) setSecondColorOptionId('')
+                if (next === 0) setColorOptionId('')
+              }}
+              disabled={loading}
+            >
+              <SelectTrigger id="edit-colorCount" aria-label="Renk Adedi">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Renk belirtmeyecegim</SelectItem>
+                <SelectItem value="1">Tek renk</SelectItem>
+                <SelectItem value="2">Iki renk</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+        {schema?.config.shared.color ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-color">{colorCount === 2 ? 'Renk 1' : 'Renk'}</Label>
+            <Select
+              onValueChange={setColorOptionId}
+              value={colorOptionId}
+              disabled={loading || colorCount === 0}
+            >
+              <SelectTrigger id="edit-color" aria-label={colorCount === 2 ? 'Renk 1' : 'Renk'}>
+                <SelectValue placeholder="Renk secin" />
+              </SelectTrigger>
+              <SelectContent>
+                {colorOptions.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
+                    {opt.hexColor && (
+                      <span
+                        className="mr-2 inline-block h-3 w-3 rounded-full border"
+                        style={{
+                          backgroundColor: opt.hexColor,
+                          borderColor: 'var(--color-border)',
+                        }}
+                      />
+                    )}
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {colorCount === 1 ? (
+              <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                Ikiden fazla renk varsa &quot;Mix&quot; secebilirsiniz.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
-      {colorCount === 2 ? (
+      {schema?.config.shared.color && colorCount === 2 ? (
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="edit-secondColor">Renk 2 *</Label>
-            <Select onValueChange={setSecondColorOptionId} value={secondColorOptionId} disabled={loading}>
+            <Select
+              onValueChange={setSecondColorOptionId}
+              value={secondColorOptionId}
+              disabled={loading}
+            >
               <SelectTrigger id="edit-secondColor" aria-label="Renk 2">
                 <SelectValue placeholder="Ikinci rengi secin" />
               </SelectTrigger>
@@ -450,7 +643,10 @@ export default function ProductEditForm({
                       {opt.hexColor && (
                         <span
                           className="mr-2 inline-block h-3 w-3 rounded-full border"
-                          style={{ backgroundColor: opt.hexColor, borderColor: 'var(--color-border)' }}
+                          style={{
+                            backgroundColor: opt.hexColor,
+                            borderColor: 'var(--color-border)',
+                          }}
                         />
                       )}
                       {opt.label}
@@ -468,13 +664,33 @@ export default function ProductEditForm({
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="compareAtPrice">Liste Fiyati (ustu cizili)</Label>
-          <Input id="compareAtPrice" type="number" min={0} step={0.01} value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} disabled={loading} />
+          <Input
+            id="compareAtPrice"
+            type="number"
+            min={0}
+            step={0.01}
+            value={compareAtPrice}
+            onChange={(e) => setCompareAtPrice(e.target.value)}
+            disabled={loading}
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="stock">Stok *</Label>
-          <Input id="stock" type="number" min={0} value={stock} onChange={(e) => setStock(Number(e.target.value))} required disabled={loading || hasVariants} />
-          {hasVariants ? <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Stok varyasyon satirlarindan hesaplanir. Toplam: {totalVariantStock}</p> : null}
+          <Input
+            id="stock"
+            type="number"
+            min={0}
+            value={stock}
+            onChange={(e) => setStock(Number(e.target.value))}
+            required
+            disabled={loading || hasVariants}
+          />
+          {hasVariants ? (
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Stok varyasyon satirlarindan hesaplanir. Toplam: {totalVariantStock}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -491,18 +707,34 @@ export default function ProductEditForm({
             disabled={loading || hasVariants}
           />
           {hasVariants ? (
-            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Barkod varyasyon satirlarindan okunur.</p>
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Barkod varyasyon satirlarindan okunur.
+            </p>
           ) : (
-            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Istege baglidir. Bos birakirsaniz 8 ile baslayan benzersiz 13 haneli barkod otomatik uretilir.</p>
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Istege baglidir. Bos birakirsaniz 8 ile baslayan benzersiz 13 haneli barkod otomatik
+              uretilir.
+            </p>
           )}
-          <BarcodeStatusHint status={getBarcodeResult('product').status} message={getBarcodeResult('product').message} hidden={hasVariants} />
+          <BarcodeStatusHint
+            status={getBarcodeResult('product').status}
+            message={getBarcodeResult('product').message}
+            hidden={hasVariants}
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="modelCode">Model Kodu *</Label>
-          <Input id="modelCode" value={modelCode} onChange={(e) => setModelCode(e.target.value)} required disabled={loading} />
+          <Input
+            id="modelCode"
+            value={modelCode}
+            onChange={(e) => setModelCode(e.target.value)}
+            required
+            disabled={loading}
+          />
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Ayni Model Kodu, ayni modelin renk veya materyal seceneklerini urun detayinda birlikte gosterir.
+            Ayni Model Kodu, ayni modelin renk veya materyal seceneklerini urun detayinda birlikte
+            gosterir.
           </p>
         </div>
 
@@ -510,50 +742,167 @@ export default function ProductEditForm({
           <Label htmlFor="sku">SKU</Label>
           <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} disabled={loading} />
           <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Tasarımcınin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde kullanilmaz.
+            Tasarımcınin kendi sistemindeki istege bagli kodudur; varyant iliskilendirmesinde
+            kullanilmaz.
           </p>
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label>Olculer (cm) — istege bagli</Label>
-        <div className="grid grid-cols-3 gap-4">
-          <Input aria-label="En (cm)" type="number" min="0" step="0.1" placeholder="En" value={dimWidth} onChange={(e) => setDimWidth(e.target.value)} disabled={loading} />
-          <Input aria-label="Boy (cm)" type="number" min="0" step="0.1" placeholder="Boy" value={dimLength} onChange={(e) => setDimLength(e.target.value)} disabled={loading} />
-          <Input aria-label="Yukseklik (cm)" type="number" min="0" step="0.1" placeholder="Yukseklik" value={dimHeight} onChange={(e) => setDimHeight(e.target.value)} disabled={loading} />
+      {schema?.config.shared.dimensions ? (
+        <div className="space-y-1.5">
+          <Label>Olculer (cm) — istege bagli</Label>
+          <div className="grid grid-cols-3 gap-4">
+            <Input
+              aria-label="En (cm)"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="En"
+              value={dimWidth}
+              onChange={(e) => setDimWidth(e.target.value)}
+              disabled={loading}
+            />
+            <Input
+              aria-label="Boy (cm)"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="Boy"
+              value={dimLength}
+              onChange={(e) => setDimLength(e.target.value)}
+              disabled={loading}
+            />
+            <Input
+              aria-label="Yukseklik (cm)"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="Yukseklik"
+              value={dimHeight}
+              onChange={(e) => setDimHeight(e.target.value)}
+              disabled={loading}
+            />
+          </div>
+          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+            Girilirse urun sayfasinda gosterilir. Bos birakabilirsiniz.
+          </p>
         </div>
-        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          Girilirse urun sayfasinda gosterilir. Bos birakabilirsiniz.
-        </p>
-      </div>
+      ) : null}
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
             <Label>Varyasyonlar</Label>
-            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Beden, olcu veya ek ozellik varsa her varyasyonu ayri barkodla girin. Farkli renk veya materyal kardeslerini baglamak icin ayni Model Kodunu kullanin.</p>
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Beden, olcu veya ek ozellik varsa her varyasyonu ayri barkodla girin. Farkli renk veya
+              materyal kardeslerini baglamak icin ayni Model Kodunu kullanin.
+            </p>
           </div>
-          <Button type="button" variant="outline" onClick={() => setVariants((current) => [...current, createVariantRow()])} disabled={loading}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setVariants((current) => [...current, createVariantRow()])}
+            disabled={loading || !schema?.config.variantKey}
+          >
             <Plus className="h-4 w-4" /> Varyasyon Ekle
           </Button>
         </div>
 
         {variants.map((variant, index) => (
-          <div key={variant.localId} className="rounded-lg border p-3" style={{ borderColor: 'var(--color-border)' }}>
+          <div
+            key={variant.localId}
+            className="rounded-lg border p-3"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-medium">Varyasyon {index + 1}</span>
-              <Button type="button" variant="ghost" size="sm" aria-label="Varyasyonu sil" onClick={() => setVariants((current) => current.filter((item) => item.localId !== variant.localId))} disabled={loading}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label="Varyasyonu sil"
+                onClick={() =>
+                  setVariants((current) =>
+                    current.filter((item) => item.localId !== variant.localId),
+                  )
+                }
+                disabled={loading}
+              >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <Input placeholder="Beden" value={variant.size} onChange={(e) => updateVariant(variant.localId, { size: e.target.value })} disabled={loading} />
-              <Input placeholder="Ek Ozellik Adi" value={variant.customOptionName} onChange={(e) => updateVariant(variant.localId, { customOptionName: e.target.value })} disabled={loading} />
-              <Input placeholder="Ek Ozellik Degeri" value={variant.customOptionValue} onChange={(e) => updateVariant(variant.localId, { customOptionValue: e.target.value })} disabled={loading} />
-              <Input inputMode="numeric" pattern="\d{13}" placeholder="Barkod (bos = otomatik)" value={variant.barcode} onChange={(e) => updateVariant(variant.localId, { barcode: e.target.value.replace(/\D/g, '').slice(0, 13) })} disabled={loading} />
-              <BarcodeStatusHint status={getBarcodeResult(variant.localId).status} message={getBarcodeResult(variant.localId).message} />
-              <Input type="number" min="0" step="0.01" placeholder="Fiyat" value={variant.price} onChange={(e) => updateVariant(variant.localId, { price: e.target.value })} required disabled={loading} />
-              <Input type="number" min="0" step="1" placeholder="Stok" value={variant.stockQuantity} onChange={(e) => updateVariant(variant.localId, { stockQuantity: e.target.value })} required disabled={loading} />
+              {schema && variantPropertyKey(schema, contentUnit) ? (
+                <PropertyInput
+                  schema={schema}
+                  fieldKey={variantPropertyKey(schema, contentUnit)!}
+                  value={variant.size}
+                  age={properties.yas_grubu}
+                  onChange={(value) =>
+                    updateVariant(variant.localId, { size: String(value ?? '') })
+                  }
+                  idPrefix={`variant-${variant.localId}`}
+                  required={
+                    schema.definitions.find(
+                      (d) => d.key === variantPropertyKey(schema, contentUnit),
+                    )?.kind !== 'text' &&
+                    (!variant.dbId || categoryId !== initialCategoryId || Boolean(variant.size))
+                  }
+                  disabled={loading}
+                />
+              ) : null}
+              <Input
+                placeholder="Ek Ozellik Adi"
+                value={variant.customOptionName}
+                onChange={(e) =>
+                  updateVariant(variant.localId, { customOptionName: e.target.value })
+                }
+                disabled={loading}
+              />
+              <Input
+                placeholder="Ek Ozellik Degeri"
+                value={variant.customOptionValue}
+                onChange={(e) =>
+                  updateVariant(variant.localId, { customOptionValue: e.target.value })
+                }
+                disabled={loading}
+              />
+              <Input
+                inputMode="numeric"
+                pattern="\d{13}"
+                placeholder="Barkod (bos = otomatik)"
+                value={variant.barcode}
+                onChange={(e) =>
+                  updateVariant(variant.localId, {
+                    barcode: e.target.value.replace(/\D/g, '').slice(0, 13),
+                  })
+                }
+                disabled={loading}
+              />
+              <BarcodeStatusHint
+                status={getBarcodeResult(variant.localId).status}
+                message={getBarcodeResult(variant.localId).message}
+              />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Fiyat"
+                value={variant.price}
+                onChange={(e) => updateVariant(variant.localId, { price: e.target.value })}
+                required
+                disabled={loading}
+              />
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="Stok"
+                value={variant.stockQuantity}
+                onChange={(e) => updateVariant(variant.localId, { stockQuantity: e.target.value })}
+                required
+                disabled={loading}
+              />
             </div>
           </div>
         ))}
@@ -561,28 +910,57 @@ export default function ProductEditForm({
 
       <div className="space-y-1.5">
         <Label htmlFor="shortDescription">Kisa Aciklama</Label>
-        <Textarea id="shortDescription" rows={3} value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} disabled={loading} />
+        <Textarea
+          id="shortDescription"
+          rows={3}
+          value={shortDescription}
+          onChange={(e) => setShortDescription(e.target.value)}
+          disabled={loading}
+        />
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="description">Aciklama</Label>
-        <Textarea id="description" rows={5} value={description} onChange={(e) => setDescription(e.target.value)} disabled={loading} />
+        <Textarea
+          id="description"
+          rows={5}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          disabled={loading}
+        />
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="story">Urun Hikayesi</Label>
-        <Textarea id="story" rows={4} value={story} onChange={(e) => setStory(e.target.value)} disabled={loading} />
+        <Textarea
+          id="story"
+          rows={4}
+          value={story}
+          onChange={(e) => setStory(e.target.value)}
+          disabled={loading}
+        />
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="careInstructions">Bakim Tavsiyesi</Label>
-        <Textarea id="careInstructions" rows={4} value={careInstructions} onChange={(e) => setCareInstructions(e.target.value)} disabled={loading} />
+        <Textarea
+          id="careInstructions"
+          rows={4}
+          value={careInstructions}
+          onChange={(e) => setCareInstructions(e.target.value)}
+          disabled={loading}
+        />
       </div>
 
       <div className="space-y-2">
         <Label>Urun Gorselleri</Label>
-        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>Ana gorseli yildiz dugmesiyle secebilirsiniz.</p>
-        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>1:1 tavsiye edilir. Farkli oranlar kabul edilir; kare alanlarda uygun sekilde kirpilarak gosterilir.</p>
+        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+          Ana gorseli yildiz dugmesiyle secebilirsiniz.
+        </p>
+        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+          1:1 tavsiye edilir. Farkli oranlar kabul edilir; kare alanlarda uygun sekilde kirpilarak
+          gosterilir.
+        </p>
         {existingImages.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {existingImages.map((image) => (
@@ -590,7 +968,10 @@ export default function ProductEditForm({
                 key={image.id}
                 type="button"
                 className="relative h-20 w-20 overflow-hidden rounded-md border"
-                style={{ borderColor: primaryImageId === image.id ? 'var(--color-primary)' : 'var(--color-border)' }}
+                style={{
+                  borderColor:
+                    primaryImageId === image.id ? 'var(--color-primary)' : 'var(--color-border)',
+                }}
                 onClick={() => setPrimaryImageId(image.id)}
                 aria-label="Ana gorsel sec"
               >
@@ -600,7 +981,10 @@ export default function ProductEditForm({
                   className="h-full w-full object-cover"
                 />
                 {primaryImageId === image.id ? (
-                  <span className="absolute right-1 top-1 rounded-full bg-white/90 p-1" style={{ color: 'var(--color-primary)' }}>
+                  <span
+                    className="absolute right-1 top-1 rounded-full bg-white/90 p-1"
+                    style={{ color: 'var(--color-primary)' }}
+                  >
                     <Star className="h-3 w-3 fill-current" />
                   </span>
                 ) : null}
@@ -632,11 +1016,22 @@ export default function ProductEditForm({
         ) : null}
       </div>
 
-      {error && <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>{error}</p>}
-      {saved && <p className="text-sm" style={{ color: 'var(--color-success)' }}>Kaydedildi.</p>}
+      {error && (
+        <p className="text-sm" style={{ color: 'var(--color-destructive)' }}>
+          {error}
+        </p>
+      )}
+      {saved && (
+        <p className="text-sm" style={{ color: 'var(--color-success)' }}>
+          Kaydedildi.
+        </p>
+      )}
 
       {initialStatus === 'rejected' && (
-        <div className="rounded-lg border p-3 text-sm" style={{ borderColor: 'var(--color-destructive)', color: 'var(--color-destructive)' }}>
+        <div
+          className="rounded-lg border p-3 text-sm"
+          style={{ borderColor: 'var(--color-destructive)', color: 'var(--color-destructive)' }}
+        >
           Bu urun reddedildi. Duzenleyip tekrar gonderebilirsiniz.
         </div>
       )}

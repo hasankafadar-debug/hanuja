@@ -17,7 +17,7 @@ export interface BulkCategoryReferenceRow {
 
 export const BULK_TEMPLATE_AREA_SLUGS = ['ev', 'ofis'] as const
 
-export type BulkTemplateAreaSlug = (typeof BULK_TEMPLATE_AREA_SLUGS)[number]
+export type BulkTemplateAreaSlug = string
 
 export interface BulkCategoryOption {
   key: string
@@ -142,7 +142,9 @@ export function buildBulkScopeNodes(
   return nodes
 }
 
-export function buildBulkCategoryReferenceRows(categories: BulkCategoryNode[]): BulkCategoryReferenceRow[] {
+export function buildBulkCategoryReferenceRows(
+  categories: BulkCategoryNode[],
+): BulkCategoryReferenceRow[] {
   const categoryMap = new Map(categories.map((category) => [category.id, category]))
   // Products may only be attached to leaf categories (api/domain/category-selection.ts),
   // so the bulk template must not offer intermediate ones — otherwise the seller fills in
@@ -164,7 +166,10 @@ export function buildBulkCategoryReferenceRows(categories: BulkCategoryNode[]): 
     const root = path[0]
     if (!root) continue
 
-    const displayPath = path.slice(1).map((item) => item.name).join(' / ')
+    const displayPath = path
+      .slice(1)
+      .map((item) => item.name)
+      .join(' / ')
     if (!displayPath) continue
 
     rows.push({
@@ -213,10 +218,7 @@ export function filterBulkCategoryReferenceRowsByScope(
   )
 }
 
-export function findBulkCategoryReferenceRowBySlug(
-  rows: BulkCategoryReferenceRow[],
-  slug: string,
-) {
+export function findBulkCategoryReferenceRowBySlug(rows: BulkCategoryReferenceRow[], slug: string) {
   const normalizedSlug = normalizeCategorySlugValue(slug)
   return rows.find((row) => normalizeCategorySlugValue(row.realSlug) === normalizedSlug) ?? null
 }
@@ -237,9 +239,7 @@ export function buildBulkTemplateCategoryOptions(
     .sort((a, b) => a.label.localeCompare(b.label, 'tr'))
 }
 
-export function buildBulkTemplateAreas(
-  categories: BulkCategoryNode[],
-): BulkTemplateAreaOption[] {
+export function buildBulkTemplateAreas(categories: BulkCategoryNode[]): BulkTemplateAreaOption[] {
   const roots = new Map(
     categories
       .filter((category) => category.isActive !== false && !category.parentId)
@@ -247,7 +247,7 @@ export function buildBulkTemplateAreas(
   )
   const referenceRows = buildBulkCategoryReferenceRows(categories)
 
-  return BULK_TEMPLATE_AREA_SLUGS.flatMap((areaSlug) => {
+  return [...roots.keys()].flatMap((areaSlug) => {
     const root = roots.get(areaSlug)
     if (!root) return []
 

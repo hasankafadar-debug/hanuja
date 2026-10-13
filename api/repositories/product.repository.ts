@@ -26,8 +26,8 @@ function buildPublishedWhere(params: {
     params.categoryIds && params.categoryIds.length > 0
       ? { categoryId: { in: params.categoryIds } }
       : params.categoryId !== undefined
-      ? { categoryId: params.categoryId }
-      : {}
+        ? { categoryId: params.categoryId }
+        : {}
 
   return buildPublicProductWhere({
     ...categoryFilter,
@@ -71,7 +71,11 @@ export function createProductRepository(prisma: PrismaClient) {
     findByIdForSeller(id: string, sellerId: string) {
       return prisma.product.findFirst({
         where: { id, sellerId },
-        include: { images: true, variants: true },
+        include: {
+          images: true,
+          variants: true,
+          attributeValues: { include: { option: true } },
+        },
       })
     },
 
@@ -94,7 +98,13 @@ export function createProductRepository(prisma: PrismaClient) {
                   { sku: { contains: query, mode: 'insensitive' } },
                   { modelCode: { contains: query, mode: 'insensitive' } },
                   { barcode: { contains: query, mode: 'insensitive' } },
-                  { variants: { some: { barcode: { contains: query, mode: 'insensitive' } } } },
+                  {
+                    variants: {
+                      some: {
+                        barcode: { contains: query, mode: 'insensitive' },
+                      },
+                    },
+                  },
                 ],
               }
             : {}),
@@ -149,13 +159,11 @@ export function createProductRepository(prisma: PrismaClient) {
         include: { images: publishedImageInclude, seller: true },
         orderBy: { createdAt: 'desc' },
         take: take + 1,
-        ...(params.cursor
-          ? { cursor: { id: params.cursor }, skip: 1 }
-          : {}),
+        ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
       })
       const hasMore = rows.length > take
       const items = hasMore ? rows.slice(0, take) : rows
-      const nextCursor = hasMore ? items[items.length - 1]?.id ?? null : null
+      const nextCursor = hasMore ? (items[items.length - 1]?.id ?? null) : null
       return { items, hasMore, nextCursor }
     },
 
@@ -171,7 +179,11 @@ export function createProductRepository(prisma: PrismaClient) {
 
       const sellerIds = rows.map((r) => r.sellerId)
       const sellers = await prisma.seller.findMany({
-        where: { id: { in: sellerIds }, status: 'active', vacationModeEnabled: false },
+        where: {
+          id: { in: sellerIds },
+          status: 'active',
+          vacationModeEnabled: false,
+        },
         select: { id: true, displayName: true, slug: true },
       })
 
@@ -233,7 +245,9 @@ export function createProductRepository(prisma: PrismaClient) {
           },
           {
             seller: {
-              is: { displayName: { contains: normalizedQuery, mode: 'insensitive' } },
+              is: {
+                displayName: { contains: normalizedQuery, mode: 'insensitive' },
+              },
             },
           },
         ],
@@ -242,7 +256,11 @@ export function createProductRepository(prisma: PrismaClient) {
       const [items, total] = await Promise.all([
         prisma.product.findMany({
           where,
-          include: { images: publishedImageInclude, seller: true, category: true },
+          include: {
+            images: publishedImageInclude,
+            seller: true,
+            category: true,
+          },
           orderBy: buildPublishedOrderBy(params.sortBy),
           ...(params.skip !== undefined ? { skip: params.skip } : {}),
           take: params.take ?? 20,
@@ -277,6 +295,7 @@ export function createProductRepository(prisma: PrismaClient) {
       status?: ProductStatus
       moderationFindings?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput
       publishedAt?: Date | null
+      properties?: Prisma.InputJsonValue
     }) {
       return prisma.product.create({ data })
     },
@@ -284,10 +303,7 @@ export function createProductRepository(prisma: PrismaClient) {
     findByBarcode(barcode: string) {
       return prisma.product.findFirst({
         where: {
-          OR: [
-            { barcode },
-            { variants: { some: { barcode } } },
-          ],
+          OR: [{ barcode }, { variants: { some: { barcode } } }],
         },
         include: { images: { take: 1 }, category: true, variants: true },
       })
@@ -315,7 +331,9 @@ export function createProductRepository(prisma: PrismaClient) {
     },
 
     async updateStatus(id: string, sellerId: string, status: ProductStatus) {
-      const product = await prisma.product.findFirst({ where: { id, sellerId } })
+      const product = await prisma.product.findFirst({
+        where: { id, sellerId },
+      })
       if (!product) return null
 
       return prisma.product.update({ where: { id }, data: { status } })
@@ -340,13 +358,19 @@ export function createProductRepository(prisma: PrismaClient) {
       const normalizedQuery = params.query?.trim()
       const normalizedBarcode = params.barcode?.trim()
       const where: Prisma.ProductWhereInput = {
-        ...(params.status !== undefined && params.status.length > 0 ? { status: { in: params.status } } : {}),
+        ...(params.status !== undefined && params.status.length > 0
+          ? { status: { in: params.status } }
+          : {}),
         ...(params.sellerId !== undefined ? { sellerId: params.sellerId } : {}),
         ...(normalizedBarcode
           ? {
               OR: [
                 { barcode: { equals: normalizedBarcode } },
-                { variants: { some: { barcode: { equals: normalizedBarcode } } } },
+                {
+                  variants: {
+                    some: { barcode: { equals: normalizedBarcode } },
+                  },
+                },
               ],
             }
           : {}),
@@ -362,11 +386,33 @@ export function createProductRepository(prisma: PrismaClient) {
           ? {
               OR: [
                 { name: { contains: normalizedQuery, mode: 'insensitive' } },
-                { description: { contains: normalizedQuery, mode: 'insensitive' } },
-                { seller: { is: { displayName: { contains: normalizedQuery, mode: 'insensitive' } } } },
-                { category: { is: { name: { contains: normalizedQuery, mode: 'insensitive' } } } },
+                {
+                  description: {
+                    contains: normalizedQuery,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  seller: {
+                    is: {
+                      displayName: {
+                        contains: normalizedQuery,
+                        mode: 'insensitive',
+                      },
+                    },
+                  },
+                },
+                {
+                  category: {
+                    is: {
+                      name: { contains: normalizedQuery, mode: 'insensitive' },
+                    },
+                  },
+                },
                 { sku: { contains: normalizedQuery, mode: 'insensitive' } },
-                { modelCode: { contains: normalizedQuery, mode: 'insensitive' } },
+                {
+                  modelCode: { contains: normalizedQuery, mode: 'insensitive' },
+                },
                 { barcode: { contains: normalizedQuery, mode: 'insensitive' } },
               ],
             }

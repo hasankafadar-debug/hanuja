@@ -1,8 +1,5 @@
 import { z } from 'zod'
-import {
-  normalizeManagedMediaUrl,
-  resolveManagedMediaSourceUrl,
-} from '@hanuja/api/lib/media-url'
+import { normalizeManagedMediaUrl, resolveManagedMediaSourceUrl } from '@hanuja/api/lib/media-url'
 import {
   looksLikeCategorySlug,
   normalizeCategorySlugValue,
@@ -39,36 +36,170 @@ const barcodeSchema = z
   .refine((value) => value === '' || /^\d{13}$/.test(value), 'Barkod 13 haneli rakam olmali')
 
 export const BULK_PRODUCT_COLUMN_CONFIG = [
-  { key: 'modelCode', label: 'Model Kodu*', required: true, helpText: 'Ayni tasarımcı ve ayni kategoride ayni Model Kodu verilen urunler, ayni modelin renk/materyal secenekleri kabul edilir ve urun detayinda birlikte gosterilir.' },
-  { key: 'name', label: 'Urun Adi*', required: true, helpText: 'Urun adini en az 3, en fazla 200 karakter olarak girin.' },
-  { key: 'categorySlug', label: 'Kategori*', required: true, helpText: 'Sablonda secilen kategori kapsami icinden bir kategori girin.' },
-  { key: 'productColor', label: 'Renk 1', required: false, helpText: 'Istege baglidir. Urunun ana renk secenegini girin. Ikiden fazla renk varsa Mix secin.' },
-  { key: 'secondColor', label: 'Renk 2', required: false, helpText: 'Urun iki renkli ise ikinci rengi buradan secin. Ikiden fazla renk varsa Renk 1 sutununda Mix secenegini kullanin.' },
-  { key: 'productMaterial', label: 'Materyal', required: false, helpText: 'Istege baglidir. Urunun ana materyalini girin.' },
-  { key: 'price', label: 'Fiyat*', required: true, helpText: 'Satis fiyatini TL olarak sifirdan buyuk girin.' },
-  { key: 'fulfillmentDays', label: 'Sevk Suresi (is gunu)*', required: true, helpText: 'Sevk suresini 1 ile 90 is gunu arasinda bir tam sayi olarak girin.' },
-  { key: 'stockQuantity', label: 'Stok*', required: true, helpText: 'Stok adedini sifir veya daha buyuk bir tam sayi olarak girin.' },
-  { key: 'barcode', label: 'Barkod (13 hane)', required: false, helpText: 'Istege baglidir. Bos birakirsaniz 8 ile baslayan benzersiz 13 haneli barkod otomatik uretilir. Kendiniz girecekseniz sistem genelinde benzersiz olmalidir.' },
-  { key: 'variantColor', label: 'Varyant Rengi', required: false, helpText: 'Ayni urun icindeki varyasyon icin renk girin. Bos birakabilirsiniz.' },
-  { key: 'variantMaterial', label: 'Varyant Materyali', required: false, helpText: 'Ayni urun icindeki varyasyon icin materyal girin. Bos birakabilirsiniz.' },
-  { key: 'variantSize', label: 'Beden', required: false, helpText: 'Beden veya olcu varyasyonunu girin. Bos birakabilirsiniz.' },
-  { key: 'variantCustomOptionName', label: 'Ek Ozellik Adi', required: false, helpText: 'Varyasyon icin ek ozellik adini girin; deger girildiyse bu alan da doldurulmalidir.' },
-  { key: 'variantCustomOptionValue', label: 'Ek Ozellik Degeri', required: false, helpText: 'Ek ozelligin secilen degerini girin; ad girildiyse bu alan da doldurulmalidir.' },
-  { key: 'sku', label: 'SKU', required: false, helpText: 'Tasarımcınin urunu kendi sisteminde tanimak icin belirledigi istege bagli koddur; varyant iliskilendirmesinde kullanilmaz.' },
-  { key: 'shortDescription', label: 'Kisa Aciklama', required: false, helpText: 'Kisa urun aciklamasini en fazla 500 karakter olarak girin.' },
-  { key: 'description', label: 'Aciklama', required: false, helpText: 'Urun aciklamasini en fazla 5000 karakter olarak girin.' },
-  { key: 'story', label: 'Hikaye', required: false, helpText: 'Urun hikayesini en fazla 5000 karakter olarak girin.' },
-  { key: 'careInstructions', label: 'Bakim Notu', required: false, helpText: 'Bakim bilgisini en fazla 5000 karakter olarak girin.' },
-  { key: 'compareAtPrice', label: 'Liste Fiyati (ustu cizili)', required: false, helpText: 'Varsa satis fiyatindan yuksek liste fiyatini TL olarak girin.' },
-  { key: 'weight', label: 'Agirlik (kg)', required: false, helpText: 'Varsa urun agirligini kilogram olarak sifirdan buyuk girin.' },
-  { key: 'dimensionWidth', label: 'En (cm)', required: false, helpText: 'Istege bagli. Urun enini santimetre olarak girin. Girilirse urun sayfasinda gosterilir.' },
-  { key: 'dimensionLength', label: 'Boy (cm)', required: false, helpText: 'Istege bagli. Urun boyunu santimetre olarak girin. Girilirse urun sayfasinda gosterilir.' },
-  { key: 'dimensionHeight', label: 'Yukseklik (cm)', required: false, helpText: 'Istege bagli. Urun yuksekligini santimetre olarak girin. Girilirse urun sayfasinda gosterilir.' },
+  {
+    key: 'modelCode',
+    label: 'Model Kodu*',
+    required: true,
+    helpText:
+      'Ayni tasarımcı ve ayni kategoride ayni Model Kodu verilen urunler, ayni modelin renk/materyal secenekleri kabul edilir ve urun detayinda birlikte gosterilir.',
+  },
+  {
+    key: 'name',
+    label: 'Urun Adi*',
+    required: true,
+    helpText: 'Urun adini en az 3, en fazla 200 karakter olarak girin.',
+  },
+  {
+    key: 'categorySlug',
+    label: 'Kategori*',
+    required: true,
+    helpText: 'Sablonda secilen kategori kapsami icinden bir kategori girin.',
+  },
+  {
+    key: 'productColor',
+    label: 'Renk 1',
+    required: false,
+    helpText:
+      'Istege baglidir. Urunun ana renk secenegini girin. Ikiden fazla renk varsa Mix secin.',
+  },
+  {
+    key: 'secondColor',
+    label: 'Renk 2',
+    required: false,
+    helpText:
+      'Urun iki renkli ise ikinci rengi buradan secin. Ikiden fazla renk varsa Renk 1 sutununda Mix secenegini kullanin.',
+  },
+  {
+    key: 'productMaterial',
+    label: 'Materyal',
+    required: false,
+    helpText: 'Istege baglidir. Urunun ana materyalini girin.',
+  },
+  {
+    key: 'price',
+    label: 'Fiyat*',
+    required: true,
+    helpText: 'Satis fiyatini TL olarak sifirdan buyuk girin.',
+  },
+  {
+    key: 'fulfillmentDays',
+    label: 'Sevk Suresi (is gunu)*',
+    required: true,
+    helpText: 'Sevk suresini 1 ile 90 is gunu arasinda bir tam sayi olarak girin.',
+  },
+  {
+    key: 'stockQuantity',
+    label: 'Stok*',
+    required: true,
+    helpText: 'Stok adedini sifir veya daha buyuk bir tam sayi olarak girin.',
+  },
+  {
+    key: 'barcode',
+    label: 'Barkod (13 hane)',
+    required: false,
+    helpText:
+      'Istege baglidir. Bos birakirsaniz 8 ile baslayan benzersiz 13 haneli barkod otomatik uretilir. Kendiniz girecekseniz sistem genelinde benzersiz olmalidir.',
+  },
+  {
+    key: 'variantColor',
+    label: 'Varyant Rengi',
+    required: false,
+    helpText: 'Ayni urun icindeki varyasyon icin renk girin. Bos birakabilirsiniz.',
+  },
+  {
+    key: 'variantMaterial',
+    label: 'Varyant Materyali',
+    required: false,
+    helpText: 'Ayni urun icindeki varyasyon icin materyal girin. Bos birakabilirsiniz.',
+  },
+  {
+    key: 'variantSize',
+    label: 'Beden',
+    required: false,
+    helpText: 'Beden veya olcu varyasyonunu girin. Bos birakabilirsiniz.',
+  },
+  {
+    key: 'variantCustomOptionName',
+    label: 'Ek Ozellik Adi',
+    required: false,
+    helpText: 'Varyasyon icin ek ozellik adini girin; deger girildiyse bu alan da doldurulmalidir.',
+  },
+  {
+    key: 'variantCustomOptionValue',
+    label: 'Ek Ozellik Degeri',
+    required: false,
+    helpText: 'Ek ozelligin secilen degerini girin; ad girildiyse bu alan da doldurulmalidir.',
+  },
+  {
+    key: 'sku',
+    label: 'SKU',
+    required: false,
+    helpText:
+      'Tasarımcınin urunu kendi sisteminde tanimak icin belirledigi istege bagli koddur; varyant iliskilendirmesinde kullanilmaz.',
+  },
+  {
+    key: 'shortDescription',
+    label: 'Kisa Aciklama',
+    required: false,
+    helpText: 'Kisa urun aciklamasini en fazla 500 karakter olarak girin.',
+  },
+  {
+    key: 'description',
+    label: 'Aciklama',
+    required: false,
+    helpText: 'Urun aciklamasini en fazla 5000 karakter olarak girin.',
+  },
+  {
+    key: 'story',
+    label: 'Hikaye',
+    required: false,
+    helpText: 'Urun hikayesini en fazla 5000 karakter olarak girin.',
+  },
+  {
+    key: 'careInstructions',
+    label: 'Bakim Notu',
+    required: false,
+    helpText: 'Bakim bilgisini en fazla 5000 karakter olarak girin.',
+  },
+  {
+    key: 'compareAtPrice',
+    label: 'Liste Fiyati (ustu cizili)',
+    required: false,
+    helpText: 'Varsa satis fiyatindan yuksek liste fiyatini TL olarak girin.',
+  },
+  {
+    key: 'weight',
+    label: 'Agirlik (kg)',
+    required: false,
+    helpText: 'Varsa urun agirligini kilogram olarak sifirdan buyuk girin.',
+  },
+  {
+    key: 'dimensionWidth',
+    label: 'En (cm)',
+    required: false,
+    helpText:
+      'Istege bagli. Urun enini santimetre olarak girin. Girilirse urun sayfasinda gosterilir.',
+  },
+  {
+    key: 'dimensionLength',
+    label: 'Boy (cm)',
+    required: false,
+    helpText:
+      'Istege bagli. Urun boyunu santimetre olarak girin. Girilirse urun sayfasinda gosterilir.',
+  },
+  {
+    key: 'dimensionHeight',
+    label: 'Yukseklik (cm)',
+    required: false,
+    helpText:
+      'Istege bagli. Urun yuksekligini santimetre olarak girin. Girilirse urun sayfasinda gosterilir.',
+  },
   ...Array.from({ length: BULK_PRODUCT_IMAGE_COLUMN_COUNT }, (_, index) => ({
     key: `image${index + 1}` as const,
     label: `Gorsel ${index + 1}`,
     required: false,
-    helpText: 'Bu alana ilgili gorselinizin medya kutuphanesindeki baglantisini girebilirsiniz. Her gorsel icin ayri bir Gorsel sutununa baglanti girin.\n\nIsterseniz gorselleri urun olusturulduktan sonra Urun Duzenle bolumunden ekleyebilirsiniz.',
+    helpText:
+      'Bu alana ilgili gorselinizin medya kutuphanesindeki baglantisini girebilirsiniz. Her gorsel icin ayri bir Gorsel sutununa baglanti girin.\n\nIsterseniz gorselleri urun olusturulduktan sonra Urun Duzenle bolumunden ekleyebilirsiniz.',
   })),
 ] as const
 
@@ -76,8 +207,12 @@ export type BulkProductColumnKey = (typeof BULK_PRODUCT_COLUMN_CONFIG)[number]['
 type BulkImportMappedColumnKey = BulkProductColumnKey | 'rootCategorySlug'
 
 export const BULK_PRODUCT_HEADERS = BULK_PRODUCT_COLUMN_CONFIG.map((column) => column.key)
-export const BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG = BULK_PRODUCT_COLUMN_CONFIG
-export const BULK_PRODUCT_TEMPLATE_HEADERS = BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.map((column) => column.label)
+export const BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG = BULK_PRODUCT_COLUMN_CONFIG.filter(
+  (column) => !['variantColor', 'variantMaterial'].includes(column.key),
+)
+export const BULK_PRODUCT_TEMPLATE_HEADERS = BULK_PRODUCT_TEMPLATE_COLUMN_CONFIG.map(
+  (column) => column.label,
+)
 
 const TURKISH_TO_INTERNAL_HEADER_MAP = new Map<string, BulkImportMappedColumnKey>(
   BULK_PRODUCT_COLUMN_CONFIG.flatMap((column) => {
@@ -117,10 +252,16 @@ TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Ürün Adı*'), 'name')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Kısa Açıklama'), 'shortDescription')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Açıklama'), 'description')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Bakım Notu'), 'careInstructions')
-TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Liste Fiyatı (üstü çizili)'), 'compareAtPrice')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(
+  normalizeHeaderKey('Liste Fiyatı (üstü çizili)'),
+  'compareAtPrice',
+)
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Ağırlık (kg)'), 'weight')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Ek Özellik Adı'), 'variantCustomOptionName')
-TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Ek Özellik Değeri'), 'variantCustomOptionValue')
+TURKISH_TO_INTERNAL_HEADER_MAP.set(
+  normalizeHeaderKey('Ek Özellik Değeri'),
+  'variantCustomOptionValue',
+)
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Görsel 1'), 'image1')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Görsel 2'), 'image2')
 TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Görsel 3'), 'image3')
@@ -166,62 +307,73 @@ export const BULK_PRODUCT_TEMPLATE_SAMPLE_ROW: Record<BulkProductColumnKey, stri
   image8: '',
 }
 
-const bulkProductRowSchema = z.object({
-  modelCode: z.string().trim().min(1, 'Model Kodu zorunludur').max(120),
-  name: z.string().trim().min(3, 'Urun adi en az 3 karakter olmali').max(200),
-  rootCategorySlug: optionalString.pipe(z.string().max(120).optional()),
-  categorySlug: z.string().trim().min(1, 'Kategori zorunludur'),
-  productColor: optionalString.pipe(z.string().max(80).optional()),
-  secondColor: optionalString.pipe(z.string().max(80).optional()),
-  productMaterial: optionalString.pipe(z.string().max(80).optional()),
-  price: z.number().positive('Fiyat 0dan buyuk olmali'),
-  fulfillmentDays: z.number().int('Sevk suresi tam sayi olmali').min(1, 'Sevk suresi en az 1 is gunu olmali').max(90, 'Sevk suresi en fazla 90 is gunu olmali'),
-  stockQuantity: z.number().int('Stok tam sayi olmali').min(0, 'Stok negatif olamaz'),
-  barcode: barcodeSchema,
-  variantColor: optionalString.pipe(z.string().max(80).optional()),
-  variantMaterial: optionalString.pipe(z.string().max(80).optional()),
-  variantSize: optionalString.pipe(z.string().max(80).optional()),
-  variantCustomOptionName: optionalString.pipe(z.string().max(80).optional()),
-  variantCustomOptionValue: optionalString.pipe(z.string().max(120).optional()),
-  sku: optionalString.pipe(z.string().max(120).optional()),
-  shortDescription: optionalString.pipe(z.string().max(500).optional()),
-  description: optionalString.pipe(z.string().max(5000).optional()),
-  story: optionalString.pipe(z.string().max(5000).optional()),
-  careInstructions: optionalString.pipe(z.string().max(5000).optional()),
-  compareAtPrice: z.number().positive('Liste fiyati 0dan buyuk olmali').optional(),
-  weight: z.number().positive('Agirlik 0dan buyuk olmali').optional(),
-  dimensionLength: z.number().positive('Boy 0dan buyuk olmali').optional(),
-  dimensionWidth: z.number().positive('En 0dan buyuk olmali').optional(),
-  dimensionHeight: z.number().positive('Yukseklik 0dan buyuk olmali').optional(),
-  image1: optionalString.pipe(z.string().url('Gorsel 1 gecerli bir URL olmali').optional()),
-  image2: optionalString.pipe(z.string().url('Gorsel 2 gecerli bir URL olmali').optional()),
-  image3: optionalString.pipe(z.string().url('Gorsel 3 gecerli bir URL olmali').optional()),
-  image4: optionalString.pipe(z.string().url('Gorsel 4 gecerli bir URL olmali').optional()),
-  image5: optionalString.pipe(z.string().url('Gorsel 5 gecerli bir URL olmali').optional()),
-  image6: optionalString.pipe(z.string().url('Gorsel 6 gecerli bir URL olmali').optional()),
-  image7: optionalString.pipe(z.string().url('Gorsel 7 gecerli bir URL olmali').optional()),
-  image8: optionalString.pipe(z.string().url('Gorsel 8 gecerli bir URL olmali').optional()),
-}).superRefine((data, ctx) => {
-  if (data.secondColor && !data.productColor) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['secondColor'], message: 'Renk 2 icin Renk 1 secilmelidir.' })
-  if (data.secondColor && data.productColor && data.secondColor === data.productColor) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['secondColor'], message: 'Renk 2, Renk 1 ile ayni olamaz.' })
-})
+const bulkProductRowSchema = z
+  .object({
+    modelCode: z.string().trim().min(1, 'Model Kodu zorunludur').max(120),
+    name: z.string().trim().min(3, 'Urun adi en az 3 karakter olmali').max(200),
+    rootCategorySlug: optionalString.pipe(z.string().max(120).optional()),
+    categorySlug: z.string().trim().min(1, 'Kategori zorunludur'),
+    productColor: optionalString.pipe(z.string().max(80).optional()),
+    secondColor: optionalString.pipe(z.string().max(80).optional()),
+    productMaterial: optionalString.pipe(z.string().max(80).optional()),
+    price: z.number().positive('Fiyat 0dan buyuk olmali'),
+    fulfillmentDays: z
+      .number()
+      .int('Sevk suresi tam sayi olmali')
+      .min(1, 'Sevk suresi en az 1 is gunu olmali')
+      .max(90, 'Sevk suresi en fazla 90 is gunu olmali'),
+    stockQuantity: z.number().int('Stok tam sayi olmali').min(0, 'Stok negatif olamaz'),
+    barcode: barcodeSchema,
+    variantColor: optionalString.pipe(z.string().max(80).optional()),
+    variantMaterial: optionalString.pipe(z.string().max(80).optional()),
+    variantSize: optionalString.pipe(z.string().max(80).optional()),
+    variantCustomOptionName: optionalString.pipe(z.string().max(80).optional()),
+    variantCustomOptionValue: optionalString.pipe(z.string().max(120).optional()),
+    sku: optionalString.pipe(z.string().max(120).optional()),
+    shortDescription: optionalString.pipe(z.string().max(500).optional()),
+    description: optionalString.pipe(z.string().max(5000).optional()),
+    story: optionalString.pipe(z.string().max(5000).optional()),
+    careInstructions: optionalString.pipe(z.string().max(5000).optional()),
+    compareAtPrice: z.number().positive('Liste fiyati 0dan buyuk olmali').optional(),
+    weight: z.number().positive('Agirlik 0dan buyuk olmali').optional(),
+    dimensionLength: z.number().positive('Boy 0dan buyuk olmali').optional(),
+    dimensionWidth: z.number().positive('En 0dan buyuk olmali').optional(),
+    dimensionHeight: z.number().positive('Yukseklik 0dan buyuk olmali').optional(),
+    image1: optionalString.pipe(z.string().url('Gorsel 1 gecerli bir URL olmali').optional()),
+    image2: optionalString.pipe(z.string().url('Gorsel 2 gecerli bir URL olmali').optional()),
+    image3: optionalString.pipe(z.string().url('Gorsel 3 gecerli bir URL olmali').optional()),
+    image4: optionalString.pipe(z.string().url('Gorsel 4 gecerli bir URL olmali').optional()),
+    image5: optionalString.pipe(z.string().url('Gorsel 5 gecerli bir URL olmali').optional()),
+    image6: optionalString.pipe(z.string().url('Gorsel 6 gecerli bir URL olmali').optional()),
+    image7: optionalString.pipe(z.string().url('Gorsel 7 gecerli bir URL olmali').optional()),
+    image8: optionalString.pipe(z.string().url('Gorsel 8 gecerli bir URL olmali').optional()),
+  })
+  .superRefine((data, ctx) => {
+    if (data.secondColor && !data.productColor)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['secondColor'],
+        message: 'Renk 2 icin Renk 1 secilmelidir.',
+      })
+    if (data.secondColor && data.productColor && data.secondColor === data.productColor)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['secondColor'],
+        message: 'Renk 2, Renk 1 ile ayni olamaz.',
+      })
+  })
 
 type ParsedBulkProductRow = z.infer<typeof bulkProductRowSchema>
 
-export interface BulkProductImportRow
-  extends Omit<
-    ParsedBulkProductRow,
-    | 'image1'
-    | 'image2'
-    | 'image3'
-    | 'image4'
-    | 'image5'
-    | 'image6'
-    | 'image7'
-    | 'image8'
-  > {
+export interface BulkProductImportRow extends Omit<
+  ParsedBulkProductRow,
+  'image1' | 'image2' | 'image3' | 'image4' | 'image5' | 'image6' | 'image7' | 'image8'
+> {
   imageUrls: string[]
   hasVariant: boolean
+  properties?: Record<string, string | number | boolean | null> | undefined
+  contentUnit?: string | undefined
+  schemaMetadata?: { categoryId: string; templateCode: string; schemaVersion: number } | undefined
 }
 
 /**
@@ -293,16 +445,15 @@ function mapRawRowToInternalKeys(raw: Record<string, unknown>) {
 
 export function getMissingBulkProductHeaders(headers: string[]) {
   const normalizedHeaders = new Set(headers.map((header) => normalizeHeaderKey(header)))
-  const requiredKeys = BULK_PRODUCT_COLUMN_CONFIG
-    .filter((column) => 'required' in column && column.required)
-    .map((column) => column.key)
-  const missing = BULK_PRODUCT_COLUMN_CONFIG
-    .filter((column) =>
+  const requiredKeys = BULK_PRODUCT_COLUMN_CONFIG.filter(
+    (column) => 'required' in column && column.required,
+  ).map((column) => column.key)
+  const missing = BULK_PRODUCT_COLUMN_CONFIG.filter(
+    (column) =>
       requiredKeys.includes(column.key) &&
       !normalizedHeaders.has(normalizeHeaderKey(column.label)) &&
       !normalizedHeaders.has(normalizeHeaderKey(column.key)),
-    )
-    .map((column) => column.label)
+  ).map((column) => column.label)
 
   const hasCategoryHeader =
     normalizedHeaders.has(normalizeHeaderKey('Kategori*')) ||
@@ -325,7 +476,9 @@ export function getMissingBulkProductHeaders(headers: string[]) {
     normalizedHeaders.has(normalizeHeaderKey('Urun Rengi*')) ||
     normalizedHeaders.has(normalizeHeaderKey('Urun Rengi'))
   if (hasProductColorHeader) {
-    const idx = missing.findIndex((label) => normalizeHeaderKey(label) === normalizeHeaderKey('Renk 1*'))
+    const idx = missing.findIndex(
+      (label) => normalizeHeaderKey(label) === normalizeHeaderKey('Renk 1*'),
+    )
     if (idx !== -1) missing.splice(idx, 1)
   }
 
@@ -337,6 +490,14 @@ export function normalizeBulkProductRow(
   rowNumber: number,
 ): BulkProductRowResult {
   const mapped = mapRawRowToInternalKeys(raw)
+  if (mapped.variantColor || mapped.variantMaterial)
+    return {
+      rowNumber,
+      raw,
+      errors: [
+        'Varyant rengi veya materyali desteklenmiyor; her rengi aynı Model Kodu ile ayrı ürün olarak yükleyin.',
+      ],
+    }
   const prepared = {
     modelCode: String(mapped.modelCode ?? '').trim(),
     name: String(mapped.name ?? '').trim(),
@@ -416,10 +577,10 @@ export function normalizeBulkProductRow(
 
   const hasVariant = Boolean(
     parsed.data.variantColor ||
-      parsed.data.variantMaterial ||
-      parsed.data.variantSize ||
-      parsed.data.variantCustomOptionName ||
-      parsed.data.variantCustomOptionValue,
+    parsed.data.variantMaterial ||
+    parsed.data.variantSize ||
+    parsed.data.variantCustomOptionName ||
+    parsed.data.variantCustomOptionValue,
   )
 
   return {
@@ -454,6 +615,11 @@ export function normalizeBulkProductRow(
       dimensionHeight: parsed.data.dimensionHeight,
       imageUrls,
       hasVariant,
+      properties: raw.properties as Record<string, string | number | boolean | null> | undefined,
+      contentUnit: typeof raw.contentUnit === 'string' ? raw.contentUnit : undefined,
+      schemaMetadata: raw.schemaMetadata as
+        | { categoryId: string; templateCode: string; schemaVersion: number }
+        | undefined,
     },
     errors: [],
   }

@@ -57,8 +57,8 @@
     "@typescript-eslint/parser": "7",
     "dotenv": "^16.4.5",
     "eslint": "8",
-    "eslint-config-next": "15.5.22",
-    "next": "15.5.22",
+    "eslint-config-next": "15.5.27",
+    "next": "15.5.27",
     "prettier": "^3.3.0",
     "prettier-plugin-tailwindcss": "^0.6.0",
     "tsx": "^4.15.0",
@@ -68,8 +68,8 @@
   },
   "pnpm": {
     "overrides": {
-      "sharp": "0.35.3",
-      "undici": "7.29.0",
+      "sharp": "0.35.5",
+      "undici": "7.29.1",
       "ip-address": "10.4.0",
       "postcss": "8.5.25",
       "qs": "6.15.2",
@@ -79,7 +79,7 @@
       "brace-expansion@^2.0.0": "2.1.4"
     },
     "patchedDependencies": {
-      "next@15.5.22": "patches/next@15.5.22.patch"
+      "next@15.5.27": "patches/next@15.5.27.patch"
     }
   }
 }

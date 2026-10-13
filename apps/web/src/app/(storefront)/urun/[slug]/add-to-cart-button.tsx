@@ -11,6 +11,7 @@ import { AskQuestionPanel } from '@/components/product-questions/ask-question-pa
 import { CartAddedFlyout } from '@/components/cart-added-flyout'
 
 interface Props {
+  variantCharacteristics?: Record<string, Array<{ label: string; value: string }>>
   productId: string
   productName: string
   basePrice: number
@@ -43,6 +44,7 @@ function getApiMessage(payload: unknown, fallback: string) {
 }
 
 export default function AddToCartButton({
+  variantCharacteristics = {},
   productId,
   productName,
   basePrice,
@@ -71,7 +73,7 @@ export default function AddToCartButton({
   const [selectedVariantId, setSelectedVariantId] = useState(
     initialVariantId && variants.some((variant) => variant.id === initialVariantId)
       ? initialVariantId
-      : variants[0]?.id ?? '',
+      : (variants[0]?.id ?? ''),
   )
   const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? null
   const availableStock = selectedVariant?.stockQuantity ?? stock
@@ -79,7 +81,8 @@ export default function AddToCartButton({
   // With a discount rule the variant is struck through at its own base price; without one the
   // product-level list price is kept as before.
   const referencePrice = selectedVariant?.compareAtPrice ?? compareAtPrice
-  const displayCompareAtPrice = referencePrice && referencePrice > displayPrice ? referencePrice : null
+  const displayCompareAtPrice =
+    referencePrice && referencePrice > displayPrice ? referencePrice : null
   const fulfillmentText =
     typeof fulfillmentDays === 'number' ? `Sevk Süresi: ${fulfillmentDays} iş günü` : null
 
@@ -333,6 +336,13 @@ export default function AddToCartButton({
             })}
           </div>
           <div className="flex items-center gap-3 pt-1">
+            {selectedVariantId && variantCharacteristics[selectedVariantId]?.length ? (
+              <p className="text-sm">
+                {variantCharacteristics[selectedVariantId]
+                  ?.map((row) => `${row.label}: ${row.value}`)
+                  .join(' · ')}
+              </p>
+            ) : null}
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>
                 {displayPrice.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL
@@ -345,11 +355,16 @@ export default function AddToCartButton({
             </div>
             <span
               className="flex items-center gap-1 text-sm"
-              style={{ color: availableStock > 0 ? 'var(--color-success)' : 'var(--color-destructive)' }}
+              style={{
+                color: availableStock > 0 ? 'var(--color-success)' : 'var(--color-destructive)',
+              }}
             >
               <span
                 className="inline-block h-2 w-2 rounded-full"
-                style={{ backgroundColor: availableStock > 0 ? 'var(--color-success)' : 'var(--color-destructive)' }}
+                style={{
+                  backgroundColor:
+                    availableStock > 0 ? 'var(--color-success)' : 'var(--color-destructive)',
+                }}
               />
               {availableStock > 0 ? `Stokta (${availableStock} adet)` : 'Stokta yok'}
             </span>
@@ -375,7 +390,13 @@ export default function AddToCartButton({
           onClick={handleAddToCart}
         >
           <ShoppingCart className="h-5 w-5" />
-          {loading ? 'Ekleniyor...' : added ? '✓ Sepete Eklendi' : availableStock <= 0 ? 'Stokta Yok' : 'Sepete Ekle'}
+          {loading
+            ? 'Ekleniyor...'
+            : added
+              ? '✓ Sepete Eklendi'
+              : availableStock <= 0
+                ? 'Stokta Yok'
+                : 'Sepete Ekle'}
         </Button>
         <Button
           variant="outline"
