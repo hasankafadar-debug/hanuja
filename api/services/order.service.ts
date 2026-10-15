@@ -252,12 +252,28 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       if (!order) throw new NotFoundError('Order', params.orderId)
 
       if (order.quantityLifecycleVersion === 2) {
-        const items = order.lines
-          .map((line) => ({
-            orderLineId: line.id,
-            quantity: line.quantity - line.cancelledQuantity - line.shippedQuantity,
-          }))
-          .filter((item) => item.quantity > 0)
+        const previous = await prisma.orderCancellation.findMany({
+          where: {
+            orderId: params.orderId,
+            sellerId: params.sellerId,
+            requestKey: `seller-reject:${params.orderId}:${params.sellerId}`,
+          },
+          include: { items: true },
+        })
+        const items =
+          previous.length > 0
+            ? previous.flatMap((operation) =>
+                operation.items.map((item) => ({
+                  orderLineId: item.orderLineId,
+                  quantity: item.quantity,
+                })),
+              )
+            : order.lines
+                .map((line) => ({
+                  orderLineId: line.id,
+                  quantity: line.quantity - line.cancelledQuantity - line.shippedQuantity,
+                }))
+                .filter((item) => item.quantity > 0)
         if (items.length === 0) {
           throw new ConflictError('Reddedilebilecek aktif ürün adedi kalmadı')
         }
@@ -284,6 +300,10 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
           orderId: params.orderId,
           sellerId: params.sellerId,
           reason: 'seller_rejected_paid_order',
+          baseAmount: result.reduce(
+            (sum, operation) => sum.plus(operation.grossProductAmount),
+            new Decimal(0),
+          ),
         })
         return result
       }
@@ -368,7 +388,13 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
      * reversal, an unpaid EFT order only closes its pending payment. After
      * dispatch the return flow applies instead.
      */
-    async adminCancel(params: { orderId: string; adminActorId: string; reason: string }) {
+    async adminCancel(params: {
+      orderId: string
+      adminActorId: string
+      reason: string
+      idempotencyKey?: string
+      items?: Array<{ orderLineId: string; quantity: number }>
+    }) {
       const order = await prisma.order.findUnique({
         where: { id: params.orderId },
         select: {
@@ -388,15 +414,17 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       if (!order) throw new NotFoundError('Order', params.orderId)
 
       if (order.quantityLifecycleVersion === 2) {
-        if (order.lines.some((line) => line.shippedQuantity > 0)) {
+        if (!params.items && order.lines.some((line) => line.shippedQuantity > 0)) {
           throw new ConflictError('Kargoya verilmiş ürün var; bu siparişte iade akışı kullanılmalı')
         }
-        const items = order.lines
-          .map((line) => ({
-            orderLineId: line.id,
-            quantity: line.quantity - line.cancelledQuantity - line.shippedQuantity,
-          }))
-          .filter((item) => item.quantity > 0)
+        const items =
+          params.items ??
+          order.lines
+            .map((line) => ({
+              orderLineId: line.id,
+              quantity: line.quantity - line.cancelledQuantity - line.shippedQuantity,
+            }))
+            .filter((item) => item.quantity > 0)
         if (items.length === 0) {
           throw new ConflictError('İptal edilebilecek aktif ürün adedi kalmadı')
         }
@@ -406,7 +434,7 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
           actorId: params.adminActorId,
           actorRole: 'admin',
           reason: `Admin iptali: ${params.reason}`,
-          idempotencyKey: `admin-cancel:${params.orderId}`,
+          idempotencyKey: `admin-cancel:${params.orderId}:${params.idempotencyKey ?? 'whole'}`,
           fullCancellationStatus: 'cancelled_by_admin',
           audit: { actorId: params.adminActorId, reason: params.reason },
           items,
@@ -429,45 +457,6 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
         note: `Admin iptali: ${params.reason}`,
         cancellationReason: 'admin_cancelled',
         auditReason: params.reason,
-      })
-    },
-
-    /**
-     * Daily late-shipment accrual reaches day 20: auto-cancel and refund the customer.
-     */
-    async autoCancelForFulfillmentBreach(params: {
-      orderId: string
-      sellerId: string
-      asOf?: Date
-    }) {
-      const order = await prisma.order.findUnique({
-        where: { id: params.orderId },
-        include: {
-          lines: {
-            where: { sellerId: params.sellerId },
-            select: { sellerId: true },
-          },
-        },
-      })
-      if (!order) throw new NotFoundError('Order', params.orderId)
-
-      if (order.status === 'cancelled_due_to_20day_breach') return order
-
-      const sellerId = order.lines[0]?.sellerId ?? params.sellerId
-
-      return cancelOrder({
-        orderId: params.orderId,
-        actorId: 'system',
-        toStatus: 'cancelled_due_to_20day_breach',
-        note: '20. gecikme günü doldu. Sipariş otomatik iptal edildi ve iade başlatıldı.',
-        cancellationReason: 'auto_canceled_20day_breach',
-        refund: {
-          amount: order.totalAmount,
-          sellerId,
-          reason: '20 günlük sevkiyat ihlali nedeniyle otomatik iptal',
-          adminActorId: 'system',
-        },
-        auditReason: `Fulfillment breach auto-cancel at ${(params.asOf ?? new Date()).toISOString()}`,
       })
     },
 

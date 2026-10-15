@@ -24,7 +24,9 @@ import { createRefundService } from '../../api/services/refund.service'
 import { reconcileFinance } from '../../api/services/finance-reconciliation.service'
 import { createRefundExecutionService } from '../../api/services/refund-execution.service'
 
-vi.mock('../../api/jobs/notification-dispatch.job', () => ({ enqueueNotification: vi.fn(async () => undefined) }))
+vi.mock('../../api/jobs/notification-dispatch.job', () => ({
+  enqueueNotification: vi.fn(async () => undefined),
+}))
 
 vi.mock('../../api/jobs/refund-processing.job', () => ({
   enqueueRefundProcessing: vi.fn(async () => undefined),
@@ -45,14 +47,25 @@ const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } }
 const confirmedAt = new Date('2026-01-01T00:00:00Z')
 
 // Freeze only eligibility-recovery scenarios; ledger tests use real DB timestamps.
-function paymentFriday() { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-16T10:00:00Z')) }
+function paymentFriday() {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-16T10:00:00Z'))
+}
 afterEach(() => vi.useRealTimers())
 
 beforeAll(async () => {
-  execFileSync(process.execPath, [
-    resolve('../db/node_modules/prisma/build/index.js'), 'db', 'push',
-    '--schema', resolve('../db/schema/schema.prisma'), '--skip-generate',
-  ], { env: { ...process.env, DATABASE_URL: url.toString() }, stdio: 'pipe' })
+  execFileSync(
+    process.execPath,
+    [
+      resolve('../db/node_modules/prisma/build/index.js'),
+      'db',
+      'push',
+      '--schema',
+      resolve('../db/schema/schema.prisma'),
+      '--skip-generate',
+    ],
+    { env: { ...process.env, DATABASE_URL: url.toString() }, stdio: 'pipe' },
+  )
   await prisma.$connect()
 })
 
@@ -66,12 +79,22 @@ afterAll(async () => {
 // Satıcı Hanuja modeli: a payout matures only on an approved seller invoice. Dated at the
 // confirmation day, its due date (first Friday after 30 days) lies well in the past here.
 async function approveSellerInvoice(orderId: string, sellerId: string) {
-  await prisma.orderSellerInvoice.create({ data: {
-    orderId, sellerId, fileUrl: 'private://seller-invoice', fileKey: `private/v1/test/${randomUUID()}.bin`,
-    fileName: 'fatura.pdf', mimeType: 'application/pdf', sizeBytes: 10, source: 'manual',
-    reviewStatus: 'approved', invoiceNumber: `TST${randomUUID().slice(0, 8)}`, invoiceDate: confirmedAt,
-    reviewedAt: confirmedAt,
-  } })
+  await prisma.orderSellerInvoice.create({
+    data: {
+      orderId,
+      sellerId,
+      fileUrl: 'private://seller-invoice',
+      fileKey: `private/v1/test/${randomUUID()}.bin`,
+      fileName: 'fatura.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 10,
+      source: 'manual',
+      reviewStatus: 'approved',
+      invoiceNumber: `TST${randomUUID().slice(0, 8)}`,
+      invoiceDate: confirmedAt,
+      reviewedAt: confirmedAt,
+    },
+  })
 }
 
 // The term now runs from the invoice date: re-dating the approved invoice to today puts the
@@ -85,87 +108,170 @@ async function restartInvoiceTerm(orderId: string, sellerId: string) {
 
 async function fixture(sellerCount = 1) {
   const tag = randomUUID()
-  const admin = await prisma.user.create({ data: { email: `admin-${tag}@example.test`, role: 'admin' } })
-  const order = await prisma.order.create({ data: {
-    customerId: admin.id, status: 'delivery_confirmed', quantityLifecycleVersion: 2,
-    grossAmount: sellerCount * 1000, totalAmount: sellerCount * 1000,
-    paymentConfirmedAt: confirmedAt, deliveryConfirmedAt: confirmedAt,
-  } })
+  const admin = await prisma.user.create({
+    data: { email: `admin-${tag}@example.test`, role: 'admin' },
+  })
+  const order = await prisma.order.create({
+    data: {
+      customerId: admin.id,
+      status: 'delivery_confirmed',
+      quantityLifecycleVersion: 2,
+      grossAmount: sellerCount * 1000,
+      totalAmount: sellerCount * 1000,
+      paymentConfirmedAt: confirmedAt,
+      deliveryConfirmedAt: confirmedAt,
+    },
+  })
   const sellerIds: string[] = []
   const lineIds: string[] = []
   for (let i = 0; i < sellerCount; i++) {
-    const sellerUser = await prisma.user.create({ data: { email: `seller-${i}-${tag}@example.test` } })
-    const seller = await prisma.seller.create({ data: {
-      userId: sellerUser.id, slug: `seller-${i}-${tag}`, displayName: 'Finance test', status: 'active',
-    } })
-    await prisma.sellerBankDetail.create({ data: {
-      sellerId: seller.id, iban: 'TR00000000000000000000000000', accountHolder: 'Finance test',
-      bankName: 'Test bank', status: 'ACTIVE', isActive: true, isVerified: true,
-    } })
-    const product = await prisma.product.create({ data: {
-      sellerId: seller.id, name: 'Finance test product', slug: `product-${i}-${tag}`, price: 1000,
-    } })
-    const line = await prisma.orderLine.create({ data: {
-      sellerId: seller.id, orderId: order.id, productId: product.id, productName: product.name,
-      quantity: 10, unitPrice: 100, totalPrice: 1000, commissionAmount: 180, netPayoutAmount: 820,
-    } })
+    const sellerUser = await prisma.user.create({
+      data: { email: `seller-${i}-${tag}@example.test` },
+    })
+    const seller = await prisma.seller.create({
+      data: {
+        userId: sellerUser.id,
+        slug: `seller-${i}-${tag}`,
+        displayName: 'Finance test',
+        status: 'active',
+      },
+    })
+    await prisma.sellerBankDetail.create({
+      data: {
+        sellerId: seller.id,
+        iban: 'TR00000000000000000000000000',
+        accountHolder: 'Finance test',
+        bankName: 'Test bank',
+        status: 'ACTIVE',
+        isActive: true,
+        isVerified: true,
+      },
+    })
+    const product = await prisma.product.create({
+      data: {
+        sellerId: seller.id,
+        name: 'Finance test product',
+        slug: `product-${i}-${tag}`,
+        price: 1000,
+      },
+    })
+    const line = await prisma.orderLine.create({
+      data: {
+        sellerId: seller.id,
+        orderId: order.id,
+        productId: product.id,
+        productName: product.name,
+        quantity: 10,
+        unitPrice: 100,
+        totalPrice: 1000,
+        commissionAmount: 180,
+        netPayoutAmount: 820,
+      },
+    })
     await approveSellerInvoice(order.id, seller.id)
     sellerIds.push(seller.id)
     lineIds.push(line.id)
   }
-  await prisma.payment.create({ data: {
-    orderId: order.id, method: 'eft', provider: 'manual_eft', status: 'confirmed',
-    amount: sellerCount * 1000, confirmedAt,
-  } })
+  await prisma.payment.create({
+    data: {
+      orderId: order.id,
+      method: 'eft',
+      provider: 'manual_eft',
+      status: 'confirmed',
+      amount: sellerCount * 1000,
+      confirmedAt,
+    },
+  })
   return { orderId: order.id, sellerIds, lineIds, adminId: admin.id }
 }
 
 const hold = (orderId: string, client = prisma) =>
-  createPayoutService({ prisma: client }).activateHold({ orderId, deliveryConfirmedAt: confirmedAt })
+  createPayoutService({ prisma: client }).activateHold({
+    orderId,
+    deliveryConfirmedAt: confirmedAt,
+  })
 
 describe('phase 7 integrated reconciliation', () => {
-  it.each(['eft', 'card'] as const)('reconciles %s refund execution, seller isolation and payout records', async (method) => {
-    const f = await fixture(2)
-    const payment = await prisma.payment.findFirstOrThrow({ where: { orderId: f.orderId } })
-    await prisma.payment.update({ where: { id: payment.id }, data: { method,
-      provider: method === 'card' ? 'iyzico' : 'manual_eft', providerPaymentId: `test-${randomUUID()}` } })
-    for (const lineId of f.lineIds) await prisma.paymentProviderItem.create({ data: {
-      paymentId: payment.id, orderLineId: lineId, kind: 'product', providerItemId: `line:${lineId}`,
-      providerTransactionId: `test-${lineId}`, amount: 1000,
-    } })
-    await hold(f.orderId)
-    const service = createQuantityRefundService({ prisma })
-    const refund = await service.queue({ orderId: f.orderId, sellerId: f.sellerIds[0], sourceType: 'cancellation',
-      sourceId: randomUUID(), customerAmount: new Decimal(500), grossProductAmount: new Decimal(500),
-      sellerAdjustmentAmount: new Decimal(410), commissionAdjustmentAmount: new Decimal(90),
-      items: [{ orderLineId: f.lineIds[0]!, quantity: 5, amount: new Decimal(500) }] })
-    if (method === 'eft') {
-      const request = { refundTransactionId: refund.id, orderId: f.orderId, actorId: f.adminId,
-        providerReference: 'TEST-TRANSFER-ONLY', expectedOutstandingAmount: '500.00' }
-      await service.complete(request)
-      await service.complete(request)
-    } else {
-      const provider = { refund: vi.fn(async () => ({ providerReference: 'TEST-REFUND-ONLY' })) }
-      const execution = createRefundExecutionService({ prisma, processorFactory: () => provider })
-      await execution.process(refund.id)
-      await execution.process(refund.id)
-      expect(provider.refund).toHaveBeenCalledTimes(1)
-    }
-    for (const sellerId of f.sellerIds) expect((await reconcileFinance(prisma, sellerId)).findings).toEqual([])
-    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).refundedAmount.toFixed(2)).toBe('500.00')
-  })
+  it.each(['eft', 'card'] as const)(
+    'reconciles %s refund execution, seller isolation and payout records',
+    async (method) => {
+      const f = await fixture(2)
+      const payment = await prisma.payment.findFirstOrThrow({ where: { orderId: f.orderId } })
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          method,
+          provider: method === 'card' ? 'iyzico' : 'manual_eft',
+          providerPaymentId: `test-${randomUUID()}`,
+        },
+      })
+      for (const lineId of f.lineIds)
+        await prisma.paymentProviderItem.create({
+          data: {
+            paymentId: payment.id,
+            orderLineId: lineId,
+            kind: 'product',
+            providerItemId: `line:${lineId}`,
+            providerTransactionId: `test-${lineId}`,
+            amount: 1000,
+          },
+        })
+      await hold(f.orderId)
+      const service = createQuantityRefundService({ prisma })
+      const refund = await service.queue({
+        orderId: f.orderId,
+        sellerId: f.sellerIds[0],
+        sourceType: 'cancellation',
+        sourceId: randomUUID(),
+        customerAmount: new Decimal(500),
+        grossProductAmount: new Decimal(500),
+        sellerAdjustmentAmount: new Decimal(410),
+        commissionAdjustmentAmount: new Decimal(90),
+        items: [{ orderLineId: f.lineIds[0]!, quantity: 5, amount: new Decimal(500) }],
+      })
+      if (method === 'eft') {
+        const request = {
+          refundTransactionId: refund.id,
+          orderId: f.orderId,
+          actorId: f.adminId,
+          providerReference: 'TEST-TRANSFER-ONLY',
+          expectedOutstandingAmount: '500.00',
+        }
+        await service.complete(request)
+        await service.complete(request)
+      } else {
+        const provider = { refund: vi.fn(async () => ({ providerReference: 'TEST-REFUND-ONLY' })) }
+        const execution = createRefundExecutionService({ prisma, processorFactory: () => provider })
+        await execution.process(refund.id)
+        await execution.process(refund.id)
+        expect(provider.refund).toHaveBeenCalledTimes(1)
+      }
+      for (const sellerId of f.sellerIds)
+        expect((await reconcileFinance(prisma, sellerId)).findings).toEqual([])
+      expect(
+        (
+          await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })
+        ).refundedAmount.toFixed(2),
+      ).toBe('500.00')
+    },
+  )
 
   it('detects payout, ledger and offset drift without changing records', async () => {
     const f = await fixture()
     const [payout] = await hold(f.orderId)
     expect((await reconcileFinance(prisma, f.sellerIds[0])).findings).toEqual([])
-    await prisma.payout.update({ where: { id: payout!.id }, data: { netAmount: 819, offsetAmount: 5 } })
-    await prisma.sellerLedgerEntry.deleteMany({ where: { sellerId: f.sellerIds[0], type: 'commission' } })
+    await prisma.payout.update({
+      where: { id: payout!.id },
+      data: { netAmount: 819, offsetAmount: 5 },
+    })
+    await prisma.sellerLedgerEntry.deleteMany({
+      where: { sellerId: f.sellerIds[0], type: 'commission' },
+    })
     const before = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
     const report = await reconcileFinance(prisma, f.sellerIds[0])
-    expect(report.findings.map(finding => finding.code)).toEqual(expect.arrayContaining([
-      'payout_components', 'payout_offsets', 'payout_commission_ledger',
-    ]))
+    expect(report.findings.map((finding) => finding.code)).toEqual(
+      expect.arrayContaining(['payout_components', 'payout_offsets', 'payout_commission_ledger']),
+    )
     expect(await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })).toEqual(before)
   })
 
@@ -174,19 +280,37 @@ describe('phase 7 integrated reconciliation', () => {
     await prisma.order.update({ where: { id: f.orderId }, data: { quantityLifecycleVersion: 1 } })
     await prisma.orderLine.update({ where: { id: f.lineIds[0] }, data: { netPayoutAmount: 999 } })
     const service = createRefundService({ prisma })
-    const refund = await service.queueLegacyRefund({ orderId: f.orderId, sellerId: f.sellerIds[0]!,
-      sourceType: 'return_request', sourceId: randomUUID(), requestedCustomerAmount: new Decimal(1000) })
-    const request = { refundId: refund.id, actorId: f.adminId, reason: 'Original checkout snapshot verified', expectedUpdatedAt: refund.updatedAt.toISOString() }
+    const refund = await service.queueLegacyRefund({
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: 'return_request',
+      sourceId: randomUUID(),
+      requestedCustomerAmount: new Decimal(1000),
+    })
+    const request = {
+      refundId: refund.id,
+      actorId: f.adminId,
+      reason: 'Original checkout snapshot verified',
+      expectedUpdatedAt: refund.updatedAt.toISOString(),
+    }
     await createRefundExecutionService({ prisma }).process(refund.id)
     await createRefundExecutionService({ prisma }).refreshParent(refund.id)
-    expect((await prisma.refundTransaction.findUniqueOrThrow({ where: { id: refund.id } })).failureReason).toBe(refund.failureReason)
+    expect(
+      (await prisma.refundTransaction.findUniqueOrThrow({ where: { id: refund.id } }))
+        .failureReason,
+    ).toBe(refund.failureReason)
     await expect(service.reassessLegacyRefund(request)).rejects.toThrow()
-    expect((await reconcileFinance(prisma, f.sellerIds[0])).findings.map(f => f.code)).toContain('unresolved_legacy_review')
+    expect((await reconcileFinance(prisma, f.sellerIds[0])).findings.map((f) => f.code)).toContain(
+      'unresolved_legacy_review',
+    )
     await prisma.orderLine.update({ where: { id: f.lineIds[0] }, data: { netPayoutAmount: 820 } })
-    const historicalEvent = await prisma.paymentEvent.create({ data: {
-      paymentId: (await prisma.payment.findFirstOrThrow({ where: { orderId: f.orderId } })).id,
-      eventType: 'refund_recorded', payload: { amount: 400 },
-    } })
+    const historicalEvent = await prisma.paymentEvent.create({
+      data: {
+        paymentId: (await prisma.payment.findFirstOrThrow({ where: { orderId: f.orderId } })).id,
+        eventType: 'refund_recorded',
+        payload: { amount: 400 },
+      },
+    })
     await expect(service.reassessLegacyRefund(request)).rejects.toThrow('tarihî iade kanıtı')
     // Delete only this isolated test's injected evidence, never production history.
     await prisma.paymentEvent.delete({ where: { id: historicalEvent.id } })
@@ -195,11 +319,27 @@ describe('phase 7 integrated reconciliation', () => {
     await expect(service.reassessLegacyRefund(request)).rejects.toThrow('artıramaz')
     await prisma.order.update({ where: { id: f.orderId }, data: { totalAmount: 1000 } })
     await prisma.payment.updateMany({ where: { orderId: f.orderId }, data: { amount: 1000 } })
-    const failing = prisma.$extends({ query: { adminAuditLog: { async create() { throw new Error('review audit failure') } } } }) as unknown as PrismaClient
-    await expect(createRefundService({ prisma: failing }).reassessLegacyRefund(request)).rejects.toThrow('review audit failure')
-    expect((await prisma.refundTransaction.findUniqueOrThrow({ where: { id: refund.id } })).ledgerAppliedAt).toBeNull()
-    const results = await Promise.allSettled([service.reassessLegacyRefund(request), service.reassessLegacyRefund(request)])
-    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+    const failing = prisma.$extends({
+      query: {
+        adminAuditLog: {
+          async create() {
+            throw new Error('review audit failure')
+          },
+        },
+      },
+    }) as unknown as PrismaClient
+    await expect(
+      createRefundService({ prisma: failing }).reassessLegacyRefund(request),
+    ).rejects.toThrow('review audit failure')
+    expect(
+      (await prisma.refundTransaction.findUniqueOrThrow({ where: { id: refund.id } }))
+        .ledgerAppliedAt,
+    ).toBeNull()
+    const results = await Promise.allSettled([
+      service.reassessLegacyRefund(request),
+      service.reassessLegacyRefund(request),
+    ])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
     const updated = await prisma.refundTransaction.findUniqueOrThrow({ where: { id: refund.id } })
     expect(updated.ledgerAppliedAt).not.toBeNull()
     expect(await prisma.adminAuditLog.count({ where: { targetId: refund.id } })).toBe(1)
@@ -214,10 +354,19 @@ async function readyFixture(sellerCount = 1) {
   for (const payout of payouts) await service.reevaluate(payout.id)
   const payoutId = payouts[0]!.id
   const context = await service.paymentContext(payoutId)
-  return { ...f, payoutId, payouts, service, pay: {
-    payoutId, adminActorId: f.adminId, expectedSnapshot: context.snapshot,
-    transferDate: new Date('2026-09-14T12:00:00Z'), transferReference: randomUUID(),
-  } }
+  return {
+    ...f,
+    payoutId,
+    payouts,
+    service,
+    pay: {
+      payoutId,
+      adminActorId: f.adminId,
+      expectedSnapshot: context.snapshot,
+      transferDate: new Date('2026-09-14T12:00:00Z'),
+      transferReference: randomUUID(),
+    },
+  }
 }
 
 async function phase5PayoutFixture() {
@@ -260,22 +409,53 @@ async function phase5PenaltyFixture(amount: number) {
 describe('phase 4 source debt offsets', () => {
   async function offsetFixture() {
     const f = await fixture()
-    await prisma.orderLine.updateMany({ where: { orderId: f.orderId }, data: { commissionAmount: 0, netPayoutAmount: 1000 } })
+    await prisma.orderLine.updateMany({
+      where: { orderId: f.orderId },
+      data: { commissionAmount: 0, netPayoutAmount: 1000 },
+    })
     const [payout] = await hold(f.orderId)
     const service = createPayoutService({ prisma })
     await service.reevaluate(payout!.id)
     return { ...f, payoutId: payout!.id, service }
   }
-  async function debt(f: Awaited<ReturnType<typeof offsetFixture>>, amount: number, effectiveAt = confirmedAt) {
-    return createSellerLedgerRepository(prisma).createEntry({ sellerId: f.sellerIds[0]!, type: 'penalty',
-      amount: new Decimal(-amount), referenceType: 'penalty', referenceId: randomUUID(), effectiveAt })
+  async function debt(
+    f: Awaited<ReturnType<typeof offsetFixture>>,
+    amount: number,
+    effectiveAt = confirmedAt,
+  ) {
+    return createSellerLedgerRepository(prisma).createEntry({
+      sellerId: f.sellerIds[0]!,
+      type: 'penalty',
+      amount: new Decimal(-amount),
+      referenceType: 'penalty',
+      referenceId: randomUUID(),
+      effectiveAt,
+    })
   }
   async function nextPayout(f: Awaited<ReturnType<typeof offsetFixture>>) {
     const line = await prisma.orderLine.findUniqueOrThrow({ where: { id: f.lineIds[0] } })
-    const order = await prisma.order.create({ data: { customerId: f.adminId, status: 'delivery_confirmed',
-      grossAmount: 1000, totalAmount: 1000, deliveryConfirmedAt: confirmedAt, paymentConfirmedAt: confirmedAt,
-      lines: { create: { sellerId: f.sellerIds[0]!, productId: line.productId, productName: 'Next sale',
-        quantity: 1, unitPrice: 1000, totalPrice: 1000, commissionAmount: 0, netPayoutAmount: 1000 } } } })
+    const order = await prisma.order.create({
+      data: {
+        customerId: f.adminId,
+        status: 'delivery_confirmed',
+        grossAmount: 1000,
+        totalAmount: 1000,
+        deliveryConfirmedAt: confirmedAt,
+        paymentConfirmedAt: confirmedAt,
+        lines: {
+          create: {
+            sellerId: f.sellerIds[0]!,
+            productId: line.productId,
+            productName: 'Next sale',
+            quantity: 1,
+            unitPrice: 1000,
+            totalPrice: 1000,
+            commissionAmount: 0,
+            netPayoutAmount: 1000,
+          },
+        },
+      },
+    })
     await approveSellerInvoice(order.id, f.sellerIds[0]!)
     const [payout] = await hold(order.id)
     await f.service.reevaluate(payout!.id)
@@ -283,13 +463,26 @@ describe('phase 4 source debt offsets', () => {
   }
   async function close(f: Awaited<ReturnType<typeof offsetFixture>>, payoutId = f.payoutId) {
     const context = await f.service.paymentContext(payoutId)
-    return f.service.markPaid({ payoutId, adminActorId: f.adminId, expectedSnapshot: context.snapshot,
-      transferDate: new Date(), settleWithoutTransfer: context.amount === '0.00' })
+    return f.service.markPaid({
+      payoutId,
+      adminActorId: f.adminId,
+      expectedSnapshot: context.snapshot,
+      transferDate: new Date(),
+      settleWithoutTransfer: context.amount === '0.00',
+    })
   }
-  const extraInvoice = (f: Awaited<ReturnType<typeof offsetFixture>>, total = '300.03', invoiceNumber = `EXTRA-${randomUUID()}`) => ({
-    sellerId: f.sellerIds[0]!, type: 'additional' as const, invoiceNumber,
-    invoiceDate: new Date('2026-01-03T12:00:00Z'), description: 'Fiyat farkı faturası',
-    grossInvoiceAmount: new Decimal(total), createdByAdminId: f.adminId,
+  const extraInvoice = (
+    f: Awaited<ReturnType<typeof offsetFixture>>,
+    total = '300.03',
+    invoiceNumber = `EXTRA-${randomUUID()}`,
+  ) => ({
+    sellerId: f.sellerIds[0]!,
+    type: 'additional' as const,
+    invoiceNumber,
+    invoiceDate: new Date('2026-01-03T12:00:00Z'),
+    description: 'Fiyat farkı faturası',
+    grossInvoiceAmount: new Decimal(total),
+    createdByAdminId: f.adminId,
   })
 
   it('posts the extra invoice gross total, number and description to only its designer statement', async () => {
@@ -297,17 +490,29 @@ describe('phase 4 source debt offsets', () => {
     const other = await offsetFixture()
     const invoice = await createSellerInvoiceService({ prisma }).create(extraInvoice(f))
     const statement = await createSellerFinanceService({ prisma }).getStatement({
-      sellerId: f.sellerIds[0]!, from: new Date('2026-01-01'), to: new Date('2027-01-01'),
+      sellerId: f.sellerIds[0]!,
+      from: new Date('2026-01-01'),
+      to: new Date('2027-01-01'),
     })
     expect(statement.rows.find((row) => row.reference === invoice.invoiceNumber)).toMatchObject({
-      topic: 'Ek Fatura', description: 'Fiyat farkı faturası', debit: 300.03, credit: 0,
+      topic: 'Ek Fatura',
+      description: 'Fiyat farkı faturası',
+      debit: 300.03,
+      credit: 0,
     })
-    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({ amount: '699.97', offsetAmount: '300.03' })
+    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({
+      amount: '699.97',
+      offsetAmount: '300.03',
+    })
     const otherStatement = await createSellerFinanceService({ prisma }).getStatement({
-      sellerId: other.sellerIds[0]!, from: new Date('2026-01-01'), to: new Date('2027-01-01'),
+      sellerId: other.sellerIds[0]!,
+      from: new Date('2026-01-01'),
+      to: new Date('2027-01-01'),
     })
     expect(otherStatement.rows.some((row) => row.reference === invoice.invoiceNumber)).toBe(false)
-    expect(await other.service.paymentContext(other.payoutId)).toMatchObject({ offsetAmount: '0.00' })
+    expect(await other.service.paymentContext(other.payoutId)).toMatchObject({
+      offsetAmount: '0.00',
+    })
   })
 
   it('records simultaneous duplicate extra invoices once, including across designers', async () => {
@@ -316,13 +521,24 @@ describe('phase 4 source debt offsets', () => {
     const params = extraInvoice(f)
     const service = createSellerInvoiceService({ prisma })
     const results = await Promise.allSettled([
-      service.create(params), service.create(params), service.create({ ...params, sellerId: other.sellerIds[0]! }),
+      service.create(params),
+      service.create(params),
+      service.create({ ...params, sellerId: other.sellerIds[0]! }),
     ])
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
-    expect(results.filter((result) => result.status === 'rejected').every((result) =>
-      result.status === 'rejected' && result.reason.code === 'CONFLICT')).toBe(true)
-    const invoice = await prisma.sellerInvoice.findUniqueOrThrow({ where: { invoiceNumber: params.invoiceNumber } })
-    expect(await prisma.sellerLedgerEntry.count({ where: { referenceType: 'seller_invoice', referenceId: invoice.id } })).toBe(1)
+    expect(
+      results
+        .filter((result) => result.status === 'rejected')
+        .every((result) => result.status === 'rejected' && result.reason.code === 'CONFLICT'),
+    ).toBe(true)
+    const invoice = await prisma.sellerInvoice.findUniqueOrThrow({
+      where: { invoiceNumber: params.invoiceNumber },
+    })
+    expect(
+      await prisma.sellerLedgerEntry.count({
+        where: { referenceType: 'seller_invoice', referenceId: invoice.id },
+      }),
+    ).toBe(1)
   })
 
   it('carries extra invoice debt across payouts once and prevents edits after partial deduction', async () => {
@@ -330,35 +546,64 @@ describe('phase 4 source debt offsets', () => {
     const invoice = await createSellerInvoiceService({ prisma }).create(extraInvoice(f, '1200.05'))
     await close(f)
     await close(f)
-    expect((await outstandingPayoutDebts(prisma, f.sellerIds[0]!))[0]?.remaining.toFixed(2)).toBe('200.05')
-    await expect(createAdditionalSellerInvoiceService({ prisma }).update({
-      invoiceId: invoice.id, adminActorId: f.adminId, grossInvoiceAmount: new Decimal(100),
-    })).rejects.toThrow('Hakedişten kesilmiş')
+    expect((await outstandingPayoutDebts(prisma, f.sellerIds[0]!))[0]?.remaining.toFixed(2)).toBe(
+      '200.05',
+    )
+    await expect(
+      createAdditionalSellerInvoiceService({ prisma }).update({
+        invoiceId: invoice.id,
+        adminActorId: f.adminId,
+        grossInvoiceAmount: new Decimal(100),
+      }),
+    ).rejects.toThrow('Hakedişten kesilmiş')
     const next = await nextPayout(f)
-    expect(await f.service.paymentContext(next)).toMatchObject({ amount: '799.95', offsetAmount: '200.05' })
+    expect(await f.service.paymentContext(next)).toMatchObject({
+      amount: '799.95',
+      offsetAmount: '200.05',
+    })
     await close(f, next)
     expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
-    expect((await prisma.sellerInvoice.findUniqueOrThrow({ where: { id: invoice.id } })).grossInvoiceAmount.toFixed(2)).toBe('1200.05')
+    expect(
+      (
+        await prisma.sellerInvoice.findUniqueOrThrow({ where: { id: invoice.id } })
+      ).grossInvoiceAmount.toFixed(2),
+    ).toBe('1200.05')
   })
 
   it('corrects an unpaid extra invoice with immutable entries and moves its statement date', async () => {
     const f = await offsetFixture()
     const invoice = await createSellerInvoiceService({ prisma }).create(extraInvoice(f))
     const service = createAdditionalSellerInvoiceService({ prisma })
-    const update = { invoiceId: invoice.id, adminActorId: f.adminId, grossInvoiceAmount: new Decimal('125.55'),
-      invoiceDate: new Date('2026-02-05T12:00:00Z'), description: 'Düzeltilmiş fiyat farkı faturası' }
+    const update = {
+      invoiceId: invoice.id,
+      adminActorId: f.adminId,
+      grossInvoiceAmount: new Decimal('125.55'),
+      invoiceDate: new Date('2026-02-05T12:00:00Z'),
+      description: 'Düzeltilmiş fiyat farkı faturası',
+    }
     await service.update(update)
     await service.update(update)
-    const entries = await prisma.sellerLedgerEntry.findMany({ where: { referenceType: 'seller_invoice', referenceId: invoice.id } })
+    const entries = await prisma.sellerLedgerEntry.findMany({
+      where: { referenceType: 'seller_invoice', referenceId: invoice.id },
+    })
     expect(entries).toHaveLength(3)
-    expect(entries.reduce((sum, entry) => sum.plus(entry.amount), new Decimal(0)).toFixed(2)).toBe('-125.55')
-    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({ offsetAmount: '125.55', amount: '874.45' })
+    expect(entries.reduce((sum, entry) => sum.plus(entry.amount), new Decimal(0)).toFixed(2)).toBe(
+      '-125.55',
+    )
+    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({
+      offsetAmount: '125.55',
+      amount: '874.45',
+    })
     const statement = await createSellerFinanceService({ prisma }).getStatement({
-      sellerId: f.sellerIds[0]!, from: new Date('2026-02-01'), to: new Date('2026-02-28'),
+      sellerId: f.sellerIds[0]!,
+      from: new Date('2026-02-01'),
+      to: new Date('2026-02-28'),
     })
     expect(statement.rows.filter((row) => row.reference === invoice.invoiceNumber)).toHaveLength(1)
     expect(statement.rows.find((row) => row.reference === invoice.invoiceNumber)).toMatchObject({
-      debit: 125.55, description: update.description, date: new Date('2026-02-04T21:00:00Z'),
+      debit: 125.55,
+      description: update.description,
+      date: new Date('2026-02-04T21:00:00Z'),
     })
   })
 
@@ -367,18 +612,35 @@ describe('phase 4 source debt offsets', () => {
     vi.setSystemTime(new Date('2026-10-11T21:30:00Z'))
     const f = await offsetFixture()
     const invoice = await createSellerInvoiceService({ prisma }).create({
-      ...extraInvoice(f), invoiceDate: new Date('2026-10-12T12:00:00Z'),
+      ...extraInvoice(f),
+      invoiceDate: new Date('2026-10-12T12:00:00Z'),
     })
     expect(invoice.invoiceDate.toISOString()).toBe('2026-10-11T21:00:00.000Z')
-    expect((await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).find((debt) => debt.remaining.toFixed(2) === '300.03')).toBeDefined()
+    expect(
+      (await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).find(
+        (debt) => debt.remaining.toFixed(2) === '300.03',
+      ),
+    ).toBeDefined()
   })
 
   it('rolls the extra invoice and debt back when its audit write fails', async () => {
     const f = await offsetFixture()
-    const failing = prisma.$extends({ query: { adminAuditLog: { async create() { throw new Error('extra audit failed') } } } }) as unknown as PrismaClient
+    const failing = prisma.$extends({
+      query: {
+        adminAuditLog: {
+          async create() {
+            throw new Error('extra audit failed')
+          },
+        },
+      },
+    }) as unknown as PrismaClient
     const params = extraInvoice(f)
-    await expect(createSellerInvoiceService({ prisma: failing }).create(params)).rejects.toThrow('extra audit failed')
-    expect(await prisma.sellerInvoice.count({ where: { invoiceNumber: params.invoiceNumber } })).toBe(0)
+    await expect(createSellerInvoiceService({ prisma: failing }).create(params)).rejects.toThrow(
+      'extra audit failed',
+    )
+    expect(
+      await prisma.sellerInvoice.count({ where: { invoiceNumber: params.invoiceNumber } }),
+    ).toBe(0)
     expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
   })
 
@@ -389,35 +651,61 @@ describe('phase 4 source debt offsets', () => {
       await expect(service.create(extraInvoice(f, total))).rejects.toThrow()
     }
     await expect(service.create({ ...extraInvoice(f), description: ' ' })).rejects.toThrow()
-    await expect(service.create({ ...extraInvoice(f), invoiceDate: new Date('2099-01-01') })).rejects.toThrow()
+    await expect(
+      service.create({ ...extraInvoice(f), invoiceDate: new Date('2099-01-01') }),
+    ).rejects.toThrow()
     expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
   })
 
   it('documents an existing penalty without adding its principal a second time', async () => {
     const f = await offsetFixture()
     const penalty = await createPenaltyService({ prisma }).applyManually({
-      orderId: f.orderId, sellerId: f.sellerIds[0]!, adminActorId: f.adminId,
-      manualReason: 'Ceza faturası çift kesinti kontrolü', penaltyAmount: new Decimal(100),
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      adminActorId: f.adminId,
+      manualReason: 'Ceza faturası çift kesinti kontrolü',
+      penaltyAmount: new Decimal(100),
     })
     await createSellerInvoiceService({ prisma }).create({
-      sellerId: f.sellerIds[0]!, type: 'penalty', invoiceNumber: `PEN-${randomUUID()}`,
-      invoiceDate: confirmedAt, grossInvoiceAmount: new Decimal(100), sourcePenaltyId: penalty.id,
-      sourceOrderId: f.orderId, createdByAdminId: f.adminId,
+      sellerId: f.sellerIds[0]!,
+      type: 'penalty',
+      invoiceNumber: `PEN-${randomUUID()}`,
+      invoiceDate: confirmedAt,
+      grossInvoiceAmount: new Decimal(100),
+      sourcePenaltyId: penalty.id,
+      sourceOrderId: f.orderId,
+      createdByAdminId: f.adminId,
     })
-    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({ offsetAmount: '100.00', amount: '900.00' })
+    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({
+      offsetAmount: '100.00',
+      amount: '900.00',
+    })
   })
   it('deducts 300 from 1000 once without writing another debt movement', async () => {
     const f = await offsetFixture()
     const source = await debt(f, 300)
     const before = await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })
     const context = await f.service.paymentContext(f.payoutId)
-    expect(context).toMatchObject({ amount: '700.00', offsetAmount: '300.00', remainingDebt: '0.00' })
-    const params = { payoutId: f.payoutId, adminActorId: f.adminId, expectedSnapshot: context.snapshot, transferDate: new Date() }
+    expect(context).toMatchObject({
+      amount: '700.00',
+      offsetAmount: '300.00',
+      remainingDebt: '0.00',
+    })
+    const params = {
+      payoutId: f.payoutId,
+      adminActorId: f.adminId,
+      expectedSnapshot: context.snapshot,
+      transferDate: new Date(),
+    }
     await f.service.markPaid(params)
     await f.service.markPaid(params)
     expect(await prisma.payoutDebtOffset.count({ where: { ledgerEntryId: source.id } })).toBe(1)
-    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })).toBe(before + 1)
-    const payment = await prisma.sellerLedgerEntry.findFirstOrThrow({ where: { referenceId: f.payoutId, type: 'payout' } })
+    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })).toBe(
+      before + 1,
+    )
+    const payment = await prisma.sellerLedgerEntry.findFirstOrThrow({
+      where: { referenceId: f.payoutId, type: 'payout' },
+    })
     expect(payment.amount.toFixed(2)).toBe('-700.00')
     expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
     expect((await reconcileFinance(prisma, f.sellerIds[0])).findings).toEqual([])
@@ -431,11 +719,21 @@ describe('phase 4 source debt offsets', () => {
     expect(closed.transferDate).toBeNull()
     expect(closed.ibanSnapshot).toBeNull()
     expect(closed.offsetAmount.toFixed(2)).toBe('1000.00')
-    expect(await prisma.sellerLedgerEntry.count({ where: { referenceId: f.payoutId, type: 'payout' } })).toBe(0)
-    await f.service.markPaid({ payoutId: f.payoutId, adminActorId: f.adminId, transferDate: new Date(), settleWithoutTransfer: true })
+    expect(
+      await prisma.sellerLedgerEntry.count({ where: { referenceId: f.payoutId, type: 'payout' } }),
+    ).toBe(0)
+    await f.service.markPaid({
+      payoutId: f.payoutId,
+      adminActorId: f.adminId,
+      transferDate: new Date(),
+      settleWithoutTransfer: true,
+    })
     expect(await prisma.payoutDebtOffset.count({ where: { payoutId: f.payoutId } })).toBe(1)
     const next = await nextPayout(f)
-    expect(await f.service.paymentContext(next)).toMatchObject({ offsetAmount: '200.00', amount: '800.00' })
+    expect(await f.service.paymentContext(next)).toMatchObject({
+      offsetAmount: '200.00',
+      amount: '800.00',
+    })
     await close(f, next)
     expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
     expect((await f.service.reevaluate(f.payoutId)).payout.status).toBe('payout_offset')
@@ -445,87 +743,181 @@ describe('phase 4 source debt offsets', () => {
     const f = await offsetFixture()
     const old = await debt(f, 800, new Date('2025-01-01'))
     const recent = await debt(f, 500, new Date('2025-02-01'))
-    await createSellerLedgerRepository(prisma).createEntry({ sellerId: f.sellerIds[0]!, type: 'sale',
-      amount: new Decimal(10000), referenceType: 'order', referenceId: randomUUID() })
+    await createSellerLedgerRepository(prisma).createEntry({
+      sellerId: f.sellerIds[0]!,
+      type: 'sale',
+      amount: new Decimal(10000),
+      referenceType: 'order',
+      referenceId: randomUUID(),
+    })
     await close(f)
     const offsets = await prisma.payoutDebtOffset.findMany({ where: { payoutId: f.payoutId } })
-    expect(offsets.find(o => o.ledgerEntryId === old.id)?.amount.toFixed(2)).toBe('800.00')
-    expect(offsets.find(o => o.ledgerEntryId === recent.id)?.amount.toFixed(2)).toBe('200.00')
-    expect((await outstandingPayoutDebts(prisma, f.sellerIds[0]!))[0]?.remaining.toFixed(2)).toBe('300.00')
+    expect(offsets.find((o) => o.ledgerEntryId === old.id)?.amount.toFixed(2)).toBe('800.00')
+    expect(offsets.find((o) => o.ledgerEntryId === recent.id)?.amount.toFixed(2)).toBe('200.00')
+    expect((await outstandingPayoutDebts(prisma, f.sellerIds[0]!))[0]?.remaining.toFixed(2)).toBe(
+      '300.00',
+    )
   })
   it('rejects stale debt information and rolls allocations back on audit failure', async () => {
     const f = await offsetFixture()
     const stale = await f.service.paymentContext(f.payoutId)
     await debt(f, 300)
-    await expect(f.service.markPaid({ payoutId: f.payoutId, adminActorId: f.adminId,
-      transferDate: new Date(), expectedSnapshot: stale.snapshot })).rejects.toMatchObject({ code: 'PAYOUT_SNAPSHOT_CHANGED' })
+    await expect(
+      f.service.markPaid({
+        payoutId: f.payoutId,
+        adminActorId: f.adminId,
+        transferDate: new Date(),
+        expectedSnapshot: stale.snapshot,
+      }),
+    ).rejects.toMatchObject({ code: 'PAYOUT_SNAPSHOT_CHANGED' })
     const fresh = await f.service.paymentContext(f.payoutId)
-    const failing = prisma.$extends({ query: { adminAuditLog: { async create() { throw new Error('audit failed') } } } }) as unknown as PrismaClient
-    await expect(createPayoutService({ prisma: failing }).markPaid({ payoutId: f.payoutId, adminActorId: f.adminId,
-      transferDate: new Date(), expectedSnapshot: fresh.snapshot })).rejects.toThrow('audit failed')
+    const failing = prisma.$extends({
+      query: {
+        adminAuditLog: {
+          async create() {
+            throw new Error('audit failed')
+          },
+        },
+      },
+    }) as unknown as PrismaClient
+    await expect(
+      createPayoutService({ prisma: failing }).markPaid({
+        payoutId: f.payoutId,
+        adminActorId: f.adminId,
+        transferDate: new Date(),
+        expectedSnapshot: fresh.snapshot,
+      }),
+    ).rejects.toThrow('audit failed')
     expect(await prisma.payoutDebtOffset.count({ where: { payoutId: f.payoutId } })).toBe(0)
-    expect((await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })).status).toBe('payout_ready')
+    expect((await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })).status).toBe(
+      'payout_ready',
+    )
   })
   it('serializes two payouts so one debt cannot be consumed twice', async () => {
     const f = await offsetFixture()
     const source = await debt(f, 300)
     const next = await nextPayout(f)
-    const contexts = await Promise.all([f.service.paymentContext(f.payoutId), f.service.paymentContext(next)])
-    const results = await Promise.allSettled([f.payoutId, next].map((id, index) => f.service.markPaid({ payoutId: id,
-      adminActorId: f.adminId, transferDate: new Date(), expectedSnapshot: contexts[index]!.snapshot })))
-    expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1)
+    const contexts = await Promise.all([
+      f.service.paymentContext(f.payoutId),
+      f.service.paymentContext(next),
+    ])
+    const results = await Promise.allSettled(
+      [f.payoutId, next].map((id, index) =>
+        f.service.markPaid({
+          payoutId: id,
+          adminActorId: f.adminId,
+          transferDate: new Date(),
+          expectedSnapshot: contexts[index]!.snapshot,
+        }),
+      ),
+    )
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
     expect(await prisma.payoutDebtOffset.count({ where: { ledgerEntryId: source.id } })).toBe(1)
-    const pending = await prisma.payout.findFirstOrThrow({ where: { sellerId: f.sellerIds[0], status: 'payout_ready' } })
+    const pending = await prisma.payout.findFirstOrThrow({
+      where: { sellerId: f.sellerIds[0], status: 'payout_ready' },
+    })
     expect((await f.service.paymentContext(pending.id)).amount).toBe('1000.00')
     await close(f, pending.id)
   })
   it('collects only the net seller liability of a post-payment refund', async () => {
     const f = await readyFixture()
     await close(f)
-    await createQuantityRefundService({ prisma }).queue({ orderId: f.orderId, sellerId: f.sellerIds[0]!,
-      sourceType: 'cancellation', sourceId: randomUUID(), customerAmount: new Decimal(100),
-      grossProductAmount: new Decimal(100), sellerAdjustmentAmount: new Decimal(82), commissionAdjustmentAmount: new Decimal(18),
-      items: [{ orderLineId: f.lineIds[0]!, quantity: 1, amount: new Decimal(100) }] })
+    await createQuantityRefundService({ prisma }).queue({
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: 'cancellation',
+      sourceId: randomUUID(),
+      customerAmount: new Decimal(100),
+      grossProductAmount: new Decimal(100),
+      sellerAdjustmentAmount: new Decimal(82),
+      commissionAdjustmentAmount: new Decimal(18),
+      items: [{ orderLineId: f.lineIds[0]!, quantity: 1, amount: new Decimal(100) }],
+    })
     const next = await nextPayout(f)
-    expect(await f.service.paymentContext(next)).toMatchObject({ offsetAmount: '82.00', amount: '918.00' })
+    expect(await f.service.paymentContext(next)).toMatchObject({
+      offsetAmount: '82.00',
+      amount: '918.00',
+    })
     await close(f, next)
     expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
   })
   it('keeps mandatory holds and manual blocks even when debt covers the entire payout', async () => {
     const f = await offsetFixture()
     await debt(f, 1200)
-    await f.service.block({ payoutId: f.payoutId, adminActorId: f.adminId, reason: 'Manual risk review' })
+    await f.service.block({
+      payoutId: f.payoutId,
+      adminActorId: f.adminId,
+      reason: 'Manual risk review',
+    })
     await expect(close(f)).rejects.toThrow()
     await restartInvoiceTerm(f.orderId, f.sellerIds[0]!)
-    await f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true, reason: 'Manual review done' })
+    await f.service.release({
+      payoutId: f.payoutId,
+      adminActorId: f.adminId,
+      clearManualBlock: true,
+      reason: 'Manual review done',
+    })
     await expect(close(f)).rejects.toThrow()
     expect(await prisma.payoutDebtOffset.count({ where: { payoutId: f.payoutId } })).toBe(0)
   })
   it('requires the correct transfer or no-transfer action', async () => {
     const f = await offsetFixture()
     const positive = await f.service.paymentContext(f.payoutId)
-    await expect(f.service.markPaid({ payoutId: f.payoutId, adminActorId: f.adminId, transferDate: new Date(),
-      expectedSnapshot: positive.snapshot, settleWithoutTransfer: true })).rejects.toThrow('pozitif')
+    await expect(
+      f.service.markPaid({
+        payoutId: f.payoutId,
+        adminActorId: f.adminId,
+        transferDate: new Date(),
+        expectedSnapshot: positive.snapshot,
+        settleWithoutTransfer: true,
+      }),
+    ).rejects.toThrow('pozitif')
     await debt(f, 1200)
     const zeroContext = await f.service.paymentContext(f.payoutId)
-    await expect(f.service.markPaid({ payoutId: f.payoutId, adminActorId: f.adminId, transferDate: new Date(),
-      expectedSnapshot: zeroContext.snapshot })).rejects.toThrow('Sıfır')
+    await expect(
+      f.service.markPaid({
+        payoutId: f.payoutId,
+        adminActorId: f.adminId,
+        transferDate: new Date(),
+        expectedSnapshot: zeroContext.snapshot,
+      }),
+    ).rejects.toThrow('Sıfır')
     expect(await prisma.payoutDebtOffset.count({ where: { payoutId: f.payoutId } })).toBe(0)
   })
   it('uses valid manual debt and its credit in kuruş, without including another seller or future entries', async () => {
     const f = await offsetFixture()
     const ledger = createSellerLedgerRepository(prisma)
     const referenceId = randomUUID()
-    await ledger.createEntry({ sellerId: f.sellerIds[0]!, type: 'manual_adjustment', amount: new Decimal('-300.03'),
-      createdBy: f.adminId, referenceType: 'manual', referenceId })
-    await ledger.createEntry({ sellerId: f.sellerIds[0]!, type: 'manual_adjustment', amount: new Decimal('0.02'),
-      createdBy: f.adminId, referenceType: 'manual', referenceId })
-    await ledger.createEntry({ sellerId: f.sellerIds[0]!, type: 'manual_adjustment', amount: new Decimal(-500),
-      referenceType: 'manual', referenceId: randomUUID() })
+    await ledger.createEntry({
+      sellerId: f.sellerIds[0]!,
+      type: 'manual_adjustment',
+      amount: new Decimal('-300.03'),
+      createdBy: f.adminId,
+      referenceType: 'manual',
+      referenceId,
+    })
+    await ledger.createEntry({
+      sellerId: f.sellerIds[0]!,
+      type: 'manual_adjustment',
+      amount: new Decimal('0.02'),
+      createdBy: f.adminId,
+      referenceType: 'manual',
+      referenceId,
+    })
+    await ledger.createEntry({
+      sellerId: f.sellerIds[0]!,
+      type: 'manual_adjustment',
+      amount: new Decimal(-500),
+      referenceType: 'manual',
+      referenceId: randomUUID(),
+    })
     await debt(f, 999, new Date('2099-01-01'))
     const other = await offsetFixture()
     await debt(other, 500)
-    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({ offsetAmount: '300.01', amount: '699.99' })
+    expect(await f.service.paymentContext(f.payoutId)).toMatchObject({
+      offsetAmount: '300.01',
+      amount: '699.99',
+    })
     await close(f)
     expect((await f.service.paymentContext(f.payoutId)).amount).toBe('699.99')
   })
@@ -533,16 +925,25 @@ describe('phase 4 source debt offsets', () => {
     const f = await offsetFixture()
     await debt(f, 1000)
     await close(f)
-    await createQuantityRefundService({ prisma }).queue({ orderId: f.orderId, sellerId: f.sellerIds[0]!,
-      sourceType: 'return_request', sourceId: randomUUID(), customerAmount: new Decimal(100),
-      grossProductAmount: new Decimal(100), sellerAdjustmentAmount: new Decimal(100),
-      items: [{ orderLineId: f.lineIds[0]!, quantity: 1, amount: new Decimal(100) }] })
+    await createQuantityRefundService({ prisma }).queue({
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: 'return_request',
+      sourceId: randomUUID(),
+      customerAmount: new Decimal(100),
+      grossProductAmount: new Decimal(100),
+      sellerAdjustmentAmount: new Decimal(100),
+      items: [{ orderLineId: f.lineIds[0]!, quantity: 1, amount: new Decimal(100) }],
+    })
     const closed = await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })
     expect(closed.status).toBe('payout_offset')
     expect(closed.netAmount.toFixed(2)).toBe('1000.00')
     expect(closed.offsetAmount.toFixed(2)).toBe('1000.00')
     const next = await nextPayout(f)
-    expect(await f.service.paymentContext(next)).toMatchObject({ offsetAmount: '100.00', amount: '900.00' })
+    expect(await f.service.paymentContext(next)).toMatchObject({
+      offsetAmount: '100.00',
+      amount: '900.00',
+    })
   })
   it('keeps batch forecast and completed transfer total consistent', async () => {
     const f = await offsetFixture()
@@ -557,38 +958,80 @@ describe('phase 4 source debt offsets', () => {
   })
   it('does not collect an explicitly offset legacy penalty again', async () => {
     const f = await offsetFixture()
-    const penalty = await prisma.penalty.create({ data: { sellerId: f.sellerIds[0]!, orderId: f.orderId,
-      reason: 'other', baseAmount: 1000, rate: '0.3', penaltyAmount: 300,
-      status: 'offset', offsetPayoutId: f.payoutId } })
-    await createSellerLedgerRepository(prisma).createEntry({ sellerId: f.sellerIds[0]!, type: 'penalty',
-      amount: new Decimal(-300), referenceType: 'penalty', referenceId: penalty.id })
+    const penalty = await prisma.penalty.create({
+      data: {
+        sellerId: f.sellerIds[0]!,
+        orderId: f.orderId,
+        reason: 'other',
+        baseAmount: 1000,
+        rate: '0.3',
+        penaltyAmount: 300,
+        status: 'offset',
+        offsetPayoutId: f.payoutId,
+      },
+    })
+    await createSellerLedgerRepository(prisma).createEntry({
+      sellerId: f.sellerIds[0]!,
+      type: 'penalty',
+      amount: new Decimal(-300),
+      referenceType: 'penalty',
+      referenceId: penalty.id,
+    })
     expect((await f.service.paymentContext(f.payoutId)).amount).toBe('1000.00')
   })
   it('does not turn a pre-settlement refund into debt after that payout closes', async () => {
     paymentFriday()
     const f = await offsetFixture()
-    const refund = await createQuantityRefundService({ prisma }).queue({ orderId: f.orderId, sellerId: f.sellerIds[0]!,
-      sourceType: 'return_request', sourceId: randomUUID(), customerAmount: new Decimal(100),
-      grossProductAmount: new Decimal(100), sellerAdjustmentAmount: new Decimal(100),
-      items: [{ orderLineId: f.lineIds[0]!, quantity: 1, amount: new Decimal(100) }] })
-    await prisma.refundTransaction.update({ where: { id: refund.id }, data: { status: 'completed' } })
+    const refund = await createQuantityRefundService({ prisma }).queue({
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: 'return_request',
+      sourceId: randomUUID(),
+      customerAmount: new Decimal(100),
+      grossProductAmount: new Decimal(100),
+      sellerAdjustmentAmount: new Decimal(100),
+      items: [{ orderLineId: f.lineIds[0]!, quantity: 1, amount: new Decimal(100) }],
+    })
+    await prisma.refundTransaction.update({
+      where: { id: refund.id },
+      data: { status: 'completed' },
+    })
     await f.service.reevaluate(f.payoutId)
     expect((await f.service.paymentContext(f.payoutId)).amount).toBe('900.00')
     await close(f)
     const next = await nextPayout(f)
-    expect(await f.service.paymentContext(next)).toMatchObject({ offsetAmount: '0.00', amount: '1000.00' })
+    expect(await f.service.paymentContext(next)).toMatchObject({
+      offsetAmount: '0.00',
+      amount: '1000.00',
+    })
   })
   it('retains source credits when a group contains already collected debt movements', async () => {
     const f = await offsetFixture()
     const ledger = createSellerLedgerRepository(prisma)
     const referenceId = randomUUID()
-    for (const amount of [800, 500]) await ledger.createEntry({ sellerId: f.sellerIds[0]!,
-      type: 'manual_adjustment', amount: new Decimal(-amount), createdBy: f.adminId, referenceType: 'manual', referenceId })
+    for (const amount of [800, 500])
+      await ledger.createEntry({
+        sellerId: f.sellerIds[0]!,
+        type: 'manual_adjustment',
+        amount: new Decimal(-amount),
+        createdBy: f.adminId,
+        referenceType: 'manual',
+        referenceId,
+      })
     await close(f)
-    await ledger.createEntry({ sellerId: f.sellerIds[0]!, type: 'manual_adjustment', amount: new Decimal(200),
-      createdBy: f.adminId, referenceType: 'manual', referenceId })
+    await ledger.createEntry({
+      sellerId: f.sellerIds[0]!,
+      type: 'manual_adjustment',
+      amount: new Decimal(200),
+      createdBy: f.adminId,
+      referenceType: 'manual',
+      referenceId,
+    })
     const next = await nextPayout(f)
-    expect(await f.service.paymentContext(next)).toMatchObject({ offsetAmount: '100.00', amount: '900.00' })
+    expect(await f.service.paymentContext(next)).toMatchObject({
+      offsetAmount: '100.00',
+      amount: '900.00',
+    })
     await close(f, next)
     expect(await outstandingPayoutDebts(prisma, f.sellerIds[0]!)).toEqual([])
   })
@@ -610,82 +1053,196 @@ describe('phase 3 payout eligibility', () => {
   it('automatically recovers a bank block after verification', async () => {
     paymentFriday()
     const f = await readyFixture()
-    await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: false } })
+    await prisma.sellerBankDetail.updateMany({
+      where: { sellerId: f.sellerIds[0] },
+      data: { isVerified: false },
+    })
     const blocked = await f.service.reevaluate(f.payoutId)
     expect(blocked.payout.status).toBe('payout_blocked')
     expect(blocked.payout.manualBlockedAt).toBeNull()
     expect(blocked.automaticReason).toContain('banka')
-    expect((await createPayoutRepository(prisma).findReadyForRelease()).map((p) => p.id)).toContain(f.payoutId)
-    await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: true } })
+    expect((await createPayoutRepository(prisma).findReadyForRelease()).map((p) => p.id)).toContain(
+      f.payoutId,
+    )
+    await prisma.sellerBankDetail.updateMany({
+      where: { sellerId: f.sellerIds[0] },
+      data: { isVerified: true },
+    })
     expect((await f.service.reevaluate(f.payoutId)).payout.status).toBe('payout_ready')
   })
 
   it('retains manual blocks and requires reasoned authorized release without bypassing bank or hold', async () => {
     const f = await readyFixture()
-    await f.service.block({ payoutId: f.payoutId, adminActorId: f.adminId, reason: 'Manual review needed' })
-    await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: false } })
+    await f.service.block({
+      payoutId: f.payoutId,
+      adminActorId: f.adminId,
+      reason: 'Manual review needed',
+    })
+    await prisma.sellerBankDetail.updateMany({
+      where: { sellerId: f.sellerIds[0] },
+      data: { isVerified: false },
+    })
     const check = await f.service.reevaluate(f.payoutId)
     expect(check.manualReason).toBe('Manual review needed')
     expect(check.automaticReason).toContain('banka')
-    await expect(f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId })).rejects.toThrow('açıkça')
-    await expect(f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true })).rejects.toThrow('gerekçesi')
+    await expect(
+      f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId }),
+    ).rejects.toThrow('açıkça')
+    await expect(
+      f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true }),
+    ).rejects.toThrow('gerekçesi')
     const seller = await prisma.seller.findUniqueOrThrow({ where: { id: f.sellerIds[0] } })
-    await expect(f.service.release({ payoutId: f.payoutId, adminActorId: seller.userId, clearManualBlock: true, reason: 'Review cleared' })).rejects.toThrow()
-    const released = await f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true, reason: 'Review cleared' })
+    await expect(
+      f.service.release({
+        payoutId: f.payoutId,
+        adminActorId: seller.userId,
+        clearManualBlock: true,
+        reason: 'Review cleared',
+      }),
+    ).rejects.toThrow()
+    const released = await f.service.release({
+      payoutId: f.payoutId,
+      adminActorId: f.adminId,
+      clearManualBlock: true,
+      reason: 'Review cleared',
+    })
     expect(released.manualBlockedAt).toBeNull()
     expect(released.status).toBe('payout_blocked')
-    await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: true } })
+    await prisma.sellerBankDetail.updateMany({
+      where: { sellerId: f.sellerIds[0] },
+      data: { isVerified: true },
+    })
     await restartInvoiceTerm(f.orderId, f.sellerIds[0]!)
     expect((await f.service.reevaluate(f.payoutId)).payout.status).toBe('hold_active')
     await expect(f.service.markPaid(f.pay)).rejects.toThrow()
   })
 
-  it.each(['open', 'under_review'] as const)('rejects payment when a %s dispute opens after the screen was read', async (status) => {
-    const f = await readyFixture()
-    await prisma.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId, reason: 'New dispute', status } })
-    await expect(f.service.markPaid(f.pay)).rejects.toThrow('uyuşmazlık')
-    expect(await prisma.sellerLedgerEntry.count({ where: { referenceId: f.payoutId, type: 'payout' } })).toBe(0)
-  })
+  it.each(['open', 'under_review'] as const)(
+    'rejects payment when a %s dispute opens after the screen was read',
+    async (status) => {
+      const f = await readyFixture()
+      await prisma.dispute.create({
+        data: { orderId: f.orderId, openedById: f.adminId, reason: 'New dispute', status },
+      })
+      await expect(f.service.markPaid(f.pay)).rejects.toThrow('uyuşmazlık')
+      expect(
+        await prisma.sellerLedgerEntry.count({
+          where: { referenceId: f.payoutId, type: 'payout' },
+        }),
+      ).toBe(0)
+    },
+  )
 
   it('only blocks the affected seller for an escalated return dispute', async () => {
     const f = await readyFixture(2)
-    const dispute = await prisma.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId, reason: 'Seller two dispute', status: 'under_review' } })
-    await prisma.returnRequest.create({ data: { orderId: f.orderId, customerId: f.adminId, sellerId: f.sellerIds[1], reason: 'Return dispute', status: 'rejected', disputeId: dispute.id, isWithinWindow: true } })
+    const dispute = await prisma.dispute.create({
+      data: {
+        orderId: f.orderId,
+        openedById: f.adminId,
+        reason: 'Seller two dispute',
+        status: 'under_review',
+      },
+    })
+    await prisma.returnRequest.create({
+      data: {
+        orderId: f.orderId,
+        customerId: f.adminId,
+        sellerId: f.sellerIds[1],
+        reason: 'Return dispute',
+        status: 'rejected',
+        disputeId: dispute.id,
+        isWithinWindow: true,
+      },
+    })
     expect((await f.service.checkReadiness(f.payoutId)).ready).toBe(true)
     expect((await f.service.checkReadiness(f.payouts[1]!.id)).ready).toBe(false)
-    await prisma.returnRequest.updateMany({ where: { disputeId: dispute.id }, data: { sellerId: null } })
+    await prisma.returnRequest.updateMany({
+      where: { disputeId: dispute.id },
+      data: { sellerId: null },
+    })
     expect((await f.service.checkReadiness(f.payoutId)).ready).toBe(false)
-    await prisma.dispute.update({ where: { id: dispute.id }, data: { status: 'resolved_for_customer', payoutBlocked: true } })
+    await prisma.dispute.update({
+      where: { id: dispute.id },
+      data: { status: 'resolved_for_customer', payoutBlocked: true },
+    })
     expect((await f.service.checkReadiness(f.payoutId)).ready).toBe(false)
   })
 
-  it.each(['amount', 'bank', 'missing'] as const)('rejects a stale or missing payment snapshot: %s', async (change) => {
-    const f = await readyFixture()
-    if (change === 'amount') await prisma.payout.update({ where: { id: f.payoutId }, data: { netAmount: 700 } })
-    if (change === 'bank') await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { iban: 'TR11111111111111111111111111' } })
-    const params = change === 'missing' ? { ...f.pay, expectedSnapshot: undefined } : f.pay
-    await expect(f.service.markPaid(params)).rejects.toMatchObject({ code: 'PAYOUT_SNAPSHOT_CHANGED', details: { current: { amount: change === 'amount' ? '700.00' : '820.00' } } })
-    expect((await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })).status).toBe('payout_ready')
-    const fresh = await f.service.paymentContext(f.payoutId)
-    await f.service.markPaid({ ...f.pay, expectedSnapshot: fresh.snapshot })
-    expect((await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })).status).toBe('payout_paid')
-  })
+  it.each(['amount', 'bank', 'missing'] as const)(
+    'rejects a stale or missing payment snapshot: %s',
+    async (change) => {
+      const f = await readyFixture()
+      if (change === 'amount')
+        await prisma.payout.update({ where: { id: f.payoutId }, data: { netAmount: 700 } })
+      if (change === 'bank')
+        await prisma.sellerBankDetail.updateMany({
+          where: { sellerId: f.sellerIds[0] },
+          data: { iban: 'TR11111111111111111111111111' },
+        })
+      const params = change === 'missing' ? { ...f.pay, expectedSnapshot: undefined } : f.pay
+      await expect(f.service.markPaid(params)).rejects.toMatchObject({
+        code: 'PAYOUT_SNAPSHOT_CHANGED',
+        details: { current: { amount: change === 'amount' ? '700.00' : '820.00' } },
+      })
+      expect((await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })).status).toBe(
+        'payout_ready',
+      )
+      const fresh = await f.service.paymentContext(f.payoutId)
+      await f.service.markPaid({ ...f.pay, expectedSnapshot: fresh.snapshot })
+      expect((await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })).status).toBe(
+        'payout_paid',
+      )
+    },
+  )
 
-  it.each(['seller', 'bank', 'pending-bank', 'return', 'refund'] as const)('revalidates %s at payment time', async (blocker) => {
-    const f = await readyFixture()
-    if (blocker === 'seller') await prisma.seller.update({ where: { id: f.sellerIds[0] }, data: { status: 'suspended' } })
-    if (blocker === 'bank') await prisma.sellerBankDetail.updateMany({ where: { sellerId: f.sellerIds[0] }, data: { isVerified: false } })
-    if (blocker === 'pending-bank') await prisma.sellerBankDetail.create({ data: { sellerId: f.sellerIds[0]!, iban: 'TR22222222222222222222222222', bankName: 'Changed', accountHolder: 'Test', status: 'PENDING_ACTIVATION' } })
-    if (blocker === 'return') await prisma.returnRequest.create({ data: { orderId: f.orderId, sellerId: f.sellerIds[0], customerId: f.adminId, reason: 'New return', isWithinWindow: true } })
-    if (blocker === 'refund') await refund(f, 100, randomUUID())
-    await expect(f.service.markPaid(f.pay)).rejects.toMatchObject({ code: 'PAYOUT_BLOCKED' })
-    expect(await prisma.sellerLedgerEntry.count({ where: { referenceId: f.payoutId, type: 'payout' } })).toBe(0)
-  })
+  it.each(['seller', 'bank', 'pending-bank', 'return', 'refund'] as const)(
+    'revalidates %s at payment time',
+    async (blocker) => {
+      const f = await readyFixture()
+      if (blocker === 'seller')
+        await prisma.seller.update({ where: { id: f.sellerIds[0] }, data: { status: 'suspended' } })
+      if (blocker === 'bank')
+        await prisma.sellerBankDetail.updateMany({
+          where: { sellerId: f.sellerIds[0] },
+          data: { isVerified: false },
+        })
+      if (blocker === 'pending-bank')
+        await prisma.sellerBankDetail.create({
+          data: {
+            sellerId: f.sellerIds[0]!,
+            iban: 'TR22222222222222222222222222',
+            bankName: 'Changed',
+            accountHolder: 'Test',
+            status: 'PENDING_ACTIVATION',
+          },
+        })
+      if (blocker === 'return')
+        await prisma.returnRequest.create({
+          data: {
+            orderId: f.orderId,
+            sellerId: f.sellerIds[0],
+            customerId: f.adminId,
+            reason: 'New return',
+            isWithinWindow: true,
+          },
+        })
+      if (blocker === 'refund') await refund(f, 100, randomUUID())
+      await expect(f.service.markPaid(f.pay)).rejects.toMatchObject({ code: 'PAYOUT_BLOCKED' })
+      expect(
+        await prisma.sellerLedgerEntry.count({
+          where: { referenceId: f.payoutId, type: 'payout' },
+        }),
+      ).toBe(0)
+    },
+  )
 
   it('keeps batch totals synchronized through concurrent refunds, manual blocks and releases', async () => {
     paymentFriday()
     const f = await readyFixture(2)
-    const results = await Promise.all([createReadyPayoutBatch(prisma), createReadyPayoutBatch(prisma)])
+    const results = await Promise.all([
+      createReadyPayoutBatch(prisma),
+      createReadyPayoutBatch(prisma),
+    ])
     const assigned = await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })
     expect(assigned.batchId).not.toBeNull()
     expect(results.filter((r) => r.batchCreated)).toHaveLength(1)
@@ -694,22 +1251,52 @@ describe('phase 3 payout eligibility', () => {
     // Other fixtures may be ready too; isolate changes relative to the stored total.
     await Promise.all([refund(f, 100, randomUUID()), refund(f, 200, randomUUID())])
     // Pending refunds remove the whole payout from the transfer batch until completion.
-    expect((await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(2)).toBe(initial.totalAmount.sub(820).toFixed(2))
-    await f.service.block({ payoutId: f.payoutId, adminActorId: f.adminId, reason: 'Batch manual review' })
-    expect((await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(2)).toBe(initial.totalAmount.sub(820).toFixed(2))
-    await prisma.refundTransaction.updateMany({ where: { orderId: f.orderId }, data: { status: 'completed' } })
-    await f.service.release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true, reason: 'Batch review done' })
-    expect((await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(2)).toBe(initial.totalAmount.sub(246).toFixed(2))
+    expect(
+      (await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(
+        2,
+      ),
+    ).toBe(initial.totalAmount.sub(820).toFixed(2))
+    await f.service.block({
+      payoutId: f.payoutId,
+      adminActorId: f.adminId,
+      reason: 'Batch manual review',
+    })
+    expect(
+      (await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(
+        2,
+      ),
+    ).toBe(initial.totalAmount.sub(820).toFixed(2))
+    await prisma.refundTransaction.updateMany({
+      where: { orderId: f.orderId },
+      data: { status: 'completed' },
+    })
+    await f.service.release({
+      payoutId: f.payoutId,
+      adminActorId: f.adminId,
+      clearManualBlock: true,
+      reason: 'Batch review done',
+    })
+    expect(
+      (await prisma.payoutBatch.findUniqueOrThrow({ where: { id: batchId } })).totalAmount.toFixed(
+        2,
+      ),
+    ).toBe(initial.totalAmount.sub(246).toFixed(2))
   })
 
   it('sees a concurrent dispute insert that started before the payment lock', async () => {
     const f = await readyFixture()
     let inserted!: () => void
     let finish!: () => void
-    const insertion = new Promise<void>((resolve) => { inserted = resolve })
-    const gate = new Promise<void>((resolve) => { finish = resolve })
+    const insertion = new Promise<void>((resolve) => {
+      inserted = resolve
+    })
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve
+    })
     const change = prisma.$transaction(async (tx) => {
-      await tx.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId, reason: 'Concurrent dispute' } })
+      await tx.dispute.create({
+        data: { orderId: f.orderId, openedById: f.adminId, reason: 'Concurrent dispute' },
+      })
       inserted()
       await gate
     })
@@ -724,56 +1311,121 @@ describe('phase 3 payout eligibility', () => {
   it('keeps a resolved customer dispute blocked until its refund is complete', async () => {
     paymentFriday()
     const f = await readyFixture()
-    const dispute = await prisma.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId, reason: 'Customer resolution', status: 'resolved_for_customer', payoutBlocked: true } })
+    const dispute = await prisma.dispute.create({
+      data: {
+        orderId: f.orderId,
+        openedById: f.adminId,
+        reason: 'Customer resolution',
+        status: 'resolved_for_customer',
+        payoutBlocked: true,
+      },
+    })
     expect((await f.service.checkReadiness(f.payoutId)).ready).toBe(false)
-    await createQuantityRefundService({ prisma }).queue({ orderId: f.orderId, sellerId: f.sellerIds[0]!,
-      sourceType: 'dispute', sourceId: dispute.id, customerAmount: new Decimal(100),
-      grossProductAmount: new Decimal(100), sellerAdjustmentAmount: new Decimal(82), commissionAdjustmentAmount: new Decimal(18),
+    await createQuantityRefundService({ prisma }).queue({
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: 'dispute',
+      sourceId: dispute.id,
+      customerAmount: new Decimal(100),
+      grossProductAmount: new Decimal(100),
+      sellerAdjustmentAmount: new Decimal(82),
+      commissionAdjustmentAmount: new Decimal(18),
       items: [{ orderLineId: f.lineIds[0]!, quantity: 1, amount: new Decimal(100) }],
     })
     expect((await f.service.reevaluate(f.payoutId)).ready).toBe(false)
-    await prisma.refundTransaction.updateMany({ where: { sourceId: dispute.id }, data: { status: 'completed' } })
+    await prisma.refundTransaction.updateMany({
+      where: { sourceId: dispute.id },
+      data: { status: 'completed' },
+    })
     expect((await f.service.reevaluate(f.payoutId)).ready).toBe(true)
   })
 
   it('releases a completed legacy whole-return dispute without a quantity refund record', async () => {
     paymentFriday()
     const f = await readyFixture()
-    const dispute = await prisma.dispute.create({ data: { orderId: f.orderId, openedById: f.adminId,
-      reason: 'Legacy customer resolution', status: 'resolved_for_customer', payoutBlocked: true } })
-    const returned = await prisma.returnRequest.create({ data: { orderId: f.orderId,
-      sellerId: f.sellerIds[0], customerId: f.adminId, reason: 'Legacy return',
-      status: 'rejected', disputeId: dispute.id, isWithinWindow: true } })
+    const dispute = await prisma.dispute.create({
+      data: {
+        orderId: f.orderId,
+        openedById: f.adminId,
+        reason: 'Legacy customer resolution',
+        status: 'resolved_for_customer',
+        payoutBlocked: true,
+      },
+    })
+    const returned = await prisma.returnRequest.create({
+      data: {
+        orderId: f.orderId,
+        sellerId: f.sellerIds[0],
+        customerId: f.adminId,
+        reason: 'Legacy return',
+        status: 'rejected',
+        disputeId: dispute.id,
+        isWithinWindow: true,
+      },
+    })
     expect((await f.service.reevaluate(f.payoutId)).ready).toBe(false)
-    await prisma.returnRequest.update({ where: { id: returned.id },
-      data: { status: 'refund_completed', refundedAt: new Date() } })
+    await prisma.returnRequest.update({
+      where: { id: returned.id },
+      data: { status: 'refund_completed', refundedAt: new Date() },
+    })
     expect((await f.service.reevaluate(f.payoutId)).ready).toBe(true)
   })
 
   it('rolls back manual release if its audit fails', async () => {
     const f = await readyFixture()
-    await f.service.block({ payoutId: f.payoutId, adminActorId: f.adminId, reason: 'Manual review' })
-    const failing = prisma.$extends({ query: { adminAuditLog: { async create() { throw new Error('audit failed') } } } }) as unknown as PrismaClient
-    await expect(createPayoutService({ prisma: failing }).release({ payoutId: f.payoutId, adminActorId: f.adminId, clearManualBlock: true, reason: 'Review done' })).rejects.toThrow('audit failed')
+    await f.service.block({
+      payoutId: f.payoutId,
+      adminActorId: f.adminId,
+      reason: 'Manual review',
+    })
+    const failing = prisma.$extends({
+      query: {
+        adminAuditLog: {
+          async create() {
+            throw new Error('audit failed')
+          },
+        },
+      },
+    }) as unknown as PrismaClient
+    await expect(
+      createPayoutService({ prisma: failing }).release({
+        payoutId: f.payoutId,
+        adminActorId: f.adminId,
+        clearManualBlock: true,
+        reason: 'Review done',
+      }),
+    ).rejects.toThrow('audit failed')
     const payout = await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })
     expect(payout.status).toBe('payout_blocked')
     expect(payout.manualBlockedReason).toBe('Manual review')
   })
 
   it('migrates only identifiable automatic blocks and preserves audited or unknown manual blocks', async () => {
-    const migration = readFileSync(resolve('../db/schema/migrations/20260914130000_payout_block_sources/migration.sql'), 'utf8')
+    const migration = readFileSync(
+      resolve('../db/schema/migrations/20260914130000_payout_block_sources/migration.sql'),
+      'utf8',
+    )
     await prisma.$transaction(async (tx) => {
       // Transaction-local shadow tables exercise the actual migration without
       // changing the schema used by the other tests or any persistent records.
-      await tx.$executeRawUnsafe('CREATE TEMP TABLE payouts (id TEXT, status TEXT, "blockedReason" TEXT, "updatedAt" TIMESTAMP DEFAULT now()) ON COMMIT DROP')
-      await tx.$executeRawUnsafe('CREATE TEMP TABLE admin_audit_logs ("targetType" TEXT, "targetId" TEXT, "actionType" TEXT) ON COMMIT DROP')
+      await tx.$executeRawUnsafe(
+        'CREATE TEMP TABLE payouts (id TEXT, status TEXT, "blockedReason" TEXT, "updatedAt" TIMESTAMP DEFAULT now()) ON COMMIT DROP',
+      )
+      await tx.$executeRawUnsafe(
+        'CREATE TEMP TABLE admin_audit_logs ("targetType" TEXT, "targetId" TEXT, "actionType" TEXT) ON COMMIT DROP',
+      )
       await tx.$executeRawUnsafe(`INSERT INTO payouts (id,status,"blockedReason") VALUES
         ('auto','payout_blocked','Doğrulanmış aktif banka hesabı bulunamadı'),
         ('admin','payout_blocked','Doğrulanmış aktif banka hesabı bulunamadı'),
         ('unknown','payout_blocked','Özel inceleme'), ('paid','payout_paid',NULL)`)
-      await tx.$executeRawUnsafe(`INSERT INTO admin_audit_logs VALUES ('payout','admin','payout_blocked')`)
-      for (const statement of migration.split(';').filter((part) => part.trim())) await tx.$executeRawUnsafe(statement)
-      const rows = await tx.$queryRawUnsafe<Array<{ id: string; manualBlockedAt: Date | null; automaticBlockReason: string | null }>>('SELECT id,"manualBlockedAt","automaticBlockReason" FROM payouts')
+      await tx.$executeRawUnsafe(
+        `INSERT INTO admin_audit_logs VALUES ('payout','admin','payout_blocked')`,
+      )
+      for (const statement of migration.split(';').filter((part) => part.trim()))
+        await tx.$executeRawUnsafe(statement)
+      const rows = await tx.$queryRawUnsafe<
+        Array<{ id: string; manualBlockedAt: Date | null; automaticBlockReason: string | null }>
+      >('SELECT id,"manualBlockedAt","automaticBlockReason" FROM payouts')
       expect(rows.find((r) => r.id === 'auto')!.manualBlockedAt).toBeNull()
       expect(rows.find((r) => r.id === 'auto')!.automaticBlockReason).toContain('banka')
       expect(rows.find((r) => r.id === 'admin')!.manualBlockedAt).not.toBeNull()
@@ -783,10 +1435,19 @@ describe('phase 3 payout eligibility', () => {
   })
 })
 
-function refund(f: Awaited<ReturnType<typeof fixture>>, amount: number, key: string, client = prisma) {
+function refund(
+  f: Awaited<ReturnType<typeof fixture>>,
+  amount: number,
+  key: string,
+  client = prisma,
+) {
   return createQuantityRefundService({ prisma: client }).queue({
-    orderId: f.orderId, sellerId: f.sellerIds[0]!, sourceType: 'cancellation', sourceId: key,
-    customerAmount: new Decimal(amount), grossProductAmount: new Decimal(amount),
+    orderId: f.orderId,
+    sellerId: f.sellerIds[0]!,
+    sourceType: 'cancellation',
+    sourceId: key,
+    customerAmount: new Decimal(amount),
+    grossProductAmount: new Decimal(amount),
     sellerAdjustmentAmount: new Decimal(amount).mul('0.82'),
     commissionAdjustmentAmount: new Decimal(amount).mul('0.18'),
     items: [{ orderLineId: f.lineIds[0]!, quantity: amount / 100, amount: new Decimal(amount) }],
@@ -796,10 +1457,16 @@ function refund(f: Awaited<ReturnType<typeof fixture>>, amount: number, key: str
 describe('finance atomicity on PostgreSQL', () => {
   it('rolls back payout and earlier sale entry when commission insert fails, then retries once', async () => {
     const f = await fixture()
-    const failing = prisma.$extends({ query: { sellerLedgerEntry: { async create({ args, query }) {
-      if (args.data.type === 'commission') throw new Error('injected commission failure')
-      return query(args)
-    } } } }) as unknown as PrismaClient
+    const failing = prisma.$extends({
+      query: {
+        sellerLedgerEntry: {
+          async create({ args, query }) {
+            if (args.data.type === 'commission') throw new Error('injected commission failure')
+            return query(args)
+          },
+        },
+      },
+    }) as unknown as PrismaClient
     await expect(hold(f.orderId, failing)).rejects.toThrow('injected commission failure')
     expect(await prisma.payout.count({ where: { orderId: f.orderId } })).toBe(0)
     expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })).toBe(0)
@@ -813,7 +1480,9 @@ describe('finance atomicity on PostgreSQL', () => {
     const f = await fixture(2)
     await Promise.all([hold(f.orderId), hold(f.orderId)])
     expect(await prisma.payout.count({ where: { orderId: f.orderId } })).toBe(2)
-    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: { in: f.sellerIds } } })).toBe(4)
+    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: { in: f.sellerIds } } })).toBe(
+      4,
+    )
   })
 
   it('keeps both refund deductions when a second refund starts during the first payout read', async () => {
@@ -821,14 +1490,24 @@ describe('finance atomicity on PostgreSQL', () => {
     const [payout] = await hold(f.orderId)
     let releaseRead!: () => void
     let observedRead!: () => void
-    const gate = new Promise<void>((resolve) => { releaseRead = resolve })
-    const read = new Promise<void>((resolve) => { observedRead = resolve })
-    const delayed = prisma.$extends({ query: { payout: { async findFirst({ args, query }) {
-      const result = await query(args)
-      observedRead()
-      await gate
-      return result
-    } } } }) as unknown as PrismaClient
+    const gate = new Promise<void>((resolve) => {
+      releaseRead = resolve
+    })
+    const read = new Promise<void>((resolve) => {
+      observedRead = resolve
+    })
+    const delayed = prisma.$extends({
+      query: {
+        payout: {
+          async findFirst({ args, query }) {
+            const result = await query(args)
+            observedRead()
+            await gate
+            return result
+          },
+        },
+      },
+    }) as unknown as PrismaClient
     const first = refund(f, 100, `${f.orderId}-r1`, delayed)
     await read
     const second = refund(f, 200, `${f.orderId}-r2`)
@@ -840,7 +1519,8 @@ describe('finance atomicity on PostgreSQL', () => {
     expect(updated.commissionAmount.toFixed(2)).toBe('126.00')
     expect(updated.refundAmount.toFixed(2)).toBe('300.00')
     const balance = await prisma.sellerLedgerEntry.aggregate({
-      where: { sellerId: f.sellerIds[0] }, _sum: { amount: true },
+      where: { sellerId: f.sellerIds[0] },
+      _sum: { amount: true },
     })
     expect(balance._sum.amount?.toFixed(2)).toBe('574.00')
   })
@@ -848,9 +1528,15 @@ describe('finance atomicity on PostgreSQL', () => {
   it('rolls back refund ledger and markers on payout failure; duplicate requests apply once', async () => {
     const f = await fixture()
     await hold(f.orderId)
-    const failing = prisma.$extends({ query: { payout: { async update() {
-      throw new Error('injected refund failure')
-    } } } }) as unknown as PrismaClient
+    const failing = prisma.$extends({
+      query: {
+        payout: {
+          async update() {
+            throw new Error('injected refund failure')
+          },
+        },
+      },
+    }) as unknown as PrismaClient
     await expect(refund(f, 100, f.orderId, failing)).rejects.toThrow('injected refund failure')
     expect(await prisma.refundTransaction.count({ where: { orderId: f.orderId } })).toBe(0)
     expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })).toBe(2)
@@ -864,34 +1550,64 @@ describe('finance atomicity on PostgreSQL', () => {
     const f = await fixture()
     const [payout] = await hold(f.orderId)
     await prisma.payout.update({ where: { id: payout!.id }, data: { status: 'payout_ready' } })
-    const params = { payoutId: payout!.id, adminActorId: f.adminId,
-      transferDate: new Date('2026-03-01T12:00:00Z'), transferReference: 'test-transfer',
-      expectedSnapshot: (await createPayoutService({ prisma }).paymentContext(payout!.id)).snapshot }
-    const failing = prisma.$extends({ query: { adminAuditLog: { async create() {
-      throw new Error('injected audit failure')
-    } } } }) as unknown as PrismaClient
-    await expect(createPayoutService({ prisma: failing }).markPaid(params)).rejects.toThrow('injected audit failure')
-    expect((await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })).status).toBe('payout_ready')
-    expect(await prisma.sellerLedgerEntry.count({ where: { referenceId: payout!.id, type: 'payout' } })).toBe(0)
+    const params = {
+      payoutId: payout!.id,
+      adminActorId: f.adminId,
+      transferDate: new Date('2026-03-01T12:00:00Z'),
+      transferReference: 'test-transfer',
+      expectedSnapshot: (await createPayoutService({ prisma }).paymentContext(payout!.id)).snapshot,
+    }
+    const failing = prisma.$extends({
+      query: {
+        adminAuditLog: {
+          async create() {
+            throw new Error('injected audit failure')
+          },
+        },
+      },
+    }) as unknown as PrismaClient
+    await expect(createPayoutService({ prisma: failing }).markPaid(params)).rejects.toThrow(
+      'injected audit failure',
+    )
+    expect((await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })).status).toBe(
+      'payout_ready',
+    )
+    expect(
+      await prisma.sellerLedgerEntry.count({ where: { referenceId: payout!.id, type: 'payout' } }),
+    ).toBe(0)
     const service = createPayoutService({ prisma })
     await Promise.all([service.markPaid(params), service.markPaid(params)])
-    expect(await prisma.sellerLedgerEntry.count({ where: { referenceId: payout!.id, type: 'payout' } })).toBe(1)
+    expect(
+      await prisma.sellerLedgerEntry.count({ where: { referenceId: payout!.id, type: 'payout' } }),
+    ).toBe(1)
     expect(await prisma.adminAuditLog.count({ where: { targetId: payout!.id } })).toBe(1)
-    await expect(service.markPaid({ ...params, transferReference: 'different' })).rejects.toThrow('farklı transfer')
+    await expect(service.markPaid({ ...params, transferReference: 'different' })).rejects.toThrow(
+      'farklı transfer',
+    )
   })
 
   it('recovers a missing seller payout and commission without changing an existing payout', async () => {
     const f = await fixture(2)
-    const existing = await prisma.payout.create({ data: {
-      orderId: f.orderId, sellerId: f.sellerIds[0]!, grossAmount: 1000,
-      commissionAmount: 180, netAmount: 820, holdStartedAt: confirmedAt,
-    } })
+    const existing = await prisma.payout.create({
+      data: {
+        orderId: f.orderId,
+        sellerId: f.sellerIds[0]!,
+        grossAmount: 1000,
+        commissionAmount: 180,
+        netAmount: 820,
+        holdStartedAt: confirmedAt,
+      },
+    })
     const repository = createPayoutRepository(prisma)
-    expect((await repository.findDeliveryConfirmedOrdersMissingPayout()).map((o) => o.id)).toContain(f.orderId)
+    expect(
+      (await repository.findDeliveryConfirmedOrdersMissingPayout()).map((o) => o.id),
+    ).toContain(f.orderId)
     await hold(f.orderId)
     expect(await prisma.payout.findUnique({ where: { id: existing.id } })).toEqual(existing)
     expect(await prisma.payout.count({ where: { orderId: f.orderId } })).toBe(2)
-    expect((await repository.findDeliveryConfirmedOrdersMissingPayout()).map((o) => o.id)).not.toContain(f.orderId)
+    expect(
+      (await repository.findDeliveryConfirmedOrdersMissingPayout()).map((o) => o.id),
+    ).not.toContain(f.orderId)
   })
 
   it('recovers missing commission after a full refund reduced the payout commission to zero', async () => {
@@ -900,20 +1616,32 @@ describe('finance atomicity on PostgreSQL', () => {
     await refund(f, 1000, randomUUID())
     const refunded = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
     expect(refunded.commissionAmount.toFixed(2)).toBe('0.00')
-    await prisma.sellerLedgerEntry.deleteMany({ where: {
-      referenceType: 'payout', referenceId: payout!.id, type: 'commission',
-    } })
+    await prisma.sellerLedgerEntry.deleteMany({
+      where: {
+        referenceType: 'payout',
+        referenceId: payout!.id,
+        type: 'commission',
+      },
+    })
     const repository = createPayoutRepository(prisma)
-    expect((await repository.findDeliveryConfirmedOrdersMissingPayout()).map((o) => o.id)).toContain(f.orderId)
+    expect(
+      (await repository.findDeliveryConfirmedOrdersMissingPayout()).map((o) => o.id),
+    ).toContain(f.orderId)
     await hold(f.orderId)
     await hold(f.orderId)
     expect(await prisma.payout.findUnique({ where: { id: payout!.id } })).toEqual(refunded)
-    const commissions = await prisma.sellerLedgerEntry.findMany({ where: {
-      referenceType: 'payout', referenceId: payout!.id, type: 'commission',
-    } })
+    const commissions = await prisma.sellerLedgerEntry.findMany({
+      where: {
+        referenceType: 'payout',
+        referenceId: payout!.id,
+        type: 'commission',
+      },
+    })
     expect(commissions).toHaveLength(1)
     expect(commissions[0]!.amount.toFixed(2)).toBe('-180.00')
-    expect((await repository.findDeliveryConfirmedOrdersMissingPayout()).map((o) => o.id)).not.toContain(f.orderId)
+    expect(
+      (await repository.findDeliveryConfirmedOrdersMissingPayout()).map((o) => o.id),
+    ).not.toContain(f.orderId)
   })
 
   it('serializes commission exemption with payout creation', async () => {
@@ -921,7 +1649,9 @@ describe('finance atomicity on PostgreSQL', () => {
     await Promise.allSettled([
       hold(f.orderId),
       createCommissionExemptionService({ prisma }).exempt({
-        orderLineId: f.lineIds[0]!, adminActorId: f.adminId, reason: 'Test exemption',
+        orderLineId: f.lineIds[0]!,
+        adminActorId: f.adminId,
+        reason: 'Test exemption',
       }),
     ])
     const line = await prisma.orderLine.findUniqueOrThrow({ where: { id: f.lineIds[0] } })
@@ -1040,6 +1770,7 @@ describe('phase 2 quantity lifecycle', () => {
           netPayoutAmount: '81.98',
           customerPaidProductAmount: paid,
           deliveryConfirmedAt: new Date(),
+          deliveredAt: new Date(),
           ...(exempt ? { commissionExemptedAt: new Date() } : {}),
         },
       })
@@ -1125,41 +1856,74 @@ describe('phase 2 quantity lifecycle', () => {
   )
 })
 
-
 describe('phase 2 full exempt return', () => {
-  it.each([true, false])('leaves zero payout for a 1000 TRY return (before hold: %s)', async (beforeHold) => {
-    const f = await fixture()
-    const lineId = f.lineIds[0]!
-    await createCommissionExemptionService({ prisma }).exempt({ orderLineId: lineId, adminActorId: f.adminId, reason: 'Exempt full return' })
-    await prisma.orderLine.update({ where: { id: lineId }, data: { shippedQuantity: 10, deliveryConfirmedAt: new Date() } })
-    if (!beforeHold) await hold(f.orderId)
-    const returns = createQuantityReturnService({ prisma })
-    const [request] = await returns.openRequest({ orderId: f.orderId, customerId: f.adminId, reason: 'Full return', items: [{ orderLineId: lineId, quantity: 10 }] })
-    await prisma.returnRequest.update({ where: { id: request!.id }, data: { status: 'in_transit' } })
-    const decision = { returnRequestId: request!.id, sellerId: f.sellerIds[0]!, decisions: [{ returnRequestItemId: request!.items[0]!.id, acceptedQuantity: 10, rejectedQuantity: 0 }] }
-    await returns.decideReceipt(decision)
-    if (beforeHold) {
-      const failing = prisma.$extends({ query: { refundTransaction: { async updateMany({ args, query }) {
-        if (args.data.payoutAppliedAt) throw new Error('injected refund marker failure')
-        return query(args)
-      } } } }) as unknown as PrismaClient
-      await expect(hold(f.orderId, failing)).rejects.toThrow('injected refund marker failure')
-      expect(await prisma.payout.count({ where: { orderId: f.orderId } })).toBe(0)
-      const pending = await prisma.refundTransaction.findFirstOrThrow({ where: { orderId: f.orderId } })
-      expect(pending.payoutAppliedAt).toBeNull()
-    }
-    await hold(f.orderId)
-    await returns.decideReceipt(decision)
-    await hold(f.orderId)
-    const payout = await prisma.payout.findFirstOrThrow({ where: { orderId: f.orderId } })
-    expect(payout.netAmount.toFixed(2)).toBe('0.00')
-    expect(payout.commissionAmount.toFixed(2)).toBe('0.00')
-    expect(payout.refundAmount.toFixed(2)).toBe('1000.00')
-    const refund = await prisma.refundTransaction.findFirstOrThrow({ where: { orderId: f.orderId } })
-    expect(refund.sellerAdjustmentAmount.toFixed(2)).toBe('1000.00')
-    expect(refund.commissionAdjustmentAmount.toFixed(2)).toBe('0.00')
-    expect(await prisma.refundTransaction.count({ where: { orderId: f.orderId } })).toBe(1)
-  })
+  it.each([true, false])(
+    'leaves zero payout for a 1000 TRY return (before hold: %s)',
+    async (beforeHold) => {
+      const f = await fixture()
+      const lineId = f.lineIds[0]!
+      await createCommissionExemptionService({ prisma }).exempt({
+        orderLineId: lineId,
+        adminActorId: f.adminId,
+        reason: 'Exempt full return',
+      })
+      await prisma.orderLine.update({
+        where: { id: lineId },
+        data: { shippedQuantity: 10, deliveryConfirmedAt: new Date(), deliveredAt: new Date() },
+      })
+      if (!beforeHold) await hold(f.orderId)
+      const returns = createQuantityReturnService({ prisma })
+      const [request] = await returns.openRequest({
+        orderId: f.orderId,
+        customerId: f.adminId,
+        reason: 'Full return',
+        items: [{ orderLineId: lineId, quantity: 10 }],
+      })
+      await prisma.returnRequest.update({
+        where: { id: request!.id },
+        data: { status: 'in_transit' },
+      })
+      const decision = {
+        returnRequestId: request!.id,
+        sellerId: f.sellerIds[0]!,
+        decisions: [
+          { returnRequestItemId: request!.items[0]!.id, acceptedQuantity: 10, rejectedQuantity: 0 },
+        ],
+      }
+      await returns.decideReceipt(decision)
+      if (beforeHold) {
+        const failing = prisma.$extends({
+          query: {
+            refundTransaction: {
+              async updateMany({ args, query }) {
+                if (args.data.payoutAppliedAt) throw new Error('injected refund marker failure')
+                return query(args)
+              },
+            },
+          },
+        }) as unknown as PrismaClient
+        await expect(hold(f.orderId, failing)).rejects.toThrow('injected refund marker failure')
+        expect(await prisma.payout.count({ where: { orderId: f.orderId } })).toBe(0)
+        const pending = await prisma.refundTransaction.findFirstOrThrow({
+          where: { orderId: f.orderId },
+        })
+        expect(pending.payoutAppliedAt).toBeNull()
+      }
+      await hold(f.orderId)
+      await returns.decideReceipt(decision)
+      await hold(f.orderId)
+      const payout = await prisma.payout.findFirstOrThrow({ where: { orderId: f.orderId } })
+      expect(payout.netAmount.toFixed(2)).toBe('0.00')
+      expect(payout.commissionAmount.toFixed(2)).toBe('0.00')
+      expect(payout.refundAmount.toFixed(2)).toBe('1000.00')
+      const refund = await prisma.refundTransaction.findFirstOrThrow({
+        where: { orderId: f.orderId },
+      })
+      expect(refund.sellerAdjustmentAmount.toFixed(2)).toBe('1000.00')
+      expect(refund.commissionAdjustmentAmount.toFixed(2)).toBe('0.00')
+      expect(await prisma.refundTransaction.count({ where: { orderId: f.orderId } })).toBe(1)
+    },
+  )
 })
 
 describe('phase 6 legacy refund safeguards', () => {
@@ -1168,17 +1932,38 @@ describe('phase 6 legacy refund safeguards', () => {
     await prisma.order.update({ where: { id: f.orderId }, data: { quantityLifecycleVersion: 1 } })
     const [payout] = await hold(f.orderId)
     const beforePayout = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
-    const beforeLedger = await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })
-    const failing = prisma.$extends({ query: { payout: { async update() {
-      throw new Error('injected legacy refund failure')
-    } } } }) as unknown as PrismaClient
-    const request = { orderId: f.orderId, sellerId: f.sellerIds[0]!,
-      sourceType: 'cancellation' as const, sourceId: randomUUID(), requestedCustomerAmount: new Decimal(1000) }
-    await expect(createRefundService({ prisma: failing }).queueLegacyRefund(request)).rejects.toThrow('injected legacy refund failure')
+    const beforeLedger = await prisma.sellerLedgerEntry.count({
+      where: { sellerId: f.sellerIds[0] },
+    })
+    const failing = prisma.$extends({
+      query: {
+        payout: {
+          async update() {
+            throw new Error('injected legacy refund failure')
+          },
+        },
+      },
+    }) as unknown as PrismaClient
+    const request = {
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: 'cancellation' as const,
+      sourceId: randomUUID(),
+      requestedCustomerAmount: new Decimal(1000),
+    }
+    await expect(
+      createRefundService({ prisma: failing }).queueLegacyRefund(request),
+    ).rejects.toThrow('injected legacy refund failure')
     expect(await prisma.refundTransaction.count({ where: { orderId: f.orderId } })).toBe(0)
-    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })).toBe(beforeLedger)
-    expect(await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })).toEqual(beforePayout)
-    const refunds = await Promise.all([1, 2].map(() => createRefundService({ prisma }).queueLegacyRefund(request)))
+    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })).toBe(
+      beforeLedger,
+    )
+    expect(await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })).toEqual(
+      beforePayout,
+    )
+    const refunds = await Promise.all(
+      [1, 2].map(() => createRefundService({ prisma }).queueLegacyRefund(request)),
+    )
     expect(refunds[0]!.id).toBe(refunds[1]!.id)
     expect(refunds[0]!.customerAmount.toFixed(2)).toBe('1000.00')
   })
@@ -1189,60 +1974,113 @@ describe('phase 6 legacy refund safeguards', () => {
     const [payout] = await hold(f.orderId)
     const service = createRefundService({ prisma })
     const requests = ['return_request', 'dispute'].map((sourceType) => ({
-      orderId: f.orderId, sellerId: f.sellerIds[0]!,
-      sourceType: sourceType as 'return_request' | 'dispute', sourceId: randomUUID(),
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: sourceType as 'return_request' | 'dispute',
+      sourceId: randomUUID(),
       requestedCustomerAmount: new Decimal(1000),
     }))
     const refunds = await Promise.all(requests.map((request) => service.queueLegacyRefund(request)))
-    expect(refunds.map((refund) => refund.customerAmount.toNumber()).sort((a, b) => a - b)).toEqual([0, 1000])
+    expect(refunds.map((refund) => refund.customerAmount.toNumber()).sort((a, b) => a - b)).toEqual(
+      [0, 1000],
+    )
     expect(refunds.filter((refund) => refund.ledgerAppliedAt)).toHaveLength(1)
     const retries = await Promise.all(requests.map((request) => service.queueLegacyRefund(request)))
     expect(retries.map((refund) => refund.id)).toEqual(refunds.map((refund) => refund.id))
     const after = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
     expect(after.refundAmount.toFixed(2)).toBe('1000.00')
     expect(after.netAmount.toFixed(2)).toBe('0.00')
-    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0], type: 'refund' } })).toBe(1)
+    expect(
+      await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0], type: 'refund' } }),
+    ).toBe(1)
   })
 
-  it.each(['return_timestamp', 'return_status', 'payment_timestamp', 'payment_status',
-    'refund_initiated', 'refund_recorded', 'order_timestamp', 'order_status', 'order_ledger', 'return_ledger'])
-  ('blocks new money allocation for historical evidence: %s', async (evidence) => {
+  it.each([
+    'return_timestamp',
+    'return_status',
+    'payment_timestamp',
+    'payment_status',
+    'refund_initiated',
+    'refund_recorded',
+    'order_timestamp',
+    'order_status',
+    'order_ledger',
+    'return_ledger',
+  ])('blocks new money allocation for historical evidence: %s', async (evidence) => {
     const f = await fixture()
     await prisma.order.update({ where: { id: f.orderId }, data: { quantityLifecycleVersion: 1 } })
     const [payout] = await hold(f.orderId)
     const payment = await prisma.payment.findFirstOrThrow({ where: { orderId: f.orderId } })
     if (evidence.startsWith('return_')) {
-      const request = await prisma.returnRequest.create({ data: {
-        orderId: f.orderId, customerId: f.adminId, sellerId: f.sellerIds[0], reason: 'Historical refund',
-        isWithinWindow: true, refundAmount: 400,
-        ...(evidence === 'return_timestamp' ? { refundedAt: confirmedAt } : {}),
-        ...(evidence === 'return_status' ? { status: 'refund_completed' as const } : {}),
-      } })
-      if (evidence === 'return_ledger') await prisma.sellerLedgerEntry.create({ data: {
-        sellerId: f.sellerIds[0]!, type: 'refund', amount: -400, balanceAfter: 420,
-        referenceType: 'return_request', referenceId: request.id,
-      } })
+      const request = await prisma.returnRequest.create({
+        data: {
+          orderId: f.orderId,
+          customerId: f.adminId,
+          sellerId: f.sellerIds[0],
+          reason: 'Historical refund',
+          isWithinWindow: true,
+          refundAmount: 400,
+          ...(evidence === 'return_timestamp' ? { refundedAt: confirmedAt } : {}),
+          ...(evidence === 'return_status' ? { status: 'refund_completed' as const } : {}),
+        },
+      })
+      if (evidence === 'return_ledger')
+        await prisma.sellerLedgerEntry.create({
+          data: {
+            sellerId: f.sellerIds[0]!,
+            type: 'refund',
+            amount: -400,
+            balanceAfter: 420,
+            referenceType: 'return_request',
+            referenceId: request.id,
+          },
+        })
     }
     if (evidence === 'payment_timestamp' || evidence === 'payment_status') {
-      await prisma.payment.update({ where: { id: payment.id }, data:
-        evidence === 'payment_timestamp' ? { refundedAt: confirmedAt } : { status: 'refunded' } })
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data:
+          evidence === 'payment_timestamp' ? { refundedAt: confirmedAt } : { status: 'refunded' },
+      })
     }
-    if (evidence.startsWith('refund_')) await prisma.paymentEvent.create({ data: {
-      paymentId: payment.id, eventType: evidence, payload: { amount: 400 },
-    } })
+    if (evidence.startsWith('refund_'))
+      await prisma.paymentEvent.create({
+        data: {
+          paymentId: payment.id,
+          eventType: evidence,
+          payload: { amount: 400 },
+        },
+      })
     if (evidence === 'order_timestamp' || evidence === 'order_status') {
-      await prisma.order.update({ where: { id: f.orderId }, data:
-        evidence === 'order_timestamp' ? { refundCompletedAt: confirmedAt } : { status: 'refund_completed' } })
+      await prisma.order.update({
+        where: { id: f.orderId },
+        data:
+          evidence === 'order_timestamp'
+            ? { refundCompletedAt: confirmedAt }
+            : { status: 'refund_completed' },
+      })
     }
-    if (evidence === 'order_ledger') await prisma.sellerLedgerEntry.create({ data: {
-      sellerId: f.sellerIds[0]!, type: 'refund', amount: -400, balanceAfter: 420,
-      referenceType: 'order', referenceId: f.orderId,
-    } })
-    const beforeLedger = await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })
+    if (evidence === 'order_ledger')
+      await prisma.sellerLedgerEntry.create({
+        data: {
+          sellerId: f.sellerIds[0]!,
+          type: 'refund',
+          amount: -400,
+          balanceAfter: 420,
+          referenceType: 'order',
+          referenceId: f.orderId,
+        },
+      })
+    const beforeLedger = await prisma.sellerLedgerEntry.count({
+      where: { sellerId: f.sellerIds[0] },
+    })
     const beforePayout = await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })
     const refund = await createRefundService({ prisma }).queueLegacyRefund({
-      orderId: f.orderId, sellerId: f.sellerIds[0]!, sourceType: 'cancellation',
-      sourceId: randomUUID(), requestedCustomerAmount: new Decimal(1000),
+      orderId: f.orderId,
+      sellerId: f.sellerIds[0]!,
+      sourceType: 'cancellation',
+      sourceId: randomUUID(),
+      requestedCustomerAmount: new Decimal(1000),
     })
     expect(refund.customerAmount.toFixed(2)).toBe('0.00')
     expect(refund.failureReason).toContain('tarihî iade kanıtı')
@@ -1251,8 +2089,12 @@ describe('phase 6 legacy refund safeguards', () => {
     expect(refund.accountingAppliedAt).toBeNull()
     expect(refund.ledgerAppliedAt).toBeNull()
     expect(refund.payoutAppliedAt).toBeNull()
-    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })).toBe(beforeLedger)
-    expect(await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })).toEqual(beforePayout)
+    expect(await prisma.sellerLedgerEntry.count({ where: { sellerId: f.sellerIds[0] } })).toBe(
+      beforeLedger,
+    )
+    expect(await prisma.payout.findUniqueOrThrow({ where: { id: payout!.id } })).toEqual(
+      beforePayout,
+    )
   })
 
   it('caps a full customer refund to the confirmed payment and reverses stored finance components', async () => {
@@ -1340,7 +2182,12 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     const f = await fixture()
     const [payout] = await hold(f.orderId)
     const beforeRefund = await prisma.sellerLedgerEntry.findMany({
-      where: { sellerId: f.sellerIds[0]!, type: 'commission', referenceType: 'payout', referenceId: payout!.id },
+      where: {
+        sellerId: f.sellerIds[0]!,
+        type: 'commission',
+        referenceType: 'payout',
+        referenceId: payout!.id,
+      },
     })
     expect(beforeRefund).toHaveLength(1)
     expect(beforeRefund[0]!.amount.toFixed(2)).toBe('-180.00')
@@ -1359,8 +2206,12 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
       items: [{ orderLineId: f.lineIds[0]!, quantity: 5, amount: new Decimal(500) }],
     })
     const afterRefund = await prisma.sellerLedgerEntry.findMany({
-      where: { sellerId: f.sellerIds[0]!, type: 'commission', referenceType: { in: ['payout', 'refund_transaction'] },
-        OR: [{ referenceId: payout!.id }, { referenceId: refund.id }] },
+      where: {
+        sellerId: f.sellerIds[0]!,
+        type: 'commission',
+        referenceType: { in: ['payout', 'refund_transaction'] },
+        OR: [{ referenceId: payout!.id }, { referenceId: refund.id }],
+      },
     })
     expect(afterRefund).toHaveLength(2)
     // The reversal inherits the original entry's visibility.
@@ -1379,14 +2230,24 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     expect(invoice.vatAmount.toFixed(2)).toBe('30.00')
 
     const commission = await prisma.sellerLedgerEntry.findMany({
-      where: { sellerId: f.sellerIds[0]!, type: 'commission', referenceType: { in: ['payout', 'refund_transaction'] },
-        OR: [{ referenceId: payout!.id }, { referenceId: refund.id }] },
+      where: {
+        sellerId: f.sellerIds[0]!,
+        type: 'commission',
+        referenceType: { in: ['payout', 'refund_transaction'] },
+        OR: [{ referenceId: payout!.id }, { referenceId: refund.id }],
+      },
     })
     expect(commission).toHaveLength(2)
     expect(commission.every((entry) => entry.visibleToSeller)).toBe(true)
-    expect(commission.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('-90.00')
+    expect(
+      commission.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2),
+    ).toBe('-90.00')
     const topUps = await prisma.sellerLedgerEntry.findMany({
-      where: { sellerId: f.sellerIds[0]!, type: 'commission_invoice_issued', referenceId: invoice.id },
+      where: {
+        sellerId: f.sellerIds[0]!,
+        type: 'commission_invoice_issued',
+        referenceId: invoice.id,
+      },
     })
     expect(topUps).toHaveLength(1)
     expect(topUps[0]!.amount.toFixed(2)).toBe('0.00')
@@ -1423,21 +2284,33 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     expect(lineInvoice.amount.toFixed(2)).toBe('150.00')
 
     const topUps = await prisma.sellerLedgerEntry.findMany({
-      where: { sellerId: f.sellerIds[0]!, type: 'commission_invoice_issued',
-        referenceType: 'seller_invoice', referenceId: { in: [orderInvoice.id, lineInvoice.id] } },
+      where: {
+        sellerId: f.sellerIds[0]!,
+        type: 'commission_invoice_issued',
+        referenceType: 'seller_invoice',
+        referenceId: { in: [orderInvoice.id, lineInvoice.id] },
+      },
       orderBy: { createdAt: 'asc' },
     })
     expect(topUps).toHaveLength(2)
     expect(topUps.map((entry) => entry.amount.toFixed(2))).toEqual(['-30.00', '0.00'])
-    expect(topUps.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('-30.00')
-    expect((await prisma.orderLine.findUniqueOrThrow({ where: { id: lineId } })).commissionInvoiceId).toBe(lineInvoice.id)
+    expect(topUps.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe(
+      '-30.00',
+    )
+    expect(
+      (await prisma.orderLine.findUniqueOrThrow({ where: { id: lineId } })).commissionInvoiceId,
+    ).toBe(lineInvoice.id)
   })
 
   it('preserves partial and full payout debt offsets when a penalty is reduced or waived afterward', async () => {
     const partial = await phase5PenaltyFixture(1200)
     const service = createPenaltyService({ prisma })
     const partialContext = await partial.service.paymentContext(partial.payoutId)
-    expect(partialContext).toMatchObject({ amount: '0.00', offsetAmount: '1000.00', remainingDebt: '200.00' })
+    expect(partialContext).toMatchObject({
+      amount: '0.00',
+      offsetAmount: '1000.00',
+      remainingDebt: '200.00',
+    })
     await partial.service.markPaid({
       payoutId: partial.payoutId,
       adminActorId: partial.adminId,
@@ -1445,7 +2318,9 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
       transferDate: new Date('2026-01-05T00:00:00Z'),
       settleWithoutTransfer: true,
     })
-    const partialOffset = await prisma.payoutDebtOffset.findFirstOrThrow({ where: { payoutId: partial.payoutId } })
+    const partialOffset = await prisma.payoutDebtOffset.findFirstOrThrow({
+      where: { payoutId: partial.payoutId },
+    })
     expect(partialOffset.amount.toFixed(2)).toBe('1000.00')
 
     await service.update({
@@ -1456,7 +2331,11 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     })
     expect(await outstandingPayoutDebts(prisma, partial.sellerIds[0]!)).toEqual([])
     const partialEntries = await prisma.sellerLedgerEntry.findMany({
-      where: { sellerId: partial.sellerIds[0]!, referenceType: 'penalty', referenceId: partial.penalty.id },
+      where: {
+        sellerId: partial.sellerIds[0]!,
+        referenceType: 'penalty',
+        referenceId: partial.penalty.id,
+      },
       orderBy: { createdAt: 'asc' },
     })
     expect(partialEntries.map((entry) => entry.amount.toFixed(2))).toEqual(['-1200.00', '1100.00'])
@@ -1464,7 +2343,11 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
 
     const full = await phase5PenaltyFixture(300)
     const fullContext = await full.service.paymentContext(full.payoutId)
-    expect(fullContext).toMatchObject({ amount: '700.00', offsetAmount: '300.00', remainingDebt: '0.00' })
+    expect(fullContext).toMatchObject({
+      amount: '700.00',
+      offsetAmount: '300.00',
+      remainingDebt: '0.00',
+    })
     await full.service.markPaid({
       payoutId: full.payoutId,
       adminActorId: full.adminId,
@@ -1472,7 +2355,9 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
       transferDate: new Date('2026-01-06T00:00:00Z'),
       transferReference: randomUUID(),
     })
-    const fullOffset = await prisma.payoutDebtOffset.findFirstOrThrow({ where: { payoutId: full.payoutId } })
+    const fullOffset = await prisma.payoutDebtOffset.findFirstOrThrow({
+      where: { payoutId: full.payoutId },
+    })
     expect(fullOffset.amount.toFixed(2)).toBe('300.00')
     await service.waive({
       penaltyId: full.penalty.id,
@@ -1481,11 +2366,17 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     })
     expect(await outstandingPayoutDebts(prisma, full.sellerIds[0]!)).toEqual([])
     const fullEntries = await prisma.sellerLedgerEntry.findMany({
-      where: { sellerId: full.sellerIds[0]!, referenceType: 'penalty', referenceId: full.penalty.id },
+      where: {
+        sellerId: full.sellerIds[0]!,
+        referenceType: 'penalty',
+        referenceId: full.penalty.id,
+      },
       orderBy: { createdAt: 'asc' },
     })
     expect(fullEntries.map((entry) => entry.amount.toFixed(2))).toEqual(['-300.00', '300.00'])
-    expect((await prisma.penalty.findUniqueOrThrow({ where: { id: full.penalty.id } })).status).toBe('waived')
+    expect(
+      (await prisma.penalty.findUniqueOrThrow({ where: { id: full.penalty.id } })).status,
+    ).toBe('waived')
   })
 
   it('keeps seller-scoped commission, refund reversal, and invoice VAT visible once', async () => {
@@ -1559,7 +2450,9 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     })
     expect(ownCommission).toHaveLength(2)
     expect(ownCommission.every((entry) => entry.visibleToSeller)).toBe(true)
-    expect(ownCommission.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('-90.00')
+    expect(
+      ownCommission.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2),
+    ).toBe('-90.00')
 
     const otherCommission = await prisma.sellerLedgerEntry.findMany({
       where: { sellerId: f.sellerIds[1]!, type: 'commission' },
@@ -1574,10 +2467,14 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
       orderBy: { createdAt: 'asc' },
     })
     expect(invoiceTopUps).toHaveLength(3)
-    expect(invoiceTopUps.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('-20.00')
-    expect(await prisma.sellerLedgerEntry.count({
-      where: { sellerId: f.sellerIds[1]!, type: 'commission_invoice_issued' },
-    })).toBe(0)
+    expect(
+      invoiceTopUps.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2),
+    ).toBe('-20.00')
+    expect(
+      await prisma.sellerLedgerEntry.count({
+        where: { sellerId: f.sellerIds[1]!, type: 'commission_invoice_issued' },
+      }),
+    ).toBe(0)
   })
 
   it('records only the penalty delta and keeps retries append-only', async () => {
@@ -1602,8 +2499,14 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     expect(sourceEntries.filter((entry) => entry.type === 'penalty')).toHaveLength(1)
     expect(sourceEntries.filter((entry) => entry.type === 'manual_adjustment')).toHaveLength(1)
     expect(sourceEntries.map((entry) => entry.amount.toFixed(2))).toEqual(['-100.00', '-100.00'])
-    expect(sourceEntries.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('-200.00')
-    expect(await prisma.adminAuditLog.count({ where: { targetType: 'penalty', targetId: f.penalty.id } })).toBe(2)
+    expect(
+      sourceEntries.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2),
+    ).toBe('-200.00')
+    expect(
+      await prisma.adminAuditLog.count({
+        where: { targetType: 'penalty', targetId: f.penalty.id },
+      }),
+    ).toBe(2)
   })
 
   it('credits reduced or waived penalties before debt offset and preserves retries', async () => {
@@ -1617,7 +2520,11 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     })
 
     const context = await reduced.service.paymentContext(reduced.payoutId)
-    expect(context).toMatchObject({ amount: '900.00', offsetAmount: '100.00', remainingDebt: '0.00' })
+    expect(context).toMatchObject({
+      amount: '900.00',
+      offsetAmount: '100.00',
+      remainingDebt: '0.00',
+    })
     await reduced.service.markPaid({
       payoutId: reduced.payoutId,
       adminActorId: reduced.adminId,
@@ -1645,9 +2552,17 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
       waiverReason: 'Ceza tamamen kaldırıldı',
     })
     const waivedContext = await waived.service.paymentContext(waived.payoutId)
-    expect(waivedContext).toMatchObject({ amount: '1000.00', offsetAmount: '0.00', remainingDebt: '0.00' })
+    expect(waivedContext).toMatchObject({
+      amount: '1000.00',
+      offsetAmount: '0.00',
+      remainingDebt: '0.00',
+    })
     const waivedEntries = await prisma.sellerLedgerEntry.findMany({
-      where: { sellerId: waived.sellerIds[0]!, referenceType: 'penalty', referenceId: waived.penalty.id },
+      where: {
+        sellerId: waived.sellerIds[0]!,
+        referenceType: 'penalty',
+        referenceId: waived.penalty.id,
+      },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     })
     expect(waivedEntries.map((entry) => entry.amount.toFixed(2))).toEqual(['-300.00', '300.00'])
@@ -1683,7 +2598,9 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     const sourceEntries = await prisma.sellerLedgerEntry.findMany({
       where: { sellerId: f.sellerIds[0]!, referenceType: 'penalty', referenceId: f.penalty.id },
     })
-    expect(sourceEntries.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2)).toBe('0.00')
+    expect(
+      sourceEntries.reduce((sum, entry) => sum.add(entry.amount), new Decimal(0)).toFixed(2),
+    ).toBe('0.00')
 
     const payout = await prisma.payout.findUniqueOrThrow({ where: { id: f.payoutId } })
     if (payout.status === 'payout_ready') {
@@ -1703,9 +2620,11 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     }
     const successful = results.filter((result) => result.status === 'fulfilled')
     expect(successful.length).toBeGreaterThanOrEqual(1)
-    expect(await prisma.sellerLedgerEntry.count({
-      where: { sellerId: f.sellerIds[0]!, type: 'payout', referenceId: f.payoutId },
-    })).toBeLessThanOrEqual(1)
+    expect(
+      await prisma.sellerLedgerEntry.count({
+        where: { sellerId: f.sellerIds[0]!, type: 'payout', referenceId: f.payoutId },
+      }),
+    ).toBeLessThanOrEqual(1)
   })
 
   it('rolls back penalty correction and waiver when the audit write fails', async () => {
@@ -1721,25 +2640,40 @@ describe('phase 5 invoice, penalty, and statement consistency on PostgreSQL', ()
     }) as unknown as PrismaClient
     const service = createPenaltyService({ prisma: failing })
 
-    await expect(service.update({
-      penaltyId: f.penalty.id,
-      adminActorId: f.adminId,
-      amount: new Decimal(200),
-      reason: 'Audit geri alma testi',
-    })).rejects.toThrow('injected penalty audit failure')
-    await expect(service.waive({
-      penaltyId: f.penalty.id,
-      adminActorId: f.adminId,
-      waiverReason: 'Audit muafiyet geri alma testi',
-    })).rejects.toThrow('injected penalty audit failure')
+    await expect(
+      service.update({
+        penaltyId: f.penalty.id,
+        adminActorId: f.adminId,
+        amount: new Decimal(200),
+        reason: 'Audit geri alma testi',
+      }),
+    ).rejects.toThrow('injected penalty audit failure')
+    await expect(
+      service.waive({
+        penaltyId: f.penalty.id,
+        adminActorId: f.adminId,
+        waiverReason: 'Audit muafiyet geri alma testi',
+      }),
+    ).rejects.toThrow('injected penalty audit failure')
 
     const penalty = await prisma.penalty.findUniqueOrThrow({ where: { id: f.penalty.id } })
     expect(penalty.status).toBe('applied')
     expect(penalty.penaltyAmount.toFixed(2)).toBe('100.00')
-    expect(await prisma.sellerLedgerEntry.count({
-      where: { sellerId: f.sellerIds[0]!, type: 'manual_adjustment', referenceType: 'penalty', referenceId: f.penalty.id },
-    })).toBe(0)
-    expect(await prisma.adminAuditLog.count({ where: { targetType: 'penalty', targetId: f.penalty.id } })).toBe(0)
+    expect(
+      await prisma.sellerLedgerEntry.count({
+        where: {
+          sellerId: f.sellerIds[0]!,
+          type: 'manual_adjustment',
+          referenceType: 'penalty',
+          referenceId: f.penalty.id,
+        },
+      }),
+    ).toBe(0)
+    expect(
+      await prisma.adminAuditLog.count({
+        where: { targetType: 'penalty', targetId: f.penalty.id },
+      }),
+    ).toBe(0)
   })
 
   it('keeps Decimal screen, CSV, and XLSX export closing balances identical', async () => {

@@ -1,8 +1,13 @@
+import { workflowStatusTemplate } from '../lib/email-templates/workflow-status'
 /**
  * Notification Dispatch Job â€” sends in-app and email notifications.
  * Idempotent: deduplication is handled by the notification record's existence.
  */
-import { NotificationType as NotificationTypeEnum, type Prisma, type PrismaClient } from '@prisma/client'
+import {
+  NotificationType as NotificationTypeEnum,
+  type Prisma,
+  type PrismaClient,
+} from '@prisma/client'
 import { Worker, Job } from 'bullmq'
 import { createHash, randomUUID } from 'node:crypto'
 import { redis } from '../lib/redis'
@@ -63,8 +68,7 @@ import {
   type ReturnDecisionLine,
 } from '../lib/email-templates'
 
-type CanonicalNotificationType =
-  (typeof NotificationTypeEnum)[keyof typeof NotificationTypeEnum]
+type CanonicalNotificationType = (typeof NotificationTypeEnum)[keyof typeof NotificationTypeEnum]
 type LegacyNotificationType = 'order_confirmed' | 'payout_processed'
 
 export interface NotificationDispatchJobData {
@@ -90,37 +94,23 @@ import {
   notificationErrorCode,
 } from '../lib/notification-policy'
 import { recordNotification } from '../services/notification-outbox.service'
-import {
-  RESERVED_CAMPAIGN_TYPES,
-  runCampaignSendGate,
-} from '../services/campaign-send-gate'
+import { RESERVED_CAMPAIGN_TYPES, runCampaignSendGate } from '../services/campaign-send-gate'
 import { markCampaignReservation } from '../services/campaign-email-reservation'
 
 function normalizeNotificationType(type: string) {
   return type.trim().replace(/-/g, '_').toUpperCase()
 }
 
-const CANONICAL_NOTIFICATION_TYPE_LOOKUP = new Map<
-  string,
-  CanonicalNotificationType
->(
-  Object.values(NotificationTypeEnum).map((type) => [
-    normalizeNotificationType(type),
-    type,
-  ]),
+const CANONICAL_NOTIFICATION_TYPE_LOOKUP = new Map<string, CanonicalNotificationType>(
+  Object.values(NotificationTypeEnum).map((type) => [normalizeNotificationType(type), type]),
 )
 
-const LEGACY_NOTIFICATION_TYPE_ALIASES: Record<
-  string,
-  CanonicalNotificationType
-> = {
+const LEGACY_NOTIFICATION_TYPE_ALIASES: Record<string, CanonicalNotificationType> = {
   ORDER_CONFIRMED: NotificationTypeEnum.order_placed,
   PAYOUT_PROCESSED: NotificationTypeEnum.payout_paid,
 }
 
-export function resolveNotificationType(
-  type: string,
-): CanonicalNotificationType | null {
+export function resolveNotificationType(type: string): CanonicalNotificationType | null {
   const normalizedType = normalizeNotificationType(type)
   return (
     LEGACY_NOTIFICATION_TYPE_ALIASES[normalizedType] ??
@@ -204,11 +194,21 @@ function canonicalInvoiceData(data: EmailData | undefined, eventKey: string) {
   }
 }
 
-async function invoiceDispatchSkipReason(
-  prisma: PrismaClient,
-  userId: string,
-  eventKey: string,
-) {
+async function invoiceDispatchSkipReason(prisma: PrismaClient, userId: string, eventKey: string) {
+  const returnInvoice = /^seller-return-invoice:([^:]+):([a-f0-9]{64})$/.exec(eventKey)
+  if (returnInvoice) {
+    const invoice = await prisma.sellerReturnInvoice.findFirst({
+      where: { id: returnInvoice[1]! },
+      select: { id: true, fileKey: true, sellerId: true },
+    })
+    if (!invoice) return 'INVOICE_REMOVED_OR_UNAUTHORIZED'
+    const seller = await prisma.seller.findFirst({
+      where: { id: invoice.sellerId, userId },
+      select: { id: true },
+    })
+    if (!seller) return 'INVOICE_REMOVED_OR_UNAUTHORIZED'
+    return returnInvoice[2] === getInvoiceRevision(invoice) ? null : 'INVOICE_SUPERSEDED'
+  }
   const identity = invoiceIdentity(eventKey)
   if (!identity) return 'SELLER_INVOICE_NOT_CUSTOMER_FACING'
   const invoice = await prisma.orderCustomerInvoice.findFirst({
@@ -221,23 +221,52 @@ async function invoiceDispatchSkipReason(
 
 async function skipUnstartedInvoiceDeliveries(
   prisma: PrismaClient,
-  params: { userId: string; emailTo: string; type: CanonicalNotificationType; eventKey: string; payload: Prisma.InputJsonValue; reason: string },
+  params: {
+    userId: string
+    emailTo: string
+    type: CanonicalNotificationType
+    eventKey: string
+    payload: Prisma.InputJsonValue
+    reason: string
+  },
 ) {
   for (const channel of ['in_app', 'email'] as const) {
     const recipient = channel === 'in_app' ? params.userId : params.emailTo || params.userId
     const row = await prisma.notificationDelivery.upsert({
-      where: { recipient_channel_eventKey: { recipient, channel, eventKey: params.eventKey } },
+      where: {
+        recipient_channel_eventKey: {
+          recipient,
+          channel,
+          eventKey: params.eventKey,
+        },
+      },
       update: {},
       create: {
-        eventKey: params.eventKey, userId: params.userId, type: params.type,
-        channel, recipient, payload: params.payload,
-        status: 'sent', transportStatus: 'skipped', lastError: params.reason,
+        eventKey: params.eventKey,
+        userId: params.userId,
+        type: params.type,
+        channel,
+        recipient,
+        payload: params.payload,
+        status: 'sent',
+        transportStatus: 'skipped',
+        lastError: params.reason,
       },
     })
     // Accepted, uncertain, or in-flight SMTP attempts keep their real outcome.
     await prisma.notificationDelivery.updateMany({
-      where: { id: row.id, status: { in: ['pending', 'failed'] }, transportStatus: { not: 'uncertain' } },
-      data: { status: 'sent', transportStatus: 'skipped', lastError: params.reason, leaseToken: null, leaseExpiresAt: null },
+      where: {
+        id: row.id,
+        status: { in: ['pending', 'failed'] },
+        transportStatus: { not: 'uncertain' },
+      },
+      data: {
+        status: 'sent',
+        transportStatus: 'skipped',
+        lastError: params.reason,
+        leaseToken: null,
+        leaseExpiresAt: null,
+      },
     })
   }
 }
@@ -250,26 +279,44 @@ async function buildEmailPayload(
   if (!data) return null
 
   switch (type) {
+    case NotificationTypeEnum.seller_return_shipped:
+    case NotificationTypeEnum.seller_return_decision:
+    case NotificationTypeEnum.seller_return_invoice_uploaded:
+    case NotificationTypeEnum.seller_refund_completed:
+      return workflowStatusTemplate(type, data)
     case NotificationTypeEnum.seller_approved:
-      return sellerApprovalTemplate({ email: str(data, 'email'), panelUrl: str(data, 'panelUrl') })
+      return sellerApprovalTemplate({
+        email: str(data, 'email'),
+        panelUrl: str(data, 'panelUrl'),
+      })
     case NotificationTypeEnum.seller_documents_requested:
       return sellerDocumentsRequestedTemplate({
-        email: str(data, 'email'), panelUrl: str(data, 'panelUrl'),
-        requiredDocTypes: lines<string>(data, 'requiredDocTypes'), ...opt(data, 'note'),
+        email: str(data, 'email'),
+        panelUrl: str(data, 'panelUrl'),
+        requiredDocTypes: lines<string>(data, 'requiredDocTypes'),
+        ...opt(data, 'note'),
       })
     case NotificationTypeEnum.seller_bank_detail_pending:
     case NotificationTypeEnum.seller_bank_detail_approved:
       return sellerBankDetailTemplate({
         approved: type === NotificationTypeEnum.seller_bank_detail_approved,
-        sellerName: str(data, 'sellerName'), ibanMasked: str(data, 'ibanMasked'),
+        sellerName: str(data, 'sellerName'),
+        ibanMasked: str(data, 'ibanMasked'),
       })
     case NotificationTypeEnum.customer_campaign: {
       if (!recipient) throw new Error('EMAIL_RECIPIENT_INVALID')
       const { prisma } = await import('../lib/prisma')
-      const { loadSubmittedCustomerCampaign } = await import('../services/customer-campaign.service')
+      const { loadSubmittedCustomerCampaign } =
+        await import('../services/customer-campaign.service')
       const { customerCampaignTemplate } = await import('../lib/email-templates/customer-campaign')
-      const snapshot = await loadSubmittedCustomerCampaign(prisma, str(data, 'campaignId'), str(data, 'recipientId'), recipient.userId)
-      if (snapshot.recipientEmail.trim().toLowerCase() !== recipient.emailTo) throw new Error('EMAIL_RECIPIENT_ADDRESS_CHANGED')
+      const snapshot = await loadSubmittedCustomerCampaign(
+        prisma,
+        str(data, 'campaignId'),
+        str(data, 'recipientId'),
+        recipient.userId,
+      )
+      if (snapshot.recipientEmail.trim().toLowerCase() !== recipient.emailTo)
+        throw new Error('EMAIL_RECIPIENT_ADDRESS_CHANGED')
       return customerCampaignTemplate(snapshot.content, str(data, 'unsubscribeUrl'))
     }
     case NotificationTypeEnum.order_placed: {
@@ -439,6 +486,9 @@ async function buildEmailPayload(
       })
 
     case NotificationTypeEnum.return_status_changed:
+      if (data.stage === 'final_approved' || data.stage === 'final_rejected')
+        return workflowStatusTemplate('customer_return_decision', data)
+      if (data.stage === 'under_review') return workflowStatusTemplate('return_under_review', data)
       if (data['stage'] !== 'cargo_info_ready') return null
       return returnCargoInfoReadyTemplate({
         customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
@@ -455,8 +505,7 @@ async function buildEmailPayload(
     case NotificationTypeEnum.order_return_approved:
     case NotificationTypeEnum.order_return_rejected: {
       const decision = str(data, 'decision')
-      if (decision !== 'approved' && decision !== 'partial' && decision !== 'rejected')
-        return null
+      if (decision !== 'approved' && decision !== 'partial' && decision !== 'rejected') return null
       const outcome = str(data, 'refundOutcome')
       return returnDecisionTemplate({
         customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
@@ -545,10 +594,7 @@ async function buildEmailPayload(
         productName: str(data, 'productName'),
         productUrl: str(data, 'productUrl'),
         sellerName: str(data, 'sellerName'),
-        context:
-          type === NotificationTypeEnum.product_discount_favorited
-            ? 'favorite'
-            : 'cart',
+        context: type === NotificationTypeEnum.product_discount_favorited ? 'favorite' : 'cart',
         unsubscribeUrl: str(data, 'unsubscribeUrl'),
       })
 
@@ -646,14 +692,11 @@ async function buildEmailPayload(
   }
 }
 
-export async function processNotificationDispatch(
-  job: Job<NotificationDispatchJobData>,
-) {
+export async function processNotificationDispatch(job: Job<NotificationDispatchJobData>) {
   const { prisma } = await import('../lib/prisma')
   const { userId, title, body, replyTo } = job.data
   const type = resolveNotificationType(job.data.type)
   if (!type) throw new Error('EMAIL_EVENT_UNKNOWN')
-  if (type === NotificationTypeEnum.seller_refund_completed) return
   // Admin operation events are addressed to a configured mailbox, not to a user
   // account: no user row, no in-app notification, e-mail leg only.
   const isOps = userId === OPS_RECIPIENT_ID
@@ -665,18 +708,27 @@ export async function processNotificationDispatch(
       })
   if (!isOps && !user) throw new Error('EMAIL_USER_MISSING')
   const eventKey = job.data.eventKey ?? `legacy-job:${job.id ?? 'unknown'}`
-  const data = type === NotificationTypeEnum.invoice_uploaded
-    ? canonicalInvoiceData(job.data.data, eventKey)
-    : job.data.data
+  const data =
+    type === NotificationTypeEnum.invoice_uploaded
+      ? canonicalInvoiceData(job.data.data, eventKey)
+      : job.data.data
   const payload = JSON.parse(JSON.stringify({ ...job.data, data, eventKey }))
   const now = new Date()
   const deliveryUserId = isOps ? null : userId
-  if (!isOps && type === NotificationTypeEnum.invoice_uploaded) {
+  if (
+    !isOps &&
+    (type === NotificationTypeEnum.invoice_uploaded ||
+      type === NotificationTypeEnum.seller_return_invoice_uploaded)
+  ) {
     const reason = await invoiceDispatchSkipReason(prisma, userId, eventKey)
     if (reason) {
       await skipUnstartedInvoiceDeliveries(prisma, {
-        userId, emailTo: (job.data.emailTo ?? user?.email ?? '').trim().toLowerCase(),
-        type, eventKey, payload, reason,
+        userId,
+        emailTo: (job.data.emailTo ?? user?.email ?? '').trim().toLowerCase(),
+        type,
+        eventKey,
+        payload,
+        reason,
       })
       return
     }
@@ -684,11 +736,18 @@ export async function processNotificationDispatch(
   // Campaign gate (phase 6): closed legacy types, reservation, shared limits and the
   // lowest-price re-check run before either leg; a refusal produces neither.
   if (!isOps) {
-    const gate = await runCampaignSendGate(prisma, { type, eventKey, userId, emailTo: job.data.emailTo ?? '' })
+    const gate = await runCampaignSendGate(prisma, {
+      type,
+      eventKey,
+      userId,
+      emailTo: job.data.emailTo ?? '',
+    })
     if (!gate.proceed) {
       const recipient = (job.data.emailTo ?? user?.email ?? userId).trim().toLowerCase()
       await prisma.notificationDelivery.upsert({
-        where: { recipient_channel_eventKey: { recipient, channel: 'email', eventKey } },
+        where: {
+          recipient_channel_eventKey: { recipient, channel: 'email', eventKey },
+        },
         update: {},
         create: {
           eventKey,
@@ -705,10 +764,20 @@ export async function processNotificationDispatch(
       // Preserve accepted/uncertain/in-flight deliveries; terminalize only jobs
       // that have definitely not started a provider attempt.
       await prisma.notificationDelivery.updateMany({
-        where: { recipient, channel: 'email', eventKey,
-          status: { in: ['pending', 'failed'] }, transportStatus: { not: 'uncertain' } },
-        data: { status: 'sent', transportStatus: 'skipped', lastError: gate.reason.slice(0, 200),
-          leaseToken: null, leaseExpiresAt: null },
+        where: {
+          recipient,
+          channel: 'email',
+          eventKey,
+          status: { in: ['pending', 'failed'] },
+          transportStatus: { not: 'uncertain' },
+        },
+        data: {
+          status: 'sent',
+          transportStatus: 'skipped',
+          lastError: gate.reason.slice(0, 200),
+          leaseToken: null,
+          leaseExpiresAt: null,
+        },
       })
       return
     }
@@ -868,7 +937,12 @@ export async function processNotificationDispatch(
     if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(emailTo))
       throw new Error('EMAIL_RECIPIENT_INVALID')
     if (config.category === 'kampanya') {
-      const consentReason = await checkMarketingEmailRecipient(prisma, userId, emailTo, String(data?.['unsubscribeUrl'] ?? ''))
+      const consentReason = await checkMarketingEmailRecipient(
+        prisma,
+        userId,
+        emailTo,
+        String(data?.['unsubscribeUrl'] ?? ''),
+      )
       if (consentReason) {
         await prisma.notificationDelivery.update({
           where: { id: email.id },
@@ -884,36 +958,57 @@ export async function processNotificationDispatch(
         return
       }
     }
-    const template = await buildEmailPayload(type, emailData, { userId, emailTo })
+    const template = await buildEmailPayload(type, emailData, {
+      userId,
+      emailTo,
+    })
     if (!template) throw new Error('EMAIL_TEMPLATE_UNSUPPORTED')
     const messageId =
-      email.messageId ??
-      `<${createHash('sha256').update(email.id).digest('hex')}@hanuja.com.tr>`
+      email.messageId ?? `<${createHash('sha256').update(email.id).digest('hex')}@hanuja.com.tr>`
     await prisma.notificationDelivery.update({
       where: { id: email.id },
-      data: { messageId, payload: JSON.parse(JSON.stringify({ ...job.data, data: emailData, eventKey })) },
+      data: {
+        messageId,
+        payload: JSON.parse(JSON.stringify({ ...job.data, data: emailData, eventKey })),
+      },
     })
     const unsubscribeUrl = String(data?.['unsubscribeUrl'] ?? '')
     if (config.category === 'kampanya') {
       const channel = await getMarketingChannelStatus(prisma, 'email')
-      const blockedReason = !channel.canSend ? channel.reason : await checkMarketingEmailRecipient(prisma, userId, emailTo, unsubscribeUrl)
+      const blockedReason = !channel.canSend
+        ? channel.reason
+        : await checkMarketingEmailRecipient(prisma, userId, emailTo, unsubscribeUrl)
       if (blockedReason) {
         await prisma.notificationDelivery.update({
           where: { id: email.id },
-          data: { status: 'sent', transportStatus: 'skipped', lastError: blockedReason,
-            leaseToken: null, leaseExpiresAt: null },
+          data: {
+            status: 'sent',
+            transportStatus: 'skipped',
+            lastError: blockedReason,
+            leaseToken: null,
+            leaseExpiresAt: null,
+          },
         })
         if (reservationTracked) await releaseSendingReservation(prisma, eventKey, blockedReason)
         return
       }
     }
-    if (!isOps && type === NotificationTypeEnum.invoice_uploaded) {
+    if (
+      !isOps &&
+      (type === NotificationTypeEnum.invoice_uploaded ||
+        type === NotificationTypeEnum.seller_return_invoice_uploaded)
+    ) {
       const reason = await invoiceDispatchSkipReason(prisma, userId, eventKey)
       if (reason) {
         await prisma.notificationDelivery.updateMany({
           where: { id: email.id, leaseToken: token },
-          data: { status: 'sent', transportStatus: 'skipped', lastError: reason,
-            leaseToken: null, leaseExpiresAt: null },
+          data: {
+            status: 'sent',
+            transportStatus: 'skipped',
+            lastError: reason,
+            leaseToken: null,
+            leaseExpiresAt: null,
+          },
         })
         return
       }
@@ -923,11 +1018,7 @@ export async function processNotificationDispatch(
       ...template,
       fromCategory: config.category,
       messageId,
-      ...(replyTo
-        ? { replyTo }
-        : config.category === 'fatura'
-          ? { replyTo: PLATFORM_LEGAL_INFO.supportEmail }
-          : {}),
+      ...(replyTo ? { replyTo } : { replyTo: PLATFORM_LEGAL_INFO.supportEmail }),
       headers: {
         ...(process.env.SMTP_HOST === 'smtp.resend.com'
           ? { 'Resend-Idempotency-Key': email.id }
@@ -951,9 +1042,7 @@ export async function processNotificationDispatch(
         leaseToken: null,
         leaseExpiresAt: null,
         lastError: null,
-        ...(result.transport === 'development'
-          ? { transportStatus: 'simulated' }
-          : {}),
+        ...(result.transport === 'development' ? { transportStatus: 'simulated' } : {}),
       },
     })
     const { reconcileEmailProviderEvents } =
@@ -974,9 +1063,7 @@ export async function processNotificationDispatch(
       data: {
         status: 'failed',
         transportStatus: uncertain ? 'uncertain' : 'unknown',
-        lastError: uncertain
-          ? 'SMTP_OUTCOME_UNCERTAIN'
-          : notificationErrorCode(error),
+        lastError: uncertain ? 'SMTP_OUTCOME_UNCERTAIN' : notificationErrorCode(error),
         leaseToken: null,
         leaseExpiresAt: null,
       },
@@ -1009,9 +1096,7 @@ async function trackedDispatch(job: Job<NotificationDispatchJobData>) {
       await prisma.notificationOutbox.updateMany({
         where: { id: job.data.outboxId, generation: job.data.generation ?? 0 },
         data: {
-          ...(job.attemptsMade + 1 >= (job.opts.attempts ?? 1)
-            ? { status: 'failed' }
-            : {}),
+          ...(job.attemptsMade + 1 >= (job.opts.attempts ?? 1) ? { status: 'failed' } : {}),
           lastError: notificationErrorCode(error),
         },
       })
@@ -1030,11 +1115,7 @@ export function startNotificationDispatchWorker() {
     },
   )
   worker.on('failed', (job, error) =>
-    console.error(
-      '[notification-dispatch]',
-      job?.id,
-      notificationErrorCode(error),
-    ),
+    console.error('[notification-dispatch]', job?.id, notificationErrorCode(error)),
   )
   return worker
 }

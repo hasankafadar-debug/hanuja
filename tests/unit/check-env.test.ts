@@ -35,16 +35,20 @@ const workerEnv: NodeJS.ProcessEnv = {
 }
 
 function runCheck(app: string, env = workerEnv) {
-  const result = spawnSync(process.execPath, [
-    resolve(repoRoot, 'node_modules/tsx/dist/cli.mjs'),
-    checkEnvScript,
-    '--env=prod',
-    `--app=${app}`,
-  ], {
-    cwd: repoRoot,
-    env,
-    encoding: 'utf8',
-  })
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(repoRoot, 'node_modules/tsx/dist/cli.mjs'),
+      checkEnvScript,
+      '--env=prod',
+      `--app=${app}`,
+    ],
+    {
+      cwd: repoRoot,
+      env,
+      encoding: 'utf8',
+    },
+  )
   return {
     status: result.status,
     output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
@@ -60,7 +64,10 @@ describe('production environment guard scopes', () => {
   })
 
   it('keeps rejecting shared production URLs that use sslip.io', () => {
-    const env = { ...workerEnv, NEXT_PUBLIC_WEB_URL: 'https://web.77-245-158-7.sslip.io' }
+    const env = {
+      ...workerEnv,
+      NEXT_PUBLIC_WEB_URL: 'https://web.77-245-158-7.sslip.io',
+    }
     const result = runCheck('worker', env)
 
     expect(result.status).toBe(1)
@@ -68,24 +75,38 @@ describe('production environment guard scopes', () => {
   })
 
   it('rejects cross-audience origins and mismatched public/server panel configuration', () => {
-    const collision = runCheck('worker', { ...workerEnv, NEXT_PUBLIC_WEB_URL: 'https://satici.hanuja.com.tr' })
+    const collision = runCheck('worker', {
+      ...workerEnv,
+      NEXT_PUBLIC_WEB_URL: 'https://satici.hanuja.com.tr',
+    })
     expect(collision.status).toBe(1)
     expect(collision.output).toContain('EMAIL_BASE_URL_ROLE_MISMATCH')
-    const mismatch = runCheck('worker', { ...workerEnv, SELLER_PANEL_URL: 'https://other-seller.example' })
+    const mismatch = runCheck('worker', {
+      ...workerEnv,
+      SELLER_PANEL_URL: 'https://other-seller.example',
+    })
     expect(mismatch.status).toBe(1)
-    expect(mismatch.output).toContain('NEXT_PUBLIC_SELLER_PANEL_URL must use the same origin as SELLER_PANEL_URL')
+    expect(mismatch.output).toContain(
+      'NEXT_PUBLIC_SELLER_PANEL_URL must use the same origin as SELLER_PANEL_URL',
+    )
   })
 
   it('requires an absolute mounted private-document directory for the worker', () => {
     for (const value of ['', 'relative/private-documents']) {
-      const result = runCheck('worker', { ...workerEnv, PRIVATE_DOCUMENT_ROOT: value })
+      const result = runCheck('worker', {
+        ...workerEnv,
+        PRIVATE_DOCUMENT_ROOT: value,
+      })
       expect(result.status).toBe(1)
       expect(result.output).toContain('PRIVATE_DOCUMENT_ROOT')
     }
   })
 
   it('rejects invalid invoice-management rollout flags', () => {
-    const result = runCheck('worker', { ...workerEnv, INVOICE_MANAGEMENT_ENABLED: 'enabled' })
+    const result = runCheck('worker', {
+      ...workerEnv,
+      INVOICE_MANAGEMENT_ENABLED: 'enabled',
+    })
     expect(result.status).toBe(1)
     expect(result.output).toContain('INVOICE_MANAGEMENT_ENABLED must be exactly true or false.')
   })
@@ -95,7 +116,9 @@ describe('production environment guard scopes', () => {
     const result = runCheck('api', env)
 
     expect(result.status).toBe(1)
-    expect(result.output).toContain('TURNSTILE_SECRET_KEY must not use a Cloudflare test key in production.')
+    expect(result.output).toContain(
+      'TURNSTILE_SECRET_KEY must not use a Cloudflare test key in production.',
+    )
   })
 
   it('rejects unknown app scopes instead of silently applying the wrong rules', () => {
@@ -103,35 +126,5 @@ describe('production environment guard scopes', () => {
 
     expect(result.status).toBe(1)
     expect(result.output).toContain('Unknown app scope: worker-with-typo')
-  })
-
-  it('requires the inbound domain on seller/admin only when aliasing is enabled', () => {
-    for (const app of ['seller-panel', 'admin-panel']) {
-      const env = {
-        ...workerEnv, INVOICE_ALIASING_ENABLED: 'true', INBOUND_EMAIL_DOMAIN: '',
-        BETTER_AUTH_URL: 'https://www.hanuja.com.tr', NEXT_PUBLIC_APP_URL: 'https://www.hanuja.com.tr',
-        TURNSTILE_SECRET_KEY: 'local-valid-secret-value', NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'local-valid-site-key',
-      }
-      const result = runCheck(app, env)
-      expect(result.status).toBe(1)
-      expect(result.output).toContain('INBOUND_EMAIL_DOMAIN')
-      expect(result.output).not.toContain('POSTMARK_INBOUND_WEBHOOK_PASS')
-    }
-  })
-
-  it('requires Resend receiving secrets on web without requiring legacy Postmark credentials', () => {
-    const env = {
-      ...workerEnv, INVOICE_ALIASING_ENABLED: 'true', INBOUND_EMAIL_DOMAIN: 'fatura.hanuja.com.tr',
-      RESEND_RECEIVING_API_KEY: '', RESEND_INBOUND_WEBHOOK_SECRET: '',
-      POSTMARK_INBOUND_WEBHOOK_USER: '', POSTMARK_INBOUND_WEBHOOK_PASS: '',
-      BETTER_AUTH_URL: 'https://www.hanuja.com.tr', NEXT_PUBLIC_APP_URL: 'https://www.hanuja.com.tr',
-      TURNSTILE_SECRET_KEY: 'local-valid-secret-value', NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'local-valid-site-key',
-      MEILISEARCH_SEARCH_KEY: 'local-search-key', PREVIEW_DEPLOYMENT: 'false',
-    }
-    const result = runCheck('web', env)
-    expect(result.status).toBe(1)
-    expect(result.output).toContain('RESEND_RECEIVING_API_KEY')
-    expect(result.output).toContain('RESEND_INBOUND_WEBHOOK_SECRET')
-    expect(result.output).not.toMatch(/!\s+POSTMARK_INBOUND_WEBHOOK_PASS/)
   })
 })

@@ -289,12 +289,12 @@ faturalar. Sipariş detayında (`siparisler/[id]`):
   onaylanmadı (gerekçe). Beklenen ödeme tarihi teslim onayı ve açık iade durumuna bağlıdır.
 - **"Fatura Bilgileri" kartı**: müşterinin fatura bilgisi değil, Hanuja'nın unvanı, adresi, vergi
   dairesi/VKN ve MERSİS'i (`PLATFORM_LEGAL_INFO`); irsaliye açıklaması "<unvan> adına müşteriye teslim
-  edilmek üzere" ve teslim alacak kişi; fatura e-posta adresi (alias).
+  edilmek üzere" ve teslim alacak kişi. Fatura yalnız panelden yüklenir.
 - Satıcı müşterinin TC/VKN'sini ve fatura adresini görmez (`findByIdForSeller` yalnız teslimat
   alanlarını seçer).
 - Kargo girişi fatura olmadan da yapılabilir; fatura bir saat sonra hâlâ yoksa satıcıya tek seferlik
   hatırlatma e-postası gider (`seller-invoice-reminder` işi). Ceza yoktur.
-- Onaylanan fatura satıcı tarafından değiştirilemez veya silinemez (gelen e-postayla da); düzeltme
+- Onaylanan fatura satıcı tarafından değiştirilemez veya silinemez; düzeltme
   için Hanuja yönetimine başvurulur. Reddedilen fatura düzeltilip yeniden yüklenebilir; yeni dosya
   yeniden incelemeye girer.
 - Satıcının Hanuja'ya kestiği fatura müşteriye hiçbir yoldan gösterilmez.

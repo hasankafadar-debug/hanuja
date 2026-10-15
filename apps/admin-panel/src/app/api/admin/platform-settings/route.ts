@@ -9,7 +9,6 @@ import { createPlatformSettingsService } from '@hanuja/api/services/platform-set
 
 const schema = z.object({
   standardPenaltyRate: z.number().min(0).max(1),
-  dailyPenaltyRate: z.number().min(0).max(1),
   defaultSellerCommissionRate: z.number().min(0).max(1),
   fulfillmentDays: z.number().int().min(1).max(90),
   fulfillmentWarningDays: z.number().int().min(1).max(30),
@@ -36,7 +35,7 @@ export async function PATCH(req: NextRequest) {
   const current = await svc.get()
   const result = await svc.update({
     standardPenaltyRate: new Decimal(body.standardPenaltyRate),
-    dailyPenaltyRate: new Decimal(body.dailyPenaltyRate),
+    dailyPenaltyRate: current.dailyPenaltyRate, // Historical value; automatic accrual is retired.
     defaultSellerCommissionRate: new Decimal(body.defaultSellerCommissionRate),
     fulfillmentDays: body.fulfillmentDays,
     fulfillmentWarningDays: body.fulfillmentWarningDays,

@@ -46,7 +46,7 @@ export interface SellerReturnData {
 
 const STATUS_LABELS: Record<string, string> = {
   requested: 'İade Talebi — Kargo bilgisi girin',
-  under_review: 'İnceleniyor',
+  under_review: 'Hanuja incelemesinde',
   approved: 'Müşterinin kargoya vermesi bekleniyor',
   in_transit: 'Kargoda — Teslim alıp onaylayın/reddedin',
   received: 'Teslim Alındı',
@@ -124,6 +124,14 @@ function usePhotos() {
 }
 
 export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
+  const finalDecisionLabel =
+    data.disputeStatus === 'resolved_for_seller'
+      ? data.items.some((item) => item.acceptedQuantity > 0)
+        ? 'İncelenen iade kalemleri Hanuja tarafından reddedildi; kabul edilen kısmın iadesi ayrı takip edilir.'
+        : 'İade Hanuja tarafından reddedildi'
+      : data.disputeStatus === 'resolved_for_customer'
+        ? 'İade Hanuja tarafından kabul edildi'
+        : null
   const router = useRouter()
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
@@ -132,7 +140,14 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
   const [carrier, setCarrier] = useState('')
   const [instructions, setInstructions] = useState('')
   const [itemDecisions, setItemDecisions] = useState<
-    Record<string, { acceptedQuantity: number; rejectedQuantity: number; rejectionReason: string }>
+    Record<
+      string,
+      {
+        acceptedQuantity: number
+        rejectedQuantity: number
+        rejectionReason: string
+      }
+    >
   >(() =>
     Object.fromEntries(
       data.items.map((item) => [
@@ -184,7 +199,11 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
         </h1>
         <StatusBadge
           status={data.status as Parameters<typeof StatusBadge>[0]['status']}
-          label={STATUS_LABELS[data.status] ?? data.status}
+          label={
+            data.status === 'rejected' && finalDecisionLabel
+              ? finalDecisionLabel
+              : (STATUS_LABELS[data.status] ?? data.status)
+          }
         />
       </div>
 
@@ -200,7 +219,7 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
           {data.productNames.join(', ')}
         </p>
         <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>
-          <strong style={{ color: 'var(--color-primary)' }}>Müşteri sebebi:</strong> {data.reason}
+          <strong style={{ color: 'var(--color-primary)' }}>İade süreci:</strong> {data.reason}
         </p>
         {data.description ? (
           <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>
@@ -300,7 +319,11 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
                   rejectionReason: '',
                 }
                 return (
-                  <div key={item.id} className="space-y-2 border-b pb-3 last:border-b-0 last:pb-0" style={{ borderColor: 'var(--color-border)' }}>
+                  <div
+                    key={item.id}
+                    className="space-y-2 border-b pb-3 last:border-b-0 last:pb-0"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm font-medium">{item.productName}</span>
                       <span className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
@@ -353,14 +376,18 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
                         onChange={(event) =>
                           setItemDecisions((current) => ({
                             ...current,
-                            [item.id]: { ...decision, rejectionReason: event.target.value },
+                            [item.id]: {
+                              ...decision,
+                              rejectionReason: event.target.value,
+                            },
                           }))
                         }
                         placeholder="Reddedilen adetler için gerekçe"
                         disabled={pending}
                       />
                     ) : null}
-                    {decision.acceptedQuantity + decision.rejectedQuantity !== item.requestedQuantity ? (
+                    {decision.acceptedQuantity + decision.rejectedQuantity !==
+                    item.requestedQuantity ? (
                       <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>
                         Kabul + red toplamı {item.requestedQuantity} olmalı.
                       </p>
@@ -377,7 +404,8 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
                     const decision = itemDecisions[item.id]
                     return (
                       !decision ||
-                      decision.acceptedQuantity + decision.rejectedQuantity !== item.requestedQuantity ||
+                      decision.acceptedQuantity + decision.rejectedQuantity !==
+                        item.requestedQuantity ||
                       (decision.rejectedQuantity > 0 && decision.rejectionReason.trim().length < 3)
                     )
                   })
@@ -400,70 +428,70 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
               </Button>
             </div>
           ) : (
-          <>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                post(
-                  `/api/seller/returns/${data.id}/confirm-receipt`,
-                  null,
-                  'İade onaylandı, müşteriye iade başlatıldı',
-                )
-              }
-            >
-              Kargoyu Aldım / Onayla
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={pending}
-              onClick={() => setRejectOpen((v) => !v)}
-            >
-              Reddet (Yanlış Ürün)
-            </Button>
-          </div>
-          {rejectOpen ? (
-            <div
-              className="space-y-2 rounded-lg border p-3"
-              style={{ borderColor: 'var(--color-destructive, #dc2626)' }}
-            >
-              <Input
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Red sebebi"
-                disabled={pending}
-              />
-              <Textarea
-                value={rejectDesc}
-                onChange={(e) => setRejectDesc(e.target.value)}
-                placeholder="Açıklama"
-                rows={2}
-                disabled={pending}
-              />
-              {rejectPhotos.node}
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pending || rejectReason.trim().length < 1}
-                onClick={() =>
-                  post(
-                    `/api/seller/returns/${data.id}/reject`,
-                    {
-                      reason: rejectReason.trim(),
-                      description: rejectDesc.trim() || undefined,
-                      evidenceAssetIds: rejectPhotos.ids.length ? rejectPhotos.ids : undefined,
-                    },
-                    'İade reddedildi, uyuşmazlığa taşındı',
-                  )
-                }
-              >
-                Reddi Gönder
-              </Button>
-            </div>
-          ) : null}
-          </>
+            <>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  disabled={pending}
+                  onClick={() =>
+                    post(
+                      `/api/seller/returns/${data.id}/confirm-receipt`,
+                      null,
+                      'İade onaylandı, müşteriye iade başlatıldı',
+                    )
+                  }
+                >
+                  Kargoyu Aldım / Onayla
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => setRejectOpen((v) => !v)}
+                >
+                  Reddet (Yanlış Ürün)
+                </Button>
+              </div>
+              {rejectOpen ? (
+                <div
+                  className="space-y-2 rounded-lg border p-3"
+                  style={{ borderColor: 'var(--color-destructive, #dc2626)' }}
+                >
+                  <Input
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Red sebebi"
+                    disabled={pending}
+                  />
+                  <Textarea
+                    value={rejectDesc}
+                    onChange={(e) => setRejectDesc(e.target.value)}
+                    placeholder="Açıklama"
+                    rows={2}
+                    disabled={pending}
+                  />
+                  {rejectPhotos.node}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pending || rejectReason.trim().length < 1}
+                    onClick={() =>
+                      post(
+                        `/api/seller/returns/${data.id}/reject`,
+                        {
+                          reason: rejectReason.trim(),
+                          description: rejectDesc.trim() || undefined,
+                          evidenceAssetIds: rejectPhotos.ids.length ? rejectPhotos.ids : undefined,
+                        },
+                        'İade reddedildi, uyuşmazlığa taşındı',
+                      )
+                    }
+                  >
+                    Reddi Gönder
+                  </Button>
+                </div>
+              ) : null}
+            </>
           )}
         </section>
       ) : null}
@@ -477,7 +505,7 @@ export function SellerReturnDetailClient({ data }: { data: SellerReturnData }) {
           }}
         >
           <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
-            Reddedildi — Uyuşmazlık {data.disputeStatus ? `(${data.disputeStatus})` : ''}
+            {finalDecisionLabel ?? 'Tasarımcı red bildirimi — Hanuja incelemesinde'}
           </p>
           <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>
             {data.sellerRejectReason}

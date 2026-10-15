@@ -31,6 +31,7 @@ const config: NextConfig = {
   },
   transpilePackages: ['@hanuja/ui', '@hanuja/security', '@hanuja/types', '@hanuja/api'],
   images: {
+    unoptimized: process.env.NODE_ENV === 'development' && Boolean(process.env.R2_LOCAL_ENDPOINT),
     localPatterns: [
       {
         pathname: '/api/media/fetch',
@@ -39,10 +40,18 @@ const config: NextConfig = {
         pathname: '/api/media/private/**',
       },
     ],
-    remotePatterns: remoteImageHostnames.map((hostname) => ({
-      protocol: 'https',
-      hostname,
-    })),
+    remotePatterns: [
+      ...(process.env.NODE_ENV === 'development' && process.env.R2_LOCAL_ENDPOINT
+        ? [{ protocol: 'http' as const, hostname: '127.0.0.1', port: '9000' }]
+        : []),
+      ...remoteImageHostnames.map(
+        (hostname) =>
+          ({
+            protocol: 'https',
+            hostname,
+          }) as const,
+      ),
+    ],
   },
   // typedRoutes: true, — disabled: dynamic router.push strings not compatible
 }

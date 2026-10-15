@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useId } from 'react'
+import { useRef, useState, useId, useEffect } from 'react'
 import { Button } from '@hanuja/ui'
 import { Paperclip, X } from 'lucide-react'
 import {
@@ -20,27 +20,43 @@ interface PickedFile {
 interface ReturnPhotoPickerProps {
   /** Called whenever the set of successfully-uploaded asset ids changes. */
   onChange: (assetIds: string[]) => void
+  onReadyChange?: (ready: boolean) => void
   disabled?: boolean
   label?: string
 }
 
-export function ReturnPhotoPicker({ onChange, disabled, label }: ReturnPhotoPickerProps) {
+export function ReturnPhotoPicker({
+  onChange,
+  onReadyChange,
+  disabled,
+  label,
+}: ReturnPhotoPickerProps) {
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<PickedFile[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  function emit(next: PickedFile[]) {
-    onChange(next.filter((f) => f.state === 'done' && f.assetId).map((f) => f.assetId as string))
-  }
+  const changeRef = useRef(onChange)
+  const readyRef = useRef(onReadyChange)
+  useEffect(() => {
+    changeRef.current = onChange
+    readyRef.current = onReadyChange
+  }, [onChange, onReadyChange])
+  useEffect(() => {
+    changeRef.current(
+      files.filter((file) => file.state === 'done' && file.assetId).map((file) => file.assetId!),
+    )
+    readyRef.current?.(files.every((file) => file.state === 'done'))
+  }, [files])
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? [])
     e.target.value = ''
     setError(null)
 
+    let count = files.length
     for (const file of picked) {
-      if (files.length >= RETURN_MAX_FILES) {
+      if (count >= RETURN_MAX_FILES) {
         setError(`En fazla ${RETURN_MAX_FILES} görsel ekleyebilirsiniz.`)
         break
       }
@@ -54,6 +70,8 @@ export function ReturnPhotoPicker({ onChange, disabled, label }: ReturnPhotoPick
       }
 
       const entry: PickedFile = { file, state: 'uploading' }
+      readyRef.current?.(false)
+      count++
       setFiles((prev) => [...prev, entry])
       uploadReturnPhoto(file)
         .then((assetId) => {
@@ -61,7 +79,6 @@ export function ReturnPhotoPicker({ onChange, disabled, label }: ReturnPhotoPick
             const next = prev.map((f) =>
               f.file === file ? { ...f, state: 'done' as const, assetId } : f,
             )
-            emit(next)
             return next
           })
         })
@@ -77,7 +94,6 @@ export function ReturnPhotoPicker({ onChange, disabled, label }: ReturnPhotoPick
   function remove(index: number) {
     setFiles((prev) => {
       const next = prev.filter((_, i) => i !== index)
-      emit(next)
       return next
     })
   }

@@ -33,7 +33,10 @@ function StatusNote({ status }: { status: PurchaseInvoiceStatus }) {
   const base = 'rounded-lg border px-4 py-3 text-sm'
   if (status.reviewStatus === 'approved') {
     return (
-      <div className={base} style={{ borderColor: 'var(--color-success)', color: 'var(--color-primary)' }}>
+      <div
+        className={base}
+        style={{ borderColor: 'var(--color-success)', color: 'var(--color-primary)' }}
+      >
         <p className="font-medium">Faturanız onaylandı.</p>
         <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>
           {status.invoiceNumber ? `Fatura No: ${status.invoiceNumber}` : null}
@@ -41,8 +44,8 @@ function StatusNote({ status }: { status: PurchaseInvoiceStatus }) {
         </p>
         {status.expectedPayoutDate ? (
           <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>
-            Beklenen ödeme tarihi: <strong>{formatDay(status.expectedPayoutDate)}</strong> (teslim onayı ve
-            açık iade durumuna bağlıdır)
+            Beklenen ödeme tarihi: <strong>{formatDay(status.expectedPayoutDate)}</strong> (teslim
+            onayı ve açık iade durumuna bağlıdır)
           </p>
         ) : null}
       </div>
@@ -50,7 +53,11 @@ function StatusNote({ status }: { status: PurchaseInvoiceStatus }) {
   }
   if (status.reviewStatus === 'rejected') {
     return (
-      <div role="alert" className={base} style={{ borderColor: 'var(--color-destructive)', color: 'var(--color-primary)' }}>
+      <div
+        role="alert"
+        className={base}
+        style={{ borderColor: 'var(--color-destructive)', color: 'var(--color-primary)' }}
+      >
         <p className="font-medium">Faturanız onaylanmadı.</p>
         {status.reviewNote ? (
           <p className="mt-1" style={{ color: 'var(--color-muted-fg)' }}>
@@ -65,18 +72,29 @@ function StatusNote({ status }: { status: PurchaseInvoiceStatus }) {
   }
   if (status.reviewStatus === 'pending') {
     return (
-      <p className={base} style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}>
-        Faturanız alındı, Hanuja kontrol ediyor. Hakediş vadesi onaylanan fatura tarihinden hesaplanır.
+      <p
+        className={base}
+        style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
+      >
+        Faturanız alındı, Hanuja kontrol ediyor. Hakediş vadesi onaylanan fatura tarihinden
+        hesaplanır.
       </p>
     )
   }
   return status.shipped ? (
-    <p role="alert" className={base} style={{ borderColor: 'var(--color-warning)', color: 'var(--color-primary)' }}>
-      Fatura bekleniyor. Ürünü kargoya verdiniz; faturanızı kesip aşağıdan yükleyin veya fatura e-posta adresine
-      gönderin. Fatura gelmeden hakediş süresi başlamaz.
+    <p
+      role="alert"
+      className={base}
+      style={{ borderColor: 'var(--color-warning)', color: 'var(--color-primary)' }}
+    >
+      Fatura bekleniyor. Ürünü kargoya verdiniz; Hanuja&apos;ya kestiğiniz faturayı aşağıdan
+      yükleyin. Fatura gelmeden hakediş süresi başlamaz.
     </p>
   ) : (
-    <p className={base} style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}>
+    <p
+      className={base}
+      style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
+    >
       Faturayı ürünü kargoya verirken kesin ve yükleyin.
     </p>
   )
@@ -125,14 +143,20 @@ export default function PurchaseInvoiceCard({
                 <th className="py-2 pr-3 text-left font-medium">Ürün</th>
                 <th className="py-2 pr-3 text-right font-medium">Adet</th>
                 <th className="py-2 pr-3 text-right font-medium">Satış (KDV dahil)</th>
-                {hasCoupon ? <th className="py-2 pr-3 text-right font-medium">Kampanya payı</th> : null}
+                {hasCoupon ? (
+                  <th className="py-2 pr-3 text-right font-medium">Kampanya payı</th>
+                ) : null}
                 <th className="py-2 pr-3 text-right font-medium">Komisyon (KDV dahil)</th>
                 <th className="py-2 text-right font-medium">Fatura tutarı (KDV dahil)</th>
               </tr>
             </thead>
             <tbody>
               {invoice.lines.map((line) => (
-                <tr key={line.orderLineId} className="border-t" style={{ borderColor: 'var(--color-border)' }}>
+                <tr
+                  key={line.orderLineId}
+                  className="border-t"
+                  style={{ borderColor: 'var(--color-border)' }}
+                >
                   <td className="py-2 pr-3" style={{ color: 'var(--color-primary)' }}>
                     {line.productName}
                     {line.variantName ? (
@@ -140,9 +164,13 @@ export default function PurchaseInvoiceCard({
                     ) : null}
                   </td>
                   <td className="py-2 pr-3 text-right">{line.quantity}</td>
-                  <td className="py-2 pr-3 text-right">{formatPurchaseInvoiceAmount(line.grossAmount)}</td>
+                  <td className="py-2 pr-3 text-right">
+                    {formatPurchaseInvoiceAmount(line.grossAmount)}
+                  </td>
                   {hasCoupon ? (
-                    <td className="py-2 pr-3 text-right">{formatDeduction(line.couponShareAmount)}</td>
+                    <td className="py-2 pr-3 text-right">
+                      {formatDeduction(line.couponShareAmount)}
+                    </td>
                   ) : null}
                   <td className="py-2 pr-3 text-right">
                     {formatDeduction(line.commissionAmount)}
@@ -152,7 +180,10 @@ export default function PurchaseInvoiceCard({
                       </span>
                     )}
                   </td>
-                  <td className="py-2 text-right font-medium" style={{ color: 'var(--color-primary)' }}>
+                  <td
+                    className="py-2 text-right font-medium"
+                    style={{ color: 'var(--color-primary)' }}
+                  >
                     {formatPurchaseInvoiceAmount(line.invoiceAmount)}
                   </td>
                 </tr>
@@ -163,8 +194,14 @@ export default function PurchaseInvoiceCard({
       )}
 
       {invoice.lines.length > 0 ? (
-        <div className="mt-4 space-y-1 border-t pt-4 text-sm" style={{ borderColor: 'var(--color-border)' }}>
-          <p className="flex justify-between gap-4 pt-1 text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
+        <div
+          className="mt-4 space-y-1 border-t pt-4 text-sm"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
+          <p
+            className="flex justify-between gap-4 pt-1 text-base font-semibold"
+            style={{ color: 'var(--color-primary)' }}
+          >
             <span>Fatura toplamı (KDV dahil)</span>
             <span>{formatPurchaseInvoiceAmount(invoice.invoiceAmount)}</span>
           </p>

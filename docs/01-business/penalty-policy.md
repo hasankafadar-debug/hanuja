@@ -96,18 +96,7 @@ At order time the value is snapshotted to `OrderLine.promisedFulfillmentDays`, a
 deadline (`OrderLine.fulfillmentDueAt`) is stamped from payment confirmation using
 business-day arithmetic.
 
-Once the commitment date lapses, a 1% daily penalty accrues per overdue day. On the 20th
-**overdue** day the order is auto-cancelled:
-
-1. Order status transitions to `cancelled_due_to_20day_breach`
-2. A `Penalty` record is created or updated with `reason = late_shipment_daily_accrual`
-3. A `SellerLedgerEntry` of type `penalty` is written
-4. Customer refund/cancellation finance flow is triggered
-5. Seller payout eligibility is blocked for the affected order
-
-This rule must be enforced in system logic, not only by support team memory. The breach
-condition must be detected by the background job or service layer — not solely by manual admin
-observation.
+When the commitment date lapses, the background job records fulfillment risk and sends the existing warnings. It does not accrue daily penalties or cancel the order automatically. Admin tracks the delay and uses the authorised item-scoped cancellation/refund flow if required. Historical penalties and automatic cancellations remain read-only audit history.
 
 ### Controlled extension
 
@@ -118,7 +107,7 @@ A 10-day extension of the fulfillment window may be granted, but only if:
 - the extension is recorded as an `AdminAuditLog` entry with `actionType = fulfillment_window_extended`
 
 Silent extension of the window is not permitted. If an extension is not formally granted
-and the shipment commitment date lapses, daily accrual starts and day 20 triggers auto-cancel.
+and the shipment commitment date lapses, fulfillment risk and warnings remain active.
 
 ---
 

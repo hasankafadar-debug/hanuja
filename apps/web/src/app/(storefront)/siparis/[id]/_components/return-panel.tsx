@@ -9,11 +9,11 @@ import { ReturnPhotoPicker } from './return-photo-picker'
 
 const STATUS_LABELS: Record<string, string> = {
   requested: 'Iade Talep Edildi - Hanuja kargo bilgisi bekleniyor',
-  under_review: 'Inceleniyor',
-  approved: 'Iade Onaylandi - Urunu kargoya verin',
+  under_review: 'Hanuja incelemesinde',
+  approved: 'İade kargo talimatı hazır — ürünü kargoya verin',
   in_transit: 'Iade Kargoda - Hanuja onayı bekleniyor',
-  received: 'Hanuja Teslim Aldı',
-  rejected: 'Hanuja incelemesinde',
+  received: 'İade ürünleri kabul edildi — para iadesi bekleniyor',
+  rejected: 'İade talebiniz Hanuja tarafından reddedildi',
   refund_completed: 'Iade Tamamlandi',
 }
 
@@ -44,6 +44,13 @@ interface ReturnDetail {
   evidence: Attachment[]
   messages: Message[]
   escalatedDispute: { status: string; resolution: string | null } | null
+  items?: Array<{
+    id: string
+    requestedQuantity: number
+    acceptedQuantity: number
+    rejectedQuantity: number
+    orderLine: { productName: string }
+  }>
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -67,6 +74,8 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
   const [barcodeIds, setBarcodeIds] = useState<string[]>([])
 
   const [reply, setReply] = useState('')
+  const [replyReady, setReplyReady] = useState(true)
+  const [barcodeReady, setBarcodeReady] = useState(true)
   const [replyAssetIds, setReplyAssetIds] = useState<string[]>([])
   const [pending, startTransition] = useTransition()
 
@@ -97,6 +106,7 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
   const canShip = data.status === 'approved'
 
   function submitShipment() {
+    if (!barcodeReady || pending) return
     if (carrier.trim().length < 2) {
       toast({ title: 'Kargo firmasi gerekli', variant: 'destructive' })
       return
@@ -139,6 +149,7 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
   }
 
   function submitReply() {
+    if (!replyReady || pending) return
     if (reply.trim().length < 1) return
 
     startTransition(async () => {
@@ -181,7 +192,11 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
         </h2>
         <StatusBadge
           status={data.status as Parameters<typeof StatusBadge>[0]['status']}
-          label={STATUS_LABELS[data.status] ?? data.status}
+          label={
+            data.status === 'rejected' && data.items?.some((item) => item.acceptedQuantity > 0)
+              ? 'İncelenen iade kalemleri Hanuja tarafından reddedildi; kabul edilen kısmın iadesi ayrı takip edilir.'
+              : (STATUS_LABELS[data.status] ?? data.status)
+          }
         />
       </div>
 
@@ -250,7 +265,9 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
           }}
         >
           <p className="font-medium" style={{ color: 'var(--color-destructive, #dc2626)' }}>
-            Hanuja iadeyi reddetti
+            {data.items?.some((item) => item.acceptedQuantity > 0)
+              ? 'Hanuja incelemeye alınan iade kalemlerini reddetti'
+              : 'Hanuja iadeyi reddetti'}
           </p>
           <p className="mt-1" style={{ color: 'var(--color-primary)' }}>
             {data.sellerRejectReason}
@@ -261,7 +278,8 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
             </p>
           ) : null}
           <p className="mt-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Konu Hanuja uyusmazlik ekibine iletildi. Asagidan yanit yazabilirsiniz.
+            Hanuja nihai kararını verdi. Süreçle ilgili sorularınızı aşağıdan Hanuja’ya
+            iletebilirsiniz.
           </p>
         </div>
       ) : null}
@@ -305,10 +323,11 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
           />
           <ReturnPhotoPicker
             onChange={setBarcodeIds}
+            onReadyChange={setBarcodeReady}
             disabled={pending}
             label="Kargo barkod gorseli (takip numarasi yerine de kullanilabilir)"
           />
-          <Button type="button" onClick={submitShipment} disabled={pending}>
+          <Button type="button" onClick={submitShipment} disabled={pending || !barcodeReady}>
             {pending ? 'Gonderiliyor...' : 'Kargoya Verdim'}
           </Button>
         </div>
@@ -376,8 +395,17 @@ export function ReturnPanel({ returnRequestId }: { returnRequestId: string }) {
               rows={2}
               disabled={pending}
             />
-            <ReturnPhotoPicker onChange={setReplyAssetIds} disabled={pending} />
-            <Button type="button" variant="outline" onClick={submitReply} disabled={pending}>
+            <ReturnPhotoPicker
+              onChange={setReplyAssetIds}
+              onReadyChange={setReplyReady}
+              disabled={pending}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={submitReply}
+              disabled={pending || !replyReady}
+            >
               Mesaj Gonder
             </Button>
           </div>

@@ -73,8 +73,12 @@ describe('orderConfirmationTemplate (Siparişiniz Alındı)', () => {
     expect(template.html.match(/<img /g)).toHaveLength(1)
     expect(template.html).toContain('Kupon İndirimi (HOSGELDIN)')
     expect(template.html).toContain('Kargo')
-    expect(template.html).toContain('href="https://www.hanuja.com.tr/api/orders/order-1/documents/contracts/pre-information?goruntule=1"')
-    expect(template.html).toContain('href="https://www.hanuja.com.tr/api/orders/order-1/documents/contracts/distance-sales?goruntule=1"')
+    expect(template.html).toContain(
+      'href="https://www.hanuja.com.tr/api/orders/order-1/documents/contracts/pre-information?goruntule=1"',
+    )
+    expect(template.html).toContain(
+      'href="https://www.hanuja.com.tr/api/orders/order-1/documents/contracts/distance-sales?goruntule=1"',
+    )
     expect(template.html).toContain('Cayma Hakkınız (14 Gün)')
     for (const exception of RIGHT_OF_WITHDRAWAL_EXCEPTIONS) {
       expect(template.text).toContain(exception)
@@ -90,8 +94,17 @@ describe('orderConfirmationTemplate (Siparişiniz Alındı)', () => {
       totalAmount: '9.700 TL',
       paymentMethod: 'eft',
       bankTransferInstructions: [
-        { bankName: 'Örnek Bank', accountHolder: 'Hanuja A.Ş.', iban: 'TR11 0000 0000 0000 0000 0000 01', branchName: 'Merkez' },
-        { bankName: 'İkinci Bank', accountHolder: 'Hanuja A.Ş.', iban: 'TR22 0000 0000 0000 0000 0000 02' },
+        {
+          bankName: 'Örnek Bank',
+          accountHolder: 'Hanuja A.Ş.',
+          iban: 'TR11 0000 0000 0000 0000 0000 01',
+          branchName: 'Merkez',
+        },
+        {
+          bankName: 'İkinci Bank',
+          accountHolder: 'Hanuja A.Ş.',
+          iban: 'TR22 0000 0000 0000 0000 0000 02',
+        },
       ],
     })
 
@@ -110,10 +123,19 @@ describe('orderConfirmationTemplate (Siparişiniz Alındı)', () => {
       ...base,
       customerName: '<img src=x onerror=alert(1)>',
       orderUrl: 'javascript:alert(1)',
-      items: [{ ...line, productName: '<script>alert(1)</script>', imageUrl: 'javascript:alert(2)' }],
+      items: [
+        {
+          ...line,
+          productName: '<script>alert(1)</script>',
+          imageUrl: 'javascript:alert(2)',
+        },
+      ],
       totalAmount: '9.700 TL',
       paymentMethod: 'card',
-      contracts: { preInformationUrl: 'javascript:alert(3)', distanceSalesUrl: 'https://www.hanuja.com.tr/x' },
+      contracts: {
+        preInformationUrl: 'javascript:alert(3)',
+        distanceSalesUrl: 'https://www.hanuja.com.tr/x',
+      },
     })
 
     expect(template.html).not.toContain('<script>')
@@ -126,14 +148,19 @@ describe('orderConfirmationTemplate (Siparişiniz Alındı)', () => {
 
 describe('withdrawal notice block', () => {
   it('uses at least 12px text and links only safe contract URLs', () => {
-    const html = renderWithdrawalNotice({ preInformationUrl: 'ftp://x', distanceSalesUrl: 'https://www.hanuja.com.tr/a' })
+    const html = renderWithdrawalNotice({
+      preInformationUrl: 'ftp://x',
+      distanceSalesUrl: 'https://www.hanuja.com.tr/a',
+    })
     const sizes = [...html.matchAll(/font-size:(\d+)px/g)].map((m) => Number(m[1]))
     expect(sizes.length).toBeGreaterThan(0)
     expect(Math.min(...sizes)).toBeGreaterThanOrEqual(12)
     expect(html).toContain('href="https://www.hanuja.com.tr/a"')
     expect(html).not.toContain('ftp://x')
     expect(WITHDRAWAL_NOTICE_PARAGRAPHS[0]).toContain('14 gün')
-    expect(html).toContain('Tüketicinin istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan mallara')
+    expect(html).toContain(
+      'Tüketicinin istekleri veya kişisel ihtiyaçları doğrultusunda hazırlanan mallara',
+    )
   })
 })
 
@@ -144,7 +171,8 @@ describe('shipmentNotificationTemplate', () => {
       items: [{ ...line, quantity: 1, lineTotal: '4.850 TL' }],
       trackingNumber: 'YK123456789',
       cargoCompany: 'Yurtiçi Kargo',
-      trackingUrl: 'https://www.yurticikargo.com/tr/online-servisler/gonderi-sorgula?code=YK123456789',
+      trackingUrl:
+        'https://www.yurticikargo.com/tr/online-servisler/gonderi-sorgula?code=YK123456789',
       sellerName: 'Atelier Noa',
     })
 
@@ -185,7 +213,11 @@ describe('deliveryConfirmedTemplate', () => {
     expect(partial.html).toContain('&lt;b&gt;Ayşe&lt;/b&gt;')
     expect(partial.html).not.toContain('<b>Ayşe</b>')
 
-    const full = deliveryConfirmedTemplate({ ...base, items: [line], partial: false })
+    const full = deliveryConfirmedTemplate({
+      ...base,
+      items: [line],
+      partial: false,
+    })
     expect(full.subject).toBe('Siparişiniz Teslim Edilmiştir — #26050042')
     expect(full.html).toContain('14 gün içinde')
   })
@@ -202,11 +234,15 @@ describe('invoiceUploadedTemplate', () => {
     })
     expect(template.subject).toBe('Faturanız Oluşturuldu — #26050042')
     expect(template.html).toContain('Faturayı Görüntüle')
-    expect(template.html).toContain('href="https://www.hanuja.com.tr/api/orders/order-1/documents/customer-invoice"')
+    expect(template.html).toContain(
+      'href="https://www.hanuja.com.tr/api/orders/order-1/documents/customer-invoice"',
+    )
     expect(template.html).toContain('siparişinizin faturası oluşturuldu')
     expect(template.html).not.toContain('Atelier Noa')
     expect(template.text).not.toContain('Atelier Noa')
-    expect(template.text).toContain('Fatura: https://www.hanuja.com.tr/api/orders/order-1/documents/customer-invoice')
+    expect(template.text).toContain(
+      'Fatura: https://www.hanuja.com.tr/api/orders/order-1/documents/customer-invoice',
+    )
   })
 })
 
@@ -230,14 +266,29 @@ describe('customerOrderCancelledTemplate', () => {
   })
 
   it('explains seller rejection, 20-day auto cancel and payment failure without a refund line', () => {
-    const seller = customerOrderCancelledTemplate({ ...base, items: [line], partial: false, actorRole: 'seller' })
+    const seller = customerOrderCancelledTemplate({
+      ...base,
+      items: [line],
+      partial: false,
+      actorRole: 'seller',
+    })
     expect(seller.subject).toBe('Siparişiniz İptal Edilmiştir — #26050042')
     expect(seller.html).toContain('tasarımcı tarafından iptal edildi')
 
-    const system = customerOrderCancelledTemplate({ ...base, items: [line], partial: false, actorRole: 'system' })
+    const system = customerOrderCancelledTemplate({
+      ...base,
+      items: [line],
+      partial: false,
+      actorRole: 'system',
+    })
     expect(system.html).toContain('sevk süresini aştığı için')
 
-    const failure = customerOrderCancelledTemplate({ ...base, items: [line], partial: false, actorRole: 'payment_failure' })
+    const failure = customerOrderCancelledTemplate({
+      ...base,
+      items: [line],
+      partial: false,
+      actorRole: 'payment_failure',
+    })
     expect(failure.html).toContain('ödeme alınamadığı için')
     expect(failure.html).toContain('tahsilat yapılmadı')
     expect(failure.html).not.toContain('iade edilecek')
@@ -253,9 +304,7 @@ describe('customerOrderCancelledTemplate', () => {
       paymentNotCollected: true,
     })
     expect(template.html).toContain('EFT/Havale ile ödeme yaptıysanız, iade için')
-    expect(template.html).toContain(
-      'href="https://www.hanuja.com.tr/siparis/order-1/destek/yeni"',
-    )
+    expect(template.html).toContain('href="https://www.hanuja.com.tr/siparis/order-1/destek/yeni"')
     expect(template.html).toContain('kısmından bizimle iletişime geçebilirsiniz')
     expect(template.html).not.toContain('iade edilecek')
     expect(template.text).toContain(
@@ -276,7 +325,11 @@ describe('sellerOrderCancellationTemplate', () => {
       cancellationReason: 'Stok hatası',
       items: [
         { ...line, sellerId: 'seller-a' },
-        { ...lineWithoutImage, productName: 'Başka Mağaza', sellerId: 'seller-b' },
+        {
+          ...lineWithoutImage,
+          productName: 'Başka Mağaza',
+          sellerId: 'seller-b',
+        },
       ],
     })
     expect(template.subject).toBe('Sipariş İptali — #26050042')
@@ -289,7 +342,11 @@ describe('sellerOrderCancellationTemplate', () => {
 
 describe('return templates', () => {
   it('renders the return request with quantities and reason', () => {
-    const template = returnRequestTemplate({ ...base, items: [line], returnReason: 'Ürün hasarlı geldi' })
+    const template = returnRequestTemplate({
+      ...base,
+      items: [line],
+      returnReason: 'Ürün hasarlı geldi',
+    })
     expect(template.subject).toBe('İade Talebiniz Alındı — #26050042')
     expect(template.html).toContain('İade Adedi')
     expect(template.html).toContain('Ürün hasarlı geldi')
@@ -303,7 +360,8 @@ describe('return templates', () => {
       cargoCarrier: 'Yurtiçi Kargo',
       cargoInstructions: 'Anlaşmalı kod: 123',
     })
-    expect(template.subject).toBe('İade Talebiniz Kabul Edildi — Ürünü Kargoya Verin — #26050042')
+    expect(template.subject).toBe('İade Kargo Talimatınız Hazır — Ürünü Kargoya Verin — #26050042')
+    expect(template.text).not.toContain('iade talebiniz kabul edildi')
     expect(template.html).toContain('Atölye Sk. No:3 Kadıköy / İstanbul')
     expect(template.html).toContain('Anlaşmalı kod: 123')
     expect(template.html).toContain('Kargo Bilgisi Gir')
@@ -318,7 +376,12 @@ describe('return templates', () => {
       refundOutcome: 'processing',
       disputeOpened: true,
       items: [
-        { ...line, acceptedQuantity: 1, rejectedQuantity: 1, rejectionReason: 'Ürün kullanılmış' },
+        {
+          ...line,
+          acceptedQuantity: 1,
+          rejectedQuantity: 1,
+          rejectionReason: 'Ürün kullanılmış',
+        },
         { ...lineWithoutImage, acceptedQuantity: 1, rejectedQuantity: 0 },
       ],
     })
@@ -327,13 +390,22 @@ describe('return templates', () => {
     expect(partial.html).toContain('Red gerekçesi: Ürün kullanılmış')
     expect(partial.html).toContain('4.850 TL')
     expect(partial.html).toContain('uyuşmazlık incelemesine')
-    expect(partial.text).toContain('Gea Berjer / Doğal keten — Kabul: 1, Red: 1 (Red gerekçesi: Ürün kullanılmış)')
+    expect(partial.text).toContain(
+      'Gea Berjer / Doğal keten — Kabul: 1, Red: 1 (Red gerekçesi: Ürün kullanılmış)',
+    )
 
     const rejected = returnDecisionTemplate({
       ...base,
       decision: 'rejected',
       disputeOpened: true,
-      items: [{ ...line, acceptedQuantity: 0, rejectedQuantity: 2, rejectionReason: 'Yanlış ürün gönderildi' }],
+      items: [
+        {
+          ...line,
+          acceptedQuantity: 0,
+          rejectedQuantity: 2,
+          rejectionReason: 'Yanlış ürün gönderildi',
+        },
+      ],
     })
     expect(rejected.subject).toBe('İade Talebiniz Reddedildi — #26050042')
     expect(rejected.html).toContain('Hanuja uyuşmazlık incelemesine taşındı')
@@ -353,7 +425,13 @@ describe('return templates', () => {
   it('derives the money wording from the persisted refund state and never claims a queued job', () => {
     const items = [{ ...line, acceptedQuantity: 2, rejectedQuantity: 0 }]
     const render = (refundOutcome: Parameters<typeof returnDecisionTemplate>[0]['refundOutcome']) =>
-      returnDecisionTemplate({ ...base, decision: 'approved', refundAmount: '9.700 TL', refundOutcome, items })
+      returnDecisionTemplate({
+        ...base,
+        decision: 'approved',
+        refundAmount: '9.700 TL',
+        refundOutcome,
+        items,
+      })
 
     // No refund record yet: the item has not come back, so no refund claim.
     const awaiting = render('awaiting_return')
@@ -365,14 +443,27 @@ describe('return templates', () => {
     expect(render('processing').html).toContain('bankanıza aktarıldığında')
     expect(render('manual_review').html).toContain('manuel kontrolü sonrasında')
     expect(render('manual_review').html).not.toContain('oluşturuldu')
-    expect(render('no_refund_due').html).toContain('Bu talep kapsamında geri ödenecek tutar bulunmuyor')
+    expect(render('no_refund_due').html).toContain(
+      'Bu talep kapsamında geri ödenecek tutar bulunmuyor',
+    )
     expect(render('completed').html).toContain('tamamlandı')
     expect(render('under_review').html).toContain('ekibimizce izleniyor')
 
     // Legacy payloads without an outcome must not claim a started payment.
-    const legacy = returnDecisionTemplate({ ...base, decision: 'approved', items })
+    const legacy = returnDecisionTemplate({
+      ...base,
+      decision: 'approved',
+      items,
+    })
     expect(legacy.html).toContain('ekibimizce izleniyor')
-    for (const outcome of ['awaiting_return', 'processing', 'manual_review', 'no_refund_due', 'completed', 'under_review'] as const) {
+    for (const outcome of [
+      'awaiting_return',
+      'processing',
+      'manual_review',
+      'no_refund_due',
+      'completed',
+      'under_review',
+    ] as const) {
       expect(render(outcome).html).not.toContain('kuyruğa alındı')
       expect(render(outcome).text).not.toContain('kuyruğa alındı')
     }
@@ -381,10 +472,20 @@ describe('return templates', () => {
 
 describe('refundCompletedTemplate', () => {
   it('names the payment channel the money went back to', () => {
-    const card = refundCompletedTemplate({ ...base, items: [line], refundAmount: '9.700 TL', paymentMethod: 'card' })
+    const card = refundCompletedTemplate({
+      ...base,
+      items: [line],
+      refundAmount: '9.700 TL',
+      paymentMethod: 'card',
+    })
     expect(card.subject).toBe('Geri Ödemeniz Yapılmıştır — #26050042')
     expect(card.html).toContain('ödeme yaptığınız karta')
-    const eft = refundCompletedTemplate({ ...base, items: [line], refundAmount: '9.700 TL', paymentMethod: 'eft' })
+    const eft = refundCompletedTemplate({
+      ...base,
+      items: [line],
+      refundAmount: '9.700 TL',
+      paymentMethod: 'eft',
+    })
     expect(eft.html).toContain('IBAN hesabına')
     expect(eft.text).toContain('9.700 TL')
   })

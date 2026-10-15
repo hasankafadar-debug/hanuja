@@ -161,26 +161,13 @@ Possible sources:
 ### delivery_confirmed
 Means delivery is operationally accepted for payout purposes.
 
-This may occur by:
-
-1. explicit customer confirmation
-2. admin confirmation after review
-3. silent confirmation if delivered status exists and customer does not object within the defined waiting period
+This occurs only by admin confirmation after review. The designer reports delivery; the admin confirms the relevant products and quantities. Customer confirmation and the 72-hour task are retired.
 
 A payout record is created only at `delivery_confirmed`, never at `delivered`. Its term runs from the approved seller invoice date (`07-marketplace-finance-rules.md` → Payout Eligibility Rules).
 
 ## Delivery Confirmation Logic
 
-Preferred confirmation order:
-
-1. cargo integration delivery signal
-2. manual tracking/admin verification
-3. customer clicks "Teslim Aldım"
-4. silent confirmation after delivered status plus no objection within 72 hours
-
-If the silent confirmation rule is used, it must be system-driven and timestamped. :contentReference[oaicite:6]{index=6}
-
-Do not make payout timing depend on informal support comments.
+The admin is the only definitive delivery confirmer. Designer delivery reports remain pending until admin confirmation.
 
 ## Seller Rejection Rules
 

@@ -83,75 +83,91 @@ export async function processPrivateDocumentCleanup(
   })
 
   for (const item of pending) {
-    const outcome = await db.$transaction(async (tx) => {
-      // API post-commit cleanup and the worker can meet on the same intent.
-      // Keep the lock until the deletion outcome is committed; deleting twice is safe,
-      // but a late failed runner must never turn completed back into pending.
-      const locks = await tx.$queryRaw<Array<{ locked: boolean }>>(Prisma.sql`
+    const outcome = await db.$transaction(
+      async (tx) => {
+        // API post-commit cleanup and the worker can meet on the same intent.
+        // Keep the lock until the deletion outcome is committed; deleting twice is safe,
+        // but a late failed runner must never turn completed back into pending.
+        const locks = await tx.$queryRaw<Array<{ locked: boolean }>>(Prisma.sql`
         SELECT pg_try_advisory_xact_lock(hashtextextended(${`private-document-cleanup:${item.fileKey}`}, 0)) AS locked
       `)
-      if (!locks[0]?.locked) return 'deferred' as const
+        if (!locks[0]?.locked) return 'deferred' as const
 
-      const intent = await tx.privateDocumentCleanup.findUnique({ where: { fileKey: item.fileKey } })
-      if (!intent || intent.status !== 'pending') return null
-      if (!options.fileKey && intent.nextAttemptAt > now) return null
-
-      // Both the seller's invoice to Hanuja and Hanuja's customer invoice share private storage.
-      const activeInvoice =
-        (await tx.orderSellerInvoice.findFirst({ where: { fileKey: item.fileKey }, select: { id: true } })) ??
-        (await tx.orderCustomerInvoice.findFirst({ where: { fileKey: item.fileKey }, select: { id: true } }))
-      if (activeInvoice) {
-        await tx.privateDocumentCleanup.update({
-          where: { id: intent.id },
-          data: {
-            nextAttemptAt: new Date(now.getTime() + SWEEP_INTERVAL_MS),
-            lastError: 'File is still referenced by an active invoice.',
-          },
+        const intent = await tx.privateDocumentCleanup.findUnique({
+          where: { fileKey: item.fileKey },
         })
-        return 'deferred' as const
-      }
+        if (!intent || intent.status !== 'pending') return null
+        if (!options.fileKey && intent.nextAttemptAt > now) return null
 
-      try {
-        // Validate even with an injected deletion function, including malformed old
-        // rows created before validation existed.
-        assertInvoiceFileKey(item.fileKey)
-        await deleteFile(item.fileKey)
-      } catch (error) {
-        const attempts = intent.attempts + 1
-        const delayMs = Math.min(
-          MAX_RETRY_DELAY_MS,
-          SWEEP_INTERVAL_MS * 2 ** Math.min(attempts - 1, 10),
-        )
-        const lastError = error instanceof Error ? error.message.slice(0, 1000) : 'File deletion failed.'
-        await tx.privateDocumentCleanup.update({
-          where: { id: intent.id },
-          data: {
-            attempts,
-            lastError,
-            nextAttemptAt: new Date(now.getTime() + delayMs),
-          },
-        })
-        if (attempts >= ALERT_ATTEMPTS) {
-          console.error('[private-document-cleanup][operational-alert]', {
-            cleanupId: intent.id,
-            attempts,
-            error: lastError,
+        // Both the seller's invoice to Hanuja and Hanuja's customer invoice share private storage.
+        const activeInvoice =
+          (await tx.orderSellerInvoice.findFirst({
+            where: { fileKey: item.fileKey },
+            select: { id: true },
+          })) ??
+          (await tx.orderCustomerInvoice.findFirst({
+            where: { fileKey: item.fileKey },
+            select: { id: true },
+          })) ??
+          (await tx.sellerReturnInvoice.findFirst({
+            where: { fileKey: item.fileKey },
+            select: { id: true },
+          }))
+        if (activeInvoice) {
+          await tx.privateDocumentCleanup.update({
+            where: { id: intent.id },
+            data: {
+              nextAttemptAt: new Date(now.getTime() + SWEEP_INTERVAL_MS),
+              lastError: 'File is still referenced by an active invoice.',
+            },
           })
+          return 'deferred' as const
         }
-        return 'retried' as const
-      }
 
-      await tx.privateDocumentCleanup.update({
-        where: { id: intent.id },
-        data: {
-          status: 'completed',
-          attempts: intent.attempts + 1,
-          lastError: null,
-          completedAt: now,
-        },
-      })
-      return 'completed' as const
-    }, { maxWait: 5000, timeout: 30000 })
+        try {
+          // Validate even with an injected deletion function, including malformed old
+          // rows created before validation existed.
+          assertInvoiceFileKey(item.fileKey)
+          await deleteFile(item.fileKey)
+        } catch (error) {
+          const attempts = intent.attempts + 1
+          const delayMs = Math.min(
+            MAX_RETRY_DELAY_MS,
+            SWEEP_INTERVAL_MS * 2 ** Math.min(attempts - 1, 10),
+          )
+          const lastError =
+            error instanceof Error ? error.message.slice(0, 1000) : 'File deletion failed.'
+          await tx.privateDocumentCleanup.update({
+            where: { id: intent.id },
+            data: {
+              attempts,
+              lastError,
+              nextAttemptAt: new Date(now.getTime() + delayMs),
+            },
+          })
+          if (attempts >= ALERT_ATTEMPTS) {
+            console.error('[private-document-cleanup][operational-alert]', {
+              cleanupId: intent.id,
+              attempts,
+              error: lastError,
+            })
+          }
+          return 'retried' as const
+        }
+
+        await tx.privateDocumentCleanup.update({
+          where: { id: intent.id },
+          data: {
+            status: 'completed',
+            attempts: intent.attempts + 1,
+            lastError: null,
+            completedAt: now,
+          },
+        })
+        return 'completed' as const
+      },
+      { maxWait: 5000, timeout: 30000 },
+    )
 
     if (outcome) {
       result.processed += 1

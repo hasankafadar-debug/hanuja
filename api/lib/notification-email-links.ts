@@ -126,13 +126,15 @@ export function canonicalNotificationEmailData(
     if (type === 'order_placed' || data.contracts)
       data.contracts = getCustomerContractLinks(orderId)
     // The customer only ever receives Hanuja's own invoice; its link is rebuilt from the order.
-    if (type === 'invoice_uploaded' && data.invoiceUrl) data.invoiceUrl = getCustomerInvoiceUrl(orderId)
+    if (type === 'invoice_uploaded' && data.invoiceUrl)
+      data.invoiceUrl = getCustomerInvoiceUrl(orderId)
   }
   if (
     type === 'seller_order_received' ||
     type === 'order_canceled' ||
     type === 'seller_invoice_reminder' ||
-    type === 'seller_invoice_rejected'
+    type === 'seller_invoice_rejected' ||
+    type === 'seller_refund_completed'
   ) {
     const orderId = requireIdentity(
       identity(
@@ -145,7 +147,14 @@ export function canonicalNotificationEmailData(
     )
     data.panelUrl = getSellerOrderUrl(orderId)
   }
-  if (type === 'seller_return_request') {
+  if (
+    [
+      'seller_return_request',
+      'seller_return_shipped',
+      'seller_return_decision',
+      'seller_return_invoice_uploaded',
+    ].includes(type)
+  ) {
     const returnId = requireIdentity(
       string(data, 'returnRequestId') ||
         string(data, 'operationId') ||
@@ -201,18 +210,34 @@ export function validateNotificationEmailLinks(
 ): void {
   if (!data) return
   if (CUSTOMER_ORDER_TYPES.has(type)) assertLink(data, 'orderUrl', 'customer', /^\/siparis\/[^/]+$/)
-  const sellerPath =
-    type === 'seller_return_request' ? /^\/iadeler\/[^/]+$/ : /^\/siparisler\/[^/]+$/
+  const sellerPath = [
+    'seller_return_request',
+    'seller_return_shipped',
+    'seller_return_decision',
+    'seller_return_invoice_uploaded',
+  ].includes(type)
+    ? /^\/iadeler\/[^/]+$/
+    : /^\/siparisler\/[^/]+$/
   if (
     type === 'seller_order_received' ||
     type === 'order_canceled' ||
     type === 'seller_return_request' ||
+    type === 'seller_return_shipped' ||
+    type === 'seller_return_decision' ||
+    type === 'seller_return_invoice_uploaded' ||
+    type === 'seller_refund_completed' ||
     type === 'seller_invoice_reminder' ||
     type === 'seller_invoice_rejected'
   )
     assertLink(data, 'panelUrl', 'seller', sellerPath)
   if (type === 'invoice_uploaded' && data.invoiceUrl)
-    assertLink(data, 'invoiceUrl', 'customer', /^\/api\/orders\/[^/]+\/documents\/customer-invoice$/, ['download'])
+    assertLink(
+      data,
+      'invoiceUrl',
+      'customer',
+      /^\/api\/orders\/[^/]+\/documents\/customer-invoice$/,
+      ['download'],
+    )
   if (type === 'seller_product_question')
     assertLink(data, 'panelUrl', 'seller', /^\/musteri-sorulari\/[^/]+$/)
   if (type === 'customer_product_question_answered')

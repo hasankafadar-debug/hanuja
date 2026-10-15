@@ -54,7 +54,7 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
 
 ### 9. Geç sevkiyat günlük ceza birikimi (yeni — 2026-05-09)
 
-- `fulfillment-risk` BullMQ worker artık günlük %1 ceza birikimini idempotent şekilde işler ve 20. günde `cancelled_due_to_20day_breach` auto-cancel + refund tetikler.
+- `fulfillment-risk` worker sevk süreleri, risk ve gecikme uyarılarını işler. 14.10.2026 sadeleştirmesiyle günlük %1 gecikme cezası ve otomatik 20. gün iptali kaldırılmıştır.
 - Eski `fulfillment_20day_breach` reason'ı yeni kayıt üretmez; mevcut kayıtlar audit için korunur.
 - Production cutover sırasında worker çalışıyor olmalı; aksi halde ceza birikimi durur.
 
@@ -194,7 +194,7 @@ Frontend tarafında hardcoded mock data ile yeni akış üretmek kabul edilmez.
   güncellenemedi; `tools/scripts/check-env.ts` zaten bu değişkenleri tanıyor.
   (`docs/05-security/secrets-env-policy.md` SMTP tablosuna bu üç değişken 2026-07-18'de
   eklendi — o kısım kapandı.)
-- Postmark RET (fatura e-postasına yanıt) akışı artık global kampanya rızasını da geri
+- Postmark RET (kampanya e-postasına yanıt) akışı artık global kampanya rızasını da geri
   çekiyor; bu, `From` header'ı sahte/spoof edilebilir bir sinyale dayanıyor. Yön fail-safe'tir
   (rıza yanlışlıkla geri çekilebilir ama yanlışlıkla açılamaz), risk düşük ama not edilmeli.
 
@@ -1049,7 +1049,7 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   tek seferlik `seller_invoice_reminder` gider (15 dakikalık `seller-invoice-reminder` işi, ceza yok).
 - **Admin onayı:** fatura no + fatura tarihi ile onay (tarih ileri olamaz, ödeme tarihinden önce olamaz)
   veya gerekçeli red (`seller_invoice_rejected` bildirimi). İkisi de `If-Match` ve denetim kaydı ister.
-  Onaylı fatura yeniden değerlendirilemez; satıcı onaylı faturayı değiştiremez/silemez (e-postayla da).
+  Onaylı fatura yeniden değerlendirilemez; tasarımcı onaylı faturayı panelden değiştiremez/silemez. E-postadan fatura alma yolu kaldırılmıştır.
 - **Hakediş:** kayıt yine teslim onayında oluşur; vade = onaylı fatura tarihi + `payoutHoldDays` (30)
   sonrasındaki ilk cuma (Europe/Istanbul, cuma tatilse sonraki iş günü). Onay vadeyi `Payout.holdUntil`'a
   yazar; `payout-maturity` işi eksik vadeleri tamamlar. Uygunluk ayrıca teslim onayı ve açık iade/uyuşmazlık

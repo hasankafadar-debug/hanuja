@@ -11,42 +11,59 @@ beforeAll(() => vi.stubGlobal('React', React))
 afterAll(() => vi.unstubAllGlobals())
 
 function render(extra = {}) {
-  return renderToStaticMarkup(React.createElement(BillingInformationCard, {
-    recipientName: 'Ayşe Yılmaz', aliasEmail: 'pftest@fatura.hanuja.com.tr', aliasStatus: 'ready', ...extra,
-  }))
+  return renderToStaticMarkup(
+    React.createElement(BillingInformationCard, {
+      recipientName: 'Ayşe Yılmaz',
+      aliasEmail: 'pftest@fatura.hanuja.com.tr',
+      aliasStatus: 'ready',
+      ...extra,
+    }),
+  )
 }
 
 // Satıcı Hanuja modeli: the seller invoices Hanuja, never the customer.
 describe('seller billing information', () => {
-  it("shows Hanuja's legal invoice identity and the invoice alias", () => {
+  it("shows Hanuja's legal invoice identity without an invoice alias", () => {
     const html = render()
     expect(html).toContain('Fatura Bilgileri')
     expect(html).toContain(PLATFORM_LEGAL_INFO.companyLegalName)
     expect(html).toContain(PLATFORM_LEGAL_INFO.taxNumber)
     expect(html).toContain(PLATFORM_LEGAL_INFO.taxOffice)
     expect(html).toContain(PLATFORM_LEGAL_INFO.mersis)
-    expect(html).toContain('pftest@fatura.hanuja.com.tr')
-    expect(html).toContain('PDF faturayı')
+    expect(html).not.toContain('pftest@fatura.hanuja.com.tr')
+    expect(html).not.toContain('PDF faturayı')
   })
 
   it('gives the waybill note for delivery to the customer on behalf of Hanuja', () => {
     const html = render()
-    expect(html).toContain(`${PLATFORM_LEGAL_INFO.companyLegalName} adına müşteriye teslim edilmek üzere`)
+    expect(html).toContain(
+      `${PLATFORM_LEGAL_INFO.companyLegalName} adına müşteriye teslim edilmek üzere`,
+    )
     expect(html).toContain('Teslim alacak kişi: Ayşe Yılmaz')
     expect(render({ recipientName: null })).not.toContain('Teslim alacak kişi')
   })
 
-  it('distinguishes disabled receiving and temporary alias errors', () => {
-    expect(render({ aliasEmail: null, aliasStatus: 'disabled' })).toContain('Otomatik fatura alımı şu anda kapalı')
-    expect(render({ aliasEmail: null, aliasStatus: 'error' })).toContain('Sayfayı yenileyerek tekrar deneyin')
+  it('has no receiving setup or temporary alias errors', () => {
+    expect(render({ aliasEmail: null, aliasStatus: 'disabled' })).not.toContain(
+      'Otomatik fatura alımı şu anda kapalı',
+    )
+    expect(render({ aliasEmail: null, aliasStatus: 'error' })).not.toContain(
+      'Sayfayı yenileyerek tekrar deneyin',
+    )
   })
 
   it("never selects the customer's invoice identity (TC/VKN) or account email for sellers", async () => {
     const findUnique = vi.fn().mockResolvedValue(null)
-    await createOrderRepository({ order: { findUnique } } as never).findByIdForSeller('order-1', 'seller-1')
+    await createOrderRepository({
+      order: { findUnique },
+    } as never).findByIdForSeller('order-1', 'seller-1')
     const args = findUnique.mock.calls[0]![0]
     expect(args.include).not.toHaveProperty('billingAddress')
-    expect(args.include.address.select).toMatchObject({ fullName: true, phone: true, addressLine1: true })
+    expect(args.include.address.select).toMatchObject({
+      fullName: true,
+      phone: true,
+      addressLine1: true,
+    })
     for (const field of ['tcNumber', 'taxNumber', 'taxOffice', 'companyName', 'invoiceType']) {
       expect(args.include.address.select).not.toHaveProperty(field)
     }

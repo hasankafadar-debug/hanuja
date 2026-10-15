@@ -1,4 +1,4 @@
-import { isPendingReturnInspection } from '../domain/communication-audience'
+import { updateReturnRefundState } from './return-refund-state.service'
 import type { Prisma, PrismaClient, RefundSourceType } from '@prisma/client'
 import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
 import { Decimal } from '@prisma/client/runtime/client'
@@ -30,37 +30,32 @@ export async function dispatchRefundProcessingAfterCommit(refund: {
   )
 }
 
-export function createQuantityRefundService({
-  prisma,
-}: {
-  prisma: PrismaClient
-}) {
+export function createQuantityRefundService({ prisma }: { prisma: PrismaClient }) {
   const ledger = createSellerLedgerRepository(prisma)
 
-  async function queue(params: {
-    orderId: string
-    sellerId?: string
-    sourceType: RefundSourceType
-    sourceId: string
-    customerAmount: Decimal
-    grossProductAmount?: Decimal
-    couponAdjustmentAmount?: Decimal
-    sellerAdjustmentAmount: Decimal
-    commissionAdjustmentAmount?: Decimal
-    platformFundedAmount?: Decimal
-    items?: Array<{ orderLineId: string; quantity: number; amount: Decimal }>
-    shippingAmount?: Decimal
-    manualReviewReason?: string
-  }, transaction?: Prisma.TransactionClient) {
-    const commissionAdjustmentAmount =
-      params.commissionAdjustmentAmount ?? new Decimal(0)
-    const couponAdjustmentAmount =
-      params.couponAdjustmentAmount ?? new Decimal(0)
+  async function queue(
+    params: {
+      orderId: string
+      sellerId?: string
+      sourceType: RefundSourceType
+      sourceId: string
+      customerAmount: Decimal
+      grossProductAmount?: Decimal
+      couponAdjustmentAmount?: Decimal
+      sellerAdjustmentAmount: Decimal
+      commissionAdjustmentAmount?: Decimal
+      platformFundedAmount?: Decimal
+      items?: Array<{ orderLineId: string; quantity: number; amount: Decimal }>
+      shippingAmount?: Decimal
+      manualReviewReason?: string
+    },
+    transaction?: Prisma.TransactionClient,
+  ) {
+    const commissionAdjustmentAmount = params.commissionAdjustmentAmount ?? new Decimal(0)
+    const couponAdjustmentAmount = params.couponAdjustmentAmount ?? new Decimal(0)
     const grossProductAmount =
       params.grossProductAmount ??
-      params.sellerAdjustmentAmount
-        .add(commissionAdjustmentAmount)
-        .add(couponAdjustmentAmount)
+      params.sellerAdjustmentAmount.add(commissionAdjustmentAmount).add(couponAdjustmentAmount)
     const platformFundedAmount = params.platformFundedAmount ?? new Decimal(0)
 
     const requestedItems = [
@@ -128,9 +123,7 @@ export function createQuantityRefundService({
             commissionAdjustmentAmount,
             platformFundedAmount,
             status: params.manualReviewReason ? 'manual_required' : 'pending',
-            ...(params.manualReviewReason
-              ? { failureReason: params.manualReviewReason }
-              : {}),
+            ...(params.manualReviewReason ? { failureReason: params.manualReviewReason } : {}),
           },
         })
       } else if (
@@ -157,9 +150,7 @@ export function createQuantityRefundService({
         !refund.sellerAdjustmentAmount.equals(params.sellerAdjustmentAmount) ||
         !refund.commissionAdjustmentAmount.equals(commissionAdjustmentAmount)
       ) {
-        throw new ConflictError(
-          'Aynı iade anahtarı farklı finansal bilgilerle kullanılamaz',
-        )
+        throw new ConflictError('Aynı iade anahtarı farklı finansal bilgilerle kullanılamaz')
       }
 
       const existingItems = await tx.refundTransactionItem.findMany({
@@ -167,13 +158,16 @@ export function createQuantityRefundService({
       })
       if (existingItems.length === 0) {
         const providerItems = payment
-          ? await tx.paymentProviderItem.findMany({ where: { paymentId: payment.id } })
+          ? await tx.paymentProviderItem.findMany({
+              where: { paymentId: payment.id },
+            })
           : []
-        const itemSpecs = requestedItems.length > 0
-          ? requestedItems
-          : params.customerAmount.gt(0)
-            ? [{ kind: 'product' as const, amount: params.customerAmount }]
-            : []
+        const itemSpecs =
+          requestedItems.length > 0
+            ? requestedItems
+            : params.customerAmount.gt(0)
+              ? [{ kind: 'product' as const, amount: params.customerAmount }]
+              : []
         for (const spec of itemSpecs) {
           const providerItem = providerItems.find((candidate) =>
             spec.kind === 'shipping'
@@ -200,9 +194,7 @@ export function createQuantityRefundService({
               ...('orderLineId' in spec && spec.orderLineId
                 ? { orderLineId: spec.orderLineId }
                 : {}),
-              ...('quantity' in spec && spec.quantity
-                ? { quantity: spec.quantity }
-                : {}),
+              ...('quantity' in spec && spec.quantity ? { quantity: spec.quantity } : {}),
               kind: spec.kind,
               amount: spec.amount,
               ...(params.manualReviewReason
@@ -211,14 +203,15 @@ export function createQuantityRefundService({
                     failureReason: params.manualReviewReason,
                   }
                 : spec.amount.eq(0)
-                ? { status: 'completed' as const, completedAt: new Date() }
-                : !providerItem || (payment?.method === 'card' && !providerItem.providerTransactionId)
-                ? {
-                    status: 'manual_required' as const,
-                    failureReason:
-                      'Sağlayıcı kalem işlem ID’si yok; otomatik iade yerine manuel müdahale gerekli',
-                  }
-                : {}),
+                  ? { status: 'completed' as const, completedAt: new Date() }
+                  : !providerItem ||
+                      (payment?.method === 'card' && !providerItem.providerTransactionId)
+                    ? {
+                        status: 'manual_required' as const,
+                        failureReason:
+                          'Sağlayıcı kalem işlem ID’si yok; otomatik iade yerine manuel müdahale gerekli',
+                      }
+                    : {}),
             },
           })
         }
@@ -259,15 +252,15 @@ export function createQuantityRefundService({
       }
       if (
         refund.status !== 'completed' &&
-        (payment?.method === 'eft' ||
-          queuedItems.some((item) => item.status === 'manual_required'))
+        (payment?.method === 'eft' || queuedItems.some((item) => item.status === 'manual_required'))
       ) {
         refund = await tx.refundTransaction.update({
           where: { id: refund.id },
           data: {
             status: 'manual_required',
             failureReason:
-              params.manualReviewReason ?? (payment?.method === 'eft'
+              params.manualReviewReason ??
+              (payment?.method === 'eft'
                 ? 'EFT/havale iadesi banka üzerinden manuel tamamlanmalıdır'
                 : 'Sağlayıcı kalem işlem eşleşmesi eksik; manuel müdahale gerekli'),
           },
@@ -394,7 +387,11 @@ export function createQuantityRefundService({
     // An outer transaction has not committed yet. Its caller owns post-commit
     // dispatch; legacy refunds use this path and require manual processing.
     if (!transaction) {
-      if (!params.manualReviewReason) await syncChangedPayoutSchedules(prisma, { orderId: result.orderId, sellerId: result.sellerId })
+      if (!params.manualReviewReason)
+        await syncChangedPayoutSchedules(prisma, {
+          orderId: result.orderId,
+          sellerId: result.sellerId,
+        })
       await dispatchRefundProcessingAfterCommit(result)
     }
     return result
@@ -415,25 +412,35 @@ export function createQuantityRefundService({
     const result = await prisma.$transaction(async (tx) => {
       const refund = await tx.refundTransaction.findUnique({
         where: { id: params.refundTransactionId },
-        include: { payment: true, items: { include: { paymentProviderItem: true } } },
+        include: {
+          payment: true,
+          items: { include: { paymentProviderItem: true } },
+        },
       })
-      if (!refund)
-        throw new NotFoundError('RefundTransaction', params.refundTransactionId)
+      if (!refund) throw new NotFoundError('RefundTransaction', params.refundTransactionId)
       if (refund.orderId !== params.orderId) throw new ConflictError('İade bu siparişe ait değil.')
       if (refund.status === 'completed') {
         if (refund.providerReference !== reference) {
-          throw new ConflictError('Bu iade zaten tamamlanmış. Mevcut işlem referansını kontrol edin.')
+          throw new ConflictError(
+            'Bu iade zaten tamamlanmış. Mevcut işlem referansını kontrol edin.',
+          )
         }
         return refund
       }
       const completion = getManualEftRefundCompletion(refund)
       if (completion.blockedReason) throw new ConflictError(completion.blockedReason)
       if (completion.outstandingAmount !== params.expectedOutstandingAmount) {
-        throw new ConflictError('İade tutarı değişmiş. Sayfayı yenileyip kalan tutarı kontrol edin.')
+        throw new ConflictError(
+          'İade tutarı değişmiş. Sayfayı yenileyip kalan tutarı kontrol edin.',
+        )
       }
 
       const claimed = await tx.refundTransaction.updateMany({
-        where: { id: refund.id, status: 'manual_required', updatedAt: refund.updatedAt },
+        where: {
+          id: refund.id,
+          status: 'manual_required',
+          updatedAt: refund.updatedAt,
+        },
         data: {
           status: 'completed',
           providerReference: reference,
@@ -476,7 +483,8 @@ export function createQuantityRefundService({
             completedAt: new Date(),
           },
         })
-        if (itemClaim.count !== 1) throw new ConflictError('İade kalemi değişmiş. Sayfayı yenileyin.')
+        if (itemClaim.count !== 1)
+          throw new ConflictError('İade kalemi değişmiş. Sayfayı yenileyin.')
       }
       const completed = await tx.refundTransaction.findUniqueOrThrow({
         where: { id: refund.id },
@@ -526,17 +534,7 @@ export function createQuantityRefundService({
           })
         }
       } else if (refund.sourceType === 'return_request') {
-        const closedReturn = await tx.returnRequest.update({
-          where: { id: refund.sourceId },
-          data: {
-            status: 'refund_completed',
-            refundedAt: new Date(),
-            refundAmount: refund.customerAmount,
-          },
-        })
-        if (closedReturn && isPendingReturnInspection(closedReturn)) {
-          await tx.returnRequest.update({ where: { id: refund.sourceId }, data: { status: 'under_review', refundedAt: null } })
-        }
+        await updateReturnRefundState(tx, refund)
 
         const order = await tx.order.findUniqueOrThrow({
           where: { id: refund.orderId },
@@ -558,13 +556,7 @@ export function createQuantityRefundService({
           })
         }
       } else if (refund.sourceType === 'dispute') {
-        await tx.returnRequest.updateMany({
-          where: { disputeId: refund.sourceId },
-          data: {
-            status: 'refund_completed',
-            refundedAt: new Date(),
-          },
-        })
+        await updateReturnRefundState(tx, refund)
       }
       await createAdminAuditLogRepository(tx).createEntry({
         actorId: params.actorId,
@@ -587,12 +579,16 @@ export function createQuantityRefundService({
         reason: 'Admin, banka üzerinden yaptığı EFT/havale iade ödemesini onayladı.',
         ...(params.ipAddress ? { ipAddress: params.ipAddress } : {}),
       })
+      await enqueueCustomerRefundCompletedNotification(tx, completed.id)
       return completed
     })
     // Stable notification event keys deduplicate delivery; preserve retry recovery
     // if the previous completion committed but enqueueing failed.
     if (result.status === 'completed') {
-      await syncChangedPayoutSchedules(prisma, { orderId: result.orderId, sellerId: result.sellerId })
+      await syncChangedPayoutSchedules(prisma, {
+        orderId: result.orderId,
+        sellerId: result.sellerId,
+      })
       void enqueueCustomerRefundCompletedNotification(prisma, result.id).catch((error) =>
         console.error('[quantity-refund] İade bildirimi kuyruğa eklenemedi:', error),
       )
@@ -603,6 +599,4 @@ export function createQuantityRefundService({
   return { queue, complete }
 }
 
-export type QuantityRefundService = ReturnType<
-  typeof createQuantityRefundService
->
+export type QuantityRefundService = ReturnType<typeof createQuantityRefundService>

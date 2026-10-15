@@ -6,9 +6,11 @@ import {
   schedulePrivateDocumentCleanup,
 } from '../../api/services/private-document-cleanup.service'
 
-vi.mock('../../api/lib/r2', () => ({ deleteObject: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../../api/lib/r2', () => ({
+  deleteObject: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('../../api/lib/private-document-storage', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../../api/lib/private-document-storage')>(),
+  ...(await importOriginal<typeof import('../../api/lib/private-document-storage')>()),
   deletePrivateDocumentFile: vi.fn().mockResolvedValue(undefined),
 }))
 
@@ -27,8 +29,14 @@ type Intent = {
 
 function fixture(overrides: Partial<Intent> = {}) {
   const row: Intent = {
-    id: 'cleanup-1', fileKey: KEY, status: 'pending', attempts: 0,
-    nextAttemptAt: NOW, lastError: null, completedAt: null, ...overrides,
+    id: 'cleanup-1',
+    fileKey: KEY,
+    status: 'pending',
+    attempts: 0,
+    nextAttemptAt: NOW,
+    lastError: null,
+    completedAt: null,
+    ...overrides,
   }
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue([{ locked: true }]),
@@ -39,19 +47,28 @@ function fixture(overrides: Partial<Intent> = {}) {
     },
     orderSellerInvoice: { findFirst: vi.fn().mockResolvedValue(null) },
     orderCustomerInvoice: { findFirst: vi.fn().mockResolvedValue(null) },
+    sellerReturnInvoice: { findFirst: vi.fn().mockResolvedValue(null) },
   }
   const db = {
     privateDocumentCleanup: {
-      findMany: vi.fn().mockImplementation(async ({ where }) =>
-        row.status === where.status && (!where.nextAttemptAt || row.nextAttemptAt <= where.nextAttemptAt.lte)
-          ? [{ fileKey: row.fileKey }] : []),
+      findMany: vi
+        .fn()
+        .mockImplementation(async ({ where }) =>
+          row.status === where.status &&
+          (!where.nextAttemptAt || row.nextAttemptAt <= where.nextAttemptAt.lte)
+            ? [{ fileKey: row.fileKey }]
+            : [],
+        ),
     },
     $transaction: vi.fn().mockImplementation(async (fn) => fn(tx)),
   }
   const deleteFile = vi.fn().mockResolvedValue(undefined)
-  const run = (now = NOW) => processPrivateDocumentCleanup({
-    prisma: db as unknown as PrismaClient, deleteFile, now,
-  })
+  const run = (now = NOW) =>
+    processPrivateDocumentCleanup({
+      prisma: db as unknown as PrismaClient,
+      deleteFile,
+      now,
+    })
   return { row, tx, db, deleteFile, run }
 }
 
@@ -62,18 +79,31 @@ describe('durable private document cleanup', () => {
     const { tx } = fixture({ status: 'completed', attempts: 2 })
     await schedulePrivateDocumentCleanup(tx as never, KEY)
     expect(tx.privateDocumentCleanup.upsert).toHaveBeenCalledWith({
-      where: { fileKey: KEY }, create: { fileKey: KEY }, update: {},
+      where: { fileKey: KEY },
+      create: { fileKey: KEY },
+      update: {},
     })
-    await expect(schedulePrivateDocumentCleanup(tx as never, 'private/v1/../outside'))
-      .rejects.toThrow('Invalid invoice document storage key.')
+    await expect(
+      schedulePrivateDocumentCleanup(tx as never, 'private/v1/../outside'),
+    ).rejects.toThrow('Invalid invoice document storage key.')
   })
 
   it('deletes once and marks completion; another sweep does not delete or count it again', async () => {
     const f = fixture()
-    expect(await f.run()).toEqual({ processed: 1, completed: 1, retried: 0, deferred: 0 })
+    expect(await f.run()).toEqual({
+      processed: 1,
+      completed: 1,
+      retried: 0,
+      deferred: 0,
+    })
     expect(f.row.status).toBe('completed')
     expect(f.row.completedAt).toEqual(NOW)
-    expect(await f.run()).toEqual({ processed: 0, completed: 0, retried: 0, deferred: 0 })
+    expect(await f.run()).toEqual({
+      processed: 0,
+      completed: 0,
+      retried: 0,
+      deferred: 0,
+    })
     expect(f.deleteFile).toHaveBeenCalledOnce()
   })
 
@@ -81,7 +111,11 @@ describe('durable private document cleanup', () => {
     const f = fixture()
     f.deleteFile.mockRejectedValueOnce(new Error('Volume unavailable'))
     expect((await f.run()).retried).toBe(1)
-    expect(f.row).toMatchObject({ status: 'pending', attempts: 1, lastError: 'Volume unavailable' })
+    expect(f.row).toMatchObject({
+      status: 'pending',
+      attempts: 1,
+      lastError: 'Volume unavailable',
+    })
     expect(f.row.nextAttemptAt).toEqual(new Date(NOW.getTime() + 5 * 60_000))
     expect((await f.run()).processed).toBe(0)
     // The deletion function is idempotent even when a previous process already removed bytes.
@@ -91,7 +125,9 @@ describe('durable private document cleanup', () => {
 
   it('defers keys that are still referenced by an active invoice without deleting them', async () => {
     const f = fixture()
-    f.tx.orderSellerInvoice.findFirst.mockResolvedValue({ id: 'active-invoice' })
+    f.tx.orderSellerInvoice.findFirst.mockResolvedValue({
+      id: 'active-invoice',
+    })
     expect((await f.run()).deferred).toBe(1)
     expect(f.deleteFile).not.toHaveBeenCalled()
     expect(f.row.attempts).toBe(0)
@@ -101,7 +137,9 @@ describe('durable private document cleanup', () => {
 
   it("defers keys still referenced by Hanuja's customer invoice", async () => {
     const f = fixture()
-    f.tx.orderCustomerInvoice.findFirst.mockResolvedValue({ id: 'customer-invoice' })
+    f.tx.orderCustomerInvoice.findFirst.mockResolvedValue({
+      id: 'customer-invoice',
+    })
     expect((await f.run()).deferred).toBe(1)
     expect(f.deleteFile).not.toHaveBeenCalled()
     expect(f.row.status).toBe('pending')
@@ -130,7 +168,9 @@ describe('durable private document cleanup', () => {
     expect(f.row.attempts).toBe(8)
     expect(f.row.nextAttemptAt).toEqual(new Date(NOW.getTime() + 60 * 60_000))
     expect(log).toHaveBeenCalledWith('[private-document-cleanup][operational-alert]', {
-      cleanupId: 'cleanup-1', attempts: 8, error: 'Permission denied',
+      cleanupId: 'cleanup-1',
+      attempts: 8,
+      error: 'Permission denied',
     })
   })
 

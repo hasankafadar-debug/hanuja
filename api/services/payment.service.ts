@@ -23,7 +23,6 @@ import {
   loadOrderEmailSnapshot,
   sellerOrderEmailData,
 } from './order-email-payload'
-import { createOrderDocumentService } from './order-document.service'
 import { postPaymentConfirmedSellerAccruals } from './seller-payment-accrual.service'
 import { createRefundService } from './refund.service'
 import { releaseRemainingOrderLines } from './order-line-release'
@@ -111,17 +110,6 @@ async function recordEftRejectedNotification(
       items: customerOrderLines(order),
     },
   })
-}
-
-async function fireInvoiceAliasGeneration(prisma: PrismaClient, orderId: string) {
-  try {
-    await createOrderDocumentService({ prisma }).ensureInvoiceAliasesForOrder(orderId)
-  } catch (err) {
-    console.error('[payment] Invoice alias generation failed', {
-      orderId,
-      code: typeof err === 'object' && err !== null && 'code' in err ? err.code : 'UNKNOWN',
-    })
-  }
 }
 
 interface PaymentServiceDeps {
@@ -337,8 +325,6 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           return updated
         })
         .then(async (result) => {
-          // Wait after commit; alias failures must not roll back a collected payment.
-          await fireInvoiceAliasGeneration(prisma, params.orderId)
           return result
         })
         .catch((error: unknown) => {
@@ -581,7 +567,6 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
           return updated
         })
         .then(async (result) => {
-          await fireInvoiceAliasGeneration(prisma, params.orderId)
           return result
         })
     },

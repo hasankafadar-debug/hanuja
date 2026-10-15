@@ -5,7 +5,7 @@
  */
 import type { Prisma } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
-import { formatMoney } from '@hanuja/security/money'
+import { formatEmailMoney as formatMoney } from '../lib/email-money'
 import { EMAIL_LINE_IMAGE_SELECT, toEmailOrderLine } from '../lib/email-line-items'
 import type {
   EmailOrderLine,
@@ -13,7 +13,11 @@ import type {
   OrderContractLinks,
 } from '../lib/email-templates/types'
 import { formatOrderNumber } from '../lib/order-number'
-import { getCustomerContractLinks, getCustomerOrderUrl, getSellerOrderUrl } from '../lib/platform-info'
+import {
+  getCustomerContractLinks,
+  getCustomerOrderUrl,
+  getSellerOrderUrl,
+} from '../lib/platform-info'
 import { recordNotification } from './notification-outbox.service'
 
 type OrderEmailClient = Pick<Prisma.TransactionClient, 'order'>
@@ -93,10 +97,10 @@ export function orderAmountSummary(order: OrderEmailSnapshot): OrderAmountSummar
           eftDiscountRate: percentLabel(order.eftDiscountRateSnapshot),
         }
       : {}),
-    ...(manualDiscount.gt(0)
-      ? { additionalDiscount: formatMoney(manualDiscount.toNumber()) }
-      : {}),
-    shipping: order.shippingAmount.gt(0) ? formatMoney(order.shippingAmount.toNumber()) : 'Ücretsiz',
+    ...(manualDiscount.gt(0) ? { additionalDiscount: formatMoney(manualDiscount.toNumber()) } : {}),
+    shipping: order.shippingAmount.gt(0)
+      ? formatMoney(order.shippingAmount.toNumber())
+      : 'Ücretsiz',
   }
 }
 
@@ -107,9 +111,7 @@ export function activeOrderLines(order: OrderEmailSnapshot) {
 export function customerOrderLines(order: OrderEmailSnapshot): EmailOrderLine[] {
   return activeOrderLines(order).map((line) =>
     toEmailOrderLine(line, line.quantity - line.cancelledQuantity, {
-      lineTotal: line.totalPrice
-        .div(line.quantity)
-        .mul(line.quantity - line.cancelledQuantity),
+      lineTotal: line.totalPrice.div(line.quantity).mul(line.quantity - line.cancelledQuantity),
     }),
   )
 }

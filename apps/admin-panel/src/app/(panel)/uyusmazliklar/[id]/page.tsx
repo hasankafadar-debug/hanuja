@@ -34,6 +34,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
       messages: { orderBy: { createdAt: 'asc' } },
       escalatedFromReturn: {
         include: {
+          items: { select: { id: true } },
           messages: {
             orderBy: { createdAt: 'asc' },
             include: { attachments: true },
@@ -46,7 +47,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
 
   if (!dispute) notFound()
 
-  const sellerId = dispute.order?.lines[0]?.sellerId
+  const sellerId = dispute.escalatedFromReturn?.sellerId ?? dispute.order?.lines[0]?.sellerId
   let sellerName = '—'
   if (sellerId) {
     const seller = await prisma.seller.findUnique({
@@ -328,6 +329,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
         disputeId={dispute.id}
         returnRequestId={rr?.id ?? null}
         canResolve={canResolve}
+        quantityReturn={Boolean(rr?.items.length)}
       />
     </div>
   )

@@ -6,7 +6,9 @@ vi.mock('@prisma/client/runtime/client', () =>
   createRequire(import.meta.url)('@prisma/client/runtime/client'),
 )
 const { notify } = vi.hoisted(() => ({ notify: vi.fn(async () => undefined) }))
-vi.mock('../../../api/jobs/refund-processing.job', () => ({ enqueueRefundProcessing: vi.fn() }))
+vi.mock('../../../api/jobs/refund-processing.job', () => ({
+  enqueueRefundProcessing: vi.fn(),
+}))
 vi.mock('../../../api/services/refund-notification.service', () => ({
   enqueueCustomerRefundCompletedNotification: notify,
 }))
@@ -58,10 +60,16 @@ function fixture() {
   const read = () => ({
     ...refund,
     payment: linkedPayment && { ...linkedPayment },
-    items: items.map((item) => ({ ...item, paymentProviderItem: { ...provider } })),
+    items: items.map((item) => ({
+      ...item,
+      paymentProviderItem: { ...provider },
+    })),
   })
   const prisma = {
     refundTransaction: {
+      findMany: vi.fn(async () => [
+        { status: refund.status, customerAmount: refund.customerAmount },
+      ]),
       findUnique: vi.fn(async () => read()),
       findUniqueOrThrow: vi.fn(async () => ({ ...refund })),
       updateMany: vi.fn(async ({ where, data }: any) => {
@@ -97,7 +105,22 @@ function fixture() {
       update: vi.fn(async ({ data }: any) => Object.assign(payment, data)),
     },
     orderCancellation: { updateMany: vi.fn(async () => ({ count: 1 })) },
-    returnRequest: { update: vi.fn(), updateMany: vi.fn() },
+    returnRequest: {
+      findMany: vi.fn(async () => [
+        { id: refund.sourceType === 'dispute' ? 'return-1' : refund.sourceId },
+      ]),
+      findUniqueOrThrow: vi.fn(async () => ({
+        id: refund.sourceType === 'dispute' ? 'return-1' : refund.sourceId,
+        orderId: refund.orderId,
+        disputeId: null as string | null,
+        status: 'received',
+        reviewedAt: null as Date | null,
+        sellerRejectedAt: null as Date | null,
+      })),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    $queryRaw: vi.fn(async () => []),
     order: {
       update: vi.fn(),
       findUniqueOrThrow: vi.fn(async () => ({
@@ -192,7 +215,10 @@ describe('manual EFT refund completion', () => {
         actorId: 'admin-1',
         targetId: 'r1',
         ipAddress: '127.0.0.1',
-        previousData: { status: 'manual_required', outstandingAmount: '38560.50' },
+        previousData: {
+          status: 'manual_required',
+          outstandingAmount: '38560.50',
+        },
         newData: expect.objectContaining({
           amount: '38560.50',
           providerReference: 'BANK-123',
@@ -202,7 +228,7 @@ describe('manual EFT refund completion', () => {
     ])
     expect(f.prisma.sellerLedgerEntry.create).not.toHaveBeenCalled()
     expect(f.prisma.payout.update).not.toHaveBeenCalled()
-    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify).toHaveBeenCalledTimes(2)
   })
   it('makes retries idempotent without replacing reference, audit or money', async () => {
     const f = fixture()
@@ -210,7 +236,7 @@ describe('manual EFT refund completion', () => {
     await f.complete()
     expect(f.payment.refundedAmount.toFixed(2)).toBe('38560.50')
     expect(f.audit).toHaveLength(1)
-    expect(notify).toHaveBeenCalledTimes(2)
+    expect(notify).toHaveBeenCalledTimes(3)
     await expect(f.complete({ providerReference: 'DIFFERENT' })).rejects.toThrow(
       'zaten tamamlanmış',
     )
@@ -221,7 +247,7 @@ describe('manual EFT refund completion', () => {
     await Promise.all([f.complete(), f.complete()])
     expect(f.prisma.payment.updateMany).toHaveBeenCalledTimes(1)
     expect(f.audit).toHaveLength(1)
-    expect(notify).toHaveBeenCalledTimes(2)
+    expect(notify).toHaveBeenCalledTimes(3)
   })
   it.each(['pending', 'processing', 'partially_completed', 'failed'])(
     'rejects parent status %s before writing',
@@ -302,10 +328,14 @@ describe('manual EFT refund completion', () => {
       if (failure === 'audit')
         f.prisma.adminAuditLog.create.mockRejectedValueOnce(new Error('audit unavailable'))
       if (failure === 'providerCap')
-        f.prisma.paymentProviderItem.updateMany.mockResolvedValueOnce({ count: 0 })
+        f.prisma.paymentProviderItem.updateMany.mockResolvedValueOnce({
+          count: 0,
+        })
       if (failure === 'paymentCap') f.prisma.payment.updateMany.mockResolvedValueOnce({ count: 0 })
       if (failure === 'itemClaim')
-        f.prisma.refundTransactionItem.updateMany.mockResolvedValueOnce({ count: 0 })
+        f.prisma.refundTransactionItem.updateMany.mockResolvedValueOnce({
+          count: 0,
+        })
       await expect(f.complete()).rejects.toThrow()
       expect(f.refund.status).toBe('manual_required')
       expect(f.payment.refundedAmount.toFixed(2)).toBe('0.00')
@@ -340,11 +370,41 @@ describe('manual EFT refund completion', () => {
     const f = fixture()
     f.refund.sourceType = 'dispute'
     await f.complete()
-    expect(f.prisma.returnRequest.updateMany).toHaveBeenCalledWith({
-      where: { disputeId: 'c1' },
+    expect(f.prisma.returnRequest.update).toHaveBeenCalledWith({
+      where: { id: 'return-1' },
       data: expect.objectContaining({ status: 'refund_completed' }),
     })
     expect(f.prisma.payout.update).not.toHaveBeenCalled()
+  })
+  it('keeps a final rejection when the accepted quantity is paid', async () => {
+    const f = fixture()
+    f.refund.sourceType = 'return_request'
+    f.prisma.returnRequest.findUniqueOrThrow.mockResolvedValueOnce({
+      id: 'c1',
+      orderId: 'o1',
+      disputeId: 'd1',
+      status: 'rejected',
+      reviewedAt: new Date(),
+      sellerRejectedAt: new Date(Date.now() - 1000),
+    })
+    await f.complete()
+    expect(f.prisma.returnRequest.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: expect.objectContaining({ status: 'rejected' }),
+    })
+  })
+  it('does not close the return while another related refund still awaits payment', async () => {
+    const f = fixture()
+    f.refund.sourceType = 'return_request'
+    f.prisma.refundTransaction.findMany.mockResolvedValueOnce([
+      { status: 'completed', customerAmount: f.refund.customerAmount },
+      { status: 'manual_required', customerAmount: new Decimal('3') },
+    ])
+    await f.complete()
+    expect(f.prisma.returnRequest.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: expect.objectContaining({ status: 'received', refundedAt: null }),
+    })
   })
   it('preserves legacy cancellation completion metadata', async () => {
     const f = fixture()

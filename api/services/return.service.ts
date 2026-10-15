@@ -23,16 +23,16 @@ import { createOrderRepository } from '../repositories/order.repository'
 import { createDisputeRepository } from '../repositories/dispute.repository'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 import { recordNotification } from './notification-outbox.service'
-import {
-  adminPanelLink,
-  recordAdminOperationNotification,
-} from './admin-notification.service'
+import { adminPanelLink, recordAdminOperationNotification } from './admin-notification.service'
 import { createRefundService } from './refund.service'
 import { dispatchRefundProcessingAfterCommit } from './quantity-refund.service'
 import { sellerScopedReturnWhere } from '../repositories/return-request.repository'
 import { assertTransition } from '../domain/order-state-machine'
 import { assertNoContactSharing } from './contact-sharing-guard.service'
-import { formatMoney, roundMoney } from '@hanuja/security/money'
+import { scanContactSharing } from './contact-sharing-guard.service'
+import { recordFinalReturnDecision } from './return-decision-notification.service'
+import { roundMoney } from '@hanuja/security/money'
+import { formatEmailMoney as formatMoney } from '../lib/email-money'
 import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 import { resolveEmailImageUrl } from '../lib/email-line-items'
@@ -123,7 +123,11 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
    */
   async function claimForSeller(
     tx: ReturnTx,
-    params: { returnRequestId: string; sellerId: string; from: ReturnRequestStatus[] },
+    params: {
+      returnRequestId: string
+      sellerId: string
+      from: ReturnRequestStatus[]
+    },
   ) {
     const current = await tx.returnRequest.findFirst({
       where: sellerScopedReturnWhere(params.returnRequestId, params.sellerId),
@@ -165,7 +169,12 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
     items: Array<{
       id: string
       requestedQuantity: number
-      orderLine: { productId: string; productName: string; variantName: string | null; unitPrice: Decimal }
+      orderLine: {
+        productId: string
+        productName: string
+        variantName: string | null
+        unitPrice: Decimal
+      }
     }>
     order: {
       id: string
@@ -188,11 +197,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
    * number, and the returned lines (quantity-based items when present, otherwise
    * the active lines of the seller on legacy requests).
    */
-  async function buildReturnEmailContext(
-    tx: ReturnTx,
-    rr: ReturnEmailRequest,
-    sellerId?: string,
-  ) {
+  async function buildReturnEmailContext(tx: ReturnTx, rr: ReturnEmailRequest, sellerId?: string) {
     const customer = await tx.user.findUnique({
       where: { id: rr.customerId },
       select: { email: true, name: true },
@@ -219,7 +224,11 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
             }))
             .filter((line) => line.quantity > 0)
     const images = await tx.productImage.findMany({
-      where: { productId: { in: [...new Set(sourceLines.map((line) => line.productId))] } },
+      where: {
+        productId: {
+          in: [...new Set(sourceLines.map((line) => line.productId))],
+        },
+      },
       orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
       select: { productId: true, url: true, isPrimary: true, sortOrder: true },
     })
@@ -295,7 +304,9 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         decision,
         refundOutcome: options.refundOutcome,
         disputeOpened: options.disputeOpened ?? false,
-        ...(options.refundAmount ? { refundAmount: formatMoney(options.refundAmount.toNumber()) } : {}),
+        ...(options.refundAmount
+          ? { refundAmount: formatMoney(options.refundAmount.toNumber()) }
+          : {}),
         ...(options.reviewNote ? { reviewNote: options.reviewNote } : {}),
         orderUrl: context.orderUrl,
         items: context.items.map((item) => ({
@@ -309,10 +320,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
   }
 
   /** The seller that owns lines on this order (single-seller assumption). */
-  function resolveOrderSellerId(
-    lines: { sellerId: string }[],
-    requireSellerId?: string,
-  ): string {
+  function resolveOrderSellerId(lines: { sellerId: string }[], requireSellerId?: string): string {
     const sellerIds = [...new Set(lines.map((l) => l.sellerId))]
     if (requireSellerId) {
       if (!sellerIds.includes(requireSellerId)) {
@@ -379,7 +387,9 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
                   orderId: params.orderId,
                   customerId: params.customerId,
                   reason: params.reason,
-                  ...(params.description !== undefined && { description: params.description }),
+                  ...(params.description !== undefined && {
+                    description: params.description,
+                  }),
                   isWithinWindow,
                   claimType: params.claimType ?? 'withdrawal',
                 },
@@ -415,7 +425,9 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
               await recordNotification(tx, {
                 eventKey: `return:${returnRequest.id}:customer:requested`,
                 userId: params.customerId,
-                ...(customerContext.customerEmail ? { emailTo: customerContext.customerEmail } : {}),
+                ...(customerContext.customerEmail
+                  ? { emailTo: customerContext.customerEmail }
+                  : {}),
                 type: 'return_requested',
                 title: 'İade talebiniz alındı',
                 body: `#${customerContext.orderNumber} siparişi için iade talebiniz alındı.`,
@@ -435,7 +447,11 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
               for (const sid of sellerIds) {
                 const seller = await tx.seller.findUnique({
                   where: { id: sid },
-                  select: { userId: true, displayName: true, user: { select: { email: true } } },
+                  select: {
+                    userId: true,
+                    displayName: true,
+                    user: { select: { email: true } },
+                  },
                 })
                 if (seller) {
                   const sellerContext = await buildReturnEmailContext(tx, emailRequest, sid)
@@ -454,7 +470,10 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
                       sellerName: seller.displayName,
                       returnReason: 'Hanuja iade incelemesi',
                       panelUrl: `${getSellerPanelUrl()}/iadeler/${returnRequest.id}`,
-                      items: sellerContext.items.map((item) => ({ ...item, sellerId: sid })),
+                      items: sellerContext.items.map((item) => ({
+                        ...item,
+                        sellerId: sid,
+                      })),
                     },
                   })
                 }
@@ -478,7 +497,10 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
 
               return returnRequest
             },
-            { ...TX_OPTIONS, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+            {
+              ...TX_OPTIONS,
+              isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+            },
           )
           await syncChangedPayoutSchedules(prisma, { orderId: params.orderId })
           return opened
@@ -501,6 +523,13 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
       carrier: string
       instructions?: string
     }) {
+      assertNoContactSharing(params.instructions ?? '')
+      assertNoContactSharing(params.carrier)
+      if (scanContactSharing(params.address).some((finding) => finding.type !== 'address')) {
+        throw new ValidationError(
+          'İade adresine telefon, e-posta veya bağlantı eklemeyin. Müşterinin iletişim muhatabı Hanuja’dır.',
+        )
+      }
       return prisma.$transaction(async (tx) => {
         const rr = await claimForSeller(tx, {
           returnRequestId: params.returnRequestId,
@@ -515,7 +544,9 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
             {
               address: params.address,
               carrier: params.carrier,
-              ...(params.instructions !== undefined && { instructions: params.instructions }),
+              ...(params.instructions !== undefined && {
+                instructions: params.instructions,
+              }),
             },
             tx,
           )) as typeof rr
@@ -541,7 +572,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           ...(context.customerEmail ? { emailTo: context.customerEmail } : {}),
           type: 'return_status_changed',
           title: 'İade Kargo Bilgileri Hazır',
-          body: 'Tasarımcı iade kargo bilgilerini iletti. Ürünü kargoya verip kargo bilgilerini girebilirsiniz.',
+          body: 'Hanuja iade kargo bilgilerini hazırladı. Ürünü kargoya verip takip bilgilerini girebilirsiniz.',
           data: {
             stage: 'cargo_info_ready',
             orderId: rr.orderId,
@@ -572,9 +603,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
       barcodeAssetId?: string
     }) {
       if (!params.trackingNumber && !params.barcodeAssetId) {
-        throw new ValidationError(
-          'Kargo takip numarası veya kargo barkod görseli gerekli',
-        )
+        throw new ValidationError('Kargo takip numarası veya kargo barkod görseli gerekli')
       }
 
       return prisma.$transaction(async (tx) => {
@@ -631,10 +660,18 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           await recordNotification(tx, {
             eventKey: `return:${rr.id}:seller:in-transit`,
             userId: uid,
-            type: 'return_status_changed',
+            type: 'seller_return_shipped',
             title: 'İade Kargoya Verildi',
             body: 'Müşteri iade ürününü kargoya verdi. Ürün size ulaştığında onaylayın veya reddedin.',
-            data: { stage: 'customer_shipped', orderId: rr.orderId, returnRequestId: rr.id },
+            data: {
+              stage: 'customer_shipped',
+              orderId: rr.orderId,
+              returnRequestId: rr.id,
+              orderNumber: formatOrderNumber(rr.order.publicNumber, rr.orderId),
+              panelUrl: getSellerPanelUrl() + '/iadeler/' + rr.id,
+              cargoCarrier: params.carrier,
+              trackingNumber: params.trackingNumber ?? '',
+            },
           })
         }
 
@@ -646,10 +683,7 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
      * Seller confirms physical receipt → triggers the customer refund
      * automatically (locked policy decision). Finance-sensitive + idempotent.
      */
-    async confirmReceiptBySeller(params: {
-      returnRequestId: string
-      sellerId: string
-    }) {
+    async confirmReceiptBySeller(params: { returnRequestId: string; sellerId: string }) {
       const { refund } = await prisma.$transaction(async (tx) => {
         const rr = await claimForSeller(tx, {
           returnRequestId: params.returnRequestId,
@@ -736,7 +770,9 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
             params.returnRequestId,
             {
               reason: params.reason,
-              ...(params.description !== undefined && { description: params.description }),
+              ...(params.description !== undefined && {
+                description: params.description,
+              }),
             },
             tx,
           ),
@@ -765,7 +801,9 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
             orderId: rr.orderId,
             openedById: sellerUid ?? `seller_${params.sellerId}`,
             reason: `Tasarımcı iade reddi: ${params.reason}`,
-            ...(params.description !== undefined && { description: params.description }),
+            ...(params.description !== undefined && {
+              description: params.description,
+            }),
           },
           tx,
         )
@@ -788,7 +826,13 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           type: 'return_status_changed',
           title: 'İadeniz Hanuja incelemesinde',
           body: 'İade ürününüz Hanuja tarafından değerlendiriliyor.',
-          data: { orderId: rr.orderId, returnRequestId: rr.id },
+          data: {
+            orderId: rr.orderId,
+            returnRequestId: rr.id,
+            stage: 'under_review',
+            orderNumber: formatOrderNumber(rr.order.publicNumber, rr.orderId),
+            orderUrl: getWebBaseUrl() + '/siparis/' + rr.orderId,
+          },
         })
 
         const admins = await tx.user.findMany({
@@ -802,7 +846,11 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
             type: 'admin_dispute_opened',
             title: 'Yeni Uyuşmazlık (İade Reddi)',
             body: `#${params.returnRequestId.slice(-8)} iadesi tasarımcı tarafından reddedildi ve uyuşmazlığa taşındı.`,
-            data: { orderId: rr.orderId, returnRequestId: rr.id, disputeId: dispute.id },
+            data: {
+              orderId: rr.orderId,
+              returnRequestId: rr.id,
+              disputeId: dispute.id,
+            },
           })
         }
         await recordAdminOperationNotification(tx, {
@@ -814,9 +862,8 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           data: {
             orderNumber: String(rr.order.publicNumber),
             adminUrl: adminPanelLink(`/uyusmazliklar/${dispute.id}`),
-            reason: params.description
-              ? `${params.reason} — ${params.description}`
-              : params.reason,
+            reason: params.description ? `${params.reason} — ${params.description}` : params.reason,
+            source: 'return',
             sourceLabel: 'Tasarımcı iade teslimini reddetti',
           },
         })
@@ -844,10 +891,22 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
         })
         if (!returnRequest) throw new NotFoundError('ReturnRequest', params.returnRequestId)
         if (returnRequest.items.length > 0) {
-          throw new ConflictError('Adet bazlı iadeler tasarımcı teslim kararı veya uyuşmazlık akışıyla yönetilir')
+          throw new ConflictError(
+            'Adet bazlı iadeler tasarımcı teslim kararı veya uyuşmazlık akışıyla yönetilir',
+          )
         }
 
         const newStatus = params.decision === 'approved' ? 'approved' : 'rejected'
+        if (returnRequest.reviewedAt) {
+          if (
+            returnRequest.status === newStatus &&
+            returnRequest.reviewNote === (params.reviewNote ?? null)
+          )
+            return returnRequest
+          throw new ConflictError(
+            'Bu iade kararı zaten kaydedilmiş. Yeni bir karar için uyuşmazlık incelemesini kullanın.',
+          )
+        }
 
         let updated = returnRequest
         await claimStatus(tx, returnRequest.id, returnRequest.status, async () => {
@@ -856,7 +915,9 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
             {
               status: newStatus,
               reviewedBy: params.adminActorId,
-              ...(params.reviewNote !== undefined && { reviewNote: params.reviewNote }),
+              ...(params.reviewNote !== undefined && {
+                reviewNote: params.reviewNote,
+              }),
             },
             tx,
           )) as typeof returnRequest
@@ -894,18 +955,35 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
 
         // This first approval creates no refund record — the item has not come
         // back yet — so the customer must not be told a refund started.
-        await notifyCustomerReturnDecision(tx, returnRequest, params.decision, {
-          eventKey: `return:${returnRequest.id}:customer:review:${params.decision}`,
-          refundOutcome: params.decision === 'approved' ? 'awaiting_return' : 'under_review',
-          ...(params.reviewNote !== undefined ? { reviewNote: params.reviewNote } : {}),
-          ...(params.decision === 'rejected' && params.reviewNote
-            ? { rejectionReason: params.reviewNote }
-            : {}),
+        const resolution =
+          params.reviewNote ??
+          (params.decision === 'approved'
+            ? 'İade talebiniz kabul edildi. Kargo talimatlarını siparişinizden takip edin.'
+            : 'İade talebiniz Hanuja tarafından reddedildi.')
+        await tx.returnMessage.create({
+          data: {
+            returnRequestId: returnRequest.id,
+            authorId: params.adminActorId,
+            authorRole: 'admin',
+            audience: 'customer',
+            body: resolution,
+          },
+        })
+        await recordFinalReturnDecision(tx, {
+          id: returnRequest.id,
+          orderId: returnRequest.orderId,
+          sellerId: returnRequest.sellerId,
+          approved: params.decision === 'approved',
+          resolution,
+          eventKey: `return:${returnRequest.id}:admin:review:${params.decision}`,
         })
 
         return updated
       }, TX_OPTIONS)
-      await syncChangedPayoutSchedules(prisma, { orderId: result.orderId, sellerId: result.sellerId })
+      await syncChangedPayoutSchedules(prisma, {
+        orderId: result.orderId,
+        sellerId: result.sellerId,
+      })
       return result
     },
 
@@ -951,7 +1029,10 @@ export function createReturnService({ prisma }: ReturnServiceDeps) {
           targetType: 'return_request',
           targetId: params.returnRequestId,
           previousData: { status: rr.status },
-          newData: { status: 'refund_pending', refundAmount: params.refundAmount },
+          newData: {
+            status: 'refund_pending',
+            refundAmount: params.refundAmount,
+          },
           reason: `İade alındı, ${params.refundAmount.toFixed(2)} TRY iade başlatıldı`,
         })
 

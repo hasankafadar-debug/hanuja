@@ -4,7 +4,6 @@ import { startReturnDeadlineWorker } from './return-deadline.job'
  * In production, this runs in a separate process from the Next.js apps.
  */
 import { startPayoutMaturityWorker } from './payout-maturity.job'
-import { startDeliverySilentConfirmWorker } from './delivery-silent-confirmation.job'
 import { startSearchIndexSyncWorker } from './search-index-sync.job'
 import {
   startNotificationDispatchWorker,
@@ -26,7 +25,6 @@ import { startSellerInvoiceReminderWorker } from './seller-invoice-reminder.job'
 export function startAllWorkers() {
   const workers = [
     startPayoutMaturityWorker(),
-    startDeliverySilentConfirmWorker(),
     startSearchIndexSyncWorker(),
     startNotificationDispatchWorker(),
     startNotificationBulkWorker(),
@@ -49,9 +47,7 @@ export function startAllWorkers() {
   return workers
 }
 
-export async function gracefulShutdown(
-  workers: Awaited<ReturnType<typeof startAllWorkers>>,
-) {
+export async function gracefulShutdown(workers: Awaited<ReturnType<typeof startAllWorkers>>) {
   console.log('[workers] Shutting down gracefully...')
   await Promise.all(workers.map((w) => w.close()))
   console.log('[workers] All workers stopped')

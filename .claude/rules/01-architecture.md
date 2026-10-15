@@ -335,7 +335,7 @@ Background jobs are required for workflows such as:
 
 - payout maturity countdown processing
 - payout batch preparation
-- delivery silent-confirmation timers
+- fulfillment deadline/risk tracking; delivery is confirmed only by admin
 - reconciliation jobs
 - retryable integration syncs
 - search indexing updates

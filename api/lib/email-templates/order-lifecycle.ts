@@ -53,14 +53,18 @@ export function customerOrderCancelledTemplate(
   params: CustomerCancellationEmailInput,
 ): EmailTemplate {
   const orderUrl = orderUrlOf(params)
-  const title = params.partial ? 'Siparişinizin Bir Kısmı İptal Edildi' : 'Siparişiniz İptal Edilmiştir'
+  const title = params.partial
+    ? 'Siparişinizin Bir Kısmı İptal Edildi'
+    : 'Siparişiniz İptal Edilmiştir'
   const reason = params.reason?.trim()
   const actorCopy: Record<CancellationActorRole, string> = {
     customer: 'talebiniz üzerine iptal edildi.',
     seller: 'tasarımcı tarafından iptal edildi. Bu durum için üzgünüz.',
     admin: 'Hanuja tarafından iptal edildi.',
-    system: 'tasarımcı sevk süresini aştığı için otomatik olarak iptal edildi. Bu durum için üzgünüz.',
-    payment_failure: 'ödeme alınamadığı için iptal edildi. Dilerseniz yeni bir sipariş oluşturabilirsiniz.',
+    system:
+      'tasarımcı sevk süresini aştığı için otomatik olarak iptal edildi. Bu durum için üzgünüz.',
+    payment_failure:
+      'ödeme alınamadığı için iptal edildi. Dilerseniz yeni bir sipariş oluşturabilirsiniz.',
   }
   const scope = params.partial ? 'aşağıdaki ürün/adetler' : 'sipariş'
   // Cancelled before the transfer was confirmed: nothing to refund. A customer
@@ -108,7 +112,9 @@ export function deliveryConfirmedTemplate(
   params: CustomerDeliveryConfirmedEmailInput,
 ): EmailTemplate {
   const orderUrl = orderUrlOf(params)
-  const title = params.partial ? 'Siparişinizin Bir Kısmı Teslim Edildi' : 'Siparişiniz Teslim Edilmiştir'
+  const title = params.partial
+    ? 'Siparişinizin Bir Kısmı Teslim Edildi'
+    : 'Siparişiniz Teslim Edilmiştir'
   const lead = params.partial
     ? `<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişinizdeki aşağıdaki ürünlerin teslimatı onaylandı. Kalan ürünler için ayrıca bilgilendirileceksiniz.`
     : `<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişinizin teslimatı onaylandı. Ürünlerinizi beğenerek kullanmanızı dileriz.`
@@ -129,31 +135,31 @@ export function deliveryConfirmedTemplate(
   }
 }
 
-/** "İade Talebiniz Kabul Edildi — Ürünü Kargoya Verin" — seller supplied the return cargo details. */
+/** Cargo instructions are ready; receipt acceptance and payment confirmation follow separately. */
 export function returnCargoInfoReadyTemplate(
   params: CustomerReturnCargoInfoEmailInput,
 ): EmailTemplate {
   const orderUrl = orderUrlOf(params)
-  const title = 'İade Talebiniz Kabul Edildi'
+  const title = 'İade Kargo Talimatınız Hazır'
   const items = params.items ?? []
   const body = `
     ${heading(title)}
     ${greeting(params.customerName)}
-    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz için iade talebiniz kabul edildi. Tasarımcı, ürünü göndereceğiniz iade bilgilerini iletti.`)}
+    ${paragraph(`<strong>#${escapeHtml(params.orderNumber)}</strong> numaralı siparişiniz için Hanuja iade kargo bilgilerinizi hazırladı.`)}
     ${renderInfoBox([
       ['İade Adresi', params.cargoAddress ?? null],
       ['Kargo Firması', params.cargoCarrier ?? null],
       ['Talimat', params.cargoInstructions ?? null],
     ])}
     ${items.length ? renderLineItemsTable(items, { quantityLabel: 'İade Adedi', hideAmounts: true }) : ''}
-    ${paragraph('Ürünü orijinal ambalajı ve aksesuarlarıyla birlikte belirtilen adrese gönderin; ardından sipariş sayfasından kargo takip numaranızı girin. Ürün tasarımcıya ulaşıp kontrol edildiğinde iade kararı ve geri ödeme bilgisi size e-posta ile iletilecektir.', 'margin:0 0 24px;font-size:14px;color:#555;')}
+    ${paragraph('Ürünü Hanuja tarafından sağlanan talimatlarla kargo ücreti ödemeden, orijinal ambalajı ve aksesuarlarıyla birlikte belirtilen adrese gönderin; ardından sipariş sayfasından kargo takip numaranızı girin. İade ürününüz ulaşıp kontrol edildiğinde iade kararı ve geri ödeme bilgisi size e-posta ile iletilecektir.', 'margin:0 0 24px;font-size:14px;color:#555;')}
     ${renderCta('Kargo Bilgisi Gir', orderUrl)}
   `
 
   return {
     subject: `${title} — Ürünü Kargoya Verin — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} için iade talebiniz kabul edildi.${params.cargoAddress ? `\nİade adresi: ${params.cargoAddress}` : ''}${params.cargoCarrier ? `\nKargo firması: ${params.cargoCarrier}` : ''}${params.cargoInstructions ? `\nTalimat: ${params.cargoInstructions}` : ''}${items.length ? `\n${renderLineItemsText(items, { quantityLabel: 'İade Adedi', hideAmounts: true })}` : ''}\nÜrünü gönderdikten sonra sipariş sayfasından kargo takip numaranızı girin.${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
+    text: `Merhaba ${params.customerName}, #${params.orderNumber} için Hanuja iade kargo bilgilerinizi hazırladı.${params.cargoAddress ? `\nİade adresi: ${params.cargoAddress}` : ''}${params.cargoCarrier ? `\nKargo firması: ${params.cargoCarrier}` : ''}${params.cargoInstructions ? `\nTalimat: ${params.cargoInstructions}` : ''}${items.length ? `\n${renderLineItemsText(items, { quantityLabel: 'İade Adedi', hideAmounts: true })}` : ''}\nHanuja üzerinden sağlanan talimatlarla kargo ücreti ödemeden gönderin. Ürünü gönderdikten sonra sipariş sayfasından kargo takip numaranızı girin.${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
   }
 }
 

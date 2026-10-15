@@ -3,8 +3,8 @@
  *
  * Satıcı faturayı ürünü kargoya verirken Hanuja'ya keser. Kargo girişi bu yüzden
  * engellenmez; fatura kargo girişinden bir saat sonra hâlâ yoksa satıcıya tek seferlik
- * hatırlatma e-postası gider (ceza yok). Bir saatlik pay, faturanın e-postayla birkaç
- * dakika geç düşmesinin gereksiz uyarı üretmemesi içindir. Hatırlatma sipariş/satıcı
+ * hatırlatma e-postası gider (ceza yok). Bir saatlik pay, faturanın panelden birkaç
+ * dakika sonra yüklenmesinin gereksiz uyarı üretmemesi içindir. Hatırlatma sipariş/satıcı
  * başına bir kez yazılır: outbox `(userId, type, eventKey)` tekilliği tekrarları yutar.
  */
 import type { PrismaClient } from '@prisma/client'
@@ -50,7 +50,12 @@ export async function sweepSellerInvoiceReminders(params: { prisma: PrismaClient
     candidates += shipments.length
 
     const invoices = await prisma.orderSellerInvoice.findMany({
-      where: { OR: shipments.map((shipment) => ({ orderId: shipment.orderId, sellerId: shipment.sellerId })) },
+      where: {
+        OR: shipments.map((shipment) => ({
+          orderId: shipment.orderId,
+          sellerId: shipment.sellerId,
+        })),
+      },
       select: { orderId: true, sellerId: true },
     })
     const invoiced = new Set(invoices.map((invoice) => `${invoice.orderId}:${invoice.sellerId}`))

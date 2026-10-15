@@ -9,7 +9,7 @@ import { recordNotification } from './notification-outbox.service'
 import { adminPanelLink, recordAdminOperationNotification } from './admin-notification.service'
 import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
-import { formatMoney } from '@hanuja/security/money'
+import { formatEmailMoney as formatMoney } from '../lib/email-money'
 import { resolveEmailImageUrl } from '../lib/email-line-items'
 import { closeFullyCancelledSellerFulfillment, releaseLineQuantity } from './order-line-release'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
@@ -60,6 +60,36 @@ const ADMIN_CANCELLATION_ACTOR_LABELS: Record<'customer' | 'seller' | 'admin', s
 export function createQuantityCancellationService({ prisma }: { prisma: PrismaClient }) {
   const refunds = createQuantityRefundService({ prisma })
 
+  function refundInput(
+    operation: Prisma.OrderCancellationGetPayload<{
+      include: { items: { include: { orderLine: true } } }
+    }>,
+  ) {
+    return {
+      orderId: operation.orderId,
+      sellerId: operation.sellerId,
+      sourceType: 'cancellation' as const,
+      sourceId: operation.id,
+      customerAmount: operation.customerRefundAmount,
+      grossProductAmount: operation.grossProductAmount,
+      couponAdjustmentAmount: operation.couponAdjustmentAmount,
+      sellerAdjustmentAmount: operation.sellerAdjustmentAmount,
+      commissionAdjustmentAmount: operation.commissionAdjustmentAmount,
+      platformFundedAmount: Decimal.max(
+        new Decimal(0),
+        operation.customerRefundAmount
+          .sub(operation.sellerAdjustmentAmount)
+          .sub(operation.commissionAdjustmentAmount),
+      ),
+      items: operation.items.map((item) => ({
+        orderLineId: item.orderLineId,
+        quantity: item.quantity,
+        amount: item.customerRefundAmount,
+      })),
+      shippingAmount: operation.shippingRefundAmount,
+    }
+  }
+
   async function create(params: {
     orderId: string
     customerId: string
@@ -109,31 +139,7 @@ export function createQuantityCancellationService({ prisma }: { prisma: PrismaCl
 
     const queued: Array<Awaited<ReturnType<typeof refunds.queue>>> = []
     for (const operation of operations) {
-      queued.push(
-        await refunds.queue({
-          orderId: params.orderId,
-          sellerId: operation.sellerId,
-          sourceType: 'cancellation',
-          sourceId: operation.id,
-          customerAmount: operation.customerRefundAmount,
-          grossProductAmount: operation.grossProductAmount,
-          couponAdjustmentAmount: operation.couponAdjustmentAmount,
-          sellerAdjustmentAmount: operation.sellerAdjustmentAmount,
-          commissionAdjustmentAmount: operation.commissionAdjustmentAmount,
-          platformFundedAmount: Decimal.max(
-            new Decimal(0),
-            operation.customerRefundAmount
-              .sub(operation.sellerAdjustmentAmount)
-              .sub(operation.commissionAdjustmentAmount),
-          ),
-          items: operation.items.map((item) => ({
-            orderLineId: item.orderLineId,
-            quantity: item.quantity,
-            amount: item.customerRefundAmount,
-          })),
-          shippingAmount: operation.shippingRefundAmount,
-        }),
-      )
+      queued.push(await refunds.queue(refundInput(operation)))
     }
 
     return operations.map((operation, index) => ({
@@ -156,7 +162,7 @@ export function createQuantityCancellationService({ prisma }: { prisma: PrismaCl
       customer: { email: string | null; name: string | null }
       address: { fullName: string | null } | null
       payments: Array<{ method: 'card' | 'eft' }>
-      lines: Array<{ id: string; productId: string; quantity: number }>
+      lines: Array<{ id: string; productId: string; quantity: number; cancelledQuantity?: number }>
     },
     operations: Array<{
       id: string
@@ -230,7 +236,11 @@ export function createQuantityCancellationService({ prisma }: { prisma: PrismaCl
       (sum, operation) => sum + operation.items.reduce((inner, item) => inner + item.quantity, 0),
       0,
     )
-    const partial = cancelledNow < totalOrderedQuantity
+    const previouslyCancelled = order.lines.reduce(
+      (sum, line) => sum + (line.cancelledQuantity ?? 0),
+      0,
+    )
+    const partial = previouslyCancelled + cancelledNow < totalOrderedQuantity
     const paymentMethod = order.payments[0]?.method ?? 'card'
 
     for (const operation of operations) {
@@ -275,7 +285,7 @@ export function createQuantityCancellationService({ prisma }: { prisma: PrismaCl
       const seller = sellerById.get(operation.sellerId)
       // A seller rejecting their own lines already knows; only mail sellers when
       // someone else cancelled. An unpaid order was never visible to the seller.
-      if (seller && context.actorRole !== 'seller' && paymentCollected) {
+      if (seller && paymentCollected) {
         // Seller-bound data must never carry the customer's refund amount
         // (rule: seller finance visibility is limited to its own ledger; see
         // .claude/rules/09-seller-panel-rules.md "Finance Summary Rules").
@@ -609,6 +619,12 @@ export function createQuantityCancellationService({ prisma }: { prisma: PrismaCl
         },
         reason: params.audit.reason,
       })
+    }
+
+    // The refund and its financial effects commit with cancellation, stock and notifications.
+    // Post-commit queue calls above only repair dispatch and payout scheduling on safe retries.
+    if (paymentCollected) {
+      for (const operation of created) await refunds.queue(refundInput(operation), tx)
     }
 
     await recordCancellationNotifications(tx, order, created, {

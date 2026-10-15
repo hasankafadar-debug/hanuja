@@ -40,12 +40,37 @@ function getR2Config() {
   const accessKeyId = requireEnv('R2_ACCESS_KEY_ID')
   const secretAccessKey = requireEnv('R2_SECRET_ACCESS_KEY')
   const bucketName = requireEnv('R2_BUCKET_NAME')
-  const endpointHost = `${accountId}.r2.cloudflarestorage.com`
-  const endpoint = `https://${endpointHost}`
+  let endpointHost = `${accountId}.r2.cloudflarestorage.com`
+  let endpoint = `https://${endpointHost}`
+  // Local acceptance tests use an actual S3-compatible store, never production R2.
+  if (process.env.R2_LOCAL_ENDPOINT) {
+    const local = new URL(process.env.R2_LOCAL_ENDPOINT)
+    if (
+      process.env.NODE_ENV === 'production' ||
+      !['localhost', '127.0.0.1', '[::1]'].includes(local.hostname) ||
+      !['http:', 'https:'].includes(local.protocol)
+    ) {
+      throw new DomainError(
+        'Local media endpoint is restricted to non-production loopback.',
+        'MEDIA_CONFIG_INVALID',
+        503,
+      )
+    }
+    endpoint = local.origin
+    endpointHost = local.host
+  }
   const cdnUrl =
     process.env.R2_CDN_URL ?? process.env.R2_PUBLIC_URL ?? `https://${bucketName}.${endpointHost}`
 
-  return { accountId, accessKeyId, secretAccessKey, bucketName, endpoint, endpointHost, cdnUrl }
+  return {
+    accountId,
+    accessKeyId,
+    secretAccessKey,
+    bucketName,
+    endpoint,
+    endpointHost,
+    cdnUrl,
+  }
 }
 
 export function getSanitizedR2DebugContext() {
@@ -70,6 +95,7 @@ export function createR2Client(purpose: 'server' | 'browser-presign' = 'server')
   return new S3Client({
     region: 'auto',
     endpoint,
+    ...(process.env.R2_LOCAL_ENDPOINT ? { forcePathStyle: true } : {}),
     credentials: {
       accessKeyId,
       secretAccessKey,
@@ -518,14 +544,22 @@ export async function readObject(
  * Read an inclusive byte range of an object (e.g. a file header for signature checks)
  * without downloading the whole file.
  */
-export async function readObjectRange(key: string, start: number, end: number): Promise<Uint8Array> {
+export async function readObjectRange(
+  key: string,
+  start: number,
+  end: number,
+): Promise<Uint8Array> {
   if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) {
     throw new Error('Gecersiz bayt araligi.')
   }
   const { bucketName } = getR2Config()
   const r2 = createR2Client()
   const response = await r2.send(
-    new GetObjectCommand({ Bucket: bucketName, Key: key, Range: `bytes=${start}-${end}` }),
+    new GetObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      Range: `bytes=${start}-${end}`,
+    }),
   )
   if (!response.Body) throw new Error('Dosya icerigi okunamadi.')
   return readObjectBodyWithinLimit(response.Body as ReadableObjectBody, end - start + 1)

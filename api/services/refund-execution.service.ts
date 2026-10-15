@@ -1,4 +1,4 @@
-import { isPendingReturnInspection } from '../domain/communication-audience'
+import { updateReturnRefundState } from './return-refund-state.service'
 import type { PrismaClient } from '@prisma/client'
 import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
 import {
@@ -9,9 +9,10 @@ import {
 import { enqueueCustomerRefundCompletedNotification } from './refund-notification.service'
 import { LEGACY_FINANCIAL_REVIEW_PREFIX } from '../domain/legacy-refund-allocation'
 
-type ProcessorFactory = ReturnType<typeof createRefundProcessor> extends infer T
-  ? (provider: import('@prisma/client').PaymentProvider) => T
-  : never
+type ProcessorFactory =
+  ReturnType<typeof createRefundProcessor> extends infer T
+    ? (provider: import('@prisma/client').PaymentProvider) => T
+    : never
 
 export function createRefundExecutionService({
   prisma,
@@ -76,17 +77,7 @@ export function createRefundExecutionService({
             })
           }
         } else if (refund.sourceType === 'return_request') {
-          const closedReturn = await tx.returnRequest.update({
-            where: { id: refund.sourceId },
-            data: {
-              status: 'refund_completed',
-              refundedAt: new Date(),
-              refundAmount: refund.customerAmount,
-            },
-          })
-          if (closedReturn && isPendingReturnInspection(closedReturn)) {
-            await tx.returnRequest.update({ where: { id: refund.sourceId }, data: { status: 'under_review', refundedAt: null } })
-          }
+          await updateReturnRefundState(tx, refund)
 
           const order = await tx.order.findUniqueOrThrow({
             where: { id: refund.orderId },
@@ -108,13 +99,7 @@ export function createRefundExecutionService({
             })
           }
         } else if (refund.sourceType === 'dispute') {
-          await tx.returnRequest.updateMany({
-            where: { disputeId: refund.sourceId },
-            data: {
-              status: 'refund_completed',
-              refundedAt: new Date(),
-            },
-          })
+          await updateReturnRefundState(tx, refund)
         }
         if (refund.payment) {
           const payment = await tx.payment.findUniqueOrThrow({
@@ -136,7 +121,10 @@ export function createRefundExecutionService({
       return { updated, allCompleted }
     })
     if (result.allCompleted) {
-      await syncChangedPayoutSchedules(prisma, { orderId: result.updated.orderId, sellerId: result.updated.sellerId })
+      await syncChangedPayoutSchedules(prisma, {
+        orderId: result.updated.orderId,
+        sellerId: result.updated.sellerId,
+      })
       void enqueueCustomerRefundCompletedNotification(prisma, refundTransactionId).catch((error) =>
         console.error('[refund-execution] İade bildirimi kuyruğa eklenemedi:', error),
       )

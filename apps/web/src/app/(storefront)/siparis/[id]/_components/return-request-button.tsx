@@ -25,19 +25,26 @@ function getApiMessage(payload: unknown, fallback: string) {
   return fallback
 }
 
-export default function ReturnRequestButton({ orderId, lines, withdrawalAllowed = true }: ReturnRequestButtonProps) {
+export default function ReturnRequestButton({
+  orderId,
+  lines,
+  withdrawalAllowed = true,
+}: ReturnRequestButtonProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [claimType, setClaimType] = useState(withdrawalAllowed ? 'withdrawal' : 'defect')
   const [reason, setReason] = useState('')
   const [description, setDescription] = useState('')
+  const [evidenceReady, setEvidenceReady] = useState(true)
   const [evidenceAssetIds, setEvidenceAssetIds] = useState<string[]>([])
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const idempotencyKey = useRef<string>(crypto.randomUUID())
+  const submitting = useRef(false)
   const [isPending, startTransition] = useTransition()
 
   function submit() {
+    if (!evidenceReady || isPending || submitting.current) return
     const items = lines
       ?.map((line) => ({ orderLineId: line.id, quantity: quantities[line.id] ?? 0 }))
       .filter((item) => item.quantity > 0)
@@ -50,47 +57,59 @@ export default function ReturnRequestButton({ orderId, lines, withdrawalAllowed 
       return
     }
 
+    submitting.current = true
     startTransition(async () => {
-      const response = await csrfFetch('/api/returns', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(lines ? { 'Idempotency-Key': idempotencyKey.current } : {}),
-        },
-        body: JSON.stringify({
-          orderId,
-          reason: reason.trim() || undefined,
-          claimType,
-          description: description.trim() || undefined,
-          evidenceAssetIds: evidenceAssetIds.length ? evidenceAssetIds : undefined,
-          ...(lines ? { items } : {}),
-        }),
-      })
-      const payload = await response.json().catch(() => null)
+      try {
+        const response = await csrfFetch('/api/returns', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(lines ? { 'Idempotency-Key': idempotencyKey.current } : {}),
+          },
+          body: JSON.stringify({
+            orderId,
+            reason: reason.trim() || undefined,
+            claimType,
+            description: description.trim() || undefined,
+            evidenceAssetIds: evidenceAssetIds.length ? evidenceAssetIds : undefined,
+            ...(lines ? { items } : {}),
+          }),
+        })
+        const payload = await response.json().catch(() => null)
 
-      if (!response.ok) {
+        if (!response.ok) {
+          toast({
+            title: 'İade talebi oluşturulamadı',
+            description: getApiMessage(payload, 'Lütfen tekrar deneyin.'),
+            variant: 'destructive',
+          })
+          return
+        }
+
+        idempotencyKey.current = crypto.randomUUID()
+        setQuantities({})
+        setReason('')
+        setDescription('')
+        setEvidenceAssetIds([])
+        setOpen(false)
         toast({
-          title: 'İade talebi oluşturulamadı',
-          description: getApiMessage(payload, 'Lütfen tekrar deneyin.'),
+          title: 'İade talebi alındı',
+          description: 'Hanuja müşteri hizmetleri iade kargo bilgilerini iletecektir.',
+          variant: 'success',
+        })
+        startTransition(() => {
+          router.refresh()
+        })
+      } catch {
+        toast({
+          title: 'Sonuç doğrulanamadı',
+          description:
+            'Sipariş durumunu kontrol edin; aynı taleple tekrar deneyebilirsiniz. Seçimleriniz ve görselleriniz korunur.',
           variant: 'destructive',
         })
-        return
+      } finally {
+        submitting.current = false
       }
-
-      idempotencyKey.current = crypto.randomUUID()
-      setQuantities({})
-      setReason('')
-      setDescription('')
-      setEvidenceAssetIds([])
-      setOpen(false)
-      toast({
-        title: 'İade talebi alındı',
-        description: 'Hanuja müşteri hizmetleri iade kargo bilgilerini iletecektir.',
-        variant: 'success',
-      })
-      startTransition(() => {
-        router.refresh()
-      })
     })
   }
 
@@ -110,7 +129,10 @@ export default function ReturnRequestButton({ orderId, lines, withdrawalAllowed 
           <p className="mb-2 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
             İade edilecek ürün ve adetler
           </p>
-          <div className="divide-y rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
+          <div
+            className="divide-y rounded-lg border"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
             {lines.map((line) => {
               const selected = (quantities[line.id] ?? 0) > 0
               return (
@@ -127,7 +149,10 @@ export default function ReturnRequestButton({ orderId, lines, withdrawalAllowed 
                     className="h-4 w-4 accent-[var(--color-accent)]"
                   />
                   <span className="min-w-0 flex-1 text-sm font-medium">{line.name}</span>
-                  <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                  <label
+                    className="flex items-center gap-2 text-xs"
+                    style={{ color: 'var(--color-muted-fg)' }}
+                  >
                     Adet
                     <input
                       type="number"
@@ -153,8 +178,14 @@ export default function ReturnRequestButton({ orderId, lines, withdrawalAllowed 
           </div>
         </div>
       ) : null}
-      <label className="block text-sm">Başvuru türü
-        <select value={claimType} onChange={(event) => setClaimType(event.target.value)} className="ml-2 rounded border p-2" disabled={isPending}>
+      <label className="block text-sm">
+        Başvuru türü
+        <select
+          value={claimType}
+          onChange={(event) => setClaimType(event.target.value)}
+          className="ml-2 rounded border p-2"
+          disabled={isPending}
+        >
           {withdrawalAllowed ? <option value="withdrawal">Cayma hakkı</option> : null}
           <option value="defect">Ayıplı / yanlış / hasarlı ürün</option>
           <option value="warranty">Garanti</option>
@@ -175,11 +206,12 @@ export default function ReturnRequestButton({ orderId, lines, withdrawalAllowed 
       />
       <ReturnPhotoPicker
         onChange={setEvidenceAssetIds}
+        onReadyChange={setEvidenceReady}
         disabled={isPending}
         label="Ürün görselleri (isteğe bağlı)"
       />
       <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={submit} disabled={isPending}>
+        <Button type="button" onClick={submit} disabled={isPending || !evidenceReady}>
           {isPending ? 'Gönderiliyor...' : 'Talebi Gönder'}
         </Button>
         <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>

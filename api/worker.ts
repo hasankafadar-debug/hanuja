@@ -7,12 +7,11 @@
  *
  * Workers managed here:
  *  - payout-maturity        — releases payout holds after 30-day countdown
- *  - delivery-silent-confirm — auto-confirms delivery after 72h without customer objection
  *  - search-index-sync      — syncs published products to Meilisearch
  *  - notification-dispatch  — sends in-app + email notifications
  *  - payout-batch           — prepares and executes scheduled payout batches
  *  - media-processing       — verifies R2 uploads post-confirmation
- *  - fulfillment-risk       — flags orders approaching 20-day fulfillment breach
+ *  - fulfillment-risk       — tracks per-product fulfillment deadlines without automatic cancellation or daily penalties
  *  - iban-activation        — activates approved seller bank changes after hold period
  *  - refund-processing      — executes item-level provider refunds
  */

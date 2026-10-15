@@ -33,9 +33,7 @@ export const OPS_RECIPIENT_ID = 'ops'
  * `OPS_RECIPIENT_ID` is never on its own a licence to skip the user/role checks:
  * the dispatcher refuses any other type.
  */
-export const ADMIN_OPERATION_TYPES: ReadonlySet<NotificationType> = new Set<
-  NotificationType
->([
+export const ADMIN_OPERATION_TYPES: ReadonlySet<NotificationType> = new Set<NotificationType>([
   'admin_order_cancellation',
   'admin_return_requested',
   'admin_dispute_opened',
@@ -52,12 +50,32 @@ export function isAdminOperationType(type: NotificationType) {
 
 // New business events are added here together with their templates in later phases.
 export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
-  seller_approved: { role: 'seller', category: 'noreply', required: ['email', 'panelUrl'], emailStages: ['activation_confirmed'] },
-  seller_documents_requested: { role: 'seller', category: 'noreply', required: ['email', 'panelUrl', 'requiredDocTypes'] },
-  seller_bank_detail_pending: { role: 'seller', category: 'noreply', required: ['sellerName', 'bankDetailId', 'ibanMasked'], emailStages: ['email_ready'] },
-  seller_bank_detail_approved: { role: 'seller', category: 'noreply', required: ['sellerName', 'bankDetailId', 'ibanMasked'], emailStages: ['email_ready'] },
+  seller_approved: {
+    role: 'seller',
+    category: 'noreply',
+    required: ['email', 'panelUrl'],
+    emailStages: ['activation_confirmed'],
+  },
+  seller_documents_requested: {
+    role: 'seller',
+    category: 'noreply',
+    required: ['email', 'panelUrl', 'requiredDocTypes'],
+  },
+  seller_bank_detail_pending: {
+    role: 'seller',
+    category: 'noreply',
+    required: ['sellerName', 'bankDetailId', 'ibanMasked'],
+    emailStages: ['email_ready'],
+  },
+  seller_bank_detail_approved: {
+    role: 'seller',
+    category: 'noreply',
+    required: ['sellerName', 'bankDetailId', 'ibanMasked'],
+    emailStages: ['email_ready'],
+  },
   customer_campaign: {
-    role: 'customer', category: 'kampanya',
+    role: 'customer',
+    category: 'kampanya',
     required: ['campaignId', 'recipientId', 'unsubscribeUrl'],
   },
   order_placed: {
@@ -94,7 +112,7 @@ export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
     role: 'customer',
     category: 'noreply',
     required: ['orderNumber', 'stage'],
-    emailStages: ['cargo_info_ready'],
+    emailStages: ['cargo_info_ready', 'under_review', 'final_approved', 'final_rejected'],
   },
   order_return_approved: {
     role: 'customer',
@@ -139,6 +157,26 @@ export const EMAIL_POLICIES: Partial<Record<NotificationType, EmailPolicy>> = {
     role: 'seller',
     category: 'noreply',
     required: ['orderNumber', 'sellerId', 'items'],
+  },
+  seller_return_shipped: {
+    role: 'seller',
+    category: 'noreply',
+    required: ['orderNumber', 'panelUrl'],
+  },
+  seller_return_decision: {
+    role: 'seller',
+    category: 'noreply',
+    required: ['orderNumber', 'panelUrl', 'decision'],
+  },
+  seller_return_invoice_uploaded: {
+    role: 'seller',
+    category: 'fatura',
+    required: ['orderNumber', 'panelUrl'],
+  },
+  seller_refund_completed: {
+    role: 'seller',
+    category: 'noreply',
+    required: ['orderNumber', 'panelUrl'],
   },
   refund_completed: {
     role: 'customer',
@@ -251,6 +289,15 @@ export function isEmailStage(
   type: NotificationType,
   data: Record<string, unknown> | undefined,
 ): boolean {
+  // These events are tracked in the admin panel only, including old queued ops copies.
+  if (type === 'admin_order_cancellation' || type === 'admin_return_requested') return false
+  if (
+    type === 'admin_dispute_opened' &&
+    (data?.source === 'return' ||
+      data?.returnRequestId ||
+      /iade/i.test(String(data?.sourceLabel ?? '')))
+  )
+    return false
   const policy = EMAIL_POLICIES[type]
   if (!policy?.emailStages) return true
   return policy.emailStages.includes(String(data?.['stage'] ?? ''))
@@ -273,7 +320,10 @@ export function validateEmailData(
     }
   }
   validateNotificationEmailLinks(type, data)
-  if (type === 'seller_documents_requested' && (!Array.isArray(data?.requiredDocTypes) || !data.requiredDocTypes.length))
+  if (
+    type === 'seller_documents_requested' &&
+    (!Array.isArray(data?.requiredDocTypes) || !data.requiredDocTypes.length)
+  )
     throw new Error('EMAIL_DATA_MISSING:requiredDocTypes')
   return policy
 }
@@ -281,8 +331,7 @@ export function validateEmailData(
 // Do not persist provider responses: they can contain recipients or credentials.
 export function notificationErrorCode(error: unknown): string {
   const message = error instanceof Error ? error.message : ''
-  if (/^(EMAIL_|SMTP_CONFIG_|SMTP_PORT_)/.test(message))
-    return message.slice(0, 200)
+  if (/^(EMAIL_|SMTP_CONFIG_|SMTP_PORT_)/.test(message)) return message.slice(0, 200)
   const code = (error as { code?: string; responseCode?: number } | null)?.code
   const response = (error as { responseCode?: number } | null)?.responseCode
   return `SEND_FAILED${code && /^[A-Z_]+$/.test(code) ? `:${code}` : ''}${response ? `:${response}` : ''}`

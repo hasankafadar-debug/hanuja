@@ -99,9 +99,7 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
       userId,
       type: 'order_shipped',
       title: 'Siparişiniz Kargoya Verildi',
-      body: trackingNumber
-        ? `Takip numaranız: ${trackingNumber}`
-        : 'Siparişiniz kargoya verildi.',
+      body: trackingNumber ? `Takip numaranız: ${trackingNumber}` : 'Siparişiniz kargoya verildi.',
       data: { orderId, trackingNumber },
     })
   }
@@ -136,11 +134,7 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     })
   }
 
-  async function notifySellerPenaltyApplied(
-    sellerUserId: string,
-    orderId: string,
-    amount: string,
-  ) {
+  async function notifySellerPenaltyApplied(sellerUserId: string, orderId: string, amount: string) {
     return send({
       userId: sellerUserId,
       type: 'seller_penalty_applied',
@@ -159,6 +153,7 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     return send({
       userId: sellerUserId,
       type: 'fulfillment_warning_5days',
+      eventKey: `fulfillment-warning:${orderId}:${sellerUserId}`,
       title: 'Sevk suresi yaklasiyor',
       body: `${orderNumber} numarali siparis icin ${daysRemaining} gun kaldi.`,
       data: { orderId, orderNumber, daysRemaining },
@@ -212,10 +207,7 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     )
   }
 
-  async function notifyAdminsCustomerSupportReply(
-    ticketId: string,
-    orderPublicNumber: number,
-  ) {
+  async function notifyAdminsCustomerSupportReply(ticketId: string, orderPublicNumber: number) {
     const admins = await prisma.user.findMany({
       where: { role: 'admin' },
       select: { id: true },
@@ -233,11 +225,7 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     )
   }
 
-  async function notifyCustomerSupportReply(
-    customerId: string,
-    ticketId: string,
-    subject: string,
-  ) {
+  async function notifyCustomerSupportReply(customerId: string, ticketId: string, subject: string) {
     return send({
       userId: customerId,
       type: 'customer_support_reply',
@@ -247,10 +235,7 @@ export function createNotificationService({ prisma }: NotificationServiceDeps) {
     })
   }
 
-  async function notifyCustomerSupportResolved(
-    customerId: string,
-    ticketId: string,
-  ) {
+  async function notifyCustomerSupportResolved(customerId: string, ticketId: string) {
     return send({
       userId: customerId,
       type: 'customer_support_resolved_notify',

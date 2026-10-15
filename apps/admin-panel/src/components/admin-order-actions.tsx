@@ -1,6 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import {
+  AdminOrderCancellationDialog,
+  type CancellableOrderItem,
+} from './admin-order-cancellation-dialog'
 import { useRouter } from 'next/navigation'
 import {
   Button,
@@ -22,6 +26,7 @@ interface AdminOrderActionsProps {
   hasEftPendingPayment: boolean
   hasBlockablePayout: boolean
   canCancel: boolean
+  cancellationItems?: CancellableOrderItem[]
   /** Paid order: cancelling starts a customer refund. Unpaid: only stock returns. */
   cancelRefundsCustomer?: boolean
   manualPenalty?: {
@@ -37,13 +42,16 @@ export function AdminOrderActions({
   hasEftPendingPayment,
   hasBlockablePayout,
   canCancel,
+  cancellationItems,
   cancelRefundsCustomer = false,
   manualPenalty,
 }: AdminOrderActionsProps) {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
   const [isPenaltyOpen, setIsPenaltyOpen] = useState(false)
-  const [penaltyReason, setPenaltyReason] = useState('Tasarımcı yükümlülüğünü yerine getirmediği için manuel ceza uygulandı.')
+  const [penaltyReason, setPenaltyReason] = useState(
+    'Tasarımcı yükümlülüğünü yerine getirmediği için manuel ceza uygulandı.',
+  )
   const [penaltyAmount, setPenaltyAmount] = useState(manualPenalty?.defaultAmount ?? '')
 
   async function doAction(
@@ -161,7 +169,14 @@ export function AdminOrderActions({
           </Button>
         )}
 
-        {canCancel && (
+        {canCancel && cancellationItems && (
+          <AdminOrderCancellationDialog
+            orderId={orderId}
+            items={cancellationItems}
+            paymentCollected={cancelRefundsCustomer}
+          />
+        )}
+        {canCancel && !cancellationItems && (
           <Button
             size="sm"
             variant="destructive"
@@ -181,11 +196,15 @@ export function AdminOrderActions({
           </Button>
         )}
 
-        {!canConfirmDelivery && !hasEftPendingPayment && !hasBlockablePayout && !canCancel && !manualPenalty && (
-          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-            Bu sipariş için şu anda uygulanabilir admin işlemi yok.
-          </p>
-        )}
+        {!canConfirmDelivery &&
+          !hasEftPendingPayment &&
+          !hasBlockablePayout &&
+          !canCancel &&
+          !manualPenalty && (
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Bu sipariş için şu anda uygulanabilir admin işlemi yok.
+            </p>
+          )}
       </div>
 
       <Dialog open={isPenaltyOpen} onOpenChange={setIsPenaltyOpen}>
@@ -193,12 +212,16 @@ export function AdminOrderActions({
           <DialogHeader>
             <DialogTitle>Manuel Ceza Uygula</DialogTitle>
             <DialogDescription>
-              Varsayılan tutar sipariş satır toplamının %20&apos;sidir. Gerekirse tutarı override edebilirsiniz.
+              Varsayılan tutar sipariş satır toplamının %20&apos;sidir. Gerekirse tutarı override
+              edebilirsiniz.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="rounded-lg border p-3 text-sm" style={{ borderColor: 'var(--color-border)' }}>
+            <div
+              className="rounded-lg border p-3 text-sm"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
               <strong>{manualPenalty?.sellerName}</strong>
             </div>
 

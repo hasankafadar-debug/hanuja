@@ -5,8 +5,8 @@ const { enqueueNotificationMock } = vi.hoisted(() => ({
   enqueueNotificationMock: vi.fn(),
 }))
 
-vi.mock('../../../api/jobs/notification-dispatch.job', () => ({
-  enqueueNotification: enqueueNotificationMock,
+vi.mock('../../../api/services/notification-outbox.service', () => ({
+  recordNotification: (_tx: unknown, payload: unknown) => enqueueNotificationMock(payload),
 }))
 
 import { enqueueCustomerRefundCompletedNotification } from '../../../api/services/refund-notification.service'
@@ -69,10 +69,13 @@ describe('refund completion notifications', () => {
   })
 
   it.each(['cancellation', 'return_request', 'dispute'] as const)(
-    'enqueues only the customer notification for a %s refund',
+    'records the customer and designer notifications for a %s refund',
     async (sourceType) => {
       const refund = buildRefund(sourceType)
-      const sellerFindUnique = vi.fn()
+      const sellerFindUnique = vi.fn().mockResolvedValue({
+        userId: 'seller-user-a',
+        user: { email: 'designer@example.test' },
+      })
       const prisma = {
         refundTransaction: {
           findUnique: vi.fn().mockResolvedValue(refund),
@@ -82,7 +85,7 @@ describe('refund completion notifications', () => {
 
       await enqueueCustomerRefundCompletedNotification(prisma as never, refund.id)
 
-      expect(enqueueNotificationMock).toHaveBeenCalledTimes(1)
+      expect(enqueueNotificationMock).toHaveBeenCalledTimes(2)
       expect(enqueueNotificationMock).toHaveBeenCalledWith(
         expect.objectContaining({
           eventKey: 'refund:refund-1:customer:completed',
@@ -91,15 +94,27 @@ describe('refund completion notifications', () => {
           type: 'refund_completed',
           data: expect.objectContaining({
             items: expect.arrayContaining([
-              expect.objectContaining({ productName: 'Gea Berjer', quantity: 2 }),
-              expect.objectContaining({ productName: 'Meşe Sehpa', quantity: 1 }),
+              expect.objectContaining({
+                productName: 'Gea Berjer',
+                quantity: 2,
+              }),
+              expect.objectContaining({
+                productName: 'Meşe Sehpa',
+                quantity: 1,
+              }),
               expect.objectContaining({ productName: 'Kargo', quantity: 1 }),
             ]),
           }),
         }),
       )
-      expect(sellerFindUnique).not.toHaveBeenCalled()
+      expect(sellerFindUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'seller-a' } }),
+      )
 
+      const sellerPayload = enqueueNotificationMock.mock.calls[1]?.[0]
+      expect(sellerPayload.type).toBe('seller_refund_completed')
+      expect(sellerPayload.data.refundAmount).toBeUndefined()
+      expect(sellerPayload.data.customerName).toBeUndefined()
       const customerPayload = enqueueNotificationMock.mock.calls[0]?.[0]
       expect(customerPayload.data.items).toHaveLength(3)
       expect(customerPayload.data.items.every((item: object) => !('sellerId' in item))).toBe(true)

@@ -11,9 +11,8 @@
  * `customer.email` (never selected) and `customer.name` (masked via
  * `maskCustomerName`). See `.claude/rules/12-production-readiness.md` §8.
  *
- * Until full email aliasing infra (separate epic) lands, the no-email
- * select is the minimum boundary that prevents direct customer email
- * exposure.
+ * Designers receive fulfilment data and communicate with Hanuja; customer
+ * account e-mail is never part of the designer projection.
  *
  * 05-security-rules.md, 09-seller-panel-rules.md
  */
@@ -27,7 +26,7 @@ function makePrismaSpy() {
   const calls: { method: string; args: Args }[] = []
   const recorder = (method: string) => async (args: Args) => {
     calls.push({ method, args })
-    return null
+    return method === 'order.findMany' ? [] : null
   }
   const prisma = {
     order: {
@@ -43,7 +42,8 @@ function makePrismaSpy() {
 }
 
 function customerSelect(args: Args): Record<string, unknown> | undefined {
-  const include = (args as { include?: { customer?: { select?: Record<string, unknown> } } }).include
+  const include = (args as { include?: { customer?: { select?: Record<string, unknown> } } })
+    .include
   return include?.customer?.select
 }
 

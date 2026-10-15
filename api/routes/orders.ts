@@ -133,7 +133,9 @@ export async function listSellerOrders(req: NextRequest, sellerId: string) {
     const orders = await svc.listForSellerQueue({
       sellerId,
       ...(query ? { query } : {}),
-      ...(tabParam && isSellerOrderTab(tabParam) ? { status: getSellerOrderStatusesForTab(tabParam) } : {}),
+      ...(tabParam && isSellerOrderTab(tabParam)
+        ? { status: getSellerOrderStatusesForTab(tabParam) }
+        : {}),
       ...(fromParam ? { from: new Date(`${fromParam}T00:00:00.000Z`) } : {}),
       ...(toParam ? { to: new Date(`${toParam}T23:59:59.999Z`) } : {}),
       skip,
@@ -157,11 +159,7 @@ export async function acceptOrderAsSeller(orderId: string, sellerId: string) {
 }
 
 // POST /api/seller/orders/:id/reject
-export async function rejectOrderAsSeller(
-  req: NextRequest,
-  orderId: string,
-  sellerId: string,
-) {
+export async function rejectOrderAsSeller(req: NextRequest, orderId: string, sellerId: string) {
   try {
     const body = await req.json()
     const { reason } = sellerRejectSchema.parse(body)
@@ -174,16 +172,29 @@ export async function rejectOrderAsSeller(
 }
 
 // POST /api/admin/orders/:id/cancel
-export async function cancelOrderAsAdmin(
-  req: NextRequest,
-  orderId: string,
-  adminActorId: string,
-) {
+export async function cancelOrderAsAdmin(req: NextRequest, orderId: string, adminActorId: string) {
   try {
     const body = await req.json()
-    const { reason } = z.object({ reason: z.string().min(5) }).parse(body)
+    const input = z
+      .object({
+        reason: z.string().min(5).max(1000),
+        idempotencyKey: z.string().uuid().optional(),
+        items: z
+          .array(
+            z.object({ orderLineId: z.string().min(1), quantity: z.number().int().positive() }),
+          )
+          .min(1)
+          .optional(),
+      })
+      .parse(body)
     const svc = getOrderService()
-    await svc.adminCancel({ orderId, adminActorId, reason })
+    await svc.adminCancel({
+      orderId,
+      adminActorId,
+      reason: input.reason,
+      ...(input.items ? { items: input.items } : {}),
+      ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
+    })
     return ok({ cancelled: true })
   } catch (err) {
     return handleError(err)

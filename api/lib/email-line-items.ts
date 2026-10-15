@@ -4,7 +4,7 @@
  * https product image URL). Keeps every notification producer consistent.
  */
 import type { Decimal } from '@prisma/client/runtime/client'
-import { formatMoney } from '@hanuja/security/money'
+import { formatEmailMoney as formatMoney } from './email-money'
 import type { EmailOrderLine } from './email-templates/types'
 import { buildManagedMediaShareUrl } from './media-url'
 import { getWebBaseUrl } from './platform-info'
@@ -38,7 +38,10 @@ function toNumber(value: Decimal | number | string): number {
  * relative or empty values yield null so the template renders an empty cell.
  */
 export function resolveEmailImageUrl(
-  images: ReadonlyArray<{ url: string; isPrimary?: boolean; sortOrder?: number }> | null | undefined,
+  images:
+    | ReadonlyArray<{ url: string; isPrimary?: boolean; sortOrder?: number }>
+    | null
+    | undefined,
 ): string | null {
   const sorted = [...(images ?? [])].sort(
     (a, b) =>

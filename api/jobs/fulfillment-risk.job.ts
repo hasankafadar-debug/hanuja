@@ -5,9 +5,7 @@
  * 2. Warning sweep: sellers with an approaching per-product fulfillment deadline
  *    (Product.fulfillmentDays → OrderLine.fulfillmentDueAt) get a one-time
  *    fulfillment_warning_5days notification (deduped per order).
- * 3. Breach sweep: overdue orders accrue the daily 1% late-shipment penalty
- *    (idempotent via lastAccrualAt) and are auto-cancelled with refund
- *    initiation once the accrual reaches overdue day 20.
+ * Overdue orders remain visible for admin action; no automatic monetary penalty or cancellation.
  *
  * See: .claude/rules/07-marketplace-finance-rules.md, docs/01-business/penalty-policy.md
  */
@@ -16,8 +14,6 @@ import { redis } from '../lib/redis'
 import { QUEUE_NAMES } from '../lib/queue'
 import { prisma } from '../lib/prisma'
 import { createFulfillmentRiskService } from '../services/fulfillment-risk.service'
-import { createPenaltyService } from '../services/penalty.service'
-import { createOrderService } from '../services/order.service'
 import { createNotificationService } from '../services/notification.service'
 import { sweepFulfillmentRiskNotifications } from '../services/fulfillment-risk-notification.service'
 
@@ -26,13 +22,10 @@ export interface FulfillmentRiskJobData {
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
-const AUTO_CANCEL_OVERDUE_DAYS = 20
 
 export async function processFulfillmentRisk(job: Job<FulfillmentRiskJobData>) {
   const asOf = new Date()
   const riskSvc = createFulfillmentRiskService({ prisma })
-  const penaltySvc = createPenaltyService({ prisma })
-  const orderSvc = createOrderService({ prisma })
   const notificationSvc = createNotificationService({ prisma })
 
   const result = await riskSvc.refreshActiveRisks(asOf)
@@ -73,63 +66,16 @@ export async function processFulfillmentRisk(job: Job<FulfillmentRiskJobData>) {
     warned += 1
   }
 
-  // ── Gecikme taraması: günlük %1 birikim + 20. gecikme gününde auto-cancel ──
-  const breachedRisks = await prisma.fulfillmentRisk.findMany({
-    where: { status: 'breached' },
-    include: {
-      order: {
-        select: {
-          id: true,
-          status: true,
-          lines: {
-            select: { sellerId: true },
-            take: 1,
-          },
-        },
-      },
-    },
-  })
-
-  let accrued = 0
-  let autoCancelled = 0
-
-  for (const risk of breachedRisks) {
-    const sellerId = risk.order.lines[0]?.sellerId
-    if (!sellerId) continue
-
-    const penalty = await penaltySvc.accrueDailyLateShipment({
-      orderId: risk.orderId,
-      asOf,
-    })
-    if (!penalty) continue
-
-    accrued += 1
-
-    if (
-      (penalty.accrualDayCount ?? 0) >= AUTO_CANCEL_OVERDUE_DAYS &&
-      risk.order.status !== 'cancelled_due_to_20day_breach'
-    ) {
-      await orderSvc.autoCancelForFulfillmentBreach({
-        orderId: risk.orderId,
-        sellerId,
-        asOf,
-      })
-      autoCancelled += 1
-    }
-  }
-
   // Operations mailbox: first risk and every level change, per order + seller.
   const opsNotifications = await sweepFulfillmentRiskNotifications(prisma, asOf)
 
   console.log(
-    `[fulfillment-risk] Breached: ${result.breached}, Warning: ${result.warning}, Resolved: ${result.resolved}, Warned: ${warned}, Accrued: ${accrued}, Auto-cancelled: ${autoCancelled}, Ops notified: ${opsNotifications.notified}`,
+    `[fulfillment-risk] Breached: ${result.breached}, Warning: ${result.warning}, Resolved: ${result.resolved}, Warned: ${warned}, Ops notified: ${opsNotifications.notified}`,
   )
 
   return {
     ...result,
     warned,
-    accrued,
-    autoCancelled,
     opsNotifications,
     warnAtDays: job.data.warnAtDays ?? null,
   }

@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   mark: vi.fn(),
   invoice: vi.fn(),
   sellerInvoice: vi.fn(),
+  returnInvoice: vi.fn(),
+  seller: vi.fn(),
   records: new Map<
     string,
     Record<string, unknown> & {
@@ -72,7 +74,12 @@ vi.mock('../../../api/lib/prisma', () => {
       marketingConsent: { findUnique: mocks.consent },
       announcement: { findUnique: mocks.announcement },
       orderCustomerInvoice: { findFirst: mocks.invoice },
-      orderSellerInvoice: { findFirst: mocks.sellerInvoice, findUnique: mocks.sellerInvoice },
+      orderSellerInvoice: {
+        findFirst: mocks.sellerInvoice,
+        findUnique: mocks.sellerInvoice,
+      },
+      sellerReturnInvoice: { findFirst: mocks.returnInvoice },
+      seller: { findFirst: mocks.seller },
       campaignEmailDispatch: { updateMany: vi.fn(async () => ({ count: 1 })) },
       notificationOutbox: { upsert: mocks.outbox },
       $transaction: async (fn: (tx: unknown) => unknown) => fn(tx),
@@ -86,7 +93,10 @@ import {
 } from '../../../api/jobs/notification-dispatch.job'
 import { getInvoiceRevision } from '../../../api/lib/invoice-management'
 
-const CURRENT_INVOICE_REVISION = getInvoiceRevision({ id: 'i1', fileKey: 'private/v1/current.bin' })
+const CURRENT_INVOICE_REVISION = getInvoiceRevision({
+  id: 'i1',
+  fileKey: 'private/v1/current.bin',
+})
 const CUSTOMER_INVOICE_EVENT = `customer-invoice:o1:${CURRENT_INVOICE_REVISION}`
 
 const job = (override: Record<string, unknown> = {}) =>
@@ -106,8 +116,7 @@ const job = (override: Record<string, unknown> = {}) =>
       ...override,
     },
   }) as never
-const emailRecord = () =>
-  [...mocks.records.values()].find((r) => r.channel === 'email')!
+const emailRecord = () => [...mocks.records.values()].find((r) => r.channel === 'email')!
 
 describe('durable notification delivery', () => {
   afterEach(() => vi.unstubAllEnvs())
@@ -118,7 +127,9 @@ describe('durable notification delivery', () => {
     vi.stubEnv('NEXT_PUBLIC_WEB_URL', 'https://www.hanuja.com.tr')
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://satici.hanuja.com.tr')
     mocks.invoice.mockReset().mockResolvedValue({
-      id: 'i1', fileKey: 'private/v1/current.bin', uploadedAt: new Date('2026-10-07T12:00:00Z'),
+      id: 'i1',
+      fileKey: 'private/v1/current.bin',
+      uploadedAt: new Date('2026-10-07T12:00:00Z'),
     })
     mocks.user.mockResolvedValue({
       id: 'u1',
@@ -165,18 +176,13 @@ describe('durable notification delivery', () => {
     mocks.updateMany.mockImplementation(async ({ where, data }) => {
       const record = [...mocks.records.values()].find((r) => r.id === where.id)
       if (!record) return { count: 0 }
-      if (where.status?.in && !where.status.in.includes(record.status))
-        return { count: 0 }
-      if (typeof where.status === 'string' && record.status !== where.status)
-        return { count: 0 }
-      if (where.leaseToken && record.leaseToken !== where.leaseToken)
-        return { count: 0 }
-      if (where.transportStatus?.not === record.transportStatus)
-        return { count: 0 }
+      if (where.status?.in && !where.status.in.includes(record.status)) return { count: 0 }
+      if (typeof where.status === 'string' && record.status !== where.status) return { count: 0 }
+      if (where.leaseToken && record.leaseToken !== where.leaseToken) return { count: 0 }
+      if (where.transportStatus?.not === record.transportStatus) return { count: 0 }
       const attempts = record.attemptCount
       Object.assign(record, data)
-      if (data.attemptCount?.increment)
-        record.attemptCount = attempts + data.attemptCount.increment
+      if (data.attemptCount?.increment) record.attemptCount = attempts + data.attemptCount.increment
       return { count: 1 }
     })
   })
@@ -207,18 +213,79 @@ describe('durable notification delivery', () => {
     expect(resolveNotificationType('bogus')).toBeNull()
   })
   it('reports unknown events and missing users instead of silently succeeding', async () => {
-    await expect(
-      processNotificationDispatch(job({ type: 'bogus' })),
-    ).rejects.toThrow('EMAIL_EVENT_UNKNOWN')
-    mocks.user.mockResolvedValue(null)
-    await expect(processNotificationDispatch(job())).rejects.toThrow(
-      'EMAIL_USER_MISSING',
+    await expect(processNotificationDispatch(job({ type: 'bogus' }))).rejects.toThrow(
+      'EMAIL_EVENT_UNKNOWN',
     )
+    mocks.user.mockResolvedValue(null)
+    await expect(processNotificationDispatch(job())).rejects.toThrow('EMAIL_USER_MISSING')
   })
-  it('still discards retired seller refund events', async () => {
-    await processNotificationDispatch(job({ type: 'seller_refund_completed' }))
+  it('sends the designer a refund result once, without customer private details', async () => {
+    mocks.user.mockResolvedValue({
+      id: 'u1',
+      email: 'seller@example.test',
+      role: 'seller',
+    })
+    const event = job({
+      type: 'seller_refund_completed',
+      eventKey: 'refund:r1:seller:completed',
+      data: {
+        orderNumber: '123',
+        orderId: 'o1',
+        panelUrl: 'https://satici.hanuja.com.tr/siparisler/o1',
+        customerName: 'PRIVATE CUSTOMER',
+        reason: 'PRIVATE REASON',
+      },
+    })
+    await processNotificationDispatch(event)
+    await processNotificationDispatch(event)
+    expect(mocks.send).toHaveBeenCalledTimes(1)
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'seller@example.test',
+        subject: 'Para İadesi Tamamlandı — #123',
+      }),
+    )
+    expect(mocks.send.mock.calls[0]![0].text).not.toContain('PRIVATE')
+  })
+  it('suppresses return invoice notices for replaced, removed or differently owned files', async () => {
+    mocks.user.mockResolvedValue({
+      id: 'u1',
+      email: 'seller@example.test',
+      role: 'seller',
+    })
+    const event = job({
+      type: 'seller_return_invoice_uploaded',
+      eventKey: `seller-return-invoice:i1:${CURRENT_INVOICE_REVISION}`,
+      data: {
+        orderNumber: '123',
+        orderId: 'o1',
+        returnRequestId: 'r1',
+        panelUrl: 'https://satici.hanuja.com.tr/iadeler/r1',
+      },
+    })
+    mocks.returnInvoice.mockResolvedValue({
+      id: 'i1',
+      fileKey: 'private/v1/replaced.bin',
+      sellerId: 's1',
+    })
+    mocks.seller.mockResolvedValue({ id: 's1' })
+    await processNotificationDispatch(event)
     expect(mocks.send).not.toHaveBeenCalled()
-    expect(mocks.create).not.toHaveBeenCalled()
+    expect(emailRecord().lastError).toBe('INVOICE_SUPERSEDED')
+    mocks.records.clear()
+    mocks.returnInvoice.mockResolvedValue(null)
+    await processNotificationDispatch(event)
+    expect(emailRecord().lastError).toBe('INVOICE_REMOVED_OR_UNAUTHORIZED')
+    mocks.records.clear()
+    mocks.returnInvoice.mockResolvedValue({
+      id: 'i1',
+      fileKey: 'private/v1/current.bin',
+      sellerId: 's1',
+    })
+    mocks.seller.mockResolvedValue(null)
+    await processNotificationDispatch(event)
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(emailRecord().lastError).toBe('INVOICE_REMOVED_OR_UNAUTHORIZED')
   })
   it('resolves recipient from user, selects invoice category, retains the secure invoice link', async () => {
     await processNotificationDispatch(job())
@@ -250,7 +317,9 @@ describe('durable notification delivery', () => {
     job({
       eventKey,
       data: {
-        orderId: 'o1', orderNumber: '123', customerName: 'Ayşe',
+        orderId: 'o1',
+        orderNumber: '123',
+        customerName: 'Ayşe',
         orderUrl: 'https://satici.hanuja.com.tr/siparis/o1',
         invoiceUrl: 'https://admin.hanuja.com.tr/api/orders/o1/documents/invoices/s1',
         ...data,
@@ -264,7 +333,9 @@ describe('durable notification delivery', () => {
       select: { id: true, fileKey: true },
     })
     const sent = mocks.send.mock.calls[0]![0]
-    expect(sent.html).toContain('https://www.hanuja.com.tr/api/orders/o1/documents/customer-invoice')
+    expect(sent.html).toContain(
+      'https://www.hanuja.com.tr/api/orders/o1/documents/customer-invoice',
+    )
     expect(sent.html).toContain('https://www.hanuja.com.tr/siparis/o1')
     expect(sent.html).not.toContain('/documents/invoices/')
     expect(sent.html).not.toContain('https://satici.hanuja.com.tr')
@@ -280,11 +351,19 @@ describe('durable notification delivery', () => {
     expect(mocks.send).not.toHaveBeenCalled()
     expect([...mocks.records.values()]).toHaveLength(2)
     for (const delivery of mocks.records.values())
-      expect(delivery).toMatchObject({ status: 'sent', transportStatus: 'skipped', lastError: 'INVOICE_REMOVED_OR_UNAUTHORIZED' })
+      expect(delivery).toMatchObject({
+        status: 'sent',
+        transportStatus: 'skipped',
+        lastError: 'INVOICE_REMOVED_OR_UNAUTHORIZED',
+      })
   })
 
   it('skips an older file revision without notifying the customer', async () => {
-    mocks.invoice.mockResolvedValue({ id: 'i1', fileKey: 'private/v1/replacement.bin', uploadedAt: new Date() })
+    mocks.invoice.mockResolvedValue({
+      id: 'i1',
+      fileKey: 'private/v1/replacement.bin',
+      uploadedAt: new Date(),
+    })
     await processNotificationDispatch(invoiceTask())
     expect(mocks.create).not.toHaveBeenCalled()
     expect(mocks.send).not.toHaveBeenCalled()
@@ -295,24 +374,40 @@ describe('durable notification delivery', () => {
     `invoice:o1:s1:${CURRENT_INVOICE_REVISION}`,
     `invoice:o1:s1:${new Date('2026-10-07T12:00:00Z').getTime()}`,
     'invoice:i1',
-  ])("never delivers a queued announcement of the seller's invoice to the customer (%s)", async (eventKey) => {
-    // Satıcı Hanuja modeli: the seller invoices Hanuja; such old outbox rows are skipped, not sent.
-    await processNotificationDispatch(invoiceTask({ sellerId: 's1' }, eventKey))
-    expect(mocks.send).not.toHaveBeenCalled()
-    expect(mocks.create).not.toHaveBeenCalled()
-    expect(mocks.invoice).not.toHaveBeenCalled()
-    expect(mocks.sellerInvoice).not.toHaveBeenCalled()
-    for (const delivery of mocks.records.values())
-      expect(delivery).toMatchObject({ status: 'sent', transportStatus: 'skipped', lastError: 'SELLER_INVOICE_NOT_CUSTOMER_FACING' })
-  })
+  ])(
+    "never delivers a queued announcement of the seller's invoice to the customer (%s)",
+    async (eventKey) => {
+      // Satıcı Hanuja modeli: the seller invoices Hanuja; such old outbox rows are skipped, not sent.
+      await processNotificationDispatch(invoiceTask({ sellerId: 's1' }, eventKey))
+      expect(mocks.send).not.toHaveBeenCalled()
+      expect(mocks.create).not.toHaveBeenCalled()
+      expect(mocks.invoice).not.toHaveBeenCalled()
+      expect(mocks.sellerInvoice).not.toHaveBeenCalled()
+      for (const delivery of mocks.records.values())
+        expect(delivery).toMatchObject({
+          status: 'sent',
+          transportStatus: 'skipped',
+          lastError: 'SELLER_INVOICE_NOT_CUSTOMER_FACING',
+        })
+    },
+  )
 
   it('rechecks the file immediately before SMTP when removal occurred during dispatch', async () => {
-    mocks.invoice.mockResolvedValueOnce({ id: 'i1', fileKey: 'private/v1/current.bin', uploadedAt: new Date() })
+    mocks.invoice
+      .mockResolvedValueOnce({
+        id: 'i1',
+        fileKey: 'private/v1/current.bin',
+        uploadedAt: new Date(),
+      })
       .mockResolvedValueOnce(null)
     await processNotificationDispatch(invoiceTask())
     expect(mocks.create).toHaveBeenCalledTimes(1)
     expect(mocks.send).not.toHaveBeenCalled()
-    expect(emailRecord()).toMatchObject({ status: 'sent', transportStatus: 'skipped', leaseToken: null })
+    expect(emailRecord()).toMatchObject({
+      status: 'sent',
+      transportStatus: 'skipped',
+      leaseToken: null,
+    })
   })
 
   it('does not overwrite an accepted or uncertain delivery after removal', async () => {
@@ -322,52 +417,124 @@ describe('durable notification delivery', () => {
     mocks.invoice.mockResolvedValue(null)
     await processNotificationDispatch(task)
     expect(emailRecord()).toEqual(accepted)
-    Object.assign(emailRecord(), { status: 'failed', transportStatus: 'uncertain', lastError: 'SMTP_OUTCOME_UNCERTAIN' })
+    Object.assign(emailRecord(), {
+      status: 'failed',
+      transportStatus: 'uncertain',
+      lastError: 'SMTP_OUTCOME_UNCERTAIN',
+    })
     await processNotificationDispatch(task)
-    expect(emailRecord()).toMatchObject({ status: 'failed', transportStatus: 'uncertain', lastError: 'SMTP_OUTCOME_UNCERTAIN' })
+    expect(emailRecord()).toMatchObject({
+      status: 'failed',
+      transportStatus: 'uncertain',
+      lastError: 'SMTP_OUTCOME_UNCERTAIN',
+    })
     expect(mocks.send).toHaveBeenCalledTimes(1)
   })
 
   it('builds invoice links from the event key and never trusts a producer-supplied host', async () => {
-    await processNotificationDispatch(job({ data: {
-      orderNumber: '123',
-      orderUrl: 'https://unrelated.example/siparis/o1?unsafe=1',
-      invoiceUrl: 'https://unrelated.example/api/orders/o1/documents/customer-invoice?unsafe=1',
-    } }))
+    await processNotificationDispatch(
+      job({
+        data: {
+          orderNumber: '123',
+          orderUrl: 'https://unrelated.example/siparis/o1?unsafe=1',
+          invoiceUrl: 'https://unrelated.example/api/orders/o1/documents/customer-invoice?unsafe=1',
+        },
+      }),
+    )
     const sent = mocks.send.mock.calls[0]![0]
     expect(sent.html).toContain('https://www.hanuja.com.tr/siparis/o1')
-    expect(sent.html).toContain('https://www.hanuja.com.tr/api/orders/o1/documents/customer-invoice')
+    expect(sent.html).toContain(
+      'https://www.hanuja.com.tr/api/orders/o1/documents/customer-invoice',
+    )
     expect(sent.html + sent.text).not.toContain('unrelated.example')
     expect(sent.html + sent.text).not.toContain('unsafe=1')
   })
-  it.each(['order_placed', 'order_payment_confirmed', 'order_shipped', 'order_delivery_confirmed', 'order_cancelled', 'return_requested', 'return_status_changed', 'order_return_approved', 'order_return_rejected', 'refund_completed'])('keeps %s HTML and text on the customer origin for an old queue payload', async (type) => {
-    await processNotificationDispatch(job({ type, eventKey: 'legacy:' + type, data: {
-      orderId: 'o1', orderNumber: '123', customerName: 'Ayşe',
-      orderUrl: 'https://admin.hanuja.com.tr/siparis/o1',
-      items: [{ productName: 'Test', quantity: 1, acceptedQuantity: 1, rejectedQuantity: 0 }],
-      actorRole: 'admin', decision: type === 'order_return_rejected' ? 'rejected' : 'approved',
-      stage: 'cargo_info_ready', refundAmount: '10 TL',
-    } }))
+  it.each([
+    'order_placed',
+    'order_payment_confirmed',
+    'order_shipped',
+    'order_delivery_confirmed',
+    'order_cancelled',
+    'return_requested',
+    'return_status_changed',
+    'order_return_approved',
+    'order_return_rejected',
+    'refund_completed',
+  ])('keeps %s HTML and text on the customer origin for an old queue payload', async (type) => {
+    await processNotificationDispatch(
+      job({
+        type,
+        eventKey: 'legacy:' + type,
+        data: {
+          orderId: 'o1',
+          orderNumber: '123',
+          customerName: 'Ayşe',
+          orderUrl: 'https://admin.hanuja.com.tr/siparis/o1',
+          items: [
+            {
+              productName: 'Test',
+              quantity: 1,
+              acceptedQuantity: 1,
+              rejectedQuantity: 0,
+            },
+          ],
+          actorRole: 'admin',
+          decision: type === 'order_return_rejected' ? 'rejected' : 'approved',
+          stage: 'cargo_info_ready',
+          refundAmount: '10 TL',
+        },
+      }),
+    )
     const sent = mocks.send.mock.calls[0]![0]
     expect(sent.html).toContain('https://www.hanuja.com.tr/siparis/o1')
     expect(sent.text).toContain('https://www.hanuja.com.tr/siparis/o1')
-    expect((emailRecord().payload as { data: { orderUrl: string } }).data.orderUrl).toBe('https://www.hanuja.com.tr/siparis/o1')
+    expect((emailRecord().payload as { data: { orderUrl: string } }).data.orderUrl).toBe(
+      'https://www.hanuja.com.tr/siparis/o1',
+    )
     expect(sent.html + sent.text).not.toContain('https://admin.hanuja.com.tr/siparis')
   })
   it('records an observable failure instead of sending a buttonless customer mail', async () => {
-    await expect(processNotificationDispatch(job({ type: 'order_payment_confirmed', data: {
-      orderNumber: '123', items: [{ productName: 'Test', quantity: 1 }],
-    } }))).rejects.toThrow('EMAIL_DATA_MISSING:orderId')
-    expect(emailRecord()).toMatchObject({ status: 'failed', lastError: 'EMAIL_DATA_MISSING:orderId' })
+    await expect(
+      processNotificationDispatch(
+        job({
+          type: 'order_payment_confirmed',
+          data: {
+            orderNumber: '123',
+            items: [{ productName: 'Test', quantity: 1 }],
+          },
+        }),
+      ),
+    ).rejects.toThrow('EMAIL_DATA_MISSING:orderId')
+    expect(emailRecord()).toMatchObject({
+      status: 'failed',
+      lastError: 'EMAIL_DATA_MISSING:orderId',
+    })
     expect(mocks.send).not.toHaveBeenCalled()
   })
-  it.each(['seller_approved', 'seller_documents_requested', 'seller_bank_detail_pending', 'seller_bank_detail_approved'])('delivers %s through the tracked pipeline and deduplicates retries', async (type) => {
-    mocks.user.mockResolvedValue({ id: 'u1', email: 'seller@example.test', role: 'seller' })
-    const task = job({ type, eventKey: 'operational:' + type, data: {
-      stage: type === 'seller_approved' ? 'activation_confirmed' : 'email_ready',
-      email: 'seller@example.test', sellerName: '<Store>', bankDetailId: 'b1', ibanMasked: 'TR**1234',
-      requiredDocTypes: ['Kimlik'], note: '<b>literal note</b>',
-    } })
+  it.each([
+    'seller_approved',
+    'seller_documents_requested',
+    'seller_bank_detail_pending',
+    'seller_bank_detail_approved',
+  ])('delivers %s through the tracked pipeline and deduplicates retries', async (type) => {
+    mocks.user.mockResolvedValue({
+      id: 'u1',
+      email: 'seller@example.test',
+      role: 'seller',
+    })
+    const task = job({
+      type,
+      eventKey: 'operational:' + type,
+      data: {
+        stage: type === 'seller_approved' ? 'activation_confirmed' : 'email_ready',
+        email: 'seller@example.test',
+        sellerName: '<Store>',
+        bankDetailId: 'b1',
+        ibanMasked: 'TR**1234',
+        requiredDocTypes: ['Kimlik'],
+        note: '<b>literal note</b>',
+      },
+    })
     await processNotificationDispatch(task)
     await processNotificationDispatch(task)
     expect(mocks.send).toHaveBeenCalledTimes(1)
@@ -379,34 +546,66 @@ describe('durable notification delivery', () => {
       expect(sent.text).toContain('https://satici.hanuja.com.tr/')
     }
   })
-  it.each(['seller_invoice_reminder', 'seller_invoice_rejected'])('delivers %s to the seller with a seller-panel order link', async (type) => {
-    mocks.user.mockResolvedValue({ id: 'u1', email: 'seller@example.test', role: 'seller' })
-    await processNotificationDispatch(job({ type, eventKey: `${type}:o1:s1`, data: {
-      orderId: 'o1', sellerId: 's1', sellerName: '<Atelier>', orderNumber: '26050042',
-      panelUrl: 'https://admin.hanuja.com.tr/siparisler/o1?unsafe=1',
-      reason: 'KDV oranı <b>yanlış</b>',
-    } }))
-    const sent = mocks.send.mock.calls[0]![0]
-    expect(sent.to).toBe('seller@example.test')
-    expect(sent.html).toContain('26050042')
-    expect(sent.html).toContain('https://satici.hanuja.com.tr/siparisler/o1')
-    expect(sent.text).toContain('https://satici.hanuja.com.tr/siparisler/o1')
-    expect(sent.html + sent.text).not.toContain('admin.hanuja.com.tr')
-    expect(sent.html + sent.text).not.toContain('unsafe=1')
-    expect(sent.html).not.toContain('<b>yanlış</b>')
-    if (type === 'seller_invoice_rejected') expect(sent.text).toContain('KDV oranı')
-    expect(emailRecord().status).toBe('sent')
-  })
+  it.each(['seller_invoice_reminder', 'seller_invoice_rejected'])(
+    'delivers %s to the seller with a seller-panel order link',
+    async (type) => {
+      mocks.user.mockResolvedValue({
+        id: 'u1',
+        email: 'seller@example.test',
+        role: 'seller',
+      })
+      await processNotificationDispatch(
+        job({
+          type,
+          eventKey: `${type}:o1:s1`,
+          data: {
+            orderId: 'o1',
+            sellerId: 's1',
+            sellerName: '<Atelier>',
+            orderNumber: '26050042',
+            panelUrl: 'https://admin.hanuja.com.tr/siparisler/o1?unsafe=1',
+            reason: 'KDV oranı <b>yanlış</b>',
+          },
+        }),
+      )
+      const sent = mocks.send.mock.calls[0]![0]
+      expect(sent.to).toBe('seller@example.test')
+      expect(sent.html).toContain('26050042')
+      expect(sent.html).toContain('https://satici.hanuja.com.tr/siparisler/o1')
+      expect(sent.text).toContain('https://satici.hanuja.com.tr/siparisler/o1')
+      expect(sent.html + sent.text).not.toContain('admin.hanuja.com.tr')
+      expect(sent.html + sent.text).not.toContain('unsafe=1')
+      expect(sent.html).not.toContain('<b>yanlış</b>')
+      if (type === 'seller_invoice_rejected') expect(sent.text).toContain('KDV oranı')
+      expect(emailRecord().status).toBe('sent')
+    },
+  )
   it('never sends a seller invoice reminder to a customer account', async () => {
-    await expect(processNotificationDispatch(job({
-      type: 'seller_invoice_reminder', eventKey: 'seller_invoice_reminder:o1:s1', emailTo: 'customer@example.test',
-      data: { orderId: 'o1', orderNumber: '26050042', panelUrl: 'https://satici.hanuja.com.tr/siparisler/o1' },
-    }))).rejects.toThrow('EMAIL_RECIPIENT_ROLE_MISMATCH')
+    await expect(
+      processNotificationDispatch(
+        job({
+          type: 'seller_invoice_reminder',
+          eventKey: 'seller_invoice_reminder:o1:s1',
+          emailTo: 'customer@example.test',
+          data: {
+            orderId: 'o1',
+            orderNumber: '26050042',
+            panelUrl: 'https://satici.hanuja.com.tr/siparisler/o1',
+          },
+        }),
+      ),
+    ).rejects.toThrow('EMAIL_RECIPIENT_ROLE_MISMATCH')
     expect(mocks.send).not.toHaveBeenCalled()
   })
   it('keeps old bank in-app-only events from unexpectedly becoming email', async () => {
-    mocks.user.mockResolvedValue({ id: 'u1', email: 'seller@example.test', role: 'seller' })
-    await processNotificationDispatch(job({ type: 'seller_bank_detail_pending', data: { bankDetailId: 'b1' } }))
+    mocks.user.mockResolvedValue({
+      id: 'u1',
+      email: 'seller@example.test',
+      role: 'seller',
+    })
+    await processNotificationDispatch(
+      job({ type: 'seller_bank_detail_pending', data: { bankDetailId: 'b1' } }),
+    )
     expect(mocks.send).not.toHaveBeenCalled()
   })
   it('retries a definite SMTP rejection without repeating the in-app notification', async () => {
@@ -433,9 +632,7 @@ describe('durable notification delivery', () => {
       }),
     )
     await expect(processNotificationDispatch(job())).rejects.toThrow()
-    await expect(processNotificationDispatch(job())).rejects.toThrow(
-      'EMAIL_OUTCOME_UNCERTAIN',
-    )
+    await expect(processNotificationDispatch(job())).rejects.toThrow('EMAIL_OUTCOME_UNCERTAIN')
     expect(emailRecord().transportStatus).toBe('uncertain')
     expect(mocks.send).toHaveBeenCalledTimes(1)
   })
@@ -446,9 +643,7 @@ describe('durable notification delivery', () => {
       leaseToken: 'old',
       leaseExpiresAt: new Date(0),
     })
-    await expect(processNotificationDispatch(job())).rejects.toThrow(
-      'EMAIL_DELIVERY_BUSY',
-    )
+    await expect(processNotificationDispatch(job())).rejects.toThrow('EMAIL_DELIVERY_BUSY')
     expect(emailRecord().transportStatus).toBe('uncertain')
     expect(mocks.send).toHaveBeenCalledTimes(1)
   })
@@ -508,9 +703,7 @@ describe('durable notification delivery', () => {
     expect(delivery.userId).toBeNull()
     expect(delivery.recipient).toBe('ops@hanuja.com.tr')
     expect(delivery.status).toBe('sent')
-    expect(mocks.send).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'ops@hanuja.com.tr' }),
-    )
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'ops@hanuja.com.tr' }))
   })
   it('refuses an ops row whose type is not a declared operation type', async () => {
     await expect(
@@ -574,8 +767,7 @@ describe('durable notification delivery', () => {
       data: {
         productName: 'Sehpa',
         productUrl: 'https://www.hanuja.com.tr/urun/sehpa',
-        unsubscribeUrl:
-          'https://www.hanuja.com.tr/api/marketing/unsubscribe?token=test',
+        unsubscribeUrl: 'https://www.hanuja.com.tr/api/marketing/unsubscribe?token=test',
       },
     })
     await processNotificationDispatch(task)
@@ -644,24 +836,36 @@ describe('durable notification delivery', () => {
     })
 
   it('a refused campaign gate produces neither the in-app nor the e-mail leg', async () => {
-    mocks.gate.mockResolvedValueOnce({ proceed: false, reason: 'CAMPAIGN_RELEASED:price_changed' })
+    mocks.gate.mockResolvedValueOnce({
+      proceed: false,
+      reason: 'CAMPAIGN_RELEASED:price_changed',
+    })
     await processNotificationDispatch(priceDropJob())
     expect(mocks.send).not.toHaveBeenCalled()
     expect(mocks.create).not.toHaveBeenCalled()
-    expect(emailRecord()).toMatchObject({ transportStatus: 'skipped', lastError: 'CAMPAIGN_RELEASED:price_changed' })
+    expect(emailRecord()).toMatchObject({
+      transportStatus: 'skipped',
+      lastError: 'CAMPAIGN_RELEASED:price_changed',
+    })
   })
 
   it('sends the lowest-price e-mail and marks the reservation sent', async () => {
     await processNotificationDispatch(priceDropJob())
     expect(mocks.gate).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ type: 'product_price_drop', eventKey: 'price-drop:e1:user:u1', userId: 'u1' }),
+      expect.objectContaining({
+        type: 'product_price_drop',
+        eventKey: 'price-drop:e1:user:u1',
+        userId: 'u1',
+      }),
     )
     expect(mocks.send).toHaveBeenCalledWith(
       expect.objectContaining({
         subject: 'Favorilediğiniz ürün son 15 günün en düşük fiyatında',
         fromCategory: 'kampanya',
-        headers: expect.objectContaining({ 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }),
+        headers: expect.objectContaining({
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        }),
       }),
     )
     expect(mocks.mark).toHaveBeenCalledWith(expect.anything(), 'price-drop:e1:user:u1', 'sent')
@@ -675,19 +879,27 @@ describe('durable notification delivery', () => {
   })
 
   it('keeps an uncertain SMTP outcome as uncertain (it may have been sent)', async () => {
-    mocks.send.mockRejectedValueOnce(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT', command: 'DATA' }))
+    mocks.send.mockRejectedValueOnce(
+      Object.assign(new Error('timeout'), {
+        code: 'ETIMEDOUT',
+        command: 'DATA',
+      }),
+    )
     await expect(processNotificationDispatch(priceDropJob())).rejects.toThrow()
     expect(mocks.mark).toHaveBeenCalledWith(expect.anything(), 'price-drop:e1:user:u1', 'uncertain')
   })
 
   it('preserves deliberately in-app-only marketing notifications', async () => {
-    await processNotificationDispatch(
-      job({ type: 'product_discount_favorited' }),
-    )
+    await processNotificationDispatch(job({ type: 'product_discount_favorited' }))
     expect(mocks.send).not.toHaveBeenCalled()
   })
   it('e-mails only the cargo-info stage of return_status_changed and keeps other stages in-app', async () => {
-    const item = { productName: 'Gea', quantity: 1, unitPrice: '10 TL', lineTotal: '10 TL' }
+    const item = {
+      productName: 'Gea',
+      quantity: 1,
+      unitPrice: '10 TL',
+      lineTotal: '10 TL',
+    }
     await processNotificationDispatch(
       job({
         eventKey: 'return:r1:seller:in-transit',
@@ -714,21 +926,37 @@ describe('durable notification delivery', () => {
     )
     expect(mocks.send).toHaveBeenCalledWith(
       expect.objectContaining({
-        subject: 'İade Talebiniz Kabul Edildi — Ürünü Kargoya Verin — #123',
+        subject: 'İade Kargo Talimatınız Hazır — Ürünü Kargoya Verin — #123',
       }),
     )
   })
   it('renders the phase 2 customer lifecycle templates', async () => {
-    const item = { productName: 'Gea', quantity: 1, unitPrice: '10 TL', lineTotal: '10 TL' }
+    const item = {
+      productName: 'Gea',
+      quantity: 1,
+      unitPrice: '10 TL',
+      lineTotal: '10 TL',
+    }
     const cases: Array<[string, Record<string, unknown>, string]> = [
       [
         'order_cancelled',
-        { orderNumber: '123', customerName: 'Ayşe', actorRole: 'admin', partial: false, items: [item] },
+        {
+          orderNumber: '123',
+          customerName: 'Ayşe',
+          actorRole: 'admin',
+          partial: false,
+          items: [item],
+        },
         'Siparişiniz İptal Edilmiştir — #123',
       ],
       [
         'order_delivery_confirmed',
-        { orderNumber: '123', customerName: 'Ayşe', partial: true, items: [item] },
+        {
+          orderNumber: '123',
+          customerName: 'Ayşe',
+          partial: true,
+          items: [item],
+        },
         'Siparişinizin Bir Kısmı Teslim Edildi — #123',
       ],
       [
@@ -748,7 +976,14 @@ describe('durable notification delivery', () => {
           customerName: 'Ayşe',
           decision: 'rejected',
           disputeOpened: true,
-          items: [{ ...item, acceptedQuantity: 0, rejectedQuantity: 1, rejectionReason: 'Kullanılmış' }],
+          items: [
+            {
+              ...item,
+              acceptedQuantity: 0,
+              rejectedQuantity: 1,
+              rejectionReason: 'Kullanılmış',
+            },
+          ],
         },
         'İade Talebiniz Reddedildi — #123',
       ],
@@ -756,7 +991,13 @@ describe('durable notification delivery', () => {
     for (const [type, data, subject] of cases) {
       mocks.records.clear()
       mocks.send.mockClear()
-      await processNotificationDispatch(job({ eventKey: `case:${type}`, type, data: { ...data, orderId: 'o1' } }))
+      await processNotificationDispatch(
+        job({
+          eventKey: `case:${type}`,
+          type,
+          data: { ...data, orderId: 'o1' },
+        }),
+      )
       expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ subject }))
     }
   })
@@ -766,14 +1007,23 @@ describe('durable notification delivery', () => {
         job({
           eventKey: 'bad-decision',
           type: 'order_return_approved',
-          data: { orderId: 'o1', orderNumber: '123', decision: 'maybe', items: [{ productName: 'x', quantity: 1 }] },
+          data: {
+            orderId: 'o1',
+            orderNumber: '123',
+            decision: 'maybe',
+            items: [{ productName: 'x', quantity: 1 }],
+          },
         }),
       ),
     ).rejects.toThrow('EMAIL_TEMPLATE_UNSUPPORTED')
     expect(emailRecord().status).toBe('failed')
   })
   it('renders the product question e-mails for the matching recipient role', async () => {
-    mocks.user.mockResolvedValue({ id: 'u1', email: 'seller@example.test', role: 'seller' })
+    mocks.user.mockResolvedValue({
+      id: 'u1',
+      email: 'seller@example.test',
+      role: 'seller',
+    })
     await processNotificationDispatch(
       job({
         eventKey: 'product-question:t1:seller:turn:1',
@@ -788,12 +1038,19 @@ describe('durable notification delivery', () => {
       }),
     )
     expect(mocks.send).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'seller@example.test', subject: 'Müşteri Sorusu — Gea Berjer' }),
+      expect.objectContaining({
+        to: 'seller@example.test',
+        subject: 'Müşteri Sorusu — Gea Berjer',
+      }),
     )
 
     mocks.records.clear()
     mocks.send.mockClear()
-    mocks.user.mockResolvedValue({ id: 'u1', email: 'customer@example.test', role: 'customer' })
+    mocks.user.mockResolvedValue({
+      id: 'u1',
+      email: 'customer@example.test',
+      role: 'customer',
+    })
     await processNotificationDispatch(
       job({
         eventKey: 'product-question:t1:customer:turn:2',
@@ -807,11 +1064,18 @@ describe('durable notification delivery', () => {
       }),
     )
     expect(mocks.send).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'customer@example.test', subject: 'Sorunuz yanıtlandı — Gea Berjer' }),
+      expect.objectContaining({
+        to: 'customer@example.test',
+        subject: 'Sorunuz yanıtlandı — Gea Berjer',
+      }),
     )
   })
   it('refuses a seller product question e-mail addressed to a customer account', async () => {
-    mocks.user.mockResolvedValue({ id: 'u1', email: 'customer@example.test', role: 'customer' })
+    mocks.user.mockResolvedValue({
+      id: 'u1',
+      email: 'customer@example.test',
+      role: 'customer',
+    })
     await expect(
       processNotificationDispatch(
         job({
@@ -850,7 +1114,11 @@ describe('seller announcement e-mail', () => {
     mocks.send.mockClear()
     mocks.consent.mockClear()
     mocks.announcement.mockReset()
-    mocks.user.mockResolvedValue({ id: 'u1', email: 'seller@example.test', role: 'seller' })
+    mocks.user.mockResolvedValue({
+      id: 'u1',
+      email: 'seller@example.test',
+      role: 'seller',
+    })
   })
 
   it('sends the content frozen at send time, not the edited panel copy', async () => {
@@ -862,7 +1130,9 @@ describe('seller announcement e-mail', () => {
       posterAsset: null,
     })
     await processNotificationDispatch(announcementJob())
-    const query = mocks.announcement.mock.calls[0]![0] as { select: Record<string, unknown> }
+    const query = mocks.announcement.mock.calls[0]![0] as {
+      select: Record<string, unknown>
+    }
     expect(query.select).toMatchObject({ sentTitle: true, sentBody: true })
     expect(query.select).not.toHaveProperty('title')
     expect(mocks.send).toHaveBeenCalledWith(
@@ -872,7 +1142,10 @@ describe('seller announcement e-mail', () => {
         fromCategory: 'noreply',
       }),
     )
-    const sent = mocks.send.mock.calls[0]![0] as { text: string; headers: Record<string, string> }
+    const sent = mocks.send.mock.calls[0]![0] as {
+      text: string
+      headers: Record<string, string>
+    }
     expect(sent.text).toContain('Gönderilen metin')
     expect(sent.headers).not.toHaveProperty('List-Unsubscribe')
     // Not marketing: the consent table is never consulted.
@@ -894,7 +1167,11 @@ describe('seller announcement e-mail', () => {
   })
 
   it('does not e-mail a user who is no longer a seller', async () => {
-    mocks.user.mockResolvedValue({ id: 'u1', email: 'customer@example.test', role: 'customer' })
+    mocks.user.mockResolvedValue({
+      id: 'u1',
+      email: 'customer@example.test',
+      role: 'customer',
+    })
     await processNotificationDispatch(announcementJob())
     expect(mocks.send).not.toHaveBeenCalled()
     expect(mocks.announcement).not.toHaveBeenCalled()

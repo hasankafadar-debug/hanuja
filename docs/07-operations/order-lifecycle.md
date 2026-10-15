@@ -8,7 +8,7 @@
 Satıcı sevk ettiği kendi ürünleri için **Teslim edildi** bildirimi yapabilir.
 `OrderLine.sellerDeliveryReportedAt` ve `sellerDeliveryReportedBy` bildirim zamanını
 ve kullanıcıyı kaydeder. Bu bildirim teslim teyidi değildir: sipariş/kargo durumu,
-`deliveredAt`, `deliveryConfirmedAt`, 72 saatlik sessiz onay ve hakediş bekleme
+`deliveredAt`, `deliveryConfirmedAt`, admin teslim teyidi ve hakediş bekleme
 süresi değişmez. Tekrarlanan bildirim ilk zaman damgasını korur.
 
 Admin **Satıcı Teslim Bildirimleri** kartı teyitsiz bildirimleri benzersiz sipariş
@@ -112,7 +112,7 @@ yüklemesinde uyarıdan çıkar. Bu uyarı otomatik iptal, ceza veya bildirim ü
 |--------|----------|
 | `shipped` | Kargoya verildi, takip numarası girildi |
 | `delivered` | Kargo firması teslim sinyali verdi veya admin doğruladı |
-| `delivery_confirmation_pending` | Müşteri onayı bekleniyor (72 saat sessiz onay penceresi) |
+| `delivery_confirmation_pending` | Admin teslim teyidi bekleniyor |
 | `delivery_confirmed` | Teslim operasyonel olarak kabul edildi — payout countdown başlar |
 
 ### D. İptal Durumları
@@ -161,11 +161,7 @@ Bu durumlar birincil `Order` sütununda değil, `Payout` modelinde tutulur. Anca
 Kargo fiziksel olarak müşteriye ulaştığı sinyali — kargo firması entegrasyonu, takip sayfası veya admin doğrulamasından gelir.
 
 ### `delivery_confirmed`
-Payout sayacı için operasyonel kabul. Aşağıdaki yollardan biriyle oluşur:
-
-1. Müşteri "Teslim Aldım" butonuna basar
-2. Admin manuel olarak teslim onaylar
-3. `delivered` durumuna geçildikten 72 saat içinde müşteri itiraz açmazsa sistem otomatik olarak `delivery_confirmed`'e geçirir (sessiz onay)
+Payout için operasyonel kabul, yalnız admin teslim teyidiyle oluşur. Tasarımcı teslimatı bildirir; admin ilgili ürün/adetleri kesinleştirir. Müşteri onayı ve 72 saatlik sessiz görev kaldırılmıştır.
 
 Sessiz onay bir BullMQ job tarafından tetiklenir; zaman damgası `order.deliveryConfirmedAt` alanına yazılır. Desteksiz yorum ya da notla payout zamanlaması belirlenmez.
 
@@ -214,14 +210,7 @@ Sipariş anında bu değer `OrderLine.promisedFulfillmentDays` olarak snapshot'l
 BullMQ zamanlayıcısıyla (`fulfillment-risk` worker) izlenir.
 
 ### İhlal Sonucu
-Taahhüt tarihi (`fulfillmentDueAt`) aşıldığında günlük %1 ceza birikimi başlar.
-20. **gecikme** günü dolduğunda ve sipariş hâlâ `shipped` veya daha önceki bir aşamada ise:
-
-1. Müşteri iptal hakkı kazanır veya admin iptal edebilir
-2. Sipariş `cancelled_due_to_20day_breach` durumuna geçer
-3. Satıcı ceza değerlendirmesi açılır: ürün fiyatının %20'si
-4. Müşteri iade/iptal finans akışı başlar
-5. Satıcı payout eligibility o sipariş için bloke edilir
+Taahhüt tarihi (`fulfillmentDueAt`) aşılırsa risk, uyarı ve admin takip kaydı oluşur. Günlük %1 ceza veya 20. gecikme günü otomatik iptali uygulanmaz. İptal gerekiyorsa ilgili ürün/adet için mevcut yetkili iptal ve para iadesi akışı kullanılır. Tarihî otomatik iptal/ceza kayıtları salt okunur korunur.
 
 ### Kontrollü Uzatma
 Admin 10 günlük uzatma kararı verebilir — yalnızca müşteri bilgilendirilmişse ve `AdminAuditLog` kaydıyla. Sessiz uzatma kabul edilmez.
@@ -238,10 +227,9 @@ Tüm iptaller ayrı nedenlerle kaydedilir. Aynı `cancelled` değeri altında bi
 | Müşteri önceden iptal | Kargo öncesi müşteri isteği | Hayır |
 | Satıcı reddi | Satıcı reddetme aksiyonu | Evet (%20) |
 | Admin iptali | Admin müdahalesi | Duruma göre |
-| 20 gün ihlali (otomatik) | Zamanlayıcı (`fulfillment-risk` worker, `accrualDayCount >= 20`) | Evet — günlük %1 birikimli toplam (20. günde max %20) |
 | Fraud/risk | Risk motoru veya admin | Duruma göre |
 
-20 gün ihlali iptali `Order.cancellationReason = auto_canceled_20day_breach` ve `Order.status = cancelled_due_to_20day_breach` olarak kaydedilir; aynı transaction içinde refund flow tetiklenir.
+Tarihî `auto_canceled_20day_breach` ve `cancelled_due_to_20day_breach` değerleri mevcut kayıtlar için korunur; yeni gecikmeler bunları üretmez.
 
 ### 7.1 Ödeme onayından önce iptal (2026-09-25)
 

@@ -56,7 +56,9 @@ vi.mock('../../../api/repositories/dispute.repository', () => ({
   createDisputeRepository: vi.fn(() => ({ create: vi.fn() })),
 }))
 vi.mock('../../../api/repositories/admin-audit-log.repository', () => ({
-  createAdminAuditLogRepository: vi.fn(() => ({ createEntry: auditCreateMock })),
+  createAdminAuditLogRepository: vi.fn(() => ({
+    createEntry: auditCreateMock,
+  })),
 }))
 
 import { createReturnService } from '../../../api/services/return.service'
@@ -107,7 +109,25 @@ function buildTx(rr: ReturnType<typeof returnRequest>) {
       findMany: vi.fn().mockResolvedValue([]),
     },
     productImage: { findMany: vi.fn().mockResolvedValue([]) },
-    seller: { findUnique: vi.fn().mockResolvedValue({ userId: 'seller-user-1', displayName: 'Atelier' }) },
+    order: {
+      findUniqueOrThrow: vi.fn().mockResolvedValue({
+        publicNumber: 26050042,
+        customerId: 'customer-1',
+        customer: { email: 'customer@example.com' },
+        lines: [orderLine],
+      }),
+    },
+    returnMessage: { create: vi.fn() },
+    seller: {
+      findUnique: vi.fn().mockResolvedValue({ userId: 'seller-user-1', displayName: 'Atelier' }),
+      findMany: vi.fn().mockResolvedValue([
+        {
+          id: 'seller-1',
+          userId: 'seller-user-1',
+          user: { email: 'seller@example.com' },
+        },
+      ]),
+    },
     mediaAsset: { updateMany: vi.fn() },
   }
   const prisma = {
@@ -121,12 +141,18 @@ describe('legacy return service notifications', () => {
     vi.clearAllMocks()
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://www.hanuja.com.tr')
     findByIdMock.mockResolvedValue({ id: 'return-1' })
-    reviewMock.mockImplementation(async (_id, data) => ({ ...returnRequest(), ...data }))
+    reviewMock.mockImplementation(async (_id, data) => ({
+      ...returnRequest(),
+      ...data,
+    }))
     setSellerReceivedMock.mockResolvedValue(returnRequest({ status: 'received' }))
   })
 
   it('tells the customer the first admin approval started no refund and uses a review-scoped event key', async () => {
-    const rr = returnRequest({ status: 'requested', order: { ...returnRequest().order, status: 'return_requested' } })
+    const rr = returnRequest({
+      status: 'requested',
+      order: { ...returnRequest().order, status: 'return_requested' },
+    })
     const { tx, prisma } = buildTx(rr)
     const service = createReturnService({ prisma: prisma as never })
 
@@ -137,15 +163,22 @@ describe('legacy return service notifications', () => {
       reviewNote: 'Kargo bilgisi iletilecek',
     })
 
-    expect(recordNotificationMock).toHaveBeenCalledTimes(1)
+    expect(recordNotificationMock).toHaveBeenCalledTimes(2)
     const [client, payload] = recordNotificationMock.mock.calls[0]!
     expect(client).toBe(tx)
     expect(payload).toMatchObject({
-      eventKey: 'return:return-1:customer:review:approved',
-      type: 'order_return_approved',
+      eventKey: 'return:return-1:admin:review:approved:customer',
+      type: 'return_status_changed',
       emailTo: 'customer@example.com',
     })
-    expect(payload.data).toMatchObject({ decision: 'approved', refundOutcome: 'awaiting_return' })
+    expect(payload.data).toMatchObject({
+      decision: 'approved',
+      stage: 'final_approved',
+    })
+    expect(recordNotificationMock.mock.calls[1]![1]).toMatchObject({
+      type: 'seller_return_decision',
+      emailTo: 'seller@example.com',
+    })
     expect(payload.data.refundAmount).toBeUndefined()
     expect(executeReturnRefundInTransactionMock).not.toHaveBeenCalled()
     expect(dispatchMock).not.toHaveBeenCalled()
@@ -177,14 +210,20 @@ describe('legacy return service notifications', () => {
       const { tx, prisma } = buildTx(returnRequest())
       const service = createReturnService({ prisma: prisma as never })
 
-      await service.confirmReceiptBySeller({ returnRequestId: 'return-1', sellerId: 'seller-1' })
+      await service.confirmReceiptBySeller({
+        returnRequestId: 'return-1',
+        sellerId: 'seller-1',
+      })
 
       const [client, payload] = recordNotificationMock.mock.calls[0]!
       expect(client).toBe(tx)
       expect(payload.eventKey).toBe('return:return-1:customer:receipt-approved')
       expect(payload.data.refundOutcome).toBe(expected)
       // The refund record is written inside the transaction; the provider job is not.
-      expect(executeReturnRefundInTransactionMock).toHaveBeenCalledWith(tx, expect.objectContaining({ returnRequestId: 'return-1' }))
+      expect(executeReturnRefundInTransactionMock).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ returnRequestId: 'return-1' }),
+      )
       expect(dispatchMock).toHaveBeenCalledWith(refund)
       const dispatchOrder = dispatchMock.mock.invocationCallOrder[0]!
       const commitOrder = prisma.$transaction.mock.invocationCallOrder[0]!
@@ -194,7 +233,9 @@ describe('legacy return service notifications', () => {
 
   it('keeps the first approval and the later refund decision on separate event keys', async () => {
     const approvalTx = buildTx(returnRequest({ status: 'requested' }))
-    await createReturnService({ prisma: approvalTx.prisma as never }).reviewRequest({
+    await createReturnService({
+      prisma: approvalTx.prisma as never,
+    }).reviewRequest({
       returnRequestId: 'return-1',
       adminActorId: 'admin-1',
       decision: 'approved',
@@ -209,13 +250,15 @@ describe('legacy return service notifications', () => {
       payment: { method: 'card' },
     })
     const receiptTx = buildTx(returnRequest())
-    await createReturnService({ prisma: receiptTx.prisma as never }).confirmReceiptBySeller({
+    await createReturnService({
+      prisma: receiptTx.prisma as never,
+    }).confirmReceiptBySeller({
       returnRequestId: 'return-1',
       sellerId: 'seller-1',
     })
     const secondKey = recordNotificationMock.mock.calls[0]![1].eventKey
 
-    expect(firstKey).toBe('return:return-1:customer:review:approved')
+    expect(firstKey).toBe('return:return-1:admin:review:approved:customer')
     expect(secondKey).toBe('return:return-1:customer:receipt-approved')
     expect(firstKey).not.toBe(secondKey)
   })
@@ -226,7 +269,10 @@ describe('legacy return service notifications', () => {
     const service = createReturnService({ prisma: prisma as never })
 
     await expect(
-      service.confirmReceiptBySeller({ returnRequestId: 'return-1', sellerId: 'seller-1' }),
+      service.confirmReceiptBySeller({
+        returnRequestId: 'return-1',
+        sellerId: 'seller-1',
+      }),
     ).rejects.toThrow('başka bir işlemle güncellendi')
     expect(recordNotificationMock).not.toHaveBeenCalled()
     expect(executeReturnRefundInTransactionMock).not.toHaveBeenCalled()
@@ -243,14 +289,20 @@ describe('legacy return service notifications', () => {
     })
     const service = createReturnService({ prisma: prisma as never })
 
-    await service.confirmReceiptBySeller({ returnRequestId: 'return-1', sellerId: 'seller-1' })
+    await service.confirmReceiptBySeller({
+      returnRequestId: 'return-1',
+      sellerId: 'seller-1',
+    })
 
     expect(tx.returnRequest.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           OR: [
             { sellerId: 'seller-1' },
-            { sellerId: null, order: { lines: { some: { sellerId: 'seller-1' } } } },
+            {
+              sellerId: null,
+              order: { lines: { some: { sellerId: 'seller-1' } } },
+            },
           ],
         }),
       }),

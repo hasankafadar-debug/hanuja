@@ -11,8 +11,10 @@ export function createPenaltyRepository(prisma: PrismaClient) {
       return prisma.penalty.findFirst({ where: { orderId } })
     },
 
-    findByOrderIdAndReason(orderId: string, reason: PenaltyReason) {
-      return prisma.penalty.findFirst({ where: { orderId, reason } })
+    findByOrderIdAndReason(orderId: string, reason: PenaltyReason, sellerId?: string) {
+      return prisma.penalty.findFirst({
+        where: { orderId, reason, ...(sellerId ? { sellerId } : {}) },
+      })
     },
 
     create(
@@ -34,10 +36,7 @@ export function createPenaltyRepository(prisma: PrismaClient) {
       return client.penalty.create({ data })
     },
 
-    waive(
-      id: string,
-      params: { waivedBy: string; waiverReason: string },
-    ) {
+    waive(id: string, params: { waivedBy: string; waiverReason: string }) {
       // History-preserving waiver — original penalty record is NOT deleted.
       // Status changes to 'waived', original amounts remain for audit.
       return prisma.penalty.update({

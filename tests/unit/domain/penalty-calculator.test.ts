@@ -10,14 +10,11 @@ import {
   FULFILLMENT_DAYS,
   PAYOUT_HOLD_DAYS,
   RETURN_WINDOW_DAYS,
-  SILENT_DELIVERY_CONFIRMATION_HOURS,
   calculatePenalty,
   isFulfillmentDeadlineBreached,
   getFulfillmentDeadline,
   getExtendedFulfillmentDeadline,
   isWithinReturnWindow,
-  getSilentConfirmDeadline,
-  isSilentConfirmDue,
 } from '../../../api/domain/penalty-calculator'
 
 // ─── Platform constants ───────────────────────────────────────────────────────
@@ -37,10 +34,6 @@ describe('platform constants', () => {
 
   it('return window is 14 days', () => {
     expect(RETURN_WINDOW_DAYS).toBe(14)
-  })
-
-  it('silent confirmation window is 72 hours', () => {
-    expect(SILENT_DELIVERY_CONFIRMATION_HOURS).toBe(72)
   })
 })
 
@@ -179,37 +172,5 @@ describe('isWithinReturnWindow', () => {
     const deliveryConfirmedAt = new Date('2026-03-01T00:00:00Z')
     const now = new Date('2026-04-08T00:00:00Z') // ~38 days
     expect(isWithinReturnWindow(deliveryConfirmedAt, now)).toBe(false)
-  })
-})
-
-// ─── getSilentConfirmDeadline ─────────────────────────────────────────────────
-
-describe('getSilentConfirmDeadline', () => {
-  it('is 72 hours after deliveredAt', () => {
-    const deliveredAt = new Date('2026-04-05T10:00:00Z')
-    const deadline = getSilentConfirmDeadline(deliveredAt)
-    expect(deadline.getTime()).toBe(new Date('2026-04-08T10:00:00Z').getTime())
-  })
-})
-
-// ─── isSilentConfirmDue ───────────────────────────────────────────────────────
-
-describe('isSilentConfirmDue', () => {
-  it('returns false before 72 hours', () => {
-    const deliveredAt = new Date('2026-04-07T00:00:00Z')
-    const now = new Date('2026-04-08T00:00:00Z') // 24h later
-    expect(isSilentConfirmDue(deliveredAt, now)).toBe(false)
-  })
-
-  it('returns true at exactly 72 hours', () => {
-    const deliveredAt = new Date('2026-04-05T10:00:00Z')
-    const now = new Date('2026-04-08T10:00:00Z') // exactly 72h
-    expect(isSilentConfirmDue(deliveredAt, now)).toBe(true)
-  })
-
-  it('returns true after 72 hours', () => {
-    const deliveredAt = new Date('2026-04-01T00:00:00Z')
-    const now = new Date('2026-04-08T00:00:00Z') // 168h
-    expect(isSilentConfirmDue(deliveredAt, now)).toBe(true)
   })
 })

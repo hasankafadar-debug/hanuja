@@ -1,13 +1,14 @@
 # Sipariş fatura yönetimi
 
-Son güncelleme: 2026-10-11 — satıcı Hanuja modeli.
+Son güncelleme: 2026-10-14 — satıcı Hanuja modeli ve ayrı iade faturası.
 
-Siparişte iki ayrı fatura vardır:
+Sipariş ve iade sürecinde üç ayrı fatura vardır:
 
 | Fatura | Kesen → alan | Kayıt | Kim görür |
 |---|---|---|---|
 | Satış faturası (e-Arşiv) | Hanuja → müşteri | `OrderCustomerInvoice` | Müşteri ("Faturalarım", sipariş detayı), admin |
 | Alış faturası | Satıcı (tasarımcı) → Hanuja | `OrderSellerInvoice` | Satıcı, admin. **Müşteriye hiçbir yoldan gösterilmez.** |
+| İade faturası | Hanuja → ilgili tasarımcı | `SellerReturnInvoice` | Yalnız ilgili tasarımcı ve admin |
 
 Müşteri bağlantıları `NEXT_PUBLIC_WEB_URL` üzerinden oluşturulur:
 `/api/orders/{id}/documents/customer-invoice` (sahiplik kontrollü). Eski
@@ -21,7 +22,7 @@ Müşteri bağlantıları `NEXT_PUBLIC_WEB_URL` üzerinden oluşturulur:
   kargo faturada yer almaz. Satıcı dökümü sipariş detayında görür.
 - Satıcı faturayı ürünü kargoya verirken keser; açıklamasına sipariş numarasını yazar. Alıcı bilgisi
   Hanuja'nın unvanı, adresi, vergi dairesi/VKN ve MERSİS'idir (`PLATFORM_LEGAL_INFO`).
-- Fatura panelden yüklenir ya da siparişe özel fatura e-posta adresine (alias) PDF olarak gönderilir.
+- Fatura yalnız panelden yüklenir. E-postadan otomatik belge alma kaldırılmıştır.
   Her yeni dosya incelemeyi sıfırlar (`reviewStatus = pending`, fatura no/tarih boşalır).
 - Kargo girişi fatura olmadan da yapılır. Kargoya verilişten 1 saat sonra fatura yoksa satıcıya tek
   seferlik hatırlatma gider (`seller_invoice_reminder`, `seller-invoice-reminder` işi). Ceza yoktur.

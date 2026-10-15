@@ -254,7 +254,7 @@ Background jobs are critical to Hanuja behavior.
 ### Must-test job types
 
 - payout maturity jobs
-- delivery silent-confirmation jobs
+- fulfillment risk jobs (no automatic cancellation or daily penalty)
 - reconciliation jobs
 - retryable provider sync jobs
 - notification jobs if they affect visible state sequencing

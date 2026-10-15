@@ -105,8 +105,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     where: { id },
     select: { publicNumber: true },
   })
-  return { title: `Sipariş ${formatOrderDisplayNumber(order?.publicNumber, id)}`,
-  }
+  return { title: `Sipariş ${formatOrderDisplayNumber(order?.publicNumber, id)}` }
 }
 
 const TERMINAL_STATUSES = new Set([
@@ -119,11 +118,7 @@ const TERMINAL_STATUSES = new Set([
   'dispute_resolved',
 ])
 
-const DELIVERY_CONFIRMABLE = new Set([
-  'delivered',
-  'delivery_confirmation_pending',
-  'shipped',
-])
+const DELIVERY_CONFIRMABLE = new Set(['delivered', 'delivery_confirmation_pending', 'shipped'])
 
 const BLOCKABLE_PAYOUT_STATUSES = new Set(['hold_active', 'payout_ready', 'payout_scheduled'])
 
@@ -188,8 +183,13 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         include: {
           payment: {
             select: {
-              orderId: true, method: true, provider: true, status: true,
-              amount: true, refundedAmount: true, currency: true,
+              orderId: true,
+              method: true,
+              provider: true,
+              status: true,
+              amount: true,
+              refundedAmount: true,
+              currency: true,
             },
           },
           items: {
@@ -299,16 +299,26 @@ export default async function AdminOrderDetailPage({ params }: Props) {
 
   const isTerminal = TERMINAL_STATUSES.has(order.status)
   const canConfirmDelivery = DELIVERY_CONFIRMABLE.has(order.status)
-  const hasEftPendingPayment = order.payments.some((payment) => payment.method === 'eft' && payment.status === 'pending')
-  const hasBlockablePayout = order.payouts.some((payout) => BLOCKABLE_PAYOUT_STATUSES.has(payout.status))
+  const hasEftPendingPayment = order.payments.some(
+    (payment) => payment.method === 'eft' && payment.status === 'pending',
+  )
+  const hasBlockablePayout = order.payouts.some((payout) =>
+    BLOCKABLE_PAYOUT_STATUSES.has(payout.status),
+  )
   // Mirrors adminCancel: after dispatch the return flow applies; before payment
   // only an order waiting for its transfer is cancellable; a paid legacy order
   // has no line-level refund path.
   const paymentCollected = order.payments.some((payment) => payment.confirmedAt !== null)
-  const hasShippedQuantity = order.lines.some((line) => line.shippedQuantity > 0)
+  const cancellableItems = order.lines
+    .map((line) => ({
+      id: line.id,
+      label: line.productName,
+      quantity: line.quantity - line.cancelledQuantity - line.shippedQuantity,
+    }))
+    .filter((item) => item.quantity > 0)
   const canCancel =
     !isTerminal &&
-    !hasShippedQuantity &&
+    cancellableItems.length > 0 &&
     (paymentCollected
       ? order.quantityLifecycleVersion === 2
       : order.status === 'bank_transfer_waiting')
@@ -322,9 +332,8 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         year: 'numeric',
       })
     : null
-  const riskTitle = primaryRisk?.status === 'breached'
-    ? 'Kargo sınırı aşıldı'
-    : 'Kargo sınırı yaklaşıyor'
+  const riskTitle =
+    primaryRisk?.status === 'breached' ? 'Kargo sınırı aşıldı' : 'Kargo sınırı yaklaşıyor'
 
   const payment = order.payments[0] ?? null
   const shipment = order.shipments[0] ?? null
@@ -348,21 +357,27 @@ export default async function AdminOrderDetailPage({ params }: Props) {
   // Satıcı Hanuja modeli: expected seller invoice per seller and the customer invoice deadline.
   const expectedSellerInvoices = new Map(
     invoiceManagement.sellers.map((seller) => {
-      const invoice = calculateSellerPurchaseInvoice(order.lines.filter((line) => line.sellerId === seller.sellerId))
-      return [seller.sellerId, {
-        amount: formatPurchaseInvoiceAmount(invoice.invoiceAmount),
-        vatGroups: invoice.vatGroups.map((group) => ({
-          rate: formatPurchaseInvoiceRate(group.taxRate),
-          net: formatPurchaseInvoiceAmount(group.netAmount),
-          vat: formatPurchaseInvoiceAmount(group.vatAmount),
-        })),
-      }]
+      const invoice = calculateSellerPurchaseInvoice(
+        order.lines.filter((line) => line.sellerId === seller.sellerId),
+      )
+      return [
+        seller.sellerId,
+        {
+          amount: formatPurchaseInvoiceAmount(invoice.invoiceAmount),
+          vatGroups: invoice.vatGroups.map((group) => ({
+            rate: formatPurchaseInvoiceRate(group.taxRate),
+            net: formatPurchaseInvoiceAmount(group.netAmount),
+            vat: formatPurchaseInvoiceAmount(group.vatAmount),
+          })),
+        },
+      ]
     }),
   )
-  const firstHandedAt = order.shipments
-    .map((shipment) => shipment.handedAt)
-    .filter((value): value is Date => value !== null)
-    .sort((a, b) => a.getTime() - b.getTime())[0] ?? null
+  const firstHandedAt =
+    order.shipments
+      .map((shipment) => shipment.handedAt)
+      .filter((value): value is Date => value !== null)
+      .sort((a, b) => a.getTime() - b.getTime())[0] ?? null
   const customerInvoiceDeadline = firstHandedAt
     ? new Date(firstHandedAt.getTime() + 7 * 24 * 60 * 60 * 1000)
     : null
@@ -399,13 +414,17 @@ export default async function AdminOrderDetailPage({ params }: Props) {
           className="flex items-start gap-3 rounded-xl border p-4"
           style={{ borderColor: '#fca5a5', backgroundColor: '#fff5f5' }}
         >
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" style={{ color: 'var(--color-destructive)' }} />
+          <AlertTriangle
+            className="mt-0.5 h-5 w-5 shrink-0"
+            style={{ color: 'var(--color-destructive)' }}
+          />
           <div>
             <p className="text-sm font-semibold" style={{ color: '#7f1d1d' }}>
               {riskTitle}: {shipmentDeadline}
             </p>
             <p className="mt-0.5 text-xs" style={{ color: '#7f1d1d' }}>
-              Sistem yalnızca admine bilgi verir. Gecikme olursa manuel ceza değerlendirmesi admin tarafında yapılır.
+              Sistem yalnızca admine bilgi verir. Gecikme olursa manuel ceza değerlendirmesi admin
+              tarafında yapılır.
             </p>
             {primaryRisk?.orderLine ? (
               <p className="mt-1 text-xs" style={{ color: '#7f1d1d' }}>
@@ -435,7 +454,10 @@ export default async function AdminOrderDetailPage({ params }: Props) {
               <div
                 key={label}
                 className="rounded-lg border px-3 py-3"
-                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
+                style={{
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: 'var(--color-muted)',
+                }}
               >
                 <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                   {label}
@@ -599,7 +621,8 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                         {cancellation.status === 'completed' &&
                         moneyToNumber(cancellation.customerRefundAmount) === 0
                           ? 'İade gerekmedi'
-                          : (CANCELLATION_STATUS_LABELS[cancellation.status] ?? cancellation.status)}
+                          : (CANCELLATION_STATUS_LABELS[cancellation.status] ??
+                            cancellation.status)}
                       </span>
                     </div>
                     <ul
@@ -617,7 +640,10 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                           </span>
                         </li>
                       ))}
-                      <li className="flex justify-between gap-4 font-medium" style={{ color: 'var(--color-primary)' }}>
+                      <li
+                        className="flex justify-between gap-4 font-medium"
+                        style={{ color: 'var(--color-primary)' }}
+                      >
                         <span>Müşteri iadesi (kargo dahil)</span>
                         <span>{formatMoney(moneyToNumber(cancellation.customerRefundAmount))}</span>
                       </li>
@@ -629,42 +655,57 @@ export default async function AdminOrderDetailPage({ params }: Props) {
           ) : null}
 
           <div
-              data-testid="admin-refund-summary"
-              className="mt-5 border-t pt-4"
-              style={{ borderColor: 'var(--color-border)' }}
-            >
-              <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
-                İade finansı
-              </h3>
-              <div className="space-y-1 text-sm">
-                {[
-                  { label: 'Müşteriye ürün iadesi', value: formatMoney(refundTotals.productAmount) },
-                  { label: 'Müşteriye kargo iadesi', value: formatMoney(refundTotals.shippingAmount) },
-                  { label: 'Müşteriye ürün + kargo iadesi', value: formatMoney(refundTotals.customerAmount) },
-                  { label: 'Tasarımcı payı', value: formatMoney(refundTotals.sellerAdjustmentAmount) },
-                  { label: 'Komisyon düzeltmesi', value: formatMoney(refundTotals.commissionAdjustmentAmount) },
-                  { label: 'Tasarımcı kuponu düzeltmesi', value: formatMoney(refundTotals.couponAdjustmentAmount) },
-                  { label: 'Platform payı', value: formatMoney(refundTotals.platformFundedAmount) },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex justify-between gap-4">
-                    <span style={{ color: 'var(--color-muted-fg)' }}>{label}</span>
-                    <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
-                      {value}
-                    </span>
-                  </div>
-                ))}
-              </div>
+            data-testid="admin-refund-summary"
+            className="mt-5 border-t pt-4"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+              İade finansı
+            </h3>
+            <div className="space-y-1 text-sm">
+              {[
+                { label: 'Müşteriye ürün iadesi', value: formatMoney(refundTotals.productAmount) },
+                {
+                  label: 'Müşteriye kargo iadesi',
+                  value: formatMoney(refundTotals.shippingAmount),
+                },
+                {
+                  label: 'Müşteriye ürün + kargo iadesi',
+                  value: formatMoney(refundTotals.customerAmount),
+                },
+                {
+                  label: 'Tasarımcı payı',
+                  value: formatMoney(refundTotals.sellerAdjustmentAmount),
+                },
+                {
+                  label: 'Komisyon düzeltmesi',
+                  value: formatMoney(refundTotals.commissionAdjustmentAmount),
+                },
+                {
+                  label: 'Tasarımcı kuponu düzeltmesi',
+                  value: formatMoney(refundTotals.couponAdjustmentAmount),
+                },
+                { label: 'Platform payı', value: formatMoney(refundTotals.platformFundedAmount) },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex justify-between gap-4">
+                  <span style={{ color: 'var(--color-muted-fg)' }}>{label}</span>
+                  <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
 
-              <div className="mt-5 space-y-3">
-                <h3 className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
-                  Refund transaction kayıtları
-                </h3>
-                {order.refundTransactions.length === 0 ? (
-                  <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                    Bu sipariş için refund transaction kaydı yok.
-                  </p>
-                ) : (
-                  order.refundTransactions.map((refund) => (
+            <div className="mt-5 space-y-3">
+              <h3 className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                Refund transaction kayıtları
+              </h3>
+              {order.refundTransactions.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                  Bu sipariş için refund transaction kaydı yok.
+                </p>
+              ) : (
+                order.refundTransactions.map((refund) => (
                   <div
                     key={refund.id}
                     data-testid={`refund-transaction-${refund.id}`}
@@ -692,7 +733,10 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                       </span>
                     </div>
 
-                    <div className="mt-3 grid gap-2 border-t pt-3 text-xs sm:grid-cols-2" style={{ borderColor: 'var(--color-border)' }}>
+                    <div
+                      className="mt-3 grid gap-2 border-t pt-3 text-xs sm:grid-cols-2"
+                      style={{ borderColor: 'var(--color-border)' }}
+                    >
                       <div>
                         <p style={{ color: 'var(--color-muted-fg)' }}>Müşteri iadesi</p>
                         <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
@@ -701,13 +745,22 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                       </div>
                       <div>
                         <p style={{ color: 'var(--color-muted-fg)' }}>Sağlayıcı referansı</p>
-                        <p className="break-all font-medium" style={{ color: 'var(--color-primary)' }}>
+                        <p
+                          className="break-all font-medium"
+                          style={{ color: 'var(--color-primary)' }}
+                        >
                           {refund.providerReference ?? '—'}
                         </p>
                       </div>
                       <div className="sm:col-span-2">
                         <p style={{ color: 'var(--color-muted-fg)' }}>Hata</p>
-                        <p style={{ color: refund.failureReason ? 'var(--color-destructive)' : 'var(--color-primary)' }}>
+                        <p
+                          style={{
+                            color: refund.failureReason
+                              ? 'var(--color-destructive)'
+                              : 'var(--color-primary)',
+                          }}
+                        >
                           {refund.failureReason ?? '—'}
                         </p>
                       </div>
@@ -719,8 +772,14 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                       ) : null}
                     </div>
 
-                    <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
-                      <p className="mb-2 text-xs font-semibold" style={{ color: 'var(--color-muted-fg)' }}>
+                    <div
+                      className="mt-3 border-t pt-3"
+                      style={{ borderColor: 'var(--color-border)' }}
+                    >
+                      <p
+                        className="mb-2 text-xs font-semibold"
+                        style={{ color: 'var(--color-muted-fg)' }}
+                      >
                         İade kalemleri
                       </p>
                       {refund.items.length === 0 ? (
@@ -743,13 +802,19 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                               >
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                                   <div>
-                                    <p className="text-xs font-medium" style={{ color: 'var(--color-primary)' }}>
+                                    <p
+                                      className="text-xs font-medium"
+                                      style={{ color: 'var(--color-primary)' }}
+                                    >
                                       {REFUND_ITEM_KIND_LABELS[item.kind] ?? item.kind}
                                       {item.orderLine?.productName
                                         ? ` · ${item.orderLine.productName}`
                                         : ''}
                                     </p>
-                                    <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                                    <p
+                                      className="text-xs"
+                                      style={{ color: 'var(--color-muted-fg)' }}
+                                    >
                                       {item.quantity !== null && item.quantity !== undefined
                                         ? `${item.quantity} adet · `
                                         : ''}
@@ -765,14 +830,25 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                                 </div>
                                 <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
                                   <div>
-                                    <p style={{ color: 'var(--color-muted-fg)' }}>Sağlayıcı referansı</p>
-                                    <p className="break-all" style={{ color: 'var(--color-primary)' }}>
+                                    <p style={{ color: 'var(--color-muted-fg)' }}>
+                                      Sağlayıcı referansı
+                                    </p>
+                                    <p
+                                      className="break-all"
+                                      style={{ color: 'var(--color-primary)' }}
+                                    >
                                       {providerReference}
                                     </p>
                                   </div>
                                   <div>
                                     <p style={{ color: 'var(--color-muted-fg)' }}>Hata</p>
-                                    <p style={{ color: item.failureReason ? 'var(--color-destructive)' : 'var(--color-primary)' }}>
+                                    <p
+                                      style={{
+                                        color: item.failureReason
+                                          ? 'var(--color-destructive)'
+                                          : 'var(--color-primary)',
+                                      }}
+                                    >
                                       {item.failureReason ?? '—'}
                                     </p>
                                   </div>
@@ -794,9 +870,9 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                       />
                     ) : null}
                   </div>
-                  ))
-                )}
-              </div>
+                ))
+              )}
+            </div>
           </div>
         </section>
 
@@ -833,7 +909,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
-                      {event.note ?? event.reason ? ` · ${event.note ?? event.reason}` : ''}
+                      {(event.note ?? event.reason) ? ` · ${event.note ?? event.reason}` : ''}
                     </p>
                   </div>
                 </li>
@@ -923,17 +999,29 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         <div className="space-y-3">
           <AdminCustomerInvoiceCard
             orderId={order.id}
-            invoice={customerInvoice ? {
-              fileName: customerInvoice.fileName,
-              uploadedAt: customerInvoice.uploadedAt.toISOString(),
-              revision: customerInvoice.revision,
-            } : null}
+            invoice={
+              customerInvoice
+                ? {
+                    fileName: customerInvoice.fileName,
+                    uploadedAt: customerInvoice.uploadedAt.toISOString(),
+                    revision: customerInvoice.revision,
+                  }
+                : null
+            }
             deadline={customerInvoiceDeadline?.toISOString() ?? null}
           />
 
-          <div className="rounded-lg border p-4 text-sm" style={{ borderColor: 'var(--color-border)' }}>
-            <h3 className="mb-2 font-semibold" style={{ color: 'var(--color-primary)' }}>e-Arşiv için bilgiler</h3>
-            <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-[auto,1fr]" style={{ color: 'var(--color-muted-fg)' }}>
+          <div
+            className="rounded-lg border p-4 text-sm"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            <h3 className="mb-2 font-semibold" style={{ color: 'var(--color-primary)' }}>
+              e-Arşiv için bilgiler
+            </h3>
+            <dl
+              className="grid gap-x-4 gap-y-1 sm:grid-cols-[auto,1fr]"
+              style={{ color: 'var(--color-muted-fg)' }}
+            >
               <dt>Alıcı</dt>
               <dd style={{ color: 'var(--color-primary)' }}>
                 {invoiceParty
@@ -945,7 +1033,11 @@ export default async function AdminOrderDetailPage({ params }: Props) {
               <dt>Fatura adresi</dt>
               <dd>
                 {invoiceParty
-                  ? [invoiceParty.addressLine1, invoiceParty.addressLine2, `${invoiceParty.district} / ${invoiceParty.city}`]
+                  ? [
+                      invoiceParty.addressLine1,
+                      invoiceParty.addressLine2,
+                      `${invoiceParty.district} / ${invoiceParty.city}`,
+                    ]
                       .filter(Boolean)
                       .join(', ')
                   : '-'}
@@ -992,16 +1084,22 @@ export default async function AdminOrderDetailPage({ params }: Props) {
               orderNumber={formatOrderDisplayNumber(order.publicNumber, order.id)}
               sellerId={seller.sellerId}
               sellerName={seller.sellerName}
-              invoice={seller.invoice ? {
-                fileName: seller.invoice.fileName,
-                uploadedAt: seller.invoice.uploadedAt.toISOString(),
-                revision: seller.invoice.revision,
-                reviewStatus: seller.invoice.reviewStatus,
-                reviewNote: seller.invoice.reviewNote,
-                invoiceNumber: seller.invoice.invoiceNumber,
-                invoiceDate: seller.invoice.invoiceDate?.toISOString() ?? null,
-              } : null}
-              expected={expectedSellerInvoices.get(seller.sellerId) ?? { amount: '-', vatGroups: [] }}
+              invoice={
+                seller.invoice
+                  ? {
+                      fileName: seller.invoice.fileName,
+                      uploadedAt: seller.invoice.uploadedAt.toISOString(),
+                      revision: seller.invoice.revision,
+                      reviewStatus: seller.invoice.reviewStatus,
+                      reviewNote: seller.invoice.reviewNote,
+                      invoiceNumber: seller.invoice.invoiceNumber,
+                      invoiceDate: seller.invoice.invoiceDate?.toISOString() ?? null,
+                    }
+                  : null
+              }
+              expected={
+                expectedSellerInvoices.get(seller.sellerId) ?? { amount: '-', vatGroups: [] }
+              }
               managementEnabled={invoiceManagement.managementEnabled}
             />
           ))}
@@ -1117,14 +1215,19 @@ export default async function AdminOrderDetailPage({ params }: Props) {
           hasEftPendingPayment={hasEftPendingPayment}
           hasBlockablePayout={hasBlockablePayout}
           canCancel={canCancel}
+          {...(order.quantityLifecycleVersion === 2 ? { cancellationItems: cancellableItems } : {})}
           cancelRefundsCustomer={paymentCollected}
-          manualPenalty={canApplyManualPenalty && sellerId
-            ? {
-                sellerId,
-                sellerName,
-                defaultAmount: (sellerLineTotal * platformSettings.standardPenaltyRate.toNumber()).toFixed(2),
-              }
-            : null}
+          manualPenalty={
+            canApplyManualPenalty && sellerId
+              ? {
+                  sellerId,
+                  sellerName,
+                  defaultAmount: (
+                    sellerLineTotal * platformSettings.standardPenaltyRate.toNumber()
+                  ).toFixed(2),
+                }
+              : null
+          }
         />
         <p className="mt-3 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
           Tüm admin işlemleri denetim günlüğüne kaydedilir.

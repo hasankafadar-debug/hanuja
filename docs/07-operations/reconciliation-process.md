@@ -98,7 +98,7 @@ Her `Penalty` (status: `applied`) için:
 
 - Karşılık gelen `SellerLedgerEntry` (type: `penalty`) bulunmalı
 - `seller_rejected_paid_order` cezalarında `penaltyAmount = baseAmount * rate` doğrulanmalı
-- `late_shipment_daily_accrual` cezalarında `penaltyAmount = baseAmount * dailyAccrualRate * accrualDayCount` doğrulanmalı; `lastAccrualAt` ile aynı gün için tekrar entry üretilmemiş olmalı
+- Yalnız tarihî `late_shipment_daily_accrual` cezalarında; yeni günlük ceza üretilmez. Eski kayıtlarda `penaltyAmount = baseAmount * dailyAccrualRate * accrualDayCount` doğrulanmalı; `lastAccrualAt` ile aynı gün için tekrar entry üretilmemiş olmalı
 - 20. gecikme gününde `Order.status = cancelled_due_to_20day_breach` ve `Order.cancellationReason = auto_canceled_20day_breach` olmalı; refund akışı tetiklenmiş olmalı
 - Muaf tutulan cezalarda (`status: waived`) ledger kaydı ters işlem içermeli ve `waivedBy`, `waiverReason` dolu olmalı
 

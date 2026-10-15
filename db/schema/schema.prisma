@@ -476,6 +476,9 @@ enum NotificationType {
   product_price_drop
   seller_invoice_reminder
   seller_invoice_rejected
+  seller_return_shipped
+  seller_return_decision
+  seller_return_invoice_uploaded
 }
 
 enum NotificationChannel {
@@ -3432,4 +3435,28 @@ model CookieConsentRecord {
   @@index([consentId, createdAt])
   @@index([userId])
   @@map("cookie_consent_records")
+}
+
+// Hanuja return invoice references existing finance; it never changes balances.
+model SellerReturnInvoice {
+  id                String   @id @default(cuid())
+  returnRequestId   String
+  sellerId          String
+  orderId           String
+  refundIds         Json
+  invoiceNumber     String
+  invoiceDate       DateTime
+  amount            Decimal  @db.Decimal(12, 2)
+  vatGroups         Json
+  fileKey           String
+  fileName          String
+  mimeType          String
+  sizeBytes         Int
+  uploadedByAdminId String
+  uploadedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  @@unique([returnRequestId, sellerId])
+  @@index([orderId])
+  @@map("seller_return_invoices")
 }

@@ -10,9 +10,15 @@ interface Props {
   /** When set, the conversation lives on the linked return thread. */
   returnRequestId: string | null
   canResolve: boolean
+  quantityReturn: boolean
 }
 
-export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: Props) {
+export function DisputeResolveForm({
+  disputeId,
+  returnRequestId,
+  canResolve,
+  quantityReturn,
+}: Props) {
   const router = useRouter()
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
@@ -35,7 +41,11 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
       })
       if (!res.ok) {
         const p = await res.json().catch(() => null)
-        toast({ title: 'Not eklenemedi', description: (p?.message as string) ?? 'Tekrar deneyin.', variant: 'destructive' })
+        toast({
+          title: 'Not eklenemedi',
+          description: (p?.message as string) ?? 'Tekrar deneyin.',
+          variant: 'destructive',
+        })
         return
       }
       setNote('')
@@ -46,7 +56,10 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
 
   function resolve(resolutionType: 'resolved_for_customer' | 'resolved_for_seller') {
     if (resolution.trim().length < 5) {
-      toast({ title: 'Sonuç açıklaması en az 5 karakter olmalı', variant: 'destructive' })
+      toast({
+        title: 'Sonuç açıklaması en az 5 karakter olmalı',
+        variant: 'destructive',
+      })
       return
     }
     startTransition(async () => {
@@ -65,7 +78,11 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
       })
       if (!res.ok) {
         const p = await res.json().catch(() => null)
-        toast({ title: 'Çözülemedi', description: (p?.message as string) ?? 'Tekrar deneyin.', variant: 'destructive' })
+        toast({
+          title: 'Çözülemedi',
+          description: (p?.message as string) ?? 'Tekrar deneyin.',
+          variant: 'destructive',
+        })
         return
       }
       toast({ title: 'Uyuşmazlık kapatıldı', variant: 'success' })
@@ -77,14 +94,22 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
     <div className="space-y-5">
       <div
         className="rounded-xl border p-5 space-y-2"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-surface)',
+        }}
       >
         <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-          Not / Mesaj Ekle {returnRequestId ? '(müşteri-tasarımcı yazışmasına yazılır)' : ''}
+          Not / Mesaj Ekle — yalnız seçilen alıcıya iletilir
         </p>
-        <label>Mesajın alıcısı <select value={audience} onChange={(event) => setAudience(event.target.value)}>
-          <option value="customer">Müşteri</option><option value="seller">Tasarımcı</option><option value="internal">Yalnız yönetim</option>
-        </select></label>
+        <label>
+          Mesajın alıcısı{' '}
+          <select value={audience} onChange={(event) => setAudience(event.target.value)}>
+            <option value="customer">Müşteri</option>
+            <option value="seller">Tasarımcı</option>
+            <option value="internal">Yalnız yönetim</option>
+          </select>
+        </label>
         <Textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -100,7 +125,10 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
       {canResolve ? (
         <div
           className="rounded-xl border p-5 space-y-3"
-          style={{ borderColor: 'var(--color-warning)', backgroundColor: '#fffbeb' }}
+          style={{
+            borderColor: 'var(--color-warning)',
+            backgroundColor: '#fffbeb',
+          }}
         >
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" style={{ color: 'var(--color-warning)' }} />
@@ -109,8 +137,13 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
             </span>
           </div>
           <p className="text-xs" style={{ color: '#92400e' }}>
-            Bu işlem geri alınamaz. Müşteri lehine çözümde (tutar girilirse) para iadesi başlatılır ve
-            hakediş bloke kalır. Tasarımcı lehine çözümde hakediş serbest kalır.
+            Müşteri lehine kararda{' '}
+            {quantityReturn
+              ? 'ilgili ürün/adetlerin iade tutarı mali kayıtlardan hesaplanır.'
+              : 'uygun iade tutarıyla para iadesi başlatılır.'}{' '}
+            EFT iadesi, bankadan ödeme yapıp ayrıca teyit etmenizle tamamlanır. Tasarımcı lehine
+            karar yeni para iadesi oluşturmaz. Telefon uzlaşısını, ürünün ne yapılacağını ve varsa
+            geri gönderim takibini sonuç açıklamasına yazın.
           </p>
           <Textarea
             value={resolution}
@@ -119,13 +152,15 @@ export function DisputeResolveForm({ disputeId, returnRequestId, canResolve }: P
             rows={3}
             disabled={pending}
           />
-          <Input
-            value={refund}
-            onChange={(e) => setRefund(e.target.value)}
-            placeholder="İade tutarı (TRY) — müşteri lehine ve gerekiyorsa"
-            inputMode="decimal"
-            disabled={pending}
-          />
+          {!quantityReturn ? (
+            <Input
+              value={refund}
+              onChange={(e) => setRefund(e.target.value)}
+              placeholder="İade tutarı (TRY) — müşteri lehine ve gerekiyorsa"
+              inputMode="decimal"
+              disabled={pending}
+            />
+          ) : null}
           <div className="flex flex-wrap gap-3">
             <Button
               type="button"

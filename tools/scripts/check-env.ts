@@ -32,7 +32,7 @@ interface EnvVar {
   key: string
   required: boolean
   requiredInProd?: boolean
-  requiredWhen?: 'card-payments' | 'invoice-aliasing'
+  requiredWhen?: 'card-payments'
   description: string
   /** If true, must be a real non-placeholder value in production */
   sensitiveInProd?: boolean
@@ -42,73 +42,340 @@ interface EnvVar {
 
 const ENV_VARS: EnvVar[] = [
   // Database
-  { key: 'DATABASE_URL', required: true, description: 'PostgreSQL connection string', apps: ['all'] },
+  {
+    key: 'DATABASE_URL',
+    required: true,
+    description: 'PostgreSQL connection string',
+    apps: ['all'],
+  },
 
   // Redis
-  { key: 'REDIS_URL', required: true, description: 'Redis connection URL for BullMQ', apps: ['all'] },
+  {
+    key: 'REDIS_URL',
+    required: true,
+    description: 'Redis connection URL for BullMQ',
+    apps: ['all'],
+  },
 
   // Auth
-  { key: 'BETTER_AUTH_SECRET', required: true, sensitiveInProd: true, description: 'Better Auth signing secret (min 32 chars)', apps: ['all'] },
-  { key: 'BETTER_AUTH_URL', required: true, description: 'Auth base URL', apps: ['web', 'seller-panel', 'admin-panel'] },
-  { key: 'NEXT_PUBLIC_APP_URL', required: true, description: 'Public app URL', apps: ['web', 'seller-panel', 'admin-panel'] },
-  { key: 'NEXT_PUBLIC_WEB_URL', required: false, requiredInProd: true, description: 'Storefront URL', apps: ['all'] },
-  { key: 'NEXT_PUBLIC_SELLER_PANEL_URL', required: false, requiredInProd: true, description: 'Public seller panel URL', apps: ['all'] },
-  { key: 'NEXT_PUBLIC_ADMIN_PANEL_URL', required: false, requiredInProd: true, description: 'Public admin panel URL', apps: ['all'] },
-  { key: 'SELLER_PANEL_URL', required: true, description: 'Seller panel base URL', apps: ['all'] },
-  { key: 'ADMIN_PANEL_URL', required: true, description: 'Admin panel base URL', apps: ['all'] },
-  { key: 'GOOGLE_CLIENT_ID', required: false, sensitiveInProd: true, description: 'Google OAuth client ID (musteri sosyal girisi, opsiyonel)', apps: ['web'] },
-  { key: 'GOOGLE_CLIENT_SECRET', required: false, sensitiveInProd: true, description: 'Google OAuth client secret (musteri sosyal girisi, opsiyonel)', apps: ['web'] },
+  {
+    key: 'BETTER_AUTH_SECRET',
+    required: true,
+    sensitiveInProd: true,
+    description: 'Better Auth signing secret (min 32 chars)',
+    apps: ['all'],
+  },
+  {
+    key: 'BETTER_AUTH_URL',
+    required: true,
+    description: 'Auth base URL',
+    apps: ['web', 'seller-panel', 'admin-panel'],
+  },
+  {
+    key: 'NEXT_PUBLIC_APP_URL',
+    required: true,
+    description: 'Public app URL',
+    apps: ['web', 'seller-panel', 'admin-panel'],
+  },
+  {
+    key: 'NEXT_PUBLIC_WEB_URL',
+    required: false,
+    requiredInProd: true,
+    description: 'Storefront URL',
+    apps: ['all'],
+  },
+  {
+    key: 'NEXT_PUBLIC_SELLER_PANEL_URL',
+    required: false,
+    requiredInProd: true,
+    description: 'Public seller panel URL',
+    apps: ['all'],
+  },
+  {
+    key: 'NEXT_PUBLIC_ADMIN_PANEL_URL',
+    required: false,
+    requiredInProd: true,
+    description: 'Public admin panel URL',
+    apps: ['all'],
+  },
+  {
+    key: 'SELLER_PANEL_URL',
+    required: true,
+    description: 'Seller panel base URL',
+    apps: ['all'],
+  },
+  {
+    key: 'ADMIN_PANEL_URL',
+    required: true,
+    description: 'Admin panel base URL',
+    apps: ['all'],
+  },
+  {
+    key: 'GOOGLE_CLIENT_ID',
+    required: false,
+    sensitiveInProd: true,
+    description: 'Google OAuth client ID (musteri sosyal girisi, opsiyonel)',
+    apps: ['web'],
+  },
+  {
+    key: 'GOOGLE_CLIENT_SECRET',
+    required: false,
+    sensitiveInProd: true,
+    description: 'Google OAuth client secret (musteri sosyal girisi, opsiyonel)',
+    apps: ['web'],
+  },
 
   // Payment
-  { key: 'CARD_PAYMENTS_ENABLED', required: false, requiredInProd: true, description: 'Card payment feature flag (true/false)', apps: ['all'] },
-  { key: 'IYZICO_CARD_PAYMENTS_ENABLED', required: false, description: 'Opens card sales on the standard iyzico POS after iyzico approval and live sales contracts (true/false, default closed)', apps: ['web'] },
-  { key: 'IYZICO_API_KEY', required: false, requiredWhen: 'card-payments', sensitiveInProd: true, description: 'Iyzico API key', apps: ['api'] },
-  { key: 'IYZICO_SECRET_KEY', required: false, requiredWhen: 'card-payments', sensitiveInProd: true, description: 'Iyzico secret key', apps: ['api'] },
-  { key: 'IYZICO_BASE_URL', required: false, requiredWhen: 'card-payments', description: 'Iyzico base URL (sandbox or live)', apps: ['api'] },
-  { key: 'IYZICO_WEBHOOK_SECRET', required: false, requiredWhen: 'card-payments', sensitiveInProd: true, description: 'Iyzico webhook HMAC secret', apps: ['api'] },
+  {
+    key: 'CARD_PAYMENTS_ENABLED',
+    required: false,
+    requiredInProd: true,
+    description: 'Card payment feature flag (true/false)',
+    apps: ['all'],
+  },
+  {
+    key: 'IYZICO_CARD_PAYMENTS_ENABLED',
+    required: false,
+    description:
+      'Opens card sales on the standard iyzico POS after iyzico approval and live sales contracts (true/false, default closed)',
+    apps: ['web'],
+  },
+  {
+    key: 'IYZICO_API_KEY',
+    required: false,
+    requiredWhen: 'card-payments',
+    sensitiveInProd: true,
+    description: 'Iyzico API key',
+    apps: ['api'],
+  },
+  {
+    key: 'IYZICO_SECRET_KEY',
+    required: false,
+    requiredWhen: 'card-payments',
+    sensitiveInProd: true,
+    description: 'Iyzico secret key',
+    apps: ['api'],
+  },
+  {
+    key: 'IYZICO_BASE_URL',
+    required: false,
+    requiredWhen: 'card-payments',
+    description: 'Iyzico base URL (sandbox or live)',
+    apps: ['api'],
+  },
+  {
+    key: 'IYZICO_WEBHOOK_SECRET',
+    required: false,
+    requiredWhen: 'card-payments',
+    sensitiveInProd: true,
+    description: 'Iyzico webhook HMAC secret',
+    apps: ['api'],
+  },
 
   // Turnstile
-  { key: 'NEXT_PUBLIC_TURNSTILE_SITE_KEY', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Cloudflare Turnstile site key', apps: ['web', 'seller-panel', 'admin-panel'] },
-  { key: 'TURNSTILE_SECRET_KEY', required: false, requiredInProd: true, sensitiveInProd: true, description: 'Cloudflare Turnstile secret key', apps: ['api', 'web', 'seller-panel', 'admin-panel'] },
+  {
+    key: 'NEXT_PUBLIC_TURNSTILE_SITE_KEY',
+    required: false,
+    requiredInProd: true,
+    sensitiveInProd: true,
+    description: 'Cloudflare Turnstile site key',
+    apps: ['web', 'seller-panel', 'admin-panel'],
+  },
+  {
+    key: 'TURNSTILE_SECRET_KEY',
+    required: false,
+    requiredInProd: true,
+    sensitiveInProd: true,
+    description: 'Cloudflare Turnstile secret key',
+    apps: ['api', 'web', 'seller-panel', 'admin-panel'],
+  },
 
   // Storage
-  { key: 'R2_ACCOUNT_ID', required: true, description: 'Cloudflare R2 account ID', apps: ['api'] },
-  { key: 'R2_ACCESS_KEY_ID', required: true, sensitiveInProd: true, description: 'R2 access key', apps: ['api'] },
-  { key: 'R2_SECRET_ACCESS_KEY', required: true, sensitiveInProd: true, description: 'R2 secret access key', apps: ['api'] },
-  { key: 'R2_BUCKET_NAME', required: true, description: 'R2 bucket name', apps: ['api'] },
-  { key: 'R2_PUBLIC_URL', required: true, description: 'R2 public CDN URL', apps: ['api'] },
-  { key: 'R2_CDN_URL', required: false, description: 'R2 public CDN URL override', apps: ['api'] },
-  { key: 'PRIVATE_DOCUMENT_ROOT', required: false, requiredInProd: true, description: 'Mounted absolute private document directory for durable invoice cleanup', apps: ['worker'] },
+  {
+    key: 'R2_ACCOUNT_ID',
+    required: true,
+    description: 'Cloudflare R2 account ID',
+    apps: ['api'],
+  },
+  {
+    key: 'R2_ACCESS_KEY_ID',
+    required: true,
+    sensitiveInProd: true,
+    description: 'R2 access key',
+    apps: ['api'],
+  },
+  {
+    key: 'R2_SECRET_ACCESS_KEY',
+    required: true,
+    sensitiveInProd: true,
+    description: 'R2 secret access key',
+    apps: ['api'],
+  },
+  {
+    key: 'R2_BUCKET_NAME',
+    required: true,
+    description: 'R2 bucket name',
+    apps: ['api'],
+  },
+  {
+    key: 'R2_PUBLIC_URL',
+    required: true,
+    description: 'R2 public CDN URL',
+    apps: ['api'],
+  },
+  {
+    key: 'R2_CDN_URL',
+    required: false,
+    description: 'R2 public CDN URL override',
+    apps: ['api'],
+  },
+  {
+    key: 'PRIVATE_DOCUMENT_ROOT',
+    required: false,
+    requiredInProd: true,
+    description: 'Mounted absolute private document directory for durable invoice cleanup',
+    apps: ['worker'],
+  },
 
   // Search
-  { key: 'MEILISEARCH_URL', required: true, description: 'Meilisearch server URL', apps: ['all'] },
-  { key: 'MEILISEARCH_ADMIN_KEY', required: true, sensitiveInProd: true, description: 'Meilisearch admin API key', apps: ['api'] },
-  { key: 'MEILISEARCH_SEARCH_KEY', required: true, description: 'Meilisearch public search key', apps: ['web'] },
+  {
+    key: 'MEILISEARCH_URL',
+    required: true,
+    description: 'Meilisearch server URL',
+    apps: ['all'],
+  },
+  {
+    key: 'MEILISEARCH_ADMIN_KEY',
+    required: true,
+    sensitiveInProd: true,
+    description: 'Meilisearch admin API key',
+    apps: ['api'],
+  },
+  {
+    key: 'MEILISEARCH_SEARCH_KEY',
+    required: true,
+    description: 'Meilisearch public search key',
+    apps: ['web'],
+  },
 
   // Email
-  { key: 'SMTP_HOST', required: false, requiredInProd: true, description: 'SMTP server hostname (production: smtp.resend.com)', apps: ['api'] },
-  { key: 'SMTP_PORT', required: false, requiredInProd: true, description: 'SMTP port (465 for Resend implicit TLS; 587 STARTTLS also supported)', apps: ['api'] },
-  { key: 'SMTP_USER', required: false, requiredInProd: true, description: 'SMTP authentication user (literal "resend" for Resend SMTP)', apps: ['api'] },
-  { key: 'SMTP_PASS', required: false, requiredInProd: true, sensitiveInProd: true, description: 'SMTP password (Resend API key in production)', apps: ['api'] },
-  { key: 'SMTP_FROM', required: false, requiredInProd: true, description: 'From address for outgoing emails', apps: ['api'] },
-  { key: 'EMAIL_FROM_NOREPLY', required: false, description: 'From address for transactional mail; falls back to SMTP_FROM. Must be an address on the Resend-verified domain.', apps: ['api'] },
-  { key: 'EMAIL_FROM_FATURA', required: false, description: 'From address for invoice mail; falls back to SMTP_FROM. Must be an address on the Resend-verified domain.', apps: ['api'] },
-  { key: 'EMAIL_FROM_KAMPANYA', required: false, description: 'From address for campaign mail; falls back to SMTP_FROM. Must be an address on the Resend-verified domain.', apps: ['api'] },
-  { key: 'RESEND_WEBHOOK_SECRET', required: false, description: 'Signing secret for /api/webhooks/resend (web runtime only; never NEXT_PUBLIC)', apps: ['web'] },
-  { key: 'INVOICE_ALIASING_ENABLED', required: false, requiredInProd: true, description: 'Invoice aliasing feature flag (true/false)', apps: ['all'] },
-  { key: 'INVOICE_MANAGEMENT_ENABLED', required: false, description: 'Enable invoice deletion/admin upload only after all services are updated (true/false)', apps: ['all'] },
-  { key: 'INBOUND_EMAIL_DOMAIN', required: false, requiredWhen: 'invoice-aliasing', description: 'Inbound invoice email domain, e.g. fatura.hanuja.com.tr', apps: ['web', 'seller-panel', 'admin-panel'] },
-  { key: 'RESEND_RECEIVING_API_KEY', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Resend API key with access to received PDF attachments', apps: ['web'] },
-  { key: 'RESEND_INBOUND_WEBHOOK_SECRET', required: false, requiredWhen: 'invoice-aliasing', sensitiveInProd: true, description: 'Signing secret for /api/inbound/resend', apps: ['web'] },
-  { key: 'POSTMARK_INBOUND_WEBHOOK_USER', required: false, sensitiveInProd: true, description: 'Legacy Postmark inbound basic auth user (optional)', apps: ['web'] },
-  { key: 'POSTMARK_INBOUND_WEBHOOK_PASS', required: false, sensitiveInProd: true, description: 'Legacy Postmark inbound basic auth password (optional)', apps: ['web'] },
+  {
+    key: 'SMTP_HOST',
+    required: false,
+    requiredInProd: true,
+    description: 'SMTP server hostname (production: smtp.resend.com)',
+    apps: ['api'],
+  },
+  {
+    key: 'SMTP_PORT',
+    required: false,
+    requiredInProd: true,
+    description: 'SMTP port (465 for Resend implicit TLS; 587 STARTTLS also supported)',
+    apps: ['api'],
+  },
+  {
+    key: 'SMTP_USER',
+    required: false,
+    requiredInProd: true,
+    description: 'SMTP authentication user (literal "resend" for Resend SMTP)',
+    apps: ['api'],
+  },
+  {
+    key: 'SMTP_PASS',
+    required: false,
+    requiredInProd: true,
+    sensitiveInProd: true,
+    description: 'SMTP password (Resend API key in production)',
+    apps: ['api'],
+  },
+  {
+    key: 'SMTP_FROM',
+    required: false,
+    requiredInProd: true,
+    description: 'From address for outgoing emails',
+    apps: ['api'],
+  },
+  {
+    key: 'EMAIL_FROM_NOREPLY',
+    required: false,
+    description:
+      'From address for transactional mail; falls back to SMTP_FROM. Must be an address on the Resend-verified domain.',
+    apps: ['api'],
+  },
+  {
+    key: 'EMAIL_FROM_FATURA',
+    required: false,
+    description:
+      'From address for invoice mail; falls back to SMTP_FROM. Must be an address on the Resend-verified domain.',
+    apps: ['api'],
+  },
+  {
+    key: 'EMAIL_FROM_KAMPANYA',
+    required: false,
+    description:
+      'From address for campaign mail; falls back to SMTP_FROM. Must be an address on the Resend-verified domain.',
+    apps: ['api'],
+  },
+  {
+    key: 'RESEND_WEBHOOK_SECRET',
+    required: false,
+    description: 'Signing secret for /api/webhooks/resend (web runtime only; never NEXT_PUBLIC)',
+    apps: ['web'],
+  },
+  {
+    key: 'INVOICE_MANAGEMENT_ENABLED',
+    required: false,
+    description:
+      'Enable invoice deletion/admin upload only after all services are updated (true/false)',
+    apps: ['all'],
+  },
+  {
+    key: 'POSTMARK_INBOUND_WEBHOOK_USER',
+    required: false,
+    sensitiveInProd: true,
+    description: 'Legacy Postmark inbound basic auth user (optional)',
+    apps: ['web'],
+  },
+  {
+    key: 'POSTMARK_INBOUND_WEBHOOK_PASS',
+    required: false,
+    sensitiveInProd: true,
+    description: 'Legacy Postmark inbound basic auth password (optional)',
+    apps: ['web'],
+  },
 
   // App metadata
-  { key: 'NEXT_PUBLIC_SITE_NAME', required: false, description: 'Site display name', apps: ['web'] },
-  { key: 'NEXT_PUBLIC_SITE_URL', required: false, description: 'Canonical site URL', apps: ['web'] },
-  { key: 'PREVIEW_DEPLOYMENT', required: false, requiredInProd: true, description: 'Preview deployment flag (must be false in production)', apps: ['web'] },
-  { key: 'AUTO_APPROVE_CLEAN_PRODUCTS', required: false, description: 'Auto-publish clean products flag', apps: ['all'] },
-  { key: 'NEXT_PUBLIC_COOKIE_CONSENT_E2E_FIXTURE', required: false, description: 'E2E-only cookie consent fixture (must be unset in production)', apps: ['web'] },
+  {
+    key: 'NEXT_PUBLIC_SITE_NAME',
+    required: false,
+    description: 'Site display name',
+    apps: ['web'],
+  },
+  {
+    key: 'NEXT_PUBLIC_SITE_URL',
+    required: false,
+    description: 'Canonical site URL',
+    apps: ['web'],
+  },
+  {
+    key: 'PREVIEW_DEPLOYMENT',
+    required: false,
+    requiredInProd: true,
+    description: 'Preview deployment flag (must be false in production)',
+    apps: ['web'],
+  },
+  {
+    key: 'AUTO_APPROVE_CLEAN_PRODUCTS',
+    required: false,
+    description: 'Auto-publish clean products flag',
+    apps: ['all'],
+  },
+  {
+    key: 'NEXT_PUBLIC_COOKIE_CONSENT_E2E_FIXTURE',
+    required: false,
+    description: 'E2E-only cookie consent fixture (must be unset in production)',
+    apps: ['web'],
+  },
 ]
 
 const PLACEHOLDER_PATTERNS = [
@@ -176,13 +443,13 @@ function haveSameOrigin(left: string, right: string): boolean {
   }
 }
 
-function isEnabledFlag(key: 'CARD_PAYMENTS_ENABLED' | 'IYZICO_CARD_PAYMENTS_ENABLED' | 'INVOICE_ALIASING_ENABLED'): boolean {
+function isEnabledFlag(key: 'CARD_PAYMENTS_ENABLED' | 'IYZICO_CARD_PAYMENTS_ENABLED'): boolean {
   return process.env[key]?.trim().toLowerCase() === 'true'
 }
 
 function isConditionalRequirementActive(requiredWhen: EnvVar['requiredWhen']): boolean {
-  if (requiredWhen === 'card-payments') return isEnabledFlag('CARD_PAYMENTS_ENABLED') || isEnabledFlag('IYZICO_CARD_PAYMENTS_ENABLED')
-  if (requiredWhen === 'invoice-aliasing') return isEnabledFlag('INVOICE_ALIASING_ENABLED')
+  if (requiredWhen === 'card-payments')
+    return isEnabledFlag('CARD_PAYMENTS_ENABLED') || isEnabledFlag('IYZICO_CARD_PAYMENTS_ENABLED')
   return false
 }
 
@@ -227,7 +494,6 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
     if (
       (envVar.key === 'CARD_PAYMENTS_ENABLED' ||
         envVar.key === 'IYZICO_CARD_PAYMENTS_ENABLED' ||
-        envVar.key === 'INVOICE_ALIASING_ENABLED' ||
         envVar.key === 'INVOICE_MANAGEMENT_ENABLED' ||
         envVar.key === 'PREVIEW_DEPLOYMENT') &&
       !/^(true|false)$/i.test(value.trim())
@@ -240,7 +506,9 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
     }
 
     if (isProd && isForbiddenProductionUrl(envVar.key, value.trim())) {
-      missing.push(`${envVar.key} must use a valid production domain (sslip.io, localhost and r2.dev are not allowed).`)
+      missing.push(
+        `${envVar.key} must use a valid production domain (sslip.io, localhost and r2.dev are not allowed).`,
+      )
     }
 
     if (
@@ -248,7 +516,9 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
       envVar.key === 'NEXT_PUBLIC_TURNSTILE_SITE_KEY' &&
       TURNSTILE_TEST_SITE_KEYS.has(value.trim())
     ) {
-      missing.push('NEXT_PUBLIC_TURNSTILE_SITE_KEY must not use a Cloudflare test key in production.')
+      missing.push(
+        'NEXT_PUBLIC_TURNSTILE_SITE_KEY must not use a Cloudflare test key in production.',
+      )
     }
 
     if (
@@ -279,13 +549,19 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
   }
 
   if (isProd && vars.some((envVar) => envVar.key === 'NEXT_PUBLIC_WEB_URL')) {
-    try { getPlatformBaseUrls() } catch (error) {
+    try {
+      getPlatformBaseUrls()
+    } catch (error) {
       missing.push(error instanceof Error ? error.message : 'EMAIL_BASE_URL_INVALID')
     }
-    for (const [publicKey, serverKey] of [['NEXT_PUBLIC_SELLER_PANEL_URL', 'SELLER_PANEL_URL'], ['NEXT_PUBLIC_ADMIN_PANEL_URL', 'ADMIN_PANEL_URL']]) {
+    for (const [publicKey, serverKey] of [
+      ['NEXT_PUBLIC_SELLER_PANEL_URL', 'SELLER_PANEL_URL'],
+      ['NEXT_PUBLIC_ADMIN_PANEL_URL', 'ADMIN_PANEL_URL'],
+    ]) {
       const publicUrl = process.env[publicKey!]?.trim()
       const serverUrl = process.env[serverKey!]?.trim()
-      if (publicUrl && serverUrl && !haveSameOrigin(publicUrl, serverUrl)) missing.push(publicKey + ' must use the same origin as ' + serverKey + '.')
+      if (publicUrl && serverUrl && !haveSameOrigin(publicUrl, serverUrl))
+        missing.push(publicKey + ' must use the same origin as ' + serverKey + '.')
     }
   }
 
@@ -315,7 +591,10 @@ function main() {
         // Workers use API integrations (SMTP, storage, queues, payments) but
         // never verify browser challenges. Keep all shared production checks.
         if (appFilter === 'worker') {
-          return v.key !== 'TURNSTILE_SECRET_KEY' && (v.apps.includes('all') || v.apps.includes('api') || v.apps.includes('worker'))
+          return (
+            v.key !== 'TURNSTILE_SECRET_KEY' &&
+            (v.apps.includes('all') || v.apps.includes('api') || v.apps.includes('worker'))
+          )
         }
         return v.apps.includes('all') || v.apps.includes(appFilter as 'web')
       })

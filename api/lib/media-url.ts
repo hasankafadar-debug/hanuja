@@ -88,12 +88,26 @@ export function isLegacyManagedMediaHostname(hostname: string) {
 
 function extractCanonicalManagedMediaKey(sourceUrl: string) {
   const parsed = parseAbsoluteUrl(sourceUrl)
+  const localEndpoint =
+    process.env.NODE_ENV !== 'production' && process.env.R2_LOCAL_ENDPOINT
+      ? parseAbsoluteUrl(process.env.R2_LOCAL_ENDPOINT)
+      : null
+  const localBase = localEndpoint ? parseAbsoluteUrl(getConfiguredMediaBaseUrl()) : null
+  const localTest = Boolean(
+    parsed &&
+    localEndpoint &&
+    localBase &&
+    ['localhost', '127.0.0.1', '[::1]'].includes(localEndpoint.hostname) &&
+    localBase.origin === localEndpoint.origin &&
+    parsed.origin === localEndpoint.origin &&
+    parsed.pathname.startsWith(trimTrailingSlash(localBase.pathname) + '/'),
+  )
   if (
     !parsed ||
-    parsed.protocol !== 'https:' ||
+    (parsed.protocol !== 'https:' && !localTest) ||
     parsed.username ||
     parsed.password ||
-    parsed.port ||
+    (parsed.port && !localTest) ||
     parsed.search ||
     parsed.hash ||
     !isManagedMediaHostname(parsed.hostname)
@@ -116,7 +130,9 @@ function extractCanonicalManagedMediaKey(sourceUrl: string) {
     return null
   }
 
-  const segments = rawPath.split('/').slice(1)
+  const keyPath =
+    localTest && localBase ? rawPath.slice(trimTrailingSlash(localBase.pathname).length) : rawPath
+  const segments = keyPath.split('/').slice(1)
   if (
     segments.length === 0 ||
     segments.some((segment) => !segment || segment === '.' || segment === '..')

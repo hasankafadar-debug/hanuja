@@ -17,7 +17,9 @@ vi.mock(
   '@/lib/admin-refund-list-params',
   async () => import('../../apps/admin-panel/src/lib/admin-refund-list-params'),
 )
-vi.mock('@hanuja/api/lib/prisma', () => ({ createPrismaForRoute: mocks.prisma }))
+vi.mock('@hanuja/api/lib/prisma', () => ({
+  createPrismaForRoute: mocks.prisma,
+}))
 vi.mock('@hanuja/api/services/admin-refund-query.service', () => ({
   createAdminRefundQueryService: () => ({
     getCounts: mocks.counts,
@@ -49,8 +51,14 @@ describe('admin refund queue server page', () => {
     vi.clearAllMocks()
     vi.stubGlobal('React', React)
     mocks.session.mockResolvedValue({ user: { role: 'admin' } })
-    mocks.prisma.mockReturnValue({ refundTransaction: { findMany: mocks.refundRows } })
-    mocks.counts.mockResolvedValue({ pendingManualRefunds: 0, failedCardRefunds: 0 })
+    mocks.prisma.mockReturnValue({
+      refundTransaction: { findMany: mocks.refundRows },
+      sellerReturnInvoice: { findMany: vi.fn().mockResolvedValue([]) },
+    })
+    mocks.counts.mockResolvedValue({
+      pendingManualRefunds: 0,
+      failedCardRefunds: 0,
+    })
     mocks.manual.mockResolvedValue({ rows: [], total: 0 })
     mocks.failed.mockResolvedValue({ rows: [], total: 0 })
     mocks.returns.mockResolvedValue([])
@@ -58,14 +66,18 @@ describe('admin refund queue server page', () => {
   it('does not read any refund data before authentication succeeds', async () => {
     mocks.session.mockRejectedValueOnce(new Error('unauthorized'))
     await expect(
-      ReturnsAdminPage({ searchParams: Promise.resolve({ tab: 'manual_refunds' }) }),
+      ReturnsAdminPage({
+        searchParams: Promise.resolve({ tab: 'manual_refunds' }),
+      }),
     ).rejects.toThrow('unauthorized')
     expect(mocks.prisma).not.toHaveBeenCalled()
     expect(mocks.counts).not.toHaveBeenCalled()
     expect(mocks.manual).not.toHaveBeenCalled()
   })
   it('keeps /iadeler and unknown tabs on the original return-request flow', async () => {
-    await ReturnsAdminPage({ searchParams: Promise.resolve({ tab: 'invalid' }) })
+    await ReturnsAdminPage({
+      searchParams: Promise.resolve({ tab: 'invalid' }),
+    })
     expect(mocks.returns).toHaveBeenCalledWith({ skip: 0, take: 50 })
     expect(mocks.manual).not.toHaveBeenCalled()
     expect(mocks.failed).not.toHaveBeenCalled()
@@ -100,7 +112,11 @@ describe('admin refund queue server page', () => {
         source: 'return_request',
       }),
     })
-    expect(mocks.failed).toHaveBeenCalledWith({ skip: 0, take: 20, sourceType: 'return_request' })
+    expect(mocks.failed).toHaveBeenCalledWith({
+      skip: 0,
+      take: 20,
+      sourceType: 'return_request',
+    })
     expect(mocks.manual).not.toHaveBeenCalled()
     expect(mocks.returns).not.toHaveBeenCalled()
   })
@@ -108,7 +124,11 @@ describe('admin refund queue server page', () => {
     mocks.manual.mockResolvedValueOnce({ rows: [], total: 21 })
     await expect(
       ReturnsAdminPage({
-        searchParams: Promise.resolve({ tab: 'manual_refunds', page: '3', q: 'Müşteri' }),
+        searchParams: Promise.resolve({
+          tab: 'manual_refunds',
+          page: '3',
+          q: 'Müşteri',
+        }),
       }),
     ).rejects.toThrow('redirect:')
     const target = new URL(mocks.redirect.mock.calls[0]![0], 'https://admin.test')
@@ -119,7 +139,9 @@ describe('admin refund queue server page', () => {
   it('propagates query failures instead of showing a false empty queue', async () => {
     mocks.manual.mockRejectedValueOnce(new Error('database unavailable'))
     await expect(
-      ReturnsAdminPage({ searchParams: Promise.resolve({ tab: 'manual_refunds' }) }),
+      ReturnsAdminPage({
+        searchParams: Promise.resolve({ tab: 'manual_refunds' }),
+      }),
     ).rejects.toThrow('database unavailable')
   })
 })

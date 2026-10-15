@@ -74,7 +74,10 @@ interface Fixture {
 
 /** One delivered, card-paid single-seller order with a return in the given status. */
 async function seedReturn(
-  options: { status?: 'requested' | 'approved' | 'in_transit'; paymentMethod?: 'card' | 'eft' } = {},
+  options: {
+    status?: 'requested' | 'approved' | 'in_transit'
+    paymentMethod?: 'card' | 'eft'
+  } = {},
 ): Promise<Fixture> {
   const suffix = randomUUID()
   const returnStatus = options.status ?? 'in_transit'
@@ -250,20 +253,43 @@ describe('legacy return flow atomicity against PostgreSQL', () => {
   it('processes quantity-return cargo without transitioning the whole delivered order', async () => {
     const f = await seedQuantityReturn()
     await prisma.order.update({ where: { id: f.orderId }, data: { status: 'delivery_confirmed' } })
-    await prisma.returnRequest.update({ where: { id: f.returnRequestId }, data: { status: 'requested' } })
+    await prisma.returnRequest.update({
+      where: { id: f.returnRequestId },
+      data: { status: 'requested' },
+    })
     const service = createReturnService({ prisma })
-    await expect(service.provideSellerCargoInfo({ returnRequestId: f.returnRequestId,
-      sellerId: 'another-seller', address: 'Test iade adresi', carrier: 'Test kargo' })).rejects.toThrow()
-    await service.provideSellerCargoInfo({ returnRequestId: f.returnRequestId,
-      sellerId: f.sellerId, address: 'Test iade adresi', carrier: 'Test kargo' })
-    expect((await prisma.returnRequest.findUniqueOrThrow({ where: { id: f.returnRequestId } })).status).toBe('approved')
-    await service.submitCustomerShipment({ returnRequestId: f.returnRequestId,
-      customerId: f.customerId, carrier: 'Test kargo', trackingNumber: 'LOCAL-RETURN-ONLY' })
-    expect((await prisma.returnRequest.findUniqueOrThrow({ where: { id: f.returnRequestId } })).status).toBe('in_transit')
-    expect((await prisma.order.findUniqueOrThrow({ where: { id: f.orderId } })).status).toBe('delivery_confirmed')
+    await expect(
+      service.provideSellerCargoInfo({
+        returnRequestId: f.returnRequestId,
+        sellerId: 'another-seller',
+        address: 'Test iade adresi',
+        carrier: 'Test kargo',
+      }),
+    ).rejects.toThrow()
+    await service.provideSellerCargoInfo({
+      returnRequestId: f.returnRequestId,
+      sellerId: f.sellerId,
+      address: 'Test iade adresi',
+      carrier: 'Test kargo',
+    })
+    expect(
+      (await prisma.returnRequest.findUniqueOrThrow({ where: { id: f.returnRequestId } })).status,
+    ).toBe('approved')
+    await service.submitCustomerShipment({
+      returnRequestId: f.returnRequestId,
+      customerId: f.customerId,
+      carrier: 'Test kargo',
+      trackingNumber: 'LOCAL-RETURN-ONLY',
+    })
+    expect(
+      (await prisma.returnRequest.findUniqueOrThrow({ where: { id: f.returnRequestId } })).status,
+    ).toBe('in_transit')
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: f.orderId } })).status).toBe(
+      'delivery_confirmed',
+    )
     const history = await prisma.orderStatusHistory.findMany({ where: { orderId: f.orderId } })
     expect(history).toHaveLength(2)
-    expect(history.every(row => row.toStatus === 'delivery_confirmed')).toBe(true)
+    expect(history.every((row) => row.toStatus === 'delivery_confirmed')).toBe(true)
   })
   it('rolls back every covered flow when the notification cannot be written', async () => {
     // 1. seller provides cargo info
@@ -291,11 +317,10 @@ describe('legacy return flow atomicity against PostgreSQL', () => {
       carrier: 'Yurtiçi Kargo',
     })
     expect(
-      (await prisma.returnRequest.findUniqueOrThrow({ where: { id: cargo.returnRequestId } })).status,
+      (await prisma.returnRequest.findUniqueOrThrow({ where: { id: cargo.returnRequestId } }))
+        .status,
     ).toBe('approved')
-    expect(
-      await prisma.notificationOutbox.count({ where: { userId: cargo.customerId } }),
-    ).toBe(1)
+    expect(await prisma.notificationOutbox.count({ where: { userId: cargo.customerId } })).toBe(1)
 
     // 2. customer ships the item back
     const shipment = await seedReturn({ status: 'approved' })
@@ -355,7 +380,9 @@ describe('legacy return flow atomicity against PostgreSQL', () => {
     })
     expect(afterReview.status).toBe('requested')
     expect(afterReview.reviewedBy).toBeNull()
-    expect(await prisma.adminAuditLog.count({ where: { targetId: review.returnRequestId } })).toBe(0)
+    expect(await prisma.adminAuditLog.count({ where: { targetId: review.returnRequestId } })).toBe(
+      0,
+    )
 
     // 6. admin marks the item received
     const adminRefund = await seedReturn()
@@ -369,7 +396,9 @@ describe('legacy return flow atomicity against PostgreSQL', () => {
     expect(
       (await prisma.order.findUniqueOrThrow({ where: { id: adminRefund.orderId } })).status,
     ).toBe('return_in_transit')
-    expect(await prisma.refundTransaction.count({ where: { orderId: adminRefund.orderId } })).toBe(0)
+    expect(await prisma.refundTransaction.count({ where: { orderId: adminRefund.orderId } })).toBe(
+      0,
+    )
 
     // 7. customer opens a return
     const opening = await seedReturn({ status: 'requested' })
@@ -403,9 +432,7 @@ describe('legacy return flow atomicity against PostgreSQL', () => {
     expect(rr.status).toBe('in_transit')
     expect(rr.sellerReceivedAt).toBeNull()
     expect(await prisma.refundTransaction.count({ where: { orderId: fixture.orderId } })).toBe(0)
-    expect(
-      await prisma.notificationOutbox.count({ where: { userId: fixture.customerId } }),
-    ).toBe(0)
+    expect(await prisma.notificationOutbox.count({ where: { userId: fixture.customerId } })).toBe(0)
     expect((await prisma.order.findUniqueOrThrow({ where: { id: fixture.orderId } })).status).toBe(
       'return_in_transit',
     )
@@ -560,9 +587,7 @@ describe('legacy return flow atomicity against PostgreSQL', () => {
         where: { orderId: fixture.orderId, toStatus: 'return_rejected' },
       }),
     ).toBe(1)
-    expect(
-      await prisma.notificationOutbox.count({ where: { userId: fixture.customerId } }),
-    ).toBe(1)
+    expect(await prisma.notificationOutbox.count({ where: { userId: fixture.customerId } })).toBe(1)
   })
 
   it('does not let the first admin approval swallow the later refund decision', async () => {
@@ -586,9 +611,13 @@ describe('legacy return flow atomicity against PostgreSQL', () => {
       orderBy: { createdAt: 'asc' },
     })
     expect(rows).toHaveLength(2)
-    const payloads = rows.map((row) => row.payload as { eventKey: string; data: Record<string, unknown> })
-    expect(payloads[0]!.eventKey).toBe(`return:${fixture.returnRequestId}:customer:review:approved`)
-    expect(payloads[0]!.data.refundOutcome).toBe('awaiting_return')
+    const payloads = rows.map(
+      (row) => row.payload as { eventKey: string; data: Record<string, unknown> },
+    )
+    expect(payloads[0]!.eventKey).toBe(
+      `return:${fixture.returnRequestId}:admin:review:approved:customer`,
+    )
+    expect(payloads[0]!.data.stage).toBe('final_approved')
     expect(payloads[0]!.data.refundAmount).toBeUndefined()
     expect(payloads[1]!.eventKey).toBe(`return:${fixture.returnRequestId}:customer:admin-refund`)
     // Legacy refunds have no provider item mapping, so they wait for an admin.
@@ -626,9 +655,7 @@ describe('legacy return flow atomicity against PostgreSQL', () => {
       (await prisma.returnRequest.findUniqueOrThrow({ where: { id: fixture.returnRequestId } }))
         .status,
     ).toBe('requested')
-    expect(
-      await prisma.notificationOutbox.count({ where: { userId: fixture.customerId } }),
-    ).toBe(0)
+    expect(await prisma.notificationOutbox.count({ where: { userId: fixture.customerId } })).toBe(0)
 
     // The seller that owns the order lines is still authorised.
     await service().provideSellerCargoInfo({

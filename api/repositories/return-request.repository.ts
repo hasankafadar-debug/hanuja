@@ -1,3 +1,4 @@
+import { sellerReturnListItem } from '../lib/participant-return'
 import type { Prisma, PrismaClient, ReturnRequestStatus } from '@prisma/client'
 import type { Decimal } from '@prisma/client/runtime/client'
 
@@ -25,10 +26,7 @@ export function sellerScopedReturnWhere(
 ): Prisma.ReturnRequestWhereInput {
   return {
     id,
-    OR: [
-      { sellerId },
-      { sellerId: null, order: { lines: { some: { sellerId } } } },
-    ],
+    OR: [{ sellerId }, { sellerId: null, order: { lines: { some: { sellerId } } } }],
   }
 }
 
@@ -66,9 +64,16 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
         where: sellerScopedReturnWhere(id, sellerId),
         include: {
           ...messageInclude,
+          items: {
+            where: { orderLine: { sellerId } },
+            include: { orderLine: true },
+          },
           order: {
             include: {
-              lines: { include: { product: { select: { name: true } } } },
+              lines: {
+                where: { sellerId },
+                include: { product: { select: { name: true } } },
+              },
               payments: true,
             },
           },
@@ -98,7 +103,10 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
     },
 
     updateStatus(id: string, status: ReturnRequestStatus, tx?: ReturnRequestClient) {
-      return (tx ?? prisma).returnRequest.update({ where: { id }, data: { status } })
+      return (tx ?? prisma).returnRequest.update({
+        where: { id },
+        data: { status },
+      })
     },
 
     /** Seller provides return cargo instructions → status requested → approved. */
@@ -142,10 +150,17 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
 
     /** Seller confirms physical receipt → status in_transit → received. */
     async setSellerReceived(id: string, tx?: ReturnRequestClient) {
-      const prior = await (tx ?? prisma).returnRequest.findUniqueOrThrow({ where: { id } })
+      const prior = await (tx ?? prisma).returnRequest.findUniqueOrThrow({
+        where: { id },
+      })
       return (tx ?? prisma).returnRequest.update({
         where: { id },
-        data: { status: 'received', sellerReceivedAt: new Date(), returnCarrierDeliveredAt: new Date(), refundDeadlineAt: prior.refundDeadlineAt ?? new Date(Date.now() + 14 * 86400000) },
+        data: {
+          status: 'received',
+          sellerReceivedAt: new Date(),
+          returnCarrierDeliveredAt: new Date(),
+          refundDeadlineAt: prior.refundDeadlineAt ?? new Date(Date.now() + 14 * 86400000),
+        },
       })
     },
 
@@ -199,15 +214,15 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
     markRefunded(id: string, refundAmount: Decimal) {
       return prisma.returnRequest.update({
         where: { id },
-        data: { status: 'refund_completed', refundAmount, refundedAt: new Date() },
+        data: {
+          status: 'refund_completed',
+          refundAmount,
+          refundedAt: new Date(),
+        },
       })
     },
 
-    listForAdmin(params: {
-      status?: ReturnRequestStatus
-      skip?: number
-      take?: number
-    }) {
+    listForAdmin(params: { status?: ReturnRequestStatus; skip?: number; take?: number }) {
       return prisma.returnRequest.findMany({
         where: {
           ...(params.status !== undefined ? { status: params.status } : {}),
@@ -227,16 +242,22 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
      * List return requests for a seller — filtered via order line ownership.
      * Seller sees returns on orders that contain their products.
      */
-    listForSeller(params: { sellerId: string; skip?: number; take?: number }) {
-      return prisma.returnRequest.findMany({
+    async listForSeller(params: { sellerId: string; skip?: number; take?: number }) {
+      const rows = await prisma.returnRequest.findMany({
         where: {
           OR: [
             { sellerId: params.sellerId },
-            { sellerId: null, order: { lines: { some: { sellerId: params.sellerId } } } },
+            {
+              sellerId: null,
+              order: { lines: { some: { sellerId: params.sellerId } } },
+            },
           ],
         },
         include: {
-          items: { include: { orderLine: true } },
+          items: {
+            where: { orderLine: { sellerId: params.sellerId } },
+            include: { orderLine: true },
+          },
           order: {
             select: {
               id: true,
@@ -252,6 +273,7 @@ export function createReturnRequestRepository(prisma: PrismaClient) {
         ...(params.skip !== undefined ? { skip: params.skip } : {}),
         take: params.take ?? 30,
       })
+      return rows.map(sellerReturnListItem)
     },
 
     /** Count open returns that block payout for a given order */

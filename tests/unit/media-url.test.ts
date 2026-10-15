@@ -21,6 +21,31 @@ describe('media url helpers', () => {
     vi.unstubAllEnvs()
   })
 
+  it('supports only the explicitly configured loopback test store and keeps private folders blocked', () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('R2_LOCAL_ENDPOINT', 'http://127.0.0.1:9000')
+    vi.stubEnv('R2_PUBLIC_URL', 'http://127.0.0.1:9000/test-bucket')
+    vi.stubEnv('R2_PUBLIC_HOSTNAME', '127.0.0.1')
+    expect(
+      extractPublicManagedMediaKey('http://127.0.0.1:9000/test-bucket/products/test.png'),
+    ).toBe('products/test.png')
+    expect(
+      extractPublicManagedMediaKey('http://127.0.0.1:9000/test-bucket/returns/test.png'),
+    ).toBeNull()
+    expect(
+      extractPublicManagedMediaKey('http://127.0.0.1:9001/test-bucket/products/test.png'),
+    ).toBeNull()
+    expect(
+      extractPublicManagedMediaKey(
+        'http://127.0.0.1:9000/test-bucket/products/%2e%2e/returns/test.png',
+      ),
+    ).toBeNull()
+    vi.stubEnv('NODE_ENV', 'production')
+    expect(
+      extractPublicManagedMediaKey('http://127.0.0.1:9000/test-bucket/products/test.png'),
+    ).toBeNull()
+  })
+
   it('proxies legacy r2.dev urls through the app route', () => {
     const source = 'https://pub-05520b87648e41d29f4d7539fef47aef.r2.dev/products/test/image.jpg'
 

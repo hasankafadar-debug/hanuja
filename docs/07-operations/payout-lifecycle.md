@@ -31,11 +31,7 @@ verirken Hanuja'ya faturalar. Hakediş bu faturanın ödemesidir.
 
 ## 2. Payout Kaydı Nasıl Oluşur
 
-`order.deliveryConfirmedAt` alanına zaman damgası yazılır. Bu değer üç yoldan biriyle oluşur:
-
-1. Müşteri "Teslim Aldım" butonuna basar
-2. Admin manuel olarak `delivery_confirmed_manual` aksiyonunu uygular (`AdminAuditLog`'a kaydedilir)
-3. BullMQ sessiz onay job'ı: sipariş `delivered` durumuna geçtikten 72 saat sonra müşteri itiraz açmamışsa sistem otomatik `delivery_confirmed`'e geçirir
+`order.deliveryConfirmedAt` alanına zaman damgası yazılır. Bu değer yalnız adminin teslim teyidiyle oluşur. Tasarımcı teslim bildirimi, admin teyidini bekler. Müşteri onayı ve 72 saatlik sessiz görev kaldırılmıştır.
 
 `Payout` kaydı oluşturulur:
 - `status = hold_active`
@@ -213,7 +209,7 @@ Her payout hareketi `SellerLedgerEntry` tablosuna yazılır (immutable, append-o
 | Komisyon kesintisi | `commission` |
 | Kargo kesintisi | `cargo_charge` |
 | Reklam/hizmet ücreti | `ad_fee` |
-| Ceza kesintisi | `penalty` (seller rejection %20 veya late shipment daily accrual) |
+| Ceza kesintisi | `penalty` (tasarımcı reddi %20; günlük gecikme kayıtları yalnız tarihî) |
 | İade etkisi | `refund` |
 | Kupon payı | `coupon_share` |
 | Admin düzeltme | `manual_adjustment` |
@@ -373,7 +369,6 @@ Payout lifecycle otomasyonu için aşağıdaki job'lar gereklidir:
 |-----|-------------|-------|
 | `payout-maturity` | Periyodik (günlük) | Eksik hakediş kayıtlarını ve onaylı faturası olup vadesi yazılmamış kayıtları tamamlar; vadesi dolmuş ve koşulları temiz payoutları `payout_ready` yapar |
 | `seller-invoice-reminder` | 15 dakikada bir | Kargoya verilişten 1 saat sonra hâlâ faturası olmayan sipariş/satıcı için tek seferlik `seller_invoice_reminder` yazar (ceza yok) |
-| `delivery-silent-confirm` | `delivered` geçişinden 72 saat sonra | İtiraz yoksa `delivery_confirmed`'e geçirir |
 | `payout-batch-prepare` | Admin tetiklemesi veya zamanlı | `payout_ready` kayıtlarını batch'e toplar |
 
 Her job idempotent olmalıdır. Yeniden çalıştırma durumunda çift payout veya çift ledger kaydı oluşturmamalıdır.

@@ -29,7 +29,9 @@ function exportsPost(file: string): boolean {
 }
 
 function apiPath(appDir: string, file: string): string {
-  const rel = relative(join(appDir, 'src', 'app'), file).split(sep).join('/')
+  const rel = relative(join(appDir, 'src', 'app'), file)
+    .split(sep)
+    .join('/')
   return `/${rel.replace(/\/route\.ts$/, '')}`
 }
 
@@ -47,15 +49,18 @@ describe('web endpoints called by third-party servers', () => {
     ...routeFiles(join(webDir, 'src', 'app', 'api', 'webhooks')),
     ...routeFiles(join(webDir, 'src', 'app', 'api', 'inbound')),
     join(webDir, 'src', 'app', 'api', 'payment', 'callback', 'route.ts'),
-  ].filter(exportsPost).map((file) => apiPath(webDir, file))
+  ]
+    .filter(exportsPost)
+    .map((file) => apiPath(webDir, file))
 
   it('finds the provider routes this guard is meant to cover', () => {
-    expect(providerRoutes).toEqual(expect.arrayContaining([
-      '/api/webhooks/iyzico',
-      '/api/webhooks/resend',
-      '/api/inbound/postmark',
-      '/api/payment/callback',
-    ]))
+    expect(providerRoutes).toEqual(
+      expect.arrayContaining([
+        '/api/webhooks/iyzico',
+        '/api/webhooks/resend',
+        '/api/payment/callback',
+      ]),
+    )
   })
 
   it.each(providerRoutes)('lets %s reach its own signature check', (path) => {
@@ -66,7 +71,9 @@ describe('web endpoints called by third-party servers', () => {
     const unsubscribeUrl = `${CANONICAL}/api/marketing/unsubscribe?token=opt-out-token`
     expect(isValidMarketingUnsubscribeUrl(unsubscribeUrl)).toBe(true)
     const { pathname, search } = new URL(unsubscribeUrl)
-    expect(isApiMutationOriginAllowed(providerPost(`${pathname}${search}`), CANONICAL, 'web')).toBe(true)
+    expect(isApiMutationOriginAllowed(providerPost(`${pathname}${search}`), CANONICAL, 'web')).toBe(
+      true,
+    )
   })
 
   it('does not treat ordinary browser mutations as provider endpoints', () => {

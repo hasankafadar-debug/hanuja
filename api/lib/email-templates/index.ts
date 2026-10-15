@@ -162,7 +162,10 @@ function renderAmountSummary(summary: OrderAmountSummary | undefined, total: Ema
       </tr></tbody></table>`
 }
 
-function renderAmountSummaryText(summary: OrderAmountSummary | undefined, total: EmailAmount): string {
+function renderAmountSummaryText(
+  summary: OrderAmountSummary | undefined,
+  total: EmailAmount,
+): string {
   const lines: string[] = []
   if (summary?.subtotal !== undefined) lines.push(`Ürünler: ${amountText(summary.subtotal)}`)
   if (summary?.couponDiscount !== undefined)
@@ -226,7 +229,9 @@ function renderBankInstructions(
           `${entry.bankName}${entry.branchName ? ` / ${entry.branchName}` : ''} — ${entry.accountHolder} — IBAN: ${entry.iban} — Referans: ${entry.reference ?? orderNumber}`,
       )
       .join('\n')
-      .concat(`\nReferans: ${reference}. Ödemeniz onaylandıktan sonra siparişiniz hazırlanmaya başlanacaktır.`),
+      .concat(
+        `\nReferans: ${reference}. Ödemeniz onaylandıktan sonra siparişiniz hazırlanmaya başlanacaktır.`,
+      ),
   }
 }
 
@@ -239,14 +244,17 @@ export function orderConfirmationTemplate(
   params: CustomerOrderConfirmationEmailInput,
 ): EmailTemplate {
   const orderUrl = customerOrderUrl(params)
-  const paymentStatus = params.paymentStatus ?? (params.paymentMethod === 'eft' ? 'pending' : 'confirmed')
+  const paymentStatus =
+    params.paymentStatus ?? (params.paymentMethod === 'eft' ? 'pending' : 'confirmed')
   const pending = paymentStatus === 'pending'
   const paymentLabel = paymentMethodLabel(params.paymentMethod)
   const title = pending ? 'Siparişiniz Alındı — Ödeme Bekleniyor' : 'Siparişiniz Alındı'
   const statusCopy = pending
     ? 'Ödemeniz henüz alınmadı. Aşağıdaki hesaba havale / EFT yaptığınızda ödemeniz kontrol edilip onaylanacaktır.'
     : 'Ödemeniz alındı ve siparişiniz tasarımcıya iletildi. Kargoya verildiğinde size ayrıca bilgi vereceğiz.'
-  const bank = pending ? renderBankInstructions(params.bankTransferInstructions, params.orderNumber) : null
+  const bank = pending
+    ? renderBankInstructions(params.bankTransferInstructions, params.orderNumber)
+    : null
   const contracts = params.contracts ?? {}
   const contractLinks = [
     ['Ön Bilgilendirme Formu', contracts.preInformationUrl],
@@ -386,7 +394,6 @@ export function shipmentNotificationTemplate(params: CustomerShipmentEmailInput)
     ${items.length ? renderLineItemsTable(items, { quantityLabel: 'Gönderilen Adet' }) : ''}
     ${renderTotal(params.totalAmount)}
     ${renderCta('Siparişimi Görüntüle', orderUrl)}
-    ${paragraph('Ürün elinize ulaştığında sipariş sayfasından teslimatı onaylayabilirsiniz.', 'margin:0;font-size:13px;color:#777;')}
   `
 
   return {
@@ -400,7 +407,7 @@ export const orderShippedTemplate = shipmentNotificationTemplate
 export const orderShippedEmailTemplate = shipmentNotificationTemplate
 export const customerOrderShippedTemplate = shipmentNotificationTemplate
 
-/** Invoice uploaded — sent to customer when the seller's product invoice is available. */
+/** Hanuja's sales invoice is available to the customer. */
 export function invoiceUploadedTemplate(params: CustomerInvoiceEmailInput): EmailTemplate {
   const title = 'Faturanız Oluşturuldu'
   const items = params.items ?? []
@@ -437,14 +444,14 @@ export function returnRequestTemplate(params: CustomerReturnRequestEmailInput): 
     ${items.length ? renderLineItemsTable(items, { quantityLabel: 'İade Adedi' }) : ''}
     ${paragraph('<strong>İade Sebebi:</strong>', 'margin:0 0 8px;font-size:14px;color:#555;')}
     ${paragraph(escapeHtml(returnReason), 'margin:0 0 24px;font-size:14px;color:#333;background:#f9f9f9;padding:12px;border-radius:4px;')}
-    ${paragraph('Tasarımcı talebinizi inceleyip iade kargo bilgilerini iletecek; ürünü kargoya verebilmeniz için size ayrıca e-posta göndereceğiz. Talebinizin durumunu sipariş sayfasından takip edebilirsiniz.', 'margin:0 0 24px;font-size:14px;color:#555;')}
+    ${paragraph('Hanuja iade kargo talimatlarını hazırladığında size ayrıca e-posta göndereceğiz. Talebinizin durumunu sipariş sayfasından takip edebilirsiniz.', 'margin:0 0 24px;font-size:14px;color:#555;')}
     ${renderCta('İade Talebimi Görüntüle', orderUrl)}
   `
 
   return {
     subject: `${title} — #${params.orderNumber}`,
     html: layout(title, body),
-    text: `Merhaba ${params.customerName}, #${params.orderNumber} için iade talebinizi aldık. Sebep: ${returnReason}${items.length ? `\n${renderLineItemsText(items, { quantityLabel: 'İade Adedi' })}` : ''}\nTasarımcı iade kargo bilgilerini iletince size ayrıca e-posta göndereceğiz.${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
+    text: `Merhaba ${params.customerName}, #${params.orderNumber} için iade talebinizi aldık. Sebep: ${returnReason}${items.length ? `\n${renderLineItemsText(items, { quantityLabel: 'İade Adedi' })}` : ''}\nHanuja iade kargo talimatlarını hazırladığında size ayrıca e-posta göndereceğiz.${orderUrl ? `\nSipariş detayı: ${orderUrl}` : ''}`,
   }
 }
 
@@ -460,7 +467,9 @@ export function refundCompletedTemplate(params: CustomerRefundCompletedEmailInpu
         ? 'bildirdiğiniz IBAN hesabına'
         : 'ödeme yönteminize'
   const amountCopy =
-    params.refundAmount === undefined ? '' : ` <strong>${escapeHtml(amountText(params.refundAmount))}</strong> tutarındaki`
+    params.refundAmount === undefined
+      ? ''
+      : ` <strong>${escapeHtml(amountText(params.refundAmount))}</strong> tutarındaki`
   const body = `
     ${heading(title)}
     ${greeting(params.customerName)}

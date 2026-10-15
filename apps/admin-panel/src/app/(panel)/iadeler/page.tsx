@@ -7,7 +7,11 @@ import { createReturnService } from '@hanuja/api/services/return.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createAdminRefundQueryService } from '@hanuja/api/services/admin-refund-query.service'
 import type { RawAdminSearchParams } from '@/lib/admin-list-params'
-import { parseRefundQueueParams, readRefundTab, refundQueueHref } from '@/lib/admin-refund-list-params'
+import {
+  parseRefundQueueParams,
+  readRefundTab,
+  refundQueueHref,
+} from '@/lib/admin-refund-list-params'
 import { ReturnReviewActions } from './_components/return-review-actions'
 import { RefundPaymentQueue } from './_components/refund-payment-queue'
 import { RefundQueueTabs } from './_components/refund-queue-tabs'
@@ -16,7 +20,11 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = { title: 'İadeler' }
 
-export default async function ReturnsAdminPage({ searchParams }: { searchParams?: Promise<RawAdminSearchParams> }) {
+export default async function ReturnsAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<RawAdminSearchParams>
+}) {
   await getAdminSession()
 
   const raw = searchParams ? await searchParams : undefined
@@ -34,9 +42,10 @@ export default async function ReturnsAdminPage({ searchParams }: { searchParams?
       ...(params.method !== 'all' ? { method: params.method } : {}),
       ...(params.source !== 'all' ? { sourceType: params.source } : {}),
     }
-    const result = tab === 'manual_refunds'
-      ? await refundQuery.listManualRequiredForAdmin(query)
-      : await refundQuery.listFailedCardForAdmin(query)
+    const result =
+      tab === 'manual_refunds'
+        ? await refundQuery.listManualRequiredForAdmin(query)
+        : await refundQuery.listFailedCardForAdmin(query)
     const totalPages = Math.max(1, Math.ceil(result.total / params.pageSize))
     // Completion can shrink the queue while an admin is on its last page.
     if (params.page > totalPages) redirect(refundQueueHref(params, totalPages))
@@ -52,12 +61,37 @@ export default async function ReturnsAdminPage({ searchParams }: { searchParams?
 
   const svc = createReturnService({ prisma })
   const returns = await svc.listForAdmin({ skip: 0, take: 50 })
+  const returnInvoices = await prisma.sellerReturnInvoice.findMany({
+    where: { returnRequestId: { in: returns.map((rr) => rr.id) } },
+    select: { returnRequestId: true },
+  })
+  const invoicedReturns = new Set(returnInvoices.map((invoice) => invoice.returnRequestId))
   const refundRows = returns.length
     ? await prisma.refundTransaction.findMany({
-        where: { sourceType: 'return_request', sourceId: { in: returns.map((item) => item.id) } },
+        where: {
+          OR: [
+            { sourceType: 'return_request', sourceId: { in: returns.map((item) => item.id) } },
+            {
+              sourceType: 'dispute',
+              sourceId: { in: returns.flatMap((item) => (item.disputeId ? [item.disputeId] : [])) },
+            },
+          ],
+        },
       })
     : []
-  const refundsByRequest = new Map(refundRows.map((refund) => [refund.sourceId, refund]))
+  const refundsByRequest = new Map(
+    returns.map((request) => {
+      const refunds = refundRows.filter((refund) =>
+        refund.sourceType === 'return_request'
+          ? refund.sourceId === request.id
+          : refund.sourceId === request.disputeId,
+      )
+      return [
+        request.id,
+        refunds.find((refund) => refund.status !== 'completed') ?? refunds[0],
+      ] as const
+    }),
+  )
 
   const closedStatuses = ['rejected', 'refund_completed']
   const openCount = returns.filter((r) => !closedStatuses.includes(r.status)).length
@@ -66,11 +100,16 @@ export default async function ReturnsAdminPage({ searchParams }: { searchParams?
     <div className="min-w-0 space-y-6" data-testid="admin-returns-page">
       <PageHeader title="İadeler" description={`${openCount} açık iade`} />
       <RefundQueueTabs tab={tab} counts={counts} />
-      <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>İade talepleri</h2>
+      <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+        İade talepleri
+      </h2>
 
       <div
         className="rounded-xl border p-4 text-sm"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-muted)' }}
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-muted)',
+        }}
       >
         <strong style={{ color: 'var(--color-primary)' }}>14-gün kuralı:</strong>{' '}
         <span style={{ color: 'var(--color-muted-fg)' }}>
@@ -82,12 +121,26 @@ export default async function ReturnsAdminPage({ searchParams }: { searchParams?
 
       <div
         className="overflow-x-auto rounded-xl border"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-surface)',
+        }}
       >
         <table className="w-full whitespace-nowrap text-sm">
           <thead style={{ backgroundColor: 'var(--color-muted)' }}>
             <tr>
-              {['İade No', 'Sipariş', 'Ürün / Adet', 'Sebep', 'Müşteri İadesi', 'Uyuşmazlık', 'Refund', 'Durum', 'Ödeme son tarihi', ''].map((h) => (
+              {[
+                'İade No',
+                'Sipariş',
+                'Ürün / Adet',
+                'Sebep',
+                'Müşteri İadesi',
+                'Uyuşmazlık',
+                'Refund',
+                'Durum',
+                'Ödeme son tarihi',
+                '',
+              ].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
@@ -120,7 +173,9 @@ export default async function ReturnsAdminPage({ searchParams }: { searchParams?
                   className="px-4 py-3 font-mono text-xs"
                   style={{ color: 'var(--color-muted-fg)' }}
                 >
-                  <Link href={'/iadeler/' + r.id} className="underline">{r.id.slice(0, 8)}…</Link>
+                  <Link href={'/iadeler/' + r.id} className="underline">
+                    {r.id.slice(0, 8)}…
+                  </Link>
                 </td>
                 <td className="px-4 py-3">
                   <Link
@@ -165,9 +220,20 @@ export default async function ReturnsAdminPage({ searchParams }: { searchParams?
                 <td className="px-4 py-3">
                   <StatusBadge status={r.status} />
                 </td>
-                <td className="px-4 py-3">{r.refundDeadlineAt?.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' }) ?? 'Teslim bekleniyor'}</td>
                 <td className="px-4 py-3">
-                  {r.items.length === 0 && r.status === 'under_review' && <ReturnReviewActions returnId={r.id} />}
+                  {r.refundDeadlineAt?.toLocaleDateString('tr-TR', {
+                    timeZone: 'Europe/Istanbul',
+                  }) ?? 'Teslim bekleniyor'}
+                </td>
+                <td className="px-4 py-3">
+                  <Link href={'/iadeler/' + r.id} className="underline">
+                    {r.status === 'refund_completed' && !invoicedReturns.has(r.id)
+                      ? 'İade faturası bekliyor'
+                      : 'İade detayı'}
+                  </Link>
+                  {r.items.length === 0 && r.status === 'under_review' && (
+                    <ReturnReviewActions returnId={r.id} />
+                  )}
                   {r.items.length === 0 && r.status === 'approved' && (
                     <form action={`/api/admin/returns/${r.id}/mark-received`} method="POST">
                       <input type="hidden" name="refundAmount" value="0" />

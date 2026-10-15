@@ -287,7 +287,7 @@ Do not invent alternative penalty rates unless approved by policy.
 The 20% penalty applies in defined cases such as:
 
 - seller rejects a valid paid order
-- late shipment passes the delivery commitment date; 1% penalty accrues per overdue day and auto-cancel triggers on overdue day 20
+- documented admin penalties permitted by policy; late shipment alone produces tracking and warnings
 - other explicitly approved penalty scenarios defined by business policy
 
 ### 3. Penalty application method
@@ -326,17 +326,9 @@ If a seller rejects a paid order:
 
 Reject flow must never silently disappear from finance history.
 
-## 20-Day Fulfillment Rule
+## Fulfillment Delay Tracking
 
-If the operational delivery commitment date is breached:
-
-- seller penalty accrual must run daily at 1% of order amount
-- customer-facing refund or cancellation finance flow must run
-- seller payout eligibility must be blocked for the affected order
-- the case must remain visible in admin finance tools
-
-This rule must not depend on manual memory or support notes alone.
-It must be represented in system logic.
+Per-product shipment deadlines, extensions, risk records and warnings remain active. Automatic daily 1% accrual and overdue-day-20 cancellation are retired as of 2026-10-14. Historical monetary records remain auditable and are not bulk rewritten. An authorised cancellation must use the existing item-scoped refund path.
 
 ## Return and Refund Finance Rules
 

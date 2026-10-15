@@ -64,7 +64,12 @@ function buildTx() {
     },
     productImage: {
       findMany: vi.fn().mockResolvedValue([
-        { productId: 'product-a', url: 'https://media.hanuja.tr/products/gea.jpg', isPrimary: true, sortOrder: 0 },
+        {
+          productId: 'product-a',
+          url: 'https://media.hanuja.tr/products/gea.jpg',
+          isPrimary: true,
+          sortOrder: 0,
+        },
       ]),
     },
   }
@@ -81,12 +86,18 @@ describe('quantity cancellation notifications', () => {
   it('mails the customer and the seller when the customer cancels, marking the partial scope and refund', async () => {
     const tx = buildTx()
     const service = createQuantityCancellationService({ prisma: {} as never })
-    await service.recordCancellationNotifications(tx as never, order as never, [operation] as never, {
-      actorRole: 'customer',
-    })
+    await service.recordCancellationNotifications(
+      tx as never,
+      order as never,
+      [operation] as never,
+      {
+        actorRole: 'customer',
+      },
+    )
 
-    const [customerCall, sellerCall, adminCall, opsCall] =
-      recordNotificationMock.mock.calls.map((call) => call[1])
+    const [customerCall, sellerCall, adminCall, opsCall] = recordNotificationMock.mock.calls.map(
+      (call) => call[1],
+    )
     expect(recordNotificationMock).toHaveBeenCalledTimes(4)
     expect(customerCall).toMatchObject({
       eventKey: 'cancellation:cancel-1:customer',
@@ -126,7 +137,10 @@ describe('quantity cancellation notifications', () => {
     expect(sellerCall.data).not.toHaveProperty('refundAmount')
 
     // Admin copy stays in-app: no e-mail address is attached.
-    expect(adminCall).toMatchObject({ userId: 'admin-1', type: 'order_canceled' })
+    expect(adminCall).toMatchObject({
+      userId: 'admin-1',
+      type: 'order_canceled',
+    })
     expect(adminCall.emailTo).toBeUndefined()
 
     // One operations e-mail for the event, regardless of how many admins exist.
@@ -146,17 +160,36 @@ describe('quantity cancellation notifications', () => {
     })
   })
 
-  it('does not mail the seller its own rejection but still tells the customer', async () => {
+  it('also mails the designer its own cancellation', async () => {
     const tx = buildTx()
     const service = createQuantityCancellationService({ prisma: {} as never })
-    await service.recordCancellationNotifications(tx as never, order as never, [operation] as never, {
-      actorRole: 'seller',
-    })
+    await service.recordCancellationNotifications(
+      tx as never,
+      order as never,
+      [operation] as never,
+      {
+        actorRole: 'seller',
+      },
+    )
 
     const recipients = recordNotificationMock.mock.calls.map((call) => call[1].userId)
     // 'ops' is the operations mailbox row: one e-mail per event, no user account.
-    expect(recipients).toEqual(['customer-1', 'admin-1', 'ops'])
+    expect(recipients).toEqual(['customer-1', 'seller-user-1', 'admin-1', 'ops'])
     expect(recordNotificationMock.mock.calls[0]![1].data.actorRole).toBe('seller')
+  })
+
+  it('reports the whole order cancelled when the remaining quantity is cancelled after an earlier partial cancellation', async () => {
+    const service = createQuantityCancellationService({ prisma: {} as never })
+    await service.recordCancellationNotifications(
+      buildTx() as never,
+      {
+        ...order,
+        lines: order.lines.map((line) => ({ ...line, cancelledQuantity: 1 })),
+      } as never,
+      [operation] as never,
+      { actorRole: 'admin' },
+    )
+    expect(recordNotificationMock.mock.calls[0]![1].data.partial).toBe(false)
   })
 
   it('keeps an unpaid EFT cancellation away from the seller and promises no refund', async () => {
@@ -182,10 +215,16 @@ describe('quantity cancellation notifications', () => {
     expect(calls.map((call) => call.userId)).toEqual(['customer-1', 'admin-1', 'ops'])
 
     const [customerCall, , opsCall] = calls
-    expect(customerCall.data).toMatchObject({ paymentMethod: 'eft', paymentNotCollected: true })
+    expect(customerCall.data).toMatchObject({
+      paymentMethod: 'eft',
+      paymentNotCollected: true,
+    })
     expect(customerCall.data).not.toHaveProperty('refundAmount')
 
-    expect(opsCall.data).toMatchObject({ paymentCollected: false, netAmount: '56.939 TL' })
+    expect(opsCall.data).toMatchObject({
+      paymentCollected: false,
+      netAmount: '56.939 TL',
+    })
     expect(opsCall.data).not.toHaveProperty('refundAmount')
   })
 
@@ -194,7 +233,10 @@ describe('quantity cancellation notifications', () => {
     const service = createQuantityCancellationService({ prisma: {} as never })
     await service.recordCancellationNotifications(
       tx as never,
-      { ...order, lines: [{ id: 'line-a', productId: 'product-a', quantity: 1 }] } as never,
+      {
+        ...order,
+        lines: [{ id: 'line-a', productId: 'product-a', quantity: 1 }],
+      } as never,
       [operation] as never,
       { actorRole: 'admin' },
     )

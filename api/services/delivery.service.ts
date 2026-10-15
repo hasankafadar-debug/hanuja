@@ -15,12 +15,7 @@ import { recordNotification } from './notification-outbox.service'
 import { EMAIL_LINE_IMAGE_SELECT, toEmailOrderLine } from '../lib/email-line-items'
 import { buildCargoTrackingUrl, cargoProviderLabel } from '../domain/cargo-tracking'
 import { createHash } from 'node:crypto'
-import {
-  buildCustomerConfirmation,
-  buildAdminConfirmation,
-  buildSilentConfirmation,
-  isSilentConfirmationEligible,
-} from '../domain/delivery-confirmation'
+import { buildAdminConfirmation } from '../domain/delivery-confirmation'
 import { createPayoutService } from './payout.service'
 import { formatOrderNumber } from '../lib/order-number'
 import { getWebBaseUrl } from '../lib/platform-info'
@@ -65,7 +60,9 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
         customer: { select: { email: true, name: true } },
         address: { select: { fullName: true } },
         lines: {
-          where: { id: { in: params.shippedLines.map((line) => line.orderLineId) } },
+          where: {
+            id: { in: params.shippedLines.map((line) => line.orderLineId) },
+          },
           select: {
             id: true,
             productName: true,
@@ -103,9 +100,7 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
         sellerId: params.sellerId,
         ...(seller ? { sellerName: seller.displayName } : {}),
         orderUrl: `${getWebBaseUrl()}/siparis/${order.id}`,
-        items: order.lines.map((line) =>
-          toEmailOrderLine(line, quantityByLine.get(line.id) ?? 0),
-        ),
+        items: order.lines.map((line) => toEmailOrderLine(line, quantityByLine.get(line.id) ?? 0)),
       },
     })
   }
@@ -212,7 +207,9 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
                 },
               })
               if (!fulfillment || fulfillment.status !== 'awaiting_shipment') {
-                throw new ConflictError('Bu tasarımcı gönderisi kargoya verilebilecek durumda değil')
+                throw new ConflictError(
+                  'Bu tasarımcı gönderisi kargoya verilebilecek durumda değil',
+                )
               }
 
               const lines = await tx.orderLine.findMany({
@@ -375,25 +372,25 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
           'shipped',
           params.sellerId,
           `Kargo: ${params.trackingNumber}${params.cargoProvider ? ` (${params.cargoProvider})` : ''}`,
-            tx as unknown as PrismaClient,
-          )
+          tx as unknown as PrismaClient,
+        )
 
-          const legacyLines = await (tx as PrismaClient).orderLine.findMany({
-            where: { orderId: params.orderId, sellerId: params.sellerId },
-            select: { id: true, quantity: true, cancelledQuantity: true },
-          })
-          await recordShippedNotification(tx, {
-            ...params,
-            shippedLines: legacyLines
-              .map((line) => ({
-                orderLineId: line.id,
-                quantity: line.quantity - line.cancelledQuantity,
-              }))
-              .filter((line) => line.quantity > 0),
-          })
-
-          return shipment
+        const legacyLines = await (tx as PrismaClient).orderLine.findMany({
+          where: { orderId: params.orderId, sellerId: params.sellerId },
+          select: { id: true, quantity: true, cancelledQuantity: true },
         })
+        await recordShippedNotification(tx, {
+          ...params,
+          shippedLines: legacyLines
+            .map((line) => ({
+              orderLineId: line.id,
+              quantity: line.quantity - line.cancelledQuantity,
+            }))
+            .filter((line) => line.quantity > 0),
+        })
+
+        return shipment
+      })
     },
 
     /**
@@ -449,22 +446,6 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
     },
 
     /**
-     * Customer explicitly confirms delivery ("Teslim Aldım").
-     * Payout countdown starts here.
-     */
-    async confirmByCustomer(params: { orderId: string; customerId: string }) {
-      const order = await orders.findByIdForCustomer(params.orderId, params.customerId)
-      if (!order) throw new NotFoundError('Order', params.orderId)
-
-      if (order.status !== 'delivered' && order.status !== 'delivery_confirmation_pending') {
-        throw new ConflictError(`Teslimat onayı için uygun durum değil: ${order.status}`)
-      }
-
-      const confirmation = buildCustomerConfirmation()
-      return this._applyDeliveryConfirmation(params.orderId, params.customerId, confirmation)
-    },
-
-    /**
      * Admin manually confirms delivery. When `orderLineIds` is provided, only
      * those lines are stamped — the order moves to `delivery_confirmed` and
      * payout hold is activated only when ALL active lines are confirmed.
@@ -514,37 +495,6 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
       return result
     },
 
-    /**
-     * Silent auto-confirmation — called by the delivery-silent-confirmation job.
-     * Only proceeds if 72h elapsed and no open return/dispute.
-     */
-    async silentConfirm(orderId: string) {
-      const order = await prisma.order.findUnique({
-        where: { id: orderId },
-        include: {
-          returnRequests: true,
-          disputes: true,
-        },
-      })
-      if (!order) throw new NotFoundError('Order', orderId)
-
-      const shipment = await shipments.findByOrderId(orderId)
-      const deliveredAt = shipment?.deliveredAt ?? order.updatedAt
-
-      const eligible = isSilentConfirmationEligible({
-        deliveredAt,
-        hasOpenReturn: order.returnRequests.some(
-          (r) => r.status !== 'rejected' && r.status !== 'refund_completed',
-        ),
-        hasOpenDispute: order.disputes.some((d) => d.status === 'open'),
-      })
-
-      if (!eligible) return null
-
-      const confirmation = buildSilentConfirmation()
-      return this._applyDeliveryConfirmation(orderId, 'system', confirmation)
-    },
-
     async _applyDeliveryConfirmation(
       orderId: string,
       actorId: string,
@@ -586,7 +536,9 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
             fulfilledAt: true,
             deliveryConfirmedAt: true,
             deliveredAt: true,
-            shipmentItems: { select: { shipment: { select: { deliveredAt: true } } } },
+            shipmentItems: {
+              select: { shipment: { select: { deliveredAt: true } } },
+            },
           },
         })
         const linesToStamp = candidates.filter((line) =>
@@ -601,9 +553,16 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
 
         for (const line of linesToStamp) {
           if (!line.deliveredAt) {
-            const receipts = line.shipmentItems.map((item) => item.shipment.deliveredAt).filter((date): date is Date => date !== null)
-            const receivedAt = receipts.length ? new Date(Math.max(...receipts.map((date) => date.getTime()))) : confirmation.confirmedAt
-            await tx.orderLine.update({ where: { id: line.id }, data: { deliveredAt: receivedAt } })
+            const receipts = line.shipmentItems
+              .map((item) => item.shipment.deliveredAt)
+              .filter((date): date is Date => date !== null)
+            const receivedAt = receipts.length
+              ? new Date(Math.max(...receipts.map((date) => date.getTime())))
+              : confirmation.confirmedAt
+            await tx.orderLine.update({
+              where: { id: line.id },
+              data: { deliveredAt: receivedAt },
+            })
           }
         }
         if (stampedIds.length > 0) {
@@ -654,7 +613,11 @@ export function createDeliveryService({ prisma }: DeliveryServiceDeps) {
         }
 
         if (allLinesConfirmed) {
-          await orders.setDeliveryConfirmed(orderId, confirmation.confirmedAt, tx as unknown as PrismaClient)
+          await orders.setDeliveryConfirmed(
+            orderId,
+            confirmation.confirmedAt,
+            tx as unknown as PrismaClient,
+          )
           await orders.appendStatusHistory(
             orderId,
             'delivery_confirmed',

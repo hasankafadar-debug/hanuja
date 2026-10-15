@@ -1,3 +1,4 @@
+import { sellerOrderStatusWhere, sellerOperationalStatus } from '../lib/seller-order-status'
 import type { OrderStatus, Prisma, PrismaClient } from '@prisma/client'
 import { toSellerSafeLegalSnapshot } from '../lib/seller-legal-snapshot'
 
@@ -56,7 +57,10 @@ export function createOrderRepository(prisma: PrismaClient) {
           payments: true,
           shipments: true,
           sellerFulfillments: true,
-          cancellations: { include: { items: true }, orderBy: { createdAt: 'desc' } },
+          cancellations: {
+            include: { items: true },
+            orderBy: { createdAt: 'desc' },
+          },
           refundTransactions: { orderBy: { createdAt: 'desc' } },
           statusHistory: { orderBy: { createdAt: 'asc' } },
         },
@@ -72,13 +76,22 @@ export function createOrderRepository(prisma: PrismaClient) {
           payments: true,
           shipments: { include: { items: true } },
           sellerFulfillments: true,
-          cancellations: { include: { items: true }, orderBy: { createdAt: 'desc' } },
+          cancellations: {
+            include: { items: true },
+            orderBy: { createdAt: 'desc' },
+          },
           refundTransactions: { orderBy: { createdAt: 'desc' } },
           address: true,
           legalSnapshot: true,
           customerInvoice: { select: customerInvoiceSummarySelect },
           returnRequests: {
-            select: { id: true, status: true, reviewedAt: true, sellerRejectedAt: true, createdAt: true },
+            select: {
+              id: true,
+              status: true,
+              reviewedAt: true,
+              sellerRejectedAt: true,
+              createdAt: true,
+            },
             orderBy: { createdAt: 'desc' },
           },
         },
@@ -142,15 +155,6 @@ export function createOrderRepository(prisma: PrismaClient) {
             },
             orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }],
           },
-          emailAliases: {
-            where: { sellerId, purpose: 'invoice', status: 'active' },
-            select: {
-              id: true,
-              aliasEmail: true,
-              purpose: true,
-              status: true,
-            },
-          },
         },
       })
 
@@ -178,7 +182,13 @@ export function createOrderRepository(prisma: PrismaClient) {
           legalSnapshot: true,
           customerInvoice: { select: customerInvoiceSummarySelect },
           returnRequests: {
-            select: { id: true, status: true, reviewedAt: true, sellerRejectedAt: true, createdAt: true },
+            select: {
+              id: true,
+              status: true,
+              reviewedAt: true,
+              sellerRejectedAt: true,
+              createdAt: true,
+            },
             orderBy: { createdAt: 'desc' },
           },
         },
@@ -189,7 +199,7 @@ export function createOrderRepository(prisma: PrismaClient) {
     },
 
     /** Seller queue — payment-confirmed orders only */
-    listForSellerQueue(params: {
+    async listForSellerQueue(params: {
       sellerId: string
       orderIds?: string[]
       status?: OrderStatus[]
@@ -223,27 +233,41 @@ export function createOrderRepository(prisma: PrismaClient) {
             }
           : {}
 
-      return prisma.order.findMany({
+      const rows = await prisma.order.findMany({
         where: {
           ...(params.orderIds !== undefined ? { id: { in: params.orderIds } } : {}),
           lines: { some: { sellerId: params.sellerId } },
-          AND: [SELLER_VISIBLE_PAYMENT_WHERE],
+          AND: [
+            SELLER_VISIBLE_PAYMENT_WHERE,
+            sellerOrderStatusWhere(params.sellerId, sellerVisibleStatuses),
+          ],
           ...(params.missingInvoice
             ? { sellerInvoices: { none: { sellerId: params.sellerId } } }
             : {}),
-          status: { in: sellerVisibleStatuses },
           ...createdAtFilter,
           ...(normalizedQuery
             ? {
                 OR: [
                   { id: { contains: normalizedQuery } },
-                  { customer: { name: { contains: normalizedQuery, mode: 'insensitive' } } },
-                  { address: { fullName: { contains: normalizedQuery, mode: 'insensitive' } } },
+                  {
+                    customer: {
+                      name: { contains: normalizedQuery, mode: 'insensitive' },
+                    },
+                  },
+                  {
+                    address: {
+                      fullName: {
+                        contains: normalizedQuery,
+                        mode: 'insensitive',
+                      },
+                    },
+                  },
                 ],
               }
             : {}),
         },
         include: {
+          sellerFulfillments: { where: { sellerId: params.sellerId }, select: { status: true } },
           lines: {
             where: { sellerId: params.sellerId },
             include: { product: { include: { images: { take: 1 } } } },
@@ -255,20 +279,18 @@ export function createOrderRepository(prisma: PrismaClient) {
             },
           },
           address: { select: sellerVisibleAddressSelect },
-          emailAliases: {
-            where: { sellerId: params.sellerId, purpose: 'invoice', status: 'active' },
-            select: {
-              id: true,
-              aliasEmail: true,
-              purpose: true,
-              status: true,
-            },
-          },
         },
         orderBy: { createdAt: 'desc' },
         ...(params.skip !== undefined ? { skip: params.skip } : {}),
         take: params.take ?? 20,
       })
+      return rows.map((order) => ({
+        ...order,
+        sellerOperationalStatus:
+          order.quantityLifecycleVersion === 2 && order.sellerFulfillments[0]
+            ? sellerOperationalStatus(order.sellerFulfillments[0].status)
+            : order.status,
+      }))
     },
 
     countForSellerQueue(params: {
@@ -295,18 +317,31 @@ export function createOrderRepository(prisma: PrismaClient) {
         where: {
           ...(params.orderIds !== undefined ? { id: { in: params.orderIds } } : {}),
           lines: { some: { sellerId: params.sellerId } },
-          AND: [SELLER_VISIBLE_PAYMENT_WHERE],
+          AND: [
+            SELLER_VISIBLE_PAYMENT_WHERE,
+            sellerOrderStatusWhere(params.sellerId, params.status),
+          ],
           ...(params.missingInvoice
             ? { sellerInvoices: { none: { sellerId: params.sellerId } } }
             : {}),
-          ...(params.status !== undefined ? { status: { in: params.status } } : {}),
           ...createdAtFilter,
           ...(normalizedQuery
             ? {
                 OR: [
                   { id: { contains: normalizedQuery } },
-                  { customer: { name: { contains: normalizedQuery, mode: 'insensitive' } } },
-                  { address: { fullName: { contains: normalizedQuery, mode: 'insensitive' } } },
+                  {
+                    customer: {
+                      name: { contains: normalizedQuery, mode: 'insensitive' },
+                    },
+                  },
+                  {
+                    address: {
+                      fullName: {
+                        contains: normalizedQuery,
+                        mode: 'insensitive',
+                      },
+                    },
+                  },
                 ],
               }
             : {}),
@@ -359,7 +394,10 @@ export function createOrderRepository(prisma: PrismaClient) {
           : {}),
         // Hanuja's customer invoice is due once the goods are handed to the carrier.
         ...(params.customerInvoice === 'missing'
-          ? { customerInvoice: null, shipments: { some: { handedAt: { not: null } } } }
+          ? {
+              customerInvoice: null,
+              shipments: { some: { handedAt: { not: null } } },
+            }
           : {}),
         ...(params.customerInvoice === 'present' ? { customerInvoice: { isNot: null } } : {}),
         ...(params.from !== undefined || params.to !== undefined
@@ -374,12 +412,34 @@ export function createOrderRepository(prisma: PrismaClient) {
           ? {
               OR: [
                 { id: { contains: normalizedQuery } },
-                { customer: { name: { contains: normalizedQuery, mode: 'insensitive' } } },
-                { customer: { email: { contains: normalizedQuery, mode: 'insensitive' } } },
-                { address: { fullName: { contains: normalizedQuery, mode: 'insensitive' } } },
+                {
+                  customer: {
+                    name: { contains: normalizedQuery, mode: 'insensitive' },
+                  },
+                },
+                {
+                  customer: {
+                    email: { contains: normalizedQuery, mode: 'insensitive' },
+                  },
+                },
+                {
+                  address: {
+                    fullName: {
+                      contains: normalizedQuery,
+                      mode: 'insensitive',
+                    },
+                  },
+                },
                 {
                   lines: {
-                    some: { product: { name: { contains: normalizedQuery, mode: 'insensitive' } } },
+                    some: {
+                      product: {
+                        name: {
+                          contains: normalizedQuery,
+                          mode: 'insensitive',
+                        },
+                      },
+                    },
                   },
                 },
               ],
@@ -390,11 +450,12 @@ export function createOrderRepository(prisma: PrismaClient) {
       // Apply all filters before paginating the externally ranked overdue queue.
       // Sorting only one createdAt page would hide the longest-waiting orders.
       const rank = new Map(params.orderedOrderIds?.map((id, index) => [id, index]))
-      const matchingIds = params.orderedOrderIds !== undefined
-        ? (await prisma.order.findMany({ where, select: { id: true } }))
-          .map((row) => row.id)
-          .sort((a, b) => rank.get(a)! - rank.get(b)!)
-        : undefined
+      const matchingIds =
+        params.orderedOrderIds !== undefined
+          ? (await prisma.order.findMany({ where, select: { id: true } }))
+              .map((row) => row.id)
+              .sort((a, b) => rank.get(a)! - rank.get(b)!)
+          : undefined
       const pageIds = matchingIds?.slice(params.skip ?? 0, (params.skip ?? 0) + (params.take ?? 20))
 
       const [rows, total] = await Promise.all([
@@ -448,7 +509,9 @@ export function createOrderRepository(prisma: PrismaClient) {
           ...(pageIds === undefined && params.skip !== undefined ? { skip: params.skip } : {}),
           take: params.take ?? 20,
         }),
-        matchingIds !== undefined ? Promise.resolve(matchingIds.length) : prisma.order.count({ where }),
+        matchingIds !== undefined
+          ? Promise.resolve(matchingIds.length)
+          : prisma.order.count({ where }),
       ])
 
       if (matchingIds !== undefined) rows.sort((a, b) => rank.get(a.id)! - rank.get(b.id)!)
@@ -469,7 +532,12 @@ export function createOrderRepository(prisma: PrismaClient) {
     ) {
       const client = tx ?? prisma
       return client.orderStatusHistory.create({
-        data: { orderId, toStatus, actorId, ...(note !== undefined ? { note } : {}) },
+        data: {
+          orderId,
+          toStatus,
+          actorId,
+          ...(note !== undefined ? { note } : {}),
+        },
       })
     },
 
@@ -477,20 +545,9 @@ export function createOrderRepository(prisma: PrismaClient) {
       const client = tx ?? prisma
       return client.order.update({
         where: { id },
-        data: { status: 'delivery_confirmed', deliveryConfirmedAt: confirmedAt },
-      })
-    },
-
-    /** Find delivered orders eligible for silent confirmation */
-    findEligibleForSilentConfirmation(deliveredBefore: Date) {
-      return prisma.order.findMany({
-        where: {
-          status: 'delivered',
-          deliveredAt: { lte: deliveredBefore },
-        },
-        include: {
-          returnRequests: { where: { status: { not: 'rejected' } } },
-          disputes: { where: { status: 'open' } },
+        data: {
+          status: 'delivery_confirmed',
+          deliveryConfirmedAt: confirmedAt,
         },
       })
     },

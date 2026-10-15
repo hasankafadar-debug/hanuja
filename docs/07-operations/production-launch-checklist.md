@@ -1,6 +1,6 @@
 # Production launch checklist
 
-Canonical URL: `https://www.hanuja.com.tr`. Alt alanlar: `satici`, `admin`, `media` ve `fatura.hanuja.com.tr`.
+Canonical URL: `https://www.hanuja.com.tr`. Alt alanlar: `satici`, `admin`, `media`.
 
 ## Zorunlu sıralama
 

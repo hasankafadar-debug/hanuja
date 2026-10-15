@@ -1,12 +1,12 @@
-import type { PrismaClient } from '@prisma/client'
-import { formatMoney } from '@hanuja/security/money'
-import { enqueueNotification } from '../jobs/notification-dispatch.job'
+import type { Prisma, PrismaClient } from '@prisma/client'
+import { formatEmailMoney as formatMoney } from '../lib/email-money'
+import { recordNotification } from './notification-outbox.service'
 import { formatOrderNumber } from '../lib/order-number'
-import { getWebBaseUrl } from '../lib/platform-info'
+import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 import { EMAIL_LINE_IMAGE_SELECT, resolveEmailImageUrl } from '../lib/email-line-items'
 
 export async function enqueueCustomerRefundCompletedNotification(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Prisma.TransactionClient,
   refundTransactionId: string,
 ) {
   const refund = await prisma.refundTransaction.findUnique({
@@ -62,7 +62,7 @@ export async function enqueueCustomerRefundCompletedNotification(
       })),
   ]
 
-  await enqueueNotification({
+  await recordNotification(prisma, {
     eventKey: `refund:${refund.id}:customer:completed`,
     userId: refund.order.customerId,
     emailTo: refund.order.customer.email,
@@ -80,4 +80,26 @@ export async function enqueueCustomerRefundCompletedNotification(
       items: customerItems,
     },
   })
+  if (refund.sellerId) {
+    const seller = await prisma.seller.findUnique({
+      where: { id: refund.sellerId },
+      select: { userId: true, user: { select: { email: true } } },
+    })
+    if (seller)
+      await recordNotification(prisma, {
+        eventKey: 'refund:' + refund.id + ':seller:completed',
+        userId: seller.userId,
+        emailTo: seller.user.email,
+        type: 'seller_refund_completed',
+        title: 'Para iadesi tamamlandı',
+        body: 'Bu sipariş için müşteriye para iadesi tamamlandı.',
+        data: {
+          orderId: refund.order.id,
+          orderNumber,
+          sellerId: refund.sellerId,
+          refundTransactionId: refund.id,
+          panelUrl: getSellerPanelUrl() + '/siparisler/' + refund.order.id,
+        },
+      })
+  }
 }

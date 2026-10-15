@@ -1,15 +1,7 @@
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
-import {
-  ConflictError,
-  ForbiddenError,
-  NotFoundError,
-  ValidationError,
-} from '../lib/errors'
-import {
-  allocateProductRefund,
-  isQuantityFullyClosed,
-} from '../domain/quantity-allocation'
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../lib/errors'
+import { allocateProductRefund, isQuantityFullyClosed } from '../domain/quantity-allocation'
 import { isWithinWithdrawalWindow } from '../domain/withdrawal-window'
 import {
   createQuantityRefundService,
@@ -17,13 +9,10 @@ import {
 } from './quantity-refund.service'
 import type { RefundOutcome } from '../lib/email-templates/types'
 import { recordNotification } from './notification-outbox.service'
-import {
-  adminPanelLink,
-  recordAdminOperationNotification,
-} from './admin-notification.service'
+import { adminPanelLink, recordAdminOperationNotification } from './admin-notification.service'
 import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
-import { formatMoney } from '@hanuja/security/money'
+import { formatEmailMoney as formatMoney } from '../lib/email-money'
 import { resolveEmailImageUrl } from '../lib/email-line-items'
 import { invalidatePayoutSchedule } from './payout-eligibility'
 import { syncChangedPayoutSchedules } from './payout-schedule-sync.service'
@@ -44,11 +33,7 @@ function validateSelections(items: ReturnSelection[]) {
   if (items.length === 0) throw new ValidationError('En az bir ürün seçin')
   const seen = new Set<string>()
   for (const item of items) {
-    if (
-      !item.orderLineId ||
-      !Number.isInteger(item.quantity) ||
-      item.quantity <= 0
-    ) {
+    if (!item.orderLineId || !Number.isInteger(item.quantity) || item.quantity <= 0) {
       throw new ValidationError('İade adetleri pozitif tam sayı olmalı')
     }
     if (seen.has(item.orderLineId))
@@ -82,19 +67,10 @@ function refundOutcomeOf(
 }
 
 function isRetryable(error: unknown) {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === 'P2034'
-  )
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2034'
 }
 
-export function createQuantityReturnService({
-  prisma,
-}: {
-  prisma: PrismaClient
-}) {
+export function createQuantityReturnService({ prisma }: { prisma: PrismaClient }) {
   const refunds = createQuantityRefundService({ prisma })
 
   async function openRequest(params: {
@@ -109,35 +85,21 @@ export function createQuantityReturnService({
   }) {
     validateSelections(params.items)
 
-
     let attempts = 0
     let operations: Awaited<ReturnType<typeof openInTransaction>> | undefined
     while (!operations && attempts < 3) {
       attempts += 1
       try {
-        operations = await prisma.$transaction(
-          (tx) => openInTransaction(tx, params),
-          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-        )
+        operations = await prisma.$transaction((tx) => openInTransaction(tx, params), {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        })
       } catch (error) {
         if (attempts < 3 && isRetryable(error)) continue
         throw error
       }
     }
     if (!operations)
-      throw new ConflictError(
-        'İade talebi eşzamanlı güncelleme nedeniyle tamamlanamadı',
-      )
-
-    if (params.evidenceAssetIds?.length && operations[0]) {
-      await prisma.mediaAsset.updateMany({
-        where: {
-          id: { in: params.evidenceAssetIds },
-          uploadedBy: params.customerId,
-        },
-        data: { returnRequestId: operations[0].id, type: 'return_evidence' },
-      })
-    }
+      throw new ConflictError('İade talebi eşzamanlı güncelleme nedeniyle tamamlanamadı')
 
     await syncChangedPayoutSchedules(prisma, { orderId: params.orderId })
     return operations
@@ -202,9 +164,7 @@ export function createQuantityReturnService({
       tx.user.findMany({ where: { role: 'admin' }, select: { id: true } }),
       loadProductImages(
         tx,
-        operations.flatMap((operation) =>
-          operation.items.map((item) => item.orderLine.productId),
-        ),
+        operations.flatMap((operation) => operation.items.map((item) => item.orderLine.productId)),
       ),
     ])
     const sellerById = new Map(sellers.map((seller) => [seller.id, seller]))
@@ -218,14 +178,10 @@ export function createQuantityReturnService({
         sellerId: operation.sellerId ?? undefined,
         quantity: item.requestedQuantity,
         unitPrice: formatMoney(item.orderLine.unitPrice.toNumber()),
-        lineTotal: formatMoney(
-          item.orderLine.unitPrice.mul(item.requestedQuantity).toNumber(),
-        ),
+        lineTotal: formatMoney(item.orderLine.unitPrice.mul(item.requestedQuantity).toNumber()),
         imageUrl: resolveEmailImageUrl(imagesByProduct.get(item.orderLine.productId)),
       }))
-      const summary = items
-        .map((item) => `${item.productName} (${item.quantity})`)
-        .join(', ')
+      const summary = items.map((item) => `${item.productName} (${item.quantity})`).join(', ')
       const data = {
         operationId: operation.id,
         returnRequestId: operation.id,
@@ -351,9 +307,7 @@ export function createQuantityReturnService({
         variantName: item.orderLine.variantName,
         quantity: item.requestedQuantity,
         unitPrice: formatMoney(item.orderLine.unitPrice.toNumber()),
-        lineTotal: formatMoney(
-          item.orderLine.unitPrice.mul(item.requestedQuantity).toNumber(),
-        ),
+        lineTotal: formatMoney(item.orderLine.unitPrice.mul(item.requestedQuantity).toNumber()),
         imageUrl: resolveEmailImageUrl(imagesByProduct.get(item.orderLine.productId)),
         acceptedQuantity: decision?.acceptedQuantity ?? 0,
         rejectedQuantity: decision?.rejectedQuantity ?? 0,
@@ -367,7 +321,13 @@ export function createQuantityReturnService({
         type: 'return_status_changed',
         title: 'İadeniz Hanuja incelemesinde',
         body: 'İade ürünleriniz değerlendiriliyor. Kabul edilen ürünlerin ödeme iadesi ayrıca takip edilebilir.',
-        data: { returnRequestId: request.id, orderId: request.orderId },
+        data: {
+          returnRequestId: request.id,
+          orderId: request.orderId,
+          stage: 'under_review',
+          orderNumber: formatOrderNumber(order.publicNumber, order.id),
+          orderUrl: getWebBaseUrl() + '/siparis/' + order.id,
+        },
       })
       return
     }
@@ -389,7 +349,9 @@ export function createQuantityReturnService({
         decision === 'rejected'
           ? items
               .filter((item) => item.rejectedQuantity > 0)
-              .map((item) => `${item.productName}: ${item.rejectionReason ?? 'gerekçe belirtilmedi'}`)
+              .map(
+                (item) => `${item.productName}: ${item.rejectionReason ?? 'gerekçe belirtilmedi'}`,
+              )
               .join(', ')
           : `Onaylanan iade tutarı: ${formatMoney(outcome.refundAmount.toNumber())}`,
       data: {
@@ -420,6 +382,7 @@ export function createQuantityReturnService({
       claimType?: 'withdrawal' | 'defect' | 'warranty'
       idempotencyKey?: string
       description?: string
+      evidenceAssetIds?: string[]
       items: ReturnSelection[]
     },
   ) {
@@ -447,9 +410,7 @@ export function createQuantityReturnService({
     if (order.quantityLifecycleVersion !== 2)
       throw new ConflictError('Bu sipariş eski iade akışını kullanıyor')
 
-    const requestedById = new Map(
-      params.items.map((item) => [item.orderLineId, item.quantity]),
-    )
+    const requestedById = new Map(params.items.map((item) => [item.orderLineId, item.quantity]))
     const selected = order.lines.filter((line) => requestedById.has(line.id))
     if (selected.length !== params.items.length)
       throw new ValidationError('Seçilen ürün siparişe ait değil')
@@ -460,9 +421,7 @@ export function createQuantityReturnService({
         !line.deliveredAt ||
         ((params.claimType ?? 'withdrawal') === 'withdrawal' && !isWithinWithdrawalWindow(order))
       ) {
-        throw new ConflictError(
-          `"${line.productName}" için 14 günlük iade süresi açık değil`,
-        )
+        throw new ConflictError(`"${line.productName}" için 14 günlük iade süresi açık değil`)
       }
       const requested = requestedById.get(line.id)!
       const eligible = line.shippedQuantity - line.returnClaimedQuantity
@@ -482,13 +441,8 @@ export function createQuantityReturnService({
       for (const line of lines) {
         const quantity = requestedById.get(line.id)!
         const consumed = line.cancelledQuantity + line.returnClaimedQuantity
-        const {
-          customerAmount,
-          grossAmount,
-          couponAmount,
-          sellerAmount,
-          commissionAmount,
-        } = allocateProductRefund(line, consumed, quantity)
+        const { customerAmount, grossAmount, couponAmount, sellerAmount, commissionAmount } =
+          allocateProductRefund(line, consumed, quantity)
 
         const updated = await tx.orderLine.updateMany({
           where: {
@@ -516,14 +470,10 @@ export function createQuantityReturnService({
             orderId: order.id,
             customerId: params.customerId,
             sellerId,
-            ...(params.idempotencyKey
-              ? { requestKey: params.idempotencyKey }
-              : {}),
+            ...(params.idempotencyKey ? { requestKey: params.idempotencyKey } : {}),
             reason: params.reason.trim() || 'Cayma hakkı',
             claimType: params.claimType ?? 'withdrawal',
-            ...(params.description !== undefined
-              ? { description: params.description }
-              : {}),
+            ...(params.description !== undefined ? { description: params.description } : {}),
             isWithinWindow: isWithinWithdrawalWindow(order),
             items: { create: itemData },
           },
@@ -542,6 +492,15 @@ export function createQuantityReturnService({
       },
     })
     for (const request of created) await invalidatePayoutSchedule(tx, order.id, request.sellerId)
+    if (params.evidenceAssetIds?.length && created[0]) {
+      await tx.mediaAsset.updateMany({
+        where: {
+          id: { in: params.evidenceAssetIds },
+          uploadedBy: params.customerId,
+        },
+        data: { returnRequestId: created[0].id, type: 'return_evidence' },
+      })
+    }
     await recordReturnOpenedNotifications(tx, order, created)
     return created
   }
@@ -566,10 +525,7 @@ export function createQuantityReturnService({
     })
     if (prior && prior.status !== 'in_transit') {
       const decisions = new Map(
-        params.decisions.map((decision) => [
-          decision.returnRequestItemId,
-          decision,
-        ]),
+        params.decisions.map((decision) => [decision.returnRequestItemId, decision]),
       )
       const isSameDecision =
         params.decisions.length === prior.items.length &&
@@ -592,8 +548,7 @@ export function createQuantityReturnService({
         })
         if (
           !refundTransaction &&
-          (prior.refundAmount?.gt(0) ||
-            prior.items.some((item) => item.grossProductAmount.gt(0)))
+          (prior.refundAmount?.gt(0) || prior.items.some((item) => item.grossProductAmount.gt(0)))
         ) {
           const sellerAdjustmentAmount = prior.items.reduce(
             (sum, item) => sum.add(item.sellerAdjustmentAmount),
@@ -656,41 +611,45 @@ export function createQuantityReturnService({
             where: { id: params.returnRequestId, sellerId: params.sellerId },
             include: { items: { include: { orderLine: true } }, order: true },
           })
-          if (!request)
-            throw new NotFoundError('ReturnRequest', params.returnRequestId)
+          if (!request) throw new NotFoundError('ReturnRequest', params.returnRequestId)
           if (request.status !== 'in_transit') {
             throw new ConflictError(
               `İade bu aşamada teslim kararı kabul etmiyor: ${request.status}`,
             )
           }
           if (params.decisions.length !== request.items.length) {
-            throw new ValidationError(
-              'Her iade ürünü için kabul/red adedi girilmelidir',
-            )
+            throw new ValidationError('Her iade ürünü için kabul/red adedi girilmelidir')
           }
 
           const claimed = await tx.returnRequest.updateMany({
             where: { id: request.id, status: 'in_transit' },
-            data: { status: 'received', sellerReceivedAt: new Date(), returnCarrierDeliveredAt: request.returnCarrierDeliveredAt ?? new Date(), refundDeadlineAt: request.refundDeadlineAt ?? new Date(Date.now() + 14 * 86400000) },
+            data: {
+              status: 'received',
+              sellerReceivedAt: new Date(),
+              returnCarrierDeliveredAt: request.returnCarrierDeliveredAt ?? new Date(),
+              refundDeadlineAt: request.refundDeadlineAt ?? new Date(Date.now() + 14 * 86400000),
+            },
           })
           if (claimed.count !== 1) {
-            throw new ConflictError(
-              'İade teslim kararı başka bir işlemle güncellendi',
-            )
+            throw new ConflictError('İade teslim kararı başka bir işlemle güncellendi')
           }
 
           if (params.evidenceAssetIds?.length) {
-            const seller = await tx.seller.findUniqueOrThrow({ where: { id: params.sellerId }, select: { userId: true } })
+            const seller = await tx.seller.findUniqueOrThrow({
+              where: { id: params.sellerId },
+              select: { userId: true },
+            })
             await tx.mediaAsset.updateMany({
-              where: { id: { in: params.evidenceAssetIds }, uploadedBy: seller.userId, status: 'ready' },
+              where: {
+                id: { in: params.evidenceAssetIds },
+                uploadedBy: seller.userId,
+                status: 'ready',
+              },
               data: { returnRequestId: request.id, type: 'return_evidence' },
             })
           }
           const decisionById = new Map(
-            params.decisions.map((decision) => [
-              decision.returnRequestItemId,
-              decision,
-            ]),
+            params.decisions.map((decision) => [decision.returnRequestItemId, decision]),
           )
           let acceptedCustomerAmount = new Decimal(0)
           let acceptedGrossProductAmount = new Decimal(0)
@@ -713,8 +672,7 @@ export function createQuantityReturnService({
               !Number.isInteger(decision.rejectedQuantity) ||
               decision.acceptedQuantity < 0 ||
               decision.rejectedQuantity < 0 ||
-              decision.acceptedQuantity + decision.rejectedQuantity !==
-                item.requestedQuantity
+              decision.acceptedQuantity + decision.rejectedQuantity !== item.requestedQuantity
             ) {
               throw new ValidationError(
                 `"${item.orderLine.productName}" için kabul + red, talep adedine eşit olmalı`,
@@ -736,10 +694,8 @@ export function createQuantityReturnService({
                       quantity: item.requestedQuantity,
                       totalPrice: item.requestedGrossProductAmount,
                       customerPaidProductAmount: item.requestedCustomerAmount,
-                      couponDiscountAmount:
-                        item.requestedCouponAdjustmentAmount,
-                      commissionAmount:
-                        item.requestedCommissionAdjustmentAmount,
+                      couponDiscountAmount: item.requestedCouponAdjustmentAmount,
+                      commissionAmount: item.requestedCommissionAdjustmentAmount,
                       commissionExemptedAt: item.orderLine.commissionExemptedAt,
                     },
                     0,
@@ -773,15 +729,11 @@ export function createQuantityReturnService({
                 commissionAdjustmentAmount: acceptedCommission,
               },
             })
-            acceptedCustomerAmount =
-              acceptedCustomerAmount.add(acceptedCustomer)
-            acceptedGrossProductAmount =
-              acceptedGrossProductAmount.add(acceptedGross)
-            acceptedCouponAdjustmentAmount =
-              acceptedCouponAdjustmentAmount.add(acceptedCoupon)
+            acceptedCustomerAmount = acceptedCustomerAmount.add(acceptedCustomer)
+            acceptedGrossProductAmount = acceptedGrossProductAmount.add(acceptedGross)
+            acceptedCouponAdjustmentAmount = acceptedCouponAdjustmentAmount.add(acceptedCoupon)
             acceptedSellerAmount = acceptedSellerAmount.add(acceptedSeller)
-            acceptedCommissionAmount =
-              acceptedCommissionAmount.add(acceptedCommission)
+            acceptedCommissionAmount = acceptedCommissionAmount.add(acceptedCommission)
             if (decision.acceptedQuantity > 0) {
               refundItems.push({
                 orderLineId: item.orderLineId,
@@ -830,8 +782,7 @@ export function createQuantityReturnService({
             )
             if (shippingRefund.gt(0)) {
               acceptedShippingAmount = shippingRefund
-              acceptedCustomerAmount =
-                acceptedCustomerAmount.add(shippingRefund)
+              acceptedCustomerAmount = acceptedCustomerAmount.add(shippingRefund)
               await tx.order.update({
                 where: { id: request.orderId },
                 data: { refundedShippingAmount: { increment: shippingRefund } },
@@ -862,12 +813,10 @@ export function createQuantityReturnService({
               title: 'İade teslim reddi nedeniyle uyuşmazlık açıldı',
               body: rejectedDescriptions.join('\n'),
               data: {
-                orderNumber: formatOrderNumber(
-                  request.order.publicNumber,
-                  request.orderId,
-                ),
+                orderNumber: formatOrderNumber(request.order.publicNumber, request.orderId),
                 adminUrl: adminPanelLink(`/uyusmazliklar/${dispute.id}`),
                 reason: rejectedDescriptions.join('\n'),
+                source: 'return',
                 sourceLabel: 'Tasarımcı iade teslimini reddetti',
               },
             })
@@ -911,9 +860,7 @@ export function createQuantityReturnService({
                 commissionAdjustmentAmount: acceptedCommissionAmount,
                 platformFundedAmount: Decimal.max(
                   new Decimal(0),
-                  acceptedCustomerAmount
-                    .sub(acceptedSellerAmount)
-                    .sub(acceptedCommissionAmount),
+                  acceptedCustomerAmount.sub(acceptedSellerAmount).sub(acceptedCommissionAmount),
                 ),
                 items: refundItems,
                 shippingAmount: acceptedShippingAmount,
@@ -965,7 +912,10 @@ export function createQuantityReturnService({
     const refundTransaction = result.refundTransaction
     // Provider work only; the refund record already survived the commit.
     if (refundTransaction) await dispatchRefundProcessingAfterCommit(refundTransaction)
-    await syncChangedPayoutSchedules(prisma, { orderId: result.request.orderId, sellerId: params.sellerId })
+    await syncChangedPayoutSchedules(prisma, {
+      orderId: result.request.orderId,
+      sellerId: params.sellerId,
+    })
 
     return prisma.returnRequest
       .findUnique({
@@ -992,6 +942,4 @@ export function createQuantityReturnService({
   }
 }
 
-export type QuantityReturnService = ReturnType<
-  typeof createQuantityReturnService
->
+export type QuantityReturnService = ReturnType<typeof createQuantityReturnService>

@@ -72,10 +72,12 @@ export default async function SellerOrdersPage({ searchParams }: Props) {
     ...(to ? { to: toDateEnd(to) } : {}),
   }
   const lateOrderIds = lateOnly
-    ? (await prisma.fulfillmentRisk.findMany({
-        where: { sellerId: seller.id, status: { in: ['warning', 'breached'] } },
-        select: { orderId: true },
-      })).map((risk) => risk.orderId)
+    ? (
+        await prisma.fulfillmentRisk.findMany({
+          where: { sellerId: seller.id, status: { in: ['warning', 'breached'] } },
+          select: { orderId: true },
+        })
+      ).map((risk) => risk.orderId)
     : undefined
 
   const [orders, total, counts] = await Promise.all([
@@ -110,6 +112,7 @@ export default async function SellerOrdersPage({ searchParams }: Props) {
     publicNumber?: number | null
     createdAt: Date
     status: string
+    sellerOperationalStatus?: string
     customer?: { name?: string | null } | null
     address?: { fullName?: string | null } | null
     lines: Array<{
@@ -245,15 +248,17 @@ export default async function SellerOrdersPage({ searchParams }: Props) {
           <table className="w-full text-sm">
             <thead style={{ backgroundColor: 'var(--color-muted)' }}>
               <tr>
-                {['Sipariş No', 'Tarih', 'Müşteri', 'Durum', 'Toplam Tutar', 'Aksiyon'].map((header) => (
-                  <th
-                    key={header}
-                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                    style={{ color: 'var(--color-muted-fg)' }}
-                  >
-                    {header}
-                  </th>
-                ))}
+                {['Sipariş No', 'Tarih', 'Müşteri', 'Durum', 'Toplam Tutar', 'Aksiyon'].map(
+                  (header) => (
+                    <th
+                      key={header}
+                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
+                      style={{ color: 'var(--color-muted-fg)' }}
+                    >
+                      {header}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
@@ -291,7 +296,11 @@ export default async function SellerOrdersPage({ searchParams }: Props) {
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge
-                        status={order.status as Parameters<typeof StatusBadge>[0]['status']}
+                        status={
+                          (order.sellerOperationalStatus ?? order.status) as Parameters<
+                            typeof StatusBadge
+                          >[0]['status']
+                        }
                         className="inline-flex"
                       />
                     </td>

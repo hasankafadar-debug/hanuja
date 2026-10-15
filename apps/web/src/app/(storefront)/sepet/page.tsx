@@ -1,10 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Button, EmptyState, Separator, Spinner, isManagedMediaProxyUrl, normalizeMediaDisplayUrl } from '@hanuja/ui'
+import {
+  Button,
+  EmptyState,
+  Separator,
+  Spinner,
+  isManagedMediaProxyUrl,
+  normalizeMediaDisplayUrl,
+} from '@hanuja/ui'
 import { Trash2, ShoppingCart, Plus, Minus, AlertTriangle } from 'lucide-react'
 import { csrfFetch } from '@/lib/csrf-fetch'
 import CouponForm from './_components/coupon-form'
@@ -51,6 +58,7 @@ export default function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)
+  const mutating = useRef(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchCart = useCallback(async () => {
@@ -75,9 +83,11 @@ export default function CartPage() {
   }, [fetchCart])
 
   async function updateQuantity(itemId: string, delta: number, currentQty: number) {
+    if (mutating.current) return
     const newQty = currentQty + delta
     if (newQty < 1) return removeItem(itemId)
 
+    mutating.current = true
     setUpdating(itemId)
     try {
       const res = await csrfFetch(`/api/cart/items/${itemId}`, {
@@ -95,11 +105,14 @@ export default function CartPage() {
     } catch {
       setError('Güncelleme sırasında hata oluştu')
     } finally {
+      mutating.current = false
       setUpdating(null)
     }
   }
 
   async function removeItem(itemId: string) {
+    if (mutating.current) return
+    mutating.current = true
     setUpdating(itemId)
     try {
       await csrfFetch(`/api/cart/items/${itemId}`, { method: 'DELETE' })
@@ -108,6 +121,7 @@ export default function CartPage() {
     } catch {
       setError('Ürün kaldırılırken hata oluştu')
     } finally {
+      mutating.current = false
       setUpdating(null)
     }
   }
@@ -127,7 +141,11 @@ export default function CartPage() {
           icon={<ShoppingCart className="h-12 w-12" />}
           title="Sepetiniz boş"
           description="Beğendiğiniz ürünleri sepete ekleyerek alışverişe başlayın."
-          action={<Link href="/"><Button>Alışverişe Başla</Button></Link>}
+          action={
+            <Link href="/">
+              <Button>Alışverişe Başla</Button>
+            </Link>
+          }
         />
       </div>
     )
@@ -137,20 +155,30 @@ export default function CartPage() {
   const couponDiscount = Number(cart.couponDiscount ?? 0)
   const freeShippingThreshold = Number(cart.freeShippingThresholdTry ?? 1500)
   const flatShippingFee = Number(cart.flatShippingFeeTry ?? 99)
-  const shipping = Number(cart.shipping ?? (grossSubtotal >= freeShippingThreshold ? 0 : flatShippingFee))
-  const total = Number(cart.total ?? (grossSubtotal - couponDiscount + shipping))
+  const shipping = Number(
+    cart.shipping ?? (grossSubtotal >= freeShippingThreshold ? 0 : flatShippingFee),
+  )
+  const total = Number(cart.total ?? grossSubtotal - couponDiscount + shipping)
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="mb-8 text-2xl font-medium" style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}>
+      <h1
+        className="mb-8 text-2xl font-medium"
+        style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}
+      >
         Sepetim ({cart.itemCount} ürün)
       </h1>
 
       {error && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm" style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}>
+        <div
+          className="mb-4 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+        >
           <AlertTriangle className="h-4 w-4 shrink-0" />
           {error}
-          <button className="ml-auto" onClick={() => setError(null)}>x</button>
+          <button className="ml-auto" onClick={() => setError(null)}>
+            x
+          </button>
         </div>
       )}
 
@@ -161,7 +189,7 @@ export default function CartPage() {
             const image = product?.images[0]
             const imageUrl = image ? normalizeMediaDisplayUrl(image.url) : null
             const lineTotal = Number(item.unitPrice) * item.quantity
-            const isUpdating = updating === item.id
+            const isUpdating = updating !== null
 
             return (
               <div
@@ -175,7 +203,10 @@ export default function CartPage() {
                   transition: 'opacity 0.15s',
                 }}
               >
-                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg" style={{ backgroundColor: 'var(--color-muted)' }}>
+                <div
+                  className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg"
+                  style={{ backgroundColor: 'var(--color-muted)' }}
+                >
                   {image ? (
                     <Image
                       src={imageUrl!}
@@ -186,7 +217,10 @@ export default function CartPage() {
                       unoptimized={Boolean(imageUrl && isManagedMediaProxyUrl(imageUrl))}
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                    <div
+                      className="flex h-full w-full items-center justify-center text-xs"
+                      style={{ color: 'var(--color-muted-fg)' }}
+                    >
                       Görsel yok
                     </div>
                   )}
@@ -195,19 +229,37 @@ export default function CartPage() {
                 <div className="flex flex-1 flex-col gap-1">
                   {product ? (
                     <>
-                      <Link href={`/urun/${product.slug}`} className="font-medium hover:underline" style={{ color: 'var(--color-primary)' }}>
+                      <Link
+                        href={`/urun/${product.slug}`}
+                        className="font-medium hover:underline"
+                        style={{ color: 'var(--color-primary)' }}
+                      >
                         {product.name}
-                        {item.variant ? <span className="ml-2 text-xs font-normal" style={{ color: 'var(--color-muted-fg)' }}>({item.variant.name})</span> : null}
+                        {item.variant ? (
+                          <span
+                            className="ml-2 text-xs font-normal"
+                            style={{ color: 'var(--color-muted-fg)' }}
+                          >
+                            ({item.variant.name})
+                          </span>
+                        ) : null}
                       </Link>
-                      <Link href={`/magaza/${product.seller.slug}`} className="text-xs hover:underline" style={{ color: 'var(--color-muted-fg)' }}>
+                      <Link
+                        href={`/magaza/${product.seller.slug}`}
+                        className="text-xs hover:underline"
+                        style={{ color: 'var(--color-muted-fg)' }}
+                      >
                         {product.seller.displayName}
                       </Link>
                     </>
                   ) : (
                     <>
-                      <p className="font-medium" style={{ color: 'var(--color-primary)' }}>Ürün artık mevcut değil</p>
+                      <p className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                        Ürün artık mevcut değil
+                      </p>
                       <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
-                        Bu ürün yayından kaldırılmış veya erişilemiyor. Satırı sepetten kaldırabilirsiniz.
+                        Bu ürün yayından kaldırılmış veya erişilemiyor. Satırı sepetten
+                        kaldırabilirsiniz.
                       </p>
                     </>
                   )}
@@ -256,7 +308,10 @@ export default function CartPage() {
           })}
         </div>
 
-        <div className="h-fit rounded-xl border p-6" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <div
+          className="h-fit rounded-xl border p-6"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
           <h2 className="mb-4 font-semibold" style={{ color: 'var(--color-primary)' }}>
             Sipariş Özeti
           </h2>
@@ -273,14 +328,24 @@ export default function CartPage() {
             ) : null}
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Kargo</span>
-              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span> : formatPrice(shipping)}</span>
+              <span>
+                {shipping === 0 ? (
+                  <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span>
+                ) : (
+                  formatPrice(shipping)
+                )}
+              </span>
             </div>
             {shipping > 0 ? (
               <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                 {formatPrice(freeShippingThreshold)} üzeri ücretsiz kargo
               </p>
             ) : null}
-            {cart.couponCode ? <p className="text-xs" style={{ color: 'var(--color-success)' }}>Kupon: {cart.couponCode}</p> : null}
+            {cart.couponCode ? (
+              <p className="text-xs" style={{ color: 'var(--color-success)' }}>
+                Kupon: {cart.couponCode}
+              </p>
+            ) : null}
             <CouponForm
               couponCode={cart.couponCode}
               onUpdated={async () => {
@@ -289,16 +354,25 @@ export default function CartPage() {
               }}
             />
             <Separator />
-            <div className="flex justify-between font-semibold text-base" style={{ color: 'var(--color-primary)' }}>
+            <div
+              className="flex justify-between font-semibold text-base"
+              style={{ color: 'var(--color-primary)' }}
+            >
               <span>Toplam</span>
               <span>{formatPrice(total)}</span>
             </div>
           </div>
-          <Link href="/odeme">
-            <Button data-testid="cart-checkout" className="mt-6 w-full" size="lg">
-              Ödemeye Geç
-            </Button>
-          </Link>
+          <Button
+            data-testid="cart-checkout"
+            className="mt-6 w-full"
+            size="lg"
+            disabled={updating !== null}
+            onClick={() => {
+              if (!mutating.current) router.push('/odeme')
+            }}
+          >
+            Ödemeye Geç
+          </Button>
           <Link href="/">
             <Button variant="ghost" className="mt-2 w-full" size="sm">
               Alışverişe Devam Et
@@ -309,4 +383,3 @@ export default function CartPage() {
     </div>
   )
 }
-

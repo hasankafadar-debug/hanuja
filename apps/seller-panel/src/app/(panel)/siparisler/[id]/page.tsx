@@ -32,7 +32,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     where: { id },
     select: { publicNumber: true },
   })
-  return { title: `Sipariş ${formatOrderDisplayNumber(order?.publicNumber, id)}`,
+  return {
+    title: `Sipariş ${formatOrderDisplayNumber(order?.publicNumber, id)}`,
   }
 }
 
@@ -47,14 +48,8 @@ export default async function SellerOrderDetailPage({ params }: Props) {
   if (!order) notFound()
 
   const documentService = createOrderDocumentService({ prisma })
-  const [invoiceManagement, invoiceAlias, platformSettings] = await Promise.all([
+  const [invoiceManagement, platformSettings] = await Promise.all([
     documentService.getInvoiceManagementForSeller(id, seller.id),
-    documentService.ensureInvoiceAliasForSeller(id, seller.id)
-      .then(alias => ({ aliasEmail: alias?.aliasEmail ?? null, status: alias ? 'ready' as const : 'disabled' as const }))
-      .catch(() => {
-        console.error('[seller-order] Invoice alias generation failed', { orderId: id, sellerId: seller.id })
-        return { aliasEmail: null, status: 'error' as const }
-      }),
     createPlatformSettingsService({ prisma }).get(),
   ])
 
@@ -68,11 +63,15 @@ export default async function SellerOrderDetailPage({ params }: Props) {
     reviewNote: managedInvoice?.reviewNote ?? null,
     invoiceNumber: managedInvoice?.invoiceNumber ?? null,
     invoiceDate: approvedInvoiceDate?.toISOString() ?? null,
-    expectedPayoutDate: order.payouts.length > 0
-      ? order.payouts[0]?.nextPaymentAt?.toISOString() ?? null
-      : approvedInvoiceDate
-        ? calculatePayoutDueDate(approvedInvoiceDate, platformSettings.payoutHoldDays).toISOString()
-        : null,
+    expectedPayoutDate:
+      order.payouts.length > 0
+        ? (order.payouts[0]?.nextPaymentAt?.toISOString() ?? null)
+        : approvedInvoiceDate
+          ? calculatePayoutDueDate(
+              approvedInvoiceDate,
+              platformSettings.payoutHoldDays,
+            ).toISOString()
+          : null,
     shipped: (order.shipments ?? []).some((shipment) => shipment.handedAt !== null),
   }
 
@@ -82,9 +81,10 @@ export default async function SellerOrderDetailPage({ params }: Props) {
     reviewing: 'seller_reviewing',
     accepted: 'seller_accepted',
   }
-  const operationalStatus = order.quantityLifecycleVersion === 2 && fulfillment
-    ? (fulfillmentStatusMap[fulfillment.status] ?? fulfillment.status)
-    : order.status
+  const operationalStatus =
+    order.quantityLifecycleVersion === 2 && fulfillment
+      ? (fulfillmentStatusMap[fulfillment.status] ?? fulfillment.status)
+      : order.status
   const ACTIVE_FULFILLMENT_STATUSES = new Set([
     'seller_queue_ready',
     'seller_reviewing',
@@ -221,7 +221,10 @@ export default async function SellerOrderDetailPage({ params }: Props) {
         <div className="min-w-0 space-y-6">
           <section
             className="rounded-xl border p-5"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+            }}
           >
             <h2 className="mb-4 text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
               Ürünler
@@ -249,7 +252,10 @@ export default async function SellerOrderDetailPage({ params }: Props) {
                     </div>
                     <p
                       className="w-fit whitespace-nowrap rounded-md px-3 py-2 text-sm font-semibold sm:justify-self-center"
-                      style={{ color: 'var(--color-primary)', backgroundColor: 'var(--color-muted)' }}
+                      style={{
+                        color: 'var(--color-primary)',
+                        backgroundColor: 'var(--color-muted)',
+                      }}
                     >
                       Sevk Adeti: {lineCurrentQuantity} adet
                     </p>
@@ -289,7 +295,10 @@ export default async function SellerOrderDetailPage({ params }: Props) {
 
           <section
             className="rounded-xl border p-5"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+            }}
           >
             <div className="mb-4 flex items-center gap-2">
               <FileText className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
@@ -338,14 +347,15 @@ export default async function SellerOrderDetailPage({ params }: Props) {
             approved={managedInvoice?.reviewStatus === 'approved'}
             managementEnabled={invoiceManagement.managementEnabled}
           />
-
-
         </div>
 
         <div className="min-w-0 space-y-6">
           <section
             className="rounded-xl border p-5"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+            }}
           >
             <div className="mb-4 flex items-center gap-2">
               <UserRound className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
@@ -366,7 +376,10 @@ export default async function SellerOrderDetailPage({ params }: Props) {
               </div>
               <Separator />
               <div className="flex items-start gap-2">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--color-accent)' }} />
+                <MapPin
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  style={{ color: 'var(--color-accent)' }}
+                />
                 <p style={{ color: 'var(--color-muted-fg)' }}>
                   {address
                     ? [
@@ -383,18 +396,20 @@ export default async function SellerOrderDetailPage({ params }: Props) {
             </div>
           </section>
 
-          <BillingInformationCard
-            recipientName={address?.fullName ?? null}
-            aliasEmail={invoiceAlias.aliasEmail}
-            aliasStatus={invoiceAlias.status}
-          />
+          <BillingInformationCard recipientName={address?.fullName ?? null} />
 
           {penalties.length > 0 ? (
             <section
               className="rounded-xl border p-5"
-              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+              }}
             >
-              <h2 className="mb-4 text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
+              <h2
+                className="mb-4 text-base font-semibold"
+                style={{ color: 'var(--color-primary)' }}
+              >
                 Ceza Kayıtları
               </h2>
               <div className="space-y-3">

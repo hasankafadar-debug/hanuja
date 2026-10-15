@@ -26,20 +26,11 @@ import {
 import {
   isFulfillmentDeadlineBreached,
   isWithinReturnWindow,
-  isSilentConfirmDue,
   FULFILLMENT_DAYS,
   RETURN_WINDOW_DAYS,
 } from '../../api/domain/penalty-calculator'
-import {
-  isSilentConfirmationEligible,
-  buildCustomerConfirmation,
-  buildAdminConfirmation,
-  buildSilentConfirmation,
-} from '../../api/domain/delivery-confirmation'
-import {
-  calculatePenalty,
-  STANDARD_PENALTY_RATE,
-} from '../../api/domain/penalty-calculator'
+import { buildAdminConfirmation } from '../../api/domain/delivery-confirmation'
+import { calculatePenalty, STANDARD_PENALTY_RATE } from '../../api/domain/penalty-calculator'
 import { InvalidTransitionError } from '../../api/lib/errors'
 
 // ─── Complete happy-path lifecycle ────────────────────────────────────────────
@@ -64,10 +55,7 @@ describe('happy path: draft → delivery_confirmed', () => {
     for (let i = 0; i < happyPath.length - 1; i++) {
       const from = happyPath[i]!
       const to = happyPath[i + 1]!
-      expect(
-        canTransition(from, to),
-        `Expected valid transition: ${from} → ${to}`,
-      ).toBe(true)
+      expect(canTransition(from, to), `Expected valid transition: ${from} → ${to}`).toBe(true)
     }
   })
 
@@ -105,17 +93,14 @@ describe('seller rejection → penalty evaluation', () => {
 
   it('rejection leads to cancellation due to seller rejection', () => {
     expect(
-      canTransition(
-        OrderStatus.seller_rejected,
-        OrderStatus.cancelled_due_to_seller_rejection,
-      ),
+      canTransition(OrderStatus.seller_rejected, OrderStatus.cancelled_due_to_seller_rejection),
     ).toBe(true)
   })
 
   it('cancelled_due_to_seller_rejection requires penalty evaluation', () => {
-    expect(
-      requiresSellerPenaltyEvaluation(OrderStatus.cancelled_due_to_seller_rejection),
-    ).toBe(true)
+    expect(requiresSellerPenaltyEvaluation(OrderStatus.cancelled_due_to_seller_rejection)).toBe(
+      true,
+    )
   })
 
   it('cancelled_due_to_seller_rejection is terminal', () => {
@@ -149,9 +134,7 @@ describe('20-day fulfillment breach', () => {
   })
 
   it('breach cancellation requires penalty evaluation', () => {
-    expect(
-      requiresSellerPenaltyEvaluation(OrderStatus.cancelled_due_to_20day_breach),
-    ).toBe(true)
+    expect(requiresSellerPenaltyEvaluation(OrderStatus.cancelled_due_to_20day_breach)).toBe(true)
   })
 
   it('breach cancellation is terminal', () => {
@@ -173,7 +156,9 @@ describe('20-day fulfillment breach', () => {
 
   it('seller rejected from shipped is NOT allowed — use return flow instead', () => {
     // Simulates a scenario where seller tries to cancel after shipment — blocked
-    expect(canTransition(OrderStatus.shipped, OrderStatus.cancelled_due_to_20day_breach)).toBe(false)
+    expect(canTransition(OrderStatus.shipped, OrderStatus.cancelled_due_to_20day_breach)).toBe(
+      false,
+    )
   })
 })
 
@@ -193,7 +178,9 @@ describe('post-shipment: cancellation blocked, return flow required', () => {
   })
 
   it('delivery_confirmed → cancelled_by_customer is BLOCKED', () => {
-    expect(canTransition(OrderStatus.delivery_confirmed, OrderStatus.cancelled_by_customer)).toBe(false)
+    expect(canTransition(OrderStatus.delivery_confirmed, OrderStatus.cancelled_by_customer)).toBe(
+      false,
+    )
   })
 
   it('all post-shipment statuses block naive cancellation', () => {
@@ -220,39 +207,10 @@ describe('delivered ≠ delivery_confirmed — critical distinction', () => {
     expect(isPayoutCountdownEligible(OrderStatus.delivery_confirmed)).toBe(true)
   })
 
-  it('delivered → delivery_confirmed via customer confirmation', () => {
-    expect(canTransition(OrderStatus.delivered, OrderStatus.delivery_confirmed)).toBe(true)
-    const result = buildCustomerConfirmation(new Date('2026-04-08T12:00:00Z'))
-    expect(result.source).toBe('customer_explicit')
-    expect(result.confirmed).toBe(true)
-  })
-
   it('delivered → delivery_confirmed via admin confirmation', () => {
     const result = buildAdminConfirmation(new Date('2026-04-08T12:00:00Z'))
     expect(result.source).toBe('admin_manual')
     expect(result.confirmed).toBe(true)
-  })
-
-  it('delivered → delivery_confirmed via silent auto (72h)', () => {
-    const deliveredAt = new Date('2026-04-05T00:00:00Z')
-    const now = new Date('2026-04-08T01:00:00Z') // 73h later
-    const eligible = isSilentConfirmationEligible({
-      deliveredAt,
-      hasOpenReturn: false,
-      hasOpenDispute: false,
-      now,
-    })
-    expect(eligible).toBe(true)
-    const result = buildSilentConfirmation(now)
-    expect(result.source).toBe('silent_auto')
-  })
-
-  it('silent confirmation is NOT eligible when return is open', () => {
-    const deliveredAt = new Date('2026-04-01T00:00:00Z')
-    const now = new Date('2026-04-05T00:00:00Z') // 96h later
-    expect(
-      isSilentConfirmationEligible({ deliveredAt, hasOpenReturn: true, hasOpenDispute: false, now }),
-    ).toBe(false)
   })
 })
 
@@ -347,9 +305,9 @@ describe('cancellation reason distinctions', () => {
   })
 
   it('payment_failure cancellation does NOT require penalty', () => {
-    expect(
-      requiresSellerPenaltyEvaluation(OrderStatus.cancelled_due_to_payment_failure),
-    ).toBe(false)
+    expect(requiresSellerPenaltyEvaluation(OrderStatus.cancelled_due_to_payment_failure)).toBe(
+      false,
+    )
   })
 
   it('admin cancellation does NOT auto-trigger penalty evaluation (admin decides)', () => {

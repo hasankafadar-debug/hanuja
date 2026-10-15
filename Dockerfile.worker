@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Hanuja — BullMQ Worker (api/jobs)
-# Runs payout-maturity, delivery-confirmation, search-sync, notification,
+# Runs payout-maturity, search-sync, notification,
 # payout-batch, media-processing, fulfillment-risk workers.
 # Build context: repo root
 # ─────────────────────────────────────────────────────────────────────────────

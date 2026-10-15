@@ -314,18 +314,11 @@ valid source.
 - Seller enters a tracking code in the seller panel.
 - The platform polls or receives webhooks from cargo providers to update delivery status.
 - When the cargo provider signals delivery, the order moves to `delivered`.
-- `delivery_confirmed` is then triggered by: explicit customer confirmation, admin
-  confirmation, or silent confirmation after the platform waiting period (72 hours default
-  after `delivered` with no customer objection).
+- `delivery_confirmed` is triggered only by an admin. Designer delivery reports wait for admin verification.
 
-### Delivery confirmation priority order
+### Delivery confirmation
 
-1. Cargo provider delivery signal (integration or webhook)
-2. Manual tracking or admin verification
-3. Customer clicks "Teslim Aldım" in the storefront
-4. Silent confirmation: `delivered` status present and no objection within 72 hours
-
-Payout countdown starts from `delivery_confirmed`, never from `delivered` or `shipped`.
+Only admin confirmation establishes delivery_confirmed. Customer confirmation and the 72-hour silent task are removed; carrier tracking and designer reports provide evidence for admin review.
 
 ### Environment variables
 

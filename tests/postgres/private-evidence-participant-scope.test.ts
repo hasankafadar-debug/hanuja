@@ -5,8 +5,8 @@
  * The unit tests evaluate the generated Prisma `where` with an in-memory
  * predicate. This file proves the same rules with the real client and real
  * relation filters (`is`, nested `OR`, `escalatedFromReturn: { is: null }`):
- * the seller a return is assigned to keeps access, the other seller on the
- * same order loses it, and legacy order-wide cases stay shared.
+ * customer evidence stays between the customer and Hanuja. A designer may
+ * read their own uploads and attachments deliberately addressed by Hanuja.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
@@ -29,9 +29,14 @@ vi.mock('../../api/lib/r2', async (importOriginal) => ({
 
 const testUrl = process.env.NOTIFICATION_TEST_DATABASE_URL
 if (!testUrl)
-  throw new Error('NOTIFICATION_TEST_DATABASE_URL must point to disposable local hanuja_notification_test')
+  throw new Error(
+    'NOTIFICATION_TEST_DATABASE_URL must point to disposable local hanuja_notification_test',
+  )
 const url = new URL(testUrl)
-if (!['localhost', '127.0.0.1'].includes(url.hostname) || url.pathname !== '/hanuja_notification_test')
+if (
+  !['localhost', '127.0.0.1'].includes(url.hostname) ||
+  url.pathname !== '/hanuja_notification_test'
+)
   throw new Error('Refusing non-local notification test database')
 const schema = `evidence_scope_${randomUUID().replaceAll('-', '')}`
 url.searchParams.set('schema', schema)
@@ -43,11 +48,21 @@ import { createDisputeRepository } from '../../api/repositories/dispute.reposito
 beforeAll(async () => {
   execFileSync(
     process.execPath,
-    [resolve('../db/node_modules/prisma/build/index.js'), 'migrate', 'deploy', '--schema', resolve('../db/schema/schema.prisma')],
+    [
+      resolve('../db/node_modules/prisma/build/index.js'),
+      'migrate',
+      'deploy',
+      '--schema',
+      resolve('../db/schema/schema.prisma'),
+    ],
     { env: { ...process.env, DATABASE_URL: url.toString() }, stdio: 'pipe' },
   )
   await prisma.$connect()
-  readObject.mockResolvedValue({ body: new Uint8Array([1, 2, 3]), contentType: 'image/jpeg', sizeBytes: 3 })
+  readObject.mockResolvedValue({
+    body: new Uint8Array([1, 2, 3]),
+    contentType: 'image/jpeg',
+    sizeBytes: 3,
+  })
   fixture = await seed()
 })
 
@@ -70,34 +85,68 @@ async function seed() {
   const sellerUserA = await user('seller', 'satici-a')
   const sellerUserB = await user('seller', 'satici-b')
   const sellerA = await prisma.seller.create({
-    data: { userId: sellerUserA.id, slug: `a-${suffix}`, displayName: 'Atelier A', status: 'active' },
+    data: {
+      userId: sellerUserA.id,
+      slug: `a-${suffix}`,
+      displayName: 'Atelier A',
+      status: 'active',
+    },
   })
   const sellerB = await prisma.seller.create({
-    data: { userId: sellerUserB.id, slug: `b-${suffix}`, displayName: 'Atelier B', status: 'active' },
+    data: {
+      userId: sellerUserB.id,
+      slug: `b-${suffix}`,
+      displayName: 'Atelier B',
+      status: 'active',
+    },
   })
-  const category = await prisma.category.create({ data: { slug: `kategori-${suffix}`, name: 'Mobilya' } })
+  const category = await prisma.category.create({
+    data: { slug: `kategori-${suffix}`, name: 'Mobilya' },
+  })
   const product = (sellerId: string, name: string) =>
     prisma.product.create({
-      data: { sellerId, categoryId: category.id, slug: `${name}-${suffix}`, name, price: new Decimal('100.00'), stockQuantity: 5 },
+      data: {
+        sellerId,
+        categoryId: category.id,
+        slug: `${name}-${suffix}`,
+        name,
+        price: new Decimal('100.00'),
+        stockQuantity: 5,
+      },
     })
   const productA = await product(sellerA.id, 'urun-a')
   const productB = await product(sellerB.id, 'urun-b')
   const address = await prisma.address.create({
     data: {
-      userId: customer.id, fullName: 'Ayşe Yılmaz', phone: '5551112233', addressLine1: 'Atölye Sk. 3',
-      district: 'Kadıköy', city: 'İstanbul', postalCode: '34000',
+      userId: customer.id,
+      fullName: 'Ayşe Yılmaz',
+      phone: '5551112233',
+      addressLine1: 'Atölye Sk. 3',
+      district: 'Kadıköy',
+      city: 'İstanbul',
+      postalCode: '34000',
     },
   })
   const line = (productId: string, sellerId: string, productName: string) => ({
-    productId, sellerId, productName, quantity: 1,
-    unitPrice: new Decimal('100.00'), totalPrice: new Decimal('100.00'),
-    customerPaidProductAmount: new Decimal('100.00'), netPayoutAmount: new Decimal('100.00'),
+    productId,
+    sellerId,
+    productName,
+    quantity: 1,
+    unitPrice: new Decimal('100.00'),
+    totalPrice: new Decimal('100.00'),
+    customerPaidProductAmount: new Decimal('100.00'),
+    netPayoutAmount: new Decimal('100.00'),
   })
   const order = await prisma.order.create({
     data: {
-      customerId: customer.id, addressId: address.id, status: 'return_requested',
-      grossAmount: new Decimal('200.00'), totalAmount: new Decimal('200.00'),
-      lines: { create: [line(productA.id, sellerA.id, 'Ürün A'), line(productB.id, sellerB.id, 'Ürün B')] },
+      customerId: customer.id,
+      addressId: address.id,
+      status: 'return_requested',
+      grossAmount: new Decimal('200.00'),
+      totalAmount: new Decimal('200.00'),
+      lines: {
+        create: [line(productA.id, sellerA.id, 'Ürün A'), line(productB.id, sellerB.id, 'Ürün B')],
+      },
     },
   })
 
@@ -107,7 +156,12 @@ async function seed() {
   const directDispute = await prisma.dispute.create({
     data: { orderId: order.id, openedById: customer.id, reason: 'Eksik ürün' },
   })
-  const returnBase = { orderId: order.id, customerId: customer.id, reason: 'Hasarlı', isWithinWindow: true }
+  const returnBase = {
+    orderId: order.id,
+    customerId: customer.id,
+    reason: 'Hasarlı',
+    isWithinWindow: true,
+  }
   const assignedReturn = await prisma.returnRequest.create({
     data: { ...returnBase, sellerId: sellerA.id, requestKey: 'a', disputeId: escalatedDispute.id },
   })
@@ -115,14 +169,33 @@ async function seed() {
     data: { ...returnBase, sellerId: null, requestKey: 'legacy' },
   })
   const message = await prisma.returnMessage.create({
-    data: { returnRequestId: assignedReturn.id, authorId: customer.id, authorRole: 'customer', body: 'Fotoğraflar ekte' },
+    data: {
+      returnRequestId: assignedReturn.id,
+      authorId: customer.id,
+      authorRole: 'customer',
+      body: 'Fotoğraflar ekte',
+    },
+  })
+  const sellerMessage = await prisma.returnMessage.create({
+    data: {
+      returnRequestId: assignedReturn.id,
+      authorId: admin.id,
+      authorRole: 'admin',
+      audience: 'seller',
+      body: 'Tasarımcıya Hanuja inceleme bilgisi',
+    },
   })
 
   const media = (type: 'return_evidence' | 'dispute_evidence', link: Record<string, string>) =>
     prisma.mediaAsset.create({
       data: {
-        type, url: '', key: `private/${randomUUID()}`, folder: type === 'return_evidence' ? 'returns' : 'disputes',
-        status: 'ready', uploadedBy: customer.id, ...link,
+        type,
+        url: '',
+        key: `private/${randomUUID()}`,
+        folder: type === 'return_evidence' ? 'returns' : 'disputes',
+        status: 'ready',
+        uploadedBy: customer.id,
+        ...link,
       },
     })
 
@@ -141,6 +214,32 @@ async function seed() {
       escalatedDispute: (await media('dispute_evidence', { disputeId: escalatedDispute.id })).id,
       legacyReturn: (await media('return_evidence', { returnRequestId: legacyReturn.id })).id,
       directDispute: (await media('dispute_evidence', { disputeId: directDispute.id })).id,
+      sellerOwn: (
+        await prisma.mediaAsset.create({
+          data: {
+            type: 'return_evidence',
+            url: '',
+            key: `private/${randomUUID()}`,
+            folder: 'returns',
+            status: 'ready',
+            uploadedBy: sellerUserA.id,
+            returnRequestId: assignedReturn.id,
+          },
+        })
+      ).id,
+      adminToSeller: (
+        await prisma.mediaAsset.create({
+          data: {
+            type: 'return_evidence',
+            url: '',
+            key: `private/${randomUUID()}`,
+            folder: 'returns',
+            status: 'ready',
+            uploadedBy: admin.id,
+            returnMessageId: sellerMessage.id,
+          },
+        })
+      ).id,
     },
   }
 }
@@ -154,9 +253,9 @@ async function status(asset: Asset, viewer: Viewer) {
 
 describe('private evidence on a two-seller order (real PostgreSQL)', () => {
   it.each(['assignedReturn', 'assignedMessage', 'escalatedDispute'] as const)(
-    '%s: assigned seller, customer and admin can read; the other seller and an outsider get 404',
+    '%s: only the customer and admin can read customer evidence',
     async (asset) => {
-      expect(await status(asset, 'sellerA')).toBe(200)
+      expect(await status(asset, 'sellerA')).toBe(404)
       expect(await status(asset, 'customer')).toBe(200)
       expect(await status(asset, 'admin')).toBe(200)
       expect(await status(asset, 'sellerB')).toBe(404)
@@ -165,11 +264,21 @@ describe('private evidence on a two-seller order (real PostgreSQL)', () => {
   )
 
   it.each(['legacyReturn', 'directDispute'] as const)(
-    '%s stays shared with every seller on the order',
+    '%s keeps historical customer evidence private from both designers',
+    async (asset) => {
+      expect(await status(asset, 'sellerA')).toBe(404)
+      expect(await status(asset, 'sellerB')).toBe(404)
+      expect(await status(asset, 'customer')).toBe(200)
+      expect(await status(asset, 'outsider')).toBe(404)
+    },
+  )
+  it.each(['sellerOwn', 'adminToSeller'] as const)(
+    '%s is readable by its intended designer and admin only',
     async (asset) => {
       expect(await status(asset, 'sellerA')).toBe(200)
-      expect(await status(asset, 'sellerB')).toBe(200)
-      expect(await status(asset, 'customer')).toBe(200)
+      expect(await status(asset, 'admin')).toBe(200)
+      expect(await status(asset, 'sellerB')).toBe(404)
+      expect(await status(asset, 'customer')).toBe(404)
       expect(await status(asset, 'outsider')).toBe(404)
     },
   )
@@ -177,8 +286,11 @@ describe('private evidence on a two-seller order (real PostgreSQL)', () => {
 
 describe('dispute repository participant scope (real PostgreSQL)', () => {
   const repo = () => createDisputeRepository(prisma)
-  const find = async (method: 'findByIdForViewer' | 'findMessageTargetForViewer', dispute: 'escalated' | 'direct', viewer: Viewer) =>
-    (await repo()[method](fixture.disputes[dispute], fixture.viewers[viewer]))?.id ?? null
+  const find = async (
+    method: 'findByIdForViewer' | 'findMessageTargetForViewer',
+    dispute: 'escalated' | 'direct',
+    viewer: Viewer,
+  ) => (await repo()[method](fixture.disputes[dispute], fixture.viewers[viewer]))?.id ?? null
 
   it.each(['findByIdForViewer', 'findMessageTargetForViewer'] as const)(
     '%s limits an escalated dispute to the assigned seller',
