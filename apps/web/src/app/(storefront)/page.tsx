@@ -3,6 +3,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { HeroSlider, PromoCard } from '@hanuja/ui'
 import {
+  buildPublicPageMetadata,
+  buildOrganizationStructuredData,
+  buildWebsiteStructuredData,
+  JsonLd,
+} from '@hanuja/seo'
+import { PLATFORM_LEGAL_INFO } from '@hanuja/api/lib/platform-info'
+import {
   ArrowRight,
   Sofa,
   Lamp,
@@ -23,11 +30,12 @@ import { getHomepageShowcaseData, type HomepageShowcaseData } from '@/lib/homepa
 // `@/lib/homepage-showcase-data` instead — see that module's header.
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPublicPageMetadata({
+  path: '/',
   title: 'Özenle Seçilmiş Tasarımlar',
   description:
     "Özenle seçilmiş tasarım ürünleri Hanuja'da. Tasarımcıların özgün ürünlerini keşfedin, güvenle sipariş verin; faturanız ve satış sonrası destek Hanuja'dan.",
-}
+})
 
 // visibilitySlugs: kartın görünürlüğünü belirleyen DB kategori slug'ları —
 // alt ağacında yayınlanmış ürün olan en az bir slug varsa kart gösterilir.
@@ -116,7 +124,10 @@ async function loadHomepageShowcase(): Promise<{
   showcaseUnavailable: boolean
 }> {
   try {
-    return { data: await getHomepageShowcaseData(), showcaseUnavailable: false }
+    return {
+      data: await getHomepageShowcaseData(),
+      showcaseUnavailable: false,
+    }
   } catch (error) {
     // Not cached — only this request degrades; the next one retries the load.
     console.error('[storefront] homepage showcase load failed', error)
@@ -145,8 +156,27 @@ export default async function HomePage() {
 
   return (
     <div style={{ backgroundColor: 'var(--color-background)' }}>
+      <JsonLd
+        data={buildOrganizationStructuredData({
+          legalName: PLATFORM_LEGAL_INFO.companyLegalName,
+          email: PLATFORM_LEGAL_INFO.supportEmail,
+          telephone: PLATFORM_LEGAL_INFO.phoneHref.replace('tel:', ''),
+          address: PLATFORM_LEGAL_INFO.address,
+          sameAs: [
+            'https://www.instagram.com/hanuja.com.tr/',
+            'https://www.facebook.com/profile.php?id=61593041854223',
+          ],
+        })}
+      />
+      <JsonLd data={buildWebsiteStructuredData()} />
       {/* Hero — slider 2/3 + promo column 1/3 */}
       <section className="mx-auto max-w-7xl px-4 pt-6 pb-4 sm:px-6 lg:px-8">
+        <h1
+          className="mb-4 text-2xl font-medium sm:text-3xl"
+          style={{ fontFamily: 'var(--font-display)', color: '#3d3529' }}
+        >
+          Özenle Seçilmiş Tasarımlar
+        </h1>
         <div
           className={`grid gap-4 ${hasPromo ? 'lg:grid-cols-3' : 'grid-cols-1'}`}
           style={{ height: '480px' }}
@@ -263,7 +293,11 @@ export default async function HomePage() {
                   telafi eder — alt başlıkla mürekkep (ink) hizası ölçülerek bulundu. */}
               <h2
                 className="text-3xl font-medium"
-                style={{ fontFamily: 'var(--font-display)', color: '#3d3529', marginLeft: '-1px' }}
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  color: '#3d3529',
+                  marginLeft: '-1px',
+                }}
               >
                 Öne Çıkan Ürünler
               </h2>
@@ -384,7 +418,10 @@ export default async function HomePage() {
           <div className="relative z-10">
             <h2
               className="text-3xl font-medium sm:text-4xl"
-              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary-fg)' }}
+              style={{
+                fontFamily: 'var(--font-display)',
+                color: 'var(--color-primary-fg)',
+              }}
             >
               Evi Sıfırdan mı Döşüyorsunuz?
             </h2>
@@ -398,7 +435,10 @@ export default async function HomePage() {
             <Link
               href="/blog"
               className="mt-8 inline-flex items-center gap-2 rounded-full px-8 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
-              style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-accent-fg)' }}
+              style={{
+                backgroundColor: 'var(--color-accent)',
+                color: 'var(--color-accent-fg)',
+              }}
             >
               Blog&apos;u Keşfet
               <ArrowRight className="h-4 w-4" />

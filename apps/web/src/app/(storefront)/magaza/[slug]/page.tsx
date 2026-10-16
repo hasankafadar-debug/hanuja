@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { MapPin } from 'lucide-react'
-import { buildStoreMetadata, buildLocalBusinessStructuredData, JsonLd } from '@hanuja/seo'
+import { buildStoreMetadata, buildDesignerStructuredData, JsonLd } from '@hanuja/seo'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createSellerRepository } from '@hanuja/api/repositories/seller.repository'
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
@@ -30,7 +30,10 @@ async function getStoreData(slug: string) {
   const seller = await sellerRepo.findBySlugWithProfile(slug)
   if (!seller) return null
 
-  const result = await catalogService.listPublishedWithCursor({ sellerId: seller.id, take: 20 })
+  const result = await catalogService.listPublishedWithCursor({
+    sellerId: seller.id,
+    take: 20,
+  })
 
   return { seller, products: result.items, nextCursor: result.nextCursor }
 }
@@ -38,10 +41,15 @@ async function getStoreData(slug: string) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const data = await getStoreData(slug)
-  const name = data?.seller.displayName || slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  const name =
+    data?.seller.displayName || slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   const profile = data?.seller.profile
   const ogImage = profile?.bannerUrl ?? profile?.logoUrl ?? undefined
-  return buildStoreMetadata({ name, slug, ...(ogImage ? { imageUrl: ogImage } : {}) })
+  return buildStoreMetadata({
+    name,
+    slug,
+    ...(ogImage ? { imageUrl: ogImage } : {}),
+  })
 }
 
 export default async function StoreDetailPage({ params }: Props) {
@@ -51,7 +59,8 @@ export default async function StoreDetailPage({ params }: Props) {
   if (!data) notFound()
 
   const { seller, products, nextCursor } = data
-  const storeName = seller.displayName || slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  const storeName =
+    seller.displayName || slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   const bio = seller.profile?.bio ?? null
   const city = seller.profile?.city ?? undefined
   const profile = seller.profile
@@ -67,21 +76,18 @@ export default async function StoreDetailPage({ params }: Props) {
       }
     : { backgroundColor: profile?.bannerColor ?? 'var(--color-primary)' }
 
-  const storeJsonLd = buildLocalBusinessStructuredData({
+  const storeJsonLd = buildDesignerStructuredData({
     name: storeName,
     slug,
     ...(bio ? { description: bio } : {}),
-    ...(city !== undefined ? { city } : {}),
+    ...(logoUrl ? { imageUrl: logoUrl } : {}),
   })
 
   return (
     <div>
       <JsonLd data={storeJsonLd} />
       {/* Store banner */}
-      <div
-        className="h-48 w-full flex items-end relative"
-        style={bannerStyle}
-      >
+      <div className="h-48 w-full flex items-end relative" style={bannerStyle}>
         {/* Banner üzerinde metin — yalnızca renk modunda gösterilir */}
         {profile?.bannerHeadline && !bannerUrl && (
           <div className="absolute inset-0 flex items-center justify-center px-6">
@@ -123,11 +129,17 @@ export default async function StoreDetailPage({ params }: Props) {
             <div>
               <h1
                 className="text-2xl font-semibold"
-                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  color: 'var(--color-primary)',
+                }}
               >
                 {storeName}
               </h1>
-              <div className="mt-1 flex items-center gap-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+              <div
+                className="mt-1 flex items-center gap-3 text-sm"
+                style={{ color: 'var(--color-muted-fg)' }}
+              >
                 {city && (
                   <>
                     <span className="flex items-center gap-1">
@@ -137,12 +149,18 @@ export default async function StoreDetailPage({ params }: Props) {
                     <span>·</span>
                   </>
                 )}
-                <span>{products.length}{nextCursor ? '+' : ''} ürün</span>
+                <span>
+                  {products.length}
+                  {nextCursor ? '+' : ''} ürün
+                </span>
               </div>
             </div>
           </div>
           {bio && (
-            <p className="mt-3 max-w-xl text-sm leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>
+            <p
+              className="mt-3 max-w-xl text-sm leading-relaxed"
+              style={{ color: 'var(--color-muted-fg)' }}
+            >
               {bio}
             </p>
           )}
@@ -166,7 +184,9 @@ export default async function StoreDetailPage({ params }: Props) {
                 price: Number(product.price),
                 comparePrice: product.compareAtPrice ? Number(product.compareAtPrice) : null,
                 imageUrl: (product.images as Array<{ url: string }> | undefined)?.[0]?.url ?? null,
-                imageUrls: ((product.images as Array<{ url: string }> | undefined) ?? []).map((image) => image.url),
+                imageUrls: ((product.images as Array<{ url: string }> | undefined) ?? []).map(
+                  (image) => image.url,
+                ),
                 sellerName: storeName,
                 sellerSlug: slug,
               }))}

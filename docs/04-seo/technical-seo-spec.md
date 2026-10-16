@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-10-16
 # Durum: taslak v1
 
 # Technical SEO Spec
@@ -17,6 +17,10 @@ Kaynak zinciri: `.claude/rules/04-seo-rules.md` -> `docs/04-seo/seo-url-slug-rul
 - Her public entity icin tek canonical URL vardir.
 - Canonical URL'ler `packages/seo/src/canonical-builder.ts` yardimcilari uzerinden uretilmelidir.
 - Query parametreli varyantlar temiz route'a canonical vermelidir.
+- Blog sayfalaması içerik değiştirir: `/blog` ilk sayfanın, `/blog?page=N` sonraki
+  sayfaların kendi canonical adresidir. Takip parametreleri canonical'a taşınmaz.
+- Ana sayfa, Blog, Hakkımızda, İletişim, Tasarımcılar ve kategori giriş sayfası
+  kendi canonical adresini SSR metadata ile üretir; kök layout canonical dayatmaz.
 - `?varyant={id}` (2026-09-24, e-posta plani faz 6) yalniz arayuz parametresidir: urun sayfasini ilgili
   varyant secili acar (15 gunluk fiyat e-postasi baglantisi). Canonical `/urun/{slug}` kalir; sitemap ve
   internal linklerde kullanilmaz.
@@ -46,7 +50,18 @@ erisiminde sayfa 200 doner, bos durum mesaji gosterir ve `noindex, follow`
 tasir. Urun yayinlandiginda kategori otomatik olarak gorunur ve indexlenebilir
 hale gelir (ISR yenileme pencereleri icinde). Kaynak mantik:
 `api/domain/category-visibility.ts` + `catalog.service.listCustomerVisibleCategories()`.
+- Kategori giriş sayfası `/kategori` de liste tamamen boşsa `noindex,follow` olur;
+  sadece müşteri-görünür kategori varsa sitemap'e girer. Tatildeki tasarımcıların
+  ürünleri mevcut ortak görünürlük süzgecine tabidir.
 Satici/admin akislari bu kuraldan ETKILENMEZ — tam aktif agaci gormeye devam eder.
+
+### Sitemap tarih ve hata politikası (2026-10-16)
+
+Sabit gerçek sayfalar: `/`, `/blog`, `/hakkimizda`, `/iletisim`, `/magaza`.
+Görünür kategori/ürün, yayımlanmış yazı ve aktif tasarımcı adresleri DB'den eklenir.
+DB okunamazsa yalnız bu sabit sayfalar döner; örnek kategori, tasarımcı veya blog
+adresleri üretilmez. Güvenilir güncelleme tarihi bulunmayan girişlerde `lastmod`
+yoktur; mevcut tarih hiçbir istekte yapay güncelleme tarihi olarak kullanılmaz.
 
 ## Robots ve sitemap
 

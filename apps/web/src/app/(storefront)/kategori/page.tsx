@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import { cache } from 'react'
+import { buildPublicPageMetadata } from '@hanuja/seo'
 import Link from 'next/link'
 import { Breadcrumb } from '@hanuja/ui'
 import { LayoutGrid } from 'lucide-react'
@@ -7,21 +9,26 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
-  title: 'Tüm Kategoriler',
-  description:
-    "Hanuja'daki tüm kategorileri keşfedin; özenle seçilmiş tasarım ürünlerine kategoriye göre göz atın.",
-  robots: { index: true, follow: true },
+const getRootCategories = cache(async () => {
+  const svc = createCatalogService({ prisma: createPrismaForRoute() })
+  return svc.listCustomerVisibleRootCategories()
+})
+
+export async function generateMetadata(): Promise<Metadata> {
+  const categories = await getRootCategories()
+  return buildPublicPageMetadata({
+    path: '/kategori',
+    title: 'Tüm Kategoriler',
+    description:
+      "Hanuja'daki tüm kategorileri keşfedin; özenle seçilmiş tasarım ürünlerine kategoriye göre göz atın.",
+    noindex: categories.length === 0,
+  })
 }
 
 export default async function KategorilerPage() {
-  const svc = createCatalogService({ prisma: createPrismaForRoute() })
-  const categories = await svc.listCustomerVisibleRootCategories()
+  const categories = await getRootCategories()
 
-  const breadcrumbItems = [
-    { label: 'Anasayfa', href: '/' },
-    { label: 'Kategoriler' },
-  ]
+  const breadcrumbItems = [{ label: 'Anasayfa', href: '/' }, { label: 'Kategoriler' }]
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">

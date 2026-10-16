@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import { PLATFORM_LEGAL_INFO } from '@hanuja/api/lib/platform-info'
+import { buildPublicPageMetadata } from '@hanuja/seo'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPublicPageMetadata({
+  path: '/iletisim',
   title: 'İletişim',
   description: 'Hanuja müşteri hizmetleri ve iletişim bilgileri.',
-  robots: { index: true, follow: true },
-}
+})
 
 export default function IletisimPage() {
   return (
@@ -20,46 +21,73 @@ export default function IletisimPage() {
       <div className="space-y-6">
         <section
           className="rounded-xl border p-5"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-surface)',
+          }}
         >
           <h2 className="mb-3 text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
             Şirket Bilgileri
           </h2>
           <dl className="space-y-2 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
             <div className="flex gap-2">
-              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>Ticari Unvan</dt>
+              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>
+                Ticari Unvan
+              </dt>
               <dd>{PLATFORM_LEGAL_INFO.companyNameDisplay}</dd>
             </div>
             <div className="flex gap-2">
-              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>Adres</dt>
+              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>
+                Adres
+              </dt>
               <dd>{PLATFORM_LEGAL_INFO.address}</dd>
             </div>
             <div className="flex gap-2">
-              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>Telefon</dt>
+              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>
+                Telefon
+              </dt>
               <dd>
-                <a href={PLATFORM_LEGAL_INFO.phoneHref} className="hover:underline" style={{ color: 'var(--color-accent)' }}>
+                <a
+                  href={PLATFORM_LEGAL_INFO.phoneHref}
+                  className="hover:underline"
+                  style={{ color: 'var(--color-accent)' }}
+                >
                   {PLATFORM_LEGAL_INFO.phoneDisplay}
                 </a>
               </dd>
             </div>
             <div className="flex gap-2">
-              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>E-posta</dt>
+              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>
+                E-posta
+              </dt>
               <dd>
-                <a href={`mailto:${PLATFORM_LEGAL_INFO.supportEmail}`} className="hover:underline" style={{ color: 'var(--color-accent)' }}>
+                <a
+                  href={`mailto:${PLATFORM_LEGAL_INFO.supportEmail}`}
+                  className="hover:underline"
+                  style={{ color: 'var(--color-accent)' }}
+                >
                   {PLATFORM_LEGAL_INFO.supportEmail}
                 </a>
               </dd>
             </div>
             <div className="flex gap-2">
-              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>KEP</dt>
+              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>
+                KEP
+              </dt>
               <dd className="min-w-0 break-all">{PLATFORM_LEGAL_INFO.kvkkEmail}</dd>
             </div>
             <div className="flex gap-2">
-              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>Vergi Dairesi</dt>
-              <dd>{PLATFORM_LEGAL_INFO.taxOffice} — Vergi No: {PLATFORM_LEGAL_INFO.taxNumber}</dd>
+              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>
+                Vergi Dairesi
+              </dt>
+              <dd>
+                {PLATFORM_LEGAL_INFO.taxOffice} — Vergi No: {PLATFORM_LEGAL_INFO.taxNumber}
+              </dd>
             </div>
             <div className="flex gap-2">
-              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>MERSİS No</dt>
+              <dt className="font-medium w-32 shrink-0" style={{ color: 'var(--color-primary)' }}>
+                MERSİS No
+              </dt>
               <dd>{PLATFORM_LEGAL_INFO.mersis}</dd>
             </div>
           </dl>
@@ -67,7 +95,10 @@ export default function IletisimPage() {
 
         <section
           className="rounded-xl border p-5"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-surface)',
+          }}
         >
           <h2 className="mb-3 text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
             Müşteri Hizmetleri

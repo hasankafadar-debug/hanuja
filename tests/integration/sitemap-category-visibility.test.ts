@@ -43,10 +43,42 @@ import sitemap from '../../apps/web/src/app/sitemap'
 const NOW = new Date('2026-07-05T00:00:00Z')
 
 const CATEGORY_TREE = [
-  { id: 'ev', parentId: null, slug: 'ev', name: 'Ev', sortOrder: 0, isActive: true, updatedAt: NOW },
-  { id: 'ev-mobilya', parentId: 'ev', slug: 'ev-mobilya', name: 'Mobilya', sortOrder: 0, isActive: true, updatedAt: NOW },
-  { id: 'ev-mobilya-sehpa', parentId: 'ev-mobilya', slug: 'ev-mobilya-sehpa', name: 'Sehpa', sortOrder: 0, isActive: true, updatedAt: NOW },
-  { id: 'ofis', parentId: null, slug: 'ofis', name: 'Ofis', sortOrder: 1, isActive: true, updatedAt: NOW },
+  {
+    id: 'ev',
+    parentId: null,
+    slug: 'ev',
+    name: 'Ev',
+    sortOrder: 0,
+    isActive: true,
+    updatedAt: NOW,
+  },
+  {
+    id: 'ev-mobilya',
+    parentId: 'ev',
+    slug: 'ev-mobilya',
+    name: 'Mobilya',
+    sortOrder: 0,
+    isActive: true,
+    updatedAt: NOW,
+  },
+  {
+    id: 'ev-mobilya-sehpa',
+    parentId: 'ev-mobilya',
+    slug: 'ev-mobilya-sehpa',
+    name: 'Sehpa',
+    sortOrder: 0,
+    isActive: true,
+    updatedAt: NOW,
+  },
+  {
+    id: 'ofis',
+    parentId: null,
+    slug: 'ofis',
+    name: 'Ofis',
+    sortOrder: 1,
+    isActive: true,
+    updatedAt: NOW,
+  },
 ]
 
 function urlsOf(entries: Array<{ url: string }>) {
@@ -99,8 +131,26 @@ describe('sitemap category visibility', () => {
     const entries = await sitemap()
     const paths = urlsOf(entries)
 
-    // Static fallback ships the hardcoded launch categories.
-    expect(paths).toContain('/kategori/mobilya')
-    expect(paths).toContain('/')
+    expect(paths).toEqual(['/', '/blog', '/hakkimizda', '/iletisim', '/magaza'])
+    expect(entries.every((entry) => !('lastModified' in entry))).toBe(true)
+  })
+
+  it('omits invented dates and preserves actual database modification dates across requests', async () => {
+    prismaMock.blogPost.findMany.mockResolvedValue([{ slug: 'gercek-yazi', updatedAt: NOW }])
+    const first = await sitemap()
+    const second = await sitemap()
+    expect(first).toEqual(second)
+    expect(
+      first.find((entry) => new URL(entry.url).pathname === '/blog/gercek-yazi')?.lastModified,
+    ).toEqual(NOW)
+    expect(first.find((entry) => new URL(entry.url).pathname === '/')?.lastModified).toBeUndefined()
+  })
+
+  it('includes the category index only when a customer-visible category exists', async () => {
+    expect(urlsOf(await sitemap())).not.toContain('/kategori')
+    prismaMock.product.groupBy.mockResolvedValue([
+      { categoryId: 'ev-mobilya-sehpa', _count: { _all: 1 } },
+    ])
+    expect(urlsOf(await sitemap())).toContain('/kategori')
   })
 })

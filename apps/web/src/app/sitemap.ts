@@ -23,40 +23,16 @@ import { PUBLIC_PRODUCT_WHERE } from '@hanuja/api/domain/product-visibility'
 
 // Without this the handler is statically snapshotted at build time (no fetch /
 // dynamic API in the module) and would never refresh until the next deploy.
-// One-hour ISR keeps the sitemap a live, self-updating URL for Google.
+// Read current visibility on each request; never bake demo entries into a build.
 export const revalidate = 0
-const staticCategories = [
-  'mobilya',
-  'dekor',
-  'aydinlatma',
-  'ofis',
-  'banyo',
-  'mutfak',
-]
-
-const staticBlogPosts = [
-  'kucuk-salon-dekorasyon-fikirleri',
-  'dogal-malzemeler-ev-dekorasyonu',
-  'ev-ofis-duzeni-nasil-kurulur',
-  'bahar-dekorasyon-trendleri-2026',
-  'minimalist-yatak-odasi-tasarimi',
-  'mutfak-organizasyon-ipuclari',
-]
-
-const staticStores = [
-  'atelier-noa',
-  'woodform-design',
-  'forma-interiors',
-  'toprak-atolyesi',
-]
 
 function staticSitemap(): MetadataRoute.Sitemap {
   return [
     homeSitemapEntry(),
     buildSitemapEntry('/blog', { priority: 0.8, changeFrequency: 'daily' }),
-    ...staticCategories.map((slug) => categorySitemapEntry([slug])),
-    ...staticBlogPosts.map((slug) => blogSitemapEntry(slug)),
-    ...staticStores.map((slug) => storeSitemapEntry(slug)),
+    buildSitemapEntry('/hakkimizda'),
+    buildSitemapEntry('/iletisim'),
+    buildSitemapEntry('/magaza'),
   ]
 }
 
@@ -84,9 +60,8 @@ function buildCategorySlugPath(
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const prisma = createPrismaForRoute()
-
   try {
+    const prisma = createPrismaForRoute()
     const catalogSvc = createCatalogService({ prisma })
     const [categories, products, blogPosts, stores] = await Promise.all([
       catalogSvc.listCustomerVisibleCategories(),
@@ -113,8 +88,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const categoriesById = new Map(categories.map((category) => [category.id, category]))
 
     return [
-      homeSitemapEntry(),
-      buildSitemapEntry('/blog', { priority: 0.8, changeFrequency: 'daily' }),
+      ...staticSitemap(),
+      ...(categories.length > 0 ? [buildSitemapEntry('/kategori')] : []),
       ...categories.map((category) =>
         categorySitemapEntry(buildCategorySlugPath(category, categoriesById), category.updatedAt),
       ),

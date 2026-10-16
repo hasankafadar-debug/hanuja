@@ -9,13 +9,10 @@ export interface SitemapEntryOptions {
   lastModified?: Date
 }
 
-export function buildSitemapEntry(
-  path: string,
-  options: SitemapEntryOptions = {},
-): SitemapEntry {
+export function buildSitemapEntry(path: string, options: SitemapEntryOptions = {}): SitemapEntry {
   return {
     url: absoluteUrl(path),
-    lastModified: options.lastModified ?? new Date(),
+    ...(options.lastModified ? { lastModified: options.lastModified } : {}),
     changeFrequency: options.changeFrequency ?? 'weekly',
     priority: options.priority ?? 0.5,
   }

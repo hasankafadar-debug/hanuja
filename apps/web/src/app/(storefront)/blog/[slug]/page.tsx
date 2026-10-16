@@ -9,7 +9,12 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { sanitizeBlogHtml } from '@hanuja/api/lib/sanitize-blog-html'
 import { getConfiguredMediaBaseUrl, normalizeManagedMediaUrl } from '@hanuja/api/lib/media-url'
 import { DEFAULT_MEDIA_HOSTNAME } from '@hanuja/api/lib/platform-info'
-import { buildArticleStructuredData, buildBlogPostMetadata, JsonLd } from '@hanuja/seo'
+import {
+  buildArticleStructuredData,
+  buildBlogPostMetadata,
+  buildBreadcrumbStructuredData,
+  JsonLd,
+} from '@hanuja/seo'
 import { Breadcrumb, isManagedMediaProxyUrl, normalizeMediaDisplayUrl } from '@hanuja/ui'
 
 export const dynamic = 'force-dynamic'
@@ -51,6 +56,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return buildBlogPostMetadata({
     title: post.title,
     slug,
+    authorName: 'Hanuja Editörü',
+    ...(post.publishedAt ? { publishedAt: post.publishedAt.toISOString() } : {}),
     ...(post.summary ? { excerpt: post.summary } : {}),
     ...(coverUrl ? { imageUrl: coverUrl } : {}),
   })
@@ -75,16 +82,27 @@ export default async function BlogPostPage({ params }: Props) {
     title: post.title,
     slug,
     excerpt: post.summary ?? `${post.title} - Hanuja Blog.`,
-    publishedAt: post.publishedAt?.toISOString() ?? new Date().toISOString(),
+    ...(post.publishedAt ? { publishedAt: post.publishedAt.toISOString() } : {}),
+    modifiedAt: post.updatedAt.toISOString(),
     ...(socialCoverUrl ? { imageUrl: socialCoverUrl } : {}),
   })
 
-  const wordCount = sanitizedBody.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length
+  const wordCount = sanitizedBody
+    .replace(/<[^>]+>/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean).length
   const readMinutes = Math.max(1, Math.round(wordCount / 200))
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
       <JsonLd data={articleJsonLd} />
+      <JsonLd
+        data={buildBreadcrumbStructuredData([
+          { name: 'Anasayfa', url: '/' },
+          { name: 'Blog', url: '/blog' },
+          { name: post.title, url: `/blog/${post.slug}` },
+        ])}
+      />
       <Breadcrumb items={breadcrumbItems} className="mb-8" />
 
       <Link
@@ -93,7 +111,7 @@ export default async function BlogPostPage({ params }: Props) {
         style={{ color: 'var(--color-muted-fg)' }}
       >
         <ArrowLeft className="h-4 w-4" />
-        Blog'a Don
+        Blog'a Dön
       </Link>
 
       <article>
@@ -106,20 +124,38 @@ export default async function BlogPostPage({ params }: Props) {
           </h1>
 
           <div
-            className="mt-4 flex items-center gap-4 text-sm"
+            className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
             style={{ color: 'var(--color-muted-fg)' }}
           >
+            <Link href="/blog" rel="author" className="underline">
+              Hanuja Editörü
+            </Link>
             {post.publishedAt ? (
               <span className="flex items-center gap-1.5">
                 <CalendarDays className="h-4 w-4" />
-                {formatDate(post.publishedAt)}
+                <time dateTime={post.publishedAt.toISOString()}>
+                  {formatDate(post.publishedAt)}
+                </time>
               </span>
             ) : null}
             <span className="flex items-center gap-1.5">
               <Clock className="h-4 w-4" />
               {readMinutes} dk okuma
             </span>
+            {post.updatedAt.getTime() >
+              (post.publishedAt?.getTime() ?? post.updatedAt.getTime()) && (
+              <span>
+                Güncelleme:{' '}
+                <time dateTime={post.updatedAt.toISOString()}>{formatDate(post.updatedAt)}</time>
+              </span>
+            )}
           </div>
+
+          {post.summary && (
+            <p className="mt-6 text-lg leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>
+              {post.summary}
+            </p>
+          )}
 
           {coverUrl ? (
             <div className="relative mt-8 aspect-video w-full overflow-hidden rounded-2xl">
@@ -161,6 +197,18 @@ export default async function BlogPostPage({ params }: Props) {
           )}
         </div>
       </article>
+      <nav
+        aria-label="İlgili sayfalar"
+        className="mt-10 flex flex-wrap gap-4 border-t pt-6 text-sm"
+        style={{ borderColor: 'var(--color-border)' }}
+      >
+        <Link href="/blog" className="underline">
+          Diğer tasarım ve yaşam rehberleri
+        </Link>
+        <Link href="/hakkimizda" className="underline">
+          Hanuja hakkında
+        </Link>
+      </nav>
     </div>
   )
 }

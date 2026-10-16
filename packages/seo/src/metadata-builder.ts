@@ -1,10 +1,50 @@
 import type { Metadata } from 'next'
-import { absoluteCanonical } from './canonical-builder'
+import { absoluteCanonical, absoluteUrl } from './canonical-builder'
 
 const SITE_NAME = 'Hanuja'
 const SITE_TAGLINE = 'Özenle Seçilmiş Tasarımlar'
 const SITE_DESCRIPTION =
   "Özenle seçilmiş tasarım ürünleri Hanuja'da. Tasarımcıların özgün ürünlerini keşfedin, güvenle sipariş verin; faturanız ve satış sonrası destek Hanuja'dan."
+
+export interface PublicPageMetaInput {
+  title: string
+  description: string
+  path: string
+  noindex?: boolean
+}
+
+export function buildPublicPageMetadata(input: PublicPageMetaInput): Metadata {
+  const url = absoluteUrl(input.path)
+  const socialTitle = `${input.title} | ${SITE_NAME}`
+  return {
+    title: input.title,
+    description: input.description,
+    alternates: { canonical: url },
+    ...(input.noindex ? { robots: { index: false, follow: true } } : {}),
+    openGraph: {
+      title: socialTitle,
+      description: input.description,
+      url,
+      siteName: SITE_NAME,
+      locale: 'tr_TR',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary',
+      title: socialTitle,
+      description: input.description,
+    },
+  }
+}
+
+export function buildBlogListMetadata(page = 1): Metadata {
+  const currentPage = Number.isSafeInteger(page) && page > 0 ? page : 1
+  return buildPublicPageMetadata({
+    title: currentPage === 1 ? 'Blog & İlham' : `Blog & İlham — Sayfa ${currentPage}`,
+    description: 'Tasarım trendleri, ilham ve ürün fikirleri için Hanuja Blog.',
+    path: currentPage === 1 ? '/blog' : `/blog?page=${currentPage}`,
+  })
+}
 
 // ── Product ───────────────────────────────────────────────────────────────────
 
@@ -21,9 +61,7 @@ export function buildProductMetadata(input: ProductMetaInput): Metadata {
   const title = input.name
   const socialTitle = `${input.name} | ${SITE_NAME}`
   const description =
-    input.description.length > 155
-      ? input.description.slice(0, 152) + '...'
-      : input.description
+    input.description.length > 155 ? input.description.slice(0, 152) + '...' : input.description
 
   return {
     title,
@@ -98,8 +136,7 @@ export function buildStoreMetadata(input: StoreMetaInput): Metadata {
   const url = absoluteCanonical.store(input.slug)
   const title = `${input.name} Tasarımları`
   const socialTitle = `${title} | ${SITE_NAME}`
-  const description =
-    input.description ?? `${input.name} tasarımlarını Hanuja'da keşfedin.`
+  const description = input.description ?? `${input.name} tasarımlarını Hanuja'da keşfedin.`
 
   return {
     title,

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { buildPublicPageMetadata } from '@hanuja/seo'
 import Link from 'next/link'
 import { Store } from 'lucide-react'
 import { Breadcrumb, normalizeMediaDisplayUrl } from '@hanuja/ui'
@@ -7,10 +8,11 @@ import { createSellerRepository } from '@hanuja/api/repositories/seller.reposito
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPublicPageMetadata({
+  path: '/magaza',
   title: 'Tasarımcılar',
   description: "Hanuja'daki tasarımcıları keşfedin.",
-}
+})
 
 export default async function StoresPage() {
   const sellerRepo = createSellerRepository(createPrismaForRoute())
@@ -19,10 +21,7 @@ export default async function StoresPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <Breadcrumb
-        items={[
-          { label: 'Anasayfa', href: '/' },
-          { label: 'Tasarımcılar' },
-        ]}
+        items={[{ label: 'Anasayfa', href: '/' }, { label: 'Tasarımcılar' }]}
         className="mb-8"
       />
 

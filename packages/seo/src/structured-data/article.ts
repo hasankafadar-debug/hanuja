@@ -15,6 +15,8 @@ export function buildArticleStructuredData(input: ArticleStructuredDataInput): o
   return {
     '@context': 'https://schema.org',
     '@type': 'Article',
+    '@id': `${absoluteCanonical.blog(input.slug)}#article`,
+    inLanguage: 'tr-TR',
     headline: input.title,
     description: input.excerpt,
     url: absoluteCanonical.blog(input.slug),
@@ -24,14 +26,16 @@ export function buildArticleStructuredData(input: ArticleStructuredDataInput): o
     author: {
       '@type': 'Organization',
       name: input.authorName ?? 'Hanuja Editörü',
+      url: `${baseUrl}/blog`,
     },
     publisher: {
       '@type': 'Organization',
+      '@id': `${baseUrl}/#organization`,
       name: 'Hanuja',
       url: baseUrl,
       logo: {
         '@type': 'ImageObject',
-        url: `${baseUrl}/logo.png`,
+        url: `${baseUrl}/logo.svg`,
       },
     },
     mainEntityOfPage: {

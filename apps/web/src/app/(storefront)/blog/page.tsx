@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { buildBlogListMetadata } from '@hanuja/seo'
 import Image from 'next/image'
 import Link from 'next/link'
 import { CalendarDays } from 'lucide-react'
@@ -9,27 +10,37 @@ import { BlogPagination } from './_components/blog-pagination'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
-  title: 'Blog & İlham',
-  description: 'Tasarım trendleri, ilham ve ürün fikirleri için Hanuja Blog.',
+interface Props {
+  searchParams?: Promise<{ page?: string }>
+}
+
+async function getCurrentPage(searchParams: Props['searchParams']) {
+  const value = Number((await searchParams)?.page ?? '1')
+  return Number.isSafeInteger(value) && value > 0 ? value : 1
+}
+
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  return buildBlogListMetadata(await getCurrentPage(searchParams))
 }
 
 const PAGE_SIZE = 12
 
 function formatDate(date: Date | null) {
   if (!date) return ''
-  return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+  return date.toLocaleDateString('tr-TR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
-export default async function BlogListPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ page?: string }>
-}) {
-  const resolvedSearchParams = searchParams ? await searchParams : undefined
-  const currentPage = Math.max(1, Number(resolvedSearchParams?.page ?? '1'))
+export default async function BlogListPage({ searchParams }: Props) {
+  const currentPage = await getCurrentPage(searchParams)
   const svc = createBlogService({ prisma: createPrismaForRoute() })
-  const { posts, total } = await svc.listPublished({ page: currentPage, limit: PAGE_SIZE })
+  const { posts, total } = await svc.listPublished({
+    page: currentPage,
+    limit: PAGE_SIZE,
+  })
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   if (posts.length === 0) {
@@ -46,13 +57,11 @@ export default async function BlogListPage({
     )
   }
 
-  const featuredPost = currentPage === 1 ? posts[0] ?? null : null
+  const featuredPost = currentPage === 1 ? (posts[0] ?? null) : null
   const featured = featuredPost
     ? {
         ...featuredPost,
-        coverUrl: featuredPost.coverUrl
-          ? normalizeMediaDisplayUrl(featuredPost.coverUrl)
-          : null,
+        coverUrl: featuredPost.coverUrl ? normalizeMediaDisplayUrl(featuredPost.coverUrl) : null,
       }
     : null
   const listPosts = (currentPage === 1 ? posts.slice(1) : posts).map((post) => ({
@@ -108,12 +117,18 @@ export default async function BlogListPage({
                 {featured.title}
               </h2>
               {featured.summary && (
-                <p className="mt-3 max-w-xl text-base leading-relaxed" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                <p
+                  className="mt-3 max-w-xl text-base leading-relaxed"
+                  style={{ color: 'rgba(255,255,255,0.8)' }}
+                >
                   {featured.summary}
                 </p>
               )}
               {featured.publishedAt && (
-                <div className="mt-6 flex items-center gap-4 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                <div
+                  className="mt-6 flex items-center gap-4 text-xs"
+                  style={{ color: 'rgba(255,255,255,0.6)' }}
+                >
                   <span className="flex items-center gap-1">
                     <CalendarDays className="h-3.5 w-3.5" />
                     {formatDate(featured.publishedAt)}
@@ -131,7 +146,10 @@ export default async function BlogListPage({
           <Link key={post.slug} href={`/blog/${post.slug}`} className="group">
             <article
               className="h-full rounded-xl border p-6 transition-shadow hover:shadow-md"
-              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+              }}
             >
               {post.coverUrl && (
                 <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-lg">
@@ -152,12 +170,18 @@ export default async function BlogListPage({
                 {post.title}
               </h2>
               {post.summary && (
-                <p className="mt-2 text-sm leading-relaxed line-clamp-2" style={{ color: 'var(--color-muted-fg)' }}>
+                <p
+                  className="mt-2 text-sm leading-relaxed line-clamp-2"
+                  style={{ color: 'var(--color-muted-fg)' }}
+                >
                   {post.summary}
                 </p>
               )}
               {post.publishedAt && (
-                <div className="mt-4 flex items-center gap-3 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                <div
+                  className="mt-4 flex items-center gap-3 text-xs"
+                  style={{ color: 'var(--color-muted-fg)' }}
+                >
                   <span className="flex items-center gap-1">
                     <CalendarDays className="h-3 w-3" />
                     {formatDate(post.publishedAt)}
