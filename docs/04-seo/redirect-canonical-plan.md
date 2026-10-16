@@ -12,6 +12,8 @@ Defines how Hanuja handles URL changes, canonical selection, and redirect mappin
 - one primary URL per resource type
 - do not canonicalize across different resource types
 - query parameter variants should normally point back to the clean canonical route
+- Blog pagination is a content-changing exception: `/blog?page=N` has its own
+  canonical for N > 1; page 1 canonicalizes to `/blog`. Tracking parameters are omitted.
 
 ## Redirect rules
 - preserve old-to-new path mapping

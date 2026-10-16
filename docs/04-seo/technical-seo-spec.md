@@ -63,6 +63,22 @@ DB okunamazsa yalnız bu sabit sayfalar döner; örnek kategori, tasarımcı vey
 adresleri üretilmez. Güvenilir güncelleme tarihi bulunmayan girişlerde `lastmod`
 yoktur; mevcut tarih hiçbir istekte yapay güncelleme tarihi olarak kullanılmaz.
 
+### Search Console doğrulaması ve işletim
+
+Ana vitrin mülkü `https://www.hanuja.com.tr/` URL önekidir; `hanuja.tr`
+ayrı bir alan adıdır ve ana vitrinin mülkü yerine kullanılmaz.
+Google'ın verdiği `apps/web/public/google12533876044bc908.html` dosyası
+sahiplik doğrulaması için eklenmiştir; doğrulama sonrasında da korunmalıdır.
+Bu dosya herkese açık bir doğrulama kanıtıdır; uygulama sırrı değildir.
+
+Doğrulanmış mülkte `/sitemap.xml` gönderilir. Güncellenen gerçek, indekslenebilir
+sayfalar için URL Denetimi yapılır ve bir kez yeniden tarama istenir. Boş kategori,
+tatilde gizlenen ürün veya panel adresleri için indeksleme istenmez.
+Gönderilen istek ile Google'ın işleyip indekslediği sonuç ayrı kaydedilir.
+Yeni mülkte raporların başlangıçta boş olması, tek başına tarama hatası değildir.
+Google'ın üretken yapay zekâ görünürlük kontrolü vitrin mülkünde incelenir;
+eğitim botları ve diğer alan adlarının ayarları bu işlemle değiştirilmez.
+
 ## Robots ve sitemap
 
 - `packages/seo/src/robots-builder.ts`, `/hesabim/`, `/sepet`, `/odeme`, `/siparis/`, `/arama`, `/api/`, `/seller-panel/`, `/admin-panel/` icin disallow uretir.

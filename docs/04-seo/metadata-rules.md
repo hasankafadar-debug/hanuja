@@ -20,8 +20,8 @@ Kaynaklar: `.claude/rules/04-seo-rules.md`, `packages/seo/src/metadata-builder.t
 | Kategori | `{{CategoryName}} | Hanuja` |
 | Urun | `{{ProductName}} | Hanuja` |
 | Tasarimci (store, `/magaza/...`) | `{{StoreName}} Tasarımları | Hanuja` (vitrinde "magaza" kelimesi kullanilmaz; rota degismez) |
-| Blog detay | `{{ArticleTitle}} | Hanuja Blog` |
-| Blog liste | `Blog ve Ilham | Hanuja` |
+| Blog detay | `{{ArticleTitle}} | Hanuja` (OG: `{{ArticleTitle}} | Hanuja Blog`) |
+| Blog liste | `Blog & İlham | Hanuja`; sonraki sayfa: `Blog & İlham — Sayfa N | Hanuja` |
 
 ## Description kurallari
 
@@ -45,12 +45,18 @@ Kaynaklar: `.claude/rules/04-seo-rules.md`, `packages/seo/src/metadata-builder.t
 - OG image varsa entity ile uyumlu gorsel kullanilir; yoksa kaliteli varsayilan gorsel kullanilabilir.
 - Twitter card `summary_large_image` tercih edilir.
 - Social metadata, canonical ile ayni public URL'yi isaret etmelidir.
+- Genel sayfalarda görsel belirtilmiyorsa `summary`, ürün ve yazı görsellerinde
+  `summary_large_image` kullanılır.
 
 ## Canonical baglantisi
 
 - Metadata builder'lar `alternates.canonical` alanini her public sayfada set etmelidir.
 - Category, product, store ve blog sayfalarinda route helper disinda el ile canonical uretilmez.
 - Redirect durumunda eski slug aktif metadata uretmemeli, yeni canonical'a tasinmalidir.
+- Genel kamuya açık sayfalar `buildPublicPageMetadata` kullanır; root layout'a
+  bütün alt sayfalara miras kalacak ana sayfa canonical'ı eklenmez.
+- Blog listesinde ilk sayfa `/blog`, sonraki sayfalar `/blog?page=N` şeklinde
+  kendine canonical verir. Takip parametreleri temizlenir.
 
 ## Dil ve yazi kurallari
 
