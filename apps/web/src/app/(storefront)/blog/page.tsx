@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Blog & İlham',
-  description: 'Ev dekorasyonu, tasarım trendleri ve yaşam alanı fikirleri için Hanuja Blog.',
+  description: 'Tasarım trendleri, ilham ve ürün fikirleri için Hanuja Blog.',
 }
 
 const PAGE_SIZE = 12

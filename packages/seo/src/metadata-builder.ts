@@ -2,7 +2,9 @@ import type { Metadata } from 'next'
 import { absoluteCanonical } from './canonical-builder'
 
 const SITE_NAME = 'Hanuja'
-const SITE_DESCRIPTION = "Türkiye'nin ev, ofis ve yaşam ürünleri marketplace'i."
+const SITE_TAGLINE = 'Özenle Seçilmiş Tasarımlar'
+const SITE_DESCRIPTION =
+  "Özenle seçilmiş tasarım ürünleri Hanuja'da. Tasarımcıların özgün ürünlerini keşfedin, güvenle sipariş verin; faturanız ve satış sonrası destek Hanuja'dan."
 
 // ── Product ───────────────────────────────────────────────────────────────────
 
@@ -64,7 +66,7 @@ export function buildCategoryMetadata(input: CategoryMetaInput): Metadata {
   const socialTitle = `${input.label} | ${SITE_NAME}`
   const description =
     input.description ??
-    `Hanuja'da ${input.label.toLowerCase()} kategorisindeki tüm ürünleri keşfedin. Türkiye'nin en iyi tasarım mağazalarından seçkin ürünler.`
+    `Hanuja'da ${input.label.toLowerCase()} kategorisindeki tüm ürünleri keşfedin. Özenle seçilmiş tasarım ürünleri tek adreste.`
 
   return {
     title,
@@ -94,10 +96,10 @@ export interface StoreMetaInput {
 
 export function buildStoreMetadata(input: StoreMetaInput): Metadata {
   const url = absoluteCanonical.store(input.slug)
-  const title = `${input.name} Mağazası`
+  const title = `${input.name} Tasarımları`
   const socialTitle = `${title} | ${SITE_NAME}`
   const description =
-    input.description ?? `${input.name} mağazasının tüm ürünleri Hanuja'da.`
+    input.description ?? `${input.name} tasarımlarını Hanuja'da keşfedin.`
 
   return {
     title,
@@ -132,7 +134,7 @@ export function buildBlogPostMetadata(input: BlogPostMetaInput): Metadata {
   const titleTag = input.title
   const socialTitle = `${input.title} | ${SITE_NAME} Blog`
   const description =
-    input.excerpt ?? `${input.title} — Hanuja Blog'da ev dekorasyonu ve yaşam alanı fikirleri.`
+    input.excerpt ?? `${input.title} — Hanuja Blog'da tasarım, ilham ve ürün fikirleri.`
 
   return {
     title: titleTag,
@@ -157,11 +159,11 @@ export function buildBlogPostMetadata(input: BlogPostMetaInput): Metadata {
 
 export function buildHomeMetadata(): Metadata {
   return {
-    title: `${SITE_NAME} — Ev, Ofis & Yaşam Ürünleri`,
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
     description: SITE_DESCRIPTION,
     alternates: { canonical: absoluteCanonical.home() },
     openGraph: {
-      title: `${SITE_NAME} — Ev, Ofis & Yaşam Ürünleri`,
+      title: `${SITE_NAME} — ${SITE_TAGLINE}`,
       description: SITE_DESCRIPTION,
       siteName: SITE_NAME,
       locale: 'tr_TR',

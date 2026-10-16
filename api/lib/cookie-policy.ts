@@ -234,7 +234,7 @@ export const EXPECTED_EXTERNAL_HOSTS: readonly { host: string; provider: string;
   { host: 'challenges.cloudflare.com', provider: 'Cloudflare Turnstile', where: '/giris, /kayit, /odeme' },
   // Seen in the 2026-09-28 production audit: Turnstile's widget also calls a challenge subdomain.
   { host: '*.challenges.cloudflare.com', provider: 'Cloudflare Turnstile', where: '/giris, /kayit, /odeme' },
-  { host: 'media.hanuja.tr', provider: 'Cloudflare (medya CDN)', where: 'Ürün, ana sayfa ve mağaza görselleri' },
+  { host: 'media.hanuja.tr', provider: 'Cloudflare (medya CDN)', where: 'Ürün, ana sayfa ve tasarımcı görselleri' },
   { host: 'accounts.google.com', provider: 'Google', where: 'Yalnız "Google ile giriş yap" tıklandığında' },
   { host: '*.r2.cloudflarestorage.com', provider: 'Cloudflare R2', where: 'Sipariş destek ve iade fotoğrafı yükleme' },
 ]

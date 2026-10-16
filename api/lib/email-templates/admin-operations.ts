@@ -305,13 +305,13 @@ export function adminSellerApplicationTemplate(
     title,
     `${heading(title)}
     ${renderInfoBox([
-      ['Mağaza', params.sellerName],
+      ['Tasarımcı', params.sellerName],
       ['Firma', params.companyName],
       ['Şehir', params.city],
       ['Vergi No', params.taxNumber],
       ['Gönderim', resubmission ? `${params.submissionSeq}. gönderim` : 'İlk başvuru'],
     ])}
-    ${paragraph('Başvuru belgeleri ve mağaza bilgileri incelenmeyi bekliyor.')}
+    ${paragraph('Başvuru belgeleri ve tasarımcı bilgileri incelenmeyi bekliyor.')}
     ${renderCta('Başvuruyu aç', params.adminUrl)}`,
   )
   return {

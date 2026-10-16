@@ -42,14 +42,14 @@ const EXCERPT_LENGTH = 400
 const PRESALE_REJECTION: Record<string, string> = {
   own_product: 'Kendi ürününüze soru soramazsınız.',
   product_not_published: 'Bu ürün şu anda satışta değil.',
-  seller_not_active: 'Bu mağaza şu anda soru kabul etmiyor.',
-  seller_on_vacation: 'Mağaza tatilde; şu anda soru kabul etmiyor.',
+  seller_not_active: 'Bu tasarımcı şu anda soru kabul etmiyor.',
+  seller_on_vacation: 'Tasarımcı tatilde; şu anda soru kabul etmiyor.',
 }
 
 const ORDER_REJECTION: Record<string, string> = {
   payment_not_confirmed: 'Ödemesi onaylanmamış sipariş için tasarımcıya soru sorulamaz.',
   product_not_in_order: 'Bu ürün seçilen siparişte bulunmuyor.',
-  seller_not_operational: 'Bu mağaza şu anda soru kabul etmiyor.',
+  seller_not_operational: 'Bu tasarımcı şu anda soru kabul etmiyor.',
 }
 
 /**
@@ -417,7 +417,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
     })
     if (!thread) throw new NotFoundError('Soru')
     if (!isSellerOperational(thread.seller.status)) {
-      throw new ConflictError('Bu mağaza artık yanıt veremiyor; konuşma salt okunur.')
+      throw new ConflictError('Bu tasarımcı artık yanıt veremiyor; konuşma salt okunur.')
     }
     return prisma.$transaction((tx) =>
       appendProductQuestionMessage(tx, { threadId, author: 'customer', authorId: customerId, body }),

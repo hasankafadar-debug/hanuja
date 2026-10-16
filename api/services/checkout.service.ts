@@ -168,7 +168,7 @@ function fallbackText(value: string | null | undefined, placeholder: string) {
 function buildSellerSnapshot(seller: DraftSeller) {
   return {
     sellerId: seller.id,
-    storeName: fallbackText(seller.displayName, 'Tasarımcı Mağazası'),
+    storeName: fallbackText(seller.displayName, 'Tasarımcı'),
     companyName: fallbackText(seller.profile?.companyName, seller.displayName),
     legalAddress: fallbackText(
       seller.profile?.legalAddress,
@@ -534,7 +534,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           unitPrice: decimalToNumber(line.unitPrice),
           lineTotal: decimalToNumber(line.totalPrice),
           sellerId: line.sellerId,
-          sellerStoreName: sellerMap.get(line.sellerId)?.storeName ?? 'Tasarımcı Mağazası',
+          sellerStoreName: sellerMap.get(line.sellerId)?.storeName ?? 'Tasarımcı',
           ...(rawLines[index]?.legalCharacteristics ?? EMPTY_LEGAL_CHARACTERISTICS),
           promisedFulfillmentDays: line.promisedFulfillmentDays,
         })),
@@ -590,7 +590,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         }
 
         if (product.seller.status !== 'active' || product.seller.vacationModeEnabled) {
-          errors.push(`"${product.name}" mağazası geçici olarak satışa kapalı`)
+          errors.push(`"${product.name}" ürünü geçici olarak satışa kapalı`)
           continue
         }
 

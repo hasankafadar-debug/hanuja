@@ -151,7 +151,7 @@ export function ApplicationAccountGate({
     return (
       <AccountCard title="E-posta adresiniz doğrulandı">
         <p className="text-sm leading-6 text-neutral-600">
-          Doğrulama tamamlandı. Mağaza başvurunuza devam etmek için oluşturduğunuz hesapla giriş yapın.
+          Doğrulama tamamlandı. Tasarımcı başvurunuza devam etmek için oluşturduğunuz hesapla giriş yapın.
         </p>
         <a
           href="/giris?callbackUrl=/basvuru"
@@ -200,7 +200,7 @@ export function ApplicationAccountGate({
   }
 
   return (
-    <AccountCard title="Mağaza başvurusunu başlatın">
+    <AccountCard>
       <p className="mb-6 text-sm leading-6 text-neutral-600">
         Başvuru formuna geçmeden önce müşteri hesabınızı oluşturun ve e-posta adresinizi doğrulayın.
       </p>
@@ -287,12 +287,18 @@ export function ApplicationAccountGate({
   )
 }
 
-function AccountCard({ title, children }: { title: string; children: React.ReactNode }) {
+const APPLICATION_HEADING = 'Hanuja Tasarımcı Başvurusu'
+
+// Without a title the application name is the single page heading; a title
+// names a later state (e.g. e-mail verification) under the application label.
+function AccountCard({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 py-10">
       <div className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-        <p className="mb-2 text-sm font-semibold text-neutral-900">Hanuja Tasarımcı Başvurusu</p>
-        <h1 className="mb-3 text-2xl font-semibold text-neutral-900">{title}</h1>
+        {title ? (
+          <p className="mb-2 text-sm font-semibold text-neutral-900">{APPLICATION_HEADING}</p>
+        ) : null}
+        <h1 className="mb-3 text-2xl font-semibold text-neutral-900">{title ?? APPLICATION_HEADING}</h1>
         {children}
       </div>
     </main>

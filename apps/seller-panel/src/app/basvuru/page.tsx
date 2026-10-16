@@ -35,7 +35,7 @@ export default async function BasvuruPage() {
     return (
       <ApplicationStatus
         title="Başvurunuz onaylanmadı"
-        description="Mağaza başvurunuz değerlendirme sonucunda onaylanmadı. Ayrıntılı bilgi için Hanuja destek ekibiyle iletişime geçebilirsiniz."
+        description="Tasarımcı başvurunuz değerlendirme sonucunda onaylanmadı. Ayrıntılı bilgi için Hanuja destek ekibiyle iletişime geçebilirsiniz."
       />
     )
   }
@@ -44,7 +44,7 @@ export default async function BasvuruPage() {
     return (
       <ApplicationStatus
         title="Bu hesapla başvuru yapılamıyor"
-        description="Mağaza başvurusu yalnızca doğrulanmış müşteri hesaplarıyla başlatılabilir. Başka bir müşteri hesabıyla giriş yapın."
+        description="Tasarımcı başvurusu yalnızca doğrulanmış müşteri hesaplarıyla başlatılabilir. Başka bir müşteri hesabıyla giriş yapın."
       />
     )
   }

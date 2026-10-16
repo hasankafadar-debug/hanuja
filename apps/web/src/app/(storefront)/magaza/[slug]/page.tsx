@@ -155,7 +155,7 @@ export default async function StoreDetailPage({ params }: Props) {
           </h2>
           {products.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-              Bu mağazada henüz ürün bulunmuyor.
+              Bu tasarımcının henüz ürünü bulunmuyor.
             </p>
           ) : (
             <StoreProductsInfiniteGrid

@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-10-16
 # Durum: taslak v1
 
 # Metadata Rules
@@ -16,10 +16,10 @@ Kaynaklar: `.claude/rules/04-seo-rules.md`, `packages/seo/src/metadata-builder.t
 
 | Sayfa tipi | Kalip |
 |------------|-------|
-| Ana sayfa | `Hanuja - Ev, Ofis ve Yasam Urunleri` |
+| Ana sayfa | `Özenle Seçilmiş Tasarımlar | Hanuja` (marka sloganı; urun yelpazesini ev/ofis ile sinirlamaz) |
 | Kategori | `{{CategoryName}} | Hanuja` |
 | Urun | `{{ProductName}} | Hanuja` |
-| Store | `{{StoreName}} Magazasi | Hanuja` |
+| Tasarimci (store, `/magaza/...`) | `{{StoreName}} Tasarımları | Hanuja` (vitrinde "magaza" kelimesi kullanilmaz; rota degismez) |
 | Blog detay | `{{ArticleTitle}} | Hanuja Blog` |
 | Blog liste | `Blog ve Ilham | Hanuja` |
 
@@ -29,6 +29,8 @@ Kaynaklar: `.claude/rules/04-seo-rules.md`, `packages/seo/src/metadata-builder.t
 - Varsayilan description yedegi olsa bile entity'ye ozgu metin tercih edilir.
 - Keyword stuffing yapilmaz; tek cümlede birden cok arama niyeti zorla yigılmaz.
 - Kategori ve store sayfalarinda description, kullaniciya ne bulacagini net anlatmalidir.
+- Musteriye satici Hanuja'dir (satıcı Hanuja modeli). Ana sayfa, kategori ve blog description'lari ile fallback
+  metinlerinde "marketplace", "pazaryeri" veya "tasarim magazalari" gibi araci model dili kullanilmaz.
 
 ## Fallback zinciri
 

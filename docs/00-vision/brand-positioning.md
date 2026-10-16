@@ -1,14 +1,20 @@
-# Son güncelleme: 2026-04-18
+# Son güncelleme: 2026-10-16
 # Durum: taslak v1
 
 # Brand Positioning
 
-Hanuja, Turkiye odakli, secili ev, ofis, dekor ve yasam urunleri icin kurulan bir pazar yeridir.
+Hanuja, Turkiye odakli, ozenle secilmis tasarim urunleri sunan bir e-ticaret markasidir.
+Slogan: **"Özenle Seçilmiş Tasarımlar"**.
 Marka vaadi, "her seyi satan kaotik bir marketplace" olmak degil; guven, secki ve sakin kalite hissi vermektir.
 
 ## Marka ozeti
 
-- Kategori odagi: mobilya, dekor, aydinlatma, ofis ve yasam urunleri
+- Kategori odagi: tasarim urunleri. Bugun mobilya, dekor, aydinlatma ve ofis agirlikli; marka bu kategorilerle
+  sinirlanmaz (ileride ozel tasarim hoparlor gibi urunler de satilabilir). Vitrin metinleri "ev, ofis ve yasam
+  urunleri" diye daraltilmaz.
+- Musteriye satici Hanuja'dir (satıcı Hanuja modeli, 2026-10): odeme, fatura ve satis sonrasi destek Hanuja'dandir.
+  Arka planda tasarimcilar tedarikcidir; vitrinde "pazaryeri" veya "magaza basvurusu" dili kullanilmaz.
+  Tasarimci marka sayfalari `/magaza/...` adresinde kalir.
 - Ticari model: merkezi tahsilat, kontrollu seller payout, operasyonel denetim
 - Algilanmak istenen pozisyon: secili, guvenilir, premium ama gosterissiz
 

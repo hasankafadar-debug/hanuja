@@ -8,8 +8,8 @@ import { createSellerRepository } from '@hanuja/api/repositories/seller.reposito
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Mağazalar',
-  description: 'Hanuja üzerindeki aktif mağazaları keşfedin.',
+  title: 'Tasarımcılar',
+  description: "Hanuja'daki tasarımcıları keşfedin.",
 }
 
 export default async function StoresPage() {
@@ -21,7 +21,7 @@ export default async function StoresPage() {
       <Breadcrumb
         items={[
           { label: 'Anasayfa', href: '/' },
-          { label: 'Mağazalar' },
+          { label: 'Tasarımcılar' },
         ]}
         className="mb-8"
       />
@@ -30,17 +30,17 @@ export default async function StoresPage() {
         <Store className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
         <div>
           <h1 className="text-2xl font-medium" style={{ color: '#3d3529' }}>
-            Mağazalar
+            Tasarımcılar
           </h1>
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Aktif tasarımcı mağazalarını buradan keşfedebilirsiniz.
+            Hanuja&apos;daki tasarımcıları buradan keşfedebilirsiniz.
           </p>
         </div>
       </div>
 
       {sellers.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-          Henüz yayınlanmış mağaza bulunmuyor.
+          Henüz yayınlanmış tasarımcı sayfası bulunmuyor.
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -75,7 +75,7 @@ export default async function StoresPage() {
                       {seller.displayName}
                     </p>
                     <p className="truncate text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                      /magaza/{seller.slug}
+                      Tasarımcı
                     </p>
                   </div>
                 </div>

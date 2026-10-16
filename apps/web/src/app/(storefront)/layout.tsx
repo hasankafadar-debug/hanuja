@@ -58,9 +58,9 @@ function SiteHeader() {
               <input
                 name="q"
                 type="search"
-                placeholder="Ürün, mağaza veya kategori ara..."
+                placeholder="Ürün, tasarımcı veya kategori ara..."
                 className="w-full bg-transparent outline-none placeholder:text-[var(--color-muted-fg)]"
-                aria-label="Ürün, mağaza veya kategori ara"
+                aria-label="Ürün, tasarımcı veya kategori ara"
               />
             </label>
           </form>
@@ -163,7 +163,7 @@ async function SiteFooter() {
                 className="mt-3 text-sm leading-relaxed"
                 style={{ color: 'rgba(255,255,255,0.6)' }}
               >
-                Ev, ofis ve yaşam ürünlerinde seçkin mağazalar.
+                Özenle Seçilmiş Tasarım Ürünleri
               </p>
               <p
                 className="mt-4 text-sm font-semibold"

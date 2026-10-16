@@ -150,7 +150,7 @@ export function QuestionThread({ threadId, sellerName, messages, canReply }: Que
         </form>
       ) : (
         <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-          Bu mağaza artık yanıt veremediği için konuşma salt okunur.
+          Bu tasarımcı artık yanıt veremediği için konuşma salt okunur.
         </p>
       )}
     </div>

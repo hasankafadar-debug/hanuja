@@ -440,7 +440,7 @@ export function buildPublicLegalDocumentContext(): LegalContractContext {
     sellers: [
       {
         sellerId: 'sample-seller',
-        storeName: '[Mağaza Adı]',
+        storeName: '[Tasarımcı / Marka Adı]',
         companyName: '[Satıcı Ticaret Unvanı]',
         legalAddress: '[Satıcı Açık Adresi]',
         district: '[İlçe]',
@@ -461,7 +461,7 @@ export function buildPublicLegalDocumentContext(): LegalContractContext {
         unitPrice: 0,
         lineTotal: 0,
         sellerId: 'sample-seller',
-        sellerStoreName: '[Mağaza Adı]',
+        sellerStoreName: '[Tasarımcı / Marka Adı]',
         sku: null,
         barcode: null,
         colors: [],

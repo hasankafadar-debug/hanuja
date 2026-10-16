@@ -20,9 +20,10 @@ const previewDeployment = process.env.PREVIEW_DEPLOYMENT === 'true'
 export const metadata: Metadata = {
   title: {
     template: '%s | Hanuja',
-    default: 'Hanuja — Ev, Ofis & Yaşam Ürünleri',
+    default: 'Hanuja — Özenle Seçilmiş Tasarımlar',
   },
-  description: "Türkiye'nin ev, ofis ve yaşam ürünleri marketplace'i.",
+  description:
+    "Özenle seçilmiş tasarım ürünleri Hanuja'da. Tasarımcıların özgün ürünlerini keşfedin, güvenle sipariş verin; faturanız ve satış sonrası destek Hanuja'dan.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? DEFAULT_WEB_URL),
   icons: {
     icon: '/favicon.svg',

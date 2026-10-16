@@ -70,8 +70,8 @@ export default async function BasvuruBelgelerPage({ searchParams }: PageProps) {
                 Başvurunuz inceleniyor
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-600">
-                İstenen belgeleri yükleyin. Tüm kontroller tamamlandığında mağazanız satışa
-                açılacaktır.
+                İstenen belgeleri yükleyin. Tüm kontroller tamamlandığında hesabınız onaylanır ve
+                ürünlerinizi eklemeye başlayabilirsiniz.
               </p>
             </div>
             <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-900">

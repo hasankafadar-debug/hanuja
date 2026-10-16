@@ -24,9 +24,9 @@ import { getHomepageShowcaseData, type HomepageShowcaseData } from '@/lib/homepa
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Ev, Ofis & Yaşam Ürünleri',
+  title: 'Özenle Seçilmiş Tasarımlar',
   description:
-    "Yaşam alanlarınız için seçkin mobilya, dekor, aydınlatma ve ofis ürünleri. Türkiye'nin en iyi tasarım mağazaları tek platformda.",
+    "Özenle seçilmiş tasarım ürünleri Hanuja'da. Tasarımcıların özgün ürünlerini keşfedin, güvenle sipariş verin; faturanız ve satış sonrası destek Hanuja'dan.",
 }
 
 // visibilitySlugs: kartın görünürlüğünü belirleyen DB kategori slug'ları —

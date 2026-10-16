@@ -570,7 +570,7 @@ async function buildEmailPayload(
     case NotificationTypeEnum.store_discount_followed_seller:
       return storeDiscountFollowedSellerTemplate({
         customerName: str(data, 'customerName', 'Değerli Müşterimiz'),
-        sellerName: str(data, 'sellerName', 'Takip ettiğiniz mağaza'),
+        sellerName: str(data, 'sellerName', 'Takip ettiğiniz tasarımcı'),
         storeUrl: str(data, 'storeUrl'),
         unsubscribeUrl: str(data, 'unsubscribeUrl'),
       })

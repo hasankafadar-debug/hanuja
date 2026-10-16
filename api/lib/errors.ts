@@ -123,8 +123,8 @@ export class SellerOnVacationError extends DomainError {
   constructor(productName?: string) {
     super(
       productName
-        ? `"${productName}" mağazası geçici olarak satışa ara verdi.`
-        : 'Mağaza geçici olarak satışa ara verdiği için bu işlem yapılamaz.',
+        ? `"${productName}" ürününün tasarımcısı geçici olarak satışa ara verdi.`
+        : 'Tasarımcı geçici olarak satışa ara verdiği için bu işlem yapılamaz.',
       'SELLER_ON_VACATION',
       409,
     )

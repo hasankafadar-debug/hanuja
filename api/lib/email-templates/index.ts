@@ -661,31 +661,31 @@ export function storeDiscountFollowedSellerTemplate(params: {
         href="${escapeHtml(params.storeUrl.trim())}"
         style="display:inline-block;background:#135854;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;"
       >
-        Mağazayı Gör
+        Tasarımcı Sayfasını Gör
       </a>`
-    : `<span style="display:inline-block;color:#135854;font-size:14px;font-weight:600;">Mağazayı Gör</span>`
+    : `<span style="display:inline-block;color:#135854;font-size:14px;font-weight:600;">Tasarımcı Sayfasını Gör</span>`
 
   const body = `
-    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Takip Ettiğiniz Mağazada İndirim Var</h2>
+    <h2 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">Takip Ettiğiniz Tasarımcıda İndirim Var</h2>
     <p style="margin:0 0 24px;font-size:15px;color:#555;">Merhaba ${customerNameHtml},</p>
     <p style="margin:0 0 24px;font-size:15px;color:#555;">
-      <strong>${sellerNameHtml}</strong> mağazasında yeni bir indirim başladı.
-      Güncel ürünleri görmek için mağaza sayfasını ziyaret edebilirsiniz.
+      <strong>${sellerNameHtml}</strong> tasarımlarında yeni bir indirim başladı.
+      Güncel ürünleri görmek için tasarımcı sayfasını ziyaret edebilirsiniz.
     </p>
     <p style="margin:0 0 24px;">
       ${storeCta}
     </p>
     <p style="margin:0;font-size:13px;color:#777;">
-      Bu e-postayı mağaza bildirimleri için alıyorsunuz. Desteklenen posta kutularında
+      Bu e-postayı tasarımcı bildirimleri için alıyorsunuz. Desteklenen posta kutularında
       <strong>RET</strong> yazarak yanıtlamak da e-posta bildirimlerini kapatır.
     </p>
     ${marketingFooterHtml(params.unsubscribeUrl)}
   `
 
   return {
-    subject: `${params.sellerName} mağazasında indirim başladı`,
-    html: layout('Takip Ettiğiniz Mağazada İndirim Var', body),
-    text: `Merhaba ${params.customerName}, ${params.sellerName} mağazasında indirim başladı. Mağaza: ${params.storeUrl}\n\n${marketingFooterText(params.unsubscribeUrl)}`,
+    subject: `${params.sellerName} tasarımlarında indirim başladı`,
+    html: layout('Takip Ettiğiniz Tasarımcıda İndirim Var', body),
+    text: `Merhaba ${params.customerName}, ${params.sellerName} tasarımlarında indirim başladı. Tasarımcı sayfası: ${params.storeUrl}\n\n${marketingFooterText(params.unsubscribeUrl)}`,
   }
 }
 
@@ -712,8 +712,8 @@ export function productDiscountTemplate(params: {
   const sellerNameHtml = escapeHtml(params.sellerName)
 
   const lead = isFavorite
-    ? `Favorilerinize eklediğiniz <strong>${productNameHtml}</strong> ürünü, <strong>${sellerNameHtml}</strong> mağazasında şimdi indirimde.`
-    : `Sepetinizdeki <strong>${productNameHtml}</strong> ürünü, <strong>${sellerNameHtml}</strong> mağazasında şimdi indirimde.`
+    ? `Favorilerinize eklediğiniz <strong>${productNameHtml}</strong> ürünü şimdi indirimde. Tasarımcı: <strong>${sellerNameHtml}</strong>.`
+    : `Sepetinizdeki <strong>${productNameHtml}</strong> ürünü şimdi indirimde. Tasarımcı: <strong>${sellerNameHtml}</strong>.`
 
   const productCta = isSafeHttpUrl(params.productUrl)
     ? `
@@ -736,8 +736,8 @@ export function productDiscountTemplate(params: {
   `
 
   const textLead = isFavorite
-    ? `Favorilerinize eklediğiniz ${params.productName} ürünü, ${params.sellerName} mağazasında şimdi indirimde.`
-    : `Sepetinizdeki ${params.productName} ürünü, ${params.sellerName} mağazasında şimdi indirimde.`
+    ? `Favorilerinize eklediğiniz ${params.productName} ürünü şimdi indirimde. Tasarımcı: ${params.sellerName}.`
+    : `Sepetinizdeki ${params.productName} ürünü şimdi indirimde. Tasarımcı: ${params.sellerName}.`
 
   return {
     subject: title,

@@ -31,8 +31,9 @@ test.describe('seller application entry', () => {
 
     await expect(page).toHaveURL(/\/basvuru(?:\?|$)/)
     await expect(
-      page.getByRole('heading', { name: /Mağaza başvurusunu başlatın/i }),
+      page.getByRole('heading', { level: 1, name: /Hanuja Tasarımcı Başvurusu/i }),
     ).toBeVisible()
+    await expect(page.getByText(/Mağaza başvurusu/i)).toHaveCount(0)
     await expect(page.getByLabel(/Ad Soyad/i)).toBeVisible()
     await expect(page.getByLabel(/^E-posta$/i)).toBeVisible()
     await expect(page.getByRole('link', { name: /Giriş yapın/i })).toHaveAttribute(

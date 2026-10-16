@@ -310,8 +310,10 @@ describe('productDiscountTemplate', () => {
     expect(template.html).toContain('Rattan Konsol')
     expect(template.html).toContain('Woodform')
     expect(template.text).toContain(
-      'Sepetinizdeki Rattan Konsol ürünü, Woodform mağazasında şimdi indirimde.',
+      'Sepetinizdeki Rattan Konsol ürünü şimdi indirimde. Tasarımcı: Woodform.',
     )
+    expect(template.html).not.toMatch(/mağaza/i)
+    expect(template.text).not.toMatch(/mağaza/i)
   })
 
   it('escapes a malicious productName in html but leaves the text branch raw', () => {
@@ -398,7 +400,9 @@ describe('storeDiscountFollowedSellerTemplate', () => {
     })
 
     expect(template.html).not.toMatch(/href="javascript:/i)
-    expect(template.html).toContain('Mağazayı Gör')
+    expect(template.html).toContain('Tasarımcı Sayfasını Gör')
+    expect(template.html).not.toMatch(/mağaza/i)
+    expect(template.subject).not.toMatch(/mağaza/i)
   })
 })
 

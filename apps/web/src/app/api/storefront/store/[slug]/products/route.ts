@@ -20,7 +20,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 
   const seller = await sellerRepo.findBySlugWithProfile(slug)
   if (!seller) {
-    return NextResponse.json({ error: 'Mağaza bulunamadı' }, { status: 404 })
+    return NextResponse.json({ error: 'Tasarımcı bulunamadı' }, { status: 404 })
   }
 
   const result = await catalogService.listPublishedWithCursor({

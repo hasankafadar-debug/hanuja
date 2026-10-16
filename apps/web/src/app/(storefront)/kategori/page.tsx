@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Tüm Kategoriler',
-  description: 'Ev, ofis ve yaşam kategorilerini keşfedin. Mobilya, dekor, aydınlatma ve daha fazlası.',
+  description:
+    "Hanuja'daki tüm kategorileri keşfedin; özenle seçilmiş tasarım ürünlerine kategoriye göre göz atın.",
   robots: { index: true, follow: true },
 }
 
