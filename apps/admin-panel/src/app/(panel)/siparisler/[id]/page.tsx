@@ -16,6 +16,7 @@ import { AdminOrderActions } from '@/components/admin-order-actions'
 import { CancellationDetailCard } from './_components/cancellation-detail-card'
 import { PerLineDeliveryConfirm } from './_components/per-line-delivery-confirm'
 import { ManualRefundCompletion } from './_components/manual-refund-completion'
+import { CardReconcileButton } from './_components/card-reconcile-button'
 import { AdminOrderNotes } from './_components/admin-order-notes'
 import { SellerDeliveryReports } from './_components/seller-delivery-reports'
 import { AdminInvoiceCard } from './_components/admin-invoice-card'
@@ -145,6 +146,10 @@ export default async function AdminOrderDetailPage({ params }: Props) {
         },
       },
       payments: { orderBy: { createdAt: 'desc' } },
+      cardPaymentAttempts: {
+        orderBy: { createdAt: 'desc' },
+        include: { reversal: true },
+      },
       shipments: { orderBy: { createdAt: 'desc' } },
       adminNotes: {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -336,6 +341,28 @@ export default async function AdminOrderDetailPage({ params }: Props) {
     primaryRisk?.status === 'breached' ? 'Kargo sınırı aşıldı' : 'Kargo sınırı yaklaşıyor'
 
   const payment = order.payments[0] ?? null
+  // Kart ödemesi: siparişi onaylayan deneme (vade farkı, iyzico kesintisi ve hesaba geçecek net).
+  const confirmedCardAttempt =
+    order.cardPaymentAttempts.find(
+      (attempt) =>
+        attempt.status === 'succeeded' &&
+        !!attempt.providerPaymentId &&
+        order.payments.some((entry) => entry.providerPaymentId === attempt.providerPaymentId),
+    ) ?? null
+  const installmentDifferenceAmount = moneyToNumber(order.installmentDifferenceAmount)
+  const CARD_ATTEMPT_STATUS_LABELS: Record<string, string> = {
+    initialized: 'Başlatılıyor',
+    threeds_pending: '3D Secure bekleniyor',
+    authorizing: 'Tahsilat sonucu bekleniyor',
+    succeeded: 'Tahsil edildi',
+    fraud_review: 'iyzico inceliyor',
+    failed: 'Başarısız',
+    outcome_unknown: 'Sonuç belirsiz (mutabakat bekliyor)',
+    expired: 'Süresi doldu',
+    voided: 'İptal edildi (aynı gün)',
+    refunded: 'Geri ödendi',
+    refunded_by_provider: 'iyzico iade etti',
+  }
   const shipment = order.shipments[0] ?? null
   const sellerName = order.lines[0]?.seller?.displayName ?? '—'
   const sellerId = order.lines[0]?.seller?.id ?? null
@@ -543,7 +570,49 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                 label: 'Kargo',
                 value: shippingAmount === 0 ? 'Ucretsiz' : formatMoney(shippingAmount),
               },
+              ...(installmentDifferenceAmount > 0
+                ? [
+                    {
+                      label: `Vade farkı (${order.installmentCount ?? '-'} taksit)`,
+                      value: formatMoney(installmentDifferenceAmount),
+                    },
+                  ]
+                : []),
               { label: 'Toplam tutar', value: formatMoney(total) },
+              ...(confirmedCardAttempt
+                ? [
+                    {
+                      label: 'Kart',
+                      value:
+                        [
+                          confirmedCardAttempt.bankName,
+                          confirmedCardAttempt.cardFamily,
+                          confirmedCardAttempt.lastFourDigits
+                            ? `**** ${confirmedCardAttempt.lastFourDigits}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ') || '—',
+                    },
+                    {
+                      label: 'iyzico kesintisi',
+                      value:
+                        confirmedCardAttempt.iyziCommissionFee ||
+                        confirmedCardAttempt.iyziCommissionRateAmount
+                          ? formatMoney(
+                              moneyToNumber(confirmedCardAttempt.iyziCommissionFee) +
+                                moneyToNumber(confirmedCardAttempt.iyziCommissionRateAmount),
+                            )
+                          : '—',
+                    },
+                    {
+                      label: 'Hesaba geçecek (iyzico)',
+                      value: confirmedCardAttempt.merchantPayoutAmount
+                        ? formatMoney(moneyToNumber(confirmedCardAttempt.merchantPayoutAmount))
+                        : '—',
+                    },
+                  ]
+                : []),
               {
                 label: 'Ödeme yöntemi',
                 value: payment ? (payment.method === 'eft' ? 'Havale / EFT' : 'Kredi kartı') : '—',
@@ -583,6 +652,61 @@ export default async function AdminOrderDetailPage({ params }: Props) {
               </div>
             ))}
           </div>
+
+          {order.cardPaymentAttempts.length > 0 ? (
+            <div data-testid="admin-card-payment-attempts" className="mt-5 border-t pt-4">
+              <h3 className="mb-2 text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                Kart ödeme denemeleri
+              </h3>
+              <ul className="space-y-2 text-xs">
+                {order.cardPaymentAttempts.map((attempt) => (
+                  <li
+                    key={attempt.id}
+                    className="rounded-md border p-2"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <span style={{ color: 'var(--color-primary)' }}>
+                        {CARD_ATTEMPT_STATUS_LABELS[attempt.status] ?? attempt.status}
+                      </span>
+                      <span style={{ color: 'var(--color-muted-fg)' }}>
+                        {new Date(attempt.createdAt).toLocaleString('tr-TR', {
+                          timeZone: 'Europe/Istanbul',
+                        })}
+                      </span>
+                    </div>
+                    <p style={{ color: 'var(--color-muted-fg)' }}>
+                      {attempt.installmentCount === 1
+                        ? 'Tek çekim'
+                        : `${attempt.installmentCount} taksit`}{' '}
+                      · {formatMoney(moneyToNumber(attempt.paidPrice))}
+                      {[attempt.bankName, attempt.cardFamily].filter(Boolean).length > 0
+                        ? ` · ${[attempt.bankName, attempt.cardFamily].filter(Boolean).join(' / ')}`
+                        : ''}
+                      {attempt.lastFourDigits ? ` · **** ${attempt.lastFourDigits}` : ''}
+                      {attempt.fraudStatus !== null ? ` · fraud ${attempt.fraudStatus}` : ''}
+                      {attempt.errorCode ? ` · ${attempt.errorCode}` : ''}
+                    </p>
+                    {attempt.reversal ? (
+                      <div className="mt-1" style={{ color: 'var(--color-destructive)' }}>
+                        Siparişe bağlanamayan tahsilat ({attempt.reversal.reason}) — geri ödeme:{' '}
+                        {attempt.reversal.status}
+                        {attempt.reversal.lastError ? ` · ${attempt.reversal.lastError}` : ''}
+                        {attempt.reversal.status === 'uncertain' ||
+                        attempt.reversal.status === 'manual_required' ? (
+                          <div>
+                            <CardReconcileButton
+                              endpoint={`/api/admin/card-reversals/${attempt.reversal.id}/reconcile`}
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {order.cancellations.length > 0 ? (
             <div
@@ -859,6 +983,9 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                         </div>
                       )}
                     </div>
+                    {refund.status === 'manual_required' && refund.payment?.method === 'card' ? (
+                      <CardReconcileButton endpoint={`/api/admin/refunds/${refund.id}/reconcile`} />
+                    ) : null}
                     {refund.status === 'manual_required' ? (
                       <ManualRefundCompletion
                         refundId={refund.id}
@@ -1048,6 +1175,15 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                   ? `${confirmedPayment.method === 'card' ? 'Kredi/banka kartı' : 'Havale/EFT'} · ${new Date(confirmedPayment.confirmedAt!).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}`
                   : 'Onaylı ödeme yok'}
               </dd>
+              {installmentDifferenceAmount > 0 ? (
+                <>
+                  <dt>Vade farkı</dt>
+                  <dd style={{ color: 'var(--color-primary)' }}>
+                    {formatMoney(installmentDifferenceAmount)} ({order.installmentCount} taksit) ·
+                    faturada ayrı satır (KDV işlemi mali müşavir teyidine göre)
+                  </dd>
+                </>
+              ) : null}
               <dt>Gönderim</dt>
               <dd>
                 {order.shipments[0]?.handedAt

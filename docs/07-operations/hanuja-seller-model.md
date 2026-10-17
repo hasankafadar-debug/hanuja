@@ -12,11 +12,16 @@ Müşteri satışının tarafı Hanuja işletmeci şirketidir. Tasarımcı kimli
 
 İade taşıyıcısı ön bilgilendirmede belirlenmediğinden müşteriden iade taşıma masrafı istenmez. Yönetim doğrulanmış iade teslim tarihini iade detayından kaydeder. Geri ödeme son tarihi inceleme ile yeniden başlatılmaz; worker yaklaşan/geçen tarihleri yönetim bildirimlerine ekler.
 
-## Açık takip işi: ödeme sağlayıcısı ve taksit farkı
+## Ödeme sağlayıcısı ve taksit farkı (2026-10-16)
 
-Ödeme kuruluşu henüz seçilmedi. `installmentCount`, `installmentDifferenceAmount`, `installmentTotalAmount` alanları gelecekteki bağlantı için eklendi. EFT farkı kesin olarak sıfırdır; sağlayıcıdan doğrulanmamış kart taksit bilgisi null kalır. Taksitli seçenek ve tahmini oran tablosu açılmadı.
+Ödeme kuruluşu iyzico (standart sanal POS, 3D Secure, kendi ödeme formumuz). Taksit farkını müşteri öder:
+seçenekler iyzico'nun taksit sorgusundan gelir, ödeme öncesi toplam ve seçim gösterilir, kabul edilen fark ve
+toplam onaylanan denemenin sözleşmesiyle `OrderLegalSnapshot`'a yazılır. Onay, kısmi/tam iade (vade farkı payı
+oransal iade edilir) ve iyzico kesintisinin ayrı izlenmesi uygulandı; bkz. `docs/05-security/payment-security.md`.
+EFT farkı kesin olarak sıfırdır.
 
-Entegrasyon sırasında: sağlayıcının kart/taksit teklifinden farkı alın; ödeme öncesi toplamı ve açık seçimi gösterin; kabul edilen fark/toplamı değişmez sipariş belgesine kaydedin; ödeme teyidi, kısmi/tam iade, fatura ve muhasebe karşılıklarını birlikte tamamlayın. Bu iş mevcut yayınla tamamlanmış sayılmaz.
+Kart satışı `IYZICO_CARD_PAYMENTS_ENABLED` ile kapalıdır. Açılmadan önce: iyzico'nun PCI DSS şartı, webhook V3
+aktivasyonu, panel taksit oranları ve mali müşavirin vade farkı fatura/KDV onayı tamamlanmalıdır.
 
 ## Yayın sırası
 

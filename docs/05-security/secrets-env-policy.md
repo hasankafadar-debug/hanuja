@@ -102,14 +102,13 @@ Plan session invalidation before rotating this secret.
 | `IYZICO_API_KEY` | Iyzico payment provider | All environments | Critical |
 | `IYZICO_SECRET_KEY` | Iyzico HMAC signing | All environments | Critical |
 | `IYZICO_BASE_URL` | Iyzico API endpoint | All environments | Low |
-| `IYZICO_WEBHOOK_SECRET` | Webhook signature verification | Staging, Production | Critical |
 
 - Local and CI environments must use Iyzico sandbox credentials only.
 - `IYZICO_BASE_URL` for sandbox: `https://sandbox-api.iyzipay.com`
 - `IYZICO_BASE_URL` for production: `https://api.iyzipay.com`
-- `IYZICO_WEBHOOK_SECRET` is used by `verifyIyzicoWebhook()` in
-  `packages/security/src/webhook-verifier.ts`. It must match the value configured
-  in the Iyzico dashboard.
+- Webhooks are verified with `IYZICO_SECRET_KEY` (X-IYZ-SIGNATURE-V3, `verifyWebhookSignatureV3` in
+  `api/lib/iyzico.ts`). `IYZICO_WEBHOOK_SECRET` is no longer used and can be removed from Coolify.
+- iyzico keys are needed by **web** and **worker** (refunds and card payment reconciliation run in the worker).
 - Never use production Iyzico credentials in local or staging environments.
   Accidental real transactions are not reversible without manual intervention.
 
@@ -237,7 +236,7 @@ Required variables for each app are:
 **apps/admin-panel**: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
 
 **api / background jobs**: `DATABASE_URL`, `REDIS_URL`, `BETTER_AUTH_SECRET`,
-`IYZICO_SECRET_KEY`, `IYZICO_WEBHOOK_SECRET`, `MEILISEARCH_URL`,
+`IYZICO_API_KEY`, `IYZICO_SECRET_KEY`, `IYZICO_BASE_URL`, `MEILISEARCH_URL`,
 `MEILISEARCH_ADMIN_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
 `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `SMTP_HOST`, `SMTP_PASS`
 
@@ -304,7 +303,7 @@ treated as an exposure event.
 
 - `.env.example` — canonical list of all environment variable names and placeholder values
 - `packages/security/src/data-masker.ts` — `maskSensitiveObject()` for log safety
-- `packages/security/src/webhook-verifier.ts` — uses `IYZICO_WEBHOOK_SECRET`
+- `api/lib/iyzico.ts` — iyzico response and webhook (V3) signature verification with `IYZICO_SECRET_KEY`
 - `tools/scripts/` — check-env validation tooling
 - `CLAUDE.local.md.example` — local developer override template
 - `.claude/rules/05-security-rules.md` — Secret and Credential Rules section

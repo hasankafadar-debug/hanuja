@@ -184,3 +184,29 @@ boundaries are written ahead with their exact times, and database triggers mark 
   new rows. No penalty; cargo entry is never blocked.
 - `payout-maturity` also gained `sweepMissingDueDates`: unsettled payouts without `holdUntil` whose
   seller invoice is approved get their due date (`syncInvoiceDueDate`).
+
+## Active queue: `card-payment` — 2026-10-16 (iyzico 3D Secure, taksit)
+
+Worker: `api/jobs/card-payment.job.ts` (concurrency 1). Service: `api/services/card-payment.service.ts`.
+
+- `maintenance` — repeatable every 5 minutes:
+  1. Unpaid card orders whose `Order.cardPaymentExpiresAt` (30 min) passed: under the order lock, attempts that
+     never reached auth become `expired`; if no attempt is `authorizing / outcome_unknown / fraud_review` the
+     order moves to `payment_cancelled` once, with `releaseRemainingOrderLines` (stock) and
+     `releaseOrderCouponUsage` (coupon). Otherwise the order waits (money may have moved).
+  2. `authorizing` (older than 1 min), `outcome_unknown` and `fraud_review` attempts: signed iyzico payment query.
+     `SUCCESS` → `processCapturedPayment`; `FAILURE` → `failed`; `INIT_THREEDS / CALLBACK_THREEDS` older than
+     15 min → `failed` (auth never completed); query error → stays `outcome_unknown`.
+  3. `CardAttemptReversal` rows: `pending` → processed (same-day cancel or item refunds); `uncertain` or stale
+     `processing` (15 min) → reporting service; reopened only after an hour without a trace; 5 tries →
+     `manual_required`.
+  4. `IyzicoWebhookEvent` rows without `processedAt` (fewer than 10 tries) → processed again.
+  5. Card order refunds (`refund-execution.service.sweepCardRefunds`): items never queued (`pending` older than
+     15 min), retry-safe `failed`, stale `processing` and uncertain `manual_required` items; uncertain ones are
+     settled from the reporting service before any retry.
+- `webhook` — one job per stored webhook event (`jobId iyzico-webhook-<eventId>`, 5 attempts, exponential
+  backoff from 10 s). The webhook route stores the event before enqueueing, so a lost enqueue is recovered by
+  step 4.
+
+Failure behaviour: every step is idempotent (state compare-and-swap under the order or reversal row lock);
+network calls run outside transactions; an uncertain provider outcome is never retried blindly.

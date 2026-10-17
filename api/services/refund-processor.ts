@@ -53,6 +53,13 @@ export function createIyzicoRefundProcessor(): RefundProcessor {
           false,
         )
       }
+      if (result.uncertain) {
+        // Iyzico answered but the signature could not be verified: money may have moved.
+        throw new RefundProviderError(
+          `Iyzico iade sonucu belirsiz: ${result.errorMessage ?? 'imza doğrulanamadı'}`,
+          false,
+        )
+      }
       if (!result.success) {
         throw new RefundProviderError(
           `Iyzico iade başarısız: ${result.errorMessage ?? result.errorCode ?? 'Bilinmeyen hata'}`,

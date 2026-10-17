@@ -74,19 +74,49 @@ Order creation and payment attempt do not equal finance validity.
 
 Finance-sensitive operations must depend on confirmed payment status, not only on order creation.
 
-### 4. Confirm-time binding invariants (kart ödemesi)
+### 4. Confirm-time binding invariants (kart ödemesi, 2026-10-16)
 
-`confirmCardPayment` şu doğrulamalar geçmeden hiçbir state değişikliği yapamaz:
+Kart ödemesi iyzico standart sanal POS + 3D Secure ile alınır (`api/services/card-payment.service.ts`).
+Tahsilat (`processCapturedPayment`) şu doğrulamalar geçmeden hiçbir state değişikliği yapamaz:
 
-- provider'ın bildirdiği tutar (`paidPrice`) `Order.totalAmount`'a **tam eşit** olmalı;
-  uyuşmazlık `amount_mismatch_rejected` PaymentEvent kanıtı yazar ve onayı reddeder
-- bir Iyzico `paymentId` yalnız **bir** siparişi onaylayabilir
-  (`Payment.providerPaymentId @unique` + servis ön kontrolü `providerRef_reuse_rejected`)
-- 3DS callback'te Iyzico'nun döndürdüğü `conversationId` hedef siparişle eşleşmeli;
-  `fraudStatus = -1` reddedilir
+- iyzico yanıtı **denemenin değişmez değerleriyle** eşleşmeli: `price`, `paidPrice` (teklifteki taksit
+  toplamı), taksit sayısı, `basketId` (= sipariş id), `currency`; kalem kimlikleri ve kalem fiyatları sepetle,
+  kalem `paidPrice` toplamı `paidPrice` ile kuruşu kuruşuna tutmalı
+- bir iyzico `paymentId` yalnız **bir** siparişi onaylayabilir ve başlatmada denemeye yazılan `paymentId` ile
+  eşleşmeli (`Payment.providerPaymentId` ve `CardPaymentAttempt.providerPaymentId` unique); dönen
+  `conversationId` tek başına sahiplik kanıtı değildir
+- başarı için 3DS `status=success` + `mdStatus=1` ve imzalı v2 auth / ödeme sorgusu yanıtı gerekir
+- `fraudStatus` 1 veya 2 onaylar; 0 siparişi `payment_pending`'de tutar (tasarımcıya düşmez, tahakkuk yok);
+  inceleme sonrası -1 iyzico tarafından iade edilir, Hanuja ikinci iade göndermez
+- tahsil edilmiş ama siparişe bağlanamayan ödeme (geç, ikinci, uyuşmaz) sessiz kalmaz:
+  `CardAttemptReversal` ile iptal/iade edilir
 
 Bu kontrolleri gevşeten her değişiklik güvenlik incelemesi gerektirir.
-Bkz: `docs/05-security/payment-security.md` §7.
+Bkz: `docs/05-security/payment-security.md` §2, §7.
+
+### 5. Taksit vade farkı (kart ödemesi, 2026-10-16)
+
+Taksitli kart ödemesinde vade farkını **müşteri öder** (iş sahibi kararı, 2026-10-16):
+
+```
+price      = Order.totalAmount (ödeme öncesi peşin toplam: ürün + kargo − kuponlar)
+paidPrice  = iyzico taksit sorgusunun totalPrice değeri (panel oranları)
+vade farkı = paidPrice − price
+```
+
+- Onayda `Order.totalAmount = paidPrice`; `installmentCount`, `installmentDifferenceAmount`,
+  `installmentTotalAmount` yazılır; `Payment.amount = paidPrice`.
+- Vade farkı **tasarımcı hakedişine, komisyon tabanına ve tasarımcının Hanuja'ya faturasına girmez**; bunlar
+  yalnız `OrderLine` tasarımcı alanlarını (`totalPrice`, kupon payı, komisyon) okur.
+- Kalem payları iyzico'nun kalem `paidPrice` değerlerinden alınır: `OrderLine.customerPaidProductAmount` ve
+  `Order.customerPaidShippingAmount` vade farkı payını içerir.
+- İptal/iade edilen ürünün vade farkı payı müşteriye **oransal iade edilir** (iş sahibi kararı); iade edilen pay
+  `platformFundedAmount` olarak Hanuja'da kalır, tasarımcı cari hesabını etkilemez.
+- Vade farkı, müşteriden tahsil edilen brüt tutardır; iyzico komisyon/kesintileri deneme bazında ayrıca
+  saklanır (`iyziCommissionFee`, `iyziCommissionRateAmount`, `merchantPayoutAmount`).
+- Taksit seçenekleri iyzico'dan gelir; kategori bazlı üst sınır `Category.maxInstallmentCount` (boşsa üst
+  kategoriden devralınır, sepette en düşük sınır).
+- Müşteri faturasında vade farkının gösterimi ve KDV işlemi mali müşavir teyidine bağlıdır.
 
 ## Seller Ledger Principle
 

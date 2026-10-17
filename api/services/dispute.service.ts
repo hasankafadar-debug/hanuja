@@ -15,7 +15,7 @@ import { messageAudience, type CommunicationAudience } from '../domain/communica
  */
 import type { PrismaClient } from '@prisma/client'
 import { recordNotification } from './notification-outbox.service'
-import { allocateProductRefund } from '../domain/quantity-allocation'
+import { allocateProductRefund, customerShippingAmount } from '../domain/quantity-allocation'
 import { createPayoutService } from './payout.service'
 import { isPayoutSettled } from './payout-debt.service'
 import { invalidatePayoutSchedule } from './payout-eligibility'
@@ -233,10 +233,13 @@ export function createDisputeService({ prisma }: DisputeServiceDeps) {
                   where: { id: rr.orderId },
                   select: {
                     shippingAmount: true,
+                    customerPaidShippingAmount: true,
                     refundedShippingAmount: true,
                   },
                 })
-                const remainingShipping = order.shippingAmount.sub(order.refundedShippingAmount)
+                const remainingShipping = customerShippingAmount(order).sub(
+                  order.refundedShippingAmount,
+                )
                 if (remainingShipping.lte(0)) return new Decimal(0)
                 await tx.order.update({
                   where: { id: rr.orderId },

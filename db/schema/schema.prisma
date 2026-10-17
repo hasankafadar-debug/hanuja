@@ -396,6 +396,7 @@ enum AdminActionType {
   customer_invoice_uploaded
   customer_invoice_replaced
   customer_invoice_removed
+  card_payment_reconciled
 }
 
 enum ExtensionRequestStatus {
@@ -654,6 +655,7 @@ model User {
 
   cookieConsentRecords CookieConsentRecord[]
   orderAdminNotes OrderAdminNote[]
+  cardPaymentQuotes CardPaymentQuote[]
 
   @@map("users")
 }
@@ -948,6 +950,8 @@ model Category {
   createdViaImportBy String? // Seller.id — import commit ile açıldıysa; null = admin/seed
   createdViaImportAt DateTime? // Import commit zamanı
   templateCode       String?
+  // Taksit üst sınırı; boşsa üst kategoriden devralınır, zincir boşsa sınır yok.
+  maxInstallmentCount Int?
 
   parent           Category?                 @relation("CategoryTree", fields: [parentId], references: [id])
   children         Category[]                @relation("CategoryTree")
@@ -1259,6 +1263,10 @@ model Order {
   installmentCount Int?
   installmentDifferenceAmount Decimal? @db.Decimal(12, 2)
   installmentTotalAmount Decimal? @db.Decimal(12, 2)
+  // Kart ödemesinde kargo kalemine düşen müşteri tutarı (vade farkı payı dahil). null → shippingAmount.
+  customerPaidShippingAmount Decimal? @db.Decimal(12, 2)
+  // Ödenmemiş kart siparişinin yeniden ödeme süresi; dolunca card-payment-expiry işi iptal eder.
+  cardPaymentExpiresAt DateTime?
   refundedShippingAmount  Decimal  @default(0) @db.Decimal(12, 2)
 
   couponCode String?
@@ -1305,6 +1313,8 @@ model Order {
   refundTransactions     RefundTransaction[]
   productQuestionThreads ProductQuestionThread[]
   adminNotes             OrderAdminNote[]
+  cardPaymentQuotes      CardPaymentQuote[]
+  cardPaymentAttempts    CardPaymentAttempt[]
 
   @@index([customerId, status])
   @@index([status, createdAt])
@@ -1678,6 +1688,7 @@ model Payment {
   selectedBankAccount PlatformBankAccount?  @relation(fields: [selectedBankAccountId], references: [id])
   refundTransactions  RefundTransaction[]
   providerItems       PaymentProviderItem[]
+  cardAttempts        CardPaymentAttempt[]
 
   @@index([orderId])
   @@index([status])
@@ -3459,4 +3470,158 @@ model SellerReturnInvoice {
   @@unique([returnRequestId, sellerId])
   @@index([orderId])
   @@map("seller_return_invoices")
+}
+
+// ─── Kart ödemesi (iyzico standart sanal POS, 3DS, taksit) ───────────────────
+// Bkz. docs/05-security/payment-security.md §2. Kart numarası / CVC hiçbir tabloda tutulmaz.
+
+enum CardPaymentAttemptStatus {
+  initialized // kayıt yazıldı, iyzico initialize henüz dönmedi
+  threeds_pending // 3DS sayfası gösterildi, banka doğrulaması bekleniyor
+  authorizing // auth isteği gönderildi (para bu adımda çekilir); sonuç bekleniyor
+  succeeded
+  fraud_review // iyzico fraudStatus=0 — sipariş ilerlemez
+  failed
+  outcome_unknown // auth sonucu doğrulanamadı; mutabakat bekler
+  expired // auth'a hiç geçmeden süresi doldu
+  voided // aynı gün iptal edildi
+  refunded // deneme bazlı geri ödeme tamamlandı
+  refunded_by_provider // iyzico inceleme sonrası kendisi iade etti
+}
+
+enum CardAttemptReversalKind {
+  cancel
+  refund
+}
+
+enum CardAttemptReversalStatus {
+  pending
+  processing
+  completed
+  uncertain
+  manual_required
+}
+
+model CardPaymentQuote {
+  id                    String    @id @default(cuid())
+  userId                String
+  orderId               String? // yeniden denemede baştan; ilk denemede tüketimde yazılır (teklif → tek deneme → tek sipariş)
+  addressId             String
+  billingAddressId      String?
+  sourceHash            String // sepet (ilk deneme) veya sipariş (yeniden deneme) özetinin hash'i
+  binNumber             String
+  installmentCount      Int
+  price                 Decimal   @db.Decimal(12, 2)
+  paidPrice             Decimal   @db.Decimal(12, 2)
+  installmentPrice      Decimal   @db.Decimal(12, 2)
+  cardType              String?
+  cardAssociation       String?
+  cardFamily            String?
+  bankName              String?
+  distanceSalesVersion  String
+  preInformationVersion String
+  legalContext          Json // sözleşme bağlamı (taksit hariç); yeniden denemede ilk tekliften kopyalanır
+  expiresAt             DateTime
+  consumedAt            DateTime?
+  createdAt             DateTime  @default(now())
+
+  user    User                @relation(fields: [userId], references: [id])
+  order   Order?              @relation(fields: [orderId], references: [id])
+  attempt CardPaymentAttempt?
+
+  @@index([userId, createdAt])
+  @@index([orderId])
+  @@map("card_payment_quotes")
+}
+
+model CardPaymentAttempt {
+  id                          String                   @id @default(cuid())
+  orderId                     String
+  paymentId                   String
+  quoteId                     String                   @unique
+  startKey                    String                   @unique
+  userId                      String
+  conversationId              String                   @unique
+  providerPaymentId           String?                  @unique
+  status                      CardPaymentAttemptStatus @default(initialized)
+  installmentCount            Int
+  price                       Decimal                  @db.Decimal(12, 2)
+  paidPrice                   Decimal                  @db.Decimal(12, 2)
+  installmentDifferenceAmount Decimal                  @db.Decimal(12, 2)
+  binNumber                   String
+  lastFourDigits              String?
+  cardType                    String?
+  cardAssociation             String?
+  cardFamily                  String?
+  bankName                    String?
+  mdStatus                    String?
+  fraudStatus                 Int?
+  iyziCommissionFee           Decimal?                 @db.Decimal(12, 2)
+  iyziCommissionRateAmount    Decimal?                 @db.Decimal(12, 2)
+  merchantPayoutAmount        Decimal?                 @db.Decimal(12, 2)
+  itemTransactions            Json? // iyzico kalem kimlikleri ve tutarları (geri ödeme için)
+  errorCode                   String?
+  errorMessage                String?
+  distanceSalesHtml           String                   @db.Text
+  preInformationHtml          String                   @db.Text
+  distanceSalesVersion        String
+  preInformationVersion       String
+  distanceSalesHash           String
+  preInformationHash          String
+  acceptedAt                  DateTime
+  acceptedIp                  String?
+  acceptedUserAgent           String?                  @db.Text
+  acceptedSessionId           String?
+  authRequestedAt             DateTime?
+  completedAt                 DateTime?
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @updatedAt
+
+  order    Order                @relation(fields: [orderId], references: [id])
+  payment  Payment              @relation(fields: [paymentId], references: [id])
+  quote    CardPaymentQuote     @relation(fields: [quoteId], references: [id])
+  reversal CardAttemptReversal?
+
+  @@index([status, updatedAt])
+  @@index([orderId, createdAt])
+  @@map("card_payment_attempts")
+}
+
+model CardAttemptReversal {
+  id                String                    @id @default(cuid())
+  attemptId         String                    @unique // deneme başına tek geri ödeme süreci
+  kind              CardAttemptReversalKind
+  status            CardAttemptReversalStatus @default(pending)
+  reason            String
+  amount            Decimal                   @db.Decimal(12, 2)
+  items             Json // [{ paymentTransactionId, amount, refundedAmount }]
+  providerReference String?
+  attemptCount      Int                       @default(0)
+  lastError         String?
+  lastAttemptAt     DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  attempt CardPaymentAttempt @relation(fields: [attemptId], references: [id])
+
+  @@index([status, updatedAt])
+  @@map("card_attempt_reversals")
+}
+
+model IyzicoWebhookEvent {
+  id                    String    @id @default(cuid())
+  iyziReferenceCode     String    @unique
+  iyziEventType         String
+  paymentId             String?
+  paymentConversationId String?
+  status                String?
+  payload               Json
+  receivedAt            DateTime  @default(now())
+  processedAt           DateTime?
+  attempts              Int       @default(0)
+  lastError             String?
+
+  @@index([processedAt, receivedAt])
+  @@map("iyzico_webhook_events")
 }

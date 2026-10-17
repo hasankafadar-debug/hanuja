@@ -1,7 +1,11 @@
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../lib/errors'
-import { allocateProductRefund, isQuantityFullyClosed } from '../domain/quantity-allocation'
+import {
+  allocateProductRefund,
+  customerShippingAmount,
+  isQuantityFullyClosed,
+} from '../domain/quantity-allocation'
 import { isWithinWithdrawalWindow } from '../domain/withdrawal-window'
 import {
   createQuantityRefundService,
@@ -777,7 +781,7 @@ export function createQuantityReturnService({ prisma }: { prisma: PrismaClient }
                 (disputeResolvedTotals._sum.rejectedQuantity ?? 0),
             })
           ) {
-            const shippingRefund = request.order.shippingAmount.sub(
+            const shippingRefund = customerShippingAmount(request.order).sub(
               request.order.refundedShippingAmount,
             )
             if (shippingRefund.gt(0)) {

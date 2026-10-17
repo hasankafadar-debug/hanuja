@@ -1,99 +1,165 @@
-# Son güncelleme: 2026-10-11
-# Durum: taslak v1
+# Son güncelleme: 2026-10-16
+# Durum: taslak v2 — iyzico standart sanal POS, 3D Secure, taksit (kart satışı bayrakla kapalı)
 
 # Payment Security
 
-## 2026-10-01 yerel kontrol
+## Durum (2026-10-16)
 
-`api/lib/payment-capabilities.ts` kart satışını varsayılan olarak kapalı tutar. Web'deki `/api/payment/start`, `/api/payment/callback` ve `/api/webhooks/iyzico` handler'ları veri okuma, veritabanı ve sağlayıcı çağrısından önce `503 CARD_PAYMENTS_DISABLED` döndürür.
+Kart ödemesi iyzico **standart sanal POS** (pazaryeri değil) üzerinden, **3D Secure** ile ve **kendi
+`/odeme` formumuzla** çalışır; taksitte **vade farkını müşteri öder**. Kart satışı yalnız web servisinde
+`IYZICO_CARD_PAYMENTS_ENABLED=true` ile açılır; eski `CARD_PAYMENTS_ENABLED` açmaz. Bayrak yalnız **yeni ödeme
+başlatmayı** (`/api/payment/quote`, `/api/payment/start`) kapatır: başlamış ödemelerin callback'i ve iyzico
+webhook'u bayrak kapalıyken de işlenir.
 
-**Güncelleme 2026-10-11 (satıcı Hanuja modeli):** kart satışı yalnız web servisinde `IYZICO_CARD_PAYMENTS_ENABLED=true` ile açılır (büyük/küçük harf ve boşluk duyarsız; başka her değer kapalıdır). Eski `CARD_PAYMENTS_ENABLED` değişkeni kart satışını artık açmaz; production'da hâlâ `true` duruyor olabileceği için kasıtlı olarak yeni bir ad seçildi. iyzico'nun standart sanal POS onayı ve yeni sözleşme metinleri yayına girmeden açılmaz; açmadan önce 3DS akışı sandbox test kartıyla uçtan uca doğrulanmalıdır. `tools/scripts/check-env.ts` değişkeni doğrular ve açıkken iyzico anahtarlarını zorunlu tutar. Eski kart iadeleri ayrı servis yoludur. Iyzico imza doğrulayıcısı bozuk/eksik uzunlukta imzayı exception yerine `false` ile reddeder.
+Canlıya geçiş şartları (bayrak bunlar olmadan açılmaz):
 
-Havale/EFT, iade ve satıcı ödeme servislerindeki tutar/ödeme referansı bağlama, durum karşılaştırması, kilit ve snapshot kontrolleri yerel testlerle incelendi. Gerçek banka hareketi, provider hesabı ve PostgreSQL eşzamanlılık testleri bu denetimde çalıştırılmadı. [Yerel rapor](../../tests/security/audit-2026-10-01/rapor.md) güncel kanıtları ve bu sınırları içerir; aşağıdaki kart akışı etkin satış akışı olarak yorumlanmamalıdır.
+1. iyzico'nun PCI DSS şartı (SAQ türü) yazılı netleşti ve karşılandı — kart numarası/CVC sunucumuzdan geçer;
+   3D Secure bu sorumluluğu kaldırmaz.
+2. X-IYZ-SIGNATURE-V3 webhook'u hesapta aktif ve canlıda imzalı bildirim doğrulandı.
+3. Taksit oranları iyzico panelinde ("Taksit ve Komisyon Yönetimi") müşteriye yansıyacak şekilde tanımlı;
+   sandbox ve canlıda bir taksitli ödeme uçtan uca doğrulandı (callback'te `signature` alanının gelip gelmediği dahil).
+4. Mali müşavir vade farkının müşteri faturasındaki (Uyumsoft) gösterimini onayladı.
 
 ## Purpose
 
-This document describes the security design for all payment-related flows in Hanuja. It covers Iyzico webhook signature verification, the payment confirmation flow, EFT/havale manual approval with audit logging, idempotency guards, the rule that payment state transitions are backend-only, and environment separation between sandbox and production.
+This document describes the security design for all payment-related flows in Hanuja: the card flow (quote,
+3D Secure start, callback, v2 auth, confirmation), iyzico response and webhook signature verification,
+reconciliation of uncertain outcomes, EFT/havale manual approval with audit logging, idempotency guards, and
+environment separation between sandbox and production.
 
-Source of truth for rules: `.claude/rules/05-security-rules.md`, section 9.2 and 9.4 of `CLAUDE.md`.
+Source of truth for rules: `.claude/rules/05-security-rules.md`, sections 9.2 and 9.4 of `CLAUDE.md`.
 
 ---
 
 ## 1. Core Payment Security Principle
 
-Hanuja collects all customer payments centrally. This makes payment integrity a first-class concern. The platform must never allow an order to become visible to a seller, or a payout to be computed, based on unverified payment state.
+Hanuja collects all customer payments centrally. The platform must never allow an order to become visible to a
+seller, or a payout to be computed, based on unverified payment state.
 
-The non-negotiable rules are:
-
-- Payment confirmation must come from a verified backend source, not from a client redirect or a frontend success state.
-- The amount used for all financial calculations is computed server-side at order creation time. No client-supplied price is trusted.
-- Card data is passed to Iyzico and never stored in the Hanuja database.
-- Payment state transitions are triggered only by verified webhook callbacks or by admin actions with full audit logging.
-
----
-
-## 2. Card Payment Flow (Iyzico 3DS)
-
-### Step 1 — Payment initiation
-
-`POST /api/payment/start` in `apps/web` is the entry point for card payments.
-
-Before any Iyzico call is made, the handler enforces:
-
-1. CSRF token verification (`checkCsrf(req)`)
-2. Rate limit check (`SENSITIVE_RATE_LIMIT`)
-3. Server-side session validation — unauthenticated requests are redirected to `/giris`
-4. Zod schema validation of the request body
-
-The `totalAmount` sent to Iyzico is taken from the order record written to the database by `checkoutSvc.createOrder()`, not from any client-supplied value. The client cannot influence the amount charged.
-
-Card fields (`cardNumber`, `expireMonth`, `expireYear`, `cvc`) are forwarded directly to Iyzico and are not persisted anywhere in Hanuja's database or logs.
-
-### Step 2 — 3DS page display
-
-Iyzico returns an HTML page that the browser renders in-place (`text/html` response). The browser interacts with the bank's 3DS system. This is why the storefront middleware does not set `X-Frame-Options: DENY` — the 3DS flow requires iframe rendering from Iyzico's domain.
-
-### Step 3 — Callback and confirmation
-
-After 3DS completes, Iyzico posts to `/api/payment/callback`. This callback handler:
-
-1. Requires `mdStatus=1` (3DS verification success) before contacting Iyzico
-2. Completes the payment server-to-server via `complete3DS` — the `paymentId` is only
-   meaningful if Iyzico itself accepts the completion
-3. Verifies the `conversationId` echoed by Iyzico matches the target order and rejects
-   `fraudStatus = -1` results (see section 7, "Confirm-time binding")
-4. Calls `paymentService.confirmCardPayment()` inside a database transaction, which
-   re-verifies amount binding and provider-reference uniqueness before any state change
-
-The frontend redirect that Iyzico may send to the browser after 3DS is used only for UX navigation. It is never the trigger for payment confirmation. Payment confirmation happens only through the server-to-server callback.
+- Payment confirmation comes only from a verified backend source: the signed iyzico v2 auth response, a signed
+  payment query, or an admin action with audit log. Never from a browser redirect or a callback field alone.
+- Every amount is computed server-side. The customer chooses only the **number** of installments.
+- Card data is forwarded to iyzico in a single request and never stored, logged or returned.
+- Network errors, timeouts and responses whose signature cannot be verified are never treated as "no money moved".
 
 ---
 
-## 3. Webhook Signature Verification
+## 2. Card Payment Flow (iyzico 3D Secure)
 
-`packages/security/src/webhook-verifier.ts` exports:
+Code: `api/services/card-payment.service.ts` (business logic), `api/lib/iyzico.ts` (adapter),
+`api/routes/card-payments.ts` (thin handlers), `apps/web/src/app/api/payment/*` and
+`apps/web/src/app/api/webhooks/iyzico/route.ts`.
 
-- `verifyIyzicoWebhook(payload, signature, secret)` — verifies the HMAC-SHA256 signature that Iyzico attaches to every callback. The secret is read from the environment variable `IYZICO_SECRET_KEY`. If verification fails, the request is rejected with 400 before any order state is touched.
-- `isDuplicateWebhook(conversationId, store)` — checks whether a webhook with this conversation ID has already been processed. Safe for use with a Redis set or an in-memory store in test environments.
-- `isWebhookTimestampFresh(timestamp, maxAgeSeconds)` — rejects replayed webhooks with stale timestamps.
+### Step 1 — Quote (`POST /api/payment/quote`)
 
-These three checks must all pass before `confirmCardPayment` is called. If any check fails, the response is an error and the order state is unchanged.
+When the first 8 digits of the card number are entered, the server builds a quote:
+
+- `price` = the order's cash total (`buildCheckoutDraft`, or `Order.totalAmount` when retrying an unpaid order).
+- iyzico `installmentInfo(BIN, price)` returns the installment options with their `totalPrice`
+  (merchant panel rates). Offers shown = iyzico offers ∩ the basket's category limit
+  (`Category.maxInstallmentCount`, inherited from parents, minimum across the basket); debit cards get single
+  payment only; a BIN that iyzico does not recognise gets single payment at the cash price.
+- A single payment whose `totalPrice ≠ price` produces no quote (the contract does not allow an installment
+  difference without installments).
+- The chosen option is stored as `CardPaymentQuote` (15 min) together with the contract context; the contract
+  preview (`/api/checkout/contracts-preview?quoteId=`) is rendered from this quote.
+
+### Step 2 — Start (`POST /api/payment/start`)
+
+Order of checks: card flag → CSRF → IP and per-user rate limits → session and verified e-mail → Zod → Turnstile.
+Then `startAttempt`:
+
+1. `startKey` (one per "pay" intent, unchanged on network retries) is unique: a repeated request returns the
+   existing attempt and never starts a second 3D Secure.
+2. The quote must belong to the user, be unexpired and unconsumed, and match the current contract versions; the
+   card BIN must equal the quote BIN.
+3. Installment rates are queried again; if the total differs from the quote, nothing starts and the customer
+   confirms the new total (`CARD_QUOTE_CHANGED`). On the first attempt the cart hash must still match
+   (`CARD_CART_CHANGED`).
+4. Billing identity: individual Turkish citizens only (TCKN from the billing address, or the form). Corporate and
+   foreign-national billing profiles are refused until iyzico confirms the accepted `identityNumber` value.
+5. Under the **quote row lock** (first attempt) or the **order row lock** (retry): the order is created in the same
+   transaction (`checkoutSvc.writeOrderRecords`, `cardPaymentExpiresAt = +30 min`), or on retry older attempts that
+   never reached auth are expired. Max 5 attempts per order; an attempt in `authorizing / outcome_unknown /
+   fraud_review` blocks a new one.
+6. The attempt stores the contract HTML/hash and acceptance evidence, then 3D Secure is initialised **outside**
+   the transaction. The initialise response signature (`paymentId:conversationId`) is verified and its `paymentId`
+   is stored on the attempt immediately.
+
+### Step 3 — Callback (`POST /api/payment/callback`)
+
+No callback field is proof of payment on its own:
+
+1. The attempt is found by `conversationId`; the posted `paymentId` must equal the stored one.
+2. If iyzico sends `signature`, it must verify (`conversationData:conversationId:mdStatus:paymentId:status`).
+3. Success requires `status=success` **and** `mdStatus=1`; otherwise the attempt fails and the order stays payable.
+4. Under the order lock the attempt moves `threeds_pending → authorizing`; an expired attempt or an order whose
+   window passed never calls auth.
+5. v2 auth (`/payment/v2/3dsecure/auth`) binds `paymentId, conversationId, paidPrice, basketId, currency`; the
+   response signature (`paymentId:currency:basketId:conversationId:paidPrice:price`) must verify.
+6. Redirects are **303** (SameSite=Lax session cookie is sent on the following GET). Error codes, not messages,
+   travel in the URL.
+
+### Step 4 — Confirmation
+
+`processCapturedPayment` compares the provider response with the attempt's **immutable** values (`price`,
+`paidPrice`, installment, `basketId`, currency, `mdStatus`, item ids and per-item prices). Then, under the order lock:
+
+- same attempt already confirmed → no effect;
+- order confirmed by another attempt → `duplicate_capture` → attempt reversal;
+- order no longer payable → `late_capture` → attempt reversal;
+- otherwise confirm: `Order.totalAmount = paidPrice`, installment fields, per-line customer amounts
+  (`customerPaidProductAmount = item paidPrice`), `Order.customerPaidShippingAmount`,
+  `PaymentProviderItem.amount = item paidPrice`, `Payment.amount = paidPrice`, the accepted contract becomes the
+  `OrderLegalSnapshot`, seller accruals (from `OrderLine` only) and the "Siparişiniz Alındı" notification.
+
+Fraud: `fraudStatus` **1** or **2** (approved after review) confirms. **0** keeps the order in `payment_pending`
+(no seller visibility, no accrual) and is polled. **-1** after review is refunded by iyzico itself; Hanuja does not
+send a second refund. iyzico's fraud push notification is unsigned and is not used.
+
+Only the purchased products are removed from the cart; items added while paying stay.
 
 ---
 
-## 4. Idempotency Guards
+## 3. Signatures
 
-Card payment confirmation is designed to be safe when called more than once with the same provider reference.
+All iyzico signatures are HMAC-SHA256 with `IYZICO_SECRET_KEY`, hex, compared in constant time. Prices in the
+signature input drop trailing zeros (`10.50 → 10.5`, `10.0 → 10`). Parts are joined with `:`.
 
-In `payment.service.ts`, `confirmCardPayment` begins with:
+| Response | Fields |
+|---|---|
+| 3DS initialize | `paymentId:conversationId` |
+| 3DS callback | `conversationData:conversationId:mdStatus:paymentId:status` |
+| v2 auth, payment detail | `paymentId:currency:basketId:conversationId:paidPrice:price` |
+| refund | `paymentId:price:currency:conversationId` |
 
-```typescript
-if (payment.status === 'confirmed') return payment
-```
+**Webhook** (`X-IYZ-SIGNATURE-V3`): HMAC-SHA256(secretKey, `secretKey + iyziEventType + paymentId +
+paymentConversationId + status`), hex. There is no development bypass: without the secret every webhook is
+rejected. The old SHA1 `X-IYZ-SIGNATURE` verifier and `IYZICO_WEBHOOK_SECRET` were removed.
+`packages/security/src/webhook-verifier.ts` (`verifyIyzicoWebhook`) is unused legacy code and must not be used.
 
-If the payment record is already confirmed, the function returns the existing record without executing the transaction or appending a duplicate status history entry. This means a retried webhook or a rare duplicate delivery from Iyzico will not create duplicate ledger entries, duplicate seller notifications, or duplicate status history rows.
+The webhook route verifies the signature, **stores** the event (`IyzicoWebhookEvent`, unique
+`iyziReferenceCode`), then returns 2xx. If the store fails it returns 5xx so iyzico retries; a duplicate reference
+returns 2xx. Processing is a worker job that only triggers a signed payment query; a periodic sweep re-queues
+unprocessed events.
 
-The idempotency key is the `providerRef` (Iyzico's payment reference). The same `providerRef` cannot confirm the same payment twice from a different code path because the status check happens inside a database transaction.
+---
+
+## 4. Idempotency and Uncertain Outcomes
+
+- Request level: `startKey` (unique) and single-use quotes; one order per quote.
+- State moves only forward. `succeeded / voided / refunded` attempts are never set back by a late `FAILURE`.
+- Money moves only at v2 auth. Attempts that never reached auth (`initialized`, `threeds_pending`) are closed
+  locally when the window ends. Only `authorizing` / `outcome_unknown` waits for reconciliation.
+- Network calls run **outside** database transactions: lock → check → write the intermediate state
+  (`authorizing`, reversal `processing`) → commit → call iyzico → record the result in a new transaction.
+- `card-payment` worker (every 5 min): expires unpaid orders whose window passed (status `payment_cancelled`,
+  stock and coupon usage returned, once), reconciles `authorizing / outcome_unknown / fraud_review` attempts with
+  the signed payment query, processes attempt reversals and unprocessed webhook events, and sweeps card refunds.
+- Attempt reversals (`CardAttemptReversal`, one per attempt): same-day `cancel`, otherwise item refunds.
+  `uncertain` is never retried blindly; the reporting service (`/v2/reporting/payment/details`, matched by our
+  `conversationId`) decides. Order refunds use the same rule: uncertain card refund items are reconciled from the
+  report (`refund-item-<id>`), and reopened for retry only after an hour without a trace.
 
 ---
 
@@ -146,74 +212,63 @@ This record cannot be deleted or overwritten. It exists for reconciliation and l
 
 ## 6. Payment State Transitions Are Backend-Only
 
-The following state transitions are triggered only by verified server-side events:
-
 | Transition | Trigger |
 |------------|---------|
-| `payment_pending` → `payment_confirmed` | Iyzico webhook with verified signature |
+| `payment_pending` → `payment_confirmed` → `seller_queue_ready` | Signed v2 auth or signed payment query, fraud 1/2, inside one transaction |
+| `payment_pending` → `payment_cancelled` | `card-payment` worker after the 30-minute window, only when no attempt may have captured money |
 | `bank_transfer_waiting` → `bank_transfer_confirmed` → `payment_confirmed` | Admin action with audit log |
-| `payment_pending` → `payment_failed` | Iyzico webhook with verified failure status |
-| `payment_confirmed` → `seller_queue_ready` | Automatic, inside the same transaction as payment confirmation |
+| `bank_transfer_waiting` → `cancelled_due_to_payment_failure` | Admin EFT rejection |
 
-No route handler accepts a client-supplied `status` or `paymentStatus` field that is applied directly to the order or payment record. Status transitions are driven by the state machine in `api/domain/order-state-machine.ts` which calls `assertTransition(currentStatus, targetStatus)` before allowing any change.
+No route handler accepts a client-supplied `status` or amount. Transitions go through `assertTransition` in
+`api/domain/order-state-machine.ts`. Card attempt statuses are listed in
+`docs/06-engineering/event-status-model.md`.
 
 ---
 
 ## 7. Amount Calculation — Server Authority
 
-The `totalAmount` for a payment is calculated at `checkoutSvc.createOrder()` time using:
-
-- cart line items and quantities from the database
-- server-side price lookup for each product
-- server-side coupon validation and discount application
-- server-side shipping calculation
-
-The resulting amount is written to the `Order` record. This is the only amount sent to Iyzico. The handler at `/api/payment/start` reads `order.totalAmount.toFixed(2)` from the freshly created order — it does not read any amount from the request body.
-
-Client-supplied amounts are rejected. Any attempt to tamper with the amount in the checkout form has no effect on what is sent to the payment provider.
+```
+price      = Order.totalAmount before payment (products + shipping − coupons)
+paidPrice  = quote total from iyzico installmentInfo (installment difference included)
+difference = paidPrice − price   → paid by the customer; not seller revenue
+```
 
 ### Confirm-time binding (fail-closed)
 
-Server authority at initiation is not sufficient on its own: the confirmation path must
-also bind the provider result to the exact order. `confirmCardPayment` enforces, before
-any state transition:
+1. The provider response must match the attempt's immutable `price`, `paidPrice`, installment, `basketId` and
+   currency; item ids and per-item prices must match the basket; per-item `paidPrice` values must add up to
+   `paidPrice` to the cent. A mismatch after capture never leaves money unexplained: the attempt gets a reversal.
+2. One iyzico `paymentId` confirms at most one order (`Payment.providerPaymentId` and
+   `CardPaymentAttempt.providerPaymentId` are unique) and must equal the `paymentId` stored at initialise.
+3. A returned `conversationId` alone is never proof of ownership.
 
-1. **Amount binding** — the `paidPrice` reported by Iyzico (callback or webhook) must be
-   exactly equal to `Order.totalAmount`. A mismatch writes an `amount_mismatch_rejected`
-   `PaymentEvent` (with expected/received amounts and the provider ref) and throws
-   `ConflictError`. The order is never confirmed on a mismatched amount.
-2. **Provider reference uniqueness** — one Iyzico `paymentId` can confirm exactly one
-   order. `Payment.providerPaymentId` carries a database `@unique` constraint
-   (migration `20260703100000_payment_provider_payment_id_unique`), and the service
-   additionally pre-checks reuse and writes a `providerRef_reuse_rejected` event before
-   rejecting. A concurrent race on the unique index (P2002) is translated to the same
-   `ConflictError`.
-3. **conversationId echo verification** — the 3DS callback route compares the
-   `conversationId` returned by Iyzico's `complete3DS` response against the order being
-   confirmed. A mismatch (replaying another order's `paymentId`) is rejected before
-   `confirmCardPayment` is ever called. Payments with `fraudStatus = -1` are also
-   rejected at this point.
+### Installment difference
 
-These checks close the replay scenario where a valid `paymentId` obtained by paying for
-a cheap order is submitted against an expensive order's `conversationId`.
+- After confirmation `Order.totalAmount`, `Payment.amount` and `installmentTotalAmount` equal `paidPrice`;
+  `installmentDifferenceAmount = paidPrice − price`.
+- Seller payout, accrual, commission and the seller's invoice to Hanuja read `OrderLine` seller fields only
+  (`totalPrice`, coupon, commission) and are unchanged.
+- Refunds: product refunds use `customerPaidProductAmount` (installment share included); shipping refunds use
+  `Order.customerPaidShippingAmount ?? shippingAmount`. The refunded installment share stays with Hanuja via
+  `platformFundedAmount`.
+- iyzico commission (`iyziCommissionFee`, `iyziCommissionRateAmount`) and `merchantPayoutAmount` are stored per
+  attempt so "collected from the customer", "provider deduction" and "net to Hanuja" stay separate.
 
 ---
 
 ## 8. Card Data Handling
 
-Card data submitted in the payment form:
-- Is validated by Zod schema on the server (format only)
-- Is forwarded to Iyzico via the `initiate3DS` adapter function
-- Is never written to any Hanuja database table, log file, or audit entry
-- Is never echoed back in any API response
-
-The Iyzico SDK or HTTP adapter is the only code path that sees the raw card number. After the Iyzico call returns, card data goes out of scope.
+- Card fields exist only in the body of `POST /api/payment/start` and the single `initiate3DS` request.
+- Never written to a table, log, audit entry, queue payload or error response. `handleCardPaymentError` logs only
+  the error name and a message with 12–19 digit sequences masked; it never logs the request.
+- Only the BIN (first 8) and last 4 digits, card family/bank and type are stored (from iyzico's response).
+- The browser never stores card data (no localStorage, no URL); the CVC field is cleared after an error.
+- The 3DS HTML is written into the page with `document.write`; this must be verified on iOS Safari and Android
+  Chrome before go-live.
 
 ---
 
 ## 9. Environment Separation — Sandbox vs Production
-
-Iyzico provides separate sandbox and production API endpoints and credentials.
 
 | Environment | `IYZICO_BASE_URL` | Credential set |
 |-------------|------------------|----------------|
@@ -221,35 +276,33 @@ Iyzico provides separate sandbox and production API endpoints and credentials.
 | Staging | `https://sandbox-api.iyzipay.com` | Sandbox API key and secret |
 | Production | `https://api.iyzipay.com` | Production API key and secret |
 
-Rules:
-
-- Sandbox credentials must never be committed to source control. They go in `.env.local` for development.
-- Production credentials are set only in the production deployment environment (Coolify).
-- The application reads `IYZICO_API_KEY`, `IYZICO_SECRET_KEY`, and `IYZICO_BASE_URL` from environment variables. The `initiate3DS` adapter and webhook verifier use these variables and have no hardcoded credentials.
-- If `NODE_ENV !== 'production'` and `IYZICO_BASE_URL` points to the production endpoint, the application should log a warning at startup. This guard prevents accidental real charges during local development.
-- Webhook signature verification uses `IYZICO_SECRET_KEY`. The key must be rotated immediately if it is suspected to have been exposed. After rotation the new key must be deployed to production before the old key is decommissioned to avoid missed webhooks.
+- `IYZICO_API_KEY`, `IYZICO_SECRET_KEY`, `IYZICO_BASE_URL` are needed by **web** (quote, 3DS, callback, webhook)
+  and **worker** (reconciliation, refunds). `IYZICO_CARD_PAYMENTS_ENABLED` belongs to web only.
+- `tools/scripts/check-env.ts`: production requires `https://api.iyzipay.com` and rejects `sandbox-` keys; outside
+  production the live URL is reported as a warning.
+- Production keys are entered only in Coolify by the business owner; never in chat, repository or docs.
 
 ---
 
 ## 10. What Must Never Happen
 
-- An order must never reach `payment_confirmed` status based on a client-side redirect success state alone.
-- A seller must never see an order with status `bank_transfer_waiting` or `payment_pending` as an actionable fulfillment order.
-- Card data must never appear in logs, database records, or API responses.
-- The payment amount must never come from the client request body.
-- A webhook must never be processed without signature verification.
-- An EFT approval must never happen without an audit log entry.
-- A duplicate webhook must never produce a duplicate payment confirmation event.
+- An order reaches `payment_confirmed` from a browser redirect or a callback field alone.
+- A seller sees an order in `payment_pending` or `bank_transfer_waiting`.
+- Card data appears in logs, database records, queue payloads or API responses.
+- An amount comes from the client request body.
+- A webhook is processed without signature verification, or acknowledged with 2xx before it is stored.
+- An uncertain capture or refund is treated as "nothing happened", or retried without a report check.
+- An EFT approval happens without an audit log entry.
 
 ---
 
 ## Cross-Reference
 
-- `.claude/rules/05-security-rules.md` — authoritative security policy, sections on payment and payout security
-- `docs/05-security/security-architecture.md` — defense layers overview
-- `docs/05-security/audit-logging-plan.md` — audit log entry structure
-- `docs/07-operations/order-lifecycle.md` — order status transitions and EFT flow in operations context
-- `apps/web/src/app/api/payment/start/route.ts` — card payment initiation handler
-- `api/routes/payments.ts` — EFT approval/rejection route handlers
-- `api/services/payment.service.ts` — payment confirmation service with idempotency
-- `packages/security/src/webhook-verifier.ts` — signature verification and duplicate guard
+- `.claude/rules/05-security-rules.md` — authoritative security policy
+- `.claude/rules/07-marketplace-finance-rules.md` — installment difference and confirm-time binding
+- `docs/06-engineering/integrations.md` — iyzico integration contract
+- `docs/06-engineering/event-status-model.md` — card attempt statuses
+- `docs/06-engineering/queue-jobs-plan.md` — `card-payment` queue
+- `docs/07-operations/reconciliation-process.md` — card reconciliation
+- `api/services/card-payment.service.ts`, `api/lib/iyzico.ts`, `api/routes/card-payments.ts`
+- `tests/postgres/card-payment-flow.test.ts`, `tests/security/iyzico-signature.test.ts`

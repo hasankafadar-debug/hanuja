@@ -391,6 +391,23 @@ Hanuja'nın tahsil etmediği bir tutar iade edilmez. Ödemesi onaylanmamış (hi
 Düzeltmeden önce oluşmuş hatalı iade kayıtları `voided` durumuna alınır; bkz.
 `docs/07-operations/reconciliation-process.md` §12 "Tahsil edilmemiş sipariş iadeleri".
 
+## 14.3 Taksitli Kart Ödemesinde Vade Farkı İadesi (2026-10-16)
+
+Taksitli kart ödemesinde müşterinin ödediği vade farkı, iptal veya iade edilen ürünün payı oranında
+**müşteriye iade edilir** (iş sahibi kararı; cayma hakkında "tahsil edilen tüm ödemeler" kuralıyla uyumlu):
+
+- Her ürün satırının müşteri tutarı (`OrderLine.customerPaidProductAmount`) iyzico'nun kalem bazlı
+  `paidPrice` değerinden yazılır ve vade farkı payını içerir. Adet bazlı iade (`allocateProductRefund`)
+  bu tutardan oransal pay alır.
+- Kargo iadesi, sipariş tamamen kapandığında `Order.customerPaidShippingAmount` (vade farkı payı dahil)
+  üzerinden yapılır; bu alan boşsa `shippingAmount` kullanılır.
+- iyzico iadesi kalem bazlıdır (`paymentTransactionId`); tavan kalemin `paidPrice` değeridir.
+- Vade farkının iade edilen kısmı Hanuja'nın üstlendiği tutardır (`platformFundedAmount`); tasarımcı cari
+  hesabına yansımaz.
+
+Sonucu belirsiz kalan kart iadesi yeniden gönderilmez; iyzico raporunda kendi işlem kimliğimizle
+(`refund-item-<id>`) aranır. Bkz. `docs/07-operations/reconciliation-process.md` §13.
+
 ---
 
 ## 15. Cross-Reference

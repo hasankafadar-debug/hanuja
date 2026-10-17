@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Banknote, CheckCircle2, CreditCard, FileText, Lock, MapPin, Plus } from 'lucide-react'
 import { Button, Separator, Spinner, TurnstileWidget } from '@hanuja/ui'
@@ -55,6 +55,61 @@ interface CardForm {
 type CheckoutPageClientProps = {
   cardPaymentsEnabled: boolean
   turnstileSiteKey?: string | undefined
+  /** Ödenmemiş kart siparişini yeniden ödeme (?siparis=) */
+  retryOrderId?: string | null
+  /** 3DS dönüşündeki hata kodu (?hata=) */
+  callbackErrorCode?: string | null
+}
+
+interface InstallmentOfferView {
+  installmentNumber: number
+  installmentPrice: string
+  totalPrice: string
+  differenceAmount: string
+}
+
+interface CardQuote {
+  quoteId: string
+  expiresAt: string
+  price: string
+  offers: InstallmentOfferView[]
+  selected: InstallmentOfferView
+  card: {
+    cardType: string | null
+    cardAssociation: string | null
+    cardFamily: string | null
+    bankName: string | null
+  }
+}
+
+interface RetryState {
+  orderId: string
+  status: string
+  payable: boolean
+  checking: boolean
+  expiresAt: string | null
+  totalAmount: string
+  attemptsLeft: number
+}
+
+const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
+  reddedildi:
+    'Bankanız ödemeyi onaylamadı. Kart bilgilerinizi kontrol edip farklı bir kartla tekrar deneyebilirsiniz.',
+  sure: 'Ödeme süresi doldu. Sepetinizden yeni bir sipariş oluşturabilirsiniz.',
+  dogrulama: 'Ödeme doğrulanamadı. Lütfen tekrar deneyin.',
+  sistem: 'Ödeme sırasında bir hata oluştu. Kartınızdan çekim yapılmışsa sipariş sayfanızda görünecektir.',
+}
+
+/** "Ödemeyi tamamla" niyeti başına bir anahtar; ağ tekrarlarında aynı anahtar gönderilir. */
+function newStartKey() {
+  return `start-${crypto.randomUUID()}`
+}
+
+function formatMoneyExact(value: string | number) {
+  return `${Number(value).toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} TL`
 }
 
 function formatPrice(value: string | number) {
@@ -65,14 +120,19 @@ function formatPrice(value: string | number) {
   return `${formatted} TL`
 }
 
-export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: CheckoutPageClientProps) {
+export function CheckoutPageClient({
+  cardPaymentsEnabled,
+  turnstileSiteKey,
+  retryOrderId = null,
+  callbackErrorCode = null,
+}: CheckoutPageClientProps) {
   const router = useRouter()
   const selectedOptionBorderColor = 'var(--color-success)'
 
   const [addresses, setAddresses] = useState<Address[]>([])
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
-    cardPaymentsEnabled ? 'card' : 'eft',
+    retryOrderId || cardPaymentsEnabled ? 'card' : 'eft',
   )
   const [cartSummary, setCartSummary] = useState<CartSummary | null>(null)
   const [legalPreview, setLegalPreview] = useState<LegalPreview | null>(null)
@@ -80,7 +140,16 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
   const [legalError, setLegalError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(
+    callbackErrorCode ? (CALLBACK_ERROR_MESSAGES[callbackErrorCode] ?? null) : null,
+  )
+  const [retryState, setRetryState] = useState<RetryState | null>(null)
+  const [quote, setQuote] = useState<CardQuote | null>(null)
+  const [selectedInstallment, setSelectedInstallment] = useState(1)
+  const [quoteLoading, setQuoteLoading] = useState(false)
+  const [quoteError, setQuoteError] = useState<string | null>(null)
+  const [quoteNonce, setQuoteNonce] = useState(0)
+  const startKeyRef = useRef<string>(newStartKey())
   const [showAddressForm, setShowAddressForm] = useState(false)
   const [useDifferentBilling, setUseDifferentBilling] = useState(false)
   const [selectedBillingAddressId, setSelectedBillingAddressId] = useState<string | null>(null)
@@ -109,12 +178,15 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
 
   const loadData = useCallback(async () => {
     try {
-      const [cartRes, addrRes] = await Promise.all([
+      const [cartRes, addrRes, retryRes] = await Promise.all([
         fetch('/api/cart', { cache: 'no-store' }),
         fetch('/api/checkout/addresses', { cache: 'no-store' }),
+        retryOrderId
+          ? fetch(`/api/payment/orders/${encodeURIComponent(retryOrderId)}`, { cache: 'no-store' })
+          : Promise.resolve(null),
       ])
 
-      if (cartRes.status === 401 || addrRes.status === 401) {
+      if (cartRes.status === 401 || addrRes.status === 401 || retryRes?.status === 401) {
         router.push('/giris?redirect=/odeme')
         return
       }
@@ -122,7 +194,14 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
       const { data: cart } = await cartRes.json()
       const { data: addrs } = await addrRes.json()
 
-      if (!cart?.itemCount || cart.itemCount === 0) {
+      if (retryRes) {
+        if (!retryRes.ok) {
+          router.push('/siparis')
+          return
+        }
+        const { data: state } = await retryRes.json()
+        setRetryState(state as RetryState)
+      } else if (!cart?.itemCount || cart.itemCount === 0) {
         router.push('/sepet')
         return
       }
@@ -150,7 +229,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
     } finally {
       setLoading(false)
     }
-  }, [router])
+  }, [router, retryOrderId])
 
   useEffect(() => {
     void loadData()
@@ -159,10 +238,82 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
   useEffect(() => {
     setAcceptedMesafeliSatis(false)
     setAcceptedOnBilgilendirme(false)
-  }, [paymentMethod, selectedAddressId, selectedBillingAddressId, useDifferentBilling])
+  }, [paymentMethod, selectedAddressId, selectedBillingAddressId, useDifferentBilling, quote?.quoteId])
+
+  const cardBin = cardForm.cardNumber.replace(/\D/g, '').slice(0, 8)
+  const quoteTarget = retryOrderId ?? selectedAddressId
+
+  // Taksit teklifi: kart numarasının ilk 8 hanesi + seçilen taksit sayısı. Tutar sunucuda hesaplanır.
+  useEffect(() => {
+    if (paymentMethod !== 'card' || cardBin.length !== 8 || !quoteTarget) {
+      setQuote(null)
+      setQuoteError(null)
+      setQuoteLoading(false)
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      setQuoteLoading(true)
+      setQuoteError(null)
+      try {
+        const res = await csrfFetch('/api/payment/quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            binNumber: cardBin,
+            installmentCount: selectedInstallment,
+            ...(retryOrderId
+              ? { orderId: retryOrderId }
+              : {
+                  addressId: selectedAddressId,
+                  ...(useDifferentBilling && selectedBillingAddressId
+                    ? { billingAddressId: selectedBillingAddressId }
+                    : {}),
+                }),
+          }),
+        })
+        const body = await res.json().catch(() => ({}))
+        if (cancelled) return
+        if (!res.ok) {
+          setQuote(null)
+          setQuoteError(body.message ?? body.error ?? 'Taksit seçenekleri alınamadı.')
+          if (selectedInstallment !== 1 && res.status === 422) setSelectedInstallment(1)
+          return
+        }
+        setQuote(body.data as CardQuote)
+      } catch {
+        if (!cancelled) {
+          setQuote(null)
+          setQuoteError('Taksit seçenekleri alınamadı. Bağlantınızı kontrol edin.')
+        }
+      } finally {
+        if (!cancelled) setQuoteLoading(false)
+      }
+    }, 350)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [
+    paymentMethod,
+    cardBin,
+    selectedInstallment,
+    quoteNonce,
+    quoteTarget,
+    retryOrderId,
+    selectedAddressId,
+    selectedBillingAddressId,
+    useDifferentBilling,
+  ])
+
+  // Kart değişince taksit seçimi tek çekime döner.
+  useEffect(() => {
+    setSelectedInstallment(1)
+  }, [cardBin])
 
   useEffect(() => {
-    if (!selectedAddressId) {
+    const cardQuoteId = paymentMethod === 'card' ? (quote?.quoteId ?? null) : null
+    if (!selectedAddressId || (paymentMethod === 'card' && !cardQuoteId)) {
       setLegalPreview(null)
       setLegalError(null)
       setLegalLoading(false)
@@ -178,7 +329,9 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
 
       try {
         const res = await fetch(
-          `/api/checkout/contracts-preview?addressId=${encodeURIComponent(addressId)}&paymentMethod=${paymentMethod}${useDifferentBilling && selectedBillingAddressId ? `&billingAddressId=${encodeURIComponent(selectedBillingAddressId)}` : ''}`,
+          cardQuoteId
+            ? `/api/checkout/contracts-preview?quoteId=${encodeURIComponent(cardQuoteId)}`
+            : `/api/checkout/contracts-preview?addressId=${encodeURIComponent(addressId)}&paymentMethod=${paymentMethod}${useDifferentBilling && selectedBillingAddressId ? `&billingAddressId=${encodeURIComponent(selectedBillingAddressId)}` : ''}`,
           { cache: 'no-store' },
         )
 
@@ -212,7 +365,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
     return () => {
       cancelled = true
     }
-  }, [paymentMethod, router, selectedAddressId, selectedBillingAddressId, useDifferentBilling])
+  }, [paymentMethod, router, selectedAddressId, selectedBillingAddressId, useDifferentBilling, quote?.quoteId])
 
   async function saveAddress() {
     if (!newAddress.fullName || !newAddress.addressLine1 || !newAddress.city) {
@@ -284,7 +437,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
   }
 
   async function placeOrder() {
-    if (!selectedAddressId) {
+    if (!selectedAddressId && !retryOrderId) {
       setError('Lütfen bir teslimat adresi seçin.')
       return
     }
@@ -308,19 +461,43 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
       if (!validateCardForm()) {
         return
       }
+      if (!quote) {
+        setError('Taksit seçeneği hazır değil. Kart numaranızı kontrol edin.')
+        return
+      }
 
       setSubmitting(true)
       setError(null)
+      const startKey = startKeyRef.current
 
+      const resetForNextAttempt = () => {
+        startKeyRef.current = newStartKey()
+        setCardForm((prev) => ({ ...prev, cvc: '' }))
+        setTurnstileToken('')
+        setTurnstileKey((value) => value + 1)
+        setSubmitting(false)
+      }
+
+      const followAttempt = (state: { orderId: string; status: string }) => {
+        if (state.status === 'succeeded') {
+          router.push(`/siparis/${state.orderId}?yeni=1`)
+          return true
+        }
+        if (['authorizing', 'outcome_unknown', 'fraud_review'].includes(state.status)) {
+          router.push(`/siparis/${state.orderId}?odeme=kontrol`)
+          return true
+        }
+        return false
+      }
+
+      let res: Response
       try {
-        const res = await csrfFetch('/api/payment/start', {
+        res = await csrfFetch('/api/payment/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            addressId: selectedAddressId,
-            ...(useDifferentBilling && selectedBillingAddressId
-              ? { billingAddressId: selectedBillingAddressId }
-              : {}),
+            quoteId: quote.quoteId,
+            startKey,
             cardHolderName: cardForm.cardHolderName,
             cardNumber: cardForm.cardNumber.replace(/\s/g, ''),
             expireMonth: cardForm.expireMonth,
@@ -332,38 +509,60 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
             acceptedPreInformation: true,
           }),
         })
-
-        if (!res.ok) {
-          const contentType = res.headers.get('content-type') ?? ''
-          let message = 'Ödeme başlatılamadı. Lütfen tekrar deneyin.'
-
-          if (contentType.includes('application/json')) {
-            const body = (await res.json().catch(() => ({}))) as { message?: string }
-            message = body.message ?? message
-          } else {
-            const html = await res.text()
-            const parsed = new DOMParser().parseFromString(html, 'text/html')
-            message = parsed.querySelector('p')?.textContent?.trim() || message
+      } catch {
+        // Yanıt kayboldu: aynı anahtarla başlamış bir deneme var mı?
+        const stateRes = await fetch(`/api/payment/attempts/${encodeURIComponent(startKey)}`, {
+          cache: 'no-store',
+        }).catch(() => null)
+        if (stateRes?.ok) {
+          const { data } = await stateRes.json()
+          if (followAttempt(data)) return
+          if (data.orderId && !retryOrderId) {
+            router.replace(`/odeme?siparis=${encodeURIComponent(data.orderId)}`)
           }
-
-          setError(message)
-          setTurnstileToken('')
-          setTurnstileKey((value) => value + 1)
-          setSubmitting(false)
+          setError('Ödeme ekranı açılamadı. Lütfen tekrar deneyin.')
+          resetForNextAttempt()
           return
         }
-
-        const html = await res.text()
-        document.open()
-        document.write(html)
-        document.close()
-      } catch {
-        setError('Ödeme başlatılırken hata oluştu. Lütfen tekrar deneyin.')
+        setError('Bağlantı sorunu oluştu. Lütfen tekrar deneyin.')
         setTurnstileToken('')
         setTurnstileKey((value) => value + 1)
         setSubmitting(false)
+        return
       }
 
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const code = body.code as string | undefined
+        if (code === 'CARD_QUOTE_CHANGED' || code === 'CARD_QUOTE_INVALID' || code === 'CARD_CART_CHANGED') {
+          // Tutar yeniden hesaplanır; müşteri yeni tutarı ve belgeleri yeniden onaylar.
+          setQuote(null)
+          setQuoteNonce((value) => value + 1)
+          setAcceptedMesafeliSatis(false)
+          setAcceptedOnBilgilendirme(false)
+        }
+        const failedOrderId = (body.details as { orderId?: string } | undefined)?.orderId
+        if (failedOrderId && !retryOrderId) {
+          router.replace(`/odeme?siparis=${encodeURIComponent(failedOrderId)}`)
+        }
+        setError(body.message ?? body.error ?? 'Ödeme başlatılamadı. Lütfen tekrar deneyin.')
+        resetForNextAttempt()
+        return
+      }
+
+      const data = body.data as
+        | { kind: 'threeds'; orderId: string; html: string }
+        | { kind: 'existing'; orderId: string; status: string }
+      if (data.kind === 'existing') {
+        if (followAttempt(data)) return
+        setError('Önceki ödeme ekranı açılamadı. Lütfen tekrar deneyin.')
+        resetForNextAttempt()
+        return
+      }
+
+      document.open()
+      document.write(data.html)
+      document.close()
       return
     }
 
@@ -419,11 +618,22 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
   const freeShippingThreshold = Number(cartSummary?.freeShippingThresholdTry ?? 1500)
   const flatShippingFee = Number(cartSummary?.flatShippingFeeTry ?? 99)
   const shipping = Number(cartSummary?.shipping ?? (grossSubtotal >= freeShippingThreshold ? 0 : flatShippingFee))
-  const total = paymentMethod === 'eft'
+  const baseTotal = paymentMethod === 'eft'
     ? grossSubtotal - couponDiscount - eftDiscount + shipping
-    : Number(cartSummary?.total ?? (grossSubtotal - couponDiscount + shipping))
-  const hasAddress = Boolean(selectedAddressId)
-  const documentsReady = hasAddress && Boolean(legalPreview) && !legalLoading && !legalError
+    : retryState
+      ? Number(retryState.totalAmount)
+      : Number(cartSummary?.total ?? (grossSubtotal - couponDiscount + shipping))
+  const installmentDifference =
+    paymentMethod === 'card' && quote ? Number(quote.selected.differenceAmount) : 0
+  const total = paymentMethod === 'card' && quote ? Number(quote.selected.totalPrice) : baseTotal
+  const hasAddress = Boolean(selectedAddressId) || Boolean(retryOrderId)
+  const documentsReady =
+    hasAddress &&
+    Boolean(legalPreview) &&
+    !legalLoading &&
+    !legalError &&
+    (paymentMethod !== 'card' || (Boolean(quote) && !quoteLoading))
+  const retryBlocked = Boolean(retryOrderId) && (!retryState || !retryState.payable)
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
@@ -447,8 +657,34 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
         </div>
       ) : null}
 
+      {retryOrderId ? (
+        <div
+          className="mb-6 rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
+          data-testid="checkout-retry-banner"
+        >
+          {!retryState ? null : retryState.checking ? (
+            <p>Ödemeniz kontrol ediliyor. Sonuç netleşmeden yeni ödeme başlatılamaz.</p>
+          ) : retryState.payable ? (
+            <p>
+              Siparişiniz için ödeme bekleniyor.
+              {retryState.expiresAt
+                ? ` ${new Date(retryState.expiresAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} saatine kadar farklı bir kartla tekrar deneyebilirsiniz.`
+                : ''}
+            </p>
+          ) : (
+            <p>Bu sipariş artık ödemeye açık değil.</p>
+          )}
+          <a className="mt-1 inline-block text-xs underline" href={`/siparis/${retryOrderId}`}>
+            Sipariş detayına git
+          </a>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {retryOrderId ? null : (
+          <>
           <section
             className="rounded-xl border p-6"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
@@ -689,6 +925,8 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
               </div>
             )}
           </section>
+          </>
+          )}
 
           <section
             className="rounded-xl border p-6"
@@ -702,7 +940,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
             </div>
 
             <div className="space-y-3">
-              {cardPaymentsEnabled ? <label
+              {cardPaymentsEnabled || retryOrderId ? <label
                 className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
                 style={{
                   borderColor:
@@ -736,7 +974,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                 </div>
               )}
 
-              {cardPaymentsEnabled && paymentMethod === 'card' ? (
+              {(cardPaymentsEnabled || retryOrderId) && paymentMethod === 'card' ? (
                 <div
                   className="space-y-3 rounded-lg border p-4"
                   style={{ borderColor: 'var(--color-border)' }}
@@ -785,10 +1023,10 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                       autoComplete="cc-number"
                       inputMode="numeric"
                       placeholder="0000 0000 0000 0000"
-                      maxLength={19}
+                      maxLength={23}
                       value={cardForm.cardNumber}
                       onChange={(event) => {
-                        const digits = event.target.value.replace(/\D/g, '').slice(0, 16)
+                        const digits = event.target.value.replace(/\D/g, '').slice(0, 19)
                         const formatted = digits.replace(/(.{4})/g, '$1 ').trim()
                         setCardForm((prev) => ({ ...prev, cardNumber: formatted }))
                       }}
@@ -805,6 +1043,70 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                       <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
                         {cardErrors.cardNumber}
                       </p>
+                    ) : null}
+                  </div>
+
+                  <div data-testid="checkout-installments">
+                    <p className="mb-1 text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
+                      Taksit Seçenekleri
+                    </p>
+                    {cardBin.length < 8 ? (
+                      <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                        Taksit seçenekleri kart numaranızın ilk 8 hanesine göre gösterilir.
+                      </p>
+                    ) : quoteLoading && !quote ? (
+                      <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                        <Spinner className="h-4 w-4" />
+                        Taksit seçenekleri hesaplanıyor...
+                      </div>
+                    ) : quoteError ? (
+                      <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>
+                        {quoteError}
+                      </p>
+                    ) : quote ? (
+                      <div className="space-y-2">
+                        {quote.card.bankName || quote.card.cardFamily ? (
+                          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                            {[quote.card.bankName, quote.card.cardFamily].filter(Boolean).join(' · ')}
+                          </p>
+                        ) : null}
+                        <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
+                          {quote.offers.map((offer) => (
+                            <label
+                              key={offer.installmentNumber}
+                              className="flex cursor-pointer items-center gap-3 border-b px-3 py-2 text-sm last:border-b-0"
+                              style={{ borderColor: 'var(--color-border)' }}
+                            >
+                              <input
+                                type="radio"
+                                name="installment"
+                                checked={selectedInstallment === offer.installmentNumber}
+                                disabled={quoteLoading}
+                                onChange={() => setSelectedInstallment(offer.installmentNumber)}
+                                style={{ accentColor: selectedOptionBorderColor }}
+                              />
+                              <span className="flex-1" style={{ color: 'var(--color-primary)' }}>
+                                {offer.installmentNumber === 1
+                                  ? 'Tek çekim'
+                                  : `${offer.installmentNumber} taksit × ${formatMoneyExact(offer.installmentPrice)}`}
+                              </span>
+                              <span className="text-right">
+                                <span className="block font-medium" style={{ color: 'var(--color-primary)' }}>
+                                  {formatMoneyExact(offer.totalPrice)}
+                                </span>
+                                {Number(offer.differenceAmount) > 0 ? (
+                                  <span className="block text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                                    Vade farkı {formatMoneyExact(offer.differenceAmount)}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                          Taksitli ödemede banka vade farkı ödenecek toplama eklenir.
+                        </p>
+                      </div>
                     ) : null}
                   </div>
 
@@ -946,6 +1248,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                 </div>
               ) : null}
 
+              {retryOrderId ? null : (
               <label
                 className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
                 style={{
@@ -981,6 +1284,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                   </p>
                 </div>
               </label>
+              )}
             </div>
           </section>
         </div>
@@ -1019,18 +1323,35 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
                 {formatPrice(freeShippingThreshold)} ve üzeri siparişlerde kargo ücretsizdir.
               </p>
             ) : null}
+            {installmentDifference > 0 && quote ? (
+              <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
+                <span>Vade farkı ({quote.selected.installmentNumber} taksit)</span>
+                <span>{formatMoneyExact(installmentDifference)}</span>
+              </div>
+            ) : null}
             <Separator />
             <div className="flex justify-between text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
-              <span>Toplam</span>
-              <span>{formatPrice(total)}</span>
+              <span>{paymentMethod === 'card' && quote ? 'Ödenecek Toplam' : 'Toplam'}</span>
+              <span>
+                {paymentMethod === 'card' && quote ? formatMoneyExact(total) : formatPrice(total)}
+              </span>
             </div>
+            {paymentMethod === 'card' && quote && quote.selected.installmentNumber > 1 ? (
+              <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                {quote.selected.installmentNumber} × {formatMoneyExact(quote.selected.installmentPrice)}
+              </p>
+            ) : null}
           </div>
 
-          {(!hasAddress || legalLoading || legalError) ? (
+          {(!hasAddress || legalLoading || legalError || (paymentMethod === 'card' && !quote)) ? (
             <div className="mt-5 rounded-lg border p-4 text-xs" style={{ borderColor: 'var(--color-border)' }}>
               {!hasAddress ? (
                 <p style={{ color: 'var(--color-muted-fg)' }}>
                   Siparişe özel sözleşmeleri görmek ve onaylamak için önce teslimat adresi seçin.
+                </p>
+              ) : paymentMethod === 'card' && !quote ? (
+                <p style={{ color: 'var(--color-muted-fg)' }}>
+                  Sözleşmeler, kart numaranıza göre seçtiğiniz taksit ve ödenecek toplamla hazırlanır.
                 </p>
               ) : legalLoading ? (
                 <div className="flex items-center gap-2" style={{ color: 'var(--color-muted-fg)' }}>
@@ -1109,6 +1430,7 @@ export function CheckoutPageClient({ cardPaymentsEnabled, turnstileSiteKey }: Ch
               onClick={placeOrder}
               disabled={
                 submitting ||
+                retryBlocked ||
                 !documentsReady ||
                 !acceptedMesafeliSatis ||
                 !acceptedOnBilgilendirme ||

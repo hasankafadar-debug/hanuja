@@ -52,13 +52,17 @@ Webhook rules:
 - Log every incoming webhook with full payload (masked sensitive data)
 - Handle: payment success, payment failure, refund completed, chargeback
 
-Confirm-time binding invariants (card payment confirmation must fail closed on any mismatch):
-- Provider-reported amount (`paidPrice`) must exactly equal `Order.totalAmount`; a mismatch is
-  rejected and recorded as `amount_mismatch_rejected` (no state change)
-- A given Iyzico `paymentId` may confirm only one order (`Payment.providerPaymentId` is unique;
-  reuse is rejected as `providerRef_reuse_rejected`)
-- The 3DS callback's `conversationId` must match the target order's `conversationId`
-- `fraudStatus = -1` must be rejected
+Confirm-time binding invariants (card payment, `api/services/card-payment.service.ts`):
+- The provider response must match the attempt's immutable values: `price` (cash total), `paidPrice`
+  (installment total from the quote), installment count, `basketId` (order id), currency, item ids/prices;
+  per-item `paidPrice` values must add up to `paidPrice` to the cent
+- One iyzico `paymentId` confirms at most one order and must equal the `paymentId` stored at initialise;
+  a returned `conversationId` alone is not proof of ownership
+- 3DS success needs `status=success` + `mdStatus=1` and a signed v2 auth (or signed payment query) response
+- `fraudStatus` 1 or 2 confirms; 0 holds the order (`fraud_review`); -1 after review is refunded by iyzico
+- Money captured but not attachable to the order (late, duplicate, mismatched) goes to `CardAttemptReversal`
+- Network errors and unverifiable signatures are `unknown`, never "no money moved"; reconcile, never retry blindly
+- Installment difference (paidPrice − price) is paid by the customer and never reaches seller payout
 
 Refund API rules:
 - Refund must be triggered by platform business logic, not by seller directly

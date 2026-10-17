@@ -1,7 +1,6 @@
 /**
  * Payment route handlers.
- * Admin-only: EFT approval/rejection.
- * Webhook: card payment confirmation from Iyzico.
+ * Admin-only: EFT approval/rejection. Card payments: api/routes/card-payments.ts.
  */
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -64,22 +63,6 @@ export async function rejectEft(
     const { reason } = z.object({ reason: z.string().min(5) }).parse(body)
     const svc = getPaymentService()
     const result = await svc.rejectEftPayment({ orderId, adminActorId, reason })
-    return ok(result)
-  } catch (err) {
-    return handleError(err)
-  }
-}
-
-// POST /api/webhooks/iyzico — called by Iyzico after card payment
-// Signature verification is done in the Next.js route before calling this.
-export async function handleIyzicoWebhook(params: {
-  orderId: string
-  providerRef: string
-  amount: import('@prisma/client/runtime/client').Decimal
-}) {
-  try {
-    const svc = getPaymentService()
-    const result = await svc.confirmCardPayment(params)
     return ok(result)
   } catch (err) {
     return handleError(err)

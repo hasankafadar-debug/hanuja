@@ -112,6 +112,9 @@ export interface OrderAmountSummary {
   eftDiscountRate?: string | null
   additionalDiscount?: EmailAmount
   shipping?: EmailAmount
+  /** Taksitli kart ödemesinde taksit sayısı ve müşteriye yansıyan vade farkı. */
+  installmentCount?: number
+  installmentDifference?: EmailAmount
 }
 
 export interface OrderContractLinks {

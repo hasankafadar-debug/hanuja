@@ -32,6 +32,7 @@ import {
   priceHistoryQueue,
   privateDocumentCleanupQueue,
   sellerInvoiceReminderQueue,
+  cardPaymentQueue,
   returnDeadlineQueue,
   searchIndexSyncQueue,
 } from '../lib/queue'
@@ -57,6 +58,17 @@ export async function scheduleRepeatableJobs(): Promise<void> {
     {},
     {
       repeat: { every: 60 * 60 * 1000 },
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  )
+  // Kart ödemesi: süresi dolan ödenmemiş siparişler (stok + kupon iadesi), sonucu belirsiz
+  // denemelerin iyzico mutabakatı, yarım geri ödemeler ve işlenmemiş webhook kayıtları.
+  await cardPaymentQueue.add(
+    'maintenance',
+    {},
+    {
+      repeat: { every: 5 * 60 * 1000 },
       removeOnComplete: 10,
       removeOnFail: 20,
     },

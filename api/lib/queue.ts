@@ -20,6 +20,7 @@ export const QUEUE_NAMES = {
   PRICE_HISTORY: 'price-history',
   PRIVATE_DOCUMENT_CLEANUP: 'private-document-cleanup',
   SELLER_INVOICE_REMINDER: 'seller-invoice-reminder',
+  CARD_PAYMENT: 'card-payment',
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
@@ -71,3 +72,4 @@ export const priceHistoryQueue = createQueueProxy(QUEUE_NAMES.PRICE_HISTORY)
 export const privateDocumentCleanupQueue = createQueueProxy(QUEUE_NAMES.PRIVATE_DOCUMENT_CLEANUP)
 export const returnDeadlineQueue = createQueueProxy(QUEUE_NAMES.RETURN_DEADLINE)
 export const sellerInvoiceReminderQueue = createQueueProxy(QUEUE_NAMES.SELLER_INVOICE_REMINDER)
+export const cardPaymentQueue = createQueueProxy(QUEUE_NAMES.CARD_PAYMENT)

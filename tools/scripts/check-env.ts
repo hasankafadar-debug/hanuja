@@ -145,31 +145,23 @@ const ENV_VARS: EnvVar[] = [
     required: false,
     requiredWhen: 'card-payments',
     sensitiveInProd: true,
-    description: 'Iyzico API key',
-    apps: ['api'],
+    description: 'Iyzico API key (3DS, taksit sorgusu, iade, mutabakat)',
+    apps: ['web', 'worker'],
   },
   {
     key: 'IYZICO_SECRET_KEY',
     required: false,
     requiredWhen: 'card-payments',
     sensitiveInProd: true,
-    description: 'Iyzico secret key',
-    apps: ['api'],
+    description: 'Iyzico secret key (istek imzası, yanıt ve X-IYZ-SIGNATURE-V3 webhook doğrulaması)',
+    apps: ['web', 'worker'],
   },
   {
     key: 'IYZICO_BASE_URL',
     required: false,
     requiredWhen: 'card-payments',
-    description: 'Iyzico base URL (sandbox or live)',
-    apps: ['api'],
-  },
-  {
-    key: 'IYZICO_WEBHOOK_SECRET',
-    required: false,
-    requiredWhen: 'card-payments',
-    sensitiveInProd: true,
-    description: 'Iyzico webhook HMAC secret',
-    apps: ['api'],
+    description: 'Iyzico base URL (https://api.iyzipay.com in production)',
+    apps: ['web', 'worker'],
   },
 
   // Turnstile
@@ -499,6 +491,26 @@ function check(vars: EnvVar[], isProd: boolean): { missing: string[]; warnings: 
       !/^(true|false)$/i.test(value.trim())
     ) {
       missing.push(`${envVar.key} must be exactly true or false.`)
+    }
+
+    if (envVar.key === 'IYZICO_BASE_URL') {
+      const normalized = value.trim().replace(/\/+$/, '')
+      if (isProd && normalized !== 'https://api.iyzipay.com') {
+        missing.push('IYZICO_BASE_URL must be https://api.iyzipay.com in production.')
+      }
+      if (!isProd && normalized === 'https://api.iyzipay.com') {
+        warnings.push(
+          'IYZICO_BASE_URL points to the live iyzico API outside production — real cards would be charged.',
+        )
+      }
+    }
+
+    if (
+      isProd &&
+      (envVar.key === 'IYZICO_API_KEY' || envVar.key === 'IYZICO_SECRET_KEY') &&
+      value.trim().toLowerCase().startsWith('sandbox-')
+    ) {
+      missing.push(`${envVar.key} must not be an iyzico sandbox key in production.`)
     }
 
     if (envVar.key === 'PRIVATE_DOCUMENT_ROOT' && !path.isAbsolute(value.trim())) {

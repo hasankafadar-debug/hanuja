@@ -62,6 +62,34 @@ A payment counts as collected once `Payment.confirmedAt` is set (it survives a l
   (`eventKey refund-void:<entryId>`), hides both rows from the seller statement and keeps the refund
   row for audit. Reconciliation expects a net-zero ledger effect for `voided` refunds.
 
+## Card payment attempts (iyzico 3D Secure, 2026-10-16)
+Order statuses do not change while a card payment is in progress: the order stays `payment_pending` and
+each try is a `CardPaymentAttempt` (`api/services/card-payment.service.ts`). Money moves only at v2 auth.
+
+| Attempt status | Meaning | Can money have moved? |
+|---|---|---|
+| `initialized` | Attempt written, 3DS initialise not answered | No |
+| `threeds_pending` | Bank 3DS page shown | No |
+| `authorizing` | v2 auth requested, answer pending | Yes |
+| `outcome_unknown` | Auth answer lost or unverifiable; awaiting reconciliation | Yes |
+| `fraud_review` | iyzico `fraudStatus=0`; order not visible to the seller | Yes |
+| `succeeded` | Captured (order confirmed, or reversal opened) | Yes |
+| `failed` | Declined by iyzico or 3DS not verified | No |
+| `expired` | Window ended before auth | No |
+| `voided` / `refunded` | Reversal completed (same-day cancel / item refunds) | Returned |
+| `refunded_by_provider` | iyzico refunded after fraud review | Returned |
+
+- Transitions only move forward; a late `FAILURE` never moves `succeeded / voided / refunded` back.
+- `payment_pending → payment_confirmed → seller_queue_ready`: signed v2 auth or signed payment query with
+  fraud 1/2; the confirming transaction also writes the installment fields, per-item customer amounts,
+  `OrderLegalSnapshot`, seller accruals and notifications.
+- `payment_pending → payment_cancelled` (`cancellationReason: payment_failed`): `card-payment` worker after
+  `Order.cardPaymentExpiresAt` (30 min), only when no attempt is `authorizing / outcome_unknown /
+  fraud_review`; pre-auth attempts become `expired`, stock and coupon usage are released once.
+- A retry on the same order expires older pre-auth attempts under the order lock; at most 5 attempts.
+- `CardAttemptReversal` (one per attempt): `pending → processing → completed | uncertain | manual_required`;
+  `uncertain` is settled from the iyzico reporting service, never retried blindly.
+
 ## Seller-driven return → dispute transitions (2026-05-15)
 - `delivery_confirmed → return_requested`: customer opens return (only within 14
   calendar days of `deliveryConfirmedAt`; backend hard-rejects after the window).

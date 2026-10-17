@@ -25,6 +25,10 @@ import {
   resolveCommissionRate,
 } from '../domain/payout-calculator'
 import { calculateIncludedTax, resolveCategoryTaxRate } from '../domain/tax'
+import {
+  basketInstallmentLimit,
+  resolveCategoryInstallmentLimit,
+} from '../domain/card-installments'
 import { getProductColorLabels, getProductMaterialLabel } from '../domain/product-characteristics'
 import {
   ConflictError,
@@ -132,6 +136,8 @@ type CheckoutDraft = {
   taxAmount: Decimal
   taxBreakdown: Array<{ ratePercent: number; taxAmount: string }>
   totalAmount: Decimal
+  /** Sepetteki ürünlerin kategori taksit sınırlarının en küçüğü; null = sınır yok. */
+  installmentLimit: number | null
   legalContext: Parameters<typeof renderLegalDocuments>[0]
 }
 
@@ -232,7 +238,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         },
       }),
       prisma.category.findMany({
-        select: { id: true, parentId: true, taxRate: true },
+        select: { id: true, parentId: true, taxRate: true, maxInstallmentCount: true },
       }),
     ])
     const categoryMap = new Map(categories.map((category) => [category.id, category]))
@@ -487,6 +493,9 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         taxAmount: roundMoney(amount).toFixed(2),
       }))
     const totalAmount = grossAmount.add(shippingAmount).sub(discountAmount).sub(eftDiscountAmount)
+    const installmentLimit = basketInstallmentLimit(
+      products.map((product) => resolveCategoryInstallmentLimit(product.categoryId, categoryMap)),
+    )
     const deliveryAddress = formatAddress(address)
     const formattedBillingAddress = formatAddress(billingAddress)
 
@@ -513,6 +522,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       taxAmount,
       taxBreakdown,
       totalAmount,
+      installmentLimit,
       legalContext: {
         buyer: {
           fullName: fallbackText(customer.name, address.fullName),
@@ -553,7 +563,234 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
     }
   }
 
+  /**
+   * Sipariş, satırlar, ödeme, sağlayıcı kalemleri, stok ve kupon kayıtlarını verilen
+   * transaction içinde yazar. Kart akışı bunu teklif kilidi altında çağırır; kart siparişinin
+   * sözleşme anlık görüntüsü onay anında başarılı denemeden yazılır (her denemenin toplamı farklıdır).
+   */
+  async function writeOrderRecords(
+    tx: Prisma.TransactionClient,
+    params: {
+      userId: string
+      addressId: string
+      billingAddressId?: string
+      paymentMethod: CheckoutPaymentMethod
+      couponCode?: string
+      notes?: string
+      legalAcceptance?: LegalAcceptanceEvidence
+    },
+    draft: CheckoutDraft,
+  ) {
+    await lockProductStocks(
+      tx,
+      draft.lines.map((line) => line.productId),
+    )
+    const unavailableSeller = await tx.seller.findFirst({
+      where: {
+        id: { in: [...new Set(draft.lines.map((line) => line.sellerId))] },
+        OR: [{ status: { not: 'active' } }, { vacationModeEnabled: true }],
+      },
+      select: { status: true, vacationModeEnabled: true },
+    })
+    if (unavailableSeller?.vacationModeEnabled) {
+      throw new SellerOnVacationError()
+    }
+    if (unavailableSeller) {
+      throw new SellerSuspendedError()
+    }
+
+    const order = await tx.order.create({
+      data: {
+        customerId: params.userId,
+        addressId: params.addressId,
+        ...(params.billingAddressId !== undefined
+          ? { billingAddressId: params.billingAddressId }
+          : {}),
+        status: 'checkout_started',
+        quantityLifecycleVersion: 2,
+        grossAmount: draft.grossAmount,
+        netSubtotal: draft.netSubtotal,
+        discountAmount: draft.discountAmount,
+        shippingAmount: draft.shippingAmount,
+        taxAmount: draft.taxAmount,
+        taxBreakdownJson: draft.taxBreakdown as unknown as Prisma.InputJsonValue,
+        eftDiscountAmount: draft.eftDiscountAmount,
+        ...(draft.eftDiscountRate.gt(0)
+          ? { eftDiscountRateSnapshot: draft.eftDiscountRate }
+          : {}),
+        totalAmount: draft.totalAmount,
+        installmentCount: params.paymentMethod === 'eft' ? 1 : null,
+        installmentDifferenceAmount: params.paymentMethod === 'eft' ? 0 : null,
+        installmentTotalAmount: params.paymentMethod === 'eft' ? draft.totalAmount : null,
+        couponCode: params.couponCode ?? draft.cart.couponCode,
+        ...(params.notes !== undefined ? { notes: params.notes } : {}),
+        lines: {
+          create: draft.lines,
+        },
+        sellerFulfillments: {
+          create: [...new Set(draft.lines.map((line) => line.sellerId))].map((sellerId) => ({
+            sellerId,
+            status: 'queue_ready' as const,
+          })),
+        },
+      },
+      include: { lines: true },
+    })
+
+    await tx.orderStatusHistory.create({
+      data: {
+        orderId: order.id,
+        toStatus: 'checkout_started',
+        actorId: params.userId,
+        reason: 'Checkout başlatıldı',
+      },
+    })
+
+    // Kart siparişinde sözleşme, onaylanan denemenin taksit/vade farkı bilgisiyle onay anında yazılır.
+    if (params.legalAcceptance) {
+      const legalBundle = renderLegalDocuments({
+        ...draft.legalContext,
+        orderNumber: formatOrderNumber(order.publicNumber, order.id),
+        orderDate: order.createdAt,
+      })
+
+      await tx.orderLegalSnapshot.create({
+        data: {
+          orderId: order.id,
+          distanceSalesHtml: legalBundle.distanceSalesHtml,
+          preInformationHtml: legalBundle.preInformationHtml,
+          distanceSalesVersion: legalBundle.distanceSalesVersion,
+          preInformationVersion: legalBundle.preInformationVersion,
+          distanceSalesHash: hashLegalDocumentHtml(legalBundle.distanceSalesHtml),
+          preInformationHash: hashLegalDocumentHtml(legalBundle.preInformationHtml),
+          acceptedDistanceSalesAt: params.legalAcceptance.acceptedAt,
+          acceptedPreInformationAt: params.legalAcceptance.acceptedAt,
+          acceptedIp: params.legalAcceptance.ipAddress,
+          acceptedUserAgent: params.legalAcceptance.userAgent,
+          acceptedSessionId: params.legalAcceptance.sessionId,
+          buyerSnapshot: legalBundle.buyerSnapshot as unknown as Prisma.InputJsonValue,
+          sellerSnapshot: legalBundle.sellerSnapshot as unknown as Prisma.InputJsonValue,
+          platformSnapshot: legalBundle.platformSnapshot as unknown as Prisma.InputJsonValue,
+        },
+      })
+    }
+
+    const payment = await tx.payment.create({
+      data: {
+        orderId: order.id,
+        method: params.paymentMethod,
+        provider: params.paymentMethod === 'card' ? 'iyzico' : 'manual_eft',
+        status: 'pending',
+        amount: draft.totalAmount,
+      },
+    })
+
+    await tx.paymentProviderItem.createMany({
+      data: [
+        // Iyzico sepetinde tutarı 0 olan kalem olamaz (ör. %100 kupon); eşlemeye de girmez.
+        ...order.lines
+          .filter((line) => (line.customerPaidProductAmount ?? line.totalPrice).gt(0))
+          .map((line) => ({
+            paymentId: payment.id,
+            orderLineId: line.id,
+            kind: 'product' as const,
+            providerItemId: `line:${line.id}`,
+            amount: line.customerPaidProductAmount ?? line.totalPrice,
+          })),
+        ...(order.shippingAmount.gt(0)
+          ? [
+              {
+                paymentId: payment.id,
+                kind: 'shipping' as const,
+                providerItemId: `shipping:${order.id}`,
+                amount: order.shippingAmount,
+              },
+            ]
+          : []),
+      ],
+    })
+
+    const nextStatus =
+      params.paymentMethod === 'eft' ? 'bank_transfer_waiting' : 'payment_pending'
+
+    await tx.order.update({
+      where: { id: order.id },
+      data: { status: nextStatus },
+    })
+
+    await tx.orderStatusHistory.create({
+      data: {
+        orderId: order.id,
+        fromStatus: 'checkout_started',
+        toStatus: nextStatus,
+        actorId: params.userId,
+        reason:
+          params.paymentMethod === 'eft' ? 'Havale/EFT bekleniyor' : 'Kart ödemesi bekleniyor',
+      },
+    })
+
+    // Stok atomik olarak azalt - race condition'a karşı transaction içinde yapılıyor
+    for (const line of draft.lines) {
+      if (line.variantId) {
+        const updated = await tx.productVariant.updateMany({
+          where: {
+            id: line.variantId,
+            stockQuantity: { gte: line.quantity },
+          },
+          data: { stockQuantity: { decrement: line.quantity } },
+        })
+        if (updated.count === 0) {
+          throw new ConflictError(
+            `"${line.productName}" varyasyonu için yeterli stok kalmadı. Lütfen sepeti güncelleyin.`,
+          )
+        }
+        await tx.product.update({
+          where: { id: line.productId },
+          data: { stockQuantity: { decrement: line.quantity } },
+        })
+      } else {
+        const updated = await tx.product.updateMany({
+          where: {
+            id: line.productId,
+            stockQuantity: { gte: line.quantity },
+          },
+          data: { stockQuantity: { decrement: line.quantity } },
+        })
+        if (updated.count === 0) {
+          throw new ConflictError(
+            `"${line.productName}" için yeterli stok kalmadı. Lütfen sepeti güncelleyin.`,
+          )
+        }
+      }
+    }
+
+    if (params.paymentMethod === 'eft') {
+      await tx.cartItem.deleteMany({
+        where: { cart: { userId: params.userId } },
+      })
+    }
+
+    // Kupon kullanımını kaydet (CouponUsage + usageCount) — aynı transaction
+    // içinde, sipariş oluşturma ile atomik. orderId unique kısıtı idempotency
+    // sağlar (aynı sipariş için ikinci applyCoupon çağrısı P2002 fırlatır).
+    if (draft.couponId) {
+      await couponService.applyCoupon({
+        couponId: draft.couponId,
+        userId: params.userId,
+        orderId: order.id,
+        tx: tx as unknown as PrismaClient,
+      })
+    }
+
+    return { order, payment }
+  }
+
   return {
+    /** Kart ödeme akışı (card-payment.service) için: sunucu tarafı sepet taslağı. */
+    buildDraft: buildCheckoutDraft,
+    /** Kart ödeme akışı için: teklif kilidi altındaki transaction'da sipariş kayıtları. */
+    writeOrderRecords,
+
     /**
      * Sepet içeriğini doğrular - checkout'a geçmeden önce çağrılır.
      * Stok, fiyat değişiklikleri ve ürün durumu kontrol edilir.
@@ -671,200 +908,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
           : undefined
 
       const result = await prisma.$transaction(async (tx) => {
-        await lockProductStocks(
-          tx,
-          draft.lines.map((line) => line.productId),
-        )
-        const unavailableSeller = await tx.seller.findFirst({
-          where: {
-            id: { in: [...new Set(draft.lines.map((line) => line.sellerId))] },
-            OR: [{ status: { not: 'active' } }, { vacationModeEnabled: true }],
-          },
-          select: { status: true, vacationModeEnabled: true },
-        })
-        if (unavailableSeller?.vacationModeEnabled) {
-          throw new SellerOnVacationError()
-        }
-        if (unavailableSeller) {
-          throw new SellerSuspendedError()
-        }
-
-        const order = await tx.order.create({
-          data: {
-            customerId: params.userId,
-            addressId: params.addressId,
-            ...(params.billingAddressId !== undefined
-              ? { billingAddressId: params.billingAddressId }
-              : {}),
-            status: 'checkout_started',
-            quantityLifecycleVersion: 2,
-            grossAmount: draft.grossAmount,
-            netSubtotal: draft.netSubtotal,
-            discountAmount: draft.discountAmount,
-            shippingAmount: draft.shippingAmount,
-            taxAmount: draft.taxAmount,
-            taxBreakdownJson: draft.taxBreakdown as unknown as Prisma.InputJsonValue,
-            eftDiscountAmount: draft.eftDiscountAmount,
-            ...(draft.eftDiscountRate.gt(0)
-              ? { eftDiscountRateSnapshot: draft.eftDiscountRate }
-              : {}),
-            totalAmount: draft.totalAmount,
-            installmentCount: params.paymentMethod === 'eft' ? 1 : null,
-            installmentDifferenceAmount: params.paymentMethod === 'eft' ? 0 : null,
-            installmentTotalAmount: params.paymentMethod === 'eft' ? draft.totalAmount : null,
-            couponCode: params.couponCode ?? draft.cart.couponCode,
-            ...(params.notes !== undefined ? { notes: params.notes } : {}),
-            lines: {
-              create: draft.lines,
-            },
-            sellerFulfillments: {
-              create: [...new Set(draft.lines.map((line) => line.sellerId))].map((sellerId) => ({
-                sellerId,
-                status: 'queue_ready' as const,
-              })),
-            },
-          },
-          include: { lines: true },
-        })
-
-        await tx.orderStatusHistory.create({
-          data: {
-            orderId: order.id,
-            toStatus: 'checkout_started',
-            actorId: params.userId,
-            reason: 'Checkout başlatıldı',
-          },
-        })
-
-        const legalBundle = renderLegalDocuments({
-          ...draft.legalContext,
-          orderNumber: formatOrderNumber(order.publicNumber, order.id),
-          orderDate: order.createdAt,
-        })
-
-        await tx.orderLegalSnapshot.create({
-          data: {
-            orderId: order.id,
-            distanceSalesHtml: legalBundle.distanceSalesHtml,
-            preInformationHtml: legalBundle.preInformationHtml,
-            distanceSalesVersion: legalBundle.distanceSalesVersion,
-            preInformationVersion: legalBundle.preInformationVersion,
-            distanceSalesHash: hashLegalDocumentHtml(legalBundle.distanceSalesHtml),
-            preInformationHash: hashLegalDocumentHtml(legalBundle.preInformationHtml),
-            acceptedDistanceSalesAt: params.legalAcceptance.acceptedAt,
-            acceptedPreInformationAt: params.legalAcceptance.acceptedAt,
-            acceptedIp: params.legalAcceptance.ipAddress,
-            acceptedUserAgent: params.legalAcceptance.userAgent,
-            acceptedSessionId: params.legalAcceptance.sessionId,
-            buyerSnapshot: legalBundle.buyerSnapshot as unknown as Prisma.InputJsonValue,
-            sellerSnapshot: legalBundle.sellerSnapshot as unknown as Prisma.InputJsonValue,
-            platformSnapshot: legalBundle.platformSnapshot as unknown as Prisma.InputJsonValue,
-          },
-        })
-
-        const payment = await tx.payment.create({
-          data: {
-            orderId: order.id,
-            method: params.paymentMethod,
-            provider: params.paymentMethod === 'card' ? 'iyzico' : 'manual_eft',
-            status: 'pending',
-            amount: draft.totalAmount,
-          },
-        })
-
-        await tx.paymentProviderItem.createMany({
-          data: [
-            ...order.lines.map((line) => ({
-              paymentId: payment.id,
-              orderLineId: line.id,
-              kind: 'product' as const,
-              providerItemId: `line:${line.id}`,
-              amount: line.customerPaidProductAmount ?? line.totalPrice,
-            })),
-            ...(order.shippingAmount.gt(0)
-              ? [
-                  {
-                    paymentId: payment.id,
-                    kind: 'shipping' as const,
-                    providerItemId: `shipping:${order.id}`,
-                    amount: order.shippingAmount,
-                  },
-                ]
-              : []),
-          ],
-        })
-
-        const nextStatus =
-          params.paymentMethod === 'eft' ? 'bank_transfer_waiting' : 'payment_pending'
-
-        await tx.order.update({
-          where: { id: order.id },
-          data: { status: nextStatus },
-        })
-
-        await tx.orderStatusHistory.create({
-          data: {
-            orderId: order.id,
-            fromStatus: 'checkout_started',
-            toStatus: nextStatus,
-            actorId: params.userId,
-            reason:
-              params.paymentMethod === 'eft' ? 'Havale/EFT bekleniyor' : 'Kart ödemesi bekleniyor',
-          },
-        })
-
-        // Stok atomik olarak azalt - race condition'a karşı transaction içinde yapılıyor
-        for (const line of draft.lines) {
-          if (line.variantId) {
-            const updated = await tx.productVariant.updateMany({
-              where: {
-                id: line.variantId,
-                stockQuantity: { gte: line.quantity },
-              },
-              data: { stockQuantity: { decrement: line.quantity } },
-            })
-            if (updated.count === 0) {
-              throw new ConflictError(
-                `"${line.productName}" varyasyonu için yeterli stok kalmadı. Lütfen sepeti güncelleyin.`,
-              )
-            }
-            await tx.product.update({
-              where: { id: line.productId },
-              data: { stockQuantity: { decrement: line.quantity } },
-            })
-          } else {
-            const updated = await tx.product.updateMany({
-              where: {
-                id: line.productId,
-                stockQuantity: { gte: line.quantity },
-              },
-              data: { stockQuantity: { decrement: line.quantity } },
-            })
-            if (updated.count === 0) {
-              throw new ConflictError(
-                `"${line.productName}" için yeterli stok kalmadı. Lütfen sepeti güncelleyin.`,
-              )
-            }
-          }
-        }
-
-        if (params.paymentMethod === 'eft') {
-          await tx.cartItem.deleteMany({
-            where: { cart: { userId: params.userId } },
-          })
-        }
-
-        // Kupon kullanımını kaydet (CouponUsage + usageCount) — aynı transaction
-        // içinde, sipariş oluşturma ile atomik. orderId unique kısıtı idempotency
-        // sağlar (aynı sipariş için ikinci applyCoupon çağrısı P2002 fırlatır).
-        if (draft.couponId) {
-          await couponService.applyCoupon({
-            couponId: draft.couponId,
-            userId: params.userId,
-            orderId: order.id,
-            tx: tx as unknown as PrismaClient,
-          })
-        }
+        const { order, payment } = await writeOrderRecords(tx, params, draft)
 
         // "Siparişiniz Alındı" is written in the same transaction so a crash after
         // commit cannot lose it. Card orders are mailed only once the payment is

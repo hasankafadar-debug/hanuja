@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-07-17
+# Son güncelleme: 2026-10-16
 # Durum: taslak v1
 
 # Integrations
@@ -8,64 +8,81 @@ variables, connection method, failure handling, and sandbox usage.
 
 ---
 
-## 1. Iyzico — Payment Collection
+## 1. Iyzico — Payment Collection (standart sanal POS)
 
 ### Purpose
 
-Iyzico is the sole payment processor for Hanuja. All customer payments (card, 3DS, and
-bank transfer / EFT) are collected by Hanuja through Iyzico. Sellers never interact with
-Iyzico directly.
+Iyzico is the card processor. Hanuja is the seller of record and uses a **standard** iyzico merchant
+account (not marketplace; no sub-merchants). EFT/havale does not go through iyzico: it is a manual bank
+transfer approved by an admin (`manual_eft`).
 
 ### What is used
 
-- Card payments with 3DS (3D Secure) via Iyzico checkout form
-- Bank transfer / EFT via Iyzico payment intent flow, with manual admin approval for
-  unmatched or pending transfers
-- Refund API for customer-facing refund events after return or cancellation
-- Webhook callbacks for async payment result notification
+| Capability | iyzico endpoint (SDK `iyzipay@2.0.67` resource) | Adapter (`api/lib/iyzico.ts`) |
+|---|---|---|
+| Installment options by BIN + amount | `/payment/iyzipos/installment` (`installmentInfo`) | `getInstallmentOptions` |
+| 3D Secure initialise (own card form) | `/payment/3dsecure/initialize` (`threedsInitialize`) | `initiate3DS` |
+| 3D Secure v2 auth (captures money) | `/payment/v2/3dsecure/auth` (`threedsV2Payment`) | `complete3DS` |
+| Payment query | `/payment/detail` (`payment.retrieve`) | `retrievePayment` |
+| Reporting (refund/cancel evidence) | `/v2/reporting/payment/details` (`reportingTransactionDetails`, by `paymentConversationId`) | `getPaymentReport` |
+| Same-day cancel | `/payment/cancel` (`cancel`) | `cancelPayment` |
+| Item refund | `/payment/refund` (`refund`, by `paymentTransactionId`) | `refundPayment` |
+| Webhook | `X-IYZ-SIGNATURE-V3` | `verifyWebhookSignatureV3` |
+
+Requests are signed by the SDK (`IYZWSv2`). Responses are verified with the `signature` field
+(see `docs/05-security/payment-security.md` §3). Outcomes are `success`, `failure` (iyzico explicitly
+declined) and `unknown` (network error, timeout, unverifiable signature) — `unknown` is never treated as
+"no money moved".
+
+### Installments and the installment difference
+
+- The customer chooses the number of installments; the amount comes from iyzico `installmentInfo`
+  (`totalPrice`) using the rates defined in the iyzico merchant panel ("Taksit ve Komisyon Yönetimi").
+- `price` = cash total, `paidPrice` = installment total. The difference is paid by the customer and does not
+  reach seller payout. Category limits: `Category.maxInstallmentCount` (inherited, minimum across the basket).
+- Debit cards: single payment only. Unknown BIN (usually foreign cards): single payment at the cash price;
+  acceptance is iyzico's decision.
 
 ### Environment variables
 
-| Variable                | Purpose                                                           |
-|-------------------------|-------------------------------------------------------------------|
-| `IYZICO_API_KEY`        | API key from Iyzico dashboard                                     |
-| `IYZICO_SECRET_KEY`     | Secret key used to sign requests                                  |
-| `IYZICO_BASE_URL`       | `https://sandbox-api.iyzipay.com` (sandbox) or production URL    |
-| `IYZICO_WEBHOOK_SECRET` | HMAC secret for webhook signature verification                    |
+| Variable | Service | Purpose |
+|---|---|---|
+| `IYZICO_API_KEY` | web, worker | API key |
+| `IYZICO_SECRET_KEY` | web, worker | Request signing, response and webhook signature verification |
+| `IYZICO_BASE_URL` | web, worker | `https://sandbox-api.iyzipay.com` or `https://api.iyzipay.com` (production) |
+| `IYZICO_CARD_PAYMENTS_ENABLED` | web | Opens new card payments (`true`); callback and webhook work regardless |
 
-### Connection method
+`IYZICO_WEBHOOK_SECRET` is no longer used (V3 signatures use the secret key).
 
-HTTP requests to `IYZICO_BASE_URL` with HMAC-SHA256 signed headers. The API key and secret
-key are used to compute the Authorization header per Iyzico's signing specification. Neither
-key is ever sent in plain form.
+### Webhook
 
-### Webhook verification
-
-All callbacks from Iyzico must be verified using `IYZICO_WEBHOOK_SECRET` before any order
-state change is accepted. The route handler in `api/routes/payments.ts` performs signature
-verification before processing. Unverified callbacks must be rejected with HTTP 400 and
-logged with the raw body preserved for investigation.
-
-Webhook handlers must be idempotent: receiving the same payment event twice must not create
-a duplicate payment confirmation, seller notification, or ledger entry.
+URL: `https://www.hanuja.com.tr/api/webhooks/iyzico`. X-IYZ-SIGNATURE-V3 must be enabled on the account
+(entegrasyon@iyzico.com). The route verifies the signature, stores the event (`IyzicoWebhookEvent`), returns
+2xx and queues `card-payment:webhook`; processing only triggers a signed payment query. Bad signature → 401;
+store failure → 503 (iyzico retries); duplicate `iyziReferenceCode` → 2xx.
 
 ### Sandbox vs production
 
-Set `IYZICO_BASE_URL` to `https://sandbox-api.iyzipay.com` in local and staging
-environments. Never use production Iyzico credentials in development. Sandbox test card
-numbers are available in Iyzico documentation. Do not store real card numbers in tests or
-fixtures.
+Local and staging use sandbox keys and `https://sandbox-api.iyzipay.com`. The sandbox account must have
+installment rates defined, otherwise only single payment is offered. Do not store real card numbers in tests
+or fixtures; `tests/postgres/card-payment-flow.test.ts` uses a fake gateway.
 
 ### Failure handling
 
-- If Iyzico returns an error on payment initiation, the order remains in `payment_pending`
-  and the customer is shown a clear error.
-- If the webhook callback does not arrive, a reconciliation job must periodically check
-  payment status for long-pending orders.
-- Refund API failures must be logged with order reference and surfaced in the admin panel
-  for manual resolution.
-- Payment confirmation must never be derived from a client-side redirect alone; only the
-  backend webhook or a server-side status query is authoritative.
+- Initialise failure: the attempt fails, the order stays payable for its 30-minute window.
+- Lost auth response: the attempt becomes `outcome_unknown`; the `card-payment` worker reconciles it with the
+  signed payment query. The order is not cancelled while money may have moved.
+- Capture that cannot be attached to the order (late, duplicate, mismatched): `CardAttemptReversal`
+  (same-day cancel, otherwise item refunds), reconciled from the reporting service when uncertain.
+- Order refunds (`RefundTransaction`): uncertain card refund items are reconciled from the report; an admin can
+  trigger "iyzico ile mutabakat" on the order detail page (audit logged).
+
+### Still to confirm with iyzico (go-live conditions)
+
+PCI DSS self-assessment type for the own-form direct API; whether the callback POST carries `signature`;
+the accepted `identityNumber` for corporate and foreign-national buyers; the full `fraudStatus` list
+(2 = approved after review, −1 = refunded by iyzico); foreign card acceptance; merchant MCC and installment
+limits.
 
 ---
 

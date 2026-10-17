@@ -8,7 +8,8 @@ import { createCheckoutService } from '../services/checkout.service'
 export const createOrderSchema = z.object({
   addressId: z.string().min(1, 'Adres secimi zorunludur'),
   billingAddressId: z.string().cuid().optional(),
-  paymentMethod: z.enum(['card', 'eft']),
+  // Kart siparişi yalnız /api/payment/start üzerinden (teklif + 3DS) açılır.
+  paymentMethod: z.enum(['eft']),
   couponCode: z.string().optional(),
   notes: z.string().max(500).optional(),
   idempotencyKey: z.string().optional(),

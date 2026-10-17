@@ -99,7 +99,8 @@ Use this section when deploying a new client marketplace from the Hanuja templat
 ### F5. Iyzico
 - [ ] API keys are live (not sandbox)
 - [ ] Webhook endpoint is registered in Iyzico dashboard: `https://{domain}/api/webhooks/iyzico`
-- [ ] `IYZICO_WEBHOOK_SECRET` matches the secret configured in Iyzico dashboard
+- [ ] X-IYZ-SIGNATURE-V3 is enabled on the iyzico account and the webhook URL is `https://www.hanuja.com.tr/api/webhooks/iyzico` (signed with `IYZICO_SECRET_KEY`; `IYZICO_WEBHOOK_SECRET` is no longer used)
+- [ ] `IYZICO_CARD_PAYMENTS_ENABLED` stays `false` until the go-live conditions in `docs/05-security/payment-security.md` are met
 
 ---
 

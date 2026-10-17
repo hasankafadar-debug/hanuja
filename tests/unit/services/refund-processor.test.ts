@@ -52,6 +52,17 @@ describe('Iyzico refund processor', () => {
     } satisfies Partial<RefundProviderError>)
   })
 
+  it('treats an unverifiable (unsigned) provider answer as unsafe to retry', async () => {
+    refundPayment.mockResolvedValue({
+      success: false,
+      uncertain: true,
+      errorMessage: 'İade yanıtının imzası doğrulanamadı',
+    })
+    await expect(createIyzicoRefundProcessor().refund(input)).rejects.toMatchObject({
+      retrySafe: false,
+    } satisfies Partial<RefundProviderError>)
+  })
+
   it('represents transport ambiguity as unsafe to retry', () => {
     const error = new RefundProviderError('Iyzico iade sonucu belirsiz', false)
     expect(error.retrySafe).toBe(false)

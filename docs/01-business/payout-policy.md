@@ -448,6 +448,26 @@ a commission invoice (`commissionInvoiceId`).
 
 ---
 
+## 13.1 Card Installment Difference — Not Seller Revenue (2026-10-16)
+
+With card installments the customer pays the installment difference ("vade farkı"):
+`paidPrice = cash total + difference`. The difference is collected by Hanuja and is **not** part of the
+seller's payout:
+
+```
+Payout.grossAmount  = OrderLine.totalPrice sum      (NOT increased by the installment difference)
+Payout.netAmount    = formula in section 6          (NOT increased by the installment difference)
+Commission base     = OrderLine.totalPrice − OrderLine.couponDiscountAmount (unchanged)
+Seller invoice to Hanuja                            (unchanged; api/domain/seller-purchase-invoice.ts)
+```
+
+`OrderLine.customerPaidProductAmount` and `Order.customerPaidShippingAmount` include the installment share
+(what the customer paid) and drive customer refunds only. A refunded installment share is funded by Hanuja
+(`RefundTransaction.platformFundedAmount`) and never debits the seller ledger. Changing this policy requires
+explicit approval and an update to `.claude/rules/07-marketplace-finance-rules.md` §5.
+
+---
+
 ## 14. Cross-Reference
 
 This document must remain aligned with:

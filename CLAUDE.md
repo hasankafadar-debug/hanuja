@@ -618,6 +618,7 @@ These are platform constants. Do not contradict them in code or documentation.
 14. Seller coupon (`Coupon.sellerId` set) and seller discount rule cost belongs to the seller: the coupon discount is allocated to the seller's lines as `OrderLine.couponDiscountAmount`, reduces the commission base, and reduces net payout (`netPayoutAmount = totalPrice − couponDiscountAmount − commissionAmount`).
 15. Platform coupon (`Coupon.sellerId` null) and EFT/Havale channel discount (`Order.eftDiscountAmount`) are absorbed by Hanuja. They do not reduce the commission base, `Payout.grossAmount`, or `Payout.netAmount`.
 16. The seller invoices Hanuja when shipping, with the order number in the description: KDV-inclusive sale − seller coupon share − KDV-inclusive commission, at the product's KDV rate. Cargo is not on it. A missing invoice does not block cargo entry; the seller is reminded, without penalty.
+17. Card payments use iyzico's standard virtual POS with 3D Secure and Hanuja's own card form. In installments the customer pays the installment difference (`paidPrice − cash total`, from iyzico's installment rates); it never reaches seller payout, commission or the seller's invoice to Hanuja, and a cancelled or returned item's share is refunded to the customer proportionally.
 
 ---
 

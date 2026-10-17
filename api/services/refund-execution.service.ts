@@ -8,6 +8,20 @@ import {
 } from './refund-processor'
 import { enqueueCustomerRefundCompletedNotification } from './refund-notification.service'
 import { LEGACY_FINANCIAL_REVIEW_PREFIX } from '../domain/legacy-refund-allocation'
+import { getPaymentReport as fetchPaymentReport } from '../lib/iyzico'
+
+/**
+ * Yalnız sağlayıcı sonucu belirsiz kalan kalemler raporla sonuçlandırılır; tavan aşımı gibi
+ * başka nedenlerle manuele düşen kalemler yöneticide kalır.
+ */
+function isUncertainOutcome(reason: string | null) {
+  return !!reason && (reason.includes('sonucu belirsiz') || reason.includes('imza doğrulanamadı'))
+}
+
+/** Belirsiz kart iadesi, raporda iz yoksa bu süreden sonra yeniden denenir (körlemesine değil). */
+const CARD_REFUND_RETRY_AFTER_MS = 60 * 60_000
+/** Bu süreden uzun 'processing' kalan kalem (süreç kapandı) belirsiz sayılır. */
+const CARD_REFUND_STALE_PROCESSING_MS = 15 * 60_000
 
 type ProcessorFactory =
   ReturnType<typeof createRefundProcessor> extends infer T
@@ -17,9 +31,13 @@ type ProcessorFactory =
 export function createRefundExecutionService({
   prisma,
   processorFactory = createRefundProcessor,
+  getPaymentReport = fetchPaymentReport,
+  now = () => new Date(),
 }: {
   prisma: PrismaClient
   processorFactory?: ProcessorFactory
+  getPaymentReport?: typeof fetchPaymentReport
+  now?: () => Date
 }) {
   async function refreshParent(refundTransactionId: string) {
     const result = await prisma.$transaction(async (tx) => {
@@ -132,6 +150,59 @@ export function createRefundExecutionService({
     return result.updated
   }
 
+  /** Sağlayıcıda gerçekleştiği kanıtlanan kalem iadesini yerel tavanlarla birlikte kapatır. */
+  async function finalizeItemRefund(params: {
+    itemId: string
+    amount: import('@prisma/client/runtime/client').Decimal
+    refundTransactionId: string
+    providerItem: { id: string; amount: import('@prisma/client/runtime/client').Decimal; providerItemId: string }
+    payment: { id: string; amount: import('@prisma/client/runtime/client').Decimal }
+    providerReference: string
+    eventType?: string
+  }) {
+    await prisma.$transaction(async (tx) => {
+      const cap = await tx.paymentProviderItem.updateMany({
+        where: {
+          id: params.providerItem.id,
+          refundedAmount: { lte: params.providerItem.amount.sub(params.amount) },
+        },
+        data: { refundedAmount: { increment: params.amount } },
+      })
+      const paymentCap = await tx.payment.updateMany({
+        where: {
+          id: params.payment.id,
+          refundedAmount: { lte: params.payment.amount.sub(params.amount) },
+        },
+        data: { refundedAmount: { increment: params.amount } },
+      })
+      if (cap.count !== 1 || paymentCap.count !== 1) {
+        throw new Error('Sağlayıcı iadesi başarılı fakat yerel kalan tutar sınırı değişti')
+      }
+      await tx.refundTransactionItem.update({
+        where: { id: params.itemId },
+        data: {
+          status: 'completed',
+          providerReference: params.providerReference,
+          completedAt: new Date(),
+          failureReason: null,
+        },
+      })
+      await tx.paymentEvent.create({
+        data: {
+          paymentId: params.payment.id,
+          eventType: params.eventType ?? 'refund_item_completed',
+          payload: {
+            refundTransactionId: params.refundTransactionId,
+            refundItemId: params.itemId,
+            providerItemId: params.providerItem.providerItemId,
+            providerReference: params.providerReference,
+            amount: params.amount.toFixed(2),
+          },
+        },
+      })
+    })
+  }
+
   async function markManual(itemId: string, reason: string) {
     await prisma.refundTransactionItem.update({
       where: { id: itemId },
@@ -220,46 +291,13 @@ export function createRefundExecutionService({
           idempotencyKey: `refund-item-${item.id}`,
           ip: globalThis.process.env.REFUND_PROVIDER_IP ?? '127.0.0.1',
         })
-        await prisma.$transaction(async (tx) => {
-          const cap = await tx.paymentProviderItem.updateMany({
-            where: {
-              id: providerItem.id,
-              refundedAmount: { lte: providerItem.amount.sub(item.amount) },
-            },
-            data: { refundedAmount: { increment: item.amount } },
-          })
-          const paymentCap = await tx.payment.updateMany({
-            where: {
-              id: refund.payment!.id,
-              refundedAmount: { lte: refund.payment!.amount.sub(item.amount) },
-            },
-            data: { refundedAmount: { increment: item.amount } },
-          })
-          if (cap.count !== 1 || paymentCap.count !== 1) {
-            throw new Error('Sağlayıcı iadesi başarılı fakat yerel kalan tutar sınırı değişti')
-          }
-          await tx.refundTransactionItem.update({
-            where: { id: item.id },
-            data: {
-              status: 'completed',
-              providerReference: result.providerReference,
-              completedAt: new Date(),
-              failureReason: null,
-            },
-          })
-          await tx.paymentEvent.create({
-            data: {
-              paymentId: refund.payment!.id,
-              eventType: 'refund_item_completed',
-              payload: {
-                refundTransactionId: refund.id,
-                refundItemId: item.id,
-                providerItemId: providerItem.providerItemId,
-                providerReference: result.providerReference,
-                amount: item.amount.toFixed(2),
-              },
-            },
-          })
+        await finalizeItemRefund({
+          itemId: item.id,
+          amount: item.amount,
+          refundTransactionId: refund.id,
+          providerItem,
+          payment: refund.payment,
+          providerReference: result.providerReference,
         })
       } catch (error) {
         const retrySafe = error instanceof RefundProviderError && error.retrySafe
@@ -279,7 +317,143 @@ export function createRefundExecutionService({
     return result
   }
 
-  return { process, refreshParent }
+  /** iyzico raporunda ödemeyi bulmak için ödeme denemesinin conversationId'si (eski ödemelerde sipariş id). */
+  async function paymentConversationId(payment: { providerPaymentId: string | null }, orderId: string) {
+    if (!payment.providerPaymentId) return orderId
+    const attempt = await prisma.cardPaymentAttempt.findUnique({
+      where: { providerPaymentId: payment.providerPaymentId },
+      select: { conversationId: true },
+    })
+    return attempt?.conversationId ?? orderId
+  }
+
+  /**
+   * Sonucu belirsiz kart iadesini iyzico raporuyla sonuçlandırır. İade isteğinde kullanılan
+   * conversationId (`refund-item-<id>`) raporda refundConversationId olarak aranır.
+   * Raporda iz yoksa ve son denemenin üzerinden yeterli süre geçtiyse kalem yeniden denemeye açılır.
+   */
+  async function reconcileCardRefund(refundTransactionId: string) {
+    const refund = await prisma.refundTransaction.findUnique({
+      where: { id: refundTransactionId },
+      include: {
+        payment: true,
+        items: { include: { paymentProviderItem: true }, orderBy: { createdAt: 'asc' } },
+      },
+    })
+    const summary = { completed: 0, reopened: 0, unresolved: 0, reportUnavailable: false }
+    if (!refund?.payment || refund.payment.method !== 'card' || !refund.payment.providerPaymentId) {
+      return summary
+    }
+    const candidates = refund.items.filter(
+      (item) =>
+        item.paymentProviderItem?.providerTransactionId &&
+        ((item.status === 'manual_required' && isUncertainOutcome(item.failureReason)) ||
+          (item.status === 'processing' &&
+            (!item.lastAttemptAt ||
+              now().getTime() - item.lastAttemptAt.getTime() >= CARD_REFUND_STALE_PROCESSING_MS))),
+    )
+    if (candidates.length === 0) return summary
+
+    const report = await getPaymentReport({
+      paymentConversationId: await paymentConversationId(refund.payment, refund.orderId),
+      conversationId: `rec-refund-${refund.id}`,
+    })
+    if (report.kind !== 'success') {
+      summary.reportUnavailable = true
+      return summary
+    }
+    const paymentReport = report.data.find((entry) => entry.paymentId === refund.payment!.providerPaymentId)
+    if (!paymentReport) {
+      summary.reportUnavailable = true
+      return summary
+    }
+
+    for (const item of candidates) {
+      const providerItem = item.paymentProviderItem!
+      const match = paymentReport.refunds.find(
+        (entry) =>
+          entry.scope === 'refund' &&
+          entry.conversationId === `refund-item-${item.id}` &&
+          entry.paymentTransactionId === providerItem.providerTransactionId,
+      )
+      if (match) {
+        await finalizeItemRefund({
+          itemId: item.id,
+          amount: item.amount,
+          refundTransactionId: refund.id,
+          providerItem,
+          payment: refund.payment,
+          providerReference: match.providerReference ?? providerItem.providerTransactionId!,
+          eventType: 'refund_item_reconciled',
+        })
+        summary.completed += 1
+        continue
+      }
+      const lastAttemptAt = item.lastAttemptAt ?? item.updatedAt
+      if (now().getTime() - lastAttemptAt.getTime() >= CARD_REFUND_RETRY_AFTER_MS) {
+        await prisma.refundTransactionItem.updateMany({
+          where: { id: item.id, status: { in: ['manual_required', 'processing'] } },
+          data: {
+            status: 'failed',
+            failureReason: 'iyzico raporunda iade izi yok; yeniden denenecek',
+          },
+        })
+        summary.reopened += 1
+      } else {
+        summary.unresolved += 1
+      }
+    }
+    await refreshParent(refund.id)
+    return summary
+  }
+
+  /**
+   * Worker taraması: kuyruğa hiç alınamamış veya tekrar denenebilir kart iadelerini işler,
+   * belirsiz/uzun süre "processing" kalanları raporla sonuçlandırır.
+   */
+  async function sweepCardRefunds(limit = 25) {
+    const staleBefore = new Date(now().getTime() - CARD_REFUND_STALE_PROCESSING_MS)
+    const refunds = await prisma.refundTransaction.findMany({
+      where: {
+        status: { notIn: ['completed', 'voided'] },
+        payment: { method: 'card' },
+        items: {
+          some: {
+            OR: [
+              { status: 'pending', createdAt: { lte: staleBefore } },
+              { status: 'failed', lastAttemptAt: { lte: staleBefore } },
+              { status: 'processing', lastAttemptAt: { lte: staleBefore } },
+              {
+                status: 'manual_required',
+                failureReason: { contains: 'belirsiz' },
+                paymentProviderItem: { providerTransactionId: { not: null } },
+              },
+            ],
+          },
+        },
+      },
+      select: { id: true },
+      orderBy: { updatedAt: 'asc' },
+      take: limit,
+    })
+    const summary = { processed: 0, reconciled: 0 }
+    for (const refund of refunds) {
+      try {
+        const reconciliation = await reconcileCardRefund(refund.id)
+        summary.reconciled += reconciliation.completed + reconciliation.reopened
+        await process(refund.id)
+        summary.processed += 1
+      } catch (error) {
+        console.error('[refund-sweep] kart iadesi işlenemedi', {
+          refundTransactionId: refund.id,
+          message: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
+        })
+      }
+    }
+    return summary
+  }
+
+  return { process, refreshParent, reconcileCardRefund, sweepCardRefunds }
 }
 
 export type RefundExecutionService = ReturnType<typeof createRefundExecutionService>

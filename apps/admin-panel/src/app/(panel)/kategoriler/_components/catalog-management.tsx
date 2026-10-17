@@ -15,6 +15,7 @@ type Category = {
   parentId: string | null
   sortOrder: number
   templateCode: string | null
+  maxInstallmentCount: number | null
 }
 type Template = {
   code: string
@@ -82,6 +83,7 @@ export default function CatalogManagement() {
     [sizeValue, setSizeValue] = useState(''),
     [sizeSubset, setSizeSubset] = useState('B1'),
     [newTemplateField, setNewTemplateField] = useState('')
+  const [installmentLimit, setInstallmentLimit] = useState('')
   async function reload() {
     const [c, s] = await Promise.all([
       request('/api/admin/categories'),
@@ -162,6 +164,24 @@ export default function CatalogManagement() {
       })
     })
   }
+  /** Taksit üst sınırı: boş bırakılırsa üst kategoriden devralınır (zincir boşsa sınır yok). */
+  async function saveInstallmentLimit() {
+    if (!category.id) return
+    await execute(async () => {
+      const trimmed = installmentLimit.trim()
+      const value = trimmed === '' ? null : Number(trimmed)
+      if (value !== null && (!Number.isInteger(value) || value < 1 || value > 36)) {
+        throw new Error('Taksit sınırı 1 ile 36 arasında tam sayı olmalı veya boş bırakılmalı.')
+      }
+      const response = await csrfFetch(`/api/admin/categories/${category.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxInstallmentCount: value }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.message ?? 'Taksit sınırı kaydedilemedi.')
+    })
+  }
   const updateBinding = (key: string, patch: Partial<TemplateField>) =>
     setTemplate((t) => ({
       ...t,
@@ -220,7 +240,7 @@ export default function CatalogManagement() {
                   <button
                     key={c.id}
                     className="block w-full rounded border px-3 py-2 text-left text-sm hover:bg-[var(--color-muted)]"
-                    onClick={() =>
+                    onClick={() => {
                       setCategory({
                         id: c.id,
                         name: c.name,
@@ -228,7 +248,10 @@ export default function CatalogManagement() {
                         templateCode: c.templateCode ?? '',
                         sortOrder: c.sortOrder,
                       })
-                    }
+                      setInstallmentLimit(
+                        c.maxInstallmentCount === null ? '' : String(c.maxInstallmentCount),
+                      )
+                    }}
                   >
                     {path(c)}
                   </button>
@@ -296,6 +319,34 @@ export default function CatalogManagement() {
                 onChange={(e) => setCategory({ ...category, sortOrder: Number(e.target.value) })}
               />
             </div>
+            {category.id ? (
+              <div className="space-y-1.5 rounded-md border p-3">
+                <Label htmlFor="category-installment-limit">Taksit üst sınırı</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="category-installment-limit"
+                    type="number"
+                    min="1"
+                    max="36"
+                    placeholder="Üst kategoriden"
+                    value={installmentLimit}
+                    onChange={(e) => setInstallmentLimit(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void saveInstallmentLimit()}
+                  >
+                    Kaydet
+                  </Button>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                  Boş bırakılırsa üst kategorinin sınırı geçerli olur; hiçbirinde yoksa iyzico&apos;nun
+                  sunduğu tüm taksitler gösterilir. Sepette en düşük sınır uygulanır.
+                </p>
+              </div>
+            ) : null}
             <div className="flex gap-2">
               <Button disabled={busy}>Kaydet</Button>
               <Button

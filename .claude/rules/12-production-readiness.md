@@ -1084,6 +1084,49 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   (`PRIVATE_DOCUMENT_ROOT`, `PRIVATE_DOCUMENT_ENCRYPTION_KEY`) tanımlı olmadığı için fatura dosyası yükleme
   yerelde denenemez (bu işten önce de böyleydi).
 
+### 46. iyzico standart sanal POS: 3D Secure, kendi ödeme formumuz, taksit vade farkı (yeni — 2026-10-16)
+
+- **Kapsam:** kart ödemesi iyzico standart üye işyeri (pazaryeri değil) ile, 3D Secure ve `/odeme` sayfasındaki kendi
+  kart formumuzla alınır; taksitte vade farkını müşteri öder. Tasarım ve kurallar:
+  `docs/05-security/payment-security.md`, `.claude/rules/07-marketplace-finance-rules.md` §4–§5.
+- **Akış:** kart numarasının ilk 8 hanesiyle sunucu teklifi (`CardPaymentQuote`, iyzico `installmentInfo`) →
+  `startAttempt` (teklif/sipariş kilidi, `startKey` tekilliği, oran yeniden doğrulaması) → 3DS initialize (imzalı)
+  → callback (paymentId eşleşmesi, `status=success`+`mdStatus=1`) → v2 auth (imzalı, `paidPrice/basketId` bağlı)
+  → onay. Onayda `Order.totalAmount = Payment.amount = paidPrice`; tasarımcı alanları peşin tutarda kalır.
+- **Daha önce yanlış/eksik olan ve düzeltilen:** taksitli tahsilat onayda reddedilip parayı çekilmiş bırakıyordu;
+  başarısız/yarım ödeme stoğu ve kupon kullanımını süresiz tutuyordu; her deneme yeni sipariş açıyordu; webhook
+  hayali biçim ve kaldırılmış SHA1 imza bekliyordu; `"zaten işlendi"` hatası yutulup iptal edilmiş siparişe başarı
+  sayfası gösterilebiliyordu; onayda tüm sepet siliniyordu; fatura adresi yerine teslimat adresi gidiyordu;
+  callback 307 ile yönlendiriyordu; `/odeme` bayrağı build'e gömülüydü.
+- **Migration VAR:** `20261016120000_card_payment_3ds_installments` — yalnız ekleme: `card_payment_quotes`,
+  `card_payment_attempts`, `card_attempt_reversals`, `iyzico_webhook_events` tabloları ve üç enum;
+  `orders.customerPaidShippingAmount`, `orders.cardPaymentExpiresAt`, `categories.maxInstallmentCount`;
+  `AdminActionType.card_payment_reconciled` (`ADD VALUE IF NOT EXISTS`). Ödeme tekilliğine dokunmaz →
+  `check-duplicate-payments` gerekmez.
+- **Env:** `IYZICO_API_KEY`, `IYZICO_SECRET_KEY`, `IYZICO_BASE_URL` artık **web + worker**;
+  `IYZICO_WEBHOOK_SECRET` kaldırıldı (V3 imzası secret key ile). `check-env`: prod'da `https://api.iyzipay.com`
+  zorunlu, `sandbox-` anahtar reddi. Yeni env yok. `.env.example`'daki `IYZICO_WEBHOOK_SECRET` satırı elle
+  silinmelidir (agent izin kısıtı — §18 emsali).
+- **Yeni kuyruk:** `card-payment` (5 dk bakım + webhook işleme); worker'da çalışıyor olmalı. Bkz.
+  `docs/06-engineering/queue-jobs-plan.md`.
+- **Redeploy:** dört servis, sıra **worker → admin-panel → seller-panel → web**. Worker önce: migration'ı uygular,
+  yeni kuyruğu çalıştırır. seller-panel kart koduna dokunmaz ama `api/` servis değişikliklerini (checkout,
+  iade, e-posta) içerir.
+- **Kart satışı kapalı kalır** (`IYZICO_CARD_PAYMENTS_ENABLED=false`) şunlar tamamlanana kadar: iyzico PCI DSS
+  şartı (kart verisi sunucumuzdan geçiyor), X-IYZ-SIGNATURE-V3 aktivasyonu, panelde taksit oranlarının müşteriye
+  yansıtılması ve sandbox+canlı uçtan uca taksitli ödeme, mali müşavirin vade farkı fatura/KDV onayı.
+  iyzico'dan yazılı teyit bekleyenler: callback'te `signature` alanı, kurumsal/yabancı alıcı `identityNumber`
+  değeri (o zamana kadar bu profiller kartla ödeyemez), `fraudStatus` listesi, yabancı kart kabulü, MCC ve
+  taksit sınırları.
+- **Testler:** `tests/postgres/card-payment-flow.test.ts` (15 test: taksitli onay ve iade payı, oran değişimi,
+  eşzamanlı çift gönderim, kurumsal profil, callback paymentId uyuşmazlığı, 3DS başarısızlığı, başka kartla devam,
+  süre dolumu + stok/kupon iadesi, belirsiz auth, fraud 0→2, webhook, geç ve ikinci tahsilat, belirsiz iade
+  mutabakatı), `tests/unit/domain/card-installments.test.ts`, `tests/security/iyzico-signature.test.ts`
+  (V3), `tests/security/card-payments-disabled.test.ts`, `tests/security/payment-callback-binding.test.ts`.
+- **Bilinen sınırlar (blocking değil):** `document.write` ile açılan 3DS sayfası iOS Safari ve Android Chrome'da
+  henüz denenmedi; `packages/security/src/webhook-verifier.ts` (`verifyIyzicoWebhook`) kullanılmayan eski koddur;
+  müşteri faturasında vade farkının KDV dağılımı mali müşavir kararı bekliyor.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

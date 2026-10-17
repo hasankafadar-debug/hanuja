@@ -71,6 +71,10 @@ Her `payment_confirmed` ödeme için:
 - **Admin EFT-onay indirimi:** 2026-09-25 ve sonrası admin-onaylı EFT ödemelerinde `Payment.amount == Order.totalAmount`
   (indiri uygulandıktan sonra toplam). 2026-09-25 öncesi admin-discounted EFT siparişlerinde `Payment.amount` = indirim öncesi tutardır
   (fark tam olarak admin indirimidir ve ilgili `payment_approved` audit kaydındaki `eftDiscountAmount` ile açıklanır)
+- **Taksitli kart ödemesi (2026-10-16):** onayda `Order.totalAmount = Payment.amount = paidPrice` olur;
+  `installmentDifferenceAmount = paidPrice − peşin toplam`. Ürün satırlarının `customerPaidProductAmount`
+  toplamı + `customerPaidShippingAmount` = `paidPrice` (kuruşu kuruşuna). `PaymentProviderItem.amount`
+  toplamı da `paidPrice`'a eşittir. Tasarımcı alanları (`OrderLine.totalPrice`, kupon, komisyon) peşin tutarda kalır.
 
 ### 4.2 OrderLine — Payout Tutarlılığı
 
@@ -229,10 +233,15 @@ Her uyarının bir "çözüme bağlandı" durumu olmalıdır; uyarılar sessizce
 Iyzico ve EFT ödemeleri farklı eşleştirme mekanizması gerektirir.
 
 ### Kart Ödemeleri (Iyzico)
-- `Payment.providerPaymentId` Iyzico conversation ID
-- `Payment.providerData` ham Iyzico yanıtı (audit amaçlı)
-- `PaymentEvent` tablosu her webhook'u kaydeder
-- Çift webhook: idempotency anahtarı `providerPaymentId` üzerinden kontrol edilir
+- `Payment.providerPaymentId` iyzico `paymentId`'dir (conversation ID değil); onaylayan
+  `CardPaymentAttempt.providerPaymentId` ile aynıdır.
+- `Payment.providerData` yalnız özet içerir (deneme id, taksit, kart ailesi, son 4 hane, fraud); ham yanıt saklanmaz.
+- Her denemenin iyzico `conversationId`'si `CardPaymentAttempt.conversationId`'dir; raporlama servisi
+  (`/v2/reporting/payment/details`) bu değerle sorgulanır.
+- iyzico kesintisi ve hesaba geçecek net deneme bazında saklanır: `iyziCommissionFee`,
+  `iyziCommissionRateAmount`, `merchantPayoutAmount`.
+- Webhook'lar `IyzicoWebhookEvent` tablosunda tutulur (`iyziReferenceCode` unique); ödeme olayları `PaymentEvent`
+  (`card_*` türleri) olarak yazılır.
 
 ### Havale/EFT
 - Admin `eftConfirmedBy`, `eftConfirmedAt` alanlarını doldurur
@@ -479,7 +488,24 @@ Mutabakat (`reconcileFinance`) `voided` iadede defter etkisinin net 0 olmasını
 `outstandingPayoutDebts` bu kayıtları borç saymaz. Stoka dokunulmaz (müşteri iptalinde zaten
 geri verilmişti).
 
-## 13. Çapraz Referanslar
+## 13. Kart Ödemesi ve Kart İadesi Mutabakatı (2026-10-16)
+
+- **Sonucu belirsiz tahsilat:** `authorizing / outcome_unknown` denemeler `card-payment` worker'ında imzalı ödeme
+  sorgusuyla sonuçlandırılır. Bu durumdaki deneme varken sipariş süre dolumuyla iptal edilmez.
+- **Siparişe bağlanamayan tahsilat** (geç, ikinci, kalem/tutar uyuşmazlığı): `CardAttemptReversal` açılır
+  (deneme başına tek kayıt). Aynı gün `cancel`, sonra kalem bazlı `refund`. İade/iptal isteklerinin
+  `conversationId` değerleri `rev-<reversalId>-cancel` ve `rev-<reversalId>-<paymentTransactionId>` biçimindedir.
+- **Sipariş iadeleri:** kart iadesi kalem isteğinin `conversationId` değeri `refund-item-<itemId>`'dir. Sonucu
+  belirsiz kalan (bağlantı kopması, imza doğrulanamaması, uzun süre `processing`) kalem raporlama servisinde bu
+  değerle aranır: bulunursa yerel tavanlarla birlikte kapatılır (`refund_item_reconciled`), bulunmazsa ve son
+  denemenin üzerinden bir saat geçtiyse yeniden denemeye açılır; daha önce asla yeniden gönderilmez.
+- **Yönetici eylemi:** sipariş detayında "iyzico ile mutabakat yap" (`/api/admin/refunds/:id/reconcile`,
+  `/api/admin/card-reversals/:id/reconcile`) aynı rapor kontrolünü çalıştırır; gerekçe ister ve
+  `card_payment_reconciled` denetim kaydı yazar. Yalnız raporda kanıtlanan sonucu uygular.
+- **Fraud:** inceleme sonrası `fraudStatus=-1` olan ödeme iyzico tarafından iade edilir; Hanuja ayrıca iade
+  göndermez. Deneme `refunded_by_provider` olur.
+
+## 14. Çapraz Referanslar
 
 - `.claude/rules/07-marketplace-finance-rules.md` — mutabakat gereksinim kuralları
 - `docs/07-operations/payout-lifecycle.md` — payout durumları ve batch akışı

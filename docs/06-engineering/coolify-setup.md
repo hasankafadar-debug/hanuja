@@ -73,7 +73,7 @@ Before configuring apps, ensure the following backing services are running in Co
 | `IYZICO_API_KEY` | *(live key from Iyzico dashboard)* |
 | `IYZICO_SECRET_KEY` | *(live secret from Iyzico dashboard)* |
 | `IYZICO_BASE_URL` | `https://api.iyzipay.com` |
-| `IYZICO_WEBHOOK_SECRET` | *(from Iyzico webhook settings)* |
+| `IYZICO_CARD_PAYMENTS_ENABLED` | `false` until the go-live conditions in `docs/05-security/payment-security.md` are met (web only) |
 | `R2_ACCOUNT_ID` | *(Cloudflare account ID)* |
 | `R2_ACCESS_KEY_ID` | *(R2 API token access key)* |
 | `R2_SECRET_ACCESS_KEY` | *(R2 API token secret)* |
@@ -218,7 +218,7 @@ messages.
 The worker sends campaign-discount emails (`api/jobs/campaign-discount.job.ts`), so it
 needs the full SMTP/`EMAIL_FROM_*` set even though it has no HTTP surface.
 
-The worker does **not** need Iyzico credentials (payment flows run in the web app's API routes, not in background jobs).
+The worker **needs** `IYZICO_API_KEY`, `IYZICO_SECRET_KEY` and `IYZICO_BASE_URL` (same values as web): card refunds, card payment reconciliation and the `card-payment` queue call iyzico. `IYZICO_CARD_PAYMENTS_ENABLED` is not needed on the worker. `IYZICO_WEBHOOK_SECRET` is no longer used.
 
 ---
 

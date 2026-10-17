@@ -13,6 +13,7 @@ import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { getPlatformBankInfo } from '@hanuja/api/lib/platform-info'
 import { formatOrderDisplayNumber, formatOrderNumber } from '@hanuja/api/lib/order-number'
 import { createPlatformBankAccountService } from '@hanuja/api/services/platform-bank-account.service'
+import { createCardPaymentService } from '@hanuja/api/services/card-payment.service'
 import { getCustomerOrderStatusLabel } from '@/lib/customer-order-status'
 import { SupportSection } from './destek/_components/support-section'
 import { CancelOrderButton } from './_components/cancel-order-button'
@@ -117,6 +118,13 @@ export default async function OrderDetailPage({ params }: Props) {
   const fallbackBankAccount = isEftPending && bankAccounts.length === 0
     ? getPlatformBankInfo(formatOrderNumber(order.publicNumber, order.id))
     : null
+  // Ödenmemiş kart siparişi: yeniden ödeme penceresi veya iyzico kontrolü.
+  const cardPaymentState =
+    order.status === 'payment_pending'
+      ? await createCardPaymentService({ prisma })
+          .getOrderPaymentState(session.user.id, order.id)
+          .catch(() => null)
+      : null
 
   type OrderLine = {
     id: string
@@ -214,6 +222,8 @@ export default async function OrderDetailPage({ params }: Props) {
   )
   const couponDiscount = Math.max(0, moneyToNumber(order.discountAmount) - manualDiscount)
   const totalAmount = moneyToNumber(order.totalAmount)
+  const installmentCount = order.installmentCount ?? 0
+  const installmentDifference = moneyToNumber(order.installmentDifferenceAmount)
 
   const CUSTOMER_CANCELLABLE_STATUSES = new Set([
     'bank_transfer_waiting',
@@ -438,10 +448,21 @@ export default async function OrderDetailPage({ params }: Props) {
             <span>Kargo</span>
             <span>{shippingAmount === 0 ? 'Ücretsiz' : formatMoney(shippingAmount)}</span>
           </div>
+          {installmentDifference > 0 ? (
+            <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
+              <span>Vade farkı ({installmentCount} taksit)</span>
+              <span>{formatMoney(installmentDifference)}</span>
+            </div>
+          ) : null}
           <div className="flex justify-between text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
             <span>Toplam</span>
             <span>{formatMoney(totalAmount)}</span>
           </div>
+          {installmentCount > 1 ? (
+            <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+              Kredi kartı ile {installmentCount} taksit
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -484,6 +505,41 @@ export default async function OrderDetailPage({ params }: Props) {
           )}
         </section>
       </div>
+
+      {cardPaymentState?.checking ? (
+        <section
+          className="mt-5 rounded-xl border p-5 text-sm"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          data-testid="order-card-payment-checking"
+        >
+          <h2 className="mb-1 font-semibold" style={{ color: 'var(--color-primary)' }}>
+            Ödemeniz kontrol ediliyor
+          </h2>
+          <p style={{ color: 'var(--color-muted-fg)' }}>
+            Ödemenizin sonucu ödeme kuruluşundan doğrulanıyor. Sonuç netleşince siparişiniz
+            hazırlanmaya başlar veya ödeme iade edilir. Bu sırada yeni ödeme yapmanıza gerek yoktur.
+          </p>
+        </section>
+      ) : cardPaymentState?.payable ? (
+        <section
+          className="mt-5 rounded-xl border p-5 text-sm"
+          style={{ borderColor: 'var(--color-warning, #f59e0b)', backgroundColor: 'var(--color-surface)' }}
+          data-testid="order-card-payment-pending"
+        >
+          <h2 className="mb-1 font-semibold" style={{ color: 'var(--color-primary)' }}>
+            Ödeme bekleniyor
+          </h2>
+          <p className="mb-3" style={{ color: 'var(--color-muted-fg)' }}>
+            Kart ödemesi tamamlanmadı.
+            {cardPaymentState.expiresAt
+              ? ` ${new Date(cardPaymentState.expiresAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' })} saatine kadar ödemeyi tamamlayabilirsiniz; sonra sipariş iptal edilir.`
+              : ''}
+          </p>
+          <Button asChild size="sm">
+            <Link href={`/odeme?siparis=${order.id}`}>Ödemeyi tamamla</Link>
+          </Button>
+        </section>
+      ) : null}
 
       {isEftPending ? (
         <section

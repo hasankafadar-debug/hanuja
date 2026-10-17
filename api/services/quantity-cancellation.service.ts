@@ -3,7 +3,11 @@ import { wakeStockSearchProjection } from './product-stock-sync'
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/client'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors'
-import { allocateProductRefund, isQuantityFullyClosed } from '../domain/quantity-allocation'
+import {
+  allocateProductRefund,
+  customerShippingAmount,
+  isQuantityFullyClosed,
+} from '../domain/quantity-allocation'
 import { createQuantityRefundService } from './quantity-refund.service'
 import { recordNotification } from './notification-outbox.service'
 import { adminPanelLink, recordAdminOperationNotification } from './admin-notification.service'
@@ -558,7 +562,7 @@ export function createQuantityCancellationService({ prisma }: { prisma: PrismaCl
     })
 
     if (isFullyClosed && created.length > 0) {
-      const outstandingShipping = order.shippingAmount.sub(order.refundedShippingAmount)
+      const outstandingShipping = customerShippingAmount(order).sub(order.refundedShippingAmount)
       const last = created[created.length - 1]!
       if (!paymentCollected && outstandingShipping.gt(0)) {
         // Part of the order net amount shown to admins; nothing is refunded.

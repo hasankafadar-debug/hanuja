@@ -59,7 +59,7 @@ Gerekli/opsiyonel değişkenlerin tek doğru kaynağı `tools/scripts/check-env.
 | `IYZICO_API_KEY` | Iyzico API key |
 | `IYZICO_SECRET_KEY` | Iyzico secret key |
 | `IYZICO_BASE_URL` | Iyzico base URL (sandbox veya live) |
-| `IYZICO_WEBHOOK_SECRET` | Iyzico webhook HMAC secret |
+| `IYZICO_CARD_PAYMENTS_ENABLED` | Kart ödemesini açar (`true`/`false`, yalnız web; canlıya geçiş şartları tamamlanmadan `false`) |
 | `R2_ACCOUNT_ID` | Cloudflare R2 hesap ID |
 | `R2_ACCESS_KEY_ID` | R2 access key |
 | `R2_SECRET_ACCESS_KEY` | R2 secret access key |
@@ -136,12 +136,16 @@ Gerekçe: Iyzico canlı siteyi incelerken (başvuru/onay süreci) gerçek para h
 
 Iyzico incelemeyi tamamlayıp live API anahtarlarını teslim ettiğinde:
 
-1. Coolify panelinde **her ilgili servis** için (`web`, `worker` — bkz. `docs/06-engineering/coolify-setup.md` §"Service 4: worker" notu: worker Iyzico credential'ına ihtiyaç duymaz, sadece `web` API route'ları kullanır) aşağıdaki değişkenleri live değerlerle güncelleyin:
+1. Coolify panelinde **`web` ve `worker`** servislerinde (worker iade ve kart ödemesi mutabakatı için iyzico'yu
+   çağırır) aşağıdaki değişkenleri live değerlerle güncelleyin (değerleri yalnız iş sahibi girer):
    - `IYZICO_API_KEY` → live key
    - `IYZICO_SECRET_KEY` → live secret
    - `IYZICO_BASE_URL` → `https://api.iyzipay.com`
-   - `IYZICO_WEBHOOK_SECRET` → Iyzico live webhook ayarlarından alınan yeni secret
-2. iyzico dashboard'da live webhook URL'ini `https://www.hanuja.com.tr/api/webhooks/iyzico` olarak kayıt edin.
+   - `IYZICO_WEBHOOK_SECRET` artık kullanılmıyor; varsa silinebilir.
+2. iyzico'dan X-IYZ-SIGNATURE-V3 aktivasyonunu isteyin ve live webhook URL'ini
+   `https://www.hanuja.com.tr/api/webhooks/iyzico` olarak kaydedin.
+   `IYZICO_CARD_PAYMENTS_ENABLED=true` yalnız `docs/05-security/payment-security.md` "Durum" bölümündeki canlıya
+   geçiş şartları tamamlandıktan sonra ve yalnız `web` serviste girilir.
 3. `pnpm check-env --env=prod` tekrar çalıştırılıp placeholder/sandbox kalıntısı olmadığı doğrulanmalı.
 4. Servisi yeniden deploy edin (env değişikliği Coolify'da yeni bir deploy tetikler).
 5. Küçük tutarlı gerçek bir kart işlemiyle (varsa) veya Iyzico'nun sağladığı doğrulama akışıyla live bağlantı test edilmeli.

@@ -147,6 +147,12 @@ function renderAmountSummary(summary: OrderAmountSummary | undefined, total: Ema
   if (summary?.additionalDiscount !== undefined)
     rows.push(['Ek İndirim', summary.additionalDiscount, true])
   if (summary?.shipping !== undefined) rows.push(['Kargo', summary.shipping, false])
+  if (summary?.installmentDifference !== undefined)
+    rows.push([
+      `Vade Farkı${summary.installmentCount ? ` (${summary.installmentCount} taksit)` : ''}`,
+      summary.installmentDifference,
+      false,
+    ])
   const body = rows
     .map(
       ([label, value, negative]) => `<tr>
@@ -179,6 +185,10 @@ function renderAmountSummaryText(
   if (summary?.additionalDiscount !== undefined)
     lines.push(`Ek İndirim: -${amountText(summary.additionalDiscount)}`)
   if (summary?.shipping !== undefined) lines.push(`Kargo: ${amountText(summary.shipping)}`)
+  if (summary?.installmentDifference !== undefined)
+    lines.push(
+      `Vade Farkı${summary.installmentCount ? ` (${summary.installmentCount} taksit)` : ''}: ${amountText(summary.installmentDifference)}`,
+    )
   lines.push(`Toplam: ${amountText(total)}`)
   return lines.join('\n')
 }

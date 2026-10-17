@@ -18,6 +18,8 @@ const updateCategorySchema = z.object({
   sortOrder: z.number().int().min(0).max(9999).optional(),
   isActive: z.boolean().optional(),
   taxRate: z.number().min(0).max(1).optional().nullable(),
+  // Taksit üst sınırı; null = üst kategoriden devral (zincir boşsa sınır yok).
+  maxInstallmentCount: z.number().int().min(1).max(36).optional().nullable(),
 })
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -35,7 +37,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(82910214)::text`
       const existing = await tx.category.findUnique({
         where: { id },
-        select: { taxRate: true, name: true, sortOrder: true, isActive: true },
+        select: {
+          taxRate: true,
+          name: true,
+          sortOrder: true,
+          isActive: true,
+          maxInstallmentCount: true,
+        },
       })
       const service = createCatalogService({
         prisma: tx as unknown as typeof prisma,
@@ -49,7 +57,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
         ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
         ...(body.taxRate !== undefined ? { taxRate: body.taxRate } : {}),
+        ...(body.maxInstallmentCount !== undefined
+          ? { maxInstallmentCount: body.maxInstallmentCount }
+          : {}),
       })
+
+      if (body.maxInstallmentCount !== undefined) {
+        await createAdminAuditLogRepository(tx as unknown as typeof prisma).createEntry({
+          actorId: session.user.id,
+          actionType: 'category_updated',
+          targetType: 'category',
+          targetId: id,
+          previousData: {
+            maxInstallmentCount: existing?.maxInstallmentCount ?? null,
+            name: existing?.name ?? null,
+          },
+          newData: { maxInstallmentCount: category.maxInstallmentCount, name: category.name },
+          reason: 'Kategori taksit üst sınırı değişti',
+        })
+      }
 
       if (body.taxRate !== undefined) {
         await createAdminAuditLogRepository(tx as unknown as typeof prisma).createEntry({

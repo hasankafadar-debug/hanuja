@@ -101,6 +101,13 @@ export function orderAmountSummary(order: OrderEmailSnapshot): OrderAmountSummar
     shipping: order.shippingAmount.gt(0)
       ? formatMoney(order.shippingAmount.toNumber())
       : 'Ücretsiz',
+    // Taksitli kart ödemesi: vade farkı toplamın parçasıdır; satır olarak gösterilir.
+    ...(order.installmentDifferenceAmount?.gt(0) && order.installmentCount
+      ? {
+          installmentCount: order.installmentCount,
+          installmentDifference: formatMoney(order.installmentDifferenceAmount.toNumber()),
+        }
+      : {}),
   }
 }
 

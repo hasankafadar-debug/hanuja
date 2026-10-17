@@ -65,6 +65,17 @@ export function allocateProductRefund(
   }
 }
 
+/**
+ * Kargo için müşterinin ödediği tutar. Taksitli kart ödemesinde vade farkının kargo kalemine
+ * düşen payını içerir (Order.customerPaidShippingAmount); diğer siparişlerde shippingAmount.
+ */
+export function customerShippingAmount(order: {
+  shippingAmount: Decimal
+  customerPaidShippingAmount?: Decimal | null
+}) {
+  return order.customerPaidShippingAmount ?? order.shippingAmount
+}
+
 export function quantityAvailable(params: {
   originalQuantity: number
   cancelledQuantity: number

@@ -112,6 +112,30 @@ async function recordEftRejectedNotification(
   })
 }
 
+/** Ödeme onayından itibaren her satırın taahhüt edilen sevk tarihini yazar. */
+export async function stampFulfillmentDueDates(
+  tx: Pick<Prisma.TransactionClient, 'orderLine'>,
+  orderId: string,
+  sourceAt: Date,
+) {
+  const lines = await tx.orderLine.findMany({
+    where: { orderId },
+    select: { id: true, promisedFulfillmentDays: true },
+  })
+
+  for (const line of lines) {
+    const promisedDays = line.promisedFulfillmentDays
+    if (!promisedDays || promisedDays <= 0) continue
+
+    await tx.orderLine.update({
+      where: { id: line.id },
+      data: {
+        fulfillmentDueAt: addBusinessDays(sourceAt, promisedDays),
+      },
+    })
+  }
+}
+
 interface PaymentServiceDeps {
   prisma: PrismaClient
 }
@@ -122,225 +146,7 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
   const legacyRefunds = createRefundService({ prisma })
   const auditLog = createAdminAuditLogRepository(prisma)
 
-  async function stampFulfillmentDueDates(tx: PrismaClient, orderId: string, sourceAt: Date) {
-    const lines = await tx.orderLine.findMany({
-      where: { orderId },
-      select: { id: true, promisedFulfillmentDays: true },
-    })
-
-    for (const line of lines) {
-      const promisedDays = line.promisedFulfillmentDays
-      if (!promisedDays || promisedDays <= 0) continue
-
-      await tx.orderLine.update({
-        where: { id: line.id },
-        data: {
-          fulfillmentDueAt: addBusinessDays(sourceAt, promisedDays),
-        },
-      })
-    }
-  }
-
   return {
-    /**
-     * Confirm a card payment (called after Iyzico webhook or callback verification).
-     * Idempotent — safe to call twice with same providerRef.
-     *
-     * Fail-closed doğrulamalar (transaction öncesi, PaymentEvent kanıtı kalıcı olsun diye):
-     *   1. Tutar bağlama — provider'ın bildirdiği paidPrice sipariş toplamına eşit olmalı.
-     *   2. providerRef tekrar kullanımı — aynı Iyzico paymentId başka siparişi onaylayamaz.
-     */
-    async confirmCardPayment(params: {
-      orderId: string
-      providerRef: string
-      amount: import('@prisma/client/runtime/client').Decimal
-      itemTransactions?: Array<{
-        itemId: string
-        paymentTransactionId: string
-        transactionStatus?: number
-        price?: string
-        paidPrice?: string
-      }>
-    }) {
-      const payment = await payments.findByOrderId(params.orderId)
-      if (!payment) throw new NotFoundError('Payment', params.orderId)
-
-      // Idempotency guard — already confirmed
-      if (payment.status === 'confirmed') return payment
-
-      if (payment.status !== 'pending') {
-        throw new ConflictError(`Ödeme zaten işlendi: ${payment.status}`)
-      }
-
-      const orderForBinding = await prisma.order.findUnique({
-        where: { id: params.orderId },
-        select: { totalAmount: true },
-      })
-      if (!orderForBinding) throw new NotFoundError('Order', params.orderId)
-
-      if (!params.amount.eq(orderForBinding.totalAmount)) {
-        await payments.appendEvent({
-          paymentId: payment.id,
-          eventType: 'amount_mismatch_rejected',
-          providerPayload: {
-            expected: orderForBinding.totalAmount.toFixed(2),
-            received: params.amount.toFixed(2),
-            providerRef: params.providerRef,
-          },
-        })
-        throw new ConflictError('Ödeme tutarı sipariş toplamı ile uyuşmuyor')
-      }
-
-      const existingByRef = await payments.findByProviderRef(params.providerRef)
-      if (existingByRef && existingByRef.orderId !== params.orderId) {
-        await payments.appendEvent({
-          paymentId: payment.id,
-          eventType: 'providerRef_reuse_rejected',
-          providerPayload: {
-            providerRef: params.providerRef,
-            conflictingPaymentId: existingByRef.id,
-          },
-        })
-        throw new ConflictError('Ödeme referansı başka bir siparişe ait')
-      }
-
-      const providerItems = await prisma.paymentProviderItem.findMany({
-        where: { paymentId: payment.id },
-        orderBy: { providerItemId: 'asc' },
-      })
-      const providerTransactions = params.itemTransactions ?? []
-      if (providerItems.length > 0) {
-        const byItemId = new Map(providerTransactions.map((item) => [item.itemId, item]))
-        if (
-          byItemId.size !== providerTransactions.length ||
-          providerItems.some((item) => !byItemId.has(item.providerItemId)) ||
-          providerTransactions.some(
-            (item) => !providerItems.some((expected) => expected.providerItemId === item.itemId),
-          )
-        ) {
-          await payments.appendEvent({
-            paymentId: payment.id,
-            eventType: 'provider_item_mapping_rejected',
-            providerPayload: {
-              expectedItemIds: providerItems.map((item) => item.providerItemId),
-              receivedItemIds: providerTransactions.map((item) => item.itemId),
-              providerRef: params.providerRef,
-            },
-          })
-          throw new ConflictError('Ödeme kalemleri sağlayıcı yanıtıyla uyuşmuyor')
-        }
-      }
-
-      return prisma
-        .$transaction(async (tx) => {
-          const confirmedAt = new Date()
-          const order = await tx.order.findUnique({
-            where: { id: params.orderId },
-            select: { id: true, status: true, customerId: true },
-          })
-          if (!order) throw new NotFoundError('Order', params.orderId)
-
-          assertTransition(order.status, 'payment_confirmed')
-
-          const updated = await payments.confirm(
-            payment.id,
-            { providerRef: params.providerRef },
-            tx as PrismaClient,
-          )
-
-          if (providerItems.length > 0) {
-            for (const item of providerItems) {
-              const providerTransaction = providerTransactions.find(
-                (candidate) => candidate.itemId === item.providerItemId,
-              )!
-              await tx.paymentProviderItem.update({
-                where: { id: item.id },
-                data: {
-                  providerTransactionId: providerTransaction.paymentTransactionId,
-                  providerData: providerTransaction as never,
-                },
-              })
-            }
-          } else {
-            await tx.paymentEvent.create({
-              data: {
-                paymentId: payment.id,
-                eventType: 'provider_item_mapping_missing',
-                payload: {
-                  providerRef: params.providerRef,
-                  note: 'Eski kart ödemesi; otomatik kalem iadesi için manuel müdahale gerekir',
-                },
-              },
-            })
-          }
-
-          await (tx as PrismaClient).order.update({
-            where: { id: params.orderId },
-            data: {
-              status: 'payment_confirmed',
-              paymentConfirmedAt: confirmedAt,
-            },
-          })
-          await (tx as PrismaClient).orderStatusHistory.create({
-            data: {
-              orderId: params.orderId,
-              toStatus: 'payment_confirmed',
-              actorId: 'system',
-              reason: `Kart ödemesi onaylandı. Ref: ${params.providerRef}`,
-            },
-          })
-
-          // Move to seller queue
-          assertTransition('payment_confirmed', 'seller_queue_ready')
-          await (tx as PrismaClient).order.update({
-            where: { id: params.orderId },
-            data: {
-              status: 'seller_queue_ready',
-              sellerQueueReadyAt: confirmedAt,
-            },
-          })
-          await stampFulfillmentDueDates(tx as PrismaClient, params.orderId, confirmedAt)
-          await (tx as PrismaClient).orderStatusHistory.create({
-            data: {
-              orderId: params.orderId,
-              toStatus: 'seller_queue_ready',
-              actorId: 'system',
-              reason: 'Tasarımcı kuyruğuna düştü',
-            },
-          })
-          await (tx as PrismaClient).cartItem.deleteMany({
-            where: { cart: { userId: order.customerId } },
-          })
-
-          await postPaymentConfirmedSellerAccruals({
-            prisma,
-            tx,
-            orderId: params.orderId,
-            effectiveAt: confirmedAt,
-            actorId: 'system',
-          })
-
-          await firePaymentConfirmedNotifications(tx, params.orderId)
-
-          return updated
-        })
-        .then(async (result) => {
-          return result
-        })
-        .catch((error: unknown) => {
-          // providerPaymentId @unique yarış penceresi — eşzamanlı çift onayda ikincisi P2002 alır
-          if (
-            typeof error === 'object' &&
-            error !== null &&
-            'code' in error &&
-            (error as { code?: string }).code === 'P2002'
-          ) {
-            throw new ConflictError('Ödeme referansı başka bir siparişe ait')
-          }
-          throw error
-        })
-    },
-
     /**
      * Approve a pending EFT/havale payment — admin only.
      * Requires explicit admin actor ID for audit trail.
