@@ -85,6 +85,8 @@ Payment and payout routes must be safe to call more than once with the same inte
 
 - Iyzico webhook callbacks are verified by signature and processed at most once per `providerPaymentId` using a database uniqueness check.
 - EFT approval endpoints check current payment status before applying the transition; re-approving an already-confirmed payment is a `409`.
+- EFT order creation (`POST /api/checkout/order`) requires a client-generated `idempotencyKey`, unique per customer. A repeat with the same key returns the order the first request created; see "EFT order creation" below.
+- Card payment start (`POST /api/payment/start`) uses the same pattern with `startKey`.
 - Payout release endpoints check `payout.status` before transitioning; releasing an already-paid payout is a `409`.
 - BullMQ job handlers for payout maturity and delivery confirmation are idempotent: they check current state before writing.
 
@@ -157,6 +159,24 @@ for an outdated `policyVersion`. See `docs/08-legal/cookie-policy-notes.md`.
 | POST | `/api/payments/eft` | Customer | Submit EFT payment proof; moves order to `bank_transfer_waiting` |
 
 Payment confirmation is always server-driven. The storefront redirect URL after Iyzico completion is not trusted as confirmation; the webhook callback is the authoritative signal.
+
+#### EFT order creation — `POST /api/checkout/order` (2026-10-17)
+
+Customer session with a verified e-mail, CSRF and Turnstile. Body:
+`{ addressId, billingAddressId?, paymentMethod: "eft", notes?, couponCode?, idempotencyKey, turnstileToken,
+acceptedDistanceSales: true, acceptedPreInformation: true }`. Amounts are always recomputed from the server cart.
+
+- `idempotencyKey` is required: 16–80 characters of `A–Z a–z 0–9 _ -`. The checkout page sends
+  `eft-<uuid>`, one per "Siparişi tamamla" intent, and resends the same key after an error or a lost response.
+  Missing or malformed → `422`.
+- `201` — a new order: `{ order, payment, lines, bankTransferInstructions, replayed: false }`.
+- `200` — the same customer already used this key with the same inputs: the existing order in the same shape
+  with `replayed: true`. No second order, stock reservation, coupon use or e-mail is written. Concurrent
+  requests with one key are serialised on that key; one creates the order, the others receive it.
+- `409 CHECKOUT_REQUEST_REUSED` — the key belongs to an order created with another address, billing address,
+  note or coupon code, or the cart now holds other items. `details.orderId` names the existing order. A repeat
+  with an empty cart counts as the same request (the first request emptied the cart).
+- Keys are scoped to the customer; another customer's identical key is unrelated.
 
 ---
 
@@ -239,6 +259,7 @@ All admin routes require `role === 'admin'`. High-impact actions log to `AdminAu
 | `FORBIDDEN` | Valid session, insufficient role |
 | `NOT_FOUND` | Resource does not exist or ownership check failed |
 | `CONFLICT` | Duplicate resource or illegal state transition |
+| `CHECKOUT_REQUEST_REUSED` | EFT order request key reused with other inputs or another cart; `details.orderId` is the existing order |
 | `PAYMENT_ALREADY_CONFIRMED` | Idempotency guard on payment confirmation |
 | `PAYOUT_ALREADY_PAID` | Idempotency guard on payout release |
 | `ORDER_NOT_PAYABLE` | Order is not in a payment-confirmable state |

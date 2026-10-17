@@ -1153,6 +1153,40 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   (müşteri mesajı başına bir e-posta) ve okunmamış sayısını da sınar; `tests/postgres/hanuja-seller-model.test.ts`,
   `tests/unit/services/product-question.service.test.ts`, `tests/unit/seller-dashboard-product-questions.test.ts`.
 
+### 48. Havale/EFT siparişinde çift gönderim + ödenmemiş iptalde kupon iadesi (yeni — 2026-10-17)
+
+- **Önce:** aynı "Siparişi tamamla" isteği iki kez gelirse (çift tıklama, ağ tekrarı, eşzamanlı iki istek) iki
+  sipariş açılıyordu: iki stok ayrımı, iki kupon kullanımı, iki "Siparişiniz Alındı" e-postası. Rotadaki
+  `idempotencyKey` alanı uygulanmıyordu. Ayrıca ödeme onaylanmadan kapanan Havale/EFT siparişi (müşteri iptali,
+  admin iptali, EFT reddi) kupon kullanımını geri vermiyordu; müşteri kuponu bir daha kullanamıyordu. Yalnız kart
+  ödemesinin süre dolumu geri veriyordu.
+- **Şimdi:** `POST /api/checkout/order` anahtarı zorunlu tutar (`eft-<uuid>`, ödeme sayfası üretir; hata/kopan
+  bağlantıda aynısını gönderir). Anahtar müşteri başına tekil saklanır (`Order.checkoutRequestKey` + istek/sepet
+  özetleri); aynı anahtar ilk siparişi döndürür (200, `replayed: true`), farklı adres/not/kupon kodu veya başka
+  içerikli sepetle gelirse `CHECKOUT_REQUEST_REUSED` (409, `details.orderId`). Eşzamanlı istekler anahtar kilidinde
+  (`pg_advisory_xact_lock`) sıraya girer; tekil indeks son güvencedir. Kart akışının `startKey` deseniyle aynıdır.
+  Kurallar: `docs/07-operations/order-lifecycle.md` §3.A, `docs/06-engineering/api-contracts.md` "EFT order creation".
+- **Kupon:** ödenmeden kapanan her yol `releaseOrderCouponUsage` ile `CouponUsage`'ı siler ve `Coupon.usageCount`'u
+  bir azaltır; silme işlemi talep yerine geçer, tekrar/eşzamanlı çağrı ikinci kez düşürmez. Yardımcı
+  `card-payment-support.ts`'ten `order-line-release.ts`'e taşındı (kart süre dolumu da oradan çağırır). Ödenmiş
+  siparişin iptali/iadesi kupon kullanımını geri vermez — değişmedi.
+- **Migration VAR:** `20261017120000_eft_checkout_idempotency` — yalnız ekleme: `orders.checkoutRequestKey`,
+  `checkoutRequestHash`, `checkoutCartHash` (hepsi NULL olabilir) ve tekil indeks
+  `orders_customerId_checkoutRequestKey_key`. Mevcut siparişlerde NULL kalır (PostgreSQL tekil indekste NULL'ları
+  ayrı sayar). Ödeme tekilliğine dokunmaz → `check-duplicate-payments` gerekmez. **Env yok.**
+- **Redeploy:** dört servis (`api/` servis değişiklikleri hepsine giriyor), sıra **worker → admin-panel →
+  seller-panel → web**. Worker önce: migration'ı uygular. Web en son: yeni ödeme sayfası anahtarı gönderir. Deploy
+  sırasında eski ödeme sayfası açık kalan müşteri anahtar göndermez, "Sipariş oluşturulamadı" (422) görür; sayfayı
+  yenileyince düzelir. Sipariş açılmaz, çift sipariş riski yoktur.
+- **Testler:** `tests/postgres/eft-checkout-idempotency.test.ts` (13 test: aynı anda dört istek → tek sipariş, bitmiş
+  isteğin tekrarı, farklı sepet/adresle ret, farklı girdili eşzamanlı istek, müşteri başına anahtar; müşteri iptali,
+  EFT reddi, admin iptali v2/v1 ve iptal↔ret yarışında kupon tam bir kez geri gelir; ödenmiş sipariş kuponu
+  korur). Eski kodla 12'si kırmızıydı. `tests/unit/checkout-order-request.test.ts` (rota sözleşmesi, 200/201).
+- **Açık uçlar (blocking değil):** bu tarihten önce ödenmeden iptal edilen Havale/EFT siparişlerinin kupon
+  kullanımları geri verilmedi; gerekirse admin kuponun kullanım sınırını elle düzeltir. Turnstile anahtar
+  kontrolünden önce çalışır: yanıtı kaybolan isteğin tekrarı için müşteri yeni doğrulama yapar (ödeme sayfası
+  hatadan sonra doğrulamayı zaten yeniler).
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

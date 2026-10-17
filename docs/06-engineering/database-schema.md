@@ -194,7 +194,9 @@ EFT discount is platform-absorbed. It reduces the customer-paid amount but **doe
 
 Status transitions are recorded in `OrderStatusHistory`.
 
-Indexes: `(customerId, status)` for customer order list, `(status, createdAt)` for admin queue queries.
+EFT order request key (2026-10-17): `checkoutRequestKey`, `checkoutRequestHash`, `checkoutCartHash`. The key is the client-generated `idempotencyKey` of `POST /api/checkout/order`; the two hashes (request inputs, cart items + cart coupon) tell a repeat from a reuse with other inputs. Unique `(customerId, checkoutRequestKey)`; all three are NULL for card orders (their key is `CardPaymentAttempt.startKey`) and for orders created before 2026-10-17. See `docs/07-operations/order-lifecycle.md` §3.A.
+
+Indexes: `(customerId, status)` for customer order list, `(status, createdAt)` for admin queue queries, unique `(customerId, checkoutRequestKey)`.
 
 ### OrderStatusHistory
 Append-only record of every status transition. Stores `fromStatus`, `toStatus`, `actorId`, `actorRole`, and `reason`. Never overwritten. Provides the full audit trail needed for lifecycle disputes and operational investigation.
@@ -258,6 +260,8 @@ User-scoped in-app notifications. `data` JSON carries action links or contextual
 
 ### Coupon / CouponUsage
 `CouponUsage` enforces per-user per-order uniqueness via a composite unique constraint. `usageCount` on `Coupon` is incremented atomically on successful application.
+
+An order that closes without a collected payment (cancellation before EFT approval, EFT rejection, admin cancellation of an unpaid order, expired card payment) deletes its `CouponUsage` and decrements `usageCount` once (`releaseOrderCouponUsage`, `api/services/order-line-release.ts`; the delete is the claim, so a repeat changes nothing). A paid order keeps its usage when cancelled or refunded.
 
 ### MarketingConsent
 One row per `User` (`userId @unique`). Records email and SMS marketing consent as

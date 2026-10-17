@@ -25,7 +25,7 @@ import {
 } from './order-email-payload'
 import { postPaymentConfirmedSellerAccruals } from './seller-payment-accrual.service'
 import { createRefundService } from './refund.service'
-import { releaseRemainingOrderLines } from './order-line-release'
+import { releaseOrderCouponUsage, releaseRemainingOrderLines } from './order-line-release'
 import { wakeStockSearchProjection } from './product-stock-sync'
 import { roundMoney } from '@hanuja/security/money'
 import { resolveEftAdminDiscount } from '../domain/eft-admin-discount'
@@ -438,10 +438,11 @@ export function createPaymentService({ prisma }: PaymentServiceDeps) {
         })
 
         // The e-mail lists the still-active lines, so it is recorded first. The
-        // reserved stock then returns to the catalog; nothing was collected, so
+        // reserved stock and the coupon use then return; nothing was collected, so
         // no refund record or seller ledger movement is written.
         await recordEftRejectedNotification(tx, params.orderId, params.reason)
         await releaseRemainingOrderLines(tx, params.orderId)
+        await releaseOrderCouponUsage(tx, params.orderId)
 
         return updated
       })

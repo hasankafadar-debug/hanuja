@@ -23,24 +23,6 @@ export async function lockReversalRow(tx: LockClient, reversalId: string) {
 }
 
 /**
- * Ödenmeden kapanan siparişin kupon kullanımını geri verir (CouponUsage silinir, sayaç azalır).
- * Kullanım yoksa hiçbir şey yapmaz; aynı transaction'da bir kez çağrılır.
- */
-export async function releaseOrderCouponUsage(
-  tx: Pick<Prisma.TransactionClient, 'couponUsage' | 'coupon'>,
-  orderId: string,
-) {
-  const usage = await tx.couponUsage.findUnique({ where: { orderId } })
-  if (!usage) return false
-  await tx.couponUsage.delete({ where: { id: usage.id } })
-  await tx.coupon.updateMany({
-    where: { id: usage.couponId, usageCount: { gt: 0 } },
-    data: { usageCount: { decrement: 1 } },
-  })
-  return true
-}
-
-/**
  * Onayda yalnız satın alınan ürün/varyant adetleri sepetten düşülür; ödeme beklerken
  * sepete eklenen ürünler korunur.
  */

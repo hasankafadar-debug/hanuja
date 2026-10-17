@@ -1272,6 +1272,13 @@ model Order {
   couponCode String?
   notes      String?
 
+  // Havale/EFT "Siparişi tamamla" isteğinin anahtarı (müşteri başına tekil): çift gönderim
+  // tek sipariş açar. Özetler aynı anahtarın farklı istek/sepetle tekrarını ayırt eder.
+  // Kart siparişinde null; kartın anahtarı CardPaymentAttempt.startKey'dir.
+  checkoutRequestKey  String?
+  checkoutRequestHash String?
+  checkoutCartHash    String?
+
   // Önemli zaman damgaları
   paymentConfirmedAt  DateTime?
   sellerQueueReadyAt  DateTime?
@@ -1316,6 +1323,7 @@ model Order {
   cardPaymentQuotes      CardPaymentQuote[]
   cardPaymentAttempts    CardPaymentAttempt[]
 
+  @@unique([customerId, checkoutRequestKey])
   @@index([customerId, status])
   @@index([status, createdAt])
   @@index([publicNumber])

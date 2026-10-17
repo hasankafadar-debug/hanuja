@@ -105,6 +105,14 @@ function newStartKey() {
   return `start-${crypto.randomUUID()}`
 }
 
+/**
+ * Havale/EFT "Siparişi tamamla" niyeti başına bir anahtar. Sunucu aynı anahtarla gelen
+ * tekrarda (çift tıklama, yanıtı kaybolan istek) yeni sipariş açmaz, ilkini döndürür.
+ */
+function newEftOrderKey() {
+  return `eft-${crypto.randomUUID()}`
+}
+
 function formatMoneyExact(value: string | number) {
   return `${Number(value).toLocaleString('tr-TR', {
     minimumFractionDigits: 2,
@@ -150,6 +158,7 @@ export function CheckoutPageClient({
   const [quoteError, setQuoteError] = useState<string | null>(null)
   const [quoteNonce, setQuoteNonce] = useState(0)
   const startKeyRef = useRef<string>(newStartKey())
+  const eftOrderKeyRef = useRef<string>(newEftOrderKey())
   const [showAddressForm, setShowAddressForm] = useState(false)
   const [useDifferentBilling, setUseDifferentBilling] = useState(false)
   const [selectedBillingAddressId, setSelectedBillingAddressId] = useState<string | null>(null)
@@ -579,6 +588,8 @@ export function CheckoutPageClient({
             ? { billingAddressId: selectedBillingAddressId }
             : {}),
           paymentMethod: 'eft',
+          // Hata veya kopan bağlantıdan sonra aynı anahtar gider: sipariş açıldıysa ilki döner.
+          idempotencyKey: eftOrderKeyRef.current,
           turnstileToken,
           acceptedDistanceSales: true,
           acceptedPreInformation: true,
@@ -587,6 +598,10 @@ export function CheckoutPageClient({
 
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
+        if (body.code === 'CHECKOUT_REQUEST_REUSED') {
+          // Bu anahtarla farklı bilgilerle sipariş açılmış; sonraki deneme yeni bir istektir.
+          eftOrderKeyRef.current = newEftOrderKey()
+        }
         setError(body.message ?? 'Sipariş oluşturulamadı.')
         setTurnstileToken('')
         setTurnstileKey((value) => value + 1)

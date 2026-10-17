@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-09-25
+# Son güncelleme: 2026-10-17
 # Durum: taslak v1
 
 # Order Lifecycle — Sipariş Yaşam Döngüsü
@@ -73,6 +73,22 @@ Her adım bir `OrderStatusHistory` kaydıyla belgelenir.
 | `payment_cancelled` | Ödeme iptal edildi |
 
 Satıcıya yalnızca `payment_confirmed` ve `bank_transfer_confirmed` durumlarındaki siparişler iletilir. `payment_pending`, `bank_transfer_waiting`, `payment_failed` durumundaki siparişler satıcı panelinde görünmez.
+
+#### Havale/EFT siparişi tek açılır (2026-10-17)
+
+"Siparişi tamamla" (Havale/EFT) isteği, ödeme sayfasının ürettiği bir anahtar taşır
+(`idempotencyKey`, `POST /api/checkout/order`). Anahtar müşteri başına tekildir
+(`Order.checkoutRequestKey`, tekil indeks `customerId + checkoutRequestKey`):
+
+- Aynı anahtarla gelen tekrar — çift tıklama, yanıtı kaybolan isteğin yeniden gönderilmesi, aynı anda
+  gelen iki istek — **yeni sipariş açmaz**; ilk siparişi döndürür. Stok, kupon kullanımı, ödeme kaydı ve
+  "Siparişiniz Alındı" e-postası bir kez yazılır. Eşzamanlı istekler anahtar kilidinde sıraya girer.
+- Aynı anahtar farklı adres/notla ya da başka içerikli bir sepetle gelirse istek
+  `CHECKOUT_REQUEST_REUSED` (409) ile reddedilir; yanıtta mevcut siparişin numarası (`details.orderId`)
+  vardır. İlk istek sepeti boşalttığı için boş sepetle gelen tekrar "aynı istek" sayılır.
+- Ödeme sayfası anahtarı sayfa açıldığında üretir; hata ve kopan bağlantıdan sonra aynı anahtarı
+  gönderir, yalnız `CHECKOUT_REQUEST_REUSED` yanıtından sonra yenisini üretir.
+- Kart ödemesinin karşılığı `CardPaymentAttempt.startKey`'dir (bkz. `docs/05-security/payment-security.md`).
 
 ### B. Satıcı Akışı
 
@@ -246,6 +262,11 @@ iade ve finans hareketi **oluşmaz**:
 - Stok geri verilir, satırların `cancelledQuantity` değeri artar, `OrderCancellation` `completed`
   ve iade/düzeltme tutarları 0 olarak yazılır (`grossProductAmount` bilgi için kalır).
 - `RefundTransaction`, satıcı cari hesap kaydı ve hakediş değişikliği **yazılmaz**.
+- Kupon kullanımı geri verilir (2026-10-17): siparişin `CouponUsage` kaydı silinir, `Coupon.usageCount`
+  bir azalır; müşteri kuponu yeniden kullanabilir. Silme işlemin kendisi "talep"tir; tekrarlanan veya
+  eşzamanlı çağrı kaydı bulamaz ve sayacı ikinci kez düşürmez (`releaseOrderCouponUsage`,
+  `api/services/order-line-release.ts`). Aynı kural ödenmeden kapanan her yolda geçerlidir: müşteri
+  iptali, admin iptali, EFT reddi ve kart ödeme süresinin dolması.
 - Satıcıya e-posta ve uygulama içi bildirim gitmez; sipariş satıcı panelinin hiçbir listesinde
   görünmez (`SELLER_VISIBLE_PAYMENT_WHERE`).
 - Müşteri e-postası iade vaat etmez; EFT ile ödeme yaptıysa sipariş sayfasındaki Destek bölümünden
@@ -253,8 +274,8 @@ iade ve finans hareketi **oluşmaz**:
   "Net sipariş tutarı (ödeme alınmadı)" etiketiyle gösterir.
 
 **EFT reddi** (`rejectEftPayment`) yalnız `bank_transfer_waiting` siparişte ve bekleyen EFT ödemesinde
-çalışır; iptal edilmiş bir siparişin durumunu ezmez. Ret, ayrılmış stoğu geri verir; iade veya cari
-hesap kaydı oluşturmaz. **EFT onayı** (`approveEftPayment`) da yalnız `bank_transfer_waiting`
+çalışır; iptal edilmiş bir siparişin durumunu ezmez. Ret, ayrılmış stoğu ve kupon kullanımını geri
+verir; iade veya cari hesap kaydı oluşturmaz. **EFT onayı** (`approveEftPayment`) da yalnız `bank_transfer_waiting`
 siparişte çalışır; iptal edilmiş sipariş yeniden açılamaz.
 
 ### 7.2 Admin iptali (2026-09-25)
@@ -266,7 +287,10 @@ siparişte çalışır; iptal edilmiş sipariş yeniden açılamaz.
     satış tahakkuku ters kayıtla düzeltilir, satıcı bilgilendirilir, **ceza uygulanmaz**.
 - Kargoya verilmiş adet varsa admin iptali reddedilir; iade akışı kullanılır (§8).
 - Eski (v1) akıştaki **ödenmiş** sipariş panelden iptal edilemez (önceden iadesiz iptal ediyordu);
-  ödenmemiş v1 sipariş iptal edilebilir, stok geri döner, ödeme `cancelled` olur.
+  ödenmemiş v1 sipariş iptal edilebilir, stok ve kupon kullanımı geri döner, ödeme `cancelled` olur.
+- Ödenmiş siparişin iptali veya iadesi kupon kullanımını **geri vermez** (değişmedi): kupon o siparişte
+  kullanılmış sayılır; satıcı kuponunun payı iade/düzeltme tutarlarında (`couponAdjustmentAmount`) hesaba
+  katılır.
 
 ---
 

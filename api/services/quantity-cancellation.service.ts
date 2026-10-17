@@ -15,7 +15,11 @@ import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl, getWebBaseUrl } from '../lib/platform-info'
 import { formatEmailMoney as formatMoney } from '../lib/email-money'
 import { resolveEmailImageUrl } from '../lib/email-line-items'
-import { closeFullyCancelledSellerFulfillment, releaseLineQuantity } from './order-line-release'
+import {
+  closeFullyCancelledSellerFulfillment,
+  releaseLineQuantity,
+  releaseOrderCouponUsage,
+} from './order-line-release'
 import { createAdminAuditLogRepository } from '../repositories/admin-audit-log.repository'
 
 interface CancellationSelection {
@@ -459,6 +463,8 @@ export function createQuantityCancellationService({ prisma }: { prisma: PrismaCl
           },
         })
       }
+      // Nothing was bought, so the coupon use is given back (whole order only, see above).
+      await releaseOrderCouponUsage(tx, order.id)
     }
 
     const created = []

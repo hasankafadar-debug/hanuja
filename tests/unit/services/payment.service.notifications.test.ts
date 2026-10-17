@@ -10,10 +10,14 @@ vi.mock('../../../api/services/notification-outbox.service', () => ({
 }))
 
 vi.mock('../../../api/repositories/order.repository', () => ({ createOrderRepository: () => ({ updateStatus: vi.fn(), appendStatusHistory: vi.fn() }) }))
-vi.mock('../../../api/services/order-line-release', () => ({ releaseRemainingOrderLines: vi.fn() }))
+vi.mock('../../../api/services/order-line-release', () => ({
+  releaseRemainingOrderLines: vi.fn(),
+  releaseOrderCouponUsage: vi.fn(),
+}))
 
 import { customerOrderCancelledTemplate } from '../../../api/lib/email-templates'
 import { createPaymentService, firePaymentConfirmedNotifications } from '../../../api/services/payment.service'
+import { releaseOrderCouponUsage } from '../../../api/services/order-line-release'
 
 function orderSnapshot(paymentMethod: 'card' | 'eft') {
   return {
@@ -161,6 +165,8 @@ describe('payment.service notification dispatch', () => {
     const email = customerOrderCancelledTemplate(payload.data)
     expect(email.html).toContain('https://www.hanuja.com.tr/siparis/order-1/destek/yeni')
     expect(email.text).toContain('https://www.hanuja.com.tr/siparis/order-1/destek/yeni')
+    // Nothing was collected: the coupon use is given back in the same transaction.
+    expect(releaseOrderCouponUsage).toHaveBeenCalledWith(tx, 'order-1')
   })
   it('records nothing when the order cannot be loaded', async () => {
     const tx = { order: { findUnique: vi.fn().mockResolvedValue(null) } }

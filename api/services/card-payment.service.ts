@@ -46,7 +46,7 @@ import {
 import { assertTransition } from '../domain/order-state-machine'
 import { firePaymentConfirmedNotifications, stampFulfillmentDueDates } from './payment.service'
 import { postPaymentConfirmedSellerAccruals } from './seller-payment-accrual.service'
-import { releaseRemainingOrderLines } from './order-line-release'
+import { releaseOrderCouponUsage, releaseRemainingOrderLines } from './order-line-release'
 import { wakeStockSearchProjection } from './product-stock-sync'
 import {
   istanbulDay,
@@ -54,7 +54,6 @@ import {
   lockQuoteRow,
   lockReversalRow,
   normalizeTurkishGsm,
-  releaseOrderCouponUsage,
   removePurchasedCartItems,
   splitFullName,
 } from './card-payment-support'

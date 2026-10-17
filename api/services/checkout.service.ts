@@ -12,7 +12,8 @@
  * Gerçek Iyzico çağrısı entegrasyon katmanında yapılır.
  * See: cart-checkout-flow skill, 07-marketplace-finance-rules.md
  */
-import type { Prisma, PrismaClient } from '@prisma/client'
+import crypto from 'node:crypto'
+import { Prisma, type PrismaClient } from '@prisma/client'
 import { lockProductStocks } from '../domain/product-stock'
 import { wakeStockSearchProjection } from './product-stock-sync'
 import { loadCategorySchemas } from './category-schema.service'
@@ -32,6 +33,7 @@ import {
 import { getProductColorLabels, getProductMaterialLabel } from '../domain/product-characteristics'
 import {
   ConflictError,
+  DomainError,
   NotFoundError,
   SellerOnVacationError,
   SellerSuspendedError,
@@ -169,6 +171,62 @@ function formatMoney(value: Decimal | number | string) {
 function fallbackText(value: string | null | undefined, placeholder: string) {
   const normalized = value?.trim()
   return normalized && normalized.length > 0 ? normalized : placeholder
+}
+
+/** Same format as the card flow's startKey: a client-generated, unguessable request key. */
+const CHECKOUT_REQUEST_KEY_PATTERN = /^[A-Za-z0-9_-]{16,80}$/
+
+type CheckoutRequestStamp = {
+  key: string
+  requestHash: string
+  cartHash: string
+}
+
+function sha256(value: string) {
+  return crypto.createHash('sha256').update(value, 'utf8').digest('hex')
+}
+
+/** The submitted order inputs; a repeat of the same key must carry the same ones. */
+function checkoutRequestHash(params: {
+  addressId: string
+  billingAddressId?: string
+  paymentMethod: CheckoutPaymentMethod
+  couponCode?: string
+  notes?: string
+}) {
+  return sha256(
+    JSON.stringify({
+      addressId: params.addressId,
+      billingAddressId: params.billingAddressId ?? null,
+      paymentMethod: params.paymentMethod,
+      couponCode: params.couponCode ?? null,
+      notes: params.notes ?? null,
+    }),
+  )
+}
+
+/** The cart the order was built from: items (order-independent) and the cart coupon. */
+function checkoutCartHash(cart: {
+  couponCode: string | null
+  items: Array<{ productId: string; variantId: string | null; quantity: number }>
+}) {
+  const items = cart.items
+    .map((item) => [item.productId, item.variantId ?? '', item.quantity] as const)
+    .sort((a, b) => `${a[0]}:${a[1]}`.localeCompare(`${b[0]}:${b[1]}`) || a[2] - b[2])
+  return sha256(JSON.stringify({ couponCode: cart.couponCode?.trim() || null, items }))
+}
+
+function checkoutRequestReused(orderId: string) {
+  return new DomainError(
+    'Bu sipariş isteğiyle daha önce farklı bilgilerle bir sipariş oluşturuldu. Siparişlerim sayfasından kontrol edebilir veya ödeme sayfasını yenileyip yeniden deneyebilirsiniz.',
+    'CHECKOUT_REQUEST_REUSED',
+    409,
+    { orderId },
+  )
+}
+
+function isUniqueViolation(error: unknown) {
+  return (error as { code?: string } | null)?.code === 'P2002'
 }
 
 function buildSellerSnapshot(seller: DraftSeller) {
@@ -578,6 +636,8 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       couponCode?: string
       notes?: string
       legalAcceptance?: LegalAcceptanceEvidence
+      /** EFT order request key; the caller holds its lock in this transaction. */
+      checkoutRequest?: CheckoutRequestStamp
     },
     draft: CheckoutDraft,
   ) {
@@ -624,6 +684,13 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
         installmentTotalAmount: params.paymentMethod === 'eft' ? draft.totalAmount : null,
         couponCode: params.couponCode ?? draft.cart.couponCode,
         ...(params.notes !== undefined ? { notes: params.notes } : {}),
+        ...(params.checkoutRequest
+          ? {
+              checkoutRequestKey: params.checkoutRequest.key,
+              checkoutRequestHash: params.checkoutRequest.requestHash,
+              checkoutCartHash: params.checkoutRequest.cartHash,
+            }
+          : {}),
         lines: {
           create: draft.lines,
         },
@@ -785,6 +852,172 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
     return { order, payment }
   }
 
+  /** Active platform bank accounts for the transfer instructions; null when none or unreadable. */
+  async function loadBankTransferAccounts() {
+    return createPlatformBankAccountService({ prisma })
+      .listActive()
+      .then((accounts) =>
+        accounts.length > 0
+          ? accounts.map((account) => ({
+              bankName: account.bankName,
+              accountHolder: account.accountHolder,
+              accountHolderNote: account.accountHolderNote,
+              iban: account.iban,
+              branchName: account.branchName,
+            }))
+          : null,
+      )
+      .catch(() => null)
+  }
+
+  /** Serialises requests that carry the same customer + request key. */
+  async function lockCheckoutRequest(tx: Prisma.TransactionClient, userId: string, key: string) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`checkout-request:${userId}:${key}`}, 0))`
+  }
+
+  function findOrderByCheckoutRequest(
+    client: Pick<Prisma.TransactionClient, 'order'>,
+    userId: string,
+    key: string,
+  ) {
+    return client.order.findUnique({
+      where: { customerId_checkoutRequestKey: { customerId: userId, checkoutRequestKey: key } },
+      select: { id: true, checkoutRequestHash: true, checkoutCartHash: true },
+    })
+  }
+
+  /**
+   * A repeat of a committed request returns its order. The same key with other inputs,
+   * or with a cart that holds something else, is refused: it is a new order, not a repeat.
+   * `currentCartHash` is null when the cart is empty — the first request emptied it.
+   */
+  function assertSameCheckoutRequest(
+    existing: { id: string; checkoutRequestHash: string | null; checkoutCartHash: string | null },
+    requestHash: string,
+    currentCartHash: string | null,
+  ) {
+    if (existing.checkoutRequestHash !== requestHash) {
+      throw checkoutRequestReused(existing.id)
+    }
+    if (currentCartHash !== null && currentCartHash !== existing.checkoutCartHash) {
+      throw checkoutRequestReused(existing.id)
+    }
+  }
+
+  /** Looks the key up outside a transaction and compares it with the cart as it is now. */
+  async function findCommittedCheckoutRequest(userId: string, key: string, requestHash: string) {
+    const existing = await findOrderByCheckoutRequest(prisma, userId, key)
+    if (!existing) return null
+    const cart = await carts.findByUserId(userId)
+    const currentCartHash =
+      cart && cart.items.length > 0
+        ? checkoutCartHash({
+            couponCode: cart.couponCode ?? null,
+            items: cart.items.map((item) => ({
+              productId: item.productId,
+              variantId: item.variantId ?? null,
+              quantity: item.quantity,
+            })),
+          })
+        : null
+    assertSameCheckoutRequest(existing, requestHash, currentCartHash)
+    return existing.id
+  }
+
+  /**
+   * One checkout transaction: the request key check (when given), the order records and,
+   * for EFT, the "Siparişiniz Alındı" and pending-transfer notifications.
+   */
+  async function createOrderInTransaction(
+    tx: Prisma.TransactionClient,
+    params: Parameters<typeof writeOrderRecords>[1],
+    draft: CheckoutDraft,
+    bankTransferInstructions: Awaited<ReturnType<typeof loadBankTransferAccounts>> | undefined,
+  ) {
+    const checkoutRequest = params.checkoutRequest
+    if (checkoutRequest) {
+      // Concurrent requests with this key wait here; the first one's order is then visible.
+      await lockCheckoutRequest(tx, params.userId, checkoutRequest.key)
+      const existing = await findOrderByCheckoutRequest(tx, params.userId, checkoutRequest.key)
+      if (existing) {
+        assertSameCheckoutRequest(existing, checkoutRequest.requestHash, checkoutRequest.cartHash)
+        return { kind: 'existing' as const, orderId: existing.id }
+      }
+    }
+
+    const { order, payment } = await writeOrderRecords(tx, params, draft)
+
+    // "Siparişiniz Alındı" is written in the same transaction so a crash after
+    // commit cannot lose it. Card orders are mailed only once the payment is
+    // confirmed (payment.service), so nothing is recorded for them here.
+    if (params.paymentMethod === 'eft') {
+      const snapshot = await loadOrderEmailSnapshot(tx, order.id)
+      if (snapshot) {
+        const resolvedBankInstructions = bankTransferInstructions ?? getPlatformBankInfo(order.id)
+        await recordNotification(tx, {
+          eventKey: `order:${order.id}:created:customer`,
+          userId: params.userId,
+          emailTo: draft.customer.email,
+          type: 'order_placed',
+          title: `Siparişiniz Alındı - ${formatOrderDisplayNumber(order.publicNumber, order.id)}`,
+          body: 'Siparişiniz alındı. Havale/EFT ödemeniz onaylandığında hazırlanmaya başlanacak.',
+          data: {
+            ...customerOrderEmailData(snapshot, {
+              paymentMethod: 'eft',
+              paymentStatus: 'pending',
+            }),
+            bankTransferInstructions: resolvedBankInstructions,
+          },
+        })
+
+        // The order is invisible to the seller until an admin confirms the
+        // transfer, so the operations mailbox is told it is waiting.
+        await recordAdminOperationNotification(tx, {
+          event: 'eft_pending',
+          type: 'admin_bank_transfer_pending',
+          eventKey: `order:${order.id}:eft-pending`,
+          title: `Havale/EFT onayı bekliyor - ${formatOrderDisplayNumber(order.publicNumber, order.id)}`,
+          body: 'Müşteri havale/EFT ile ödeme seçti. Ödeme onaylanana kadar sipariş tasarımcıya düşmez.',
+          data: {
+            orderNumber: formatOrderNumber(order.publicNumber, order.id),
+            adminUrl: adminPanelLink('/odemeler'),
+            customerName: customerDisplayName(snapshot),
+            totalAmount: order.totalAmount.toFixed(2),
+            reference: order.id,
+            bankName:
+              (Array.isArray(resolvedBankInstructions)
+                ? resolvedBankInstructions[0]?.bankName
+                : resolvedBankInstructions?.bankName) || undefined,
+          },
+        })
+      }
+    }
+
+    return { kind: 'created' as const, order, payment, lines: order.lines }
+  }
+
+  /** The response of a repeated request: the order the first request created. */
+  async function loadCheckoutResult(orderId: string) {
+    const order = await prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+      include: { lines: true, payments: { orderBy: { createdAt: 'asc' } } },
+    })
+    const { payments, ...orderWithLines } = order
+    const payment = payments[0]
+    if (!payment) throw new NotFoundError('Payment', orderId)
+    const bankTransferInstructions =
+      payment.method === 'eft'
+        ? ((await loadBankTransferAccounts()) ?? getPlatformBankInfo(order.id))
+        : undefined
+    return {
+      order: orderWithLines,
+      payment,
+      lines: order.lines,
+      replayed: true as const,
+      ...(bankTransferInstructions ? { bankTransferInstructions } : {}),
+    }
+  }
+
   return {
     /** Kart ödeme akışı (card-payment.service) için: sunucu tarafı sepet taslağı. */
     buildDraft: buildCheckoutDraft,
@@ -875,7 +1108,11 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
      * Kargo ücreti: 1.500 TL üzeri ücretsiz, altı 99 TL.
      * Komisyon: sistem varsayılan %15 (CLAUDE.md 15.1).
      *
-     * İdempotency: aynı idempotencyKey ile ikinci çağrı mevcut siparişi döndürür.
+     * İdempotency: `idempotencyKey` müşteri başına tekildir. Aynı anahtarla gelen tekrar
+     * (çift tıklama, ağ tekrarı, eşzamanlı iki istek) yeni sipariş açmaz, ilk siparişi döndürür
+     * (`replayed: true`). Aynı anahtar farklı adres/notla veya başka içerikli bir sepetle gelirse
+     * CHECKOUT_REQUEST_REUSED (409) ile reddedilir. Anahtarsız çağrı tekrar koruması taşımaz;
+     * mağaza rotası anahtarı zorunlu tutar.
      */
     async createOrder(params: {
       userId: string
@@ -887,78 +1124,73 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
       notes?: string
       legalAcceptance: LegalAcceptanceEvidence
     }) {
-      const draft = await buildCheckoutDraft(params)
+      const requestKey = params.idempotencyKey
+      if (requestKey !== undefined && !CHECKOUT_REQUEST_KEY_PATTERN.test(requestKey)) {
+        throw new ValidationError('Geçersiz sipariş isteği. Sayfayı yenileyip tekrar deneyin.')
+      }
+      const requestHash = checkoutRequestHash(params)
+
+      // A repeat that arrives after the first request committed: that request already
+      // emptied the cart, so the order is looked up before the cart is read.
+      if (requestKey) {
+        const committedOrderId = await findCommittedCheckoutRequest(
+          params.userId,
+          requestKey,
+          requestHash,
+        )
+        if (committedOrderId) return loadCheckoutResult(committedOrderId)
+      }
+
+      let draft: CheckoutDraft
+      try {
+        draft = await buildCheckoutDraft(params)
+      } catch (error) {
+        // The same request may have committed between the lookup above and reading the
+        // cart (empty cart, last unit taken): answer with its order instead of the error.
+        if (requestKey) {
+          const committedOrderId = await findCommittedCheckoutRequest(
+            params.userId,
+            requestKey,
+            requestHash,
+          )
+          if (committedOrderId) return loadCheckoutResult(committedOrderId)
+        }
+        throw error
+      }
+      const checkoutRequest: CheckoutRequestStamp | undefined = requestKey
+        ? { key: requestKey, requestHash, cartHash: checkoutCartHash(draft.cart) }
+        : undefined
 
       const bankTransferInstructions =
-        params.paymentMethod === 'eft'
-          ? await createPlatformBankAccountService({ prisma })
-              .listActive()
-              .then((accounts) =>
-                accounts.length > 0
-                  ? accounts.map((account) => ({
-                      bankName: account.bankName,
-                      accountHolder: account.accountHolder,
-                      accountHolderNote: account.accountHolderNote,
-                      iban: account.iban,
-                      branchName: account.branchName,
-                    }))
-                  : null,
-              )
-              .catch(() => null)
-          : undefined
+        params.paymentMethod === 'eft' ? await loadBankTransferAccounts() : undefined
 
-      const result = await prisma.$transaction(async (tx) => {
-        const { order, payment } = await writeOrderRecords(tx, params, draft)
-
-        // "Siparişiniz Alındı" is written in the same transaction so a crash after
-        // commit cannot lose it. Card orders are mailed only once the payment is
-        // confirmed (payment.service), so nothing is recorded for them here.
-        if (params.paymentMethod === 'eft') {
-          const snapshot = await loadOrderEmailSnapshot(tx, order.id)
-          if (snapshot) {
-            const resolvedBankInstructions =
-              bankTransferInstructions ?? getPlatformBankInfo(order.id)
-            await recordNotification(tx, {
-              eventKey: `order:${order.id}:created:customer`,
-              userId: params.userId,
-              emailTo: draft.customer.email,
-              type: 'order_placed',
-              title: `Siparişiniz Alındı - ${formatOrderDisplayNumber(order.publicNumber, order.id)}`,
-              body: 'Siparişiniz alındı. Havale/EFT ödemeniz onaylandığında hazırlanmaya başlanacak.',
-              data: {
-                ...customerOrderEmailData(snapshot, {
-                  paymentMethod: 'eft',
-                  paymentStatus: 'pending',
-                }),
-                bankTransferInstructions: resolvedBankInstructions,
-              },
-            })
-
-            // The order is invisible to the seller until an admin confirms the
-            // transfer, so the operations mailbox is told it is waiting.
-            await recordAdminOperationNotification(tx, {
-              event: 'eft_pending',
-              type: 'admin_bank_transfer_pending',
-              eventKey: `order:${order.id}:eft-pending`,
-              title: `Havale/EFT onayı bekliyor - ${formatOrderDisplayNumber(order.publicNumber, order.id)}`,
-              body: 'Müşteri havale/EFT ile ödeme seçti. Ödeme onaylanana kadar sipariş tasarımcıya düşmez.',
-              data: {
-                orderNumber: formatOrderNumber(order.publicNumber, order.id),
-                adminUrl: adminPanelLink('/odemeler'),
-                customerName: customerDisplayName(snapshot),
-                totalAmount: order.totalAmount.toFixed(2),
-                reference: order.id,
-                bankName:
-                  (Array.isArray(resolvedBankInstructions)
-                    ? resolvedBankInstructions[0]?.bankName
-                    : resolvedBankInstructions?.bankName) || undefined,
-              },
-            })
+      let outcome: Awaited<ReturnType<typeof createOrderInTransaction>>
+      try {
+        outcome = await prisma.$transaction((tx) =>
+          createOrderInTransaction(
+            tx,
+            { ...params, ...(checkoutRequest ? { checkoutRequest } : {}) },
+            draft,
+            bankTransferInstructions,
+          ),
+        )
+      } catch (error) {
+        // Backstop for the unique (customer, key) index if two writers ever got past the lock.
+        if (checkoutRequest && isUniqueViolation(error)) {
+          const raced = await findOrderByCheckoutRequest(
+            prisma,
+            params.userId,
+            checkoutRequest.key,
+          )
+          if (raced) {
+            assertSameCheckoutRequest(raced, requestHash, checkoutRequest.cartHash)
+            return loadCheckoutResult(raced.id)
           }
         }
-
-        return { order, payment, lines: order.lines }
-      })
+        throw error
+      }
+      if (outcome.kind === 'existing') return loadCheckoutResult(outcome.orderId)
+      const { kind: _kind, ...result } = outcome
       await wakeStockSearchProjection()
 
       const resolvedBankInstructions =
@@ -968,6 +1200,7 @@ export function createCheckoutService({ prisma }: CheckoutServiceDeps) {
 
       return {
         ...result,
+        replayed: false as const,
         ...(resolvedBankInstructions ? { bankTransferInstructions: resolvedBankInstructions } : {}),
       }
     },

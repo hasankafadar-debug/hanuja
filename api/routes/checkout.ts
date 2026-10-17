@@ -12,7 +12,10 @@ export const createOrderSchema = z.object({
   paymentMethod: z.enum(['eft']),
   couponCode: z.string().optional(),
   notes: z.string().max(500).optional(),
-  idempotencyKey: z.string().optional(),
+  // "Siparişi tamamla" niyeti başına istemcinin ürettiği anahtar; tekrarlar aynı siparişi döndürür.
+  idempotencyKey: z
+    .string({ required_error: 'Siparis istegi anahtari eksik; sayfayi yenileyip tekrar deneyin' })
+    .regex(/^[A-Za-z0-9_-]{16,80}$/, 'Gecersiz siparis istegi; sayfayi yenileyip tekrar deneyin'),
   turnstileToken: z.string().min(1, 'Insan dogrulamasi zorunludur'),
   acceptedDistanceSales: z.literal(true, {
     errorMap: () => ({ message: 'Mesafeli satis sozlesmesini kabul etmeniz zorunludur' }),
@@ -150,11 +153,12 @@ export async function createOrder(req: NextRequest, userId: string, bodyOverride
       ...(body.billingAddressId !== undefined ? { billingAddressId: body.billingAddressId } : {}),
       ...(body.couponCode !== undefined ? { couponCode: body.couponCode } : {}),
       ...(body.notes !== undefined ? { notes: body.notes } : {}),
-      ...(body.idempotencyKey !== undefined ? { idempotencyKey: body.idempotencyKey } : {}),
+      idempotencyKey: body.idempotencyKey,
       legalAcceptance,
     })
 
-    return created(result)
+    // A repeat of the same request answers with the order it already created.
+    return result.replayed ? ok(result) : created(result)
   } catch (error) {
     return handleError(error)
   }

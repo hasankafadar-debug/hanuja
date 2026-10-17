@@ -84,6 +84,32 @@ export async function closeFullyCancelledSellerFulfillment(
 }
 
 /**
+ * Gives back the coupon use of an order that closes without a collected payment
+ * (customer/admin cancellation before the EFT transfer is approved, EFT rejection,
+ * an expired card payment): the CouponUsage row is deleted and Coupon.usageCount
+ * drops by one. The delete is the claim — a repeated or concurrent call finds no
+ * row and changes nothing, so the count drops exactly once. Paid orders keep their
+ * coupon use when they are later cancelled or refunded; callers must not use this there.
+ */
+export async function releaseOrderCouponUsage(
+  tx: Pick<Prisma.TransactionClient, 'couponUsage' | 'coupon'>,
+  orderId: string,
+) {
+  const usage = await tx.couponUsage.findUnique({
+    where: { orderId },
+    select: { couponId: true },
+  })
+  if (!usage) return false
+  const removed = await tx.couponUsage.deleteMany({ where: { orderId } })
+  if (removed.count !== 1) return false
+  await tx.coupon.updateMany({
+    where: { id: usage.couponId, usageCount: { gt: 0 } },
+    data: { usageCount: { decrement: 1 } },
+  })
+  return true
+}
+
+/**
  * Releases every unshipped unit of an order that never collected a payment
  * (EFT rejection, admin cancellation of an unpaid legacy order). No refund or
  * ledger effect: nothing was collected and no seller accrual exists.

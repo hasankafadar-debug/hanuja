@@ -14,7 +14,7 @@ import { isWithinWithdrawalWindow } from '../domain/withdrawal-window'
 import { createQuantityCancellationService } from './quantity-cancellation.service'
 import { createSellerApprovalQueryService } from './seller-approval-query.service'
 import { recordWholeOrderCancellationNotifications } from './order-email-payload'
-import { releaseRemainingOrderLines } from './order-line-release'
+import { releaseOrderCouponUsage, releaseRemainingOrderLines } from './order-line-release'
 import { wakeStockSearchProjection } from './product-stock-sync'
 
 interface OrderServiceDeps {
@@ -162,8 +162,12 @@ export function createOrderService({ prisma }: OrderServiceDeps) {
       })
 
       // After the e-mail snapshot, which lists the still-active lines. An unpaid
-      // order returns its reserved stock; there is no refund or ledger effect.
-      if (!paymentCollected) await releaseRemainingOrderLines(tx, params.orderId)
+      // order returns its reserved stock and its coupon use; there is no refund or
+      // ledger effect.
+      if (!paymentCollected) {
+        await releaseRemainingOrderLines(tx, params.orderId)
+        await releaseOrderCouponUsage(tx, params.orderId)
+      }
     })
 
     if (!paymentCollected) await wakeStockSearchProjection()
