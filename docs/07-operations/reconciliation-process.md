@@ -226,6 +226,34 @@ Admin panelinde mutabakat görünümleri şunları kapsamalıdır:
 
 Her uyarının bir "çözüme bağlandı" durumu olmalıdır; uyarılar sessizce kaybolmaz.
 
+### Tahsilat ve iade tutarlarının tanımı (2026-10-17)
+
+Hesaplar `api/services/admin-analytics.service.ts` içindedir; sayfalar yalnız gösterir.
+
+- **Toplam Tahsilat** (Finans Özeti, `getCollectedPaymentTotal`): `confirmedAt` dolu
+  her ödemenin `Payment.amount` toplamı, yani **brüt** tahsilat. `confirmedAt` kod
+  tabanının genelinde "tahsil edildi" işaretidir. `Payment.amount` tahsil edilen
+  tutardır: EFT onay indirimi sonrası tutar, taksitli kartta vade farkı dahil.
+  Sonradan kısmen veya tamamen iade edilen ödeme de sayılır. `pending`, `failed` ve
+  `cancelled` ödemeler hiç `confirmedAt` almadığı için girmez. Ödeme durumuna göre
+  filtrelenmez.
+- **Bugünkü Tahsilat** (kontrol paneli): aynı tanım; `confirmedAt` sunucunun yerel
+  gece yarısından itibaren olanlar sayılır. Bugün tahsil edilip bugün iade edilen
+  ödeme de sayılır.
+- **İade Tutarı** (Finans Özeti, `getCustomerRefundTotal`): tüm ödemelerin
+  `Payment.refundedAmount` toplamı; durum filtresi yoktur. Mutabakattaki
+  `payment_refunded_items` kontrolünün esas aldığı alandır. Kısmi iadeler
+  (`confirmed` kalan ödemeler) sayılır. Tam iadede tahsil edilen `Payment.amount`
+  değil, gerçekten iade edilen tutar gösterilir.
+- **Toplam Tahsilat − İade Tutarı**, müşterilerden elde kalan tutardır; iade iki
+  kez düşülmez.
+- Bilinen sınırlar:
+  - 2026-09-25 öncesi indirimli EFT onaylarında `Payment.amount` indirimsiz kaldı
+    (`.claude/rules/12-production-readiness.md` §37). Bu kayıtlarda brüt tahsilat
+    indirim kadar yüksek görünür.
+  - Chargeback akışı kodda yok; `chargebacked` durumunu atayan bir yol bulunmaz.
+    Bir chargeback ileride işlenirse brüt tahsilatta kalır ve İade Tutarı'na girmez.
+
 ---
 
 ## 9. Provider Settlement Eşleştirmesi

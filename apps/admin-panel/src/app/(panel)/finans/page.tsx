@@ -35,11 +35,11 @@ export default async function FinanceSummaryPage({
     }),
   ])
 
-  const [commissionTotal, penaltyTotal, refundTotal, collectedTotal] = await Promise.all([
+  const [commissionTotal, penaltyTotal, totalRefunds, totalCollected] = await Promise.all([
     prisma.payout.aggregate({ _sum: { commissionAmount: true } }),
     prisma.penalty.aggregate({ where: { status: 'applied' }, _sum: { penaltyAmount: true } }),
-    prisma.payment.aggregate({ where: { status: 'refunded' }, _sum: { amount: true } }),
-    prisma.payment.aggregate({ where: { status: 'confirmed' }, _sum: { amount: true } }),
+    analytics.getCustomerRefundTotal(),
+    analytics.getCollectedPaymentTotal(),
   ])
 
   const fmt = (n: number) =>
@@ -47,10 +47,8 @@ export default async function FinanceSummaryPage({
       ? `${(n / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 })}K TL`
       : `${n.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL`
 
-  const totalCollected = Number(collectedTotal._sum.amount ?? 0)
   const totalCommission = Number(commissionTotal._sum.commissionAmount ?? 0)
   const totalPenalties = Number(penaltyTotal._sum.penaltyAmount ?? 0)
-  const totalRefunds = Number(refundTotal._sum.amount ?? 0)
   const totalPaid = stats.payouts.pendingPayoutTotal + stats.payouts.payoutReadyTotal
   const totalPages = Math.max(1, Math.ceil(sellerSummariesResult.total / params.pageSize))
 

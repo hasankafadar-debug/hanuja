@@ -84,7 +84,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       openReturns,
       openDisputes,
       pendingEftApprovals,
-      collectedTodayResult,
+      collectedTodayTotal,
       pendingPayoutResult,
       payoutReadyResult,
       blockedPayoutResult,
@@ -119,13 +119,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       prisma.payment.count({
         where: { method: 'eft', status: 'pending' },
       }),
-      prisma.payment.aggregate({
-        where: {
-          status: 'confirmed',
-          confirmedAt: { gte: startOfToday },
-        },
-        _sum: { amount: true },
-      }),
+      getCollectedPaymentTotal({ confirmedFrom: startOfToday }),
       prisma.payout.aggregate({
         where: { status: 'hold_active' },
         _sum: { netAmount: true },
@@ -224,7 +218,7 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       payments: {
         pendingEftApprovals,
         ...refundCounts,
-        collectedToday: Number(collectedTodayResult._sum.amount ?? 0),
+        collectedToday: collectedTodayTotal,
       },
       payouts: {
         pendingPayoutTotal: Number(pendingPayoutResult._sum.netAmount ?? 0),
@@ -345,6 +339,38 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
     return { rows, total }
   }
 
+  /**
+   * Gross amount collected from customers.
+   *
+   * `confirmedAt` is the codebase-wide "payment collected" signal; `Payment.amount`
+   * is the collected amount. A payment later refunded (partly or fully) still
+   * counts — refunds are reported separately by `getCustomerRefundTotal`, so
+   * gross − refunds is what was retained. Pending/failed/cancelled payments never
+   * get a `confirmedAt` and are excluded.
+   */
+  async function getCollectedPaymentTotal(params: { confirmedFrom?: Date } = {}): Promise<number> {
+    const result = await prisma.payment.aggregate({
+      where: {
+        confirmedAt: params.confirmedFrom ? { gte: params.confirmedFrom } : { not: null },
+      },
+      _sum: { amount: true },
+    })
+    return Number(result._sum.amount ?? 0)
+  }
+
+  /**
+   * Total amount actually refunded to customers.
+   *
+   * Uses `Payment.refundedAmount` — the same source the `payment_refunded_items`
+   * reconciliation check verifies against completed refund items. No status
+   * filter: partial refunds keep the payment `confirmed`, and `Payment.amount`
+   * may include non-refunded parts (e.g. installment fee), so it is never used.
+   */
+  async function getCustomerRefundTotal(): Promise<number> {
+    const result = await prisma.payment.aggregate({ _sum: { refundedAmount: true } })
+    return Number(result._sum.refundedAmount ?? 0)
+  }
+
   async function getOrderVolumeByDay(days: number = 30): Promise<
     Array<{ date: string; count: number; revenue: number }>
   > {
@@ -377,5 +403,11 @@ export function createAdminAnalyticsService(deps: { prisma: PrismaClient }) {
       .sort((a, b) => a.date.localeCompare(b.date))
   }
 
-  return { getDashboardStats, getSellerFinanceSummaries, getOrderVolumeByDay }
+  return {
+    getDashboardStats,
+    getSellerFinanceSummaries,
+    getCollectedPaymentTotal,
+    getCustomerRefundTotal,
+    getOrderVolumeByDay,
+  }
 }
