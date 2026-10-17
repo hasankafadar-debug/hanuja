@@ -11,11 +11,45 @@ export interface ProductStructuredDataInput {
   imageUrl?: string
   sku?: string
   shippingRateTry?: number
+  shippingDeliveryTime?: { handlingDays: number; transitMinDays: number; transitMaxDays: number }
   /** Aggregate rating across approved reviews. Omit if no reviews exist. */
   aggregateRating?: { ratingValue: number; reviewCount: number }
 }
 
+function buildDeliveryTime(input: ProductStructuredDataInput['shippingDeliveryTime']) {
+  if (
+    !input ||
+    ![input.handlingDays, input.transitMinDays, input.transitMaxDays].every(
+      (days) => Number.isInteger(days) && days >= 0,
+    ) ||
+    input.transitMinDays > input.transitMaxDays
+  ) return undefined
+
+  return {
+    '@type': 'ShippingDeliveryTime',
+    businessDays: {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(
+        (day) => 'https://schema.org/' + day,
+      ),
+    },
+    handlingTime: {
+      '@type': 'QuantitativeValue',
+      minValue: 0,
+      maxValue: input.handlingDays,
+      unitCode: 'DAY',
+    },
+    transitTime: {
+      '@type': 'QuantitativeValue',
+      minValue: input.transitMinDays,
+      maxValue: input.transitMaxDays,
+      unitCode: 'DAY',
+    },
+  }
+}
+
 export function buildProductStructuredData(input: ProductStructuredDataInput): object {
+  const deliveryTime = buildDeliveryTime(input.shippingDeliveryTime)
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -47,6 +81,7 @@ export function buildProductStructuredData(input: ProductStructuredDataInput): o
             shippingDetails: {
               '@type': 'OfferShippingDetails',
               shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'TR' },
+              ...(deliveryTime ? { deliveryTime } : {}),
               shippingRate: {
                 '@type': 'MonetaryAmount',
                 value: input.shippingRateTry,
@@ -55,6 +90,8 @@ export function buildProductStructuredData(input: ProductStructuredDataInput): o
             },
           }
         : {}),
+      // Reference the published organization policy without overriding its exceptions.
+      hasMerchantReturnPolicy: { '@id': getBaseUrl() + '/iade-iptal#return-policy' },
       seller: {
         '@type': 'Organization',
         '@id': getBaseUrl() + '/#organization',

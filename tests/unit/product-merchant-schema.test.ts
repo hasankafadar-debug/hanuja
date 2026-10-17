@@ -41,6 +41,29 @@ describe('merchant listing source contracts', () => {
       ).aggregateRating.reviewCount,
     ).toBe(2)
   })
+  it('separates product handling from the confirmed domestic transit estimate', () => {
+    const data = buildProductStructuredData({ ...input, shippingRateTry: 0,
+      shippingDeliveryTime: { handlingDays: 20, transitMinDays: 2, transitMaxDays: 5 },
+    }) as any
+    expect(data.offers.shippingDetails.deliveryTime).toMatchObject({
+      '@type': 'ShippingDeliveryTime',
+      handlingTime: { minValue: 0, maxValue: 20, unitCode: 'DAY' },
+      transitTime: { minValue: 2, maxValue: 5, unitCode: 'DAY' },
+    })
+    expect(data.offers.shippingDetails.deliveryTime.businessDays.dayOfWeek).toHaveLength(5)
+    expect(data.offers.shippingDetails.deliveryTime.businessDays.dayOfWeek).not.toContain(
+      'https://schema.org/Saturday',
+    )
+  })
+  it.each([
+    { handlingDays: -1, transitMinDays: 2, transitMaxDays: 5 },
+    { handlingDays: 20, transitMinDays: 6, transitMaxDays: 5 },
+    { handlingDays: 20, transitMinDays: 2.5, transitMaxDays: 5 },
+    { handlingDays: Infinity, transitMinDays: 2, transitMaxDays: 5 },
+  ])('omits invalid delivery estimates instead of publishing misleading ranges: %j', (shippingDeliveryTime) => {
+    const data = buildProductStructuredData({ ...input, shippingRateTry: 0, shippingDeliveryTime }) as any
+    expect(data.offers.shippingDetails).not.toHaveProperty('deliveryTime')
+  })
   it('selects the first crawlable gallery asset and refuses empty/private/non-http sources', () => {
     expect(
       selectProductSchemaImageUrl([
@@ -79,6 +102,10 @@ describe('merchant listing source contracts', () => {
     expect(data.hasMerchantReturnPolicy.merchantReturnLink).toBe(
       'https://www.hanuja.com.tr/iade-iptal',
     )
+    const product = buildProductStructuredData(input) as any
+    expect(product.offers.hasMerchantReturnPolicy).toEqual({
+      '@id': data.hasMerchantReturnPolicy['@id'],
+    })
   })
   it('rejects missing brands in both old spreadsheets and individual rows', () => {
     expect(

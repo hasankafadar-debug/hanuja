@@ -26,3 +26,11 @@ Check titles/unchanged URLs; JSON-LD real public images, brand, Hanuja seller an
 - All 79 public products matched the rebuilt search index and passed live image/brand/shipping JSON-LD checks; the return policy link passed.
 - Actual shipping settings at verification: free from TRY 1500, otherwise TRY 150.
 - The public test requested sign-in; the owner supplied an authenticated Chrome Search Console session for Google verification.
+
+## Merchant warning follow-up (2026-10-18)
+
+- Product offers reference the published organization return policy by its existing @id, as supported by Google's merchant listing guide; the legal policy and its exceptions remain authoritative.
+- The owner confirmed a domestic transit estimate of 2–5 business days after dispatch. Product pages show the same estimate used in shippingDetails.deliveryTime.
+- handlingTime is 0 through the product's existing fulfillmentDays; transitTime is separately 2 through 5. Business days are Monday through Friday; the schema does not predict an exact delivery date.
+- This follow-up affects the storefront only: verify relevant tests/lint/typecheck and web build, commit/push task files, deploy hanuja-web through Coolify, then verify live JSON-LD and Google Rich Results Test.
+- Google's pre-deploy code test accepted the policy @id reference and delivery ranges with no merchant-listing warnings (result wfkoz20XMJilfwvTSoMCuw); rating/review warnings remain outside this two-warning follow-up.

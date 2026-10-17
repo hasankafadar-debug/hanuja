@@ -1,6 +1,7 @@
 import { readPlatformShippingSettings } from '@hanuja/api/services/platform-settings.service'
 import { calculateShippingFee } from '@hanuja/api/domain/shipping'
 import type { Metadata } from 'next'
+import { DOMESTIC_TRANSIT_BUSINESS_DAYS } from '@/lib/shipping-policy'
 import { resolveCategorySchema } from '@hanuja/api/services/category-schema.service'
 import { buildStructuredCharacteristics } from '@hanuja/api/domain/product-characteristics'
 import type { ProductProperties } from '@hanuja/api/domain/category-schema'
@@ -295,6 +296,11 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
         imageUrl,
         ...(product.brand ? { brand: product.brand } : {}),
         shippingRateTry,
+        shippingDeliveryTime: {
+          handlingDays: product.fulfillmentDays,
+          transitMinDays: DOMESTIC_TRANSIT_BUSINESS_DAYS.min,
+          transitMaxDays: DOMESTIC_TRANSIT_BUSINESS_DAYS.max,
+        },
         ...(reviewCount > 0 ? { aggregateRating: { ratingValue: avgRating, reviewCount } } : {}),
       })
     : null
@@ -452,6 +458,11 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
                 : null
             }
           />
+
+          <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+            Kargoya verildikten sonra tahmini teslimat: {DOMESTIC_TRANSIT_BUSINESS_DAYS.min}–
+            {DOMESTIC_TRANSIT_BUSINESS_DAYS.max} iş günü.
+          </p>
 
           {characteristicRows.length || colorValue || materialValue || dimensionText ? (
             <section
