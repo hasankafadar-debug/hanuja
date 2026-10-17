@@ -165,6 +165,8 @@ async function seedOrder(
           netPayoutAmount: new Decimal('200.00'),
           shippedQuantity: options.shippedQuantity ?? 2,
           deliveryConfirmedAt: new Date(),
+          // Actual receipt, separate from delivery approval; it opens the 14-day return window.
+          deliveredAt: new Date(),
         },
       },
     },
