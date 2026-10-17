@@ -971,7 +971,7 @@ model Product {
   categoryId       String?
   slug             String        @unique // /urun/<slug>
   name             String
-  brand            String?       @db.VarChar(120)
+  brand            String        @db.VarChar(120)
   description      String?
   shortDescription String?
   story            String? // Ürün Hikayesi

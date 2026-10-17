@@ -11,8 +11,18 @@ Product brand is independent of designer identity. Single-product and Excel crea
 
 ## Contract release
 
-After all writers enforce brand and backfill verification succeeds, add the required-column/check migration and make Prisma Product.brand required. Deploy worker/migration before the remaining apps. Before an old-code rollback, make the column nullable if that code creates brandless products.
+After all writers enforce brand and backfill verification succeeds, migration 20261017190000_require_product_brand makes the column required and rejects whitespace-only values; Prisma Product.brand is required. Deploy worker/migration before the remaining apps. Before an old-code rollback, make the column nullable if that code creates brandless products.
 
 ## Live verification
 
 Check titles/unchanged URLs; JSON-LD real public images, brand, Hanuja seller and current TR/TRY shipping; return policy Organization link; and Excel brand validation. Google Rich Results Test must show no critical merchant image error. Unreviewed products can retain optional review/rating warnings. Search Console validation requires the verified property; recrawl/report processing is asynchronous.
+
+## Verified production backfill (2026-10-17)
+
+- 92 Mosaiss products updated; repeat apply changed 0, missing brands 0.
+- Slug, price, comparison price, stock and status hash remained identical.
+- All 9 historical order lines and 9 legal document snapshots retained their hashes.
+- Audit files were preserved outside the worker and in the ignored local release folder.
+- All 79 public products matched the rebuilt search index and passed live image/brand/shipping JSON-LD checks; the return policy link passed.
+- Actual shipping settings at verification: free from TRY 1500, otherwise TRY 150.
+- The public test requested sign-in; the owner supplied an authenticated Chrome Search Console session for Google verification.

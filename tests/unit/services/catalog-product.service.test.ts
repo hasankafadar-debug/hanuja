@@ -286,3 +286,50 @@ describe('catalog.service product creation', () => {
     })
   })
 })
+
+
+describe('catalog.service product brand updates', () => {
+  function fixture() {
+    const product = {
+      id: 'prod-brand', sellerId: 'seller-1', slug: 'antico',
+      name: 'Mosaiss Home Antico', brand: 'Mosaiss Home', categoryId: null,
+      price: new Decimal(1200), compareAtPrice: null, barcode: null,
+      status: 'published', publishedAt: new Date(), variants: [],
+    }
+    const update = vi.fn().mockImplementation(async ({ data }) => ({ ...product, ...data }))
+    const service = createCatalogService({ prisma: {
+      seller: { findUnique: vi.fn().mockResolvedValue({ id: 'seller-1' }) },
+      product: { findFirst: vi.fn().mockResolvedValue(product), update },
+    } as never })
+    return { service, update }
+  }
+
+  it.each([{ price: new Decimal(1400) }, { stockQuantity: 7 }])(
+    'preserves brand, title and slug on partial price/stock updates: %j',
+    async (patch) => {
+      const { service, update } = fixture()
+      await service.updateProductForSeller({ productId: 'prod-brand', sellerId: 'seller-1', ...patch })
+      const data = update.mock.calls[0]![0].data
+      expect(data).toMatchObject(patch)
+      for (const field of ['brand', 'name', 'slug']) expect(data).not.toHaveProperty(field)
+    },
+  )
+
+  it('replaces an overlapping old brand without changing the existing URL', async () => {
+    const { service, update } = fixture()
+    await service.updateProductForSeller({
+      productId: 'prod-brand', sellerId: 'seller-1', brand: ' Mosaiss ', deferVisibilitySync: true,
+    })
+    const data = update.mock.calls[0]![0].data
+    expect(data).toMatchObject({ brand: 'Mosaiss', name: 'Mosaiss Antico' })
+    expect(data).not.toHaveProperty('slug')
+  })
+
+  it('rejects a blank replacement brand before updating the product', async () => {
+    const { service, update } = fixture()
+    await expect(service.updateProductForSeller({
+      productId: 'prod-brand', sellerId: 'seller-1', brand: ' ',
+    })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+    expect(update).not.toHaveBeenCalled()
+  })
+})
