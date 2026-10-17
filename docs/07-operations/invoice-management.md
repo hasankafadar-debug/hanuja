@@ -1,6 +1,6 @@
 # Sipariş fatura yönetimi
 
-Son güncelleme: 2026-10-14 — satıcı Hanuja modeli ve ayrı iade faturası.
+Son güncelleme: 2026-10-17 — iade faturası tarihi Türkiye takvim günüyle doğrulanır.
 
 Sipariş ve iade sürecinde üç ayrı fatura vardır:
 
@@ -27,10 +27,11 @@ Müşteri bağlantıları `NEXT_PUBLIC_WEB_URL` üzerinden oluşturulur:
 - Kargo girişi fatura olmadan da yapılır. Kargoya verilişten 1 saat sonra fatura yoksa satıcıya tek
   seferlik hatırlatma gider (`seller_invoice_reminder`, `seller-invoice-reminder` işi). Ceza yoktur.
 - **Admin onayı:** tutar, KDV oranı ve sipariş numarası kontrol edilir; fatura no ve fatura tarihi
-  girilerek onaylanır (tarih ileri olamaz, ödeme tarihinden önce olamaz). Onay hakediş vadesini yazar:
-  fatura tarihi + 30 gün sonrasındaki ilk cuma (`docs/01-business/payout-policy.md` §3). Red gerekçe
-  ister (5–1000 karakter) ve satıcıya `seller_invoice_rejected` bildirimi gider. İkisi de `If-Match`
-  ister ve denetim kaydı yazar (`seller_invoice_approved` / `seller_invoice_rejected`).
+  girilerek onaylanır (tarih Türkiye takvim günüdür; ileri olamaz, ödeme tarihinden önce olamaz).
+  Onay hakediş vadesini yazar: fatura tarihi + 30 gün sonrasındaki ilk cuma
+  (`docs/01-business/payout-policy.md` §3). Red gerekçe ister (5–1000 karakter) ve satıcıya
+  `seller_invoice_rejected` bildirimi gider. İkisi de `If-Match` ister ve denetim kaydı yazar
+  (`seller_invoice_approved` / `seller_invoice_rejected`).
 - Onaylı fatura yeniden değerlendirilemez; satıcı onaylı faturayı değiştiremez/silemez, gelen e-posta da
   onu değiştiremez (`blocked_invoice_policy`). Düzeltme gerekirse admin dosyayı kaldırıp yeniden yükler.
 - Satıcı faturası müşteriye bildirim üretmez.
@@ -50,6 +51,18 @@ Müşteri bağlantıları `NEXT_PUBLIC_WEB_URL` üzerinden oluşturulur:
   Gönderimden önce dosyanın hâlâ güncel ve müşteriye ait olduğu yeniden kontrol edilir.
 - Admin sipariş listesi: fatura sütunu, "Müşteri faturası bekleyen" (kargoya verilmiş, faturasız; son gün
   kargoya veriliş + 7 gün) ve "Müşteri faturası kesilmiş" hızlı filtreleri.
+
+## Hanuja'nın tasarımcıya iade faturası
+
+- Admin iade detayında ilgili tasarımcı için PDF'i yükler. Yükleme için para iadesi tamamlanmış,
+  tasarımcının alış faturası onaylı ve mali kayıtlar kesinleşmiş olmalıdır. Tutar ve KDV dökümü tamamlanan
+  iade işlemlerinden gelir; belge bakiye ya da cari hesap kaydı oluşturmaz.
+- Fatura no ve fatura tarihi zorunludur. Tarih, alış faturası onayındaki gibi Türkiye (Europe/Istanbul)
+  takvim günüdür: bugünün tarihi günün her saatinde kabul edilir; yarın ve sonrası ya da geçersiz tarih
+  reddedilir (`seller-return-invoice.service.ts`).
+- Değiştirme ve kaldırma sürüm (`If-Match`) ve gerekçe ister; denetim kaydı yazılır
+  (`order_invoice_uploaded` / `_replaced` / `_removed`, hedef `return_request`). Her yeni dosya tasarımcıya
+  bir kez `seller_return_invoice_uploaded` bildirimi üretir; yalnız no/tarih düzeltmesi bildirim üretmez.
 
 ## İşlem kuralları
 

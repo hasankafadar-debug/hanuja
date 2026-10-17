@@ -10,6 +10,7 @@ import { createQuantityRefundService } from '../../api/services/quantity-refund.
 import { createOrderDocumentService } from '../../api/services/order-document.service'
 import { createSellerReturnInvoiceService } from '../../api/services/seller-return-invoice.service'
 import { createPrivateDocumentStorage } from '../../api/lib/private-document-storage'
+import { getReportingDateKey } from '../../api/lib/reporting-time'
 import { createDisputeService } from '../../api/services/dispute.service'
 import { createReturnRequestRepository } from '../../api/repositories/return-request.repository'
 import { createQuantityCancellationService } from '../../api/services/quantity-cancellation.service'
@@ -192,7 +193,8 @@ describe('simplified order workflow on real PostgreSQL', () => {
       body: PDF,
       sizeBytes: PDF.length,
     })
-    const day = new Date().toISOString().slice(0, 10)
+    // Türkiye calendar day, as the admin enters it (the UTC date lags before 03:00).
+    const day = getReportingDateKey(new Date())
     await documents.reviewSellerInvoice({
       orderId: f.order.id,
       sellerId: f.seller.id,
@@ -477,7 +479,8 @@ describe('simplified order workflow on real PostgreSQL', () => {
       body: PDF,
       sizeBytes: PDF.length,
     })
-    const day = new Date().toISOString().slice(0, 10)
+    // Türkiye calendar day, as the admin enters it (the UTC date lags before 03:00).
+    const day = getReportingDateKey(new Date())
     await documents.reviewSellerInvoice({
       orderId: f.order.id,
       sellerId: f.seller.id,

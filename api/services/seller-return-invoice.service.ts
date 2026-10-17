@@ -15,6 +15,7 @@ import {
 import { DOCUMENT_MAX_SIZE_BYTES } from '../lib/r2'
 import { formatOrderNumber } from '../lib/order-number'
 import { getSellerPanelUrl } from '../lib/platform-info'
+import { getReportingDateKey, isReportingDateKey } from '../lib/reporting-time'
 import {
   splitVatInclusiveAmount,
   calculateSellerPurchaseInvoice,
@@ -51,15 +52,11 @@ function metadata(input: InvoiceMetadata) {
     throw new ValidationError('Geçerli bir fatura numarası girin.')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.invoiceDate))
     throw new ValidationError('Fatura tarihi YYYY-MM-DD olmalıdır.')
-  const invoiceDate = new Date(input.invoiceDate + 'T09:00:00.000Z')
-  if (
-    !Number.isFinite(invoiceDate.getTime()) ||
-    invoiceDate.toISOString().slice(0, 10) !== input.invoiceDate ||
-    invoiceDate > new Date()
-  ) {
+  // A Türkiye calendar day, as in the purchase invoice approval: today is valid at any hour.
+  if (!isReportingDateKey(input.invoiceDate) || input.invoiceDate > getReportingDateKey(new Date()))
     throw new ValidationError('Fatura tarihi geçerli olmalı ve ileri tarih olmamalıdır.')
-  }
-  return { invoiceNumber, invoiceDate }
+  // 09:00Z is the same calendar day in UTC and Istanbul; the admin card reads the ISO date part.
+  return { invoiceNumber, invoiceDate: new Date(input.invoiceDate + 'T09:00:00.000Z') }
 }
 
 export function createSellerReturnInvoiceService({
