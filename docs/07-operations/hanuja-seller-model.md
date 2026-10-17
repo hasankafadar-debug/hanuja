@@ -6,6 +6,8 @@ Müşteri satışının tarafı Hanuja işletmeci şirketidir. Tasarımcı kimli
 
 İade, uyuşmazlık ve ürün sorusu mesajları `customer`, `seller` veya `internal` hedefi taşır. Müşteri/tasarımcı yazıları kendi kanallarına kaydedilir; yönetim cevabında hedef seçer. Eski hedefi olmayan mesajlar yönetim için saklanır. Tasarımcı ret gerekçeleri ve görselleri müşteriye gönderilmez; müşteri Hanuja incelemesini takip eder. Ret, yönetimin müşteri açıklamasıyla sonuçlandırılır.
 
+Ürün sorusunda tek istisna (17.10.2026): tasarımcı, kendi ürünüyle ilgili müşteri mesajlarını müşterinin kimliği olmadan görür ve her müşteri mesajında e-posta ile uygulama içi bildirim alır. Tasarımcının yanıtı yine yalnız Hanuja'ya gider; müşteri onu görmez. Hanuja'nın müşteriye yazdığı yanıtı tasarımcı görmez. Ayrıntı: `docs/02-product/seller-journeys.md` Journey 7.
+
 ## Teslim ve iade
 
 Ürün bazlı fiili teslim tarihi `deliveredAt`, operasyon onayından bağımsızdır. Aynı siparişin son aktif ürünü teslim edilmeden yasal cayma süresi kapanmaz. Ayıp/garanti başvuruları cayma süresine bağlanmaz. Teslim öncesi cayma destek/e-posta üzerinden alınır.

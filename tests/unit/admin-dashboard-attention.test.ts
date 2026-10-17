@@ -36,7 +36,7 @@ describe('admin dashboard attention cards', () => {
   it('renders the attention tone with a visible and accessible signal', async () => {
     const source = await readFile(STAT_CARD, 'utf8')
 
-    expect(source).toContain('tone?: "default" | "attention"')
+    expect(source).toContain('tone?: "default" | "attention" | "warning"')
     expect(source).toContain('border-[#86efac] bg-[#f0fdf4]')
     expect(source).toContain('bg-[#dcfce7] text-success')
     expect(source).toContain('<span className="sr-only">İşlem bekliyor</span>')

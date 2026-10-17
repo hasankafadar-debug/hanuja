@@ -1127,6 +1127,25 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   henüz denenmedi; `packages/security/src/webhook-verifier.ts` (`verifyIyzicoWebhook`) kullanılmayan eski koddur;
   müşteri faturasında vade farkının KDV dağılımı mali müşavir kararı bekliyor.
 
+### 47. Ürün sorusunda tasarımcı bildirimi + "Ürün Soruları" kartı (yeni — 2026-10-17)
+
+- **Önce:** 436c0eb'den (12.10.2026) beri müşteri sorusu tasarımcıya hiç ulaşmıyordu: tasarımcı mesajı göremiyor,
+  e-posta/bildirim/rozet almıyordu; konuşma listede boş önizleme ve "Yanıtınız bekleniyor" ile duruyordu.
+- **Şimdi (iş sahibi kararı):** tasarımcı kendi ürünündeki müşteri mesajlarını müşteri kimliği olmadan görür
+  (`isProductQuestionMessageVisibleTo`); her müşteri mesajı tasarımcıya bir `seller_product_question` e-postası +
+  uygulama içi bildirim yazar (eventKey `product-question:{threadId}:customer-message:{messageId}`) ve
+  `lastCustomerMessageSeq`'i ilerletir. Tasarımcı yanıtı yine yalnız Hanuja'ya gider, müşteri görmez.
+- Satıcı kontrol panelinde "Ürün Soruları" kartı: menü rozetiyle aynı sayı (`countUnreadForSeller`), 1 ve üstünde
+  sarı (`StatCard tone="warning"`, `packages/ui` — yalnız ekleme).
+- 2026-10-17 öncesi müşteri mesajları geri doldurulmadı; tasarımcıya okunmamış görünmez.
+- **Migration YOK, env YOK.** Redeploy: **web** (soru → bildirim), **seller-panel** (kart, görünürlük, okundu),
+  **admin-panel** (ortak servis). Worker gerekmez (tip ve şablon mevcut). Sıra kritik değil.
+- **Açık uç:** Hanuja'nın tasarımcıya yanıtı aynı "Müşteri Sorusu" şablonuyla gidiyor (metin uyumsuz); durum
+  etiketleri (`waiting_for_seller`) kimin yanıtlayacağını izlemiyor.
+- **Testler:** `tests/postgres/product-question-concurrency.test.ts` eşzamanlı yazmalarda tasarımcı bildirimini
+  (müşteri mesajı başına bir e-posta) ve okunmamış sayısını da sınar; `tests/postgres/hanuja-seller-model.test.ts`,
+  `tests/unit/services/product-question.service.test.ts`, `tests/unit/seller-dashboard-product-questions.test.ts`.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

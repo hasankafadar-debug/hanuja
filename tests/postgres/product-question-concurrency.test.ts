@@ -6,8 +6,10 @@
  *
  * Hanuja is the seller of record (docs/07-operations/hanuja-seller-model.md):
  * customer and designer never write to each other. Each of their messages gives
- * every admin one in-app copy in its own turn; only a Hanuja reply reaches the
- * customer or the designer, by e-mail and as an unread message.
+ * every admin one in-app copy in its own turn. A customer message also tells the
+ * designer (one e-mail and in-app notification per message, without the
+ * customer's identity) and counts as unread for them. A Hanuja reply reaches the
+ * party it is addressed to, by e-mail and as an unread message.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { execFileSync } from 'node:child_process'
@@ -69,6 +71,7 @@ interface Fixture {
   customerEmail: string
   sellerId: string
   sellerUserId: string
+  sellerEmail: string
   adminId: string
   productId: string
   orderId: string
@@ -130,6 +133,7 @@ async function seed(): Promise<Fixture> {
     customerEmail: customer.email,
     sellerId: seller.id,
     sellerUserId: sellerUser.id,
+    sellerEmail: sellerUser.email,
     adminId: admin.id,
     productId: product.id,
     orderId: order.id,
@@ -163,8 +167,29 @@ function staffEventKey(
   return `product-question:${threadId}:admin:${adminId}:turn:${turn}:${author}`
 }
 
+/** Event keys of the designer's "Müşteri Sorusu" notifications for a thread; none carries the customer's identity. */
+async function designerQuestionKeys(threadId: string, f: Fixture) {
+  const rows = await prisma.notificationOutbox.findMany({
+    where: {
+      type: 'seller_product_question',
+      userId: f.sellerUserId,
+      eventKey: { startsWith: `product-question:${threadId}:` },
+    },
+  })
+  for (const row of rows) {
+    expect((row.payload as { emailTo?: string }).emailTo).toBe(f.sellerEmail)
+    expect(JSON.stringify(row.payload)).not.toContain(f.customerEmail)
+    expect(JSON.stringify(row.payload)).not.toContain('Ayşe')
+  }
+  return rows.map((row) => row.eventKey).sort()
+}
+
+function customerMessageKey(threadId: string, messageId: string) {
+  return `product-question:${threadId}:customer-message:${messageId}`
+}
+
 describe('product questions — PostgreSQL concurrency', () => {
-  it('two simultaneous first questions open one conversation; staff get one copy per message, the designer nothing', async () => {
+  it('two simultaneous first questions open one conversation; staff and the designer are told once per message', async () => {
     const f = await seed()
     const ask = (body: string) =>
       service().askQuestion({ customerId: f.customerId, customerRole: 'customer', productId: f.productId, body })
@@ -182,10 +207,15 @@ describe('product questions — PostgreSQL concurrency', () => {
       staffEventKey(threadId, f.adminId, 1, 'customer'),
       staffEventKey(threadId, f.adminId, 2, 'customer'),
     ])
-    expect(await prisma.notificationOutbox.count({ where: { userId: f.sellerUserId } })).toBe(0)
+    // Each customer message tells the designer once, without the customer's identity.
+    const messages = await prisma.productQuestionMessage.findMany({ where: { threadId } })
+    expect(await designerQuestionKeys(threadId, f)).toEqual(
+      messages.map((m) => customerMessageKey(threadId, m.id)).sort(),
+    )
+    expect(await service().countUnreadForSeller(f.sellerId)).toBe(1)
   })
 
-  it('parallel customer messages after a designer reply reach staff once each, in their own turns', async () => {
+  it('parallel customer messages after a designer reply reach staff and the designer once each, in their own turns', async () => {
     const f = await seed()
     const { threadId } = await service().askQuestion({
       customerId: f.customerId,
@@ -225,9 +255,13 @@ describe('product questions — PostgreSQL concurrency', () => {
       expect(messages[i]!.createdAt.getTime()).toBeGreaterThanOrEqual(messages[i - 1]!.createdAt.getTime())
     }
     expect(thread.lastMessageAt.getTime()).toBe(messages[4]!.createdAt.getTime())
-    // Customer messages are not addressed to the designer.
-    expect(await prisma.notificationOutbox.count({ where: { userId: f.sellerUserId } })).toBe(0)
-    expect(await service().countUnreadForSeller(f.sellerId)).toBe(0)
+    // Every customer message tells the designer once: none is lost or doubled in the race.
+    expect(await designerQuestionKeys(threadId, f)).toEqual(
+      messages.slice(2).map((m) => customerMessageKey(threadId, m.id)).sort(),
+    )
+    // The designer's unread marker follows the newest customer message.
+    expect(thread.lastCustomerMessageSeq).toBe(5)
+    expect(await service().countUnreadForSeller(f.sellerId)).toBe(1)
   })
 
   it('parallel designer replies stay internal: staff get one copy each, the customer nothing', async () => {
@@ -250,6 +284,8 @@ describe('product questions — PostgreSQL concurrency', () => {
       [2, 3].map((turn) => staffEventKey(threadId, f.adminId, turn, 'seller')),
     )
     expect(await prisma.notificationOutbox.count({ where: { userId: f.customerId } })).toBe(0)
+    // The designer is not notified about their own replies.
+    expect(await designerQuestionKeys(threadId, f)).toEqual([])
     const customerView = await service().getForCustomer(threadId, f.customerId)
     expect(customerView!.messages.map((m) => m.body)).toEqual(['Montaj gerekiyor mu?'])
     const [listed] = (await service().listForCustomer(f.customerId)).items
@@ -283,7 +319,11 @@ describe('product questions — PostgreSQL concurrency', () => {
     expect(thread.status).toBe('waiting_for_customer')
     // The customer's unread marker is the last Hanuja message addressed to them.
     expect(thread.lastSellerMessageSeq).toBe(3)
-    expect(await prisma.notificationOutbox.count({ where: { userId: f.sellerUserId } })).toBe(0)
+    // The designer was told about the question only; Hanuja's replies to the customer stay hidden from them.
+    const question = await prisma.productQuestionMessage.findFirstOrThrow({ where: { threadId, seq: 1 } })
+    expect(await designerQuestionKeys(threadId, f)).toEqual([customerMessageKey(threadId, question.id)])
+    const designerView = await service().getForSeller(threadId, f.sellerId)
+    expect(designerView!.messages.map((m) => m.body)).toEqual(['Montaj gerekiyor mu?'])
   })
 
   it('keeps pre-sale and order-linked conversations for the same product apart', async () => {
@@ -343,14 +383,17 @@ describe('product questions — PostgreSQL concurrency', () => {
       body: 'İlk soru',
     })
     await service().replyAsCustomer({ threadId, customerId: f.customerId, body: 'İkinci soru' })
-    // Customer messages are never unread for the designer, nor can the designer report them as read.
+    // Customer messages stay unread for the designer until the newest one shown is reported.
+    expect(await service().countUnreadForSeller(f.sellerId)).toBe(1)
+    const customerMessages = await prisma.productQuestionMessage.findMany({
+      where: { threadId, authorRole: 'customer' },
+      orderBy: { seq: 'asc' },
+    })
+    expect(customerMessages.map((m) => m.seq)).toEqual([1, 2])
+    await service().markRead(threadId, designer, customerMessages[0]!.id)
+    expect(await service().countUnreadForSeller(f.sellerId)).toBe(1)
+    await service().markRead(threadId, designer, customerMessages[1]!.id)
     expect(await service().countUnreadForSeller(f.sellerId)).toBe(0)
-    const customerMessage = await prisma.productQuestionMessage.findFirstOrThrow({
-      where: { threadId, seq: 1 },
-    })
-    await expect(service().markRead(threadId, designer, customerMessage.id)).rejects.toMatchObject({
-      statusCode: 404,
-    })
 
     for (const body of ['Ölçüleri iletir misiniz?', 'Renk seçeneklerini de ekleyin.']) {
       await service().replyAsAdmin({ threadId, adminId: f.adminId, audience: 'seller', body })
@@ -369,6 +412,17 @@ describe('product questions — PostgreSQL concurrency', () => {
     expect(advanced.advanced).toBe(false)
     const thread = await prisma.productQuestionThread.findUniqueOrThrow({ where: { id: threadId } })
     expect(thread.sellerLastReadSeq).toBe(4)
+
+    // Hanuja's reply to the customer is not shown to the designer, so it can neither be reported as read nor
+    // count as unread for them.
+    await service().replyAsAdmin({ threadId, adminId: f.adminId, audience: 'customer', body: 'Müşteriye yanıt' })
+    const toCustomer = await prisma.productQuestionMessage.findFirstOrThrow({
+      where: { threadId, authorRole: 'admin', audience: 'customer' },
+    })
+    await expect(service().markRead(threadId, designer, toCustomer.id)).rejects.toMatchObject({
+      statusCode: 404,
+    })
+    expect(await service().countUnreadForSeller(f.sellerId)).toBe(0)
 
     const other = await seed()
     const otherThread = await service().askQuestion({

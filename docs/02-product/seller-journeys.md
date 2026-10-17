@@ -199,31 +199,55 @@ Source of truth: `.claude/rules/09-seller-panel-rules.md`, `CLAUDE.md` sections 
 
 ---
 
-## Journey 7: Müşteri Soruları (2026-09-23)
+## Journey 7: Müşteri Soruları (2026-09-23; Hanuja aracılı model 2026-10-12; tasarımcı bildirimi 2026-10-17)
 
-**Goal:** Seller answers private product questions from customers without leaving the platform.
+**Goal:** Customers ask product questions through Hanuja, and Hanuja answers them. The designer (seller) reads
+each question on their products, without the customer's identity, and answers Hanuja internally in
+`/musteri-sorulari`. Customer and designer never write to each other directly.
 
 ### Steps
 
 1. A customer asks from the product page ("Soru Sor") or from an ordered product line on
-   `/siparis/[id]` ("Satıcıya Soru Sor").
-2. When the customer opens a conversation — or writes after the seller's last answer — the seller
-   receives a **Müşteri Sorusu** e-mail and an in-app notification; the menu item **Müşteri Soruları**
-   shows an unread badge.
-3. Seller opens `/musteri-sorulari` (default filter: awaiting reply) and the conversation.
-4. Seller replies in the panel. When the reply turns the conversation over, the customer receives
-   **Sorunuz yanıtlandı**.
+   `/siparis/[id]` ("Satıcıya Soru Sor"). The question is stored on the customer's channel and opens a turn.
+2. Every customer message notifies the designer: one **Müşteri Sorusu** e-mail and one in-app notification per
+   message, plus the unread count on the menu item **Müşteri Soruları** and on the dashboard card
+   **Ürün Soruları** (yellow from one unread conversation). Hanuja staff get one in-app copy per admin user,
+   no e-mail.
+3. The designer opens `/musteri-sorulari` (default filter: "Yanıt bekleyen") and the conversation. The customer's
+   messages are labelled "Müşteri"; opening the conversation on screen clears it from the unread count.
+4. The designer writes an internal reply. The reply stays on the designer's channel: the customer never sees it,
+   and staff get an in-app copy ("Tasarımcı iç yanıtı") but no e-mail.
+5. A Hanuja reply addressed to the designer sends the designer one **Müşteri Sorusu** e-mail (at most one per
+   reply) and an in-app notification, and counts as unread for the designer.
+6. A Hanuja reply addressed to the customer sends the customer one **Sorunuz yanıtlandı** e-mail (at most one per
+   reply) and an in-app notification. The designer does not see it.
 
 ### Rules
 
-- Seller sees only their own conversations; customer name is masked, the customer e-mail is never shown.
+- The designer sees only conversations on their own products. In a conversation they see the customer's messages,
+  their own internal replies and Hanuja replies addressed to them — never Hanuja's replies to the customer.
+- The customer's name and e-mail are never shown to the designer, in the panel or in e-mail; the counterpart is
+  shown as "Hanuja" and customer messages as "Müşteri".
 - Pre-sale questions only reach an active seller whose product is published and who is not on vacation.
   Order questions are allowed for paid orders regardless of the product's current sale state.
 - A suspended seller can still answer existing conversations.
-- Contact details (phone, e-mail, IBAN, links, social handles, address) are blocked on every message.
-- Consecutive messages in one turn produce one e-mail; opening the conversation on screen clears the
-  unread badge, writing a reply does not.
-- Admin can read every conversation (read-only, audited) but cannot write.
+- Contact details (phone, e-mail, IBAN, links, social handles, address) are blocked on every message,
+  including Hanuja replies.
+- Unread = the conversation has a customer message or a Hanuja message to the designer newer than what the
+  designer's screen reported as shown. The menu badge and the dashboard card show the same number of
+  conversations. Writing a reply does not mark anything read.
+- Admin can read every conversation (audited) and reply to the customer or to the designer by choosing the
+  audience. Admin cannot write an internal-only note.
+
+### Open points (not changed by this update)
+
+- The designer e-mail for a Hanuja reply keeps the fixed heading and text of the customer-question template
+  ("Müşteri Sorusu", "Bir müşteriniz … soru sordu"), and its greeting uses the sender name "Hanuja". The copy
+  needs a decision.
+- Every customer or designer message sets `waiting_for_seller`; a designer reply does not clear it and a Hanuja
+  reply to the designer does not change it. The labels "Yanıtınız bekleniyor" (designer) and "Tasarımcı yanıtı
+  bekleniyor" (customer) therefore do not track who has to answer. Decision needed.
+- Customer messages written before 2026-10-17 do not count as unread for the designer (no backfill).
 
 ---
 

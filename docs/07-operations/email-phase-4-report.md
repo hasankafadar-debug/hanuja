@@ -1,10 +1,24 @@
-# E-posta Faz 4 — "Soru Sor" ve özel müşteri–satıcı konuşmaları
+# E-posta Faz 4 — "Soru Sor" ve Hanuja aracılı ürün soruları
 
 **Tarih:** 23 Eylül 2026
-**Kapsam:** müşterinin ürün sayfasından veya siparişinden satıcıya özel soru sorması, satıcının
-panelden yanıtlaması, iki yönlü e-posta bildirimi ve adminin salt okunur, denetimli erişimi.
-Faz 1 (kalıcı gönderim), Faz 2 (sipariş e-postaları) ve Faz 3 (admin operasyon e-postaları) üzerine
-kurulur. Ayrıca giriş sayfasındaki `callbackUrl` açık yönlendirme açığı ayrı bir commit ile kapatıldı.
+**Kapsam:** müşterinin ürün sayfasından veya siparişinden ürün sorusu sorması, tasarımcının panelden iç
+yanıtı, Hanuja'nın müşteriye ve tasarımcıya yanıtı, bu yanıtların e-posta ve uygulama içi bildirimleri ve
+adminin denetimli erişimi. Faz 1 (kalıcı gönderim), Faz 2 (sipariş e-postaları) ve Faz 3 (admin operasyon
+e-postaları) üzerine kurulur. Ayrıca giriş sayfasındaki `callbackUrl` açık yönlendirme açığı ayrı bir commit
+ile kapatıldı.
+
+> **Güncelleme (2026-10-17).** 12 Ekim 2026 `436c0eb` ("feat: make Hanuja the customer-facing seller") ile ürün
+> soruları Hanuja aracılı modele geçti: müşteri ve tasarımcı birbirine yazmaz (`docs/07-operations/hanuja-seller-model.md`,
+> "İletişim"). Bu raporun 23 Eylül'deki doğrudan müşteri↔tasarımcı e-posta modeli şu bölümlerde güncellendi:
+> Kapsam, §2 (iki karar), §5 (yazma yolları), §6 (eşzamanlılık ve olay anahtarı), §7 (okundu), §8 (olay kataloğu),
+> §9 (admin satırı), §12 (concurrency testi). `product_question_messages.audience` kolonu §3'te anlatılmaz; o kolon
+> `20261012150000_hanuja_seller_model` migration'ında eklendi. §1, §3, §4, §10, §11 ve §13 (23 Eylül doğrulama
+> kaydı) değişmedi veya tarihseldir.
+>
+> **Güncelleme (2026-10-17, tasarımcı bildirimi).** Tasarımcı artık kendi ürünündeki müşteri mesajlarını müşterinin
+> kimliği olmadan görür ve her müşteri mesajında bir e-posta + uygulama içi bildirim alır; okunmamış sayısı menü
+> rozetinde ve kontrol panelindeki "Ürün Soruları" kartında görünür. Tasarımcının yanıtı yine yalnız Hanuja'ya
+> gider. §2, §6, §7, §8 ve §9 buna göre güncellendi.
 
 ---
 
@@ -26,9 +40,11 @@ Admin destek biletleri **değiştirilmedi**; satıcıya yönelen sorular yeni ko
 ## 2. Kullanıcı kararları (2026-09-23)
 
 - Butonlar: ürün sayfasında solda **Ürünü Paylaş**, sağda **Soru Sor** (eşit genişlik).
-- Admin konuşmaları **yalnız okur**; her görüntüleme denetim günlüğüne yazılır. Admin mesaj yazamaz.
-- E-posta **sıra değişiminde** gider: karşı taraf yanıt verene kadar gelen ardışık mesajlar tek
-  e-posta üretir.
+- ~~Admin konuşmaları **yalnız okur**; admin mesaj yazamaz.~~ → 2026-10-12'den beri admin, yanıtında hedef
+  (müşteri veya tasarımcı) seçerek yazabilir; iç not yoktur. Her görüntüleme ve her yanıt denetim günlüğüne yazılır.
+- ~~E-posta **sıra değişiminde** gider: karşı taraf yanıt verene kadar gelen ardışık mesajlar tek e-posta üretir.~~
+  → Geçersiz. 2026-10-17'den beri her müşteri mesajı tasarımcıya bir e-posta üretir; tasarımcı mesajı e-posta
+  üretmez; Hanuja yanıtı alıcısına bir e-posta üretir (§8).
 - İletişim bilgisi paylaşımı (e-posta, telefon, IBAN, bağlantı, sosyal medya, adres) **engellenir**.
 - Giriş `callbackUrl` doğrulaması bu fazda, ayrı küçük commit ile.
 
@@ -78,10 +94,10 @@ yeniden doğrular.
 
 ---
 
-## 5. Mesaj metni — üç yazma yolunda tek kapı
+## 5. Mesaj metni — dört yazma yolunda tek kapı
 
-`prepareQuestionMessageBody` (`api/services/product-question.service.ts`) soru, müşteri yanıtı ve satıcı
-yanıtı için **aynı** kontrolü uygular: `trim()` → 2–2000 karakter → `assertNoContactSharing`. Saklanan
+`prepareQuestionMessageBody` (`api/services/product-question.service.ts`) soru, müşteri yanıtı, tasarımcı
+yanıtı ve Hanuja yanıtı için **aynı** kontrolü uygular: `trim()` → 2–2000 karakter → `assertNoContactSharing`. Saklanan
 metin her zaman bu fonksiyonun çıktısıdır; böylece ilk soruda engellenen bilgi yanıtta paylaşılamaz.
 Route katmanındaki zod yalnız kaba bir üst sınırdır (4000).
 
@@ -90,19 +106,27 @@ Route katmanındaki zod yalnız kaba bir üst sınırdır (4000).
 ## 6. Eşzamanlılık
 
 - **Konuşma açma:** `create` benzersiz anahtara takılırsa (`P2002`) istek **yeni bir transaction**da
-  kazanan konuşmaya mesaj ekler; ikinci "yeni soru" e-postası üretmez.
+  kazanan konuşmaya mesaj ekler; ikinci bir konuşma açılmaz. Eklenen mesaj normal kurala göre bildirilir.
 - **Mesaj sırası (kilit altında):** `appendProductQuestionMessage` ilk iş olarak konuşmanın
   `messageSeq` sayacını artırır; bu güncelleme satır kilidini alır. Mesajın `seq`'i, zaman damgası,
-  bildirim kararını veren durum okuması ve "son mesaj" alanları bu kilit altında yazılır. Paralel
-  yazıcılar kilit sırasına göre seri hâle gelir: sıra numaraları commit sırasını izler, sonraki yazıcı
-  öncekinin durumunu görür (tur başına tek e-posta) ve hiçbir yazma bir sınırı geriye taşıyamaz.
-  `lastMessageAt` yalnız gösterim içindir ve kayıtlı değerin gerisine düşmez (sunucular arası saat farkı).
-- **Olay anahtarı:** `product-question:{threadId}:{seller|customer}:turn:{turnSeq}` — mesaj kimliğine
-  değil sıraya bağlı; kilide ek ikinci savunma hattı.
+  tur sayacı (`turnSeq`) ve "son mesaj" alanları bu kilit altında yazılır. Her müşteri ve tasarımcı
+  mesajı yeni bir tur açar ve her admin kullanıcısı için bir uygulama içi kopya yazar (e-posta yok). Müşteri
+  mesajı ayrıca tasarımcıya bir bildirim yazar ve `lastCustomerMessageSeq`'i mesajın `seq`'ine taşır.
+  `replyAsAdmin` de aynı kilidi alıp `messageSeq` ve `turnSeq`'i artırır. Paralel yazıcılar kilit
+  sırasına göre seri hâle gelir: sıra numaraları commit sırasını izler ve hiçbir yazma bir sınırı
+  geriye taşıyamaz. `lastMessageAt` gösterim içindir; `appendProductQuestionMessage` onu kayıtlı
+  değerin gerisine düşürmez (sunucular arası saat farkı), `replyAsAdmin` bu korumayı uygulamaz (bilinen sınır).
+- **Olay anahtarı (e-posta):** `product-question:{threadId}:admin-reply:{messageId}` — her Hanuja yanıtı en
+  çok bir e-posta ve bir uygulama içi bildirim üretir; anahtar mesaj kimliğine bağlıdır. Müşteri ve
+  tasarımcı mesajlarının admin kopyaları: `product-question:{threadId}:admin:{adminId}:turn:{turnSeq}:{customer|seller}`
+  (e-posta yok). Müşteri mesajının tasarımcı bildirimi: `product-question:{threadId}:customer-message:{messageId}` —
+  mesaj başına en çok bir e-posta. Eski `product-question:{threadId}:{seller|customer}:turn:{turnSeq}` anahtarı
+  artık yazılmaz.
 - Bildirim atlanacaksa outbox satırı **hiç yazılmaz** (worker `emailTo` yokken `user.email`'e düştüğü
   için yalnız `emailTo`'yu atlamak e-postayı durdurmaz).
 
-Gerçek PostgreSQL testleriyle doğrulandı. Mutasyon kontrolü: bildirim kararı kilitten önce okunan
+Gerçek PostgreSQL testleriyle doğrulandı (2026-09-23 kaydı; o tarihte bildirim kararı kilit altında verilirdi,
+2026-10-12'den beri her mesaj tur açar). Mutasyon kontrolü: bildirim kararı kilitten önce okunan
 duruma dayandırılınca iki paralel test düştü, geri alınınca geçti. (İlk sürümdeki koşullu `updateMany`
 claim'i de aynı testlerde doğrulanmıştı; inceleme sonrası kilit-önce sıra modeline geçildi.)
 
@@ -110,17 +134,22 @@ claim'i de aynı testlerde doğrulanmıştı; inceleme sonrası kilit-önce sır
 
 ## 7. Okundu bilgisi
 
-- Okunmamış ve okundu sınırları **mesaj sıra numarasıdır**, saat değil: okunmamış = karşı tarafın son
-  mesaj `seq`'i > kendi okundu `seq`'i. Kilit sayesinde görünür mesajlar her zaman bir önektir; geç
+- Okunmamış ve okundu sınırları **mesaj sıra numarasıdır**, saat değil: okunmamış = izleyene görünen son
+  karşı taraf mesajının `seq`'i > izleyenin okundu `seq`'i. Müşteri için bu `lastSellerMessageSeq` (Hanuja → müşteri);
+  tasarımcı için `lastCustomerMessageSeq` (müşteri mesajı veya Hanuja → tasarımcı) alanıdır. Tasarımcı mesajları
+  sayaçları değiştirmez. 2026-10-17 öncesi müşteri mesajları geri doldurulmadı; tasarımcıya okunmamış görünmez. Kilit sayesinde görünür mesajlar her zaman bir önektir; geç
   görünür olan mesaj daima daha büyük `seq` alır ve okundu sınırının gerisinde kalamaz.
 - Sunucu render'ı ve bağlantı prefetch'i okundu **yazmaz**.
 - Konuşma ekranı yerleşip sekme görünürken istemci, **ekranda gösterilen son mesajın** kimliğiyle
   `POST …/read` gönderir (müşteri: `/api/product-questions/:id/read`, satıcı:
   `/api/seller/product-questions/:id/read`).
-- Sunucu mesajın o konuşmaya, konuşmanın da görüntüleyene ait olduğunu tek sorguda doğrular (aksi 404),
+- Sunucu mesajın o konuşmaya, konuşmanın görüntüleyene ait olduğunu ve mesajın görüntüleyene görünür olduğunu
+  (`isProductQuestionMessageVisibleTo` ile aynı kural) tek sorguda doğrular (aksi 404),
   sınırı mesajın `seq`'ine taşır ve **geri götürmez** (`xLastReadSeq < seq` koşulu).
 - Mesaj göndermek okundu sınırını değiştirmez. Admin görüntülemesi okundu yazmaz.
-- Satıcı menüsündeki rozet aynı kuralla sayılır.
+- Tasarımcı menüsündeki rozet ve kontrol panelindeki "Ürün Soruları" kartı aynı sayıyı gösterir: okunmamış müşteri
+  veya Hanuja mesajı olan konuşma sayısı (`countUnreadForSeller`: konuşma sayar, mesaj saymaz). Kart 1 ve üstünde
+  sarıdır (`StatCard tone="warning"`). Tasarımcının kendi mesajları sayıyı değiştirmez.
 - **Yeniden deneme:** okundu isteği ortak `startReadReceipt` (`packages/ui/src/lib/read-receipt.ts`)
   ile gönderilir. Başarılı istek bir daha gönderilmez; yalnız geçici hatalar (ağ hatası, 429, 5xx)
   toplam 3 denemeye kadar, artan gecikmeyle (1 sn, 3 sn; 429'da `Retry-After`, en çok 30 sn) yeniden
@@ -132,14 +161,25 @@ claim'i de aynı testlerde doğrulanmıştı; inceleme sonrası kilit-önce sır
 
 ## 8. Olay kataloğu
 
-| Olay | Tip | Alıcı | Konu | eventKey | Bağlantı |
-|---|---|---|---|---|---|
-| Müşteri yeni konuşma açar veya satıcının yanıtından sonra yazar | `seller_product_question` | satıcı (`seller.user.email`) | **Müşteri Sorusu — {ürün}** | `product-question:{id}:seller:turn:{n}` | `{satıcı paneli}/musteri-sorulari/{id}` |
-| Satıcı, müşteri beklerken yanıt verir | `customer_product_question_answered` | müşteri | **Sorunuz yanıtlandı — {ürün}** | `product-question:{id}:customer:turn:{n}` | `{web}/hesabim/sorularim/{id}` |
+Müşteri mesajı tasarımcıya, Hanuja yanıtı alıcısına e-posta üretir; tasarımcı mesajı e-posta üretmez.
 
-Her iki şablon: HTML + düz metin, ürün görseli (güvenli https ise), 400 karakterlik alıntı
-(`escapeHtml`, satır sonları korunur), konuşma ekranına CTA ve "yanıt e-postayla değil panelden verilir"
-notu. Satıcı e-postası müşterinin e-postasını içermez; ad `maskCustomerName` ile gösterilir.
+| Olay | Tip | Alıcı | Konu / gövde | eventKey | Bağlantı |
+|---|---|---|---|---|---|
+| Müşteri soru sorar veya yazar | `seller_product_question` | tasarımcı (`seller.user.email`) | **Müşteri Sorusu — {ürün}**; "Bir müşteriniz … soru sordu", müşteri adı yok | `product-question:{threadId}:customer-message:{messageId}` | `{satıcı paneli}/musteri-sorulari/{threadId}` |
+| Hanuja müşteriye yanıt verir (`replyAsAdmin`, hedef `customer`) | `customer_product_question_answered` | müşteri (`customer.email`) | **Sorunuz yanıtlandı — {ürün}**; gövde "Hanuja, … sorunuzu yanıtladı" | `product-question:{threadId}:admin-reply:{messageId}` | `{web}/hesabim/sorularim/{threadId}` |
+| Hanuja tasarımcıya yanıt verir (`replyAsAdmin`, hedef `seller`) | `seller_product_question` | tasarımcı (`seller.user.email`) | **Müşteri Sorusu — {ürün}** (gövde için aşağıdaki açık nokta) | `product-question:{threadId}:admin-reply:{messageId}` | `{satıcı paneli}/musteri-sorulari/{threadId}` |
+| Müşteri veya tasarımcı mesajı (her tur) | `admin_support_new_ticket`; yalnız admin kullanıcılarının uygulama içi kopyası | yok; e-posta bacağı kapalı | "Hanuja ürün sorusu" / "Tasarımcı iç yanıtı" | `product-question:{threadId}:admin:{adminId}:turn:{turnSeq}:{customer\|seller}` | `/musteri-sorulari/{threadId}` (admin paneli) |
+
+Her e-posta alıcı için bir uygulama içi bildirimle birlikte gelir (aynı olay anahtarı). Tasarımcı e-postasında
+müşterinin adı ve e-postası yoktur: müşteri mesajında "Müşteri" satırı hiç basılmaz, Hanuja yanıtında "Hanuja"
+yazar.
+
+Şablonlar (`api/lib/email-templates/product-questions.ts`): HTML + düz metin, ürün görseli (güvenli https ise),
+400 karakterlik alıntı (`escapeHtml`, satır sonları korunur), konuşma ekranına CTA ve "yanıt e-postayla değil
+panelden verilir" notu.
+
+**Açık nokta — Hanuja'nın tasarımcıya yanıtı:** aynı şablon kullanıldığı için bu e-posta da "Müşteri Sorusu",
+"Merhaba Hanuja," ve "Bir müşteriniz … soru sordu" metniyle gider. Metin kararı bekleniyor.
 Kuyruk: `noreply` → işlemsel `notification-dispatch`.
 
 ---
@@ -151,11 +191,12 @@ Kuyruk: `noreply` → işlemsel `notification-dispatch`.
 | Storefront ürün sayfası | `/urun/[slug]` | Ürünü Paylaş / Soru Sor; oturumsuz tıklama `/giris?callbackUrl=/urun/{slug}?soru=1`, dönüşte form açık |
 | Storefront sipariş | `/siparis/[id]` | satır başına "Satıcıya Soru Sor" |
 | Müşteri hesabı | `/hesabim/sorularim?sayfa=N`, `/hesabim/sorularim/[id]` | menüde **Sorularım**; 30'luk sayfalar |
-| Satıcı paneli | `/musteri-sorulari?durum=…&sayfa=N`, `/musteri-sorulari/[id]` | "Siparişler" bölümünde, okunmamış rozeti; askıdaki satıcıda da görünür; 30'luk sayfalar, filtre sayfalar arasında korunur |
-| Admin paneli | `/musteri-sorulari`, `/musteri-sorulari/[id]` | liste yalnız üst veri (mesaj içeriği yok), detay salt okunur + audit; detay bağlantısında prefetch kapalı |
+| Satıcı paneli | `/musteri-sorulari?durum=…&sayfa=N`, `/musteri-sorulari/[id]` | "Siparişler" bölümünde, okunmamış rozeti; listede tasarımcının ürünlerine ait tüm konuşmalar ve müşteri mesajları yer alır (müşteri "Müşteri" olarak, kimliksiz); kontrol panelinde okunmamış sayılı "Ürün Soruları" kartı; askıdaki satıcıda da görünür; 30'luk sayfalar, filtre sayfalar arasında korunur |
+| Admin paneli | `/musteri-sorulari`, `/musteri-sorulari/[id]` | liste yalnız üst veri (mesaj içeriği yok); detayda konuşma okunur (her görüntüleme audit'lenir) ve `AdminCommunicationReply` ile müşteriye veya tasarımcıya yanıt yazılır (hedef seçilir, iç not yok); detay bağlantısında prefetch kapalı |
 
-Gizlilik metni (soru formu, müşteri listesi, satıcı listesi): "Konuşma herkese açık değildir. Siz,
-ilgili satıcı [satıcı ekranında: müşteri] ve denetim amacıyla yetkili yöneticiler erişebilir."
+Gizlilik metni (soru formu, müşteri listesi): "Konuşma herkese açık değildir. Siz, ilgili satıcı ve denetim
+amacıyla yetkili yöneticiler erişebilir." Satıcı listesi 2026-10-17'den beri: "Müşterinin kimliği gösterilmez;
+yanıtınız Hanuja'ya iletilir ve müşteriye Hanuja yanıt verir."
 
 Listeler sayfalıdır (`PRODUCT_QUESTION_PAGE_SIZE = 30`, `lastMessageAt desc, id desc`, aralık dışı sayfa
 son sayfaya çekilir); 100'den fazla konuşmada en eski konuşma son sayfada erişilebilir.
@@ -206,13 +247,17 @@ açığı oluşmaz. Geçersiz değer `/hesabim`'e düşer.
 429, müşteri/satıcı sahiplik, askıdaki olmayan satıcı, satıcı DTO'sunda e-posta yok, admin audit,
 admin listesinde içerik yok, beş route'ta bozuk gövde → 400 `INVALID_JSON`, gerçek DB hatası → 500).
 
-**PostgreSQL (yeni):** `tests/postgres/product-question-concurrency.test.ts` — 8 test: eşzamanlı iki
-ilk soru → 1 konuşma / 2 mesaj / 1 e-posta; eşzamanlı üç müşteri mesajı → 1 e-posta, `turnSeq` +1;
-eşzamanlı satıcı yanıtları → 1 e-posta; satış öncesi ve sipariş konuşmalarının ayrılması; outbox hatasında
-rollback; okundu sınırının monotonluğu ve yabancı mesaj reddi; **ters tamamlanma** (A kilidi alıp commit
-etmeden bekler, B ve bir okundu isteği arkasında bekler → seq'ler 1..3 boşluksuz, B > A, `lastMessageAt`
-geri gitmez, arada yapılan okuma yeni mesajları okunmamış bırakır); **101 konuşma** (30'luk 4 sayfa, en
-eski konuşma son sayfada, aralık dışı sayfa son sayfaya çekilir).
+**PostgreSQL (yeni; 2026-10-17'de tasarımcı bildirimine göre güncellendi):**
+`tests/postgres/product-question-concurrency.test.ts` — eşzamanlı iki ilk soru → 1 konuşma / 2 mesaj, mesaj başına
+bir admin kopyası ve tasarımcıya mesaj başına bir e-posta (müşteri kimliği yok), tasarımcıda 1 okunmamış konuşma;
+eşzamanlı müşteri mesajları → kilit sırasıyla seri, her biri tur açar (`turnSeq` her mesajla +1), tasarımcıya
+mesaj başına bir e-posta, `lastCustomerMessageSeq` en yeni müşteri mesajında; eşzamanlı tasarımcı yanıtları →
+e-posta yok, tasarımcıya da bildirim yok; eşzamanlı Hanuja yanıtları → yanıt başına bir müşteri e-postası,
+tasarımcı bu yanıtları görmez; satış öncesi ve sipariş konuşmalarının ayrılması; outbox hatasında rollback; okundu
+sınırının monotonluğu, yabancı mesaj ve Hanuja'nın müşteriye yanıtı için tasarımcı okundusunun reddi; **ters
+tamamlanma** (A kilidi alıp commit etmeden bekler, B ve bir okundu isteği arkasında bekler → seq'ler boşluksuz,
+B > A, `lastMessageAt` geri gitmez, arada yapılan okuma yeni mesajları okunmamış bırakır); **101 konuşma** (30'luk
+4 sayfa, en eski konuşma son sayfada, aralık dışı sayfa son sayfaya çekilir).
 
 ---
 

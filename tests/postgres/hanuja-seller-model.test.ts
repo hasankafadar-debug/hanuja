@@ -40,7 +40,7 @@ async function fixture() {
 }
 
 describe('Hanuja seller model against PostgreSQL', () => {
-  it('keeps designer replies and old shared messages invisible to the customer', async () => {
+  it('shows the designer the customer question and keeps designer replies invisible to the customer', async () => {
     const f = await fixture()
     const service = createProductQuestionService({ prisma })
     const opened = await service.askQuestion({ customerId: f.customer.id, customerRole: 'customer', productId: f.product.id, body: 'Product question' })
@@ -50,10 +50,25 @@ describe('Hanuja seller model against PostgreSQL', () => {
     const customer = await service.getForCustomer(opened.threadId, f.customer.id)
     const seller = await service.getForSeller(opened.threadId, f.seller.id)
     expect(customer?.messages.map((message) => message.body)).toEqual(['Product question', 'Customer answer from Hanuja'])
-    expect(seller?.messages.map((message) => message.body)).toEqual(['Private designer finding', 'Private instructions from Hanuja'])
+    expect(seller?.messages.map((message) => message.body)).toEqual(['Product question', 'Private designer finding', 'Private instructions from Hanuja'])
+    const sellerOutbox = await prisma.notificationOutbox.findMany({ where: { userId: f.sellerUser.id, type: 'seller_product_question' } })
+    expect(sellerOutbox.map((row) => row.eventKey)).toContain('product-question:' + opened.threadId + ':customer-message:' + opened.messageId)
+    expect(JSON.stringify(sellerOutbox)).not.toContain(f.customer.email)
     const notifications = await prisma.notificationOutbox.findMany({ where: { userId: f.customer.id } })
     expect(JSON.stringify(notifications)).not.toContain('Private designer')
     expect(JSON.stringify(notifications)).not.toContain('Private instructions')
+  })
+
+  it('counts a new customer question as unread for the designer until it is shown', async () => {
+    const f = await fixture()
+    const service = createProductQuestionService({ prisma })
+    expect(await service.countUnreadForSeller(f.seller.id)).toBe(0)
+    const opened = await service.askQuestion({ customerId: f.customer.id, customerRole: 'customer', productId: f.product.id, body: 'Is it oak?' })
+    expect(await service.countUnreadForSeller(f.seller.id)).toBe(1)
+    const list = await service.listForSeller(f.seller.id)
+    expect(list.items[0]).toMatchObject({ unread: true, lastMessagePreview: 'Is it oak?', counterpartName: 'Hanuja' })
+    await service.markRead(opened.threadId, { role: 'seller', sellerId: f.seller.id }, opened.messageId)
+    expect(await service.countUnreadForSeller(f.seller.id)).toBe(0)
   })
 
   it('allows defect claims after withdrawal expires and preserves a verified refund deadline', async () => {

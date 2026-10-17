@@ -452,23 +452,28 @@ Seller may need to participate in return/dispute flows, but not control them uni
 
 ## Müşteri Soruları (Customer Questions)
 
-Müşteri ürün sayfasından ("Soru Sor") veya ödenmiş siparişindeki bir ürün satırından satıcıya özel soru
-sorabilir. Satıcı `/musteri-sorulari` ekranından yanıtlar.
+Müşteri ürün sorularını Hanuja'ya yöneltir: ürün sayfasındaki "Soru Sor" veya ödenmiş siparişteki ürün satırı.
+Müşteri ile tasarımcı birbirine yazmaz (`docs/07-operations/hanuja-seller-model.md`, "İletişim"). Tasarımcı kendi
+ürünlerine ait soruları `/musteri-sorulari` ekranında görür ve iç yanıt verir; bu yanıt yalnız Hanuja'ya gider.
 
-- Satıcı yalnız kendi konuşmalarını görür; müşteri adı `maskCustomerName` ile, müşteri e-postası hiç
-  gösterilmez.
-- Askıya alınmış satıcı mevcut konuşmalarına yanıt verebilir (menüde görünür); yeni satış öncesi soru
-  yalnız aktif, tatilde olmayan satıcının yayındaki ürününe gelebilir.
-- İletişim bilgisi paylaşımı (telefon, e-posta, IBAN, bağlantı, sosyal medya, adres) her mesajda
-  engellenir.
-- Okunmamış rozeti ekranda gösterilen son mesaj istemci tarafından bildirildiğinde temizlenir; yanıt
-  yazmak tek başına okundu saymaz.
-- Admin konuşmaları salt okunur görür; her görüntüleme denetim günlüğüne yazılır. Arayüzdeki gizlilik
-  metni buna göre: "Konuşma herkese açık değildir. Siz, ilgili müşteri ve denetim amacıyla yetkili
-  yöneticiler erişebilir."
+- Tasarımcı yalnız kendi ürünlerine ait konuşmaları görür. Konuşmada müşterinin mesajlarını ("Müşteri"), kendi iç
+  yanıtlarını ve Hanuja'nın ona yazdıklarını görür; Hanuja'nın müşteriye yanıtını görmez. Kural tek kaynaktan:
+  `isProductQuestionMessageVisibleTo` (`api/domain/product-question.ts`).
+- Müşterinin adı ve e-postası tasarımcıya hiçbir ekranda ya da e-postada gösterilmez; karşı taraf "Hanuja" yazar.
+- Her müşteri mesajında tasarımcıya bir "Müşteri Sorusu" e-postası ve uygulama içi bildirim gider. Hanuja'nın
+  tasarımcıya yazdığı her yanıt da bir e-posta üretir. Tasarımcının kendi mesajı kimseye e-posta göndermez.
+- Okunmamış sayısı (okunmamış müşteri veya Hanuja mesajı olan konuşma sayısı) menüdeki rozet ve kontrol panelindeki
+  "Ürün Soruları" kartıyla aynıdır; kart 1 ve üstünde sarı vurgulanır. Okundu yalnız ekranda gösterilen son mesaj
+  istemci tarafından bildirildiğinde yazılır; yanıt yazmak tek başına okundu saymaz.
+- Askıya alınmış satıcı mevcut konuşmalarına yanıt verebilir (menüde görünür); yeni satış öncesi soru yalnız
+  aktif, tatilde olmayan satıcının yayındaki ürününe gelebilir.
+- İletişim bilgisi paylaşımı (telefon, e-posta, IBAN, bağlantı, sosyal medya, adres) her mesajda, Hanuja
+  yanıtlarında da engellenir.
+- Admin konuşmaları görür (her görüntüleme denetim günlüğüne yazılır) ve müşteriye ya da tasarımcıya yanıt yazabilir.
+  İç not yoktur.
 - Liste 30'luk sayfalıdır; rozet tüm okunmamış konuşmaları sayar ve her birine sayfalardan ulaşılabilir.
 
-Ayrıntı: `docs/07-operations/email-phase-4-report.md`.
+Ayrıntı: `docs/02-product/seller-journeys.md` (Journey 7), `docs/07-operations/email-phase-4-report.md`.
 
 ## Duyurular
 

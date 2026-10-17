@@ -279,6 +279,56 @@ describe('replies and the turn decision under the row lock', () => {
   })
 })
 
+describe('designer notification for customer messages', () => {
+  const sellerEntries = () =>
+    m.tx.notificationOutbox.upsert.mock.calls
+      .map((call) => call[0].create)
+      .filter((entry) => entry.type === 'seller_product_question')
+
+  it('tells the designer about a new question by e-mail, without the customer identity', async () => {
+    await ask()
+    const entries = sellerEntries()
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      eventKey: 'product-question:t1:customer-message:m1',
+      userId: 'su1',
+      type: 'seller_product_question',
+    })
+    const payload = entries[0].payload
+    expect(payload.emailTo).toBe('seller@example.test')
+    expect(payload.data).toMatchObject({
+      sellerName: 'Atelier Noa',
+      productName: 'Gea Berjer',
+      messageExcerpt: 'Ölçüleri nedir?',
+    })
+    expect(payload.data.panelUrl).toMatch(/\/musteri-sorulari\/t1$/)
+    expect(payload.data).not.toHaveProperty('customerName')
+    expect(JSON.stringify(payload)).not.toContain('ayse@example.test')
+    expect(JSON.stringify(payload)).not.toContain('Ayşe')
+  })
+
+  it('opens a new question as unread for the designer', async () => {
+    await ask()
+    expect(m.tx.productQuestionThread.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ lastCustomerMessageSeq: 1 }) }),
+    )
+  })
+
+  it('notifies the designer about every customer reply and marks it unread for them', async () => {
+    await svc().replyAsCustomer({ threadId: 't1', customerId: 'c1', body: 'Rengi nasıl?' })
+    expect(sellerEntries()).toHaveLength(1)
+    const [, finish] = m.tx.productQuestionThread.update.mock.calls.map((call) => call[0])
+    expect(finish!.data).toMatchObject({ lastCustomerMessageSeq: 2 })
+  })
+
+  it('does not notify the designer about their own reply', async () => {
+    await svc().replyAsSeller({ threadId: 't1', sellerId: 's1', authorUserId: 'su1', body: 'İç yanıt' })
+    expect(sellerEntries()).toHaveLength(0)
+    const [, finish] = m.tx.productQuestionThread.update.mock.calls.map((call) => call[0])
+    expect(finish!.data).not.toHaveProperty('lastCustomerMessageSeq')
+  })
+})
+
 describe('read receipts', () => {
   it('requires the message to belong to a thread owned by the viewer', async () => {
     m.prisma.productQuestionMessage.findFirst.mockResolvedValue(null)
@@ -286,9 +336,31 @@ describe('read receipts', () => {
       svc().markRead('t1', { role: 'seller', sellerId: 's1' }, 'm-foreign'),
     ).rejects.toMatchObject({ statusCode: 404 })
     expect(m.prisma.productQuestionMessage.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'm-foreign', threadId: 't1', audience: 'seller', thread: { sellerId: 's1' } } }),
+      expect.objectContaining({
+        where: {
+          id: 'm-foreign',
+          threadId: 't1',
+          OR: [{ authorRole: 'customer' }, { audience: 'seller', authorRole: { in: ['seller', 'admin'] } }],
+          thread: { sellerId: 's1' },
+        },
+      }),
     )
     expect(m.prisma.productQuestionThread.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('lets the customer mark only their own channel as read', async () => {
+    await svc().markRead('t1', { role: 'customer', customerId: 'c1' }, 'm1')
+    expect(m.prisma.productQuestionMessage.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'm1',
+          threadId: 't1',
+          audience: 'customer',
+          authorRole: { in: ['customer', 'admin'] },
+          thread: { customerId: 'c1' },
+        },
+      }),
+    )
   })
 
   it('only moves the boundary forward, to the reported message sequence number', async () => {

@@ -4,6 +4,7 @@ import {
   checkOrderAskable,
   checkPresaleAskable,
   checkQuestionBodyLength,
+  isProductQuestionMessageVisibleTo,
   isThreadUnread,
   statusAfterMessage,
   statusTurnedOverBy,
@@ -22,6 +23,25 @@ describe('product question domain rules', () => {
   it('builds a unique key that also distinguishes pre-sale from order conversations', () => {
     expect(buildThreadKey('c1', 'p1', null)).toBe('c1:p1:presale')
     expect(buildThreadKey('c1', 'p1', 'o1')).toBe('c1:p1:o1')
+  })
+
+  it('shows the designer the customer question but never Hanuja replies to the customer', () => {
+    const question = { authorRole: 'customer', audience: 'customer' }
+    const legacyQuestion = { authorRole: 'customer', audience: null }
+    const designerReply = { authorRole: 'seller', audience: 'seller' }
+    const hanujaToCustomer = { authorRole: 'admin', audience: 'customer' }
+    const hanujaToDesigner = { authorRole: 'admin', audience: 'seller' }
+
+    expect(isProductQuestionMessageVisibleTo('seller', question)).toBe(true)
+    expect(isProductQuestionMessageVisibleTo('seller', legacyQuestion)).toBe(true)
+    expect(isProductQuestionMessageVisibleTo('seller', designerReply)).toBe(true)
+    expect(isProductQuestionMessageVisibleTo('seller', hanujaToDesigner)).toBe(true)
+    expect(isProductQuestionMessageVisibleTo('seller', hanujaToCustomer)).toBe(false)
+
+    expect(isProductQuestionMessageVisibleTo('customer', question)).toBe(true)
+    expect(isProductQuestionMessageVisibleTo('customer', hanujaToCustomer)).toBe(true)
+    expect(isProductQuestionMessageVisibleTo('customer', designerReply)).toBe(false)
+    expect(isProductQuestionMessageVisibleTo('customer', hanujaToDesigner)).toBe(false)
   })
 
   it('turns the conversation over to the other side', () => {

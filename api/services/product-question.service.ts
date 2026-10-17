@@ -1,16 +1,24 @@
 import { assertNoContactSharing } from './contact-sharing-guard.service'
-import { canSeeMessage } from '../domain/communication-audience'
 /**
- * Product questions — private customer ↔ seller conversations (e-mail plan phase 4).
+ * Product questions. Hanuja is the customer-facing seller (see
+ * docs/07-operations/hanuja-seller-model.md, "İletişim"): a customer and a designer
+ * (seller) never write to each other. Every message is stored on one channel
+ * (`audience`): a customer or designer message on its author's channel, a Hanuja
+ * reply on the channel it is addressed to. The designer also reads the customer's
+ * own messages, without the customer's identity (`isProductQuestionMessageVisibleTo`);
+ * the customer never sees the designer's replies.
  *
  * Concurrency rules (see docs/07-operations/email-phase-4-report.md):
  *   - one thread per `threadKey` (unique index); a racing second opener falls
  *     back to appending to the winner's thread;
  *   - every message first increments the thread's message counter, taking the
- *     row lock; its sequence number, the status read that decides the
- *     "other side" e-mail and the "last message" fields are all written under
- *     that lock, so parallel messages in one turn produce one e-mail and
- *     sequence numbers follow commit order;
+ *     row lock; its sequence number, its turn number and the "last message"
+ *     fields are all written under that lock, so sequence numbers follow commit
+ *     order;
+ *   - every customer or designer message opens a new turn and writes one in-app
+ *     copy per admin user; a customer message also notifies the designer (one
+ *     e-mail and in-app notification per message); a Hanuja reply sends at most
+ *     one e-mail, to the party it is addressed to;
  *   - unread and read boundaries are message sequence numbers (not clocks);
  *     a boundary only moves forward and only to a message the viewer's screen
  *     reported as shown.
@@ -23,6 +31,7 @@ import {
   checkPresaleAskable,
   checkQuestionBodyLength,
   isSellerOperational,
+  isProductQuestionMessageVisibleTo,
   isThreadUnread,
   PRODUCT_QUESTION_MESSAGE_MAX,
   PRODUCT_QUESTION_MESSAGE_MIN,
@@ -105,6 +114,7 @@ async function recordTurnNotification(
   thread: NotifyThread,
   author: ProductQuestionAuthor,
   body: string,
+  messageId: string,
 ) {
   const orderNumber = thread.order
     ? formatOrderNumber(thread.order.publicNumber, thread.order.id)
@@ -120,16 +130,36 @@ async function recordTurnNotification(
       data: { threadId: thread.id, orderNumber, adminUrl: '/musteri-sorulari/' + thread.id },
     })
   }
+  if (author !== 'customer') return
+  // The designer sees the customer's question (without the customer's identity)
+  // and is told about every customer message: e-mail, in-app and the unread badge.
+  await recordNotification(tx, {
+    eventKey: 'product-question:' + thread.id + ':customer-message:' + messageId,
+    userId: thread.seller.userId,
+    emailTo: thread.seller.user.email,
+    type: 'seller_product_question',
+    title: 'Yeni ürün sorusu',
+    body: thread.product.name + ' hakkında yeni bir müşteri sorusu var.',
+    data: {
+      threadId: thread.id,
+      sellerId: thread.seller.id,
+      sellerName: thread.seller.displayName,
+      productName: thread.product.name,
+      ...(resolveEmailImageUrl(thread.product.images) ? { productImageUrl: resolveEmailImageUrl(thread.product.images) } : {}),
+      messageExcerpt: excerpt(body),
+      panelUrl: sellerThreadUrl(thread.id),
+      ...(orderNumber ? { orderNumber } : {}),
+    },
+  })
 }
 
 /**
- * Appends a message. The first statement increments the thread's message
- * counter, which takes the row lock; everything after it — the message's
- * sequence number, its timestamp, the status read that decides the e-mail and
- * the "last message" fields — happens under that lock. Parallel writers are
- * therefore serialised in lock order: sequence numbers follow commit order, a
- * later writer always sees the earlier writer's status (one e-mail per turn),
- * and nothing written later can move a boundary backwards.
+ * Appends a customer or designer message. The first statement increments the
+ * thread's message counter, which takes the row lock; everything after it —
+ * the message's sequence number, its timestamp, the turn counter and the
+ * "last message" fields — happens under that lock. Parallel writers are
+ * therefore serialised in lock order: sequence numbers follow commit order and
+ * nothing written later can move a boundary backwards.
  */
 export async function appendProductQuestionMessage(
   tx: Tx,
@@ -162,7 +192,8 @@ export async function appendProductQuestionMessage(
     where: { id: params.threadId },
     data: {
       lastMessageAt: now,
-
+      // The designer's unread boundary also covers the customer's messages.
+      ...(params.author === 'customer' ? { lastCustomerMessageSeq: seq } : {}),
       ...(turned
         ? { status: 'waiting_for_seller', turnSeq: { increment: 1 } }
         : {}),
@@ -170,7 +201,7 @@ export async function appendProductQuestionMessage(
     select: NOTIFY_SELECT,
   })
   if (turned) {
-    await recordTurnNotification(tx, thread, params.author, params.body)
+    await recordTurnNotification(tx, thread, params.author, params.body, message.id)
   }
   return { messageId: message.id, seq, notified: turned }
 }
@@ -183,6 +214,13 @@ function ownershipWhere(viewer: ProductQuestionViewer): Prisma.ProductQuestionTh
   return viewer.role === 'customer'
     ? { customerId: viewer.customerId }
     : { sellerId: viewer.sellerId }
+}
+
+/** Database form of `isProductQuestionMessageVisibleTo`; keep the two in step. */
+function visibleMessageWhere(viewer: 'customer' | 'seller'): Prisma.ProductQuestionMessageWhereInput {
+  return viewer === 'customer'
+    ? { audience: 'customer', authorRole: { in: ['customer', 'admin'] } }
+    : { OR: [{ authorRole: 'customer' }, { audience: 'seller', authorRole: { in: ['seller', 'admin'] } }] }
 }
 
 const THREAD_DETAIL_INCLUDE = {
@@ -241,7 +279,7 @@ function toThreadDto(thread: ThreadDetail, canReply: boolean, viewer?: 'customer
     order: thread.order
       ? { id: thread.order.id, number: formatOrderNumber(thread.order.publicNumber, thread.order.id) }
       : null,
-    messages: thread.messages.filter((message) => !viewer || canSeeMessage(viewer, message)).map((m) => ({
+    messages: thread.messages.filter((message) => !viewer || isProductQuestionMessageVisibleTo(viewer, message)).map((m) => ({
       id: m.id,
       authorRole: m.authorRole,
       body: m.body,
@@ -405,7 +443,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
       orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
       skip: (page - 1) * PRODUCT_QUESTION_PAGE_SIZE,
       take: PRODUCT_QUESTION_PAGE_SIZE,
-      select: { ...THREAD_LIST_SELECT, messages: { ...THREAD_LIST_SELECT.messages, where: { audience: viewer } } },
+      select: { ...THREAD_LIST_SELECT, messages: { ...THREAD_LIST_SELECT.messages, where: visibleMessageWhere(viewer) } },
     })
     return { items: rows.map((row) => toListItem(row, viewer)), total, page, totalPages }
   }
@@ -466,7 +504,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
               status: 'waiting_for_seller',
               turnSeq: 1,
               messageSeq: 1,
-              lastCustomerMessageSeq: 0,
+              lastCustomerMessageSeq: 1,
               lastMessageAt: now,
             },
             select: { id: true },
@@ -487,7 +525,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
             where: { id: thread.id },
             select: NOTIFY_SELECT,
           })
-          await recordTurnNotification(tx, notifyThread, 'customer', body)
+          await recordTurnNotification(tx, notifyThread, 'customer', body, message.id)
           return { threadId: thread.id, created: true, messageId: message.id, notified: true }
         })
       } catch (error) {
@@ -539,7 +577,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
      */
     async markRead(threadId: string, viewer: ProductQuestionViewer, lastSeenMessageId: string) {
       const message = await prisma.productQuestionMessage.findFirst({
-        where: { id: lastSeenMessageId, threadId, audience: viewer.role, thread: ownershipWhere(viewer) },
+        where: { id: lastSeenMessageId, threadId, ...visibleMessageWhere(viewer.role), thread: ownershipWhere(viewer) },
         select: { seq: true },
       })
       if (!message) throw new NotFoundError('Mesaj')

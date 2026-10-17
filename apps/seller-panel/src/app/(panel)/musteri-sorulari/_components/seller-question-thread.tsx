@@ -16,8 +16,14 @@ interface ThreadMessage {
 
 interface SellerQuestionThreadProps {
   threadId: string
-  customerName: string
   messages: ThreadMessage[]
+}
+
+// The customer's identity is never shown to the designer.
+const AUTHOR_LABEL: Record<ThreadMessage['authorRole'], string> = {
+  seller: 'Siz',
+  customer: 'Müşteri',
+  admin: 'Hanuja',
 }
 
 function formatDate(iso: string) {
@@ -38,7 +44,7 @@ function apiMessage(payload: unknown, fallback: string) {
   return fallback
 }
 
-export function SellerQuestionThread({ threadId, customerName, messages }: SellerQuestionThreadProps) {
+export function SellerQuestionThread({ threadId, messages }: SellerQuestionThreadProps) {
   const router = useRouter()
   const lastRef = useRef<HTMLDivElement>(null)
   const [body, setBody] = useState('')
@@ -116,7 +122,7 @@ export function SellerQuestionThread({ threadId, customerName, messages }: Selle
                 className={`flex max-w-[85%] flex-col gap-1 ${mine ? 'items-end' : 'items-start'}`}
               >
                 <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                  <span className="font-medium">{mine ? 'Siz' : customerName}</span>
+                  <span className="font-medium">{AUTHOR_LABEL[message.authorRole]}</span>
                   <time dateTime={message.createdAt}>{formatDate(message.createdAt)}</time>
                 </div>
                 <div
@@ -140,7 +146,8 @@ export function SellerQuestionThread({ threadId, customerName, messages }: Selle
           Yanıtınız
         </label>
         <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-          Telefon, e-posta, adres, IBAN veya bağlantı paylaşılamaz; konuşma platform içinde sürdürülür.
+          Yanıtınız Hanuja'ya iletilir; müşteriye Hanuja yanıt verir. Telefon, e-posta, adres, IBAN veya bağlantı
+          paylaşılamaz.
         </p>
         <textarea
           id="seller-question-reply"

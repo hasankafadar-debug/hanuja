@@ -55,7 +55,7 @@ export default async function CustomerQuestionsPage({ searchParams }: Props) {
     <div className="space-y-6">
       <PageHeader
         title="Müşteri Soruları"
-        description="Müşterilerin ürünleriniz ve siparişleri hakkında sorduğu sorular. Konuşma herkese açık değildir. Siz, ilgili müşteri ve denetim amacıyla yetkili yöneticiler erişebilir."
+        description="Müşterilerin ürünleriniz ve siparişleri hakkında sorduğu sorular. Müşterinin kimliği gösterilmez; yanıtınız Hanuja'ya iletilir ve müşteriye Hanuja yanıt verir."
       />
 
       <div className="flex gap-2" role="tablist" aria-label="Soru filtresi">

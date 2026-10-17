@@ -49,16 +49,12 @@ export default async function CustomerQuestionDetailPage({ params }: Props) {
             {thread.product.name}
           </p>
           <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-            Müşteri: {thread.customerName}
             {thread.order ? (
-              <>
-                {' · '}
-                <Link href={`/siparisler/${thread.order.id}`} className="hover:underline">
-                  Sipariş #{thread.order.number}
-                </Link>
-              </>
+              <Link href={`/siparisler/${thread.order.id}`} className="hover:underline">
+                Sipariş #{thread.order.number}
+              </Link>
             ) : (
-              ' · Satış öncesi soru'
+              'Satış öncesi soru'
             )}
           </p>
         </div>
@@ -68,7 +64,7 @@ export default async function CustomerQuestionDetailPage({ params }: Props) {
         className="rounded-xl border p-4"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
-        <SellerQuestionThread threadId={thread.id} customerName={thread.customerName} messages={thread.messages} />
+        <SellerQuestionThread threadId={thread.id} messages={thread.messages} />
       </div>
     </div>
   )

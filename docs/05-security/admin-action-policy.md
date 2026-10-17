@@ -315,10 +315,14 @@ capture reason shown to customer.
 
 ---
 
-### 10. Product Question Viewed (read-only)
+### 10. Product Question Viewed and Replied (audited)
 
 **Permission required:** admin role
-**Confirmation step:** none — viewing only. Admin cannot write in customer–seller conversations.
+
+**Confirmation step:** none, for viewing or replying. A reply is a recipient select (customer or designer; the
+internal option is disabled for product questions) and a send button. The server validates the audience
+(`customer` or `seller`), the length and the contact-sharing rule. A sent reply is stored at once; the admin
+panel offers no undo.
 
 Every render of `/musteri-sorulari/[id]` writes an audit entry in the same transaction as the read.
 The list view carries no message content and its detail links are not prefetched, so only a real
@@ -332,6 +336,23 @@ open produces an entry.
 | `newData` | `{ sellerId, customerId }` |
 | `ipAddress` | first `x-forwarded-for` hop, when present |
 | `actorId` | Admin user ID |
+
+An admin reply (`POST /api/admin/product-questions/[id]/messages`) writes one audit entry in the same transaction
+as the message, the thread update and the recipient notification. There is no separate reply action type: the
+schema reuses `product_question_viewed`, and `newData.operation` tells the two apart.
+
+| Field | Value |
+|---|---|
+| `actionType` | `product_question_viewed` |
+| `targetType` | `product_question_thread` |
+| `targetId` | thread ID |
+| `newData` | `{ operation: 'reply', audience: 'customer' \| 'seller' }` |
+| `ipAddress` | not passed by the reply path |
+| `actorId` | Admin user ID |
+
+The admin audit table labels every `product_question_viewed` row "Müşteri sorusu görüntülendi", so reply rows
+show the viewed label as well. Read `newData.operation` when reviewing. A separate reply action type is an open
+follow-up.
 
 ---
 

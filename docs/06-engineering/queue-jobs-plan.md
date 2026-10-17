@@ -120,15 +120,19 @@ claim wins — and a `P2002` create race is retried in a new transaction. The ev
 state row's `transitionSeq`, which is what makes the recurrence a new event. See
 [phase 3 operations report](../07-operations/email-phase-3-report.md).
 
-### Phase 4 — product question e-mails — 2026-09-23
+### Phase 4 — product question e-mails — 2026-09-23 (updated 2026-10-17)
 
-Two transactional types on the `notification-dispatch` lane: `seller_product_question` (seller) and
-`customer_product_question_answered` (customer). The producer is `product-question.service`, always
-inside the business transaction. Each message first increments the thread's message counter, which
-takes the row lock; the turn decision is read under that lock and the outbox row is written only when the
-message turned the conversation over to the other side, so a burst of messages in one turn produces one
-e-mail; the eventKey `product-question:{threadId}:{seller|customer}:turn:{turnSeq}` is bound to the turn,
-not the message. No new queue, job or schedule. See
+Two transactional types on the `notification-dispatch` lane, both produced by `product-question.service` inside
+the business transaction:
+
+- `seller_product_question` (designer): one per customer message, eventKey
+  `product-question:{threadId}:customer-message:{messageId}`, and one per Hanuja reply addressed to the designer.
+- `customer_product_question_answered` (customer): one per Hanuja reply addressed to the customer.
+
+Hanuja replies (`replyAsAdmin`) use eventKey `product-question:{threadId}:admin-reply:{messageId}`. Every customer
+or designer message also opens a new turn and writes one in-app copy per admin user (`admin_support_new_ticket`,
+eventKey `product-question:{threadId}:admin:{adminId}:turn:{turnSeq}:{customer|seller}`); the dispatcher keeps the
+e-mail leg of admin-role copies off. Designer messages e-mail no one. No new queue, job or schedule. See
 [phase 4 operations report](../07-operations/email-phase-4-report.md).
 
 ### Phase 5 — seller announcements — 2026-09-24

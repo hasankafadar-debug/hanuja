@@ -179,7 +179,14 @@ describe('product question routes', () => {
     )
     expect(read.status).toBe(404)
     expect(prisma.productQuestionMessage.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'm1', threadId: 't-other', audience: 'seller', thread: { sellerId: 's1' } } }),
+      expect.objectContaining({
+        where: {
+          id: 'm1',
+          threadId: 't-other',
+          OR: [{ authorRole: 'customer' }, { audience: 'seller', authorRole: { in: ['seller', 'admin'] } }],
+          thread: { sellerId: 's1' },
+        },
+      }),
     )
   })
 

@@ -6,6 +6,7 @@ import {
   BarChart3,
   CheckCircle,
   Clock,
+  MessageCircleQuestion,
   Package,
   ShoppingBag,
   TrendingUp,
@@ -17,6 +18,7 @@ import { createPayoutRepository } from '@hanuja/api/repositories/payout.reposito
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { createPlatformSettingsService } from '@hanuja/api/services/platform-settings.service'
+import { createProductQuestionService } from '@hanuja/api/services/product-question.service'
 import {
   addReportingDateDays,
   formatReportingDate,
@@ -63,7 +65,7 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
   const todayStart = reportingDayStart(defaultRange.toKey)
   const last7Days = reportingDayStart(addReportingDateDays(defaultRange.toKey, -6))
 
-  const [recentOrders, payoutSummary, openReturns, sellerOrders, chartOrders, productCounts, topOrderLines] = await Promise.all([
+  const [recentOrders, payoutSummary, openReturns, sellerOrders, chartOrders, productCounts, topOrderLines, unreadQuestions] = await Promise.all([
     orderService.listForSellerQueue({ sellerId: seller.id, skip: 0, take: 5 }),
     payoutRepo.getSummaryBySeller(seller.id),
     prisma.returnRequest.count({
@@ -183,6 +185,8 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
       },
       take: 5,
     }),
+    // Same count as the "Müşteri Soruları" menu badge.
+    createProductQuestionService({ prisma }).countUnreadForSeller(seller.id).catch(() => 0),
   ])
 
   type RecentOrder = {
@@ -325,7 +329,7 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
     <div className="space-y-8" data-testid="seller-dashboard-page">
       <PageHeader title="Kontrol Paneli" description="Mağaza performansına genel bakış" />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <Link href="/siparisler?tab=acik" prefetch={false} className="block">
           <StatCard title="Bekleyen Sipariş" value={pendingOrders} icon={<ShoppingBag className="h-5 w-5" />} className="transition-shadow hover:shadow-sm" />
         </Link>
@@ -343,6 +347,15 @@ export default async function SellerDashboardPage({ searchParams }: Props) {
             title="Gecikenler"
             value={delayedOrders}
             icon={<AlertTriangle className="h-5 w-5" />}
+            className="transition-shadow hover:shadow-sm"
+          />
+        </Link>
+        <Link href="/musteri-sorulari" prefetch={false} className="block">
+          <StatCard
+            title="Ürün Soruları"
+            value={unreadQuestions}
+            icon={<MessageCircleQuestion className="h-5 w-5" />}
+            tone={unreadQuestions > 0 ? 'warning' : 'default'}
             className="transition-shadow hover:shadow-sm"
           />
         </Link>

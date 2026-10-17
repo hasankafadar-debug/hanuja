@@ -1,14 +1,29 @@
 /**
- * Product questions: private customer ↔ seller conversations about a product.
- * Pure rules only — persistence, notification and audit live in
- * `api/services/product-question.service.ts`.
+ * Product questions: a customer asks Hanuja about a product; Hanuja and the
+ * designer (seller) work on the answer. Pure rules only — persistence,
+ * notification and audit live in `api/services/product-question.service.ts`.
  */
 import type { ProductQuestionStatus, ProductStatus, SellerStatus } from '@prisma/client'
+import { canSeeMessage } from './communication-audience'
 
 export const PRODUCT_QUESTION_MESSAGE_MIN = 2
 export const PRODUCT_QUESTION_MESSAGE_MAX = 2000
 
 export type ProductQuestionAuthor = 'customer' | 'seller'
+
+/**
+ * Who sees which product question message. The customer sees only their own
+ * channel (`canSeeMessage`). The designer also sees the customer's own messages
+ * — the question text, without the customer's identity — but never Hanuja's
+ * replies to the customer. Return and dispute threads keep `canSeeMessage`.
+ */
+export function isProductQuestionMessageVisibleTo(
+  viewer: 'customer' | 'seller',
+  message: { authorRole: string; audience?: string | null },
+): boolean {
+  if (viewer === 'seller' && message.authorRole === 'customer') return true
+  return canSeeMessage(viewer, message)
+}
 
 export type QuestionBodyCheck =
   | { ok: true; body: string }

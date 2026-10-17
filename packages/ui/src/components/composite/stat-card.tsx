@@ -18,24 +18,33 @@ export interface StatCardProps {
   /**
    * "attention" tints the card green to signal there is live work in this
    * queue. The admin dashboard sets it for any metric whose count is above zero.
+   * "warning" tints it yellow for items that need the user's eye (the seller
+   * dashboard's unread product questions).
    *
    * Colors are literal hex rather than `bg-success/10` on purpose: the Tailwind
    * preset declares colors as bare `var(--color-*)` with no `<alpha-value>`
    * placeholder, so every `/NN` opacity utility is dropped at build time and
    * would render nothing.
    */
-  tone?: "default" | "attention"
+  tone?: "default" | "attention" | "warning"
 }
+
+const TONE_CLASSES = {
+  default: { card: undefined, value: undefined, icon: "bg-primary/10 text-primary" },
+  attention: { card: "border-[#86efac] bg-[#f0fdf4]", value: "text-success", icon: "bg-[#dcfce7] text-success" },
+  warning: { card: "border-[#fde047] bg-[#fefce8]", value: "text-[#a16207]", icon: "bg-[#fef9c3] text-[#a16207]" },
+} as const
 
 function StatCard({ title, value, changePercent, changeLabel, icon, className, tone = "default" }: StatCardProps) {
   const isPositive = changePercent != null && changePercent > 0
   const isNegative = changePercent != null && changePercent < 0
   const isNeutral = changePercent == null || changePercent === 0
-  const isAttention = tone === "attention"
+  const toneClasses = TONE_CLASSES[tone]
+  const needsAction = tone !== "default"
 
   return (
     <Card
-      className={cn(isAttention && "border-[#86efac] bg-[#f0fdf4]", className)}
+      className={cn(toneClasses.card, className)}
       data-testid="stat-card"
       data-tone={tone}
     >
@@ -43,9 +52,9 @@ function StatCard({ title, value, changePercent, changeLabel, icon, className, t
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1 min-w-0">
             <p className="text-sm text-muted-fg truncate">{title}</p>
-            <p className={cn("text-2xl font-bold tracking-tight truncate", isAttention && "text-success")}>{value}</p>
+            <p className={cn("text-2xl font-bold tracking-tight truncate", toneClasses.value)}>{value}</p>
             {/* Color must never be the only carrier of meaning — see .claude/rules/03-ui-design-system.md */}
-            {isAttention && <span className="sr-only">İşlem bekliyor</span>}
+            {needsAction && <span className="sr-only">İşlem bekliyor</span>}
             {changePercent != null && (
               <div
                 className={cn(
@@ -69,7 +78,7 @@ function StatCard({ title, value, changePercent, changeLabel, icon, className, t
             <div
               className={cn(
                 "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                isAttention ? "bg-[#dcfce7] text-success" : "bg-primary/10 text-primary",
+                toneClasses.icon,
               )}
               aria-hidden="true"
             >
