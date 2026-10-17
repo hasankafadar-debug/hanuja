@@ -106,6 +106,7 @@ async function seed() {
   const product = (sellerId: string, name: string) =>
     prisma.product.create({
       data: {
+        brand: 'Test Brand',
         sellerId,
         categoryId: category.id,
         slug: `${name}-${suffix}`,

@@ -107,6 +107,7 @@ async function checkoutFixture() {
   const product = (name: string, price: string) =>
     prisma.product.create({
       data: {
+        brand: 'Test Brand',
         sellerId: seller.id,
         categoryId: category.id,
         name,

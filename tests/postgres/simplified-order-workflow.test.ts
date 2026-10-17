@@ -74,6 +74,7 @@ async function seed() {
   })
   const product = await db.product.create({
     data: {
+        brand: 'Test Brand',
       sellerId: seller.id,
       slug: 'p-' + id,
       name: 'Test Ürün',

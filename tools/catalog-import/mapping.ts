@@ -1,11 +1,12 @@
 import { normalizeText } from './normalize'
 import type { CanonicalField, ImportProfile } from './types'
 
-export const REQUIRED_FIELDS: CanonicalField[] = ['modelCode', 'name', 'category', 'price', 'fulfillmentDays', 'stock']
+export const REQUIRED_FIELDS: CanonicalField[] = ['modelCode', 'name', 'brand', 'category', 'price', 'fulfillmentDays', 'stock']
 
 export const HEADER_ALIASES: Record<CanonicalField, string[]> = {
   modelCode: ['model kodu', 'model code', 'urun grup kodu', 'ürün grup kodu'],
   name: ['urun adi', 'ürün adı', 'product name', 'name'],
+  brand: ['marka', 'brand', 'ürün markası', 'urun markasi'],
   category: ['kategori', 'category', 'category path'],
   price: ['fiyat', 'satis fiyati', 'satış fiyatı', 'price'],
   fulfillmentDays: ['sevk suresi', 'sevk süresi', 'sevk suresi is gunu', 'sevk süresi iş günü', 'tedarik suresi', 'tedarik süresi', 'fulfillment days'],

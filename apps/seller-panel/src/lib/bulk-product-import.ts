@@ -1,3 +1,4 @@
+import { formatBrandedProductName, normalizeProductBrand } from '@hanuja/api/domain/product-brand'
 import { z } from 'zod'
 import { normalizeManagedMediaUrl, resolveManagedMediaSourceUrl } from '@hanuja/api/lib/media-url'
 import {
@@ -36,6 +37,12 @@ const barcodeSchema = z
   .refine((value) => value === '' || /^\d{13}$/.test(value), 'Barkod 13 haneli rakam olmali')
 
 export const BULK_PRODUCT_COLUMN_CONFIG = [
+  {
+    key: 'brand',
+    label: 'Marka*',
+    required: true,
+    helpText: 'Ürünün gerçek markası; ürün adının başına otomatik eklenir.',
+  },
   {
     key: 'modelCode',
     label: 'Model Kodu*',
@@ -274,6 +281,7 @@ TURKISH_TO_INTERNAL_HEADER_MAP.set(normalizeHeaderKey('Görsel 8'), 'image8')
 export const BULK_PRODUCT_TEMPLATE_SAMPLE_ROW: Record<BulkProductColumnKey, string | number> = {
   modelCode: 'SEHPA-001',
   name: 'Dogal Mese Orta Sehpa',
+  brand: 'Örnek Marka',
   categorySlug: 'Mobilya / Sehpa Modelleri / Orta Sehpa',
   productColor: 'Ceviz',
   secondColor: '',
@@ -311,6 +319,7 @@ const bulkProductRowSchema = z
   .object({
     modelCode: z.string().trim().min(1, 'Model Kodu zorunludur').max(120),
     name: z.string().trim().min(3, 'Urun adi en az 3 karakter olmali').max(200),
+    brand: z.string().trim().min(1, 'Marka zorunludur.').max(120),
     rootCategorySlug: optionalString.pipe(z.string().max(120).optional()),
     categorySlug: z.string().trim().min(1, 'Kategori zorunludur'),
     productColor: optionalString.pipe(z.string().max(80).optional()),
@@ -501,6 +510,7 @@ export function normalizeBulkProductRow(
   const prepared = {
     modelCode: String(mapped.modelCode ?? '').trim(),
     name: String(mapped.name ?? '').trim(),
+    brand: normalizeProductBrand(String(mapped.brand ?? '')),
     rootCategorySlug: mapped.rootCategorySlug
       ? normalizeRootCategoryValue(String(mapped.rootCategorySlug))
       : undefined,
@@ -575,6 +585,12 @@ export function normalizeBulkProductRow(
     }
   }
 
+  try {
+    parsed.data.name = formatBrandedProductName(parsed.data.name, parsed.data.brand)
+  } catch (error) {
+    return { rowNumber, raw, errors: [(error as Error).message] }
+  }
+
   const hasVariant = Boolean(
     parsed.data.variantColor ||
     parsed.data.variantMaterial ||
@@ -589,6 +605,7 @@ export function normalizeBulkProductRow(
     data: {
       modelCode: parsed.data.modelCode,
       name: parsed.data.name,
+      brand: parsed.data.brand,
       rootCategorySlug: parsed.data.rootCategorySlug,
       categorySlug: parsed.data.categorySlug,
       productColor: parsed.data.productColor,

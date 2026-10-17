@@ -58,6 +58,7 @@ const variantSchema = z.object({
 const updateProductSchema = z
   .object({
     name: z.string().min(3).max(200).optional(),
+    brand: z.string().trim().min(1, 'Marka zorunludur.').max(120).optional(),
     categoryId: z.string().min(1).nullable().optional(),
     description: z.string().max(5000).optional(),
     shortDescription: z.string().max(500).optional(),
@@ -362,6 +363,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const saved = await service.updateProductForSeller({
         productId: id,
         sellerId: seller.id,
+        ...(parsed.data.brand !== undefined ? { brand: parsed.data.brand } : {}),
         properties: parsed.data.properties,
         contentUnit: parsed.data.contentUnit,
         categoryChangeConfirmation: parsed.data.categoryChangeConfirmation,

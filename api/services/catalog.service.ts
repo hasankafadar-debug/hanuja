@@ -1,3 +1,4 @@
+import { formatBrandedProductName, requireProductBrand } from '../domain/product-brand'
 /**
  * Catalog Service - product and category operations.
  * Seller can manage only their own products.
@@ -575,6 +576,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       sellerId: string
       categoryId: string
       name: string
+      brand: string
       description: string
       shortDescription?: string | null
       story?: string | null
@@ -599,6 +601,14 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       hasVariants?: boolean
       contentUnit?: string | undefined
     }): Promise<Product> {
+      let brand: string
+      let name: string
+      try {
+        brand = requireProductBrand(params.brand)
+        name = formatBrandedProductName(params.name, brand)
+      } catch (error) {
+        throw new ValidationError((error as Error).message)
+      }
       if (typeof prisma.$transaction === 'function' && typeof prisma.$queryRaw === 'function') {
         const result = await prisma.$transaction((tx) =>
           createCatalogService({
@@ -641,7 +651,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         throw new ValidationError('Sevk suresi en az 1 is gunu olmalidir.')
       }
 
-      const slug = await resolveUniqueProductSlug(params.slugOverride ?? params.name)
+      const slug = await resolveUniqueProductSlug(params.slugOverride ?? name)
 
       const effectiveBarcode = params.barcode?.trim()
         ? params.barcode.trim()
@@ -654,7 +664,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       })
 
       const moderation = getModerationDecision({
-        name: params.name,
+        name,
         description: params.description,
         shortDescription: params.shortDescription ?? null,
         story: params.story ?? null,
@@ -665,7 +675,8 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
         sellerId: params.sellerId,
         categoryId: params.categoryId,
         slug,
-        name: params.name,
+        name,
+        brand,
         description: params.description,
         shortDescription: params.shortDescription ?? null,
         story: params.story ?? null,
@@ -700,6 +711,7 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       productId: string
       sellerId: string
       name?: string
+      brand?: string
       categoryId?: string | null
       description?: string | null
       shortDescription?: string | null
@@ -751,6 +763,16 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
 
       const product = await products.findByIdForSeller(params.productId, params.sellerId)
       if (!product) throw new NotFoundError('Product', params.productId)
+      let nextBrand: string | undefined
+      let nextName: string | undefined
+      if (params.brand !== undefined || params.name !== undefined) {
+        try {
+          nextBrand = requireProductBrand(params.brand ?? product.brand)
+          nextName = formatBrandedProductName(params.name ?? product.name, nextBrand, product.brand)
+        } catch (error) {
+          throw new ValidationError((error as Error).message)
+        }
+      }
 
       const nextCategoryId =
         params.categoryId === undefined ? product.categoryId : params.categoryId
@@ -866,13 +888,14 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       })
       const contentFieldsChanged =
         params.name !== undefined ||
+        params.brand !== undefined ||
         params.description !== undefined ||
         params.shortDescription !== undefined ||
         params.story !== undefined ||
         params.careInstructions !== undefined
       const moderation = contentFieldsChanged
         ? getModerationDecision({
-            name: params.name ?? product.name,
+            name: nextName ?? product.name,
             description:
               params.description === undefined ? product.description : params.description,
             shortDescription:
@@ -925,7 +948,9 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
       const updated = await prisma.product.update({
         where: { id: params.productId },
         data: {
-          ...(params.name !== undefined ? { name: params.name } : {}),
+          ...(nextName !== undefined && nextBrand !== undefined
+            ? { name: nextName, brand: nextBrand }
+            : {}),
           ...(params.categoryId !== undefined ? { categoryId: params.categoryId } : {}),
           ...(params.description !== undefined ? { description: params.description } : {}),
           ...(params.shortDescription !== undefined

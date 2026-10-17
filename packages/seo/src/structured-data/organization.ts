@@ -6,6 +6,7 @@ export interface OrganizationStructuredDataInput {
   telephone?: string
   address?: string
   sameAs?: string[]
+  merchantReturnLink?: string
 }
 
 export function buildOrganizationStructuredData(
@@ -24,6 +25,15 @@ export function buildOrganizationStructuredData(
     ...(input.telephone ? { telephone: input.telephone } : {}),
     ...(input.address ? { address: input.address } : {}),
     ...(input.sameAs?.length ? { sameAs: input.sameAs } : {}),
+    ...(input.merchantReturnLink
+      ? {
+          hasMerchantReturnPolicy: {
+            '@type': 'MerchantReturnPolicy',
+            '@id': getBaseUrl() + '/iade-iptal#return-policy',
+            merchantReturnLink: input.merchantReturnLink,
+          },
+        }
+      : {}),
     contactPoint: {
       '@type': 'ContactPoint',
       contactType: 'customer service',

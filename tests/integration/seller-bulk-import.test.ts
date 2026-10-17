@@ -248,6 +248,7 @@ describe('cross-seller barcode uniqueness', () => {
 describe('normalizeBulkProductRow - barcode format', () => {
   const validBase = {
     'Model Kodu*': 'SEHPA-001',
+    'Marka*': 'Test Brand',
     'Urun Adi*': 'Test Urun',
     'Kategori Slug*': 'mobilya-sehpa',
     'Urun Rengi*': 'Ceviz',
@@ -294,7 +295,8 @@ describe('normalizeBulkProductRow - barcode format', () => {
     const result = normalizeBulkProductRow(
       {
         'Model Kodu*': 'SEHPA-001',
-        'Urun Adi*': 'Test Urun',
+        'Marka*': 'Test Brand',
+    'Urun Adi*': 'Test Urun',
         'Kategori*': 'Mobilya / Sehpa',
         'Urun Rengi*': 'Ceviz',
         'Materyal*': 'Masif Ahsap',

@@ -1,3 +1,4 @@
+import { requireProductBrand, formatBrandedProductName } from '../../api/domain/product-brand'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { normalizeText, stableHash } from './normalize'
@@ -19,6 +20,7 @@ export async function readNormalized(normalizedPath: string): Promise<Normalized
 
 function validateRow(row: CanonicalRow): string[] {
   const errors: string[] = []
+  try { formatBrandedProductName(row.name ?? '', requireProductBrand(row.brand)) } catch (error) { errors.push(errorMessage(error)) }
   if (!row.modelCode?.trim()) errors.push('Model code is required.')
   if (!row.name || row.name.trim().length < 3) errors.push('Product name must be at least 3 characters.')
   if (!row.canonicalCategoryPath) errors.push(`Source category cannot be mapped: ${row.sourceCategory ?? '(blank)'}`)
@@ -145,6 +147,10 @@ export async function applyManifest(params: { manifestPath: string; confirmStore
   const manifest = await loadManifest(params.manifestPath)
   const normalized = await readNormalized(manifest.normalizedPath)
   const guards = manifestGuardErrors(manifest, { confirmStore: params.confirmStore, normalizedHash: stableHash({ sourceHash: normalized.sourceHash, rows: normalized.rows }) })
+  for (const item of manifest.items) {
+    try { formatBrandedProductName(item.row.name ?? '', requireProductBrand(item.row.brand)) }
+    catch { guards.push('Manifest has missing or invalid brand data; normalize and run dry-run again.'); break }
+  }
   if (guards.length) throw new Error(guards.join(' '))
   const runtime = await loadRuntime(); const { prisma } = runtime
   const { uploadObject, deleteObject } = await import('../../api/lib/r2')
@@ -168,7 +174,7 @@ export async function applyManifest(params: { manifestPath: string; confirmStore
         const [color1, color2, material] = await Promise.all([resolveOptionId(prisma, categoryId, 'color', item.row.color1), resolveOptionId(prisma, categoryId, 'color', item.row.color2), resolveOptionId(prisma, categoryId, 'material', item.row.material)])
         const product = await prisma.$transaction(async (tx: any) => {
           const catalog = runtime.createCatalogService({ prisma: tx })
-          const created = await catalog.createProduct({ sellerId: seller.id, categoryId, name: item.row.name!, description: item.row.description ?? '', shortDescription: item.row.shortDescription ?? null, story: item.row.story ?? null, careInstructions: item.row.careInstructions ?? null, price: new (await import('@prisma/client/runtime/client')).Decimal(item.row.price!), compareAtPrice: item.row.compareAtPrice === undefined ? null : new (await import('@prisma/client/runtime/client')).Decimal(item.row.compareAtPrice), fulfillmentDays: item.row.fulfillmentDays!, stockQuantity: item.row.stockQuantity!, sku: item.row.sku ?? null, modelCode: item.normalizedModelCode, barcode: item.row.barcode ?? null, autoGenerateBarcodeWhenMissing: true, weight: item.row.weight === undefined ? null : new (await import('@prisma/client/runtime/client')).Decimal(item.row.weight), dimensionWidth: item.row.dimensionWidth === undefined ? null : new (await import('@prisma/client/runtime/client')).Decimal(item.row.dimensionWidth), dimensionLength: item.row.dimensionLength === undefined ? null : new (await import('@prisma/client/runtime/client')).Decimal(item.row.dimensionLength), dimensionHeight: item.row.dimensionHeight === undefined ? null : new (await import('@prisma/client/runtime/client')).Decimal(item.row.dimensionHeight) })
+          const created = await catalog.createProduct({ sellerId: seller.id, categoryId, name: item.row.name!, brand: requireProductBrand(item.row.brand), description: item.row.description ?? '', shortDescription: item.row.shortDescription ?? null, story: item.row.story ?? null, careInstructions: item.row.careInstructions ?? null, price: new (await import('@prisma/client/runtime/client')).Decimal(item.row.price!), compareAtPrice: item.row.compareAtPrice === undefined ? null : new (await import('@prisma/client/runtime/client')).Decimal(item.row.compareAtPrice), fulfillmentDays: item.row.fulfillmentDays!, stockQuantity: item.row.stockQuantity!, sku: item.row.sku ?? null, modelCode: item.normalizedModelCode, barcode: item.row.barcode ?? null, autoGenerateBarcodeWhenMissing: true, weight: item.row.weight === undefined ? null : new (await import('@prisma/client/runtime/client')).Decimal(item.row.weight), dimensionWidth: item.row.dimensionWidth === undefined ? null : new (await import('@prisma/client/runtime/client')).Decimal(item.row.dimensionWidth), dimensionLength: item.row.dimensionLength === undefined ? null : new (await import('@prisma/client/runtime/client')).Decimal(item.row.dimensionLength), dimensionHeight: item.row.dimensionHeight === undefined ? null : new (await import('@prisma/client/runtime/client')).Decimal(item.row.dimensionHeight) })
           const attributes = [...(color1 ? [{ productId: created.id, optionId: color1, sortOrder: 0 }] : []), ...(color2 ? [{ productId: created.id, optionId: color2, sortOrder: 1 }] : []), ...(material ? [{ productId: created.id, optionId: material, sortOrder: 0 }] : [])]
           if (attributes.length) await tx.productAttributeValue.createMany({ data: attributes })
           return created

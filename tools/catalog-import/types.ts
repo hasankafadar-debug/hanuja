@@ -1,6 +1,7 @@
 export type CanonicalField =
   | 'modelCode'
   | 'name'
+  | 'brand'
   | 'category'
   | 'price'
   | 'fulfillmentDays'
@@ -24,6 +25,7 @@ export type CanonicalRow = {
   sourceRow: number
   modelCode?: string
   name?: string
+  brand?: string
   sourceCategory?: string
   canonicalCategoryPath?: string[]
   price?: number

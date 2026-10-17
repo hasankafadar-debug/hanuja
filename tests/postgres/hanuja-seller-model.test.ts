@@ -31,7 +31,8 @@ async function fixture() {
   const sellerUser = await prisma.user.create({ data: { email: 's-' + suffix + '@example.test', role: 'seller' } })
   const admin = await prisma.user.create({ data: { email: 'a-' + suffix + '@example.test', role: 'admin' } })
   const seller = await prisma.seller.create({ data: { userId: sellerUser.id, slug: 'seller-' + suffix, displayName: 'Designer', status: 'active' } })
-  const product = await prisma.product.create({ data: { sellerId: seller.id, slug: 'product-' + suffix, name: 'Chair', price: 100, stockQuantity: 5, status: 'published' } })
+  const product = await prisma.product.create({ data: {
+        brand: 'Test Brand', sellerId: seller.id, slug: 'product-' + suffix, name: 'Chair', price: 100, stockQuantity: 5, status: 'published' } })
   const order = await prisma.order.create({ data: {
     customerId: customer.id, status: 'delivery_confirmed', quantityLifecycleVersion: 2, paymentConfirmedAt: new Date(), grossAmount: 100, totalAmount: 100,
     lines: { create: { productId: product.id, sellerId: seller.id, productName: 'Chair', quantity: 1, shippedQuantity: 1, unitPrice: 100, totalPrice: 100, customerPaidProductAmount: 100, netPayoutAmount: 100, deliveredAt: new Date('2026-01-01'), deliveryConfirmedAt: new Date('2026-01-01') } },

@@ -1,3 +1,4 @@
+import { stripProductBrandPrefix } from '@hanuja/api/domain/product-brand'
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
@@ -117,7 +118,8 @@ export async function GET() {
 
   const exportRows: ExportRow[] = products.flatMap((product): ExportRow[] => {
     const baseRow = emptyExportRow()
-    baseRow.name = product.name
+    baseRow.name = stripProductBrandPrefix(product.name, product.brand)
+    baseRow.brand = product.brand ?? ''
     baseRow.categorySlug = product.category?.slug
       ? categoryDisplayBySlug.get(product.category.slug) ?? product.category.slug
       : ''

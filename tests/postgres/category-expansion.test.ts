@@ -67,6 +67,7 @@ afterAll(async () => {
 async function product(stock = 1, status: 'published' | 'unlisted' = 'published') {
   return db.product.create({
     data: {
+        brand: 'Test Brand',
       sellerId,
       categoryId,
       name: 'Test Sweatshirt',
@@ -129,6 +130,7 @@ describe('real category publication and schema transactions', () => {
     expect(await db.category.count()).toBe(count)
     const p = await db.product.create({
       data: {
+        brand: 'Test Brand',
         sellerId,
         categoryId,
         slug: `p-${randomUUID()}`,

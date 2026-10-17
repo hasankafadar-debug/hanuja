@@ -123,6 +123,7 @@ async function seedOrder(
   })
   const product = await prisma.product.create({
     data: {
+        brand: 'Test Brand',
       sellerId: seller.id,
       categoryId: category.id,
       slug: `urun-${suffix.slice(0, 8)}`,
@@ -572,6 +573,7 @@ describe('admin operation notifications', () => {
     })
     const product = await prisma.product.create({
       data: {
+        brand: 'Test Brand',
         sellerId: seller.id,
         categoryId: category.id,
         slug: `eft-urun-${suffix.slice(0, 8)}`,

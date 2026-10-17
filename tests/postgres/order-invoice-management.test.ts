@@ -142,6 +142,7 @@ async function seed() {
   })
   const product = await prisma.product.create({
     data: {
+        brand: 'Test Brand',
       sellerId: seller.id,
       name: 'Test Ürün',
       slug: `product-${tag}`,

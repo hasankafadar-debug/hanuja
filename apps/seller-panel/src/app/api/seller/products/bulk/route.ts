@@ -597,6 +597,10 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
 
   const importGroups: Array<Array<{ rowNumber: number; data: ResolvedBulkProductImportRow }>> = []
   for (const modelGroup of modelGroups.values()) {
+    if (new Set(modelGroup.map(entry => entry.data.brand.toLocaleLowerCase('tr-TR').replace(/ı/g, 'i'))).size > 1) {
+      for (const entry of modelGroup) errors.push(createBulkValidationError(entry.rowNumber, 'brand', 'brand_mismatch', 'Aynı ürün grubundaki tüm satırlarda aynı marka olmalıdır.'))
+      continue
+    }
     const visualGroups = new Map<
       string,
       Array<{ rowNumber: number; data: ResolvedBulkProductImportRow }>
@@ -817,6 +821,7 @@ async function handleBulkProducts(req: NextRequest, validateOnly = false) {
             sellerId: seller.id,
             categoryId,
             name: data.name,
+            brand: data.brand,
             description: data.description ?? '',
             shortDescription: data.shortDescription ?? null,
             story: data.story ?? null,

@@ -58,6 +58,7 @@ const variantSchema = z.object({
 const createProductSchema = z
   .object({
     name: z.string().min(3, 'Urun adi en az 3 karakter olmali').max(200),
+    brand: z.string().trim().min(1, 'Marka zorunludur.').max(120),
     categoryId: z.string().min(1, 'Kategori secimi zorunludur'),
     price: z.number().positive('Fiyat 0dan buyuk olmali'),
     fulfillmentDays: z
@@ -272,6 +273,7 @@ export async function POST(req: NextRequest) {
         sellerId: seller.id,
         categoryId: parsed.data.categoryId,
         name: parsed.data.name,
+        brand: parsed.data.brand,
         description: parsed.data.description ?? '',
         shortDescription: parsed.data.shortDescription?.trim() || null,
         story: parsed.data.story?.trim() || null,

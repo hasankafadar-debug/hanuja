@@ -122,6 +122,7 @@ async function createProduct(
   return prisma.$transaction(async (tx) => {
     const product = await tx.product.create({
       data: {
+        brand: 'Test Brand',
         sellerId,
         slug: `u-${randomUUID().slice(0, 16)}`,
         name: 'Meşe Sehpa',
@@ -300,7 +301,8 @@ describe('recorder and rule boundaries', () => {
   it('baseline writes the future start and end of an existing short campaign with exact times', async () => {
     const seller = await seedSeller()
     const product = await prisma.product.create({
-      data: { sellerId: seller.id, slug: `u-${randomUUID().slice(0, 16)}`, name: 'Eski', status: 'published', price: new Decimal(100), stockQuantity: 2 },
+      data: {
+        brand: 'Test Brand', sellerId: seller.id, slug: `u-${randomUUID().slice(0, 16)}`, name: 'Eski', status: 'published', price: new Decimal(100), stockQuantity: 2 },
     })
     const start = new Date(Date.now() + 5 * MIN)
     const end = new Date(Date.now() + 10 * MIN)
@@ -399,7 +401,8 @@ describe('recorder and rule boundaries', () => {
   it('three parallel baselines write one baseline row per key', async () => {
     const seller = await seedSeller()
     const product = await prisma.product.create({
-      data: { sellerId: seller.id, slug: `u-${randomUUID().slice(0, 16)}`, name: 'Yeni', status: 'published', price: new Decimal(50), stockQuantity: 1 },
+      data: {
+        brand: 'Test Brand', sellerId: seller.id, slug: `u-${randomUUID().slice(0, 16)}`, name: 'Yeni', status: 'published', price: new Decimal(50), stockQuantity: 1 },
     })
     await markAllMarkersProcessed()
     await Promise.all([baselineUntrackedProducts(prisma), baselineUntrackedProducts(prisma), baselineUntrackedProducts(prisma)])

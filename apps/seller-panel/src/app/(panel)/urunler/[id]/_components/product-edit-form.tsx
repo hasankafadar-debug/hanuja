@@ -3,6 +3,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
+  previewBrandedProductName,
+  stripProductBrandPrefix,
+} from '@hanuja/api/domain/product-brand'
+import {
   Button,
   Input,
   Label,
@@ -60,6 +64,7 @@ interface Props {
   initialContentUnit?: string
   categoryLocked?: boolean
   productId: string
+  initialBrand: string
   initialName: string
   initialDescription: string
   initialShortDescription?: string
@@ -134,6 +139,7 @@ export default function ProductEditForm({
   categoryLocked = false,
   productId,
   initialName,
+  initialBrand,
   initialDescription,
   initialShortDescription = '',
   initialStory = '',
@@ -158,7 +164,8 @@ export default function ProductEditForm({
   initialDimensionHeight = null,
 }: Props) {
   const router = useRouter()
-  const [name, setName] = useState(initialName)
+  const [brand, setBrand] = useState(initialBrand)
+  const [name, setName] = useState(stripProductBrandPrefix(initialName, initialBrand))
   const [description, setDescription] = useState(initialDescription)
   const [shortDescription, setShortDescription] = useState(initialShortDescription)
   const [story, setStory] = useState(initialStory)
@@ -258,6 +265,7 @@ export default function ProductEditForm({
       Number(variant.stockQuantity) >= 0,
   )
   const canSubmit =
+    Boolean(previewBrandedProductName(name, brand)) &&
     Boolean(categoryId) &&
     (!schema?.config.shared.color || colorCount === 0 || Boolean(colorOptionId)) &&
     (colorCount === 2 ? Boolean(secondColorOptionId) : true) &&
@@ -331,6 +339,7 @@ export default function ProductEditForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
+          brand,
           description,
           shortDescription,
           story,
@@ -471,6 +480,20 @@ export default function ProductEditForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-1.5">
+        <Label htmlFor="brand">Marka *</Label>
+        <Input
+          id="brand"
+          value={brand}
+          onChange={(e) => setBrand(e.target.value)}
+          maxLength={120}
+          required
+          disabled={loading}
+        />
+        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+          Ürünün gerçek markasını girin; tasarımcının alt markası olabilir.
+        </p>
+      </div>
+      <div className="space-y-1.5">
         <Label htmlFor="name">Urun Adi *</Label>
         <Input
           id="name"
@@ -480,6 +503,10 @@ export default function ProductEditForm({
           disabled={loading}
         />
       </div>
+
+      <p className="text-sm" aria-live="polite">
+        Ürün adı: {previewBrandedProductName(name, brand) || 'Marka ve ürün adını girin.'}
+      </p>
 
       <CategoryPicker
         categories={categories}

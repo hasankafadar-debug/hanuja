@@ -96,6 +96,7 @@ async function seedSeller(seed: SellerSeed) {
   if (seed.categoryId) {
     await prisma.product.create({
       data: {
+        brand: 'Test Brand',
         sellerId: seller.id,
         categoryId: seed.categoryId,
         slug: `u-${suffix}`,

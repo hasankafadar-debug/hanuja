@@ -57,6 +57,7 @@ async function eftOrder() {
     userId: sellerUser.id, slug: `seller-${tag}`, displayName: 'Test Tasarımcı', status: 'active',
   } })
   const product = await prisma.product.create({ data: {
+        brand: 'Test Brand',
     sellerId: seller.id, name: 'Test Sehpa', slug: `product-${tag}`, price: 500, stockQuantity: 5,
   } })
   const order = await prisma.order.create({ data: {

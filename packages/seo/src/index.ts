@@ -54,3 +54,5 @@ export { buildRobotsConfig } from './robots-builder'
 
 // JSON-LD React component
 export { JsonLd } from './json-ld'
+
+export { selectProductSchemaImageUrl } from './structured-data/product'

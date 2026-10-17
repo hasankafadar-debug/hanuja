@@ -99,6 +99,7 @@ async function seed(): Promise<Fixture> {
   })
   const product = await prisma.product.create({
     data: {
+        brand: 'Test Brand',
       sellerId: seller.id,
       slug: `urun-${suffix.slice(0, 8)}`,
       name: 'Gea Berjer',

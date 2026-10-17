@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { previewBrandedProductName } from '@hanuja/api/domain/product-brand'
 import {
   Button,
   Input,
@@ -98,6 +99,7 @@ function BarcodeStatusHint({
 
 export default function NewProductForm({ categories }: Props) {
   const router = useRouter()
+  const [brand, setBrand] = useState('')
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [schema, setSchema] = useState<ResolvedCategorySchema | null>(null)
@@ -194,6 +196,7 @@ export default function NewProductForm({ categories }: Props) {
   const secondColorMissing = colorCount === 2 && !secondColorOptionId
   const submitDisabled =
     loading ||
+    !previewBrandedProductName(name, brand) ||
     !categoryId ||
     !schema ||
     primaryColorMissing ||
@@ -203,23 +206,27 @@ export default function NewProductForm({ categories }: Props) {
     !modelCode.trim() ||
     hasBarcodeCheckIssue ||
     (hasVariants && !variantsValid)
-  const missingSubmitReason = !categoryId
-    ? 'Urunu gondermek icin kategori secin.'
-    : primaryColorMissing
-      ? 'Renk bilgisi secildiginde Renk 1 secin.'
-      : secondColorMissing
-        ? 'Renk adedi 2 secildiginde ikinci rengi de secin.'
-        : Number(fulfillmentDays) < 1
-          ? 'Urunu gondermek icin sevk suresi girin.'
-          : pendingImageUploads > 0
-            ? 'Gorsel yuklemeleri tamamlanmadan urun gonderilemez.'
-            : !modelCode.trim()
-              ? 'Urunu gondermek icin Model Kodu girin.'
-              : hasBarcodeCheckIssue
-                ? 'Barkod kontrolleri tamamlanmadan urun gonderilemez.'
-                : hasVariants && !variantsValid
-                  ? 'Varyasyonlu urunlerde her satir icin fiyat ve stok girin.'
-                  : null
+  const missingSubmitReason = !brand.trim()
+    ? 'Marka zorunludur.'
+    : !previewBrandedProductName(name, brand)
+      ? 'Ürün adını kontrol edin; marka dahil en fazla 200 karakter olabilir.'
+      : !categoryId
+        ? 'Urunu gondermek icin kategori secin.'
+        : primaryColorMissing
+          ? 'Renk bilgisi secildiginde Renk 1 secin.'
+          : secondColorMissing
+            ? 'Renk adedi 2 secildiginde ikinci rengi de secin.'
+            : Number(fulfillmentDays) < 1
+              ? 'Urunu gondermek icin sevk suresi girin.'
+              : pendingImageUploads > 0
+                ? 'Gorsel yuklemeleri tamamlanmadan urun gonderilemez.'
+                : !modelCode.trim()
+                  ? 'Urunu gondermek icin Model Kodu girin.'
+                  : hasBarcodeCheckIssue
+                    ? 'Barkod kontrolleri tamamlanmadan urun gonderilemez.'
+                    : hasVariants && !variantsValid
+                      ? 'Varyasyonlu urunlerde her satir icin fiyat ve stok girin.'
+                      : null
 
   async function attachProductImages(productId: string, mediaAssetIds: string[]) {
     const response = await fetch(`/api/seller/products/${productId}/images`, {
@@ -252,6 +259,7 @@ export default function NewProductForm({ categories }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
+          brand,
           categoryId,
           properties: Object.fromEntries(
             Object.entries(properties).filter(
@@ -353,6 +361,20 @@ export default function NewProductForm({ categories }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-1.5">
+        <Label htmlFor="brand">Marka *</Label>
+        <Input
+          id="brand"
+          value={brand}
+          onChange={(e) => setBrand(e.target.value)}
+          maxLength={120}
+          required
+          disabled={loading}
+        />
+        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+          Ürünün gerçek markasını girin; tasarımcının alt markası olabilir.
+        </p>
+      </div>
+      <div className="space-y-1.5">
         <Label htmlFor="name">Urun Adi *</Label>
         <Input
           id="name"
@@ -363,6 +385,10 @@ export default function NewProductForm({ categories }: Props) {
           disabled={loading}
         />
       </div>
+
+      <p className="text-sm" aria-live="polite">
+        Ürün adı: {previewBrandedProductName(name, brand) || 'Marka ve ürün adını girin.'}
+      </p>
 
       <CategoryPicker
         categories={categories}

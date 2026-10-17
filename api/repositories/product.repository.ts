@@ -276,6 +276,7 @@ export function createProductRepository(prisma: PrismaClient) {
       categoryId: string
       slug: string
       name: string
+      brand: string
       description: string
       shortDescription?: string | null
       story?: string | null

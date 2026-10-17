@@ -60,7 +60,7 @@ describe('catalog.service product creation', () => {
       product: {
         findUnique: vi
           .fn()
-          .mockResolvedValueOnce({ id: 'prod-1', slug: 'ayni-isimli-urun' })
+          .mockResolvedValueOnce({ id: 'prod-1', slug: 'test-brand-ayni-isimli-urun' })
           .mockResolvedValueOnce(null),
         findFirst: vi.fn().mockResolvedValue(null),
         create: productCreateMock,
@@ -75,6 +75,7 @@ describe('catalog.service product creation', () => {
 
     const service = createCatalogService({ prisma })
     await service.createProduct({
+      brand: 'Test Brand',
       sellerId: 'seller-1',
       categoryId: 'cat-1',
       name: 'Ayni Isimli Urun',
@@ -90,7 +91,7 @@ describe('catalog.service product creation', () => {
     expect(productCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          slug: 'ayni-isimli-urun-2',
+          slug: 'test-brand-ayni-isimli-urun-2',
           sku: 'SKU-01',
           modelCode: 'MODEL-01',
         }),
@@ -146,6 +147,7 @@ describe('catalog.service product creation', () => {
 
     const service = createCatalogService({ prisma })
     await service.createProduct({
+      brand: 'Test Brand',
       sellerId: 'seller-1',
       categoryId: 'cat-1',
       name: 'SKU Tekrarli Urun',

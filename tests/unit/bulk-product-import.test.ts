@@ -38,6 +38,7 @@ describe('bulk product import row validator', () => {
   it('normalizes a valid row with barcode and image urls', () => {
     const result = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'SEHPA-001',
         name: 'Masif Mese Sehpa',
         'Ana Kategori*': 'Ev',
@@ -78,6 +79,7 @@ describe('bulk product import row validator', () => {
   it('reports row validation errors for missing barcode and invalid values', () => {
     const result = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': '',
         name: 'ab',
         'Ana Kategori*': '',
@@ -96,6 +98,7 @@ describe('bulk product import row validator', () => {
   it('accepts rows from the new template without Ana Kategori', () => {
     const result = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
@@ -116,6 +119,7 @@ describe('bulk product import row validator', () => {
   it('continues to accept legacy rootCategorySlug values from old-format files', () => {
     const result = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
         'Ana Kategori*': 'Ev',
@@ -137,6 +141,7 @@ describe('bulk product import row validator', () => {
   it('continues to accept legacy Kategori Slug headers', () => {
     const result = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
         'Kategori Slug*': 'EV-MOBILYA',
@@ -156,7 +161,7 @@ describe('bulk product import row validator', () => {
   })
 
   it('detects missing required template headers', () => {
-    const missing = getMissingBulkProductHeaders(['Urun Adi*', 'Kategori Slug*'])
+    const missing = getMissingBulkProductHeaders(['Marka*', 'Urun Adi*', 'Kategori Slug*'])
 
     expect(missing).toContain('Model Kodu*')
     expect(missing).toContain('Fiyat*')
@@ -174,6 +179,7 @@ describe('bulk product import row validator', () => {
     // Old downloaded templates still carry "Urun Rengi*"; it must satisfy the
     // Renk 1 requirement so those files keep importing.
     const missing = getMissingBulkProductHeaders([
+      'Marka*',
       'Model Kodu*',
       'Urun Adi*',
       'Kategori*',
@@ -189,6 +195,7 @@ describe('bulk product import row validator', () => {
 
   it('accepts the new "Renk 1*" header for the color requirement', () => {
     const missing = getMissingBulkProductHeaders([
+      'Marka*',
       'Model Kodu*',
       'Urun Adi*',
       'Kategori*',
@@ -205,6 +212,7 @@ describe('bulk product import row validator', () => {
   it('parses optional Renk 2 and dimension columns', () => {
     const result = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Iki Renkli Sehpa',
         'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
@@ -232,6 +240,7 @@ describe('bulk product import row validator', () => {
   it('leaves Renk 2 and dimensions undefined when the columns are blank', () => {
     const result = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Tek Renkli Sehpa',
         'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
@@ -256,6 +265,7 @@ describe('bulk product import row validator', () => {
   it('accepts a row with a blank barcode (auto-generated at commit)', () => {
     const result = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
@@ -293,6 +303,7 @@ describe('bulk product import row validator', () => {
   it('rejects nonempty legacy variant color columns', () => {
     const result = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
@@ -314,6 +325,7 @@ describe('bulk product import row validator', () => {
   it('preserves preview image URLs when serializing rows for server revalidation', () => {
     const parsed = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'SEHPA-001',
         'Urun Adi*': 'Ornek Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
@@ -501,6 +513,7 @@ describe('bulk product group key', () => {
   it('accepts the legacy product group code as the required Model Kodu', () => {
     const row = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Urun Grup Kodu': 'TAKIM-01',
         'Urun Adi*': 'Ayni Isimli Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
@@ -521,6 +534,7 @@ describe('bulk product group key', () => {
   it('does not use SKU to form product family groups', () => {
     const row = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'MODEL-01',
         'Urun Adi*': 'Ayni Isimli Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
@@ -542,6 +556,7 @@ describe('bulk product group key', () => {
   it('uses normalized model code and category for product family groups', () => {
     const first = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'model  01',
         'Urun Adi*': 'Ayni Isimli Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',
@@ -557,6 +572,7 @@ describe('bulk product group key', () => {
     )
     const second = normalizeBulkProductRow(
       {
+        brand: 'Test Brand',
         'Model Kodu*': 'MODEL 01',
         'Urun Adi*': 'Ayni Isimli Urun',
         'Kategori*': 'Mobilya / Sehpa Modelleri / Orta Sehpa',

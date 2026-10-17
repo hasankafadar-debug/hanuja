@@ -106,6 +106,7 @@ async function seedReturn(
   })
   const product = await prisma.product.create({
     data: {
+        brand: 'Test Brand',
       sellerId: seller.id,
       categoryId: category.id,
       slug: `urun-${suffix.slice(0, 8)}`,

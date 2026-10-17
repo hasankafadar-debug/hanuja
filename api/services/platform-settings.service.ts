@@ -69,3 +69,16 @@ export function createPlatformSettingsService({ prisma }: { prisma: PrismaClient
 }
 
 export type PlatformSettingsService = ReturnType<typeof createPlatformSettingsService>
+
+/** Read-only settings for public product shipping; never creates configuration on a GET. */
+export async function readPlatformShippingSettings(prisma: Pick<PrismaClient, 'platformSettings'>) {
+  return (
+    (await prisma.platformSettings.findUnique({
+      where: { id: PLATFORM_SETTINGS_ID },
+      select: { freeShippingThresholdTry: true, flatShippingFeeTry: true },
+    })) ?? {
+      freeShippingThresholdTry: DEFAULT_PLATFORM_SETTINGS.freeShippingThresholdTry,
+      flatShippingFeeTry: DEFAULT_PLATFORM_SETTINGS.flatShippingFeeTry,
+    }
+  )
+}

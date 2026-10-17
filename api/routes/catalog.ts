@@ -24,6 +24,7 @@ function withoutModelCode<T extends { modelCode?: unknown }>(product: T) {
 const createProductSchema = z.object({
   categoryId: z.string().cuid(),
   name: z.string().min(3).max(200),
+  brand: z.string().trim().min(1, 'Marka zorunludur.').max(120),
   description: z.string().min(10),
   price: z.number().positive(),
   stock: z.number().int().min(0),
@@ -89,6 +90,7 @@ export async function createProduct(req: NextRequest, sellerId: string) {
         sellerId,
         categoryId: data.categoryId,
         name: data.name,
+        brand: data.brand,
         description: data.description,
         price: new Decimal(data.price),
         fulfillmentDays: 20,

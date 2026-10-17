@@ -35,6 +35,7 @@ Follow this playbook whenever a user provides a scraped product Excel file and a
 - Inspect the source workbook without modifying it. Deliver a cleaned workbook only when the user explicitly asks for one.
 - Resolve the target store by its exact production slug or display name. Continue only when exactly one active designer account is found.
 - Read canonical categories and attribute options from production before mapping rows. Stop before applying changes if a category mapping is missing or ambiguous.
+- Require an explicit product brand (`Marka` / `brand`, 1–120 characters) in each row. Never infer it from the target store. The catalog service prefixes product names with this brand exactly once; designer identity remains separate.
 - Convert the textual stock value `Stokta` to quantity `10`. Preserve valid numeric stock, source price, and fulfillment days.
 - Let the existing system generate a unique 13-digit barcode when a barcode is blank.
 - Treat a match on seller, category, and normalized model code as an existing product: skip it completely, including its images. Do not update existing products.

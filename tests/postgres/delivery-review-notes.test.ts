@@ -94,6 +94,7 @@ async function fixture(version = 2) {
   for (const [index, seller] of sellers.entries()) {
     const product = await prisma.product.create({
       data: {
+        brand: 'Test Brand',
         sellerId: seller.id,
         name: `Ürün ${index + 1}`,
         slug: `product-${index}-${tag}`,

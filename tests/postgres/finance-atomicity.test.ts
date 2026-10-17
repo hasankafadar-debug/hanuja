@@ -149,6 +149,7 @@ async function fixture(sellerCount = 1) {
     })
     const product = await prisma.product.create({
       data: {
+        brand: 'Test Brand',
         sellerId: seller.id,
         name: 'Finance test product',
         slug: `product-${i}-${tag}`,

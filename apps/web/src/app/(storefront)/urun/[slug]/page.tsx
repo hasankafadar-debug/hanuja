@@ -1,3 +1,5 @@
+import { readPlatformShippingSettings } from '@hanuja/api/services/platform-settings.service'
+import { calculateShippingFee } from '@hanuja/api/domain/shipping'
 import type { Metadata } from 'next'
 import { resolveCategorySchema } from '@hanuja/api/services/category-schema.service'
 import { buildStructuredCharacteristics } from '@hanuja/api/domain/product-characteristics'
@@ -18,6 +20,7 @@ import { formatMoney } from '@hanuja/security'
 import {
   buildProductMetadata,
   buildProductStructuredData,
+  selectProductSchemaImageUrl,
   buildBreadcrumbStructuredData,
   JsonLd,
 } from '@hanuja/seo'
@@ -133,7 +136,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ProductDetailPage({ params, searchParams }: Props) {
   const { slug } = await params
   const requestedVariant = (await searchParams)?.varyant
-  const product = await getProduct(slug)
+  const [product, settings] = await Promise.all([
+    getProduct(slug),
+    readPlatformShippingSettings(createPrismaForRoute()),
+  ])
 
   if (!product) notFound()
 
@@ -269,15 +275,29 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
     { label: product.name },
   ]
 
-  const productJsonLd = buildProductStructuredData({
-    name: product.name,
-    description: product.description ?? '',
-    slug,
-    price,
-    availability: (product.stockQuantity ?? 0) > 0 ? 'InStock' : 'OutOfStock',
-    sku: product.id,
-    ...(reviewCount > 0 ? { aggregateRating: { ratingValue: avgRating, reviewCount } } : {}),
-  })
+  const shippingSettings = {
+    freeShippingThresholdTry: Number(settings.freeShippingThresholdTry),
+    flatShippingFeeTry: Number(settings.flatShippingFeeTry),
+  }
+  const shippingRateTry = calculateShippingFee(price, shippingSettings)
+  const imageUrl = selectProductSchemaImageUrl(
+    images.map((image) => normalizeMediaDisplayUrl(image.url)),
+  )
+  if (!imageUrl) console.warn('[product-schema] Missing public product image:', product.id)
+  const productJsonLd = imageUrl
+    ? buildProductStructuredData({
+        name: product.name,
+        description: product.description ?? '',
+        slug,
+        price,
+        availability: (product.stockQuantity ?? 0) > 0 ? 'InStock' : 'OutOfStock',
+        sku: product.id,
+        imageUrl,
+        ...(product.brand ? { brand: product.brand } : {}),
+        shippingRateTry,
+        ...(reviewCount > 0 ? { aggregateRating: { ratingValue: avgRating, reviewCount } } : {}),
+      })
+    : null
 
   const breadcrumbJsonLd = buildBreadcrumbStructuredData([
     { name: 'Ana Sayfa', url: '/' },
@@ -287,7 +307,7 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <JsonLd data={productJsonLd} />
+      {productJsonLd ? <JsonLd data={productJsonLd} /> : null}
       <JsonLd data={breadcrumbJsonLd} />
       <ProductViewTracker slug={slug} />
       <Breadcrumb items={breadcrumbItems} className="mb-6" />
@@ -530,7 +550,11 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
               style={{ color: 'var(--color-muted-fg)' }}
             >
               <Truck className="h-5 w-5" />
-              <span>Ücretsiz Kargo</span>
+              <span>
+                {shippingRateTry === 0
+                  ? 'Ücretsiz Kargo'
+                  : `${shippingSettings.freeShippingThresholdTry.toLocaleString('tr-TR')} TL ve üzeri ücretsiz kargo`}
+              </span>
             </div>
           </div>
         </div>

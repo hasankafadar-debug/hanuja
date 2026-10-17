@@ -70,6 +70,7 @@ export default async function EditProductPage({ params }: Props) {
   type ProductData = {
     id: string
     name: string
+    brand: string | null
     description: string | null
     shortDescription: string | null
     story: string | null
@@ -170,6 +171,7 @@ export default async function EditProductPage({ params }: Props) {
       <ProductEditForm
         productId={p.id}
         initialName={p.name}
+        initialBrand={p.brand ?? ''}
         initialDescription={p.description ?? ''}
         initialShortDescription={p.shortDescription ?? ''}
         initialStory={p.story ?? ''}
