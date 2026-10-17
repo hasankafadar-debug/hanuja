@@ -30,7 +30,11 @@ import {
 } from '../../api/services/card-payment.service'
 import { createQuantityCancellationService } from '../../api/services/quantity-cancellation.service'
 import { createRefundExecutionService } from '../../api/services/refund-execution.service'
-import type { IyzicoOutcome, IyzicoPaymentDetail } from '../../api/lib/iyzico'
+import {
+  computeIyzicoSignature,
+  type IyzicoOutcome,
+  type IyzicoPaymentDetail,
+} from '../../api/lib/iyzico'
 
 process.env.IYZICO_CARD_PAYMENTS_ENABLED = 'true'
 
@@ -96,20 +100,15 @@ function createFakeIyzico() {
   function detailFor(basket: Basket, fraudStatus: number, paymentStatus: string): IyzicoPaymentDetail {
     const price = new Decimal(basket.price)
     const paid = new Decimal(basket.paidPrice)
-    const diffCents = paid.sub(price).mul(100).toNumber()
-    let allocated = 0
+    // Gerçek iyzico gibi: taksitte kalem paidPrice oransal ve 8 ondalıklıdır (ör. 673.56752371);
+    // toplamı paidPrice'tan kuruşun altında sapabilir.
     const itemTransactions = basket.items.map((item, index) => {
       const itemPrice = new Decimal(item.price)
-      const share =
-        index === basket.items.length - 1
-          ? diffCents - allocated
-          : Math.floor(itemPrice.mul(diffCents).div(price).toNumber())
-      allocated += share
       return {
         itemId: item.id,
         paymentTransactionId: `${basket.paymentId}-${index}`,
         price: itemPrice.toFixed(2),
-        paidPrice: itemPrice.add(new Decimal(share).div(100)).toFixed(2),
+        paidPrice: itemPrice.mul(paid).div(price).toDecimalPlaces(8).toString(),
       }
     })
     return {
@@ -525,6 +524,47 @@ describe('kart ödemesi: callback güvenliği ve başarısızlık', () => {
     expect(state).toMatchObject({ payable: true, checking: false, status: 'payment_pending' })
   })
 
+  it('başarısız 3DS dönüşü paymentId taşımaz; imzası geçerliyse deneme başarısız olur, imzasızsa reddedilir', async () => {
+    // Gerçek iyzico (sandbox, 2026-10-17): status=failure, mdStatus=0, paymentId yok, imza geçerli.
+    const previousKey = process.env.IYZICO_SECRET_KEY
+    process.env.IYZICO_SECRET_KEY = 'test-secret'
+    try {
+      const h = harness()
+      const unsigned = await startPayment(h, await checkoutFixture())
+      if (unsigned.started.kind !== 'threeds') throw new Error('3DS bekleniyordu')
+      expect(
+        await callback(h, unsigned.started.attemptId, { status: 'failure', mdStatus: '0', paymentId: null }),
+      ).toMatchObject({ outcome: 'invalid' })
+      expect(
+        (await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: unsigned.started.attemptId } })).status,
+      ).toBe('threeds_pending')
+
+      const signed = await startPayment(h, await checkoutFixture())
+      if (signed.started.kind !== 'threeds') throw new Error('3DS bekleniyordu')
+      const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: signed.started.attemptId } })
+      const signature = computeIyzicoSignature(['', attempt.conversationId, '0', '', 'failure'])
+      expect(
+        await callback(h, attempt.id, { status: 'failure', mdStatus: '0', paymentId: null, signature }),
+      ).toMatchObject({ outcome: 'failed' })
+      const failed = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })
+      expect(failed).toMatchObject({ status: 'failed', mdStatus: '0' })
+      expect(h.gateway.complete3DS).not.toHaveBeenCalled()
+
+      // Başarı bildiriminde paymentId eşleşmesi imza geçerli olsa da şarttır.
+      const third = await startPayment(h, await checkoutFixture())
+      if (third.started.kind !== 'threeds') throw new Error('3DS bekleniyordu')
+      const thirdAttempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: third.started.attemptId } })
+      const successSignature = computeIyzicoSignature(['', thirdAttempt.conversationId, '1', '', 'success'])
+      expect(
+        await callback(h, thirdAttempt.id, { paymentId: null, signature: successSignature }),
+      ).toMatchObject({ outcome: 'invalid' })
+      expect(h.gateway.complete3DS).not.toHaveBeenCalled()
+    } finally {
+      if (previousKey === undefined) delete process.env.IYZICO_SECRET_KEY
+      else process.env.IYZICO_SECRET_KEY = previousKey
+    }
+  })
+
   it('3DS ekranı kapatılırsa başka kartla devam edilir; eski callback para çekemez', async () => {
     const h = harness()
     const f = await checkoutFixture()
@@ -656,6 +696,10 @@ describe('kart ödemesi: siparişe bağlanamayan tahsilat geri ödenir', () => {
 
     expect(await h.service.reconcileAttempt(started.attemptId)).toBe('failed')
     expect(h.gateway.cancelPayment).toHaveBeenCalledTimes(1)
+    // iyzico açıklama gönderilen iptalde sebep (reason) ister.
+    expect(h.gateway.cancelPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'other', description: 'late_capture' }),
+    )
     const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({
       where: { id: started.attemptId },
       include: { reversal: true },
@@ -725,6 +769,9 @@ describe('kart ödemesi: siparişe bağlanamayan tahsilat geri ödenir', () => {
     // Tekrar gelen bildirim ikinci geri ödeme açmaz.
     expect(await h.service.processCapturedPayment(duplicate.id, detail)).toBe('failed')
     expect(h.gateway.cancelPayment).toHaveBeenCalledTimes(1)
+    expect(h.gateway.cancelPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'double_payment', description: 'duplicate_capture' }),
+    )
 
     const reversals = await prisma.cardAttemptReversal.findMany({ where: { attemptId: duplicate.id } })
     expect(reversals).toHaveLength(1)

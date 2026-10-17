@@ -39,6 +39,7 @@ import {
   basketInstallmentLimit,
   buildCardBasket,
   resolveCategoryInstallmentLimit,
+  roundCapturedPaidPrices,
   selectInstallmentOffers,
   type InstallmentOffer,
 } from '../domain/card-installments'
@@ -430,9 +431,15 @@ export function createCardPaymentService({
       },
     })
     const capturedAt = attempt.authRequestedAt ?? attempt.createdAt
-    const items = detail.itemTransactions.map((item) => ({
+    // Kalem tutarları kuruşa yuvarlanır ve toplamları tahsil edilen tutara eşit kalır; toplam
+    // tutmayan (uyuşmaz) bir tahsilatta her kalem ayrı yuvarlanır.
+    const rawPaidPrices = detail.itemTransactions.map((item) => String(item.paidPrice))
+    const amounts =
+      roundCapturedPaidPrices(rawPaidPrices, new Decimal(detail.paidPrice)) ??
+      rawPaidPrices.map((value) => new Decimal(value).toDecimalPlaces(2))
+    const items = detail.itemTransactions.map((item, index) => ({
       paymentTransactionId: item.paymentTransactionId,
-      amount: new Decimal(item.paidPrice).toFixed(2),
+      amount: amounts[index]!.toFixed(2),
       refundedAmount: '0.00',
     }))
     await tx.cardAttemptReversal.upsert({
@@ -795,7 +802,7 @@ export function createCardPaymentService({
     await prisma.$transaction(async (tx) => {
       const reversal = await tx.cardAttemptReversal.update({
         where: { id: reversalId },
-        data: { status: 'completed', completedAt: now(), providerReference },
+        data: { status: 'completed', completedAt: now(), providerReference, lastError: null },
       })
       const attempt = await tx.cardPaymentAttempt.update({
         where: { id: reversal.attemptId },
@@ -842,7 +849,8 @@ export function createCardPaymentService({
         paymentId: attempt.providerPaymentId!,
         conversationId: `rev-${claimed.id}-cancel`,
         ip: providerIp(),
-        reason: claimed.reason,
+        reason: claimed.reason === 'duplicate_capture' ? 'double_payment' : 'other',
+        description: claimed.reason,
       })
       if (outcome.kind === 'success') {
         await completeReversal(claimed.id, 'voided', null)
@@ -1705,18 +1713,30 @@ export function createCardPaymentService({
       if (!attempt) return { orderId: null, outcome: 'invalid' }
 
       const signature = verifyCallbackSignature(fields)
-      if (
-        signature === 'invalid' ||
-        !fields.paymentId ||
-        fields.paymentId !== attempt.providerPaymentId
-      ) {
+      // Başarısız 3DS dönüşünde iyzico paymentId göndermez (sandbox, 2026-10-17); imzası geçerli bir
+      // başarısızlık bildirimi bu yüzden paymentId olmadan da kabul edilir. Başarı için eşleşme şarttır.
+      const paymentIdAccepted = fields.paymentId
+        ? fields.paymentId === attempt.providerPaymentId
+        : fields.status !== 'success' && signature === 'valid'
+      if (signature === 'invalid' || !paymentIdAccepted) {
         await appendEvent(prisma, attempt.paymentId, 'card_callback_rejected', {
           attemptId: attempt.id,
           signature,
           paymentIdMatches: fields.paymentId === attempt.providerPaymentId,
+          receivedPaymentId: fields.paymentId ?? null,
+          status: fields.status ?? null,
+          mdStatus: fields.mdStatus ?? null,
         })
         return { orderId: attempt.orderId, outcome: 'invalid' }
       }
+
+      // iyzico'nun callback'te imza gönderip göndermediği canlıya geçiş kararı için izlenir.
+      await appendEvent(prisma, attempt.paymentId, 'card_callback_received', {
+        attemptId: attempt.id,
+        signature,
+        status: fields.status ?? null,
+        mdStatus: fields.mdStatus ?? null,
+      })
 
       if (attempt.status !== 'threeds_pending') {
         return {

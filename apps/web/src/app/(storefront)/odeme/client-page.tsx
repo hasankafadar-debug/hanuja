@@ -313,7 +313,13 @@ export function CheckoutPageClient({
 
   useEffect(() => {
     const cardQuoteId = paymentMethod === 'card' ? (quote?.quoteId ?? null) : null
-    if (!selectedAddressId || (paymentMethod === 'card' && !cardQuoteId)) {
+    // Kart önizlemesi yalnız teklifle yüklenir (adresler teklifte); yeniden ödemede seçili adres yoktur.
+    const previewUrl = cardQuoteId
+      ? `/api/checkout/contracts-preview?quoteId=${encodeURIComponent(cardQuoteId)}`
+      : paymentMethod !== 'card' && selectedAddressId
+        ? `/api/checkout/contracts-preview?addressId=${encodeURIComponent(selectedAddressId)}&paymentMethod=${paymentMethod}${useDifferentBilling && selectedBillingAddressId ? `&billingAddressId=${encodeURIComponent(selectedBillingAddressId)}` : ''}`
+        : null
+    if (!previewUrl) {
       setLegalPreview(null)
       setLegalError(null)
       setLegalLoading(false)
@@ -321,19 +327,13 @@ export function CheckoutPageClient({
     }
 
     let cancelled = false
-    const addressId = selectedAddressId
 
-    async function loadLegalPreview() {
+    async function loadLegalPreview(url: string) {
       setLegalLoading(true)
       setLegalError(null)
 
       try {
-        const res = await fetch(
-          cardQuoteId
-            ? `/api/checkout/contracts-preview?quoteId=${encodeURIComponent(cardQuoteId)}`
-            : `/api/checkout/contracts-preview?addressId=${encodeURIComponent(addressId)}&paymentMethod=${paymentMethod}${useDifferentBilling && selectedBillingAddressId ? `&billingAddressId=${encodeURIComponent(selectedBillingAddressId)}` : ''}`,
-          { cache: 'no-store' },
-        )
+        const res = await fetch(url, { cache: 'no-store' })
 
         if (res.status === 401) {
           router.push('/giris?redirect=/odeme')
@@ -360,7 +360,7 @@ export function CheckoutPageClient({
       }
     }
 
-    void loadLegalPreview()
+    void loadLegalPreview(previewUrl)
 
     return () => {
       cancelled = true

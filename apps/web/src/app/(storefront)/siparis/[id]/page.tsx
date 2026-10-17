@@ -451,12 +451,15 @@ export default async function OrderDetailPage({ params }: Props) {
           {installmentDifference > 0 ? (
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Vade farkı ({installmentCount} taksit)</span>
-              <span>{formatMoney(installmentDifference)}</span>
+              <span>{formatMoney(installmentDifference, { withKurus: true })}</span>
             </div>
           ) : null}
           <div className="flex justify-between text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
             <span>Toplam</span>
-            <span>{formatMoney(totalAmount)}</span>
+            {/* Taksitli tahsilat neredeyse her zaman kuruşludur; kart ekstresiyle aynı tutar gösterilir. */}
+            <span>
+              {formatMoney(totalAmount, installmentDifference > 0 ? { withKurus: true } : undefined)}
+            </span>
           </div>
           {installmentCount > 1 ? (
             <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>

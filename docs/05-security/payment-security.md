@@ -1,4 +1,4 @@
-# Son güncelleme: 2026-10-16
+# Son güncelleme: 2026-10-17
 # Durum: taslak v2 — iyzico standart sanal POS, 3D Secure, taksit (kart satışı bayrakla kapalı)
 
 # Payment Security
@@ -17,8 +17,26 @@ Canlıya geçiş şartları (bayrak bunlar olmadan açılmaz):
    3D Secure bu sorumluluğu kaldırmaz.
 2. X-IYZ-SIGNATURE-V3 webhook'u hesapta aktif ve canlıda imzalı bildirim doğrulandı.
 3. Taksit oranları iyzico panelinde ("Taksit ve Komisyon Yönetimi") müşteriye yansıyacak şekilde tanımlı;
-   sandbox ve canlıda bir taksitli ödeme uçtan uca doğrulandı (callback'te `signature` alanının gelip gelmediği dahil).
+   canlıda bir taksitli ödeme uçtan uca doğrulandı (sandbox'ta 2026-10-17'de doğrulandı, aşağıya bakın).
 4. Mali müşavir vade farkının müşteri faturasındaki (Uyumsoft) gösterimini onayladı.
+
+### Sandbox uçtan uca test (2026-10-17)
+
+Yerelde iyzico sandbox anahtarları ve gerçek 3D Secure test sayfasıyla doğrulandı: taksit sorgusu (bireysel
+kartlarda 1/2/3/6/9/12, ticari kartlarda — `commercial: true` — iyzico yalnız tek çekim döndürür), 3 taksitli
+tahsilat ve onay (müşteri 777,76 TL; tasarımcı hakedişi peşin tutarda), aynı siparişe yeniden ödeme, siparişe
+bağlanamayan tahsilatın geri ödenmesi, kısmi iptalde vade farkı payının oransal kart iadesi, başarısız 3D dönüşü
+ve süre dolumunda stok iadesi. Bu testte bulunan ve düzeltilen dört hata:
+
+- iyzico taksitte kalem `paidPrice` değerlerini 8 ondalıkla döndürür (ör. 673.56752371 + 104.19247632 = 777.76);
+  birebir eşitlik bekleyen kontrol tahsilatı reddediyordu → kuruşa yuvarlama (Adım 4).
+- Açıklama gönderilen iptal isteğinde iyzico `reason` alanını zorunlu tutar → iptal isteği `reason` gönderir (§4).
+- Başarısız 3D dönüşünde iyzico `paymentId` göndermez → imzası geçerli başarısızlık bildirimi kabul edilir (Adım 3).
+- Sipariş sayfasından açılan yeniden ödeme ekranında sözleşme önizlemesi yüklenmiyordu → önizleme teklifle yüklenir.
+
+iyzico callback'te `signature` alanını gönderir ve imza `IYZICO_SECRET_KEY` ile doğrulanır (her dönüş
+`card_callback_received` olayına imza durumuyla yazılır). Webhook (V3), fraud incelemesi ve mobil tarayıcılarda
+3D sayfası sandbox'ta denenmedi.
 
 ## Purpose
 
@@ -90,8 +108,12 @@ Then `startAttempt`:
 
 No callback field is proof of payment on its own:
 
-1. The attempt is found by `conversationId`; the posted `paymentId` must equal the stored one.
-2. If iyzico sends `signature`, it must verify (`conversationData:conversationId:mdStatus:paymentId:status`).
+1. The attempt is found by `conversationId`; the posted `paymentId` must equal the stored one. Exception: a
+   failure callback (`status ≠ success`) carries no `paymentId` (sandbox, 2026-10-17) and is accepted only when its
+   signature verifies. A success callback without a matching `paymentId` is always rejected.
+2. If iyzico sends `signature` (it does, sandbox 2026-10-17), it must verify
+   (`conversationData:conversationId:mdStatus:paymentId:status`; a missing `paymentId` is an empty part). Every
+   accepted callback is recorded as `card_callback_received` with the signature state.
 3. Success requires `status=success` **and** `mdStatus=1`; otherwise the attempt fails and the order stays payable.
 4. Under the order lock the attempt moves `threeds_pending → authorizing`; an expired attempt or an order whose
    window passed never calls auth.
@@ -112,6 +134,13 @@ No callback field is proof of payment on its own:
   (`customerPaidProductAmount = item paidPrice`), `Order.customerPaidShippingAmount`,
   `PaymentProviderItem.amount = item paidPrice`, `Payment.amount = paidPrice`, the accepted contract becomes the
   `OrderLegalSnapshot`, seller accruals (from `OrderLine` only) and the "Siparişiniz Alındı" notification.
+
+Item amounts: in installments iyzico returns each item's `paidPrice` with up to 8 decimals (e.g. `673.56752371`).
+`roundCapturedPaidPrices` (`api/domain/card-installments.ts`) floors each to kuruş and gives the missing kuruş to
+the items with the largest remainders, so the stored item amounts add up to `paidPrice` exactly. A raw sum that is
+off by one kuruş or more makes the capture unusable (`item_paid_sum_mismatch` → attempt reversal). The raw values
+stay in `CardPaymentAttempt.itemTransactions`. iyzico accepted the rounded item amount (673.57 against 673.5675…)
+as the refund cap in sandbox.
 
 Fraud: `fraudStatus` **1** or **2** (approved after review) confirms. **0** keeps the order in `payment_pending`
 (no seller visibility, no accrual) and is polled. **-1** after review is refunded by iyzico itself; Hanuja does not
@@ -156,8 +185,10 @@ unprocessed events.
 - `card-payment` worker (every 5 min): expires unpaid orders whose window passed (status `payment_cancelled`,
   stock and coupon usage returned, once), reconciles `authorizing / outcome_unknown / fraud_review` attempts with
   the signed payment query, processes attempt reversals and unprocessed webhook events, and sweeps card refunds.
-- Attempt reversals (`CardAttemptReversal`, one per attempt): same-day `cancel`, otherwise item refunds.
-  `uncertain` is never retried blindly; the reporting service (`/v2/reporting/payment/details`, matched by our
+- Attempt reversals (`CardAttemptReversal`, one per attempt): same-day `cancel`, otherwise item refunds. A
+  rejected cancel falls back to item refunds. The cancel request sends iyzico's `reason` (`double_payment` for a
+  duplicate capture, otherwise `other`) with our reason code as `description`; iyzico rejects a description
+  without `reason`. `uncertain` is never retried blindly; the reporting service (`/v2/reporting/payment/details`, matched by our
   `conversationId`) decides. Order refunds use the same rule: uncertain card refund items are reconciled from the
   report (`refund-item-<id>`), and reopened for retry only after an hour without a trace.
 

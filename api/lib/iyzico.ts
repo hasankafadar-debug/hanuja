@@ -731,12 +731,19 @@ export async function getPaymentReport(params: {
   }
 }
 
+/**
+ * iyzico iptal/iade sebebi. Açıklama (description) gönderilen istekte zorunludur; yoksa iyzico
+ * "iade sebebi (reason) alanı zorunludur" hatasıyla reddeder (sandbox, 2026-10-17).
+ */
+export type IyzicoReversalReason = 'double_payment' | 'buyer_request' | 'fraud' | 'other'
+
 /** Aynı gün iptal (void). Kısmi iptal desteklenmez; ödemenin tamamını iptal eder. */
 export async function cancelPayment(params: {
   paymentId: string
   conversationId: string
   ip: string
-  reason?: string
+  reason: IyzicoReversalReason
+  description?: string
 }): Promise<IyzicoOutcome<{ price: string | null }>> {
   let result: IyzicoRawResult
   try {
@@ -746,7 +753,8 @@ export async function cancelPayment(params: {
       conversationId: params.conversationId,
       paymentId: params.paymentId,
       ip: params.ip,
-      ...(params.reason ? { description: params.reason.slice(0, 200) } : {}),
+      reason: params.reason,
+      ...(params.description ? { description: params.description.slice(0, 200) } : {}),
     })
   } catch (error) {
     return { kind: 'unknown', reason: transportReason(error) }

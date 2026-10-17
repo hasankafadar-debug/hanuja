@@ -158,9 +158,58 @@ export type CaptureAllocation =
     }
   | { ok: false; reason: string }
 
+/** Kuruşun altında tutulan hane sayısı; iyzico kalem paidPrice değerlerini 8 haneyle döndürür. */
+const SUB_KURUS_DIGITS = 10
+const SUB_KURUS_PER_KURUS = 10 ** SUB_KURUS_DIGITS
+
+/** Tutarı tam kuruşa ve kuruşun altındaki küsura ayırır (ör. "673.56752371" → 67356 kuruş + küsur). */
+function splitKurus(value: string): { kurus: number; remainder: number } | null {
+  const match = /^(\d+)(?:\.(\d{0,12}))?$/.exec(value.trim())
+  if (!match) return null
+  const fraction = (match[2] ?? '').padEnd(2 + SUB_KURUS_DIGITS, '0')
+  return {
+    kurus: Number(match[1]) * 100 + Number(fraction.slice(0, 2)),
+    remainder: Number(fraction.slice(2)),
+  }
+}
+
+function formatKurus(kurus: number): string {
+  return `${Math.floor(kurus / 100)}.${String(kurus % 100).padStart(2, '0')}`
+}
+
+/**
+ * iyzico taksitli ödemede kalem paidPrice değerlerini oransal ve kuruştan hassas döndürür
+ * (ör. 673.56752371 + 104.19247632 = 777.76). Değerler kuruşa indirilir; eksik kalan kuruşlar en
+ * büyük küsurlu kalemden başlayarak dağıtılır, böylece yuvarlanmış toplam paidPrice'a tam eşit olur.
+ * Ham toplam paidPrice'tan bir kuruş veya daha fazla saparsa null döner.
+ * iyzico bu yuvarlanmış tutarları kalem iadesinde tavan olarak kabul eder (sandbox, 2026-10-17).
+ */
+export function roundCapturedPaidPrices(
+  rawPaidPrices: string[],
+  paidPrice: Decimal,
+): Decimal[] | null {
+  const target = splitKurus(paidPrice.toFixed(2))
+  const parts = rawPaidPrices.map(splitKurus)
+  if (!target || parts.some((part) => part === null)) return null
+  const items = parts as Array<{ kurus: number; remainder: number }>
+  const missingKurus = target.kurus - items.reduce((sum, item) => sum + item.kurus, 0)
+  const remainderSum = items.reduce((sum, item) => sum + item.remainder, 0)
+  if (Math.abs(remainderSum - missingKurus * SUB_KURUS_PER_KURUS) >= SUB_KURUS_PER_KURUS) {
+    return null
+  }
+  if (missingKurus < 0 || missingKurus > items.length) return null
+  const kurus = items.map((item) => item.kurus)
+  const byRemainder = items
+    .map((item, index) => ({ index, remainder: item.remainder }))
+    .sort((a, b) => b.remainder - a.remainder || a.index - b.index)
+  for (const { index } of byRemainder.slice(0, missingKurus)) kurus[index] = kurus[index]! + 1
+  return kurus.map((value) => new Decimal(formatKurus(value)))
+}
+
 /**
  * Iyzico'nun kalem bazlı paidPrice değerlerini doğrular ve vade farkı paylarını çıkarır.
- * Kalem kümesi, kalem price'ları ve toplamlar kuruşu kuruşuna tutmalıdır.
+ * Kalem kümesi ve kalem price'ları birebir tutmalıdır; paidPrice değerleri kuruşa yuvarlanır
+ * (roundCapturedPaidPrices) ve toplamları paidPrice'a kuruşu kuruşuna eşittir.
  */
 export function allocateCapturedItems(params: {
   expected: ProviderItemAmount[]
@@ -172,27 +221,33 @@ export function allocateCapturedItems(params: {
   if (byId.size !== params.captured.length || byId.size !== params.expected.length) {
     return { ok: false, reason: 'item_set_mismatch' }
   }
-  const items: Extract<CaptureAllocation, { ok: true }>['items'] = []
+  const matched: Array<{ providerItemId: string; captured: CapturedItem; basePrice: Decimal }> = []
   let priceSum = new Decimal(0)
-  let paidSum = new Decimal(0)
   for (const expected of params.expected) {
     const captured = byId.get(expected.providerItemId)
     if (!captured) return { ok: false, reason: 'item_set_mismatch' }
     const basePrice = new Decimal(captured.price)
-    const paidPrice = new Decimal(captured.paidPrice)
     if (!basePrice.eq(expected.amount)) return { ok: false, reason: 'item_price_mismatch' }
-    if (paidPrice.lt(basePrice)) return { ok: false, reason: 'item_paid_below_price' }
+    if (new Decimal(captured.paidPrice).lt(basePrice)) {
+      return { ok: false, reason: 'item_paid_below_price' }
+    }
     priceSum = priceSum.add(basePrice)
-    paidSum = paidSum.add(paidPrice)
-    items.push({
-      providerItemId: expected.providerItemId,
-      paymentTransactionId: captured.paymentTransactionId,
-      basePrice,
-      paidPrice,
-      installmentShare: paidPrice.sub(basePrice),
-    })
+    matched.push({ providerItemId: expected.providerItemId, captured, basePrice })
   }
   if (!priceSum.eq(params.price)) return { ok: false, reason: 'price_sum_mismatch' }
-  if (!paidSum.eq(params.paidPrice)) return { ok: false, reason: 'paid_sum_mismatch' }
-  return { ok: true, items }
+  const paidPrices = roundCapturedPaidPrices(
+    matched.map((item) => String(item.captured.paidPrice)),
+    params.paidPrice,
+  )
+  if (!paidPrices) return { ok: false, reason: 'paid_sum_mismatch' }
+  return {
+    ok: true,
+    items: matched.map((item, index) => ({
+      providerItemId: item.providerItemId,
+      paymentTransactionId: item.captured.paymentTransactionId,
+      basePrice: item.basePrice,
+      paidPrice: paidPrices[index]!,
+      installmentShare: paidPrices[index]!.sub(item.basePrice),
+    })),
+  }
 }

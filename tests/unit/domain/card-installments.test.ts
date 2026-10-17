@@ -5,6 +5,7 @@ import {
   basketInstallmentLimit,
   buildCardBasket,
   resolveCategoryInstallmentLimit,
+  roundCapturedPaidPrices,
   selectInstallmentOffers,
 } from '../../../api/domain/card-installments'
 
@@ -164,5 +165,48 @@ describe('tahsil edilen kalemlerin doğrulanması', () => {
       paidPrice: new Decimal('1080.00'),
     })
     expect(result).toEqual({ ok: false, reason: 'item_price_mismatch' })
+  })
+
+  it("iyzico'nun 8 ondalıklı kalem tutarları kuruşa yuvarlanır ve toplamı paidPrice'a eşit olur", () => {
+    // iyzico sandbox yanıtı (2026-10-17): 3 taksit, peşin 739,00 TL, ödenen 777,76 TL.
+    const result = allocateCapturedItems({
+      expected: [
+        { providerItemId: 'line:a', amount: new Decimal('640.00') },
+        { providerItemId: 'shipping:o1', amount: new Decimal('99.00') },
+      ],
+      captured: [
+        { itemId: 'line:a', paymentTransactionId: '40272931', price: '640', paidPrice: '673.56752371' },
+        { itemId: 'shipping:o1', paymentTransactionId: '40272932', price: '99', paidPrice: '104.19247632' },
+      ],
+      price: new Decimal('739.00'),
+      paidPrice: new Decimal('777.76'),
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.items.map((item) => item.paidPrice.toFixed(2))).toEqual(['673.57', '104.19'])
+    expect(result.items.map((item) => item.installmentShare.toFixed(2))).toEqual(['33.57', '5.19'])
+  })
+})
+
+describe('kalem paidPrice değerlerinin kuruşa yuvarlanması', () => {
+  it('eksik kuruşları en büyük küsurlu kalemlere, eşitlikte sıradakine verir', () => {
+    const rounded = roundCapturedPaidPrices(
+      ['33.33333333', '33.33333333', '33.33333334'],
+      new Decimal('100.00'),
+    )
+    expect(rounded?.map((value) => value.toFixed(2))).toEqual(['33.33', '33.33', '33.34'])
+    const tie = roundCapturedPaidPrices(['50.004', '50.004'], new Decimal('100.01'))
+    expect(tie?.map((value) => value.toFixed(2))).toEqual(['50.01', '50.00'])
+  })
+
+  it('tek çekimde tutarları olduğu gibi bırakır', () => {
+    const rounded = roundCapturedPaidPrices(['640', '99'], new Decimal('739.00'))
+    expect(rounded?.map((value) => value.toFixed(2))).toEqual(['640.00', '99.00'])
+  })
+
+  it("ham toplam paidPrice'tan bir kuruş veya daha fazla saparsa reddeder", () => {
+    expect(roundCapturedPaidPrices(['50.00', '50.00'], new Decimal('100.01'))).toBeNull()
+    expect(roundCapturedPaidPrices(['50.00', '50.02'], new Decimal('100.01'))).toBeNull()
+    expect(roundCapturedPaidPrices(['abc', '50.00'], new Decimal('100.00'))).toBeNull()
   })
 })

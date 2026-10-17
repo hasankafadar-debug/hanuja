@@ -1114,14 +1114,21 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   iade, e-posta) içerir.
 - **Kart satışı kapalı kalır** (`IYZICO_CARD_PAYMENTS_ENABLED=false`) şunlar tamamlanana kadar: iyzico PCI DSS
   şartı (kart verisi sunucumuzdan geçiyor), X-IYZ-SIGNATURE-V3 aktivasyonu, panelde taksit oranlarının müşteriye
-  yansıtılması ve sandbox+canlı uçtan uca taksitli ödeme, mali müşavirin vade farkı fatura/KDV onayı.
-  iyzico'dan yazılı teyit bekleyenler: callback'te `signature` alanı, kurumsal/yabancı alıcı `identityNumber`
-  değeri (o zamana kadar bu profiller kartla ödeyemez), `fraudStatus` listesi, yabancı kart kabulü, MCC ve
-  taksit sınırları.
-- **Testler:** `tests/postgres/card-payment-flow.test.ts` (15 test: taksitli onay ve iade payı, oran değişimi,
-  eşzamanlı çift gönderim, kurumsal profil, callback paymentId uyuşmazlığı, 3DS başarısızlığı, başka kartla devam,
-  süre dolumu + stok/kupon iadesi, belirsiz auth, fraud 0→2, webhook, geç ve ikinci tahsilat, belirsiz iade
-  mutabakatı), `tests/unit/domain/card-installments.test.ts`, `tests/security/iyzico-signature.test.ts`
+  yansıtılması ve canlı uçtan uca taksitli ödeme, mali müşavirin vade farkı fatura/KDV onayı.
+  iyzico'dan yazılı teyit bekleyenler: kurumsal/yabancı alıcı `identityNumber` değeri (o zamana kadar bu
+  profiller kartla ödeyemez), `fraudStatus` listesi, yabancı kart kabulü, MCC ve taksit sınırları.
+- **Sandbox uçtan uca (2026-10-17):** taksitli tahsilat ve onay, yeniden ödeme, siparişe bağlanamayan tahsilatın
+  geri ödenmesi, kısmi iptalde vade farkı payının kart iadesi, başarısız 3D dönüşü ve süre dolumunda stok iadesi
+  gerçek iyzico sandbox'ında doğrulandı. Bulunup düzeltilen dört hata: 8 ondalıklı kalem `paidPrice` (kuruşa
+  yuvarlama, `roundCapturedPaidPrices`), iptal isteğinde zorunlu `reason`, `paymentId` taşımayan başarısız 3D
+  dönüşü, sipariş sayfasından açılan yeniden ödemede yüklenmeyen sözleşme önizlemesi. iyzico callback'te imza
+  gönderiyor ve imza doğrulanıyor; ticari kartlara (`commercial: true`) iyzico yalnız tek çekim veriyor.
+  Ayrıntı: `docs/05-security/payment-security.md` "Sandbox uçtan uca test".
+- **Testler:** `tests/postgres/card-payment-flow.test.ts` (16 test: taksitli onay ve iade payı, oran değişimi,
+  eşzamanlı çift gönderim, kurumsal profil, callback paymentId uyuşmazlığı, 3DS başarısızlığı, imzalı ve
+  paymentId'siz başarısız 3D dönüşü, başka kartla devam, süre dolumu + stok/kupon iadesi, belirsiz auth, fraud
+  0→2, webhook, geç ve ikinci tahsilat, belirsiz iade mutabakatı; sahte iyzico gerçeği gibi 8 ondalıklı kalem
+  tutarı döndürür), `tests/unit/domain/card-installments.test.ts`, `tests/security/iyzico-signature.test.ts`
   (V3), `tests/security/card-payments-disabled.test.ts`, `tests/security/payment-callback-binding.test.ts`.
 - **Bilinen sınırlar (blocking değil):** `document.write` ile açılan 3DS sayfası iOS Safari ve Android Chrome'da
   henüz denenmedi; `packages/security/src/webhook-verifier.ts` (`verifyIyzicoWebhook`) kullanılmayan eski koddur;
