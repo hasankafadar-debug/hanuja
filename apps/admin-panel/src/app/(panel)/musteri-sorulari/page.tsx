@@ -17,7 +17,7 @@ const PAGE_SIZE = 30
 
 const FILTER_TABS = [
   { value: 'all', label: 'Tümü' },
-  { value: 'waiting_for_seller', label: 'Tasarımcı yanıtı bekleniyor' },
+  { value: 'waiting_for_seller', label: 'Yanıt bekleyen' },
   { value: 'waiting_for_customer', label: 'Yanıtlandı' },
 ] as const
 
@@ -57,7 +57,7 @@ export default async function AdminProductQuestionsPage({ searchParams }: Props)
     <div className="space-y-6">
       <PageHeader
         title="Müşteri Soruları"
-        description="Müşteri ile tasarımcı arasındaki özel ürün konuşmaları. Salt okunurdur; her görüntüleme denetim günlüğüne yazılır."
+        description="Müşteri sorularını yanıtlayın veya tasarımcı yanıtını inceleyerek müşteriye iletin. Konuşma görüntülemeleri ve işlemler denetim günlüğüne yazılır."
       />
 
       <div className="flex flex-wrap gap-2">
@@ -110,10 +110,13 @@ export default async function AdminProductQuestionsPage({ searchParams }: Props)
                     </Link>
                   </td>
                   <td className="px-4 py-3">{item.sellerName}</td>
-                  <td className="px-4 py-3">{item.counterpartName}</td>
+                  <td className="px-4 py-3">{item.customerName}</td>
                   <td className="px-4 py-3">{item.orderNumber ? `#${item.orderNumber}` : 'Satış öncesi'}</td>
                   <td className="px-4 py-3">
-                    {item.status === 'waiting_for_seller' ? 'Tasarımcı yanıtı bekleniyor' : 'Yanıtlandı'}
+                    {item.status === 'waiting_for_seller' ? 'Hanuja yanıtı bekleniyor' : 'Yanıtlandı'}
+                    {item.status === 'waiting_for_seller' && item.lastMessageAuthorRole === 'seller' ? (
+                      <span className="mt-1 block text-xs font-semibold text-success">Tasarımcı yanıtladı</span>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--color-muted-fg)' }}>
                     {formatDate(item.lastMessageAt)}

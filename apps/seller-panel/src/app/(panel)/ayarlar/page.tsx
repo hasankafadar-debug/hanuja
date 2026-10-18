@@ -13,7 +13,9 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = { title: 'Ayarlar' }
 
-export default async function SellerSettingsPage() {
+export default async function SellerSettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab } = await searchParams
+  const activeTab = tab && ['store', 'bank', 'documents', 'vacation', 'account'].includes(tab) ? tab : 'store'
   const { session, seller } = await getSellerFromSession()
   const prisma = createPrismaForRoute()
 
@@ -45,7 +47,7 @@ export default async function SellerSettingsPage() {
     <div className="space-y-6 max-w-2xl">
       <PageHeader title="Mağaza Ayarları" description="Profil, banka ve güvenlik bilgileri" />
 
-      <Tabs defaultValue="store">
+      <Tabs key={activeTab} defaultValue={activeTab}>
         <TabsList>
           <TabsTrigger value="store">Mağaza Profili</TabsTrigger>
           <TabsTrigger value="bank">Banka Bilgileri</TabsTrigger>

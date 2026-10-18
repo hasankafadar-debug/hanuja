@@ -15,6 +15,7 @@ import {
 import { Separator } from '../separator'
 import { Skeleton } from '../skeleton'
 import { cn } from '../../lib/utils'
+import { csrfHeaders } from '../../lib/csrf-headers'
 
 export interface Notification {
   id: string
@@ -23,6 +24,7 @@ export interface Notification {
   body: string
   readAt: string | null
   createdAt: string
+  href?: string | null
 }
 
 export interface NotificationBellProps {
@@ -37,20 +39,28 @@ export interface NotificationBellProps {
  * Fetches from `{apiPath}` on mount and after marking as read.
  * Works for both the storefront (/api/notifications) and seller panel.
  */
-export function NotificationBell({ apiPath = '/api/notifications', className }: NotificationBellProps) {
+export function NotificationBell({
+  apiPath = '/api/notifications',
+  className,
+}: NotificationBellProps) {
   const [open, setOpen] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [notifications, setNotifications] = React.useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = React.useState(0)
+  const [error, setError] = React.useState('')
+  const readingIds = React.useRef(new Set<string>())
 
   const fetchNotifications = React.useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch(`${apiPath}?limit=15`)
-      if (!res.ok) return
+      if (!res.ok) throw new Error('list failed')
       const json = await res.json()
       setNotifications(json.data?.items ?? [])
       setUnreadCount(json.data?.unreadCount ?? 0)
+      setError('')
+    } catch {
+      setError('Bildirimler yüklenemedi.')
     } finally {
       setLoading(false)
     }
@@ -67,17 +77,45 @@ export function NotificationBell({ apiPath = '/api/notifications', className }: 
   }, [open, fetchNotifications])
 
   async function markAllRead() {
-    await fetch(apiPath, { method: 'POST' })
-    setUnreadCount(0)
-    setNotifications((prev) => prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })))
+    try {
+      const response = await fetch(apiPath, {
+        method: 'POST',
+        headers: csrfHeaders(apiPath),
+      })
+      if (!response.ok) throw new Error('read failed')
+      setUnreadCount(0)
+      setNotifications((prev) =>
+        prev.map((n) => ({
+          ...n,
+          readAt: n.readAt ?? new Date().toISOString(),
+        })),
+      )
+      setError('')
+    } catch {
+      setError('Bildirimler okundu olarak işaretlenemedi.')
+    }
   }
 
   async function markRead(id: string) {
-    await fetch(`${apiPath}/${id}/read`, { method: 'POST' })
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n)),
-    )
-    setUnreadCount((prev) => Math.max(0, prev - 1))
+    if (readingIds.current.has(id)) return
+    readingIds.current.add(id)
+    const url = `${apiPath}/${encodeURIComponent(id)}/read`
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: csrfHeaders(url),
+        keepalive: true,
+      })
+      if (!response.ok) throw new Error('read failed')
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n)),
+      )
+      setUnreadCount((prev) => Math.max(0, prev - 1))
+    } catch {
+      setError('Bildirim okundu olarak işaretlenemedi.')
+    } finally {
+      readingIds.current.delete(id)
+    }
   }
 
   return (
@@ -100,7 +138,10 @@ export function NotificationBell({ apiPath = '/api/notifications', className }: 
         </Button>
       </DialogTrigger>
 
-      <DialogContent aria-describedby={undefined} className="sm:max-w-md max-h-[80vh] flex flex-col p-0">
+      <DialogContent
+        aria-describedby={undefined}
+        className="sm:max-w-md max-h-[80vh] flex flex-col p-0"
+      >
         <DialogHeader className="px-4 pt-4 pb-2">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-base">
@@ -121,7 +162,7 @@ export function NotificationBell({ apiPath = '/api/notifications', className }: 
             )}
           </div>
           <DialogDescription className="sr-only">
-            Tasarımcı paneli bildirimleri
+            Panel bildirimleri ve ilgili kayıtlara bağlantılar
           </DialogDescription>
         </DialogHeader>
 
@@ -148,38 +189,49 @@ export function NotificationBell({ apiPath = '/api/notifications', className }: 
 
           {!loading && notifications.length > 0 && (
             <ul>
-              {notifications.map((notification, idx) => (
-                <React.Fragment key={notification.id}>
-                  <li
-                    className={cn(
-                      'px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors',
-                      !notification.readAt && 'bg-primary/5',
-                    )}
-                    onClick={() => {
-                      if (!notification.readAt) void markRead(notification.id)
-                    }}
-                  >
-                    <div className="flex items-start gap-2">
-                      {!notification.readAt && (
-                        <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-primary" />
+              {notifications.map((notification, idx) => {
+                const Item = notification.href ? 'a' : 'button'
+                return (
+                  <li key={notification.id}>
+                    <Item
+                      href={notification.href ?? undefined}
+                      type={notification.href ? undefined : 'button'}
+                      className={cn(
+                        'block w-full px-4 py-3 text-left cursor-pointer hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
+                        !notification.readAt && 'bg-primary/5',
                       )}
-                      <div className={cn('flex-1 min-w-0', notification.readAt && 'pl-4')}>
-                        <p className="text-sm font-medium leading-snug">{notification.title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-                          {notification.body}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground/60 mt-1">
-                          {formatRelativeTime(notification.createdAt)}
-                        </p>
+                      onClick={() => {
+                        if (!notification.readAt) void markRead(notification.id)
+                        if (notification.href) setOpen(false)
+                      }}
+                    >
+                      <div className="flex items-start gap-2">
+                        {!notification.readAt && (
+                          <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-primary" />
+                        )}
+                        <div className={cn('flex-1 min-w-0', notification.readAt && 'pl-4')}>
+                          <p className="text-sm font-medium leading-snug">{notification.title}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                            {notification.body}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground/60 mt-1">
+                            {formatRelativeTime(notification.createdAt)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    </Item>
+                    {idx < notifications.length - 1 && <Separator />}
                   </li>
-                  {idx < notifications.length - 1 && <Separator />}
-                </React.Fragment>
-              ))}
+                )
+              })}
             </ul>
           )}
         </div>
+        {error ? (
+          <p role="alert" className="px-4 pb-3 text-xs text-destructive">
+            {error}
+          </p>
+        ) : null}
       </DialogContent>
     </Dialog>
   )

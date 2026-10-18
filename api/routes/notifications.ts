@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { ok, handleError } from '../lib/response'
 import { createNotificationService } from '../services/notification.service'
 import { createPrismaForRoute } from '../lib/prisma'
+import { notificationHref, type NotificationPanel } from '../lib/notification-destination'
 
 function getNotificationService() {
   return createNotificationService({ prisma: createPrismaForRoute() })
@@ -21,7 +22,7 @@ const listQuerySchema = z.object({
 })
 
 // GET /api/notifications
-export async function listNotifications(req: NextRequest, userId: string) {
+export async function listNotifications(req: NextRequest, userId: string, panel?: NotificationPanel) {
   try {
     const url = new URL(req.url)
     const opts = listQuerySchema.parse(Object.fromEntries(url.searchParams))
@@ -30,7 +31,7 @@ export async function listNotifications(req: NextRequest, userId: string) {
       svc.listForUser(userId, opts),
       svc.countUnread(userId),
     ])
-    return ok({ items, unreadCount })
+    return ok({ items: panel ? items.map((item) => ({ ...item, href: notificationHref(panel, item) })) : items, unreadCount })
   } catch (err) {
     return handleError(err)
   }

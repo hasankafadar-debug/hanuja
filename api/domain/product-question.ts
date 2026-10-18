@@ -110,3 +110,12 @@ export function checkOrderAskable(input: {
 export function isThreadUnread(lastOtherMessageSeq: number, lastReadSeq: number): boolean {
   return lastOtherMessageSeq > lastReadSeq
 }
+
+/** A late internal answer can be dismissed only after Hanuja answered the customer. */
+export function canCompleteProductQuestionReview(
+  thread: { status: ProductQuestionStatus; lastSellerMessageSeq: number },
+  lastCustomerSeq: number,
+): boolean {
+  return thread.status === 'waiting_for_seller' && lastCustomerSeq > 0 &&
+    thread.lastSellerMessageSeq > lastCustomerSeq
+}

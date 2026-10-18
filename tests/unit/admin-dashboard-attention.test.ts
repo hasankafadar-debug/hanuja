@@ -14,13 +14,13 @@ const DASHBOARD_PAGE = fileURLToPath(
 const STAT_CARD = fileURLToPath(new URL('../../packages/ui/src/components/composite/stat-card.tsx', import.meta.url))
 
 describe('admin dashboard attention cards', () => {
-  it('highlights 19 non-zero metrics and excludes Active Seller', async () => {
+  it('highlights actionable metrics and excludes Active Seller', async () => {
     const source = await readFile(DASHBOARD_PAGE, 'utf8')
     const expressions = [...source.matchAll(/attention:\s*([\s\S]*?),\s*\r?\n\s*icon:/g)].map((match) =>
       match[1]?.replace(/\s+/g, ' ').trim(),
     )
 
-    expect(expressions).toHaveLength(20)
+    expect(expressions).toHaveLength(21)
     expect(expressions.filter((expression) => expression === 'false')).toHaveLength(1)
     expect(
       expressions.filter((expression) => expression !== 'false').every((expression) => expression?.endsWith('> 0')),
@@ -43,6 +43,7 @@ describe('admin dashboard attention cards', () => {
   })
 
   it.each([
+    ['Müşteri Soruları', 'pendingProductQuestions'],
     ['Tasarımcı Onayı Bekleyenler', 'overdueSellerApprovals.total'],
     ['Manuel İade Bekleyen', 'manualRefunds.total'],
     ['Başarısız Kart İadesi', 'failedCardRefunds.total'],
@@ -54,5 +55,11 @@ describe('admin dashboard attention cards', () => {
     const card = source.slice(start, source.indexOf('},', start))
     expect(card).toContain(`value: String(${counter})`)
     expect(card).toContain(`attention: ${counter} > 0`)
+  })
+
+  it('opens the pending question list from the whole card', async () => {
+    const source = await readFile(DASHBOARD_PAGE, 'utf8')
+    expect(source).toContain("href: '/musteri-sorulari?durum=waiting_for_seller'")
+    expect(source).toContain('<Link key={card.title}')
   })
 })

@@ -1,4 +1,4 @@
-import { AdminCommunicationReply } from '@/components/admin-communication-reply'
+import { AdminProductQuestionConversation } from '@/components/admin-product-question-conversation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { headers } from 'next/headers'
@@ -16,27 +16,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  customer: 'Müşteri',
-  seller: 'Tasarımcı',
-  admin: 'Admin',
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('tr-TR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 interface Props {
   params: Promise<{ id: string }>
 }
 
-// Read-only. Every render writes a `product_question_viewed` audit entry.
+// Every render writes a `product_question_viewed` audit entry.
 export default async function AdminProductQuestionDetailPage({ params }: Props) {
   const session = await getAdminSession()
   const { id } = await params
@@ -101,26 +85,7 @@ export default async function AdminProductQuestionDetailPage({ params }: Props) 
         </div>
       </dl>
 
-      <ol
-        className="space-y-3 rounded-xl border p-4"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      >
-        {thread.messages.map((message) => (
-          <li key={message.id} className="space-y-1">
-            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-              <span className="font-semibold">{ROLE_LABELS[message.authorRole] ?? message.authorRole}</span>
-              <time dateTime={message.createdAt}>{formatDate(message.createdAt)}</time>
-            </div>
-            <p
-              className="whitespace-pre-wrap break-words rounded-lg px-3 py-2 text-sm"
-              style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-primary)' }}
-            >
-              {message.body}
-            </p>
-          </li>
-        ))}
-      </ol>
-      <AdminCommunicationReply endpoint={'/api/admin/product-questions/' + id + '/messages'} allowInternal={false} />
+      <AdminProductQuestionConversation threadId={id} messages={thread.messages} canCompleteReview={thread.canCompleteReview} />
     </div>
   )
 }

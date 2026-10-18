@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
     if (session.user.role !== 'admin') throw new ForbiddenError()
-    return listNotifications(req, session.user.id)
+    return listNotifications(req, session.user.id, 'admin')
   } catch (err) {
     return handleError(err)
   }

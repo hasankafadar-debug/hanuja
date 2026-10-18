@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() })
     if (!session?.user) throw new UnauthorizedError()
-    return listNotifications(req, session.user.id)
+    return listNotifications(req, session.user.id, 'seller')
   } catch (err) {
     return handleError(err)
   }

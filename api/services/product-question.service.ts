@@ -27,6 +27,7 @@ import type { Prisma, PrismaClient, ProductQuestionStatus, UserRole } from '@pri
 import { maskEmail } from '@hanuja/security'
 import {
   buildThreadKey,
+  canCompleteProductQuestionReview,
   checkOrderAskable,
   checkPresaleAskable,
   checkQuestionBodyLength,
@@ -241,7 +242,7 @@ const THREAD_DETAIL_INCLUDE = {
   order: { select: { id: true, publicNumber: true } },
   messages: {
     orderBy: { seq: 'asc' },
-    select: { id: true, authorRole: true, audience: true, body: true, createdAt: true },
+    select: { id: true, seq: true, authorRole: true, audience: true, body: true, createdAt: true },
   },
 } satisfies Prisma.ProductQuestionThreadInclude
 
@@ -684,6 +685,51 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
       })
     },
 
+    async countPendingForAdmin() {
+      return prisma.productQuestionThread.count({ where: { status: 'waiting_for_seller' } })
+    },
+
+    async completeAdminReview(params: { threadId: string; adminId: string; lastSeenMessageId: string }) {
+      return prisma.$transaction(async (tx) => {
+        // Acquire the same row lock as message writers without allocating a message sequence.
+        const locked = await tx.productQuestionThread.update({
+          where: { id: params.threadId },
+          data: { messageSeq: { increment: 0 } },
+          select: { status: true, messageSeq: true, lastSellerMessageSeq: true },
+        }).catch((error: unknown) => {
+          if ((error as { code?: string })?.code === 'P2025') throw new NotFoundError('Soru')
+          throw error
+        })
+        const [seen, customer] = await Promise.all([
+          tx.productQuestionMessage.findFirst({
+            where: { id: params.lastSeenMessageId, threadId: params.threadId, seq: locked.messageSeq },
+            select: { id: true },
+          }),
+          tx.productQuestionMessage.findFirst({
+            where: { threadId: params.threadId, authorRole: 'customer' },
+            orderBy: { seq: 'desc' },
+            select: { seq: true },
+          }),
+        ])
+        if (!seen) throw new ConflictError('Yeni mesaj geldi. Güncel konuşmayı inceleyin.')
+        if (!canCompleteProductQuestionReview(locked, customer?.seq ?? 0)) {
+          throw new ConflictError('Son müşteri mesajı yanıtlanmadan inceleme tamamlanamaz.')
+        }
+        await tx.productQuestionThread.update({
+          where: { id: params.threadId },
+          data: { status: 'waiting_for_customer' },
+        })
+        await createAdminAuditLogRepository(tx).createEntry({
+          actorId: params.adminId,
+          actionType: 'product_question_viewed',
+          targetType: 'product_question_thread',
+          targetId: params.threadId,
+          newData: { operation: 'review_complete', lastSeenMessageId: params.lastSeenMessageId },
+        })
+        return { status: 'waiting_for_customer' as const }
+      })
+    },
+
     async listForAdmin(params: {
       sellerId?: string
       status?: ProductQuestionStatus
@@ -697,7 +743,7 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
       const [rows, total] = await Promise.all([
         prisma.productQuestionThread.findMany({
           where,
-          orderBy: { lastMessageAt: 'desc' },
+          orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
           skip: params.skip ?? 0,
           take: params.take ?? 50,
           select: THREAD_LIST_SELECT,
@@ -710,11 +756,12 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
           ...toListItem(row, 'admin'),
           sellerName: row.seller.displayName,
           customerName: row.customer.name ?? '-',
+          lastMessageAuthorRole: row.messages[0]?.authorRole ?? null,
         })),
       }
     },
 
-    /** Read-only admin view; every read writes an audit entry in the same transaction. */
+    /** Admin view; every read writes an audit entry in the same transaction. */
     async getForAdminWithAudit(threadId: string, adminId: string, ipAddress?: string) {
       return prisma.$transaction(async (tx) => {
         const thread = await tx.productQuestionThread.findUnique({
@@ -734,7 +781,18 @@ export function createProductQuestionService({ prisma }: { prisma: PrismaClient 
           ...(ipAddress ? { ipAddress } : {}),
         })
         return {
-          ...toThreadDto(thread, false),
+          ...toThreadDto(thread, true),
+          messages: thread.messages.map((message) => ({
+            id: message.id,
+            authorRole: message.authorRole,
+            audience: message.audience,
+            body: message.body,
+            createdAt: message.createdAt.toISOString(),
+          })),
+          canCompleteReview: canCompleteProductQuestionReview(
+            thread,
+            thread.messages.filter((message) => message.authorRole === 'customer').at(-1)?.seq ?? 0,
+          ),
           customer: {
             id: thread.customer.id,
             name: thread.customer.name ?? '-',

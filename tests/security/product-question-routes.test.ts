@@ -305,7 +305,7 @@ describe('product question data exposure', () => {
       }),
     })
     expect(view?.customer.email).toBe('ay***@example.test')
-    expect(view?.canReply).toBe(false)
+    expect(view?.canReply).toBe(true)
   })
 
   it('carries no message content in the admin list', async () => {

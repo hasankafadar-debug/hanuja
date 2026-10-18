@@ -15,6 +15,7 @@ import {
   PackageSearch,
   FileWarning,
   RefreshCcw,
+  MessageCircleQuestion,
 } from 'lucide-react'
 import { getAdminSession } from '@/lib/admin-session'
 import { createAdminAnalyticsService } from '@hanuja/api/services/admin-analytics.service'
@@ -26,6 +27,7 @@ import { createAdminRefundQueryService } from '@hanuja/api/services/admin-refund
 import { formatOrderDisplayNumber } from '@hanuja/api/lib/order-number'
 import { RefundQueuePreview } from './refund-queue-preview'
 import { createAdminDeliveryQueryService } from '@hanuja/api/services/admin-delivery-query.service'
+import { createProductQuestionService } from '@hanuja/api/services/product-question.service'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +44,7 @@ export default async function AdminDashboardPage() {
 
   const [stats, recentOrdersResult, fulfillmentRisks, manualRefunds, failedCardRefunds, overdueSellerApprovals,
     sellerDeliveryReports,
+    pendingProductQuestions,
   ] = await Promise.all([
     analytics.getDashboardStats(),
     orderSvc.listForAdmin({ skip: 0, take: 5 }),
@@ -52,6 +55,7 @@ export default async function AdminDashboardPage() {
     createAdminDeliveryQueryService({ prisma }).getCounts({
       sellerReported: true,
     }),
+    createProductQuestionService({ prisma }).countPendingForAdmin(),
   ])
 
   type OrderRow = {
@@ -145,6 +149,14 @@ export default async function AdminDashboardPage() {
   // that is above zero in normal operation, so flagging it would drown out the
   // cards that genuinely need attention.
   const statCards = [
+    {
+      href: '/musteri-sorulari?durum=waiting_for_seller',
+      title: 'Müşteri Soruları',
+      description: 'Yanıt veya inceleme bekleyen konuşmalar',
+      value: String(pendingProductQuestions),
+      attention: pendingProductQuestions > 0,
+      icon: <MessageCircleQuestion className="h-5 w-5" />,
+    },
     {
       href: '/teslim-onayi?sellerReported=1',
       title: 'Tasarımcı Teslim Bildirimleri',

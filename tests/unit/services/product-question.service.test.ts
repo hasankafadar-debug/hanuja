@@ -20,14 +20,16 @@ function makePrisma() {
       create: vi.fn().mockResolvedValue({ id: 't1' }),
       update: vi.fn(async ({ data }: { data: Record<string, unknown> }) =>
         data.messageSeq
-          ? { messageSeq: 2, status: state.lockStatus, lastMessageAt: new Date(0) }
+          ? { messageSeq: 2, status: state.lockStatus, lastSellerMessageSeq: 2, lastMessageAt: new Date(0) }
           : NOTIFY_THREAD,
       ),
       findUniqueOrThrow: vi.fn().mockResolvedValue({ ...NOTIFY_THREAD, turnSeq: 1 }),
     },
     productQuestionMessage: {
       create: vi.fn().mockResolvedValue({ id: 'm1', createdAt: new Date() }),
+      findFirst: vi.fn().mockResolvedValue({ id: 'm2', seq: 1 }),
     },
+    adminAuditLog: { create: vi.fn().mockResolvedValue({ id: 'audit-1' }) },
     notificationOutbox: { upsert: vi.fn().mockResolvedValue({ id: 'o1' }) },
   }
   const prisma = {
@@ -48,6 +50,7 @@ function makePrisma() {
       findUnique: vi.fn().mockResolvedValue(null),
       findFirst: vi.fn().mockResolvedValue({ id: 't1', seller: { status: 'active' } }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      count: vi.fn().mockResolvedValue(3),
       fields: { sellerLastReadSeq: 'sellerLastReadSeq' },
     },
     productQuestionMessage: {
@@ -225,6 +228,11 @@ describe('opening a question about an ordered product', () => {
 })
 
 describe('replies and the turn decision under the row lock', () => {
+  it('reopens a previously answered thread when a late designer answer arrives', async () => {
+    m.state.lockStatus = 'waiting_for_customer'
+    await svc().replyAsSeller({ threadId: 't1', sellerId: 's1', authorUserId: 'su1', body: 'Ek tasarımcı bilgisi' })
+    expect(m.tx.productQuestionThread.update.mock.calls[1]![0].data).toMatchObject({ status: 'waiting_for_seller' })
+  })
   it('takes the row lock first and stores the message under the locked sequence number', async () => {
     await svc().replyAsSeller({ threadId: 't1', sellerId: 's1', authorUserId: 'su1', body: 'Evet' })
     const [lock, finish] = m.tx.productQuestionThread.update.mock.calls.map((call) => call[0])
@@ -276,6 +284,55 @@ describe('replies and the turn decision under the row lock', () => {
       expect(call.data).not.toHaveProperty('customerLastReadSeq')
       expect(call.data).not.toHaveProperty('sellerLastReadSeq')
     }
+  })
+})
+
+describe('admin question queue and review completion', () => {
+  it('returns not found for a missing conversation', async () => {
+    m.tx.productQuestionThread.update.mockRejectedValueOnce({ code: 'P2025' })
+    await expect(svc().completeAdminReview({ threadId: 'missing', adminId: 'admin-1', lastSeenMessageId: 'm2' }))
+      .rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('does not complete an already resolved review again', async () => {
+    m.state.lockStatus = 'waiting_for_customer'
+    await expect(svc().completeAdminReview({ threadId: 't1', adminId: 'admin-1', lastSeenMessageId: 'm2' }))
+      .rejects.toMatchObject({ statusCode: 409 })
+    expect(m.tx.adminAuditLog.create).not.toHaveBeenCalled()
+  })
+  it('counts pending conversations, not their messages or unread notifications', async () => {
+    expect(await svc().countPendingForAdmin()).toBe(3)
+    expect(m.prisma.productQuestionThread.count).toHaveBeenCalledWith({ where: { status: 'waiting_for_seller' } })
+  })
+
+  it('completes a reviewed late answer under the message-writer lock without sending anything', async () => {
+    expect(await svc().completeAdminReview({ threadId: 't1', adminId: 'admin-1', lastSeenMessageId: 'm2' }))
+      .toEqual({ status: 'waiting_for_customer' })
+    expect(m.tx.productQuestionThread.update.mock.calls[0]![0].data).toEqual({ messageSeq: { increment: 0 } })
+    expect(m.tx.productQuestionMessage.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'm2', threadId: 't1', seq: 2 },
+    }))
+    expect(m.tx.productQuestionThread.update.mock.calls[1]![0].data).toEqual({ status: 'waiting_for_customer' })
+    expect(m.tx.adminAuditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      actorId: 'admin-1', newData: { operation: 'review_complete', lastSeenMessageId: 'm2' },
+    }) })
+    expect(m.tx.notificationOutbox.upsert).not.toHaveBeenCalled()
+    expect(m.tx.productQuestionMessage.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects completion when a new message arrived since the admin viewed the thread', async () => {
+    m.tx.productQuestionMessage.findFirst.mockResolvedValueOnce(null as never)
+    await expect(svc().completeAdminReview({ threadId: 't1', adminId: 'admin-1', lastSeenMessageId: 'old' }))
+      .rejects.toMatchObject({ statusCode: 409 })
+    expect(m.tx.productQuestionThread.update).toHaveBeenCalledTimes(1)
+    expect(m.tx.adminAuditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('cannot dismiss an unanswered customer message', async () => {
+    m.tx.productQuestionMessage.findFirst.mockResolvedValueOnce({ id: 'm2', seq: 2 }).mockResolvedValueOnce({ id: 'm2', seq: 3 })
+    await expect(svc().completeAdminReview({ threadId: 't1', adminId: 'admin-1', lastSeenMessageId: 'm2' }))
+      .rejects.toMatchObject({ statusCode: 409 })
+    expect(m.tx.productQuestionThread.update).toHaveBeenCalledTimes(1)
   })
 })
 
