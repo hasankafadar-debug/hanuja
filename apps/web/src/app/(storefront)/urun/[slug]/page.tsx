@@ -2,6 +2,7 @@ import { readPlatformShippingSettings } from '@hanuja/api/services/platform-sett
 import { calculateShippingFee } from '@hanuja/api/domain/shipping'
 import type { Metadata } from 'next'
 import { DOMESTIC_TRANSIT_BUSINESS_DAYS } from '@/lib/shipping-policy'
+import { toProductSchemaReviews } from '@/lib/product-review-schema'
 import { resolveCategorySchema } from '@hanuja/api/services/category-schema.service'
 import { buildStructuredCharacteristics } from '@hanuja/api/domain/product-characteristics'
 import type { ProductProperties } from '@hanuja/api/domain/category-schema'
@@ -302,6 +303,7 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
           transitMaxDays: DOMESTIC_TRANSIT_BUSINESS_DAYS.max,
         },
         ...(reviewCount > 0 ? { aggregateRating: { ratingValue: avgRating, reviewCount } } : {}),
+        reviews: toProductSchemaReviews(reviews),
       })
     : null
 

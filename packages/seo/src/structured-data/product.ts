@@ -14,6 +14,14 @@ export interface ProductStructuredDataInput {
   shippingDeliveryTime?: { handlingDays: number; transitMinDays: number; transitMaxDays: number }
   /** Aggregate rating across approved reviews. Omit if no reviews exist. */
   aggregateRating?: { ratingValue: number; reviewCount: number }
+  /** Approved reviews displayed on this page; authorName must match the public display name. */
+  reviews?: Array<{
+    authorName: string
+    rating: number
+    title?: string | null
+    body: string
+    datePublished: string
+  }>
 }
 
 function buildDeliveryTime(input: ProductStructuredDataInput['shippingDeliveryTime']) {
@@ -50,6 +58,34 @@ function buildDeliveryTime(input: ProductStructuredDataInput['shippingDeliveryTi
 
 export function buildProductStructuredData(input: ProductStructuredDataInput): object {
   const deliveryTime = buildDeliveryTime(input.shippingDeliveryTime)
+  const reviews = (input.reviews ?? [])
+    .filter((review) => {
+      const author = review.authorName.trim()
+      return (
+        author.length > 0 &&
+        author.length < 100 &&
+        author !== '-' &&
+        Number.isInteger(review.rating) &&
+        review.rating >= 1 &&
+        review.rating <= 5 &&
+        review.body.trim().length > 0
+      )
+    })
+    .map((review) => ({
+      '@type': 'Review',
+      author: { '@type': 'Person', name: review.authorName.trim() },
+      reviewRating: {
+        '@type': 'Rating',
+        ratingValue: review.rating,
+        bestRating: 5,
+        worstRating: 1,
+      },
+      ...(review.title?.trim() ? { name: review.title.trim() } : {}),
+      reviewBody: review.body.trim(),
+      ...(Number.isFinite(Date.parse(review.datePublished))
+        ? { datePublished: review.datePublished }
+        : {}),
+    }))
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -59,6 +95,7 @@ export function buildProductStructuredData(input: ProductStructuredDataInput): o
     ...(input.sku ? { sku: input.sku } : {}),
     ...(input.brand ? { brand: { '@type': 'Brand', name: input.brand } } : {}),
     ...(input.imageUrl ? { image: input.imageUrl } : {}),
+    ...(reviews.length > 0 ? { review: reviews } : {}),
     ...(input.aggregateRating && input.aggregateRating.reviewCount > 0
       ? {
           aggregateRating: {

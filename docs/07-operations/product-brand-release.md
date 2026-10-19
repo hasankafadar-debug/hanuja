@@ -34,3 +34,10 @@ Check titles/unchanged URLs; JSON-LD real public images, brand, Hanuja seller an
 - handlingTime is 0 through the product's existing fulfillmentDays; transitTime is separately 2 through 5. Business days are Monday through Friday; the schema does not predict an exact delivery date.
 - This follow-up affects the storefront only: verify relevant tests/lint/typecheck and web build, commit/push task files, deploy hanuja-web through Coolify, then verify live JSON-LD and Google Rich Results Test.
 - Google's pre-deploy code test accepted the policy @id reference and delivery ranges with no merchant-listing warnings (result wfkoz20XMJilfwvTSoMCuw); rating/review warnings remain outside this two-warning follow-up.
+
+## Product review schema follow-up (2026-10-19)
+
+- Product JSON-LD now includes individual reviews from the same approved, newest-first list displayed in the product's reviews tab. The list remains capped at 20; aggregateRating still covers all approved reviews.
+- Author names use the existing public name mask. Review text, title, creation date and 1–5 score come from the actual review. Missing authors or invalid ratings are omitted without placeholder feedback.
+- Unreviewed products omit both review and aggregateRating; optional Google warnings remain until real approved feedback exists. Do not request Search Console validation while that data is absent.
+- Verify the review/no-review paths, moderation boundary, name privacy and script escaping; typecheck/lint/build web, then push and deploy hanuja-web only. No data migration or production review creation is needed.
