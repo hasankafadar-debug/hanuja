@@ -68,6 +68,22 @@ describe('active panel middleware', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
+  it.each([
+    { name: 'admin', run: adminMiddleware },
+    { name: 'seller', run: sellerMiddleware },
+  ])('$name lets crawlers read only the exact robots route without weakening authentication', async ({ run }) => {
+    const robots = await run(request('/robots.txt'))
+    expect(robots.status).toBe(200)
+    expectPanelSecurityHeaders(robots)
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    mockSession(null)
+    const nested = await run(request('/robots.txt/private'))
+    expect(nested.status).toBe(307)
+    expect(new URL(nested.headers.get('location')!).pathname).toBe('/giris')
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it('matches every API so origin protection cannot miss a mutation', () => {
     expect(adminConfig.matcher).toEqual([
       '/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',

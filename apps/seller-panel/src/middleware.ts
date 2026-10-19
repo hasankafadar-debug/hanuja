@@ -42,6 +42,7 @@ interface Session {
 }
 
 const PUBLIC_PATHS = [
+  '/robots.txt',
   '/giris',
   '/iki-asamali-dogrulama',
   '/basvuru',

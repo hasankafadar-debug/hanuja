@@ -1,4 +1,4 @@
-export default function Loading() {
+export default function PageLoading() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="flex flex-col items-center gap-3">
@@ -6,5 +6,5 @@ export default function Loading() {
         <p className="text-sm text-muted-foreground">Yükleniyor...</p>
       </div>
     </div>
-  )
+  );
 }

@@ -19,6 +19,13 @@ const standaloneOutput = process.platform === 'win32' ? {} : { output: 'standalo
 const config: NextConfig = {
   ...standaloneOutput,
   compress: true,
+  async headers() {
+    // The invitation and its media are unlisted. Public store/catalog SEO is unchanged.
+    return ['/tasarimci-daveti', '/designer-invitation/:path*'].map((source) => ({
+      source,
+      headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+    }))
+  },
   allowedDevOrigins: ['http://127.0.0.1:3000', 'http://localhost:3000'],
   serverExternalPackages: ['iyzipay', '@prisma/client', 'prisma', 'better-auth'],
   transpilePackages: [

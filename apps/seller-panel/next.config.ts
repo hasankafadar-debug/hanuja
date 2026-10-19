@@ -17,6 +17,10 @@ const standaloneOutput = process.platform === 'win32' ? {} : { output: 'standalo
 
 const config: NextConfig = {
   ...standaloneOutput,
+  async headers() {
+    // Covers public auth/application pages, redirects, errors, APIs and static files.
+    return [{ source: '/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] }]
+  },
   serverExternalPackages: ['iyzipay', '@prisma/client', 'prisma', 'better-auth'],
   experimental: {
     // Next clones every non-GET body matched by the middleware and hands the route
