@@ -1,0 +1,1172 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hanuja Tasarımcı Daveti</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Hanuja, tasarımcı ürünlerini reklamla öne çıkaran, düşük komisyonla çalışan ve ürünlerinizi ücretsiz yükleyen tasarım pazaryeri.">
+<link rel="stylesheet" href="/tasarimci-daveti/assets/fonts/fonts.css">
+<style>
+/* Layout concept: a gallery walk. Each chapter is a room: one statement, one exhibit, one caption.
+   The Hanuja mark's five rectangles are the frame system and the chapter progress indicator. */
+:root {
+  --sand: #e8e2d4;      /* page ground (brand background) */
+  --linen: #f2efe8;     /* raised surface */
+  --paper: #ffffff;     /* mockup screens */
+  --ink: #1a1a18;       /* primary text, brand primary */
+  --umber: #3d3529;     /* display headings on sand */
+  --muted: #6a5e4f;     /* secondary text on sand (4.9:1) */
+  --brass: #c8b89a;     /* brand accent */
+  --line: #d6cfbe;      /* hairlines */
+  --stage: #17140f;     /* the dark stage */
+  --stage-2: #231e18;
+  --stage-fg: #f1ebdf;
+  --stage-muted: #b9ad99;
+  --glow: #f6e7c8;
+
+  --f-display: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --f-body: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --f-label: "Outfit", "Segoe UI", system-ui, sans-serif;
+
+  --gutter-l: max(16px, env(safe-area-inset-left, 0px));
+  --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+  --wrap: 1240px;
+  --ease: cubic-bezier(.2, .7, .1, 1);
+  color-scheme: light;
+}
+@media (min-width: 720px) {
+  :root { --gutter-l: max(40px, env(safe-area-inset-left, 0px)); --gutter-r: max(40px, env(safe-area-inset-right, 0px)); }
+}
+html { scroll-behavior: auto; }
+body { background: var(--sand); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.6; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+@media (min-width: 900px) { body { font-size: 18px; } }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 60; background: var(--stage); }
+.hj { overflow-x: clip; }
+.hj *, .hj *::before, .hj *::after { box-sizing: border-box; }
+.hj img, .hj video { max-width: 100%; display: block; }
+.hj a:not(.btn) { color: inherit; }
+.wrap { max-width: var(--wrap); margin-inline: auto; padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; border-radius: 4px; }
+
+/* ---------- type ---------- */
+.eyebrow { font-family: var(--f-label); font-weight: 300; font-size: 12px; letter-spacing: .32em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 12px; }
+.eyebrow::before { content: ""; width: 10px; height: 6px; background: currentColor; opacity: .9; }
+.h-display { font-family: var(--f-display); font-weight: 300; letter-spacing: -.035em; line-height: 1.02; text-wrap: balance; margin: 0; }
+.h1 { font-size: clamp(2.75rem, 6.6vw, 6.25rem); }
+.h2 { font-size: clamp(2.25rem, 5.4vw, 4.75rem); color: var(--umber); }
+.h3 { font-family: var(--f-display); font-weight: 400; font-size: clamp(1.3rem, 2vw, 1.6rem); letter-spacing: -.015em; line-height: 1.2; margin: 0; }
+.lead { font-size: clamp(1.1rem, 1.6vw, 1.32rem); line-height: 1.55; max-width: 36em; margin: 0; }
+.muted { color: var(--muted); }
+.italic { font-style: italic; }
+.tnum { font-variant-numeric: tabular-nums; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* line-mask reveal (only when JS is ready; resting state is visible) */
+.reveal-line { display: block; overflow: hidden; padding-bottom: .2em; margin-bottom: -.2em; }
+.reveal-line > span { display: block; }
+.h-display .reveal-line > span { transition: transform 1.1s var(--ease); }
+.h-display.pending .reveal-line > span { transform: translateY(130%); }
+.h-display.pending.is-in .reveal-line > span { transform: none; }
+.h-display.is-in .reveal-line:nth-child(2) > span { transition-delay: .12s; }
+.h-display.is-in .reveal-line:nth-child(3) > span { transition-delay: .24s; }
+
+/* ---------- buttons ---------- */
+.btn { display: inline-flex; align-items: center; gap: 12px; padding: 16px 26px; border-radius: 999px; font-family: var(--f-body); font-weight: 600; font-size: 16px; text-decoration: none; border: 1px solid transparent; transition: transform .35s var(--ease), background-color .3s, color .3s; cursor: pointer; }
+.btn svg { width: 16px; height: 16px; transition: transform .35s var(--ease); }
+.btn:hover svg { transform: translateX(4px); }
+.btn:active { transform: scale(.98); }
+.btn-brass { background: var(--brass); color: var(--ink); }
+.btn-brass:hover { background: var(--glow); }
+.btn-ink { background: var(--ink); color: var(--linen); }
+.btn-ink:hover { background: var(--umber); }
+.btn-line { border-color: currentColor; color: inherit; background: transparent; }
+.btn-line:hover { background: rgba(200, 184, 154, .16); }
+
+/* ---------- header ---------- */
+.top { position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0; z-index: 50; padding-left: var(--gutter-l); padding-right: var(--gutter-r); padding-block: 14px; display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--stage-fg); transition: color .4s, background-color .4s, padding .4s; }
+.top.is-light { color: var(--ink); background: rgba(232, 226, 212, .86); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); padding-block: 10px; }
+.top.is-dark-solid { background: rgba(23, 20, 15, .72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); padding-block: 10px; }
+.brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; }
+.brand-mark { width: 34px; height: 34px; flex: none; }
+.brand-word { display: flex; flex-direction: column; align-items: center; gap: 4px; line-height: 1; }
+.brand-word b { font-family: var(--f-label); font-weight: 200; font-size: 21px; letter-spacing: .36em; margin-right: -.36em; text-transform: uppercase; }
+.brand-word small { font-family: var(--f-label); font-weight: 300; font-size: 7.5px; letter-spacing: .5em; margin-right: -.5em; text-transform: uppercase; opacity: .7; }
+.top-right { display: flex; align-items: center; gap: 18px; }
+.progress { display: none; align-items: center; gap: 10px; font-family: var(--f-label); font-size: 11px; letter-spacing: .28em; text-transform: uppercase; }
+.progress svg { width: 26px; height: 26px; }
+@media (min-width: 900px) { .progress { display: inline-flex; } }
+.mk-r { transition: opacity .5s var(--ease); }
+.btn-sm { padding: 10px 18px; font-size: 14px; }
+
+/* the mark (shared) */
+.mk-fill { fill: currentColor; }
+.mk-line { fill: none; stroke: currentColor; stroke-width: 1.4; }
+.mk-acc { fill: var(--brass); }
+
+/* ---------- stage lock: the page waits while the scene plays ---------- */
+html { scrollbar-gutter: stable; }
+html.stage-lock, html.stage-lock body { overflow: hidden; }
+html.stage-lock body { overscroll-behavior: none; touch-action: none; }
+
+/* ---------- scroll rail ---------- */
+.rail { position: fixed; z-index: 45; right: calc(env(safe-area-inset-right, 0px) + 14px); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 14px; pointer-events: none; }
+.rail-cue { writing-mode: vertical-rl; font-family: var(--f-label); font-weight: 300; font-size: 10px; letter-spacing: .34em; text-transform: uppercase; color: var(--brass); opacity: 0; transition: opacity .6s var(--ease); }
+.at-top .rail-cue { opacity: 1; }
+.rail-track { position: relative; display: block; width: 2px; height: min(30vh, 220px); background: rgba(241,235,223,.2); border-radius: 2px; overflow: hidden; transition: background-color .4s; }
+.rail-thumb { position: absolute; inset: 0; background: var(--brass); transform-origin: 50% 0; transform: scaleY(0); transition: background-color .4s; }
+.rail-bead { position: absolute; left: 0; width: 2px; height: 30%; top: -30%; background: linear-gradient(rgba(246,231,200,0), var(--glow)); opacity: 0; transition: opacity .4s; animation: bead 2.4s var(--ease) infinite; }
+.at-top .rail-bead { opacity: 1; }
+.rail.on-light .rail-track { background: rgba(61,53,41,.16); }
+.rail.on-light .rail-thumb { background: var(--umber); }
+@keyframes bead { to { top: 100%; } }
+@media (max-width: 719px) { .rail { right: calc(env(safe-area-inset-right, 0px) + 6px); gap: 10px; } .rail-track { height: 22vh; } }
+
+/* ---------- HERO / stage ---------- */
+.stage { position: relative; background: var(--stage); color: var(--stage-fg); isolation: isolate; }
+.hero { min-height: 100svh; display: flex; align-items: flex-end; overflow: hidden; }
+.hero-media { position: absolute; inset: 0; z-index: -2; }
+.hero-media video, .hero-media img { width: 100%; height: 100%; object-fit: cover; object-position: 70% 50%; }
+.hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background:
+  linear-gradient(90deg, rgba(23,20,15,.78) 0%, rgba(23,20,15,.42) 42%, rgba(23,20,15,0) 70%),
+  linear-gradient(0deg, rgba(23,20,15,.85) 0%, rgba(23,20,15,0) 34%); }
+.hero-inner { width: 100%; padding-block: 120px 40px; display: grid; gap: 28px; }
+.hero h1 { color: var(--stage-fg); max-width: 11ch; }
+.hero h1 .italic { color: var(--brass); }
+.hero .lead { color: #e4dccd; max-width: 31em; }
+.hero-ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+.promises { margin-top: 18px; padding-top: 22px; border-top: 1px solid rgba(241,235,223,.18); display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px 24px; font-size: 14.5px; color: var(--stage-muted); }
+.promises li { list-style: none; display: flex; gap: 10px; align-items: baseline; }
+.promises li::before { content: ""; width: 8px; height: 5px; background: var(--brass); flex: none; transform: translateY(-2px); }
+.promises { padding-left: 0; margin-bottom: 0; }
+@media (min-width: 900px) { .promises { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+.hero-anim > * { animation: heroIn 1.1s var(--ease) both; }
+.hero-anim > *:nth-child(1) { animation-delay: .2s; }
+.hero-anim > *:nth-child(2) { animation-delay: .35s; }
+.hero-anim > *:nth-child(3) { animation-delay: .9s; }
+.hero-anim > *:nth-child(4) { animation-delay: 1.05s; }
+.hero-anim > *:nth-child(5) { animation-delay: 1.25s; }
+@keyframes heroIn { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+.replay { position: absolute; right: var(--gutter-r); bottom: max(24px, env(safe-area-inset-bottom, 0px)); z-index: 2; display: inline-flex; align-items: center; gap: 8px; background: rgba(23,20,15,.5); color: var(--stage-fg); border: 1px solid rgba(241,235,223,.25); border-radius: 999px; padding: 8px 14px; font: 500 13px var(--f-body); cursor: pointer; backdrop-filter: blur(8px); }
+.replay[hidden] { display: none !important; }
+.hero-band { display: none; }
+@media (max-width: 719px) {
+  .hero-lead, .hero-promises { display: none !important; }
+  .hero-band { display: block; padding-block: 8px 56px; }
+  .hero-band .lead { color: #e4dccd; }
+  .hero-band .promises { margin-top: 26px; }
+  .hero-anim { display: flex !important; flex-direction: column; gap: 18px !important; min-height: calc(100svh - 132px); }
+  .hero-anim .hero-ctas { margin-top: auto; }
+  .hero-ctas .btn { padding: 14px 20px; font-size: 15px; }
+  .replay { width: 44px; height: 44px; padding: 0; justify-content: center; font-size: 0; gap: 0; top: auto; bottom: 120px; }
+  .replay svg { width: 16px; height: 16px; }
+  .hero { align-items: stretch; }
+  .hero-inner { padding-block: 104px 28px; align-content: space-between; min-height: 100svh; }
+  .hero::after { background: linear-gradient(180deg, rgba(23,20,15,.72) 0%, rgba(23,20,15,.25) 40%, rgba(23,20,15,.15) 58%, rgba(23,20,15,.86) 100%); }
+  .hero-media video, .hero-media img { object-position: 50% 60%; }
+  .hero h1 { max-width: none; }
+}
+
+/* ---------- sections ---------- */
+.room { padding-block: clamp(88px, 13vw, 168px); position: relative; }
+.room-head { display: grid; gap: 22px; max-width: 980px; }
+.room-head .eyebrow { color: var(--muted); }
+.stage .room-head .eyebrow { color: var(--stage-muted); }
+.stage .h2 { color: var(--stage-fg); }
+.stage .lead { color: #ddd4c4; }
+
+/* manifesto */
+.manifesto p.big { font-family: var(--f-display); font-weight: 300; font-size: clamp(2.1rem, 5.6vw, 5.2rem); line-height: 1.08; letter-spacing: -.035em; margin: 0; color: var(--umber); text-wrap: balance; }
+.manifesto .w { color: #8b7d69; transition: color .2s; }
+.manifesto .w.lit { color: var(--ink); }
+.manifesto .after { margin-top: clamp(32px, 5vw, 56px); display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 900px) { .manifesto .after { grid-template-columns: 1fr 1.2fr; } .manifesto .after .lead { grid-column: 2; } }
+
+/* ---------- 01 channels ---------- */
+.ch-scroller { margin-top: clamp(44px, 6vw, 72px); }
+.ch-track { display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 18px; padding-left: var(--gutter-l); padding-right: var(--gutter-r); scrollbar-width: thin; }
+.ch-card { flex: 0 0 min(86vw, 420px); scroll-snap-align: center; display: grid; gap: 22px; align-content: start; min-width: 0; }
+.ch-exhibit { position: relative; aspect-ratio: 4 / 5; border-radius: 6px; background: var(--linen); overflow: hidden; display: grid; place-items: center; max-width: 100%; }
+.ch-exhibit.dark { background: var(--stage); }
+.ch-meta { display: grid; gap: 8px; }
+.tag { font-family: var(--f-label); font-size: 11.5px; letter-spacing: .26em; text-transform: uppercase; color: var(--muted); }
+.ch-meta p { margin: 0; color: var(--muted); max-width: 34em; }
+.ch-note { margin-top: 20px; font-size: 13px; color: var(--muted); }
+.swipe-hint { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.ch-intro-card { display: none; }
+@media (min-width: 1000px) {
+  .ch-track { gap: 40px; }
+  .ch-exhibit { aspect-ratio: auto; height: min(54vh, 520px); }
+  .ch-card { flex-basis: min(400px, 43vh); }
+  .ch-card.wide { flex-basis: min(600px, 66vh); }
+  .ch-intro-card { flex: 0 0 420px; align-self: center; display: grid; gap: 22px; }
+  .ch-intro-mobile { display: none; }
+  /* pinned horizontal walk, only when the scroll engine is running */
+  .gsap-on .ch-pin { height: 100svh; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+  .gsap-on .ch-track { overflow: visible; padding-bottom: 0; scroll-snap-type: none; width: max-content; }
+  .gsap-on .swipe-hint { display: none; }
+}
+/* lenis */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+/* phone frame */
+.phone { height: 90%; width: auto; min-width: 0; min-height: 0; aspect-ratio: 9 / 18.5; contain: size; background: #0e0d0b; border-radius: 34px; padding: 9px; box-shadow: 0 30px 60px -30px rgba(26,26,24,.55), 0 0 0 1px rgba(0,0,0,.4); }
+.phone .screen { width: 100%; height: 100%; border-radius: 26px; overflow: hidden; background: var(--paper); position: relative; display: flex; flex-direction: column; font-family: var(--f-body); color: #141414; font-size: 12px; line-height: 1.35; }
+.sp-head { display: flex; align-items: center; gap: 8px; padding: 30px 12px 8px; }
+.sp-av { width: 26px; height: 26px; border-radius: 50%; background: var(--sand); display: grid; place-items: center; }
+.sp-av svg { width: 15px; height: 15px; color: var(--ink); }
+.sp-head b { display: block; font-size: 12px; }
+.sp-head small { display: block; font-size: 10.5px; color: #6b6b6b; }
+.sp-head .dots { margin-left: auto; letter-spacing: 1px; color: #444; }
+.sp-img { width: 100%; flex: 1 1 0; min-height: 0; object-fit: cover; }
+.sp-cta { display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: #f3f1ec; font-weight: 600; font-size: 12px; border-bottom: 1px solid #ebe7de; }
+.sp-actions { display: flex; gap: 12px; padding: 9px 12px 4px; }
+.sp-actions svg { width: 18px; height: 18px; }
+.sp-cap { padding: 2px 12px 12px; margin: 0; font-size: 11.5px; }
+
+/* serp */
+.serp { width: 88%; background: var(--paper); border-radius: 14px; box-shadow: 0 30px 60px -36px rgba(26,26,24,.5); padding: 16px; display: grid; gap: 12px; color: #1d1d1d; font-size: 12px; }
+.serp-q { display: flex; align-items: center; gap: 10px; border: 1px solid #e2ded5; border-radius: 999px; padding: 9px 14px; font-size: 13px; }
+.serp-q svg { width: 14px; height: 14px; color: #777; }
+.serp-label { font-size: 11px; color: #555; font-weight: 600; }
+.serp-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.serp-grid .serp-item:nth-child(4) { display: none; }
+@media (min-width: 1000px) { .serp-grid { grid-template-columns: repeat(4, minmax(0,1fr)); } .serp-grid .serp-item:nth-child(4) { display: grid; } }
+.serp-item { border: 1px solid #eee9df; border-radius: 10px; padding: 8px; display: grid; gap: 4px; }
+.serp-item img { aspect-ratio: 1; object-fit: contain; background: #fff; width: 100%; }
+.serp-item .nm { font-size: 11px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.serp-item .pr { font-weight: 600; font-size: 12.5px; }
+.serp-item .st { font-size: 10.5px; color: #5d5d5d; }
+.serp-ad { border-top: 1px solid #eee9df; padding-top: 10px; display: grid; gap: 2px; }
+.serp-ad small { font-weight: 700; font-size: 10.5px; }
+.serp-ad .u { color: #4d4d4d; font-size: 11px; }
+.serp-ad .t { color: #1f3a8a; font-size: 14px; }
+.serp-ad p { margin: 0; color: #4d4d4d; font-size: 11.5px; }
+
+/* pins */
+.pins { width: 90%; height: 92%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: start; overflow: hidden; }
+.pin-col { display: grid; gap: 8px; }
+.pin { position: relative; border-radius: 12px; overflow: hidden; background: var(--paper); }
+.pin img { width: 100%; object-fit: cover; }
+.pin.cut { padding: 10px; }
+.pin.cut.sandbg { background: #ede7da; }
+.pin .save { position: absolute; top: 8px; right: 8px; background: var(--ink); color: var(--linen); font: 600 10px var(--f-body); padding: 5px 9px; border-radius: 999px; }
+.pin-cap { font-size: 10.5px; color: var(--muted); padding: 4px 2px 0; line-height: 1.3; }
+.pins-search { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; background: var(--paper); border-radius: 999px; padding: 8px 14px; font-size: 12px; color: #333; }
+.pins-search svg { width: 13px; height: 13px; color: #777; }
+
+/* reel */
+.reel { position: relative; }
+.reel video, .reel img.poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.reel .ov { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 30px 12px 14px; color: #fff; background: linear-gradient(180deg, rgba(0,0,0,.28), rgba(0,0,0,0) 22%, rgba(0,0,0,0) 62%, rgba(0,0,0,.55)); font-size: 11.5px; }
+.reel .ov .badge { align-self: flex-start; background: rgba(255,255,255,.18); backdrop-filter: blur(6px); border-radius: 999px; padding: 4px 10px; font-weight: 600; }
+.reel .ov .who { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.reel .ov .who i { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #d9c9a6, #8c7a5c); display: block; }
+.reel .ov p { margin: 6px 0 0; font-weight: 400; opacity: .92; }
+
+/* ---------- 02 value grid ---------- */
+.values { margin-top: clamp(44px, 6vw, 72px); display: grid; grid-template-columns: minmax(0,1fr); border-top: 1px solid var(--line); }
+.value { display: grid; grid-template-columns: 54px minmax(0,1fr); gap: 4px 18px; padding-block: 26px; border-bottom: 1px solid var(--line); align-items: start; }
+.value svg { width: 40px; height: 40px; grid-row: span 2; color: var(--umber); }
+.value p { margin: 0; color: var(--muted); }
+@media (min-width: 900px) {
+  .values { grid-template-columns: repeat(4, minmax(0,1fr)); border-top: 0; gap: 0; }
+  .value { grid-template-columns: minmax(0,1fr); padding: 30px 28px 34px 0; border-bottom: 0; border-top: 1px solid var(--line); gap: 14px; }
+  .value + .value { padding-left: 28px; border-left: 1px solid var(--line); }
+  .value svg { grid-row: auto; }
+}
+
+/* ---------- 03 loop ---------- */
+.loop-room { overflow: hidden; }
+.loop-grid { display: grid; gap: clamp(40px, 6vw, 80px); align-items: center; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1000px) { .loop-grid { grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); } .loop-pin { min-height: 100svh; display: flex; align-items: center; } }
+.loop-fig { position: relative; width: min(100%, 560px); margin-inline: auto; aspect-ratio: 1; max-width: 100%; }
+.loop-fig svg { width: 100%; height: 100%; overflow: visible; }
+.loop-track { fill: none; stroke: rgba(241,235,223,.14); stroke-width: 1.5; }
+.loop-prog { fill: none; stroke: var(--brass); stroke-width: 2.5; stroke-linecap: round; }
+.loop-node rect { fill: var(--stage); stroke: rgba(241,235,223,.35); stroke-width: 1.2; transition: fill .5s, stroke .5s; }
+.loop-node.on rect { fill: var(--brass); stroke: var(--brass); }
+.loop-node text { font-family: var(--f-label); font-size: 13px; letter-spacing: .22em; text-transform: uppercase; fill: var(--stage-fg); }
+.loop-node .sub { font-family: var(--f-body); font-size: 13.5px; letter-spacing: 0; text-transform: none; fill: var(--stage-muted); }
+.loop-center { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; pointer-events: none; }
+.loop-center b { font-family: var(--f-display); font-weight: 300; font-size: clamp(1.25rem, 2.6vw, 2rem); letter-spacing: -.02em; line-height: 1.15; max-width: 9em; color: var(--stage-fg); }
+.loop-list { display: grid; gap: 0; margin: 28px 0 0; padding: 0; counter-reset: s; }
+.loop-list li { list-style: none; padding: 14px 0; border-top: 1px solid rgba(241,235,223,.14); display: grid; grid-template-columns: 110px minmax(0,1fr); gap: 14px; color: #ddd4c4; }
+.loop-list li b { font-family: var(--f-label); font-weight: 400; letter-spacing: .2em; text-transform: uppercase; font-size: 12px; color: var(--brass); padding-top: 4px; }
+
+/* ---------- 04 onboarding ---------- */
+.onb-grid { margin-top: clamp(44px, 6vw, 72px); display: grid; gap: clamp(40px, 6vw, 80px); grid-template-columns: minmax(0,1fr); }
+@media (min-width: 1000px) { .onb-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } .onb-visual { position: sticky; top: 110px; } }
+.steps { margin: 0; padding: 0; display: grid; }
+.step { list-style: none; display: grid; grid-template-columns: 64px minmax(0,1fr); gap: 6px 18px; padding-block: 28px; border-top: 1px solid var(--line); }
+.step:last-child { border-bottom: 1px solid var(--line); }
+.step .n { font-family: var(--f-label); font-weight: 200; font-size: 46px; line-height: .9; color: var(--umber); grid-row: span 2; }
+.step p { margin: 0; color: var(--muted); }
+.step .free { display: inline-block; margin-left: 10px; font: 600 11px var(--f-body); letter-spacing: .08em; text-transform: uppercase; background: var(--ink); color: var(--linen); padding: 4px 9px; border-radius: 999px; vertical-align: 3px; }
+.xform { display: grid; gap: 14px; grid-template-columns: minmax(0,1fr) 40px minmax(0,1fr); align-items: center; }
+.xcard { background: var(--paper); border-radius: 8px; padding: 14px; display: grid; gap: 10px; box-shadow: 0 24px 50px -36px rgba(26,26,24,.6); min-width: 0; }
+.xcard .lbl { font-family: var(--f-label); font-size: 10.5px; letter-spacing: .24em; text-transform: uppercase; color: var(--muted); }
+.xcard img { aspect-ratio: 1; object-fit: contain; width: 100%; }
+.xcard.raw img { background: #fff; filter: saturate(.9); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips span { font-size: 11.5px; border: 1px dashed var(--line); border-radius: 6px; padding: 3px 7px; color: var(--muted); }
+.xcard.shop img { background: #ece6d9; border-radius: 6px; }
+.xcard.shop .brandline { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.xcard.shop .pname { font-family: var(--f-display); font-size: 15px; line-height: 1.25; }
+.xcard.shop .price { font-weight: 600; font-size: 15px; }
+.xcard.shop .add { background: var(--ink); color: var(--linen); border-radius: 999px; text-align: center; padding: 8px; font-size: 12px; font-weight: 600; }
+.xarrow { color: var(--umber); display: grid; place-items: center; }
+.xarrow svg { width: 40px; height: 40px; }
+.onb-visual figcaption { margin-top: 16px; font-size: 14px; color: var(--muted); }
+.atelier { margin-top: 28px; border-radius: 6px; overflow: hidden; aspect-ratio: 16 / 10; max-width: 100%; }
+.atelier img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ---------- 05 panel ---------- */
+.panel-room { background: var(--linen); }
+.pack { margin-top: clamp(44px, 6vw, 72px); position: relative; border-radius: 6px; overflow: hidden; aspect-ratio: 16 / 7; max-width: 100%; }
+.pack img { width: 100%; height: 100%; object-fit: cover; }
+.pack figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 22px; color: #fbf7ef; background: linear-gradient(0deg, rgba(23,20,15,.7), rgba(23,20,15,0)); font-size: 15px; }
+@media (max-width: 719px) { .pack { aspect-ratio: 4 / 3; } }
+.pgrid { margin-top: clamp(48px, 7vw, 96px); display: grid; gap: 40px; grid-template-columns: minmax(0,1fr); }
+.psteps { display: grid; gap: 0; margin: 0; padding: 0; }
+.pstep { list-style: none; display: grid; gap: 12px; padding-block: 28px; border-top: 1px solid var(--line); min-width: 0; }
+.pstep .k { font-family: var(--f-label); font-size: 12px; letter-spacing: .26em; text-transform: uppercase; color: var(--muted); }
+.pstep p { margin: 0; color: var(--muted); max-width: 30em; }
+.shot-m { margin-top: 8px; background: #f7f6f3; border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.shot-m img { height: clamp(220px, 62vw, 340px); width: auto; max-width: none; }
+.shot-m.fit img { height: auto; width: 100%; max-width: 100%; }
+.shot-hint { font-size: 12.5px; color: var(--muted); }
+.frame { display: none; }
+@media (min-width: 1000px) {
+  .pgrid { grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: 56px; align-items: start; }
+  .psteps { order: 1; }
+  .pstep { min-height: 62vh; align-content: center; border-top: 0; padding-block: 0; opacity: .38; transition: opacity .5s var(--ease); }
+  .pstep.on { opacity: 1; }
+  .shot-m, .shot-hint { display: none; }
+  .frame { display: block; order: 2; position: sticky; top: calc(50vh - min(26vw, 300px)); }
+}
+.frame-win { background: #f7f6f3; border-radius: 10px; overflow: hidden; box-shadow: 0 40px 80px -48px rgba(26,26,24,.55), 0 0 0 1px var(--line); }
+.frame-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; background: var(--paper); border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.frame-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); display: block; }
+.frame-bar span { margin-left: 10px; background: var(--linen); border-radius: 6px; padding: 4px 12px; font-family: var(--f-body); }
+.frame-view { position: relative; aspect-ratio: 16 / 10; }
+.frame-view img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 0 0; opacity: 0; transform: scale(1.015); transition: opacity .6s var(--ease), transform 1s var(--ease); }
+.frame-view img.on { opacity: 1; transform: none; }
+.frame-cap { margin-top: 14px; font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; }
+.panel-note { font-size: 13px; color: var(--muted); }
+
+/* ---------- who / marquee ---------- */
+.who { padding-block: clamp(80px, 11vw, 140px); border-top: 1px solid var(--line); }
+.who-grid { display: grid; gap: 22px; grid-template-columns: minmax(0,1fr); }
+@media (min-width: 900px) { .who-grid { grid-template-columns: 1fr 1.2fr; align-items: end; } }
+.marquee { margin-top: clamp(40px, 6vw, 64px); overflow: hidden; border-block: 1px solid var(--line); padding-block: 22px; }
+.marquee-row { display: flex; gap: 48px; width: max-content; animation: slide 46s linear infinite; font-family: var(--f-display); font-weight: 300; font-size: clamp(1.6rem, 3.4vw, 2.8rem); letter-spacing: -.02em; color: var(--umber); white-space: nowrap; }
+.marquee-row span { display: inline-flex; align-items: center; gap: 48px; }
+.marquee-row span::after { content: ""; width: 14px; height: 9px; background: var(--brass); display: inline-block; }
+@keyframes slide { to { transform: translateX(-50%); } }
+
+/* ---------- FAQ ---------- */
+.faq-grid { display: grid; gap: 40px; grid-template-columns: minmax(0,1fr); }
+@media (min-width: 900px) { .faq-grid { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); } }
+.faq details { border-top: 1px solid var(--line); }
+.faq details:last-child { border-bottom: 1px solid var(--line); }
+.faq summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 20px; align-items: center; padding-block: 22px; font-family: var(--f-display); font-size: clamp(1.1rem, 1.8vw, 1.35rem); letter-spacing: -.01em; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary i { width: 14px; height: 14px; position: relative; flex: none; }
+.faq summary i::before, .faq summary i::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1.4px; background: currentColor; transition: transform .35s var(--ease); }
+.faq summary i::after { transform: rotate(90deg); }
+.faq details[open] summary i::after { transform: rotate(0); }
+.faq details p { margin: 0 0 24px; color: var(--muted); max-width: 40em; }
+
+/* ---------- FINAL ---------- */
+.final { min-height: 92svh; display: flex; align-items: flex-end; overflow: hidden; }
+.final-media { position: absolute; inset: 0; z-index: -2; }
+.final-media img { width: 100%; height: 100%; object-fit: cover; object-position: 62% 50%; }
+.final::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(23,20,15,.8) 0%, rgba(23,20,15,.35) 45%, rgba(23,20,15,0) 70%), linear-gradient(0deg, rgba(23,20,15,.7), rgba(23,20,15,0) 40%); }
+.spot { position: absolute; z-index: -1; width: 46vw; height: 70vh; right: 14%; top: 0; background: radial-gradient(50% 60% at 50% 30%, rgba(246,231,200,.22), rgba(246,231,200,0) 70%); animation: breathe 6s ease-in-out infinite; pointer-events: none; }
+@keyframes breathe { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+.final-inner { padding-block: 140px 64px; display: grid; gap: 26px; width: 100%; }
+.final h2 { max-width: 12ch; }
+.final h2 .italic { color: var(--brass); }
+.mail { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--stage-muted); font-size: 15px; }
+.mail code { font-family: var(--f-body); color: var(--stage-fg); user-select: all; }
+.copy { background: transparent; border: 1px solid rgba(241,235,223,.28); color: var(--stage-fg); border-radius: 999px; padding: 6px 12px; font: 500 12.5px var(--f-body); cursor: pointer; }
+@media (max-width: 719px) {
+  .final { align-items: stretch; }
+  .final-inner { align-content: end; min-height: 92svh; padding-block: 120px 40px; }
+  .final-media img { object-position: 50% 70%; }
+  .final::after { background: linear-gradient(180deg, rgba(23,20,15,.1) 0%, rgba(23,20,15,.25) 40%, rgba(23,20,15,.9) 78%); }
+  .spot { width: 90vw; right: 5%; }
+}
+
+footer.foot { background: var(--stage); color: var(--stage-muted); padding-block: 40px calc(40px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid rgba(241,235,223,.1); font-size: 14px; }
+.foot .wrap { display: flex; flex-wrap: wrap; gap: 18px 32px; justify-content: space-between; align-items: center; }
+.foot .brand { color: var(--stage-fg); }
+.foot nav { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.foot nav a { text-decoration: none; }
+.foot nav a:hover { color: var(--stage-fg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-anim > *, .marquee-row, .spot, .rail-bead { animation: none !important; }
+  .h-display .reveal-line > span { transform: none !important; transition: none !important; }
+  .frame-view img, .pstep { transition: none !important; }
+}
+</style>
+<meta property="og:title" content="Hanuja Tasarımcı Daveti">
+<meta property="og:description" content="Siz tasarıma odaklanın. Sahneyi biz kurarız. Reklam, tanıtım ve ürün yükleme Hanuja'dan.">
+<meta property="og:image" content="https://www.hanuja.com.tr/tasarimci-daveti/assets/media/stage-chair-16x9.webp">
+<meta name="theme-color" content="#17140f">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preload" as="image" href="/tasarimci-daveti/assets/media/stage-empty-16x9.webp" media="(min-width: 720px)">
+<link rel="preload" as="image" href="/tasarimci-daveti/assets/media/stage-empty-9x16.webp" media="(max-width: 719px)">
+<style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+</head>
+<body>
+<div class="hj" lang="tr">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="mark" viewBox="0 0 44 44">
+      <rect class="mk-fill" x="2" y="2" width="22" height="14" opacity=".92"/>
+      <rect class="mk-line" x="28.7" y="2.7" width="12.6" height="12.6"/>
+      <rect class="mk-acc" x="2" y="22" width="14" height="5"/>
+      <rect class="mk-line" x="20.7" y="20.7" width="20.6" height="20.6"/>
+      <rect class="mk-fill" x="2" y="32" width="8" height="10" opacity=".35"/>
+    </symbol>
+    <symbol id="arrow" viewBox="0 0 16 16"><path d="M1 8h13M9 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M11 11l4 4" stroke="currentColor" stroke-width="1.5"/></symbol>
+  </defs>
+</svg>
+
+<header class="top" id="top">
+  <a class="brand" href="https://www.hanuja.com.tr" aria-label="Hanuja">
+    <svg class="brand-mark" aria-hidden="true"><use href="#mark"/></svg>
+    <span class="brand-word"><b>Hanuja</b><small lang="en">Curated living</small></span>
+  </a>
+  <div class="top-right">
+    <div class="progress" aria-hidden="true">
+      <svg viewBox="0 0 44 44">
+        <rect class="mk-r mk-fill" data-ch="1" x="2" y="2" width="22" height="14"/>
+        <rect class="mk-r mk-line" data-ch="2" x="28.7" y="2.7" width="12.6" height="12.6"/>
+        <rect class="mk-r mk-acc" data-ch="3" x="2" y="22" width="14" height="5"/>
+        <rect class="mk-r mk-line" data-ch="4" x="20.7" y="20.7" width="20.6" height="20.6"/>
+        <rect class="mk-r mk-fill" data-ch="5" x="2" y="32" width="8" height="10"/>
+      </svg>
+      <span id="progLabel">Davetiye</span>
+    </div>
+    <a class="btn btn-brass btn-sm" href="https://satici.hanuja.com.tr/basvuru" target="_blank" rel="noopener">Başvur</a>
+  </div>
+</header>
+
+<div class="rail" id="rail" aria-hidden="true">
+  <span class="rail-cue">Kaydır</span>
+  <i class="rail-track"><b class="rail-thumb" id="railThumb"></b><b class="rail-bead"></b></i>
+</div>
+
+<main>
+
+<!-- HERO -->
+<section class="stage hero" id="sahne" aria-label="Giriş">
+  <div class="hero-media">
+    <video id="heroVideo" muted playsinline preload="auto" aria-hidden="true" poster="/tasarimci-daveti/assets/media/stage-empty-16x9.webp"></video>
+  </div>
+  <div class="wrap hero-inner">
+    <div class="hero-anim" style="display:grid;gap:26px">
+      <span class="eyebrow" style="color:var(--stage-muted)">Tasarımcılara özel davetiye</span>
+      <h1 class="h-display h1">Siz tasarıma odaklanın. <span class="italic" style="display:block">Sahneyi biz kurarız.</span></h1>
+      <p class="lead hero-lead">Hanuja, tasarımcı ürünlerini reklamlarla öne çıkaran bir tasarım pazaryeri. Reklamı, tanıtımı ve ürün yüklemeyi biz üstleniyoruz; size sipariş, stok ve kargo kalıyor.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-brass" href="https://satici.hanuja.com.tr/basvuru" target="_blank" rel="noopener">Başvuruyu başlat <svg aria-hidden="true"><use href="#arrow"/></svg></a>
+        <a class="btn btn-line" href="#manifesto" data-scroll>Davetiyeyi incele</a>
+      </div>
+      <ul class="promises hero-promises">
+        <li>Reklamlarda sizin ürünleriniz</li>
+        <li>Diğer platformlardan düşük komisyon</li>
+        <li>Gelirin önemli kısmı tanıtıma</li>
+        <li>Ürün yükleme ücretsiz</li>
+      </ul>
+    </div>
+  </div>
+  <button class="replay" id="replay" type="button" hidden>
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M12 1.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+    Sahneyi tekrar izle
+  </button>
+</section>
+
+<div class="stage hero-band" aria-hidden="false">
+  <div class="wrap">
+    <p class="lead">Hanuja, tasarımcı ürünlerini reklamlarla öne çıkaran bir tasarım pazaryeri. Reklamı, tanıtımı ve ürün yüklemeyi biz üstleniyoruz; size sipariş, stok ve kargo kalıyor.</p>
+    <ul class="promises">
+      <li>Reklamlarda sizin ürünleriniz</li>
+      <li>Diğer platformlardan düşük komisyon</li>
+      <li>Gelirin önemli kısmı tanıtıma</li>
+      <li>Ürün yükleme ücretsiz</li>
+    </ul>
+  </div>
+</div>
+
+<!-- MANIFESTO -->
+<section class="room manifesto" id="manifesto">
+  <div class="wrap">
+    <p class="big" id="manifestoText">Tasarlamak sizin işiniz. Tasarımınızı doğru insanlara göstermek bizim.</p>
+    <div class="after">
+      <span class="eyebrow muted">Neden Hanuja</span>
+      <p class="lead muted">İyi bir ürünü satmak reklam bütçesi, kampanya, içerik ve zaman ister. Bu yük çoğu zaman tasarıma ayırmanız gereken saatleri yer. Hanuja bu yükü sizin yerinize taşır; siz üretmeye devam edersiniz.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 01 CHANNELS -->
+<section class="room" id="gorunurluk" data-chapter="1" data-label="01 Görünürlük" style="padding-bottom:clamp(40px,6vw,80px)">
+  <div class="ch-pin">
+    <div class="wrap ch-intro-mobile">
+      <div class="room-head">
+        <span class="eyebrow">01 · Görünürlük</span>
+        <h2 class="h-display h2"><span class="reveal-line"><span>Reklamlarımızın yıldızı</span></span><span class="reveal-line"><span>sizin ürünleriniz.</span></span></h2>
+        <p class="lead muted">Hanuja'yı tanıtırken markamızı değil, tasarımcılarımızın ürünlerini öne çıkarıyoruz. Her reklam, ürününüzü ona ilgi duyacak insanların karşısına çıkarmak için kurgulanır.</p>
+      </div>
+    </div>
+    <div class="ch-scroller">
+      <div class="ch-track" id="chTrack">
+        <div class="ch-intro-card">
+          <span class="eyebrow muted">01 · Görünürlük</span>
+          <h2 class="h-display h2" style="font-size:clamp(2.4rem,3.6vw,3.6rem)"><span class="reveal-line"><span>Reklamlarımızın</span></span><span class="reveal-line"><span>yıldızı sizin</span></span><span class="reveal-line"><span>ürünleriniz.</span></span></h2>
+          <p class="muted" style="margin:0">Hanuja'yı tanıtırken markamızı değil, tasarımcılarımızın ürünlerini öne çıkarıyoruz. Her reklam, ürününüzü ona ilgi duyacak insanların karşısına çıkarmak için kurgulanır.</p>
+          <span class="tag" style="display:inline-flex;gap:10px;align-items:center">Kaydırdıkça dört kanal <svg width="14" height="14" aria-hidden="true"><use href="#arrow"/></svg></span>
+        </div>
+
+        <article class="ch-card">
+          <div class="ch-exhibit">
+            <div class="phone"><div class="screen">
+              <div class="sp-head">
+                <span class="sp-av"><svg aria-hidden="true"><use href="#mark"/></svg></span>
+                <div><b>hanuja</b><small>Sponsorlu</small></div>
+                <span class="dots">•••</span>
+              </div>
+              <img class="sp-img" src="/tasarimci-daveti/assets/media/arcobaleno-living.webp" alt="Arcobaleno yan sehpalar, güneş alan bir oturma odasında">
+              <div class="sp-cta">Ürünü incele <span>›</span></div>
+              <div class="sp-actions" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+                <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 1-11.7 7.1L4 20l1-4.1A8 8 0 1 1 20 12z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+                <svg viewBox="0 0 24 24"><path d="M21 4L3 11l7 2 2 7 9-16z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+              </div>
+              <p class="sp-cap"><b>hanuja</b> Renkli cam gövdeli Arcobaleno yan sehpalar. Tasarım: <b>Mosaiss</b></p>
+            </div></div>
+          </div>
+          <div class="ch-meta">
+            <span class="tag">Meta Ads</span>
+            <h3 class="h3">Instagram ve Facebook</h3>
+            <p>Gönderi, hikâye ve Reels reklamlarında ürününüz; ev, dekorasyon ve tasarımla ilgilenen insanların akışında yer alır.</p>
+          </div>
+        </article>
+
+        <article class="ch-card wide">
+          <div class="ch-exhibit">
+            <div class="serp">
+              <div class="serp-q"><svg aria-hidden="true"><use href="#search"/></svg> tasarım sehpa</div>
+              <div class="serp-label">Sponsorlu ürünler</div>
+              <div class="serp-grid">
+                <div class="serp-item"><img src="/tasarimci-daveti/assets/products/antico.webp" alt="Antico orta sehpa"><span class="nm">Antico Orta Sehpa</span><span class="pr tnum">64.200 TL</span><span class="st">hanuja.com.tr</span></div>
+                <div class="serp-item"><img src="/tasarimci-daveti/assets/products/cordone.webp" alt="Cordone orta sehpa"><span class="nm">Cordone Orta Sehpa</span><span class="pr tnum">68.700 TL</span><span class="st">hanuja.com.tr</span></div>
+                <div class="serp-item"><img src="/tasarimci-daveti/assets/products/arcobaleno.webp" alt="Arcobaleno yan sehpa"><span class="nm">Arcobaleno 2'li Yan Sehpa</span><span class="pr tnum">65.750 TL</span><span class="st">hanuja.com.tr</span></div>
+                <div class="serp-item"><img src="/tasarimci-daveti/assets/products/cerchio.webp" alt="Cerchio zigon sehpa"><span class="nm">Cerchio 3'lü Zigon Sehpa</span><span class="pr tnum">52.250 TL</span><span class="st">hanuja.com.tr</span></div>
+              </div>
+              <div class="serp-ad">
+                <small>Sponsorlu</small>
+                <span class="u">hanuja.com.tr › tasarimcilar</span>
+                <span class="t">Tasarım Sehpa Modelleri | Hanuja</span>
+                <p>Bağımsız tasarımcıların özgün sehpaları. Mosaiss koleksiyonu Hanuja'da.</p>
+              </div>
+            </div>
+          </div>
+          <div class="ch-meta">
+            <span class="tag">Google Ads</span>
+            <h3 class="h3">Arama ve alışveriş</h3>
+            <p>“Tasarım sehpa” diye arayan biri, ürününüzü görseli, adı ve fiyatıyla görür. Arayan müşteriye doğrudan ürününüzle cevap veririz.</p>
+          </div>
+        </article>
+
+        <article class="ch-card">
+          <div class="ch-exhibit" style="background:#e3dccd">
+            <div class="pins">
+              <div class="pins-search"><svg aria-hidden="true"><use href="#search"/></svg> antre dekorasyon fikirleri</div>
+              <div class="pin-col">
+                <div class="pin"><img src="/tasarimci-daveti/assets/media/vesuvio-entry.webp" alt="Vesuvio dresuar, yuvarlak aynalı bir antrede" style="aspect-ratio:9/16"><span class="save">Kaydet</span></div>
+                <div class="pin cut sandbg"><img src="/tasarimci-daveti/assets/products/svolta.webp" alt="Svolta zigon sehpa" style="aspect-ratio:1"></div>
+              </div>
+              <div class="pin-col">
+                <div class="pin cut"><img src="/tasarimci-daveti/assets/products/elegante.webp" alt="Elegante yan sehpa" style="aspect-ratio:1"></div>
+                <div class="pin"><img src="/tasarimci-daveti/assets/media/arcobaleno-window.webp" alt="Arcobaleno yan sehpalar, pencere ışığında" style="aspect-ratio:3/4"><span class="save">Kaydet</span></div>
+                <div class="pin cut sandbg"><img src="/tasarimci-daveti/assets/products/onda.webp" alt="Onda dresuar" style="aspect-ratio:1"></div>
+              </div>
+              <div class="pin-col">
+                <div class="pin cut sandbg"><img src="/tasarimci-daveti/assets/products/geometria.webp" alt="Geometria orta sehpa" style="aspect-ratio:1"></div>
+                <div class="pin cut"><img src="/tasarimci-daveti/assets/products/vesuvio.webp" alt="Vesuvio dresuar" style="aspect-ratio:1"></div>
+                <div class="pin cut sandbg"><img src="/tasarimci-daveti/assets/products/rettigno.webp" alt="Rettigno orta sehpa" style="aspect-ratio:1"></div>
+              </div>
+            </div>
+          </div>
+          <div class="ch-meta">
+            <span class="tag">Pinterest</span>
+            <h3 class="h3">İlham panoları</h3>
+            <p>Evini planlayan insanlar fikir aramaya Pinterest'te başlar. Ürünlerinizi bu panolara, kaydedilip paylaşılacak görsellerle taşırız.</p>
+          </div>
+        </article>
+
+        <article class="ch-card">
+          <div class="ch-exhibit dark">
+            <div class="phone"><div class="screen reel">
+              <img class="poster" src="/tasarimci-daveti/assets/media/reel-poster.webp" alt="" aria-hidden="true">
+              <video id="reelVideo" muted loop playsinline preload="none" aria-label="Vesuvio dresuarın tanıtım videosu"></video>
+              <div class="ov">
+                <span class="badge">İş birliği · hanuja</span>
+                <div>
+                  <div class="who"><i></i>İçerik üreticisi</div>
+                  <p>Antreye renk: Vesuvio Dresuar, tasarım Mosaiss.</p>
+                </div>
+              </div>
+            </div></div>
+          </div>
+          <div class="ch-meta">
+            <span class="tag">İş birlikleri</span>
+            <h3 class="h3">İçerik üreticileri</h3>
+            <p>Dekorasyon ve yaşam alanı üzerine içerik üreten isimlerle ürününüzü gerçek mekânlarda, kendi hikâyesiyle anlatırız.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+    <div class="wrap">
+      <span class="swipe-hint">Kaydırarak dört kanalı görün <svg width="14" height="14" aria-hidden="true"><use href="#arrow"/></svg></span>
+      <p class="ch-note">Reklam görselleri, kurguyu göstermek için hazırlanmış örneklerdir. Ürünler: Mosaiss, hanuja.com.tr</p>
+    </div>
+  </div>
+</section>
+
+<!-- 02 EARNINGS -->
+<section class="room" id="kazanc" data-chapter="2" data-label="02 Kazanç" style="border-top:1px solid var(--line)">
+  <div class="wrap">
+    <div class="room-head">
+      <span class="eyebrow">02 · Kazanç</span>
+      <h2 class="h-display h2"><span class="reveal-line"><span>Emeğinizin karşılığı</span></span><span class="reveal-line"><span>sizde kalır.</span></span></h2>
+      <p class="lead muted">Diğer pazaryerlerine göre daha düşük bir komisyonla çalışıyoruz. Size uygulanacak oran, iş birliği başlamadan önce sözleşmede açıkça yazılır.</p>
+    </div>
+    <div class="values">
+      <div class="value">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="2" y="8" width="36" height="24" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="8" width="11" height="24" fill="currentColor" opacity=".9"/></svg>
+        <h3 class="h3">Düşük komisyon</h3>
+        <p>Satışınızın daha büyük kısmı size kalır.</p>
+      </div>
+      <div class="value">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="4" y="4" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="22" y="4" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="4" y="22" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="22" y="22" width="14" height="14" fill="#c8b89a"/></svg>
+        <h3 class="h3">Ücretsiz ürün yükleme</h3>
+        <p>Ürünlerinizi mağazanıza ekibimiz yükler; ajans ya da ek ekip gerekmez.</p>
+      </div>
+      <div class="value">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 26h8l14 8V6L14 14H6z" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="31" y="16" width="5" height="8" fill="#c8b89a"/></svg>
+        <h3 class="h3">Reklam bizden</h3>
+        <p>Reklam ve tanıtım bütçesi Hanuja'nın gelirinden ayrılır.</p>
+      </div>
+      <div class="value">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="4" y="7" width="32" height="29" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4 14h32M12 3v8M28 3v8" stroke="currentColor" stroke-width="1.4"/><rect x="24" y="24" width="7" height="7" fill="#c8b89a"/></svg>
+        <h3 class="h3">Belli ödeme günü</h3>
+        <p>Hakediş, onaylanan faturanızın tarihinden 30 gün sonraki ilk cuma ödenir.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 LOOP -->
+<section class="stage loop-room" id="dongu" data-chapter="3" data-label="03 Döngü">
+  <div class="loop-pin">
+    <div class="wrap room" style="width:100%">
+      <div class="loop-grid">
+        <div class="room-head">
+          <span class="eyebrow">03 · Döngü</span>
+          <h2 class="h-display h2"><span class="reveal-line"><span>Kazandığımız,</span></span><span class="reveal-line"><span>sizi büyütmeye döner.</span></span></h2>
+          <p class="lead">Hanuja'nın gelirinin önemli bir bölümü yalnızca reklama ve tasarımcılarımızın tanıtımına harcanır. Siz sattıkça tanıtım büyür; tanıtım büyüdükçe sizi keşfeden insan sayısı artar.</p>
+          <ol class="loop-list">
+            <li><b>Satış</b><span>Ürününüz Hanuja'da satılır.</span></li>
+            <li><b>Komisyon</b><span>Hanuja satıştan düşük bir pay alır.</span></li>
+            <li><b>Reklam</b><span>Bu gelirin önemli bir bölümü reklama ve tasarımcı tanıtımına gider.</span></li>
+            <li><b>Keşif</b><span>Yeni müşteriler ürününüzü bulur ve satın alır.</span></li>
+          </ol>
+        </div>
+        <figure class="loop-fig" style="margin:0" aria-hidden="true">
+          <svg viewBox="-100 -60 600 520">
+            <circle class="loop-track" cx="200" cy="200" r="170"/>
+            <circle class="loop-prog" id="loopProg" cx="200" cy="200" r="170" transform="rotate(-90 200 200)"/>
+            <g class="loop-node" data-i="0" transform="translate(200 30)"><rect x="-9" y="-9" width="18" height="18"/><text x="0" y="-26" text-anchor="middle">Satış</text></g>
+            <g class="loop-node" data-i="1" transform="translate(370 200)"><rect x="-9" y="-9" width="18" height="18"/><text x="24" y="5" text-anchor="start">Komisyon</text></g>
+            <g class="loop-node" data-i="2" transform="translate(200 370)"><rect x="-9" y="-9" width="18" height="18"/><text x="0" y="40" text-anchor="middle">Reklam</text></g>
+            <g class="loop-node" data-i="3" transform="translate(30 200)"><rect x="-9" y="-9" width="18" height="18"/><text x="-24" y="5" text-anchor="end">Keşif</text></g>
+          </svg>
+          <div class="loop-center"><b>Büyüyen bir döngü</b></div>
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 ONBOARDING -->
+<section class="room" id="baslangic" data-chapter="4" data-label="04 Başlangıç">
+  <div class="wrap">
+    <div class="room-head">
+      <span class="eyebrow">04 · Başlangıç</span>
+      <h2 class="h-display h2"><span class="reveal-line"><span>Ürünlerinizi biz yükleriz.</span></span><span class="reveal-line"><span class="italic">Ücretsiz.</span></span></h2>
+      <p class="lead muted">Ürün sayfası hazırlamak, açıklama yazmak, fiyat ve varyant girmek zaman alır. Sözleşme ve belgeler tamamlandığında yazılım ve entegrasyon ekibimiz ürünlerinizi web sitenizden ya da paylaştığınız görsel ve bilgilerden alır, mağazanıza ücretsiz yükler.</p>
+    </div>
+    <div class="onb-grid">
+      <ol class="steps">
+        <li class="step"><span class="n tnum">1</span><h3 class="h3">Başvurun</h3><p>Kısa başvuru formunu doldurun; markanızı ve ürünlerinizi tanıyalım.</p></li>
+        <li class="step"><span class="n tnum">2</span><h3 class="h3">Sözleşme ve belgeler</h3><p>Başvurunuz değerlendirildikten sonra sözleşmeyi ve gerekli belgeleri tamamlayın.</p></li>
+        <li class="step"><span class="n tnum">3</span><h3 class="h3">Ürünleriniz yüklenir <span class="free">Ücretsiz</span></h3><p>Ekibimiz ürünlerinizi web sitenizden ya da gönderdiğiniz görsel ve bilgilerden alır, mağazanıza yükler.</p></li>
+        <li class="step"><span class="n tnum">4</span><h3 class="h3">Satış başlar</h3><p>Mağazanız yayına girer; siparişler panelinize düşer.</p></li>
+      </ol>
+      <figure class="onb-visual" style="margin:0">
+        <div class="xform">
+          <div class="xcard raw">
+            <span class="lbl">Gönderdiğiniz</span>
+            <img src="/tasarimci-daveti/assets/products/vesuvio.webp" alt="Vesuvio dresuarın ürün fotoğrafı" loading="lazy">
+            <div class="chips"><span>Görsel</span><span>Ölçü</span><span>Malzeme</span><span>Fiyat</span></div>
+          </div>
+          <div class="xarrow" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M4 20h30M26 12l8 8-8 8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></div>
+          <div class="xcard shop">
+            <span class="lbl">Mağazanızda</span>
+            <img src="/tasarimci-daveti/assets/products/vesuvio.webp" alt="" aria-hidden="true">
+            <span class="brandline">Mosaiss</span>
+            <span class="pname">Vesuvio Dresuar</span>
+            <span class="price tnum">66.500 TL</span>
+            <span class="add">Sepete ekle</span>
+          </div>
+        </div>
+        <div class="atelier"><img src="/tasarimci-daveti/assets/media/atelier.webp" alt="Atölyede ceviz bir masanın kenarını zımparalayan eller" loading="lazy"></div>
+        <figcaption>Siz atölyede kalın; mağaza vitrini bizden.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- 05 PANEL -->
+<section class="room panel-room" id="panel" data-chapter="5" data-label="05 Panel">
+  <div class="wrap">
+    <div class="room-head">
+      <span class="eyebrow">05 · Tasarımcı paneli</span>
+      <h2 class="h-display h2"><span class="reveal-line"><span>Size kalan üç iş:</span></span><span class="reveal-line"><span>sipariş, stok, kargo.</span></span></h2>
+      <p class="lead muted">Satışla ilgili her şey tek bir panelde. Bir siparişi baştan sona birkaç tıkla yönetirsiniz; panel her adımda ne yapmanız gerektiğini gösterir.</p>
+    </div>
+    <figure class="pack" style="margin-inline:0">
+      <img src="/tasarimci-daveti/assets/media/packing.webp" alt="Keten örtülü masada, seramik bir vazoyu kraft kağıda sarıp kutuya yerleştiren eller" loading="lazy">
+      <figcaption>Siparişi siz hazırlarsınız; panel her adımı sırayla gösterir.</figcaption>
+    </figure>
+
+    <div class="pgrid">
+      <ol class="psteps" id="psteps">
+        <li class="pstep" data-shot="0">
+          <span class="k">Kontrol paneli</span>
+          <h3 class="h3">Her şey tek bakışta</h3>
+          <p>Bekleyen siparişler, hakediş, iadeler ve müşteri soruları ilk ekranda.</p>
+          <div class="shot-m"><img src="/tasarimci-daveti/assets/panel/dashboard.webp" alt="Hanuja tasarımcı paneli kontrol ekranı" loading="lazy"></div>
+          <span class="shot-hint">Ekran görüntüsünü yana kaydırabilirsiniz.</span>
+        </li>
+        <li class="pstep" data-shot="1">
+          <span class="k">Siparişler</span>
+          <h3 class="h3">Sipariş gelir</h3>
+          <p>Yeni siparişler listenin en üstünde görünür. Durumuna göre filtreleyin, tek tıkla açın.</p>
+          <div class="shot-m"><img src="/tasarimci-daveti/assets/panel/orders.webp" alt="Sipariş listesi: yeni, hazırlanıyor, kargoda ve teslim edildi durumları" loading="lazy"></div>
+        </li>
+        <li class="pstep" data-shot="2">
+          <span class="k">Sipariş süreci</span>
+          <h3 class="h3">Onaylayın ve hazırlayın</h3>
+          <p>Siparişi onaylayın, hazırlamaya başlayın, kargoya hazır olarak işaretleyin. Her adım tek tık.</p>
+          <div class="shot-m fit"><img src="/tasarimci-daveti/assets/panel/order-steps.webp" alt="Sipariş süreci: Siparişi Onayla, Hazırlamaya Başla, Kargoya Hazır, Kargoya Ver adımları" loading="lazy"></div>
+        </li>
+        <li class="pstep" data-shot="3">
+          <span class="k">Kargo</span>
+          <h3 class="h3">Kargoya verin</h3>
+          <p>Ürünü kendi kargo firmanızla gönderin; firma adını ve takip numarasını panele girin.</p>
+          <div class="shot-m"><img src="/tasarimci-daveti/assets/panel/cargo.webp" alt="Kargolar ekranı: kargo firması, takip numarası ve son durum" loading="lazy"></div>
+        </li>
+        <li class="pstep" data-shot="4">
+          <span class="k">Ürün ve stok</span>
+          <h3 class="h3">Stoğu güncel tutun</h3>
+          <p>Fiyat ve stoğu ürün listesinde doğrudan değiştirin. Ürününüz çoksa Excel şablonuyla toplu güncelleyin.</p>
+          <div class="shot-m"><img src="/tasarimci-daveti/assets/panel/products.webp" alt="Ürünlerim listesi: fiyat, stok ve durum sütunları" loading="lazy"></div>
+        </li>
+        <li class="pstep" data-shot="5">
+          <span class="k">Ödemeler ve hakediş</span>
+          <h3 class="h3">Hakedişinizi izleyin</h3>
+          <p>Teslim edilen siparişlerin hakedişi panelde görünür. Ödeme, Hanuja'ya kestiğiniz ve onaylanan faturanın tarihinden 30 gün sonraki ilk cuma yapılır.</p>
+          <div class="shot-m"><img src="/tasarimci-daveti/assets/panel/payouts.webp" alt="Ödemeler ve hakediş ekranı ile ödeme takvimi notu" loading="lazy"></div>
+        </li>
+      </ol>
+      <div class="frame" aria-hidden="true">
+        <div class="frame-win">
+          <div class="frame-bar"><i></i><i></i><i></i><span>satici.hanuja.com.tr</span></div>
+          <div class="frame-view" id="frameView">
+            <img class="on" src="/tasarimci-daveti/assets/panel/f-dashboard.webp" alt="">
+            <img src="/tasarimci-daveti/assets/panel/f-orders.webp" alt="" loading="lazy">
+            <img src="/tasarimci-daveti/assets/panel/f-order-steps.webp" alt="" loading="lazy">
+            <img src="/tasarimci-daveti/assets/panel/f-cargo.webp" alt="" loading="lazy">
+            <img src="/tasarimci-daveti/assets/panel/f-products.webp" alt="" loading="lazy">
+            <img src="/tasarimci-daveti/assets/panel/f-payouts.webp" alt="" loading="lazy">
+          </div>
+        </div>
+        <div class="frame-cap"><span>Gerçek panel arayüzü</span><span id="frameCount" class="tnum">1 / 6</span></div>
+      </div>
+    </div>
+    <p class="panel-note">Görsellerdeki mağaza, müşteri ve tutar bilgileri örnek veridir.</p>
+  </div>
+</section>
+
+<!-- WHO -->
+<section class="who" id="kimler">
+  <div class="wrap who-grid">
+    <h2 class="h-display h2"><span class="reveal-line"><span>Kimler başvurabilir?</span></span></h2>
+    <p class="lead muted">Özgün ürün tasarlayan ve üreten tasarımcılar, atölyeler ve tasarım markaları. Mobilya ve dekorasyondan aksesuar, anne &amp; çocuk ve kozmetiğe kadar kategorilerimiz genişliyor.</p>
+  </div>
+  <div class="marquee" aria-label="Kategoriler">
+    <div class="marquee-row">
+      <span>Mobilya</span><span>Dekorasyon</span><span>Ofis</span><span>Aksesuar</span><span>Anne &amp; Çocuk</span><span>Kozmetik &amp; Kişisel Bakım</span><span>Spor &amp; Outdoor</span><span>Elektronik</span>
+      <span aria-hidden="true">Mobilya</span><span aria-hidden="true">Dekorasyon</span><span aria-hidden="true">Ofis</span><span aria-hidden="true">Aksesuar</span><span aria-hidden="true">Anne &amp; Çocuk</span><span aria-hidden="true">Kozmetik &amp; Kişisel Bakım</span><span aria-hidden="true">Spor &amp; Outdoor</span><span aria-hidden="true">Elektronik</span>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="room faq" id="sorular" style="padding-top:clamp(40px,6vw,80px)">
+  <div class="wrap faq-grid">
+    <div class="room-head" style="align-content:start">
+      <span class="eyebrow">Sık sorulanlar</span>
+      <h2 class="h-display h2"><span class="reveal-line"><span>Aklınızdaki</span></span><span class="reveal-line"><span>sorular.</span></span></h2>
+    </div>
+    <div>
+      <details open><summary>Ürün yükleme ücretli mi? <i aria-hidden="true"></i></summary><p>Hayır. Sözleşme ve belgeler tamamlandıktan sonra ürünlerinizi yazılım ve entegrasyon ekibimiz ücretsiz yükler.</p></details>
+      <details><summary>Ürün bilgilerini nasıl ileteceğim? <i aria-hidden="true"></i></summary><p>Web siteniz varsa ürünlerinizi oradan alabiliriz. Yoksa ürün görsellerini ve bilgilerini bize göndermeniz yeterli.</p></details>
+      <details><summary>Komisyon oranı ne kadar? <i aria-hidden="true"></i></summary><p>Diğer pazaryerlerine göre daha düşük bir oranla çalışıyoruz. Size uygulanacak oran, iş birliği başlamadan önce sözleşmede açıkça yazılır.</p></details>
+      <details><summary>Siparişleri nasıl göndereceğim? <i aria-hidden="true"></i></summary><p>Siparişi panelden onaylayıp hazırlarsınız. Ürünü kendi kargo firmanızla gönderir, firma adını ve takip numarasını panele girersiniz.</p></details>
+      <details><summary>Faturayı kime keseceğim? <i aria-hidden="true"></i></summary><p>Ürünü kargoya verirken Hanuja'ya fatura kesersiniz. Fatura tutarı panelde hazır görünür; açıklama alanına sipariş numarasını yazmanız yeterli.</p></details>
+      <details><summary>Ödememi ne zaman alırım? <i aria-hidden="true"></i></summary><p>Hakediş, kestiğiniz ve Hanuja'nın onayladığı faturanın tarihinden 30 gün sonraki ilk cuma ödenir. Teslim onayı gelmemiş, açık iadesi ya da uyuşmazlığı olan siparişlerde ödeme bekler.</p></details>
+      <details><summary>Stok ve fiyatı nasıl güncellerim? <i aria-hidden="true"></i></summary><p>Ürün listesinde fiyat ve stok hücrelerine tıklayarak tek tek ya da Excel şablonuyla toplu olarak güncellersiniz.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL -->
+<section class="stage final" id="davet" aria-label="Başvuru">
+  <div class="final-media">
+    <picture>
+      <source media="(max-width: 719px)" srcset="/tasarimci-daveti/assets/media/stage-empty-9x16.webp">
+      <img src="/tasarimci-daveti/assets/media/stage-empty-16x9.webp" alt="Boş bir galeri odasında, spot ışığı altında bekleyen boş traverten kaide" loading="lazy">
+    </picture>
+  </div>
+  <div class="spot" aria-hidden="true"></div>
+  <div class="wrap final-inner">
+    <span class="eyebrow" style="color:var(--stage-muted)">Davetiyeniz</span>
+    <h2 class="h-display h2"><span class="reveal-line"><span>Sahne hazır.</span></span><span class="reveal-line"><span class="italic">Sıradaki tasarım sizin.</span></span></h2>
+    <p class="lead">Başvurunuzu yapın, mağazanızı birlikte kuralım.</p>
+    <div class="hero-ctas">
+      <a class="btn btn-brass" href="https://satici.hanuja.com.tr/basvuru" target="_blank" rel="noopener">Başvuruyu başlat <svg aria-hidden="true"><use href="#arrow"/></svg></a>
+      <a class="btn btn-line" href="mailto:admin@hanuja.com.tr?subject=Tasar%C4%B1mc%C4%B1%20daveti">Önce konuşalım</a>
+    </div>
+    <div class="mail">E-posta: <code id="mailAddr">admin@hanuja.com.tr</code> <button class="copy" id="copyMail" type="button">Kopyala</button></div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <a class="brand" href="https://www.hanuja.com.tr" aria-label="Hanuja">
+      <svg class="brand-mark" aria-hidden="true"><use href="#mark"/></svg>
+      <span class="brand-word"><b>Hanuja</b><small lang="en">Curated living</small></span>
+    </a>
+    <nav aria-label="Alt bağlantılar">
+      <a href="https://www.hanuja.com.tr" target="_blank" rel="noopener">hanuja.com.tr</a>
+      <a href="https://www.hanuja.com.tr/gizlilik-politikasi" target="_blank" rel="noopener">Gizlilik Politikası</a>
+      <span>© 2026 Hanuja Dijital</span>
+    </nav>
+  </div>
+</footer>
+
+</div>
+
+<script src="/tasarimci-daveti/assets/vendor/gsap.min.js"></script>
+<script src="/tasarimci-daveti/assets/vendor/ScrollTrigger.min.js"></script>
+<script src="/tasarimci-daveti/assets/vendor/lenis.min.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var mobileMq = matchMedia('(max-width: 719px)');
+  root.classList.add('js');
+
+  /* ---------- hero stage: the scene waits on the empty stage ---------- */
+  var hv = document.getElementById('heroVideo');
+  var replay = document.getElementById('replay');
+  var replayLabel = replay.lastChild;
+  var probe = document.createElement('video');
+  var vExt = probe.canPlayType('video/mp4; codecs="avc1.42E01E"') ? '.mp4' : (probe.canPlayType('video/webm; codecs="vp9"') ? '.webm' : '.mp4');
+  var stageState = 'idle'; /* idle -> playing -> done */
+  function heroSet() {
+    var m = mobileMq.matches;
+    return {
+      src: (m ? '/tasarimci-daveti/assets/video/stage-9x16' : '/tasarimci-daveti/assets/video/stage-16x9') + vExt,
+      start: m ? '/tasarimci-daveti/assets/media/stage-empty-9x16.webp' : '/tasarimci-daveti/assets/media/stage-empty-16x9.webp',
+      end: m ? '/tasarimci-daveti/assets/media/stage-chair-9x16.webp' : '/tasarimci-daveti/assets/media/stage-chair-16x9.webp'
+    };
+  }
+  function showReplay(text) { replayLabel.nodeValue = ' ' + text; replay.hidden = false; }
+  function primeHero() {
+    var s = heroSet();
+    hv.poster = (stageState === 'done' || reduce) ? s.end : s.start;
+    if (!reduce && hv.getAttribute('src') !== s.src) { hv.src = s.src; hv.load(); }
+  }
+  replay.addEventListener('click', function () {
+    var s = heroSet();
+    if (hv.getAttribute('src') !== s.src) hv.src = s.src;
+    try { hv.currentTime = 0; } catch (e) {}
+    var p = hv.play(); if (p && p.catch) p.catch(function () {});
+    replay.hidden = true;
+  });
+  if (mobileMq.addEventListener) mobileMq.addEventListener('change', function () { if (stageState !== 'playing') primeHero(); });
+
+  /* ---------- creator reel: load and play only while visible ---------- */
+  var reel = document.getElementById('reelVideo');
+  if ('IntersectionObserver' in window && !reduce) {
+    new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (e.isIntersecting) {
+          if (!reel.getAttribute('src')) reel.src = '/tasarimci-daveti/assets/video/reel-vesuvio' + vExt;
+          var p = reel.play(); if (p && p.catch) p.catch(function () {});
+        } else { reel.pause(); }
+      });
+    }, { threshold: .35 }).observe(reel);
+  }
+
+  /* ---------- headline line reveals ----------
+     Headings stay visible at rest. Once the reader starts scrolling, headings that are still
+     below the fold are tucked behind their line masks and slide up as they arrive. */
+  var heads = [].slice.call(document.querySelectorAll('.h-display')).filter(function (h) { return h.querySelector('.reveal-line'); });
+  if (!reduce && 'IntersectionObserver' in window) {
+    var ro = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('is-in'); ro.unobserve(e.target); } });
+    }, { threshold: .15, rootMargin: '0px 0px -8% 0px' });
+    var arm = function () {
+      removeEventListener('scroll', arm);
+      heads.forEach(function (h) {
+        var r = h.getBoundingClientRect();
+        if (r.top > innerHeight || r.right < 0 || r.left > innerWidth) { h.classList.add('pending'); ro.observe(h); }
+      });
+    };
+    addEventListener('scroll', arm, { passive: true });
+  }
+
+  /* ---------- manifesto: words light up as you read ---------- */
+  var mt = document.getElementById('manifestoText');
+  var words = mt.textContent.trim().split(/\s+/);
+  mt.innerHTML = words.map(function (w) { return '<span class="w">' + w + '</span>'; }).join(' ');
+  var wEls = [].slice.call(mt.querySelectorAll('.w'));
+  function lightWords() {
+    var r = mt.getBoundingClientRect(), vh = innerHeight;
+    var p = (vh * .82 - r.top) / (r.height + vh * .32);
+    p = Math.max(0, Math.min(1, p));
+    var n = Math.round(p * wEls.length);
+    wEls.forEach(function (w, i) { w.classList.toggle('lit', i < n); });
+  }
+  if (reduce) wEls.forEach(function (w) { w.classList.add('lit'); });
+
+  /* ---------- header tone + chapter progress (the mark fills in) ---------- */
+  var top = document.getElementById('top');
+  var chapters = [].slice.call(document.querySelectorAll('[data-chapter]'));
+  var markRects = [].slice.call(document.querySelectorAll('.progress .mk-r'));
+  var progLabel = document.getElementById('progLabel');
+  var stages = [].slice.call(document.querySelectorAll('.stage'));
+  var rail = document.getElementById('rail');
+  var railThumb = document.getElementById('railThumb');
+  function onScroll() {
+    var hb = top.getBoundingClientRect().bottom;
+    var overStage = stages.some(function (s) { var r = s.getBoundingClientRect(); return r.top <= hb && r.bottom >= hb; });
+    top.classList.toggle('is-light', !overStage);
+    top.classList.toggle('is-dark-solid', overStage && scrollY > 60);
+    var cur = 0, label = 'Davetiye';
+    chapters.forEach(function (c) { if (c.getBoundingClientRect().top < innerHeight * .5) { cur = +c.dataset.chapter; label = c.dataset.label; } });
+    if (document.getElementById('kimler').getBoundingClientRect().top < innerHeight * .5) label = 'Başvuru';
+    markRects.forEach(function (r) { r.style.opacity = (+r.dataset.ch <= cur) ? 1 : .22; });
+    progLabel.textContent = label;
+    var max = Math.max(1, document.documentElement.scrollHeight - innerHeight);
+    railThumb.style.transform = 'scaleY(' + Math.min(1, Math.max(0, scrollY / max)) + ')';
+    var mid = innerHeight / 2;
+    var railDark = stages.some(function (s) { var r = s.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; });
+    rail.classList.toggle('on-light', !railDark);
+    root.classList.toggle('at-top', scrollY < 60);
+    if (!reduce) lightWords();
+  }
+  var ticking = false;
+  addEventListener('scroll', function () { if (!ticking) { ticking = true; requestAnimationFrame(function () { onScroll(); ticking = false; }); } }, { passive: true });
+  addEventListener('resize', onScroll);
+  onScroll();
+
+  /* ---------- panel: sticky frame follows the step being read ---------- */
+  var steps = [].slice.call(document.querySelectorAll('.pstep'));
+  var shots = [].slice.call(document.querySelectorAll('#frameView img'));
+  var count = document.getElementById('frameCount');
+  function setShot(i) {
+    shots.forEach(function (s, k) { s.classList.toggle('on', k === i); });
+    steps.forEach(function (s, k) { s.classList.toggle('on', k === i); });
+    count.textContent = (i + 1) + ' / ' + shots.length;
+  }
+  setShot(0);
+  if ('IntersectionObserver' in window) {
+    var so = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) setShot(+e.target.dataset.shot); });
+    }, { rootMargin: '-45% 0px -45% 0px' });
+    steps.forEach(function (s) { so.observe(s); });
+  }
+
+  /* ---------- copy e-mail ---------- */
+  var copyBtn = document.getElementById('copyMail');
+  copyBtn.addEventListener('click', function () {
+    var t = document.getElementById('mailAddr').textContent;
+    function done() { copyBtn.textContent = 'Kopyalandı'; setTimeout(function () { copyBtn.textContent = 'Kopyala'; }, 1800); }
+    function fallback() { var r = document.createRange(); r.selectNodeContents(document.getElementById('mailAddr')); var s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    try { navigator.clipboard.writeText(t).then(done, fallback); } catch (e) { fallback(); }
+  });
+
+  /* ---------- smooth scroll + pinned scenes (enhancement) ---------- */
+  var lenis = null;
+  if (!reduce && window.Lenis && matchMedia('(pointer: fine)').matches) {
+    try { lenis = new Lenis({ lerp: .09, smoothWheel: true }); } catch (e) { lenis = null; }
+  }
+  function scrollToEl(t) { if (!t) return; if (lenis) lenis.scrollTo(t, { offset: -10 }); else t.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' }); }
+
+  /* The first scroll plays the scene; the page holds still until the chair is on stage,
+     then it answers that scroll and moves on to the next room. */
+  var gateTimer = null, moveOn = false;
+  function nextRoom() { return document.querySelector(mobileMq.matches ? '.hero-band' : '#manifesto'); }
+  function lockPage(on) {
+    root.classList.toggle('stage-lock', on);
+    if (lenis) { if (on) lenis.stop(); else lenis.start(); }
+  }
+  function finishStage() {
+    if (stageState === 'done') return;
+    stageState = 'done';
+    clearTimeout(gateTimer);
+    root.classList.remove('stage-playing');
+    lockPage(false);
+    hv.poster = heroSet().end;
+    showReplay('Sahneyi tekrar izle');
+    if (moveOn) { moveOn = false; setTimeout(function () { scrollToEl(nextRoom()); }, 650); }
+  }
+  function startStage() {
+    if (stageState !== 'idle') return;
+    stageState = 'playing';
+    root.classList.add('stage-playing');
+    gateTimer = setTimeout(finishStage, 12000);
+    try { hv.currentTime = 0; } catch (e) {}
+    var p = hv.play();
+    if (p && p.catch) p.catch(function () { finishStage(); });
+  }
+  hv.addEventListener('ended', finishStage);
+  hv.addEventListener('error', finishStage);
+  var gateOn = !reduce && scrollY < 4 && !location.hash;
+  if (gateOn) {
+    try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
+    primeHero();
+    lockPage(true);
+    var keys = ['ArrowDown', 'PageDown', ' ', 'Spacebar', 'End'];
+    var intent = function (e) {
+      if (stageState === 'done') return;
+      if (e.type === 'wheel' && e.deltaY <= 0) { e.preventDefault(); return; }
+      if (e.type === 'keydown') {
+        if (keys.indexOf(e.key) < 0) return;
+        var tg = e.target; if (tg && tg !== document.body && tg !== root) return;
+      }
+      if (e.cancelable) e.preventDefault();
+      moveOn = true;
+      startStage();
+    };
+    addEventListener('wheel', intent, { passive: false });
+    document.addEventListener('touchmove', intent, { passive: false });
+    addEventListener('keydown', intent);
+    /* a restored or linked position (not the reader's own scroll) skips the scene */
+    addEventListener('scroll', function () {
+      if (stageState === 'idle' && scrollY > 40) { moveOn = false; finishStage(); }
+    }, { passive: true });
+  } else {
+    stageState = 'done';
+    primeHero();
+    showReplay('Sahneyi izle');
+  }
+
+  [].slice.call(document.querySelectorAll('[data-scroll]')).forEach(function (a) {
+    a.addEventListener('click', function (ev) {
+      var t = document.querySelector(a.getAttribute('href')); if (!t) return;
+      ev.preventDefault();
+      if (stageState !== 'done') { moveOn = true; startStage(); return; }
+      scrollToEl(t);
+    });
+  });
+
+  var loopProg = document.getElementById('loopProg');
+  var nodes = [].slice.call(document.querySelectorAll('.loop-node'));
+  var C = 2 * Math.PI * 170;
+  function setLoop(p) {
+    loopProg.style.strokeDasharray = C;
+    loopProg.style.strokeDashoffset = C * (1 - p);
+    nodes.forEach(function (n, i) { n.classList.toggle('on', p >= i * .25 - .001); });
+  }
+
+  if (window.gsap && window.ScrollTrigger && !reduce) {
+    gsap.registerPlugin(ScrollTrigger);
+    root.classList.add('gsap-on');
+    if (lenis) {
+      lenis.on('scroll', ScrollTrigger.update);
+      gsap.ticker.add(function (t) { lenis.raf(t * 1000); });
+      gsap.ticker.lagSmoothing(0);
+    }
+    var mm = gsap.matchMedia();
+    mm.add('(min-width: 1000px)', function () {
+      var track = document.getElementById('chTrack');
+      var pin = document.querySelector('#gorunurluk .ch-pin');
+      var dist = function () { return Math.max(0, track.scrollWidth - innerWidth); };
+      gsap.to(track, { x: function () { return -dist(); }, ease: 'none',
+        scrollTrigger: { trigger: pin, start: 'top top', end: function () { return '+=' + dist(); }, pin: true, scrub: 1, invalidateOnRefresh: true } });
+      gsap.utils.toArray('#chTrack .ch-exhibit > *').forEach(function (el) {
+        gsap.fromTo(el, { y: 30 }, { y: -30, ease: 'none', scrollTrigger: { trigger: pin, start: 'top top', end: function () { return '+=' + dist(); }, scrub: true } });
+      });
+      ScrollTrigger.create({ trigger: '#dongu .loop-pin', start: 'top top', end: '+=110%', pin: true, scrub: true,
+        onUpdate: function (s) { setLoop(s.progress); } });
+    });
+    mm.add('(max-width: 999px)', function () {
+      ScrollTrigger.create({ trigger: '#dongu .loop-fig', start: 'top 80%', end: 'bottom 35%', scrub: true,
+        onUpdate: function (s) { setLoop(s.progress); } });
+    });
+    setLoop(0);
+    gsap.utils.toArray('.pack img, .atelier img').forEach(function (img) {
+      gsap.fromTo(img, { scale: 1.12 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: img, start: 'top bottom', end: 'bottom top', scrub: true } });
+    });
+    gsap.fromTo('.final-media img', { scale: 1.08 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: '.final', start: 'top bottom', end: 'bottom bottom', scrub: true } });
+    addEventListener('load', function () { ScrollTrigger.refresh(); });
+  } else if (!reduce && 'IntersectionObserver' in window) {
+    setLoop(0);
+    new IntersectionObserver(function (es, o) {
+      es.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        var t0 = performance.now();
+        (function step(t) { var p = Math.min(1, (t - t0) / 2200); setLoop(p); if (p < 1) requestAnimationFrame(step); })(t0);
+        o.disconnect();
+      });
+    }, { threshold: .4 }).observe(document.querySelector('.loop-fig'));
+  } else {
+    setLoop(1);
+  }
+  if (lenis && !(window.gsap && window.ScrollTrigger)) {
+    (function raf(t) { lenis.raf(t); requestAnimationFrame(raf); })(performance.now());
+  }
+})();
+</script>
+</body>
+</html>

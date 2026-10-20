@@ -1,0 +1,337 @@
+{
+  "algorithm": "SHA-256",
+  "source": "hanuja-tasarimci-daveti",
+  "destination": "apps/web/public/tasarimci-daveti",
+  "files": [
+    {
+      "path": "assets/fonts/dm-sans-latin-400-normal.woff2",
+      "bytes": 14200,
+      "sha256": "4ab51eb2cd7305d177187908d6397474d4520663f6c6e572feb0a64f4fa80006"
+    },
+    {
+      "path": "assets/fonts/dm-sans-latin-500-normal.woff2",
+      "bytes": 14304,
+      "sha256": "19bf1984956517c35c2bd35b6cdedac12a21d6fcd3596c614ecdfb88b648909d"
+    },
+    {
+      "path": "assets/fonts/dm-sans-latin-600-normal.woff2",
+      "bytes": 14144,
+      "sha256": "6bb2b2645ba5eeaecf56322c543fa3a75b87b927977b9c03b1dabc4205089120"
+    },
+    {
+      "path": "assets/fonts/dm-sans-latin-ext-400-normal.woff2",
+      "bytes": 7364,
+      "sha256": "962730c6ff7595f9499b0d963a3bccb2139d793f0fb31fbd87aed1881c020e0a"
+    },
+    {
+      "path": "assets/fonts/dm-sans-latin-ext-500-normal.woff2",
+      "bytes": 7432,
+      "sha256": "e0a1d21584ba00798a3dbe90ef5f8a162741d454f52ab66630f9dc41da372b3d"
+    },
+    {
+      "path": "assets/fonts/dm-sans-latin-ext-600-normal.woff2",
+      "bytes": 7420,
+      "sha256": "6406eb05e2eb50779cb95ee8745c98ad23cce7e67d752822782453da7f6b4491"
+    },
+    {
+      "path": "assets/fonts/fonts.css",
+      "bytes": 7027,
+      "sha256": "8efd03ae9d24324a3278827e65c14ba7a94896cf919aafd289e2368bdfce0ffb"
+    },
+    {
+      "path": "assets/fonts/outfit-latin-200-normal.woff2",
+      "bytes": 13956,
+      "sha256": "bdb2ebee74c6c1afa63f7499fb3dc5324d27dc8f466bf3da12c53ab1983a53b5"
+    },
+    {
+      "path": "assets/fonts/outfit-latin-300-normal.woff2",
+      "bytes": 13956,
+      "sha256": "ef88e74f63ce75b54cce4d5a4087c6f180750b9ebae6ab6e5bf2a9939bf6958f"
+    },
+    {
+      "path": "assets/fonts/outfit-latin-400-normal.woff2",
+      "bytes": 14032,
+      "sha256": "71f028fd2349990b3f8aa643abe767e82e0f596be407ae66f0004ff164121bdb"
+    },
+    {
+      "path": "assets/fonts/outfit-latin-ext-200-normal.woff2",
+      "bytes": 6368,
+      "sha256": "1b92ec21567f53fbc51b0b61593ad5130edca46a069fa0791f660a9b5615d059"
+    },
+    {
+      "path": "assets/fonts/outfit-latin-ext-300-normal.woff2",
+      "bytes": 6384,
+      "sha256": "463eec2e5944ce6534089376531a533eae99b6dfae1af87924756fa5af6ba1c0"
+    },
+    {
+      "path": "assets/fonts/outfit-latin-ext-400-normal.woff2",
+      "bytes": 6380,
+      "sha256": "e279fd5005b5936e4f4d20fd21e1fdd6a35d724ff576623d31e7c425c356b7ac"
+    },
+    {
+      "path": "assets/fonts/plus-jakarta-sans-latin-300-italic.woff2",
+      "bytes": 13000,
+      "sha256": "f0461cb5aa804eecbc527f957c15f5749c6dc304ce66b7c329ee452735e477c7"
+    },
+    {
+      "path": "assets/fonts/plus-jakarta-sans-latin-300-normal.woff2",
+      "bytes": 12200,
+      "sha256": "740d9b0f5a33987e21acff7e20bbd4c02bf40e470cda58b761127d159c7941a7"
+    },
+    {
+      "path": "assets/fonts/plus-jakarta-sans-latin-400-normal.woff2",
+      "bytes": 11816,
+      "sha256": "221a4135d06a4b33abbd535e9a0da4e565d19545ddd9267c4e678a916d54d9b6"
+    },
+    {
+      "path": "assets/fonts/plus-jakarta-sans-latin-500-normal.woff2",
+      "bytes": 12312,
+      "sha256": "bad081c8dbc15aed6c5e4cde5461914f7b3bdc295b7a7aed177e4beddb79bffa"
+    },
+    {
+      "path": "assets/fonts/plus-jakarta-sans-latin-ext-300-italic.woff2",
+      "bytes": 11328,
+      "sha256": "71a4dc367420461eb05789a2fd207ca6d927a87e384e6ad45af52026a2d55d81"
+    },
+    {
+      "path": "assets/fonts/plus-jakarta-sans-latin-ext-300-normal.woff2",
+      "bytes": 10832,
+      "sha256": "3bfbc7278a6723bc895a1c088f8c216a79c21a9c5c227c7b6ed194c58e12fb53"
+    },
+    {
+      "path": "assets/fonts/plus-jakarta-sans-latin-ext-400-normal.woff2",
+      "bytes": 10592,
+      "sha256": "65b5680bf2ba9c6c42af74ddd2e8aadde93af7c523454ebb3d4e32fdba3f94db"
+    },
+    {
+      "path": "assets/fonts/plus-jakarta-sans-latin-ext-500-normal.woff2",
+      "bytes": 10864,
+      "sha256": "d1584f50c388cae7e570bed35be331fa4a9afd6832ef45a32fa8bf81930e6db9"
+    },
+    {
+      "path": "assets/media/arcobaleno-living.webp",
+      "bytes": 158536,
+      "sha256": "ba2f6d41882bcd5f430964fe923ba2d4960d0effdc299aae3494d71506fdeb33"
+    },
+    {
+      "path": "assets/media/arcobaleno-window.webp",
+      "bytes": 76458,
+      "sha256": "fd64f5e0fbef9858640aac4bda712c0466be4a9848e323978c9aff523fd9f16c"
+    },
+    {
+      "path": "assets/media/atelier.webp",
+      "bytes": 94240,
+      "sha256": "9fce3a9818f21ee9a8746ca16c29f71182aaf571605fc2cfb1a0105ad759cc95"
+    },
+    {
+      "path": "assets/media/packing.webp",
+      "bytes": 212630,
+      "sha256": "a032fbbc9030d65e39e33594a5d9d69fdb94a48aa200508cdd6f3b4954622d5e"
+    },
+    {
+      "path": "assets/media/reel-poster.webp",
+      "bytes": 43626,
+      "sha256": "e32da7c7530e1dcb9f0c45ec9e1a0c0a0a2ddbbe3453efa56136c39c4c3b2729"
+    },
+    {
+      "path": "assets/media/stage-chair-16x9.webp",
+      "bytes": 61788,
+      "sha256": "7c9fd86fe38b91b1e3a94a0942504a816743e8f2ac15d5d56d5e288243dd5c52"
+    },
+    {
+      "path": "assets/media/stage-chair-9x16.webp",
+      "bytes": 62396,
+      "sha256": "5061f03c4a88ba58dd2def7f8aa9522f50507ba5bd9e1c27ab0cd555eaea655a"
+    },
+    {
+      "path": "assets/media/stage-empty-16x9.webp",
+      "bytes": 46048,
+      "sha256": "a0c1818f639f9f565216cec9c756d2856b42e06c7441063a4373879ebc766aa7"
+    },
+    {
+      "path": "assets/media/stage-empty-9x16.webp",
+      "bytes": 45326,
+      "sha256": "3e47b0852f7b96849bcaf679b47649d38426b31627ebac0bed84faeb06e47220"
+    },
+    {
+      "path": "assets/media/vesuvio-entry.webp",
+      "bytes": 84086,
+      "sha256": "2c525d502b72ce32120623e8b231d864fbc25a71c9d9c4396541e0ab02800193"
+    },
+    {
+      "path": "assets/panel/cargo.webp",
+      "bytes": 29368,
+      "sha256": "96c7bdd7507f82106c412e318a01bddf0f37d7c3d263b7259f9a1834dcc83a74"
+    },
+    {
+      "path": "assets/panel/dashboard.webp",
+      "bytes": 73104,
+      "sha256": "ef105911d98a89f6d4debcb8c1684e181c3414bda96b99aa6da2ac4a87491031"
+    },
+    {
+      "path": "assets/panel/f-cargo.webp",
+      "bytes": 19112,
+      "sha256": "10eaf5c8e02a13ab04902cebe9b68db4659f4566e6fbac779d668b84d133b2b3"
+    },
+    {
+      "path": "assets/panel/f-dashboard.webp",
+      "bytes": 26878,
+      "sha256": "f0da6d6f739ed2432b2860e3801325a445f459a34cc1d52660fe7ffae7387c70"
+    },
+    {
+      "path": "assets/panel/f-order-steps.webp",
+      "bytes": 37292,
+      "sha256": "d6860e6fadefded5df72c8946bb61faf2f0e031b9544693f2e41d58235f9cdfd"
+    },
+    {
+      "path": "assets/panel/f-orders.webp",
+      "bytes": 45744,
+      "sha256": "b4027f637a20464a4dce6b3c8713eaee16cd3f790b61de39d8108523eb216b95"
+    },
+    {
+      "path": "assets/panel/f-payouts.webp",
+      "bytes": 28656,
+      "sha256": "80745ec4b4ccba94a0a48b8d058b434950077e38d8110e7c7b1fe665b8174ac8"
+    },
+    {
+      "path": "assets/panel/f-products.webp",
+      "bytes": 59098,
+      "sha256": "64f39745708c620c45cfd1437662f61a9d7f6100e5445004310fa65ce5ea5a81"
+    },
+    {
+      "path": "assets/panel/order-steps.webp",
+      "bytes": 33662,
+      "sha256": "086a2212da52233f3a59bfcbd635dc29196c52a1cdf9db9b2e05a32f07a0a3dd"
+    },
+    {
+      "path": "assets/panel/orders.webp",
+      "bytes": 68920,
+      "sha256": "644475baef7bee0015afcead30740fe28f04b72ed51ff9b39e432026394cb071"
+    },
+    {
+      "path": "assets/panel/payouts.webp",
+      "bytes": 51304,
+      "sha256": "48a1acb80d32df7249c696a1bad03fa49503ccdf9b5070f0441bad244b85fd73"
+    },
+    {
+      "path": "assets/panel/products.webp",
+      "bytes": 115082,
+      "sha256": "a29e0f1ee34006c172981975e66e1508fd0e2a25b3df2d94c0c9fcdba0b903b7"
+    },
+    {
+      "path": "assets/products/antico.webp",
+      "bytes": 8930,
+      "sha256": "9830a0ca9774af3b0a67f6d87552426ce9efeb4316c95b3cc643b2ef70b570bf"
+    },
+    {
+      "path": "assets/products/arcobaleno.webp",
+      "bytes": 10424,
+      "sha256": "34507c30eecb49679723d03035607ca21f9d46595e5c4bee91ad0524a09ea45e"
+    },
+    {
+      "path": "assets/products/cerchio.webp",
+      "bytes": 24324,
+      "sha256": "c271932d7444be4c07024c037f56114056f961a2a5b98d8cc18fa36efe48e2a8"
+    },
+    {
+      "path": "assets/products/cordone.webp",
+      "bytes": 23422,
+      "sha256": "9da8df0141c31b35ce695d39dcd605169fb03d27fc0d85b8a866803f15c410b7"
+    },
+    {
+      "path": "assets/products/elegante.webp",
+      "bytes": 26086,
+      "sha256": "511bdffd21455a8c1330eac23fd8dc9c04492e725ae34387bd52affc3d8d3272"
+    },
+    {
+      "path": "assets/products/geometria.webp",
+      "bytes": 22844,
+      "sha256": "46d3e165aaf1451e652b36a1f2f2408ce03e973d1d015e5c84be961c4a2939f9"
+    },
+    {
+      "path": "assets/products/onda.webp",
+      "bytes": 9022,
+      "sha256": "7b8136208bc3159352d075f30ffce10aeaa3df060a71674b94001b0e2263bb09"
+    },
+    {
+      "path": "assets/products/rettigno.webp",
+      "bytes": 19932,
+      "sha256": "27921a0b1d0f8932528d6695591e65c0e384c08752eea4c728c9f177db46c7c0"
+    },
+    {
+      "path": "assets/products/svolta.webp",
+      "bytes": 8172,
+      "sha256": "c47f11eeac6ff38c7d0ba1bb7803c555ec53f18c2d10faea11309e9a2a95e679"
+    },
+    {
+      "path": "assets/products/vesuvio.webp",
+      "bytes": 16066,
+      "sha256": "30e6e2de38f16eef5bb4b2d2a008b1fd55dcc946c3aaf1e59899a09145af801e"
+    },
+    {
+      "path": "assets/vendor/gsap.min.js",
+      "bytes": 72214,
+      "sha256": "28033e449a31ebcc396e5be8b13b63152bf03094288fb5867034321927bce087"
+    },
+    {
+      "path": "assets/vendor/lenis.min.js",
+      "bytes": 13485,
+      "sha256": "b2958f142f832f0d5e547cdef77e6fadfce16bea60982fc8bbf50395a2439df8"
+    },
+    {
+      "path": "assets/vendor/ScrollTrigger.min.js",
+      "bytes": 43380,
+      "sha256": "ad33c2df9ada8a663c2147357828f980d0b7ca731ef33eb3c6e4f327c3b2cda5"
+    },
+    {
+      "path": "assets/video/reel-vesuvio.mp4",
+      "bytes": 724403,
+      "sha256": "23522d42a74d2d73e295daab3a1a0e8d57fa94c0d246b2f420f22de8b7bee11e"
+    },
+    {
+      "path": "assets/video/reel-vesuvio.webm",
+      "bytes": 640160,
+      "sha256": "1ca9fdbf90417ed011d542aa48404de7d97c25a88ae1e95cdef7fe662fdd4e56"
+    },
+    {
+      "path": "assets/video/stage-16x9.mp4",
+      "bytes": 1732760,
+      "sha256": "33f6a74c8e3236d044e59f567697adb910f51b5a21174582a04975f0b0af8022"
+    },
+    {
+      "path": "assets/video/stage-16x9.webm",
+      "bytes": 424250,
+      "sha256": "381d520d030a8259313f80292981dda3ed5ab46d3668d51888f5cac7abb7fb56"
+    },
+    {
+      "path": "assets/video/stage-9x16.mp4",
+      "bytes": 1208279,
+      "sha256": "6b71493a83f62d0ba7991880ee349bf17d3c959c956f983763afba506760f637"
+    },
+    {
+      "path": "assets/video/stage-9x16.webm",
+      "bytes": 423905,
+      "sha256": "95fa3550084a52c73f534534de5a5f753bf8d1c2d862b4be07c2dcf387b0e5e9"
+    },
+    {
+      "path": "index.html",
+      "bytes": 78877,
+      "sha256": "12ea475a355432c1af23b79750d3afe4adb013fcf1962b641e4d34f0508833d9"
+    },
+    {
+      "path": "qr/hanuja-tasarimci-daveti-qr-siyah.png",
+      "bytes": 14432,
+      "sha256": "0d4348e80284f05a4c5323dc96a416b9f302d47a6cad8ded357c3192cbd562f1"
+    },
+    {
+      "path": "qr/hanuja-tasarimci-daveti-qr.png",
+      "bytes": 14791,
+      "sha256": "d669611d374a9619d78a2eaf67a6fc3f5f7ab4e6bbaecd6d5be3290aa1f7f007"
+    },
+    {
+      "path": "qr/hanuja-tasarimci-daveti-qr.svg",
+      "bytes": 2106,
+      "sha256": "d4f450a24bee67dd5d26da26cc5df737cefc6ec33b07f2c60eb904ad6bfd6a4f"
+    }
+  ]
+}

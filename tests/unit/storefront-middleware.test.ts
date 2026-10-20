@@ -5,6 +5,18 @@ import { middleware } from '../../apps/web/src/middleware'
 describe('storefront middleware', () => {
   afterEach(() => vi.unstubAllEnvs())
 
+  it.each(['/tasarimci-daveti', '/tasarimci-daveti/index.html', '/tasarimci-daveti/assets/vendor/gsap.min.js'])(
+    'leaves the static invitation response untouched at %s',
+    async (pathname) => {
+      vi.stubEnv('NODE_ENV', 'production')
+      const response = await middleware(new NextRequest(`https://www.hanuja.com.tr${pathname}`))
+      expect(response.status).toBe(200)
+      expect(response.headers.get('location')).toBeNull()
+      expect(response.headers.get('set-cookie')).toBeNull()
+      expect(response.headers.get('x-middleware-request-x-hanuja-pathname')).toBeNull()
+    },
+  )
+
   it('returns an anonymous order reader to the customer site behind a reverse proxy, preserving query parameters', async () => {
     vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('NEXT_PUBLIC_WEB_URL', '')

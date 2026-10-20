@@ -4,8 +4,8 @@ The public storefront, catalog and blog remain indexable under their existing SE
 
 | Surface                       | HTTP header                                                | HTML metadata                                                         | Crawler access                                                         |
 | ----------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `/tasarimci-daveti`           | `X-Robots-Tag: noindex, nofollow`                          | Page `robots` and Googlebot metadata also exclude indexing            | Not blocked in storefront `robots.txt`; absent from sitemap/navigation |
-| `/designer-invitation/*`      | `X-Robots-Tag: noindex, nofollow`                          | Not applicable to image/video/QR files                                | Crawlable so the response header can be read                           |
+| `/tasarimci-daveti` and `/tasarimci-daveti/*` | `X-Robots-Tag: noindex, nofollow` | Supplied static HTML retains its original `noindex, nofollow` meta | Not blocked in storefront `robots.txt`; absent from sitemap/navigation |
+| Retired `/designer-invitation/*` | `X-Robots-Tag: noindex, nofollow` | Previous dedicated assets removed | Exclusion header retained on the retired path |
 | Entire seller and admin hosts | `X-Robots-Tag: noindex, nofollow` on all Next.js responses | Existing root `robots: noindex, nofollow`; seller auth layout aligned | Public `/robots.txt` allows crawling; no panel sitemap is published    |
 
 The global panel header covers public login/password/application routes, protected-page redirects, APIs, static files and missing routes. Authentication, roles, session validation, CSRF cookies and origin checks remain the data-access controls. A crawler can fetch the public login page or receive the usual login redirect; allowing crawling does not grant access to account data.

@@ -1,0 +1,2 @@
+# Preserve the supplied static brochure byte-for-byte on Windows and production.
+apps/web/public/tasarimci-daveti/** -text

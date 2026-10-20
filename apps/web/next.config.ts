@@ -19,9 +19,16 @@ const standaloneOutput = process.platform === 'win32' ? {} : { output: 'standalo
 const config: NextConfig = {
   ...standaloneOutput,
   compress: true,
+  async rewrites() {
+    return {
+      beforeFiles: [
+        { source: '/tasarimci-daveti', destination: '/tasarimci-daveti/index.html' },
+      ],
+    }
+  },
   async headers() {
     // The invitation and its media are unlisted. Public store/catalog SEO is unchanged.
-    return ['/tasarimci-daveti', '/designer-invitation/:path*'].map((source) => ({
+    return ['/tasarimci-daveti/:path*', '/designer-invitation/:path*'].map((source) => ({
       source,
       headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
     }))

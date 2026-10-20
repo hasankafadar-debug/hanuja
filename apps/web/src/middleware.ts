@@ -60,6 +60,11 @@ function hasSessionCookie(request: NextRequest): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // The supplied static invitation bypasses storefront auth, CSRF and request headers.
+  if (pathname === '/tasarimci-daveti' || pathname.startsWith('/tasarimci-daveti/')) {
+    return NextResponse.next()
+  }
+
   if ((process.env.NODE_ENV === 'production' || process.env.CSRF_STRICT === 'true') &&
       !isApiMutationOriginAllowed(request, process.env.BETTER_AUTH_URL ?? request.url, 'web')) {
     return NextResponse.json({ error: 'İstek kaynağı doğrulanamadı.' }, { status: 403, headers: { 'Cache-Control': 'no-store' } })
@@ -104,5 +109,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)', '/api/:path*'],
+  matcher: ['/((?!tasarimci-daveti(?:/|$)|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)', '/api/:path*'],
 }
