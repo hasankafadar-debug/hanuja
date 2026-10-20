@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 const STORAGE_LABELS = {
   cookie: 'Çerez',
   localStorage: 'Tarayıcı depolaması (localStorage)',
+  sessionStorage: 'Sekme depolaması (sessionStorage)',
 } as const
 
 export default function CookiePolicyPage() {
@@ -27,6 +28,19 @@ export default function CookiePolicyPage() {
   return (
     <>
       <LegalDocumentHtml html={customerLegalHtml('04')} />
+      <p>
+        Kartla ödeme seçildiğinde, gerekli bilgiler ve sözleşme onayı tamamlandıktan sonra
+        iyzico’nun kendi alan adındaki güvenli ödeme alanı yüklenir. Kart bilgileri ve bu alandaki
+        sağlayıcı teknolojileri iyzico tarafından işlenir. Ayrıntılar için{' '}
+        <a
+          href="https://www.iyzico.com/gizlilik-politikasi"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          iyzico aydınlatma metnini
+        </a>{' '}
+        inceleyebilirsiniz.
+      </p>
       <h3>Kullanılan Çerezler</h3>
       <div className="my-4 overflow-x-auto rounded-lg border border-border">
         <table className="min-w-[960px] border-collapse text-left text-xs leading-relaxed">
@@ -66,8 +80,8 @@ export default function CookiePolicyPage() {
         </table>
       </div>
       <p>
-        Bu tablo, internet sitesinde fiilen kullanılan teknolojilerin teknik envanteri esas alınarak güncel tutulur.
-        Kullanılmayan veya tahmini çerez adları tabloya eklenmez.
+        Bu tablo, internet sitesinde fiilen kullanılan teknolojilerin teknik envanteri esas alınarak
+        güncel tutulur. Kullanılmayan veya tahmini çerez adları tabloya eklenmez.
       </p>
 
       <p>Mevcut envanterde zorunlu olmayan analitik veya pazarlama çerezi bulunmamaktadır.</p>

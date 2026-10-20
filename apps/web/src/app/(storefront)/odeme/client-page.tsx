@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Banknote, CheckCircle2, CreditCard, FileText, Lock, MapPin, Plus } from 'lucide-react'
+import {
+  AlertTriangle,
+  Banknote,
+  CheckCircle2,
+  CreditCard,
+  FileText,
+  Lock,
+  MapPin,
+  Plus,
+} from 'lucide-react'
 import { Button, Separator, Spinner, TurnstileWidget } from '@hanuja/ui'
 import LegalDocumentDialog from '@/components/legal-document-dialog'
 import { csrfFetch } from '@/lib/csrf-fetch'
@@ -21,6 +30,7 @@ interface Address {
   isBillingAddress: boolean
   invoiceType: 'individual' | 'corporate' | null
   companyName: string | null
+  tcNumber?: string | null
 }
 
 interface CartSummary {
@@ -37,19 +47,20 @@ interface CartSummary {
 }
 
 interface LegalPreview {
+  previewId?: string
+  sourceHash?: string
   distanceSalesHtml: string
   preInformationHtml: string
 }
 
 type PaymentMethod = 'card' | 'eft'
 
-interface CardForm {
-  cardHolderName: string
-  cardNumber: string
-  expireMonth: string
-  expireYear: string
-  cvc: string
-  identityNumber: string
+interface CheckoutFormSession {
+  startKey?: string
+  orderId: string
+  attemptId: string
+  iframeUrl: string
+  expiresAt: string
 }
 
 type CheckoutPageClientProps = {
@@ -61,27 +72,6 @@ type CheckoutPageClientProps = {
   callbackErrorCode?: string | null
 }
 
-interface InstallmentOfferView {
-  installmentNumber: number
-  installmentPrice: string
-  totalPrice: string
-  differenceAmount: string
-}
-
-interface CardQuote {
-  quoteId: string
-  expiresAt: string
-  price: string
-  offers: InstallmentOfferView[]
-  selected: InstallmentOfferView
-  card: {
-    cardType: string | null
-    cardAssociation: string | null
-    cardFamily: string | null
-    bankName: string | null
-  }
-}
-
 interface RetryState {
   orderId: string
   status: string
@@ -89,6 +79,9 @@ interface RetryState {
   checking: boolean
   expiresAt: string | null
   totalAmount: string
+  grossAmount?: string
+  couponDiscountAmount?: string
+  shippingAmount?: string
   attemptsLeft: number
 }
 
@@ -97,7 +90,8 @@ const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
     'Bankanız ödemeyi onaylamadı. Kart bilgilerinizi kontrol edip farklı bir kartla tekrar deneyebilirsiniz.',
   sure: 'Ödeme süresi doldu. Sepetinizden yeni bir sipariş oluşturabilirsiniz.',
   dogrulama: 'Ödeme doğrulanamadı. Lütfen tekrar deneyin.',
-  sistem: 'Ödeme sırasında bir hata oluştu. Kartınızdan çekim yapılmışsa sipariş sayfanızda görünecektir.',
+  sistem:
+    'Ödeme sırasında bir hata oluştu. Kartınızdan çekim yapılmışsa sipariş sayfanızda görünecektir.',
 }
 
 /** "Ödemeyi tamamla" niyeti başına bir anahtar; ağ tekrarlarında aynı anahtar gönderilir. */
@@ -152,29 +146,48 @@ export function CheckoutPageClient({
     callbackErrorCode ? (CALLBACK_ERROR_MESSAGES[callbackErrorCode] ?? null) : null,
   )
   const [retryState, setRetryState] = useState<RetryState | null>(null)
-  const [quote, setQuote] = useState<CardQuote | null>(null)
-  const [selectedInstallment, setSelectedInstallment] = useState(1)
-  const [quoteLoading, setQuoteLoading] = useState(false)
-  const [quoteError, setQuoteError] = useState<string | null>(null)
-  const [quoteNonce, setQuoteNonce] = useState(0)
-  const startKeyRef = useRef<string>(newStartKey())
+  const retryCannotStart = Boolean(retryOrderId) && (!retryState || !retryState.payable)
+  const [checkoutSession, setCheckoutSession] = useState<CheckoutFormSession | null>(null)
+  const [identityNumber, setIdentityNumber] = useState('')
+  const [acceptedContracts, setAcceptedContracts] = useState(false)
+  const [consentWarning, setConsentWarning] = useState(false)
+  const [startNonce, setStartNonce] = useState(0)
+  const [intentReady, setIntentReady] = useState(false)
+  const startKeyRef = useRef<string>('')
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const scrolledAttemptRef = useRef<string | null>(null)
+  const sessionRef = useRef<CheckoutFormSession | null>(null)
+  const startInFlightRef = useRef(false)
+  const generationRef = useRef(0)
+  const pendingAbandonRef = useRef<Promise<void>>(Promise.resolve())
+
+  function invalidateSession() {
+    const old = sessionRef.current
+    sessionRef.current = null
+    setCheckoutSession(null)
+    generationRef.current += 1
+    if (old) {
+      pendingAbandonRef.current = csrfFetch('/api/payment/checkout-form/session', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attemptId: old.attemptId }),
+      }).then((res) => {
+        if (!res.ok)
+          throw new Error('Önceki ödeme oturumu kapatılamadı. Bağlantınızı kontrol edin.')
+        setStartNonce((v) => v + 1)
+      })
+      // Keep the rejection handled until the next start awaits it.
+      void pendingAbandonRef.current.catch(() =>
+        setError('Önceki ödeme oturumu kapatılamadı. Sayfayı yenileyin.'),
+      )
+    }
+  }
   const eftOrderKeyRef = useRef<string>(newEftOrderKey())
   const [showAddressForm, setShowAddressForm] = useState(false)
   const [useDifferentBilling, setUseDifferentBilling] = useState(false)
   const [selectedBillingAddressId, setSelectedBillingAddressId] = useState<string | null>(null)
   const [turnstileToken, setTurnstileToken] = useState('')
   const [turnstileKey, setTurnstileKey] = useState(0)
-  const [cardForm, setCardForm] = useState<CardForm>({
-    cardHolderName: '',
-    cardNumber: '',
-    expireMonth: '',
-    expireYear: '',
-    cvc: '',
-    identityNumber: '',
-  })
-  const [cardErrors, setCardErrors] = useState<Partial<CardForm>>({})
-  const [acceptedMesafeliSatis, setAcceptedMesafeliSatis] = useState(false)
-  const [acceptedOnBilgilendirme, setAcceptedOnBilgilendirme] = useState(false)
   const [newAddress, setNewAddress] = useState({
     fullName: '',
     phone: '',
@@ -187,11 +200,17 @@ export function CheckoutPageClient({
 
   const loadData = useCallback(async () => {
     try {
-      const [cartRes, addrRes, retryRes] = await Promise.all([
+      const storedStartKey = sessionStorage.getItem('hanuja:checkout-form:start')
+      const [cartRes, addrRes, retryRes, savedAttemptRes] = await Promise.all([
         fetch('/api/cart', { cache: 'no-store' }),
         fetch('/api/checkout/addresses', { cache: 'no-store' }),
         retryOrderId
           ? fetch(`/api/payment/orders/${encodeURIComponent(retryOrderId)}`, { cache: 'no-store' })
+          : Promise.resolve(null),
+        !retryOrderId && storedStartKey
+          ? fetch('/api/payment/attempts/' + encodeURIComponent(storedStartKey), {
+              cache: 'no-store',
+            })
           : Promise.resolve(null),
       ])
 
@@ -203,6 +222,34 @@ export function CheckoutPageClient({
       const { data: cart } = await cartRes.json()
       const { data: addrs } = await addrRes.json()
 
+      if (savedAttemptRes?.ok) {
+        const { data: saved } = await savedAttemptRes.json()
+        if (
+          saved.superseded ||
+          ['expired', 'voided', 'refunded', 'refunded_by_provider'].includes(saved.status)
+        ) {
+          startKeyRef.current = newStartKey()
+          sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
+          sessionStorage.removeItem('hanuja:checkout-form:source')
+        }
+        if (saved.status === 'succeeded') {
+          sessionStorage.removeItem('hanuja:checkout-form:start')
+          router.push('/siparis/' + encodeURIComponent(saved.orderId) + '?yeni=1')
+          return
+        }
+        if (
+          !saved.superseded &&
+          ['failed', 'outcome_unknown', 'authorizing', 'fraud_review'].includes(saved.status)
+        ) {
+          if (saved.status === 'failed') {
+            startKeyRef.current = newStartKey()
+            sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
+          }
+          router.replace('/odeme?siparis=' + encodeURIComponent(saved.orderId))
+          return
+        }
+      }
+
       if (retryRes) {
         if (!retryRes.ok) {
           router.push('/siparis')
@@ -210,7 +257,7 @@ export function CheckoutPageClient({
         }
         const { data: state } = await retryRes.json()
         setRetryState(state as RetryState)
-      } else if (!cart?.itemCount || cart.itemCount === 0) {
+      } else if ((!cart?.itemCount || cart.itemCount === 0) && !sessionRef.current) {
         router.push('/sepet')
         return
       }
@@ -229,9 +276,18 @@ export function CheckoutPageClient({
       })
       setAddresses(addrs ?? [])
 
-      const defaultAddress = (addrs ?? []).find((address: Address) => address.isDefault)
+      const shippingAddresses = (addrs ?? []).filter(
+        (address: Address) => !address.isBillingAddress,
+      )
+      const defaultAddress =
+        shippingAddresses.find((address: Address) => address.isDefault) ?? shippingAddresses[0]
+      if (!shippingAddresses.length) setShowAddressForm(true)
       if (defaultAddress) {
-        setSelectedAddressId(defaultAddress.id)
+        setSelectedAddressId((previous) =>
+          shippingAddresses.some((address: Address) => address.id === previous)
+            ? previous
+            : defaultAddress.id,
+        )
       }
     } catch {
       setError('Sayfa yüklenirken hata oluştu.')
@@ -245,88 +301,101 @@ export function CheckoutPageClient({
   }, [loadData])
 
   useEffect(() => {
-    setAcceptedMesafeliSatis(false)
-    setAcceptedOnBilgilendirme(false)
-  }, [paymentMethod, selectedAddressId, selectedBillingAddressId, useDifferentBilling, quote?.quoteId])
-
-  const cardBin = cardForm.cardNumber.replace(/\D/g, '').slice(0, 8)
-  const quoteTarget = retryOrderId ?? selectedAddressId
-
-  // Taksit teklifi: kart numarasının ilk 8 hanesi + seçilen taksit sayısı. Tutar sunucuda hesaplanır.
-  useEffect(() => {
-    if (paymentMethod !== 'card' || cardBin.length !== 8 || !quoteTarget) {
-      setQuote(null)
-      setQuoteError(null)
-      setQuoteLoading(false)
-      return
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadData()
     }
-    let cancelled = false
-    const timer = setTimeout(async () => {
-      setQuoteLoading(true)
-      setQuoteError(null)
-      try {
-        const res = await csrfFetch('/api/payment/quote', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            binNumber: cardBin,
-            installmentCount: selectedInstallment,
-            ...(retryOrderId
-              ? { orderId: retryOrderId }
-              : {
-                  addressId: selectedAddressId,
-                  ...(useDifferentBilling && selectedBillingAddressId
-                    ? { billingAddressId: selectedBillingAddressId }
-                    : {}),
-                }),
-          }),
-        })
-        const body = await res.json().catch(() => ({}))
-        if (cancelled) return
-        if (!res.ok) {
-          setQuote(null)
-          setQuoteError(body.message ?? body.error ?? 'Taksit seçenekleri alınamadı.')
-          if (selectedInstallment !== 1 && res.status === 422) setSelectedInstallment(1)
-          return
-        }
-        setQuote(body.data as CardQuote)
-      } catch {
-        if (!cancelled) {
-          setQuote(null)
-          setQuoteError('Taksit seçenekleri alınamadı. Bağlantınızı kontrol edin.')
-        }
-      } finally {
-        if (!cancelled) setQuoteLoading(false)
-      }
-    }, 350)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
     return () => {
-      cancelled = true
-      clearTimeout(timer)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
     }
-  }, [
+  }, [loadData])
+
+  useEffect(() => {
+    startKeyRef.current = sessionStorage.getItem('hanuja:checkout-form:start') ?? newStartKey()
+    sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
+  }, [])
+
+  // Invalidate the provider attempt on a real context change, not on a page reload.
+  const previousContextRef = useRef<string | null>(null)
+  const contextKey = JSON.stringify([
     paymentMethod,
-    cardBin,
-    selectedInstallment,
-    quoteNonce,
-    quoteTarget,
-    retryOrderId,
     selectedAddressId,
     selectedBillingAddressId,
     useDifferentBilling,
+    identityNumber,
+    cartSummary,
+    retryOrderId,
+    addresses.filter(
+      (address) => address.id === selectedAddressId || address.id === selectedBillingAddressId,
+    ),
   ])
-
-  // Kart değişince taksit seçimi tek çekime döner.
   useEffect(() => {
-    setSelectedInstallment(1)
-  }, [cardBin])
+    if (previousContextRef.current === contextKey) return
+    const previous = previousContextRef.current
+    previousContextRef.current = contextKey
+    setAcceptedContracts(false)
+    setConsentWarning(false)
+    const old = sessionRef.current
+    invalidateSession()
+    if (previous && (old || startInFlightRef.current)) {
+      startKeyRef.current = newStartKey()
+      sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
+    }
+  }, [contextKey])
+
+  // Persist only a random key and server-generated hash; no identity or provider token.
+  useEffect(() => {
+    if (!legalPreview?.sourceHash) {
+      setIntentReady(paymentMethod !== 'card')
+      return
+    }
+    let cancelled = false
+    setIntentReady(false)
+    void (async () => {
+      const storedHash = sessionStorage.getItem('hanuja:checkout-form:source')
+      if (storedHash && storedHash !== legalPreview.sourceHash) {
+        const res = await fetch(
+          '/api/payment/attempts/' + encodeURIComponent(startKeyRef.current),
+          { cache: 'no-store' },
+        )
+        if (res.ok) {
+          const { data } = await res.json()
+          const closed = await csrfFetch('/api/payment/checkout-form/session', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ attemptId: data.attemptId }),
+          })
+          if (!closed.ok) throw new Error('Önceki ödeme oturumu kapatılamadı.')
+        }
+        if (cancelled) return
+        startKeyRef.current = newStartKey()
+        sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
+      }
+      if (cancelled) return
+      sessionStorage.setItem('hanuja:checkout-form:source', legalPreview.sourceHash!)
+      setIntentReady(true)
+    })().catch(() => {
+      if (!cancelled) setError('Önceki ödeme oturumu kontrol edilemedi. Sayfayı yenileyin.')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [legalPreview?.sourceHash, paymentMethod])
 
   useEffect(() => {
-    const cardQuoteId = paymentMethod === 'card' ? (quote?.quoteId ?? null) : null
-    // Kart önizlemesi yalnız teklifle yüklenir (adresler teklifte); yeniden ödemede seçili adres yoktur.
-    const previewUrl = cardQuoteId
-      ? `/api/checkout/contracts-preview?quoteId=${encodeURIComponent(cardQuoteId)}`
-      : paymentMethod !== 'card' && selectedAddressId
-        ? `/api/checkout/contracts-preview?addressId=${encodeURIComponent(selectedAddressId)}&paymentMethod=${paymentMethod}${useDifferentBilling && selectedBillingAddressId ? `&billingAddressId=${encodeURIComponent(selectedBillingAddressId)}` : ''}`
+    const previewUrl = retryOrderId
+      ? '/api/checkout/contracts-preview?paymentMethod=card&orderId=' +
+        encodeURIComponent(retryOrderId)
+      : selectedAddressId
+        ? '/api/checkout/contracts-preview?addressId=' +
+          encodeURIComponent(selectedAddressId) +
+          '&paymentMethod=' +
+          paymentMethod +
+          (useDifferentBilling && selectedBillingAddressId
+            ? '&billingAddressId=' + encodeURIComponent(selectedBillingAddressId)
+            : '')
         : null
     if (!previewUrl) {
       setLegalPreview(null)
@@ -351,6 +420,20 @@ export function CheckoutPageClient({
 
         const body = await res.json().catch(() => ({}))
         if (!res.ok) {
+          if (body.code === 'CHECKOUT_FORM_CONTEXT_CHANGED' && body.details?.attemptId) {
+            const closed = await csrfFetch('/api/payment/checkout-form/session', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ attemptId: body.details.attemptId }),
+            })
+            if (!closed.ok) throw new Error('Önceki ödeme oturumu kapatılamadı.')
+            if (!cancelled) {
+              startKeyRef.current = newStartKey()
+              sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
+              setStartNonce((v) => v + 1)
+            }
+            return
+          }
           throw new Error(body.message ?? 'Sözleşmeler hazırlanamadı.')
         }
 
@@ -374,7 +457,16 @@ export function CheckoutPageClient({
     return () => {
       cancelled = true
     }
-  }, [paymentMethod, router, selectedAddressId, selectedBillingAddressId, useDifferentBilling, quote?.quoteId])
+  }, [
+    paymentMethod,
+    router,
+    selectedAddressId,
+    selectedBillingAddressId,
+    useDifferentBilling,
+    retryOrderId,
+    startNonce,
+    contextKey,
+  ])
 
   async function saveAddress() {
     if (!newAddress.fullName || !newAddress.addressLine1 || !newAddress.city) {
@@ -413,39 +505,203 @@ export function CheckoutPageClient({
     }
   }
 
-  function validateCardForm(): boolean {
-    const nextErrors: Partial<CardForm> = {}
+  const billingAddress = addresses.find(
+    (a) => a.id === (useDifferentBilling ? selectedBillingAddressId : selectedAddressId),
+  )
+  const identityReady = Boolean(billingAddress?.tcNumber) || /^\d{11}$/.test(identityNumber)
 
-    if (!cardForm.cardHolderName.trim()) {
-      nextErrors.cardHolderName = 'Ad zorunludur.'
+  useEffect(() => {
+    if (
+      paymentMethod !== 'card' ||
+      !cardPaymentsEnabled ||
+      !intentReady ||
+      !acceptedContracts ||
+      !legalPreview?.previewId ||
+      legalLoading ||
+      !turnstileToken ||
+      !identityReady ||
+      retryCannotStart ||
+      (useDifferentBilling && !selectedBillingAddressId) ||
+      checkoutSession ||
+      startInFlightRef.current
+    )
+      return
+    const generation = generationRef.current
+    startInFlightRef.current = true
+    setSubmitting(true)
+    setError(null)
+    const key = startKeyRef.current
+    void (async () => {
+      try {
+        await pendingAbandonRef.current
+        if (generation !== generationRef.current) return
+        const res = await csrfFetch('/api/payment/checkout-form/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            previewId: legalPreview.previewId,
+            startKey: key,
+            ...(identityNumber ? { identityNumber } : {}),
+            turnstileToken,
+            acceptedDistanceSales: true,
+            acceptedPreInformation: true,
+          }),
+        })
+        const body = await res.json()
+        if (!res.ok) throw new Error(body.message ?? 'Ödeme alanı açılamadı.')
+        const session = body.data as CheckoutFormSession
+        if (generation !== generationRef.current) {
+          await csrfFetch('/api/payment/checkout-form/session', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ attemptId: session.attemptId }),
+          })
+          return
+        }
+        if (session.startKey) {
+          startKeyRef.current = session.startKey
+          sessionStorage.setItem('hanuja:checkout-form:start', session.startKey)
+        }
+        sessionRef.current = session
+        setCheckoutSession(session)
+      } catch (err) {
+        // A lost response must recover the existing intent, without a new order/key.
+        let recovery = await fetch('/api/payment/attempts/' + encodeURIComponent(key), {
+          cache: 'no-store',
+        }).catch(() => null)
+        if (!recovery?.ok)
+          recovery = await fetch(
+            '/api/payment/checkout-form/session?previewId=' +
+              encodeURIComponent(legalPreview.previewId!),
+            { cache: 'no-store' },
+          ).catch(() => null)
+        const state = recovery?.ok ? (await recovery.json()).data : null
+        if (generation !== generationRef.current) {
+          if (state?.attemptId)
+            await csrfFetch('/api/payment/checkout-form/session', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ attemptId: state.attemptId }),
+            })
+          return
+        }
+        if (state?.status === 'succeeded') {
+          sessionStorage.removeItem('hanuja:checkout-form:start')
+          router.push('/siparis/' + state.orderId + '?yeni=1')
+          return
+        }
+        if (state?.iframeUrl && state.sourceHash === legalPreview.sourceHash) {
+          if (state.startKey) {
+            startKeyRef.current = state.startKey
+            sessionStorage.setItem('hanuja:checkout-form:start', state.startKey)
+          }
+          sessionRef.current = state
+          setCheckoutSession(state)
+          return
+        }
+        if (state?.orderId && ['failed', 'expired'].includes(state.status)) {
+          startKeyRef.current = newStartKey()
+          sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
+          router.replace('/odeme?siparis=' + encodeURIComponent(state.orderId))
+        }
+        setError(err instanceof Error ? err.message : 'Ödeme alanı açılamadı.')
+        setAcceptedContracts(false)
+        setTurnstileToken('')
+        setTurnstileKey((v) => v + 1)
+      } finally {
+        startInFlightRef.current = false
+        setSubmitting(false)
+      }
+    })()
+  }, [
+    paymentMethod,
+    cardPaymentsEnabled,
+    intentReady,
+    acceptedContracts,
+    legalPreview,
+    legalLoading,
+    turnstileToken,
+    identityReady,
+    identityNumber,
+    checkoutSession,
+    router,
+    startNonce,
+    useDifferentBilling,
+    selectedBillingAddressId,
+    submitting,
+    retryCannotStart,
+  ])
+
+  useEffect(() => {
+    if (!checkoutSession) return
+    let stopped = false
+    let polling = false
+    const check = async () => {
+      if (polling || stopped) return
+      polling = true
+      try {
+        const res = await fetch(
+          '/api/payment/attempts/' + encodeURIComponent(startKeyRef.current),
+          { cache: 'no-store' },
+        )
+        if (!res.ok || stopped) return
+        const { data } = await res.json()
+        if (data.status === 'succeeded') {
+          sessionStorage.removeItem('hanuja:checkout-form:start')
+          router.push('/siparis/' + data.orderId + '?yeni=1')
+        } else if (['failed', 'expired', 'voided', 'refunded'].includes(data.status)) {
+          sessionRef.current = null
+          setCheckoutSession(null)
+          setAcceptedContracts(false)
+          startKeyRef.current = newStartKey()
+          sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
+          setError('Ödeme tamamlanmadı. Yeniden deneyebilirsiniz.')
+          router.replace('/odeme?siparis=' + encodeURIComponent(data.orderId) + '&hata=reddedildi')
+          setStartNonce((v) => v + 1)
+        }
+      } catch {
+        /* Poll again; an iframe message is never payment evidence. */
+      } finally {
+        polling = false
+      }
     }
-
-    const stripped = cardForm.cardNumber.replace(/\s/g, '')
-    if (!/^\d{15,19}$/.test(stripped)) {
-      nextErrors.cardNumber = 'Geçersiz kart numarası.'
+    const onMessage = (event: MessageEvent) => {
+      if (
+        event.origin === window.location.origin &&
+        event.source === iframeRef.current?.contentWindow &&
+        event.data?.type === 'hanuja:checkout-form-result'
+      )
+        void check()
     }
-
-    if (!/^(0[1-9]|1[0-2])$/.test(cardForm.expireMonth)) {
-      nextErrors.expireMonth = 'Geçersiz ay.'
+    window.addEventListener('message', onMessage)
+    const timer = setInterval(() => void check(), 8000)
+    return () => {
+      stopped = true
+      clearInterval(timer)
+      window.removeEventListener('message', onMessage)
     }
-
-    if (!/^\d{4}$/.test(cardForm.expireYear)) {
-      nextErrors.expireYear = 'Geçersiz yıl.'
-    }
-
-    if (!/^\d{3,4}$/.test(cardForm.cvc)) {
-      nextErrors.cvc = 'Geçersiz CVC.'
-    }
-
-    if (!/^\d{11}$/.test(cardForm.identityNumber)) {
-      nextErrors.identityNumber = 'TC kimlik numarası 11 haneli rakam olmalı.'
-    }
-
-    setCardErrors(nextErrors)
-    return Object.keys(nextErrors).length === 0
-  }
+  }, [checkoutSession, router])
 
   async function placeOrder() {
+    if (!acceptedContracts) {
+      setConsentWarning(true)
+      return
+    }
+    if (paymentMethod === 'card') {
+      setError(
+        !identityReady
+          ? 'Fatura için TC kimlik numaranızı tamamlayın.'
+          : !turnstileToken
+            ? 'İnsan doğrulamasını tamamlayın.'
+            : 'Ödeme alanı hazırlanıyor.',
+      )
+      return
+    }
+    if (submitting || retryBlocked) return
+    if (useDifferentBilling && !selectedBillingAddressId) {
+      setError('Fatura adresi seçin.')
+      return
+    }
     if (!selectedAddressId && !retryOrderId) {
       setError('Lütfen bir teslimat adresi seçin.')
       return
@@ -456,122 +712,8 @@ export function CheckoutPageClient({
       return
     }
 
-    if (!acceptedMesafeliSatis || !acceptedOnBilgilendirme) {
-      setError('Devam etmek için sözleşmeleri onaylayın.')
-      return
-    }
-
     if (!turnstileToken) {
       setError('Devam etmeden önce insan doğrulamasını tamamlayın.')
-      return
-    }
-
-    if (paymentMethod === 'card') {
-      if (!validateCardForm()) {
-        return
-      }
-      if (!quote) {
-        setError('Taksit seçeneği hazır değil. Kart numaranızı kontrol edin.')
-        return
-      }
-
-      setSubmitting(true)
-      setError(null)
-      const startKey = startKeyRef.current
-
-      const resetForNextAttempt = () => {
-        startKeyRef.current = newStartKey()
-        setCardForm((prev) => ({ ...prev, cvc: '' }))
-        setTurnstileToken('')
-        setTurnstileKey((value) => value + 1)
-        setSubmitting(false)
-      }
-
-      const followAttempt = (state: { orderId: string; status: string }) => {
-        if (state.status === 'succeeded') {
-          router.push(`/siparis/${state.orderId}?yeni=1`)
-          return true
-        }
-        if (['authorizing', 'outcome_unknown', 'fraud_review'].includes(state.status)) {
-          router.push(`/siparis/${state.orderId}?odeme=kontrol`)
-          return true
-        }
-        return false
-      }
-
-      let res: Response
-      try {
-        res = await csrfFetch('/api/payment/start', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            quoteId: quote.quoteId,
-            startKey,
-            cardHolderName: cardForm.cardHolderName,
-            cardNumber: cardForm.cardNumber.replace(/\s/g, ''),
-            expireMonth: cardForm.expireMonth,
-            expireYear: cardForm.expireYear,
-            cvc: cardForm.cvc,
-            identityNumber: cardForm.identityNumber,
-            turnstileToken,
-            acceptedDistanceSales: true,
-            acceptedPreInformation: true,
-          }),
-        })
-      } catch {
-        // Yanıt kayboldu: aynı anahtarla başlamış bir deneme var mı?
-        const stateRes = await fetch(`/api/payment/attempts/${encodeURIComponent(startKey)}`, {
-          cache: 'no-store',
-        }).catch(() => null)
-        if (stateRes?.ok) {
-          const { data } = await stateRes.json()
-          if (followAttempt(data)) return
-          if (data.orderId && !retryOrderId) {
-            router.replace(`/odeme?siparis=${encodeURIComponent(data.orderId)}`)
-          }
-          setError('Ödeme ekranı açılamadı. Lütfen tekrar deneyin.')
-          resetForNextAttempt()
-          return
-        }
-        setError('Bağlantı sorunu oluştu. Lütfen tekrar deneyin.')
-        setTurnstileToken('')
-        setTurnstileKey((value) => value + 1)
-        setSubmitting(false)
-        return
-      }
-
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        const code = body.code as string | undefined
-        if (code === 'CARD_QUOTE_CHANGED' || code === 'CARD_QUOTE_INVALID' || code === 'CARD_CART_CHANGED') {
-          // Tutar yeniden hesaplanır; müşteri yeni tutarı ve belgeleri yeniden onaylar.
-          setQuote(null)
-          setQuoteNonce((value) => value + 1)
-          setAcceptedMesafeliSatis(false)
-          setAcceptedOnBilgilendirme(false)
-        }
-        const failedOrderId = (body.details as { orderId?: string } | undefined)?.orderId
-        if (failedOrderId && !retryOrderId) {
-          router.replace(`/odeme?siparis=${encodeURIComponent(failedOrderId)}`)
-        }
-        setError(body.message ?? body.error ?? 'Ödeme başlatılamadı. Lütfen tekrar deneyin.')
-        resetForNextAttempt()
-        return
-      }
-
-      const data = body.data as
-        | { kind: 'threeds'; orderId: string; html: string }
-        | { kind: 'existing'; orderId: string; status: string }
-      if (data.kind === 'existing') {
-        if (followAttempt(data)) return
-        setError('Önceki ödeme ekranı açılamadı. Lütfen tekrar deneyin.')
-        resetForNextAttempt()
-        return
-      }
-
-      document.open()
-      document.write(data.html)
-      document.close()
       return
     }
 
@@ -579,6 +721,7 @@ export function CheckoutPageClient({
     setError(null)
 
     try {
+      await pendingAbandonRef.current
       const res = await csrfFetch('/api/checkout/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -627,28 +770,30 @@ export function CheckoutPageClient({
     )
   }
 
-  const grossSubtotal = Number(cartSummary?.grossSubtotal ?? cartSummary?.subtotal ?? 0)
-  const couponDiscount = Number(cartSummary?.couponDiscount ?? 0)
+  const grossSubtotal = Number(
+    retryState?.grossAmount ?? cartSummary?.grossSubtotal ?? cartSummary?.subtotal ?? 0,
+  )
+  const couponDiscount = Number(
+    retryState?.couponDiscountAmount ?? cartSummary?.couponDiscount ?? 0,
+  )
   const eftDiscount = paymentMethod === 'eft' ? Number(cartSummary?.eftDiscount ?? 0) : 0
   const freeShippingThreshold = Number(cartSummary?.freeShippingThresholdTry ?? 1500)
   const flatShippingFee = Number(cartSummary?.flatShippingFeeTry ?? 99)
-  const shipping = Number(cartSummary?.shipping ?? (grossSubtotal >= freeShippingThreshold ? 0 : flatShippingFee))
-  const baseTotal = paymentMethod === 'eft'
-    ? grossSubtotal - couponDiscount - eftDiscount + shipping
-    : retryState
-      ? Number(retryState.totalAmount)
-      : Number(cartSummary?.total ?? (grossSubtotal - couponDiscount + shipping))
-  const installmentDifference =
-    paymentMethod === 'card' && quote ? Number(quote.selected.differenceAmount) : 0
-  const total = paymentMethod === 'card' && quote ? Number(quote.selected.totalPrice) : baseTotal
+  const shipping = Number(
+    retryState?.shippingAmount ??
+      cartSummary?.shipping ??
+      (grossSubtotal >= freeShippingThreshold ? 0 : flatShippingFee),
+  )
+  const baseTotal =
+    paymentMethod === 'eft'
+      ? grossSubtotal - couponDiscount - eftDiscount + shipping
+      : retryState
+        ? Number(retryState.totalAmount)
+        : Number(cartSummary?.total ?? grossSubtotal - couponDiscount + shipping)
+  const total = baseTotal
   const hasAddress = Boolean(selectedAddressId) || Boolean(retryOrderId)
-  const documentsReady =
-    hasAddress &&
-    Boolean(legalPreview) &&
-    !legalLoading &&
-    !legalError &&
-    (paymentMethod !== 'card' || (Boolean(quote) && !quoteLoading))
-  const retryBlocked = Boolean(retryOrderId) && (!retryState || !retryState.payable)
+  const documentsReady = hasAddress && Boolean(legalPreview) && !legalLoading && !legalError
+  const retryBlocked = retryCannotStart
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
@@ -699,248 +844,279 @@ export function CheckoutPageClient({
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {retryOrderId ? null : (
-          <>
-          <section
-            className="rounded-xl border p-6"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-          >
-            <div className="mb-4 flex items-center gap-2">
-              <MapPin className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
-              <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
-                Teslimat Adresi
-              </h2>
-            </div>
-
-            {addresses.length === 0 && !showAddressForm ? (
-              <p className="mb-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                Kayıtlı adresiniz yok. Yeni adres ekleyin.
-              </p>
-            ) : null}
-
-            <div className="space-y-3">
-              {addresses.filter((a) => !a.isBillingAddress).map((address) => (
-                <label
-                  key={address.id}
-                  className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors"
-                  style={{
-                    borderColor:
-                      selectedAddressId === address.id
-                        ? selectedOptionBorderColor
-                        : 'var(--color-border)',
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="address"
-                    value={address.id}
-                    checked={selectedAddressId === address.id}
-                    onChange={() => setSelectedAddressId(address.id)}
-                    className="mt-0.5"
-                    style={{ accentColor: selectedOptionBorderColor }}
-                  />
-                  <div className="flex-1 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
-                        {address.fullName}
-                      </span>
-                      {address.label ? (
-                        <span
-                          className="rounded px-1.5 py-0.5 text-xs"
-                          style={{
-                            backgroundColor: 'var(--color-muted)',
-                            color: 'var(--color-muted-fg)',
-                          }}
-                        >
-                          {address.label}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p style={{ color: 'var(--color-muted-fg)' }}>
-                      {address.addressLine1}
-                      {address.addressLine2 ? `, ${address.addressLine2}` : ''}
-                    </p>
-                    <p style={{ color: 'var(--color-muted-fg)' }}>
-                      {[address.district, '/', address.city, address.postalCode].filter(Boolean).join(' ')}
-                    </p>
-                    <p style={{ color: 'var(--color-muted-fg)' }}>{address.phone}</p>
-                  </div>
-                  {selectedAddressId === address.id ? (
-                    <CheckCircle2 className="mt-0.5 h-4 w-4" style={{ color: selectedOptionBorderColor }} />
-                  ) : null}
-                </label>
-              ))}
-            </div>
-
-            {showAddressForm ? (
-              <div
-                className="mt-4 space-y-3 rounded-lg border p-4"
-                style={{ borderColor: 'var(--color-border)' }}
-              >
-                <h3 className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                  Yeni Adres
-                </h3>
-                {[
-                  { key: 'fullName', label: 'Ad Soyad *', placeholder: 'Ad Soyad' },
-                  { key: 'phone', label: 'Telefon *', placeholder: '05XX XXX XX XX' },
-                  { key: 'addressLine1', label: 'Adres *', placeholder: 'Mahalle, sokak, bina no...' },
-                  { key: 'district', label: 'İlçe *', placeholder: 'İlçe' },
-                  { key: 'city', label: 'Şehir *', placeholder: 'İzmir' },
-                  { key: 'postalCode', label: 'Posta Kodu', placeholder: '35000' },
-                  { key: 'label', label: 'Etiket', placeholder: 'Ev, İş...' },
-                ].map(({ key, label, placeholder }) => (
-                  <div key={key}>
-                    <label className="mb-1 block text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                      {label}
-                    </label>
-                    <input
-                      type="text"
-                      placeholder={placeholder}
-                      value={newAddress[key as keyof typeof newAddress]}
-                      onChange={(event) =>
-                        setNewAddress((prev) => ({ ...prev, [key]: event.target.value }))
-                      }
-                      className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
-                      style={{
-                        borderColor: 'var(--color-border)',
-                        backgroundColor: 'var(--color-bg)',
-                        color: 'var(--color-primary)',
-                      }}
-                    />
-                  </div>
-                ))}
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={saveAddress}>
-                    Kaydet
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setShowAddressForm(false)}>
-                    İptal
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowAddressForm(true)}
-                className="mt-3 flex items-center gap-1.5 text-sm"
-                style={{ color: 'var(--color-accent)' }}
-              >
-                <Plus className="h-4 w-4" />
-                Yeni adres ekle
-              </button>
-            )}
-          </section>
-
-          {/* Farklı fatura adresi bölümü */}
-          <section
-            className="rounded-xl border p-6"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-          >
-            <label className="flex cursor-pointer items-center gap-3">
-              <input
-                type="checkbox"
-                checked={useDifferentBilling}
-                onChange={(e) => {
-                  setUseDifferentBilling(e.target.checked)
-                  if (!e.target.checked) setSelectedBillingAddressId(null)
+            <>
+              <section
+                className="rounded-xl border p-6"
+                style={{
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: 'var(--color-surface)',
                 }}
-                className="h-4 w-4 rounded"
-                style={{ accentColor: 'var(--color-accent)' }}
-              />
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
-                <span className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                  Farklı fatura adresi kullan
-                </span>
-              </div>
-            </label>
+              >
+                <div className="mb-4 flex items-center gap-2">
+                  <MapPin className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
+                  <h2 className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+                    Teslimat Adresi
+                  </h2>
+                </div>
 
-            {useDifferentBilling && (
-              <div className="mt-4">
-                {(() => {
-                  const billingAddrs = addresses.filter((a) => a.isBillingAddress)
-                  if (billingAddrs.length === 0) {
-                    return (
-                      <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
-                        Kayıtlı fatura adresiniz yok.{' '}
-                        <a
-                          href="/hesabim/adresler"
-                          className="underline"
-                          style={{ color: 'var(--color-accent)' }}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Adreslerim
-                        </a>
-                        {' '}sayfasından yeni fatura adresi ekleyebilirsiniz.
-                      </p>
-                    )
-                  }
-                  return (
-                    <div className="space-y-3">
-                      {billingAddrs.map((addr) => (
-                        <label
-                          key={addr.id}
-                          className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors"
-                          style={{
-                            borderColor:
-                              selectedBillingAddressId === addr.id
-                                ? selectedOptionBorderColor
-                                : 'var(--color-border)',
-                          }}
-                        >
-                          <input
-                            type="radio"
-                            name="billingAddress"
-                            value={addr.id}
-                            checked={selectedBillingAddressId === addr.id}
-                            onChange={() => setSelectedBillingAddressId(addr.id)}
-                            className="mt-0.5"
-                            style={{ accentColor: selectedOptionBorderColor }}
-                          />
-                          <div className="flex-1 text-sm">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
-                                {addr.invoiceType === 'corporate' && addr.companyName
-                                  ? addr.companyName
-                                  : addr.fullName}
-                              </span>
+                {addresses.length === 0 && !showAddressForm ? (
+                  <p className="mb-3 text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                    Kayıtlı adresiniz yok. Yeni adres ekleyin.
+                  </p>
+                ) : null}
+
+                <div className="space-y-3">
+                  {addresses
+                    .filter((a) => !a.isBillingAddress)
+                    .map((address) => (
+                      <label
+                        key={address.id}
+                        className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors"
+                        style={{
+                          borderColor:
+                            selectedAddressId === address.id
+                              ? selectedOptionBorderColor
+                              : 'var(--color-border)',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="address"
+                          value={address.id}
+                          checked={selectedAddressId === address.id}
+                          onChange={() => setSelectedAddressId(address.id)}
+                          className="mt-0.5"
+                          style={{ accentColor: selectedOptionBorderColor }}
+                        />
+                        <div className="flex-1 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium" style={{ color: 'var(--color-primary)' }}>
+                              {address.fullName}
+                            </span>
+                            {address.label ? (
                               <span
                                 className="rounded px-1.5 py-0.5 text-xs"
-                                style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-muted-fg)' }}
+                                style={{
+                                  backgroundColor: 'var(--color-muted)',
+                                  color: 'var(--color-muted-fg)',
+                                }}
                               >
-                                {addr.invoiceType === 'corporate' ? 'Kurumsal' : 'Bireysel'}
+                                {address.label}
                               </span>
-                            </div>
-                            <p style={{ color: 'var(--color-muted-fg)' }}>
-                              {addr.addressLine1}
-                              {addr.addressLine2 ? `, ${addr.addressLine2}` : ''}
-                            </p>
-                            <p style={{ color: 'var(--color-muted-fg)' }}>
-                              {[addr.district, '/', addr.city, addr.postalCode].filter(Boolean).join(' ')}
-                            </p>
+                            ) : null}
                           </div>
-                          {selectedBillingAddressId === addr.id ? (
-                            <CheckCircle2 className="mt-0.5 h-4 w-4" style={{ color: selectedOptionBorderColor }} />
-                          ) : null}
+                          <p style={{ color: 'var(--color-muted-fg)' }}>
+                            {address.addressLine1}
+                            {address.addressLine2 ? `, ${address.addressLine2}` : ''}
+                          </p>
+                          <p style={{ color: 'var(--color-muted-fg)' }}>
+                            {[address.district, '/', address.city, address.postalCode]
+                              .filter(Boolean)
+                              .join(' ')}
+                          </p>
+                          <p style={{ color: 'var(--color-muted-fg)' }}>{address.phone}</p>
+                        </div>
+                        {selectedAddressId === address.id ? (
+                          <CheckCircle2
+                            className="mt-0.5 h-4 w-4"
+                            style={{ color: selectedOptionBorderColor }}
+                          />
+                        ) : null}
+                      </label>
+                    ))}
+                </div>
+
+                {showAddressForm ? (
+                  <div
+                    className="mt-4 space-y-3 rounded-lg border p-4"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    <h3 className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                      Yeni Adres
+                    </h3>
+                    {[
+                      { key: 'fullName', label: 'Ad Soyad *', placeholder: 'Ad Soyad' },
+                      { key: 'phone', label: 'Telefon *', placeholder: '05XX XXX XX XX' },
+                      {
+                        key: 'addressLine1',
+                        label: 'Adres *',
+                        placeholder: 'Mahalle, sokak, bina no...',
+                      },
+                      { key: 'district', label: 'İlçe *', placeholder: 'İlçe' },
+                      { key: 'city', label: 'Şehir *', placeholder: 'İzmir' },
+                      { key: 'postalCode', label: 'Posta Kodu', placeholder: '35000' },
+                      { key: 'label', label: 'Etiket', placeholder: 'Ev, İş...' },
+                    ].map(({ key, label, placeholder }) => (
+                      <div key={key}>
+                        <label
+                          className="mb-1 block text-xs"
+                          style={{ color: 'var(--color-muted-fg)' }}
+                        >
+                          {label}
                         </label>
-                      ))}
-                      <a
-                        href="/hesabim/adresler"
-                        className="mt-1 inline-flex items-center gap-1.5 text-xs"
-                        style={{ color: 'var(--color-accent)' }}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Plus className="h-3 w-3" />
-                        Adreslerim&apos;den yönet
-                      </a>
+                        <input
+                          type="text"
+                          placeholder={placeholder}
+                          value={newAddress[key as keyof typeof newAddress]}
+                          onChange={(event) =>
+                            setNewAddress((prev) => ({ ...prev, [key]: event.target.value }))
+                          }
+                          className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
+                          style={{
+                            borderColor: 'var(--color-border)',
+                            backgroundColor: 'var(--color-bg)',
+                            color: 'var(--color-primary)',
+                          }}
+                        />
+                      </div>
+                    ))}
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={saveAddress}>
+                        Kaydet
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowAddressForm(false)}>
+                        İptal
+                      </Button>
                     </div>
-                  )
-                })()}
-              </div>
-            )}
-          </section>
-          </>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddressForm(true)}
+                    className="mt-3 flex items-center gap-1.5 text-sm"
+                    style={{ color: 'var(--color-accent)' }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Yeni adres ekle
+                  </button>
+                )}
+              </section>
+
+              {/* Farklı fatura adresi bölümü */}
+              <section
+                className="rounded-xl border p-6"
+                style={{
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: 'var(--color-surface)',
+                }}
+              >
+                <label className="flex cursor-pointer items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={useDifferentBilling}
+                    onChange={(e) => {
+                      setUseDifferentBilling(e.target.checked)
+                      if (!e.target.checked) setSelectedBillingAddressId(null)
+                    }}
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: 'var(--color-accent)' }}
+                  />
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+                    <span className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                      Farklı fatura adresi kullan
+                    </span>
+                  </div>
+                </label>
+
+                {useDifferentBilling && (
+                  <div className="mt-4">
+                    {(() => {
+                      const billingAddrs = addresses.filter((a) => a.isBillingAddress)
+                      if (billingAddrs.length === 0) {
+                        return (
+                          <p className="text-sm" style={{ color: 'var(--color-muted-fg)' }}>
+                            Kayıtlı fatura adresiniz yok.{' '}
+                            <a
+                              href="/hesabim/adresler"
+                              className="underline"
+                              style={{ color: 'var(--color-accent)' }}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Adreslerim
+                            </a>{' '}
+                            sayfasından yeni fatura adresi ekleyebilirsiniz.
+                          </p>
+                        )
+                      }
+                      return (
+                        <div className="space-y-3">
+                          {billingAddrs.map((addr) => (
+                            <label
+                              key={addr.id}
+                              className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors"
+                              style={{
+                                borderColor:
+                                  selectedBillingAddressId === addr.id
+                                    ? selectedOptionBorderColor
+                                    : 'var(--color-border)',
+                              }}
+                            >
+                              <input
+                                type="radio"
+                                name="billingAddress"
+                                value={addr.id}
+                                checked={selectedBillingAddressId === addr.id}
+                                onChange={() => setSelectedBillingAddressId(addr.id)}
+                                className="mt-0.5"
+                                style={{ accentColor: selectedOptionBorderColor }}
+                              />
+                              <div className="flex-1 text-sm">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span
+                                    className="font-medium"
+                                    style={{ color: 'var(--color-primary)' }}
+                                  >
+                                    {addr.invoiceType === 'corporate' && addr.companyName
+                                      ? addr.companyName
+                                      : addr.fullName}
+                                  </span>
+                                  <span
+                                    className="rounded px-1.5 py-0.5 text-xs"
+                                    style={{
+                                      backgroundColor: 'var(--color-muted)',
+                                      color: 'var(--color-muted-fg)',
+                                    }}
+                                  >
+                                    {addr.invoiceType === 'corporate' ? 'Kurumsal' : 'Bireysel'}
+                                  </span>
+                                </div>
+                                <p style={{ color: 'var(--color-muted-fg)' }}>
+                                  {addr.addressLine1}
+                                  {addr.addressLine2 ? `, ${addr.addressLine2}` : ''}
+                                </p>
+                                <p style={{ color: 'var(--color-muted-fg)' }}>
+                                  {[addr.district, '/', addr.city, addr.postalCode]
+                                    .filter(Boolean)
+                                    .join(' ')}
+                                </p>
+                              </div>
+                              {selectedBillingAddressId === addr.id ? (
+                                <CheckCircle2
+                                  className="mt-0.5 h-4 w-4"
+                                  style={{ color: selectedOptionBorderColor }}
+                                />
+                              ) : null}
+                            </label>
+                          ))}
+                          <a
+                            href="/hesabim/adresler"
+                            className="mt-1 inline-flex items-center gap-1.5 text-xs"
+                            style={{ color: 'var(--color-accent)' }}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Adreslerim&apos;den yönet
+                          </a>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
+              </section>
+            </>
           )}
 
           <section
@@ -955,350 +1131,109 @@ export function CheckoutPageClient({
             </div>
 
             <div className="space-y-3">
-              {cardPaymentsEnabled || retryOrderId ? <label
-                className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
-                style={{
-                  borderColor:
-                    paymentMethod === 'card' ? selectedOptionBorderColor : 'var(--color-border)',
-                }}
-              >
-                <input
-                  type="radio"
-                  name="payment"
-                  value="card"
-                  checked={paymentMethod === 'card'}
-                  onChange={() => setPaymentMethod('card')}
-                  style={{ accentColor: selectedOptionBorderColor }}
-                />
-                <CreditCard className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
-                <div>
-                  <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                    Kredi / Banka Kartı
-                  </p>
-                  <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                    Güvenli ödeme - iyzico altyapısı
-                  </p>
-                </div>
-              </label> : (
+              {cardPaymentsEnabled || retryOrderId ? (
+                <label
+                  className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
+                  style={{
+                    borderColor:
+                      paymentMethod === 'card' ? selectedOptionBorderColor : 'var(--color-border)',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="payment"
+                    value="card"
+                    checked={paymentMethod === 'card'}
+                    onChange={() => setPaymentMethod('card')}
+                    style={{ accentColor: selectedOptionBorderColor }}
+                  />
+                  <CreditCard className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                      Kredi / Banka Kartı
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                      Güvenli ödeme - iyzico altyapısı
+                    </p>
+                  </div>
+                </label>
+              ) : (
                 <div
                   className="rounded-lg border p-3 text-sm"
                   style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted-fg)' }}
                 >
-                  Ödeme yöntemi Havale/EFT’dir. Sipariş sonrasında banka bilgileri
-                  gösterilecektir.
+                  Ödeme yöntemi Havale/EFT’dir. Sipariş sonrasında banka bilgileri gösterilecektir.
                 </div>
               )}
 
-              {(cardPaymentsEnabled || retryOrderId) && paymentMethod === 'card' ? (
+              {paymentMethod === 'card' ? (
                 <div
                   className="space-y-3 rounded-lg border p-4"
                   style={{ borderColor: 'var(--color-border)' }}
                 >
-                  <div className="mb-1 flex items-center gap-1.5">
-                    <Lock className="h-3.5 w-3.5" style={{ color: 'var(--color-muted-fg)' }} />
-                    <span className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                      Kart bilgileriniz şifreli iletilir, sunucularımızda saklanmaz.
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                      Kart Üzerindeki İsim *
-                    </label>
-                    <input
-                      type="text"
-                      autoComplete="cc-name"
-                      placeholder="Ad Soyad"
-                      value={cardForm.cardHolderName}
-                      onChange={(event) =>
-                        setCardForm((prev) => ({ ...prev, cardHolderName: event.target.value }))
-                      }
-                      className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
-                      style={{
-                        borderColor: cardErrors.cardHolderName
-                          ? 'var(--color-destructive)'
-                          : 'var(--color-border)',
-                        backgroundColor: 'var(--color-bg)',
-                        color: 'var(--color-primary)',
-                      }}
-                    />
-                    {cardErrors.cardHolderName ? (
-                      <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
-                        {cardErrors.cardHolderName}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                      Kart Numarası *
-                    </label>
-                    <input
-                      type="text"
-                      autoComplete="cc-number"
-                      inputMode="numeric"
-                      placeholder="0000 0000 0000 0000"
-                      maxLength={23}
-                      value={cardForm.cardNumber}
-                      onChange={(event) => {
-                        const digits = event.target.value.replace(/\D/g, '').slice(0, 19)
-                        const formatted = digits.replace(/(.{4})/g, '$1 ').trim()
-                        setCardForm((prev) => ({ ...prev, cardNumber: formatted }))
-                      }}
-                      className="w-full rounded-lg border px-3 py-2 font-mono text-sm outline-none focus:ring-2"
-                      style={{
-                        borderColor: cardErrors.cardNumber
-                          ? 'var(--color-destructive)'
-                          : 'var(--color-border)',
-                        backgroundColor: 'var(--color-bg)',
-                        color: 'var(--color-primary)',
-                      }}
-                    />
-                    {cardErrors.cardNumber ? (
-                      <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
-                        {cardErrors.cardNumber}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div data-testid="checkout-installments">
-                    <p className="mb-1 text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                      Taksit Seçenekleri
-                    </p>
-                    {cardBin.length < 8 ? (
-                      <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                        Taksit seçenekleri kart numaranızın ilk 8 hanesine göre gösterilir.
-                      </p>
-                    ) : quoteLoading && !quote ? (
-                      <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                        <Spinner className="h-4 w-4" />
-                        Taksit seçenekleri hesaplanıyor...
-                      </div>
-                    ) : quoteError ? (
-                      <p className="text-xs" style={{ color: 'var(--color-destructive)' }}>
-                        {quoteError}
-                      </p>
-                    ) : quote ? (
-                      <div className="space-y-2">
-                        {quote.card.bankName || quote.card.cardFamily ? (
-                          <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                            {[quote.card.bankName, quote.card.cardFamily].filter(Boolean).join(' · ')}
-                          </p>
-                        ) : null}
-                        <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--color-border)' }}>
-                          {quote.offers.map((offer) => (
-                            <label
-                              key={offer.installmentNumber}
-                              className="flex cursor-pointer items-center gap-3 border-b px-3 py-2 text-sm last:border-b-0"
-                              style={{ borderColor: 'var(--color-border)' }}
-                            >
-                              <input
-                                type="radio"
-                                name="installment"
-                                checked={selectedInstallment === offer.installmentNumber}
-                                disabled={quoteLoading}
-                                onChange={() => setSelectedInstallment(offer.installmentNumber)}
-                                style={{ accentColor: selectedOptionBorderColor }}
-                              />
-                              <span className="flex-1" style={{ color: 'var(--color-primary)' }}>
-                                {offer.installmentNumber === 1
-                                  ? 'Tek çekim'
-                                  : `${offer.installmentNumber} taksit × ${formatMoneyExact(offer.installmentPrice)}`}
-                              </span>
-                              <span className="text-right">
-                                <span className="block font-medium" style={{ color: 'var(--color-primary)' }}>
-                                  {formatMoneyExact(offer.totalPrice)}
-                                </span>
-                                {Number(offer.differenceAmount) > 0 ? (
-                                  <span className="block text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                                    Vade farkı {formatMoneyExact(offer.differenceAmount)}
-                                  </span>
-                                ) : null}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                        <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                          Taksitli ödemede banka vade farkı ödenecek toplama eklenir.
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
+                  <p className="flex gap-2 text-sm">
+                    <Lock className="h-4 w-4 shrink-0" />
+                    Kart bilgilerinizi iyzico’nun güvenli alanında gireceksiniz.
+                  </p>
+                  {!billingAddress?.tcNumber ? (
                     <div>
-                      <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                        Ay *
+                      <label htmlFor="checkout-identity" className="text-sm">
+                        Fatura için TC Kimlik Numarası
                       </label>
                       <input
-                        type="text"
-                        autoComplete="cc-exp-month"
+                        id="checkout-identity"
                         inputMode="numeric"
-                        placeholder="MM"
-                        maxLength={2}
-                        value={cardForm.expireMonth}
-                        onChange={(event) =>
-                          setCardForm((prev) => ({
-                            ...prev,
-                            expireMonth: event.target.value.replace(/\D/g, '').slice(0, 2),
-                          }))
+                        maxLength={11}
+                        value={identityNumber}
+                        onChange={(e) =>
+                          setIdentityNumber(e.target.value.replace(/\D/g, '').slice(0, 11))
                         }
-                        className="w-full rounded-lg border px-3 py-2 text-center text-sm outline-none focus:ring-2"
-                        style={{
-                          borderColor: cardErrors.expireMonth
-                            ? 'var(--color-destructive)'
-                            : 'var(--color-border)',
-                          backgroundColor: 'var(--color-bg)',
-                          color: 'var(--color-primary)',
-                        }}
+                        className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                       />
-                      {cardErrors.expireMonth ? (
-                        <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
-                          {cardErrors.expireMonth}
-                        </p>
-                      ) : null}
                     </div>
-
-                    <div>
-                      <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                        Yıl *
-                      </label>
-                      <input
-                        type="text"
-                        autoComplete="cc-exp-year"
-                        inputMode="numeric"
-                        placeholder="YYYY"
-                        maxLength={4}
-                        value={cardForm.expireYear}
-                        onChange={(event) =>
-                          setCardForm((prev) => ({
-                            ...prev,
-                            expireYear: event.target.value.replace(/\D/g, '').slice(0, 4),
-                          }))
-                        }
-                        className="w-full rounded-lg border px-3 py-2 text-center text-sm outline-none focus:ring-2"
-                        style={{
-                          borderColor: cardErrors.expireYear
-                            ? 'var(--color-destructive)'
-                            : 'var(--color-border)',
-                          backgroundColor: 'var(--color-bg)',
-                          color: 'var(--color-primary)',
-                        }}
-                      />
-                      {cardErrors.expireYear ? (
-                        <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
-                          {cardErrors.expireYear}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                        CVC *
-                      </label>
-                      <input
-                        type="text"
-                        autoComplete="cc-csc"
-                        inputMode="numeric"
-                        placeholder="123"
-                        maxLength={4}
-                        value={cardForm.cvc}
-                        onChange={(event) =>
-                          setCardForm((prev) => ({
-                            ...prev,
-                            cvc: event.target.value.replace(/\D/g, '').slice(0, 4),
-                          }))
-                        }
-                        className="w-full rounded-lg border px-3 py-2 text-center text-sm outline-none focus:ring-2"
-                        style={{
-                          borderColor: cardErrors.cvc
-                            ? 'var(--color-destructive)'
-                            : 'var(--color-border)',
-                          backgroundColor: 'var(--color-bg)',
-                          color: 'var(--color-primary)',
-                        }}
-                      />
-                      {cardErrors.cvc ? (
-                        <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
-                          {cardErrors.cvc}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-muted-fg)' }}>
-                      TC Kimlik Numarası *
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="12345678901"
-                      maxLength={11}
-                      value={cardForm.identityNumber}
-                      onChange={(event) =>
-                        setCardForm((prev) => ({
-                          ...prev,
-                          identityNumber: event.target.value.replace(/\D/g, '').slice(0, 11),
-                        }))
-                      }
-                      className="w-full rounded-lg border px-3 py-2 font-mono text-sm outline-none focus:ring-2"
-                      style={{
-                        borderColor: cardErrors.identityNumber
-                          ? 'var(--color-destructive)'
-                          : 'var(--color-border)',
-                        backgroundColor: 'var(--color-bg)',
-                        color: 'var(--color-primary)',
-                      }}
-                    />
-                    {cardErrors.identityNumber ? (
-                      <p className="mt-1 text-xs" style={{ color: 'var(--color-destructive)' }}>
-                        {cardErrors.identityNumber}
-                      </p>
-                    ) : null}
-                    <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                      iyzico ödeme güvenliği için zorunludur. Sunucularımızda saklanmaz.
-                    </p>
-                  </div>
+                  ) : null}
+                  <p className="text-xs">
+                    Taksit seçimi, taksit farkı ve kesin ödeme toplamı iyzico alanında gösterilir.
+                  </p>
                 </div>
               ) : null}
 
               {retryOrderId ? null : (
-              <label
-                className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
-                style={{
-                  borderColor:
-                    paymentMethod === 'eft' ? selectedOptionBorderColor : 'var(--color-border)',
-                }}
-              >
-                <input
-                  type="radio"
-                  name="payment"
-                  value="eft"
-                  checked={paymentMethod === 'eft'}
-                  onChange={() => setPaymentMethod('eft')}
-                  style={{ accentColor: selectedOptionBorderColor }}
-                />
-                <Banknote className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
-                      Havale / EFT
+                <label
+                  className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
+                  style={{
+                    borderColor:
+                      paymentMethod === 'eft' ? selectedOptionBorderColor : 'var(--color-border)',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="payment"
+                    value="eft"
+                    checked={paymentMethod === 'eft'}
+                    onChange={() => setPaymentMethod('eft')}
+                    style={{ accentColor: selectedOptionBorderColor }}
+                  />
+                  <Banknote className="h-4 w-4" style={{ color: 'var(--color-muted-fg)' }} />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                        Havale / EFT
+                      </p>
+                      {(cartSummary?.eftDiscountRatePercent ?? 0) > 0 ? (
+                        <span
+                          className="rounded px-1.5 py-0.5 text-xs font-medium"
+                          style={{ backgroundColor: '#dcfce7', color: 'var(--color-success)' }}
+                        >
+                          %{cartSummary!.eftDiscountRatePercent} indirim
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
+                      Sipariş sonrasında banka bilgileri gösterilir
                     </p>
-                    {(cartSummary?.eftDiscountRatePercent ?? 0) > 0 ? (
-                      <span
-                        className="rounded px-1.5 py-0.5 text-xs font-medium"
-                        style={{ backgroundColor: '#dcfce7', color: 'var(--color-success)' }}
-                      >
-                        %{cartSummary!.eftDiscountRatePercent} indirim
-                      </span>
-                    ) : null}
                   </div>
-                  <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                    Sipariş sonrasında banka bilgileri gösterilir
-                  </p>
-                </div>
-              </label>
+                </label>
               )}
             </div>
           </section>
@@ -1317,7 +1252,9 @@ export function CheckoutPageClient({
               <span>Ürünler</span>
               <span>{formatPrice(grossSubtotal)}</span>
             </div>
-            {paymentMethod === 'eft' && eftDiscount > 0 && (cartSummary?.eftDiscountRatePercent ?? 0) > 0 ? (
+            {paymentMethod === 'eft' &&
+            eftDiscount > 0 &&
+            (cartSummary?.eftDiscountRatePercent ?? 0) > 0 ? (
               <div className="flex justify-between" style={{ color: 'var(--color-success)' }}>
                 <span>EFT / Havale indirimi</span>
                 <span>-{formatPrice(eftDiscount)}</span>
@@ -1331,42 +1268,42 @@ export function CheckoutPageClient({
             ) : null}
             <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
               <span>Kargo</span>
-              <span>{shipping === 0 ? <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span> : formatPrice(shipping)}</span>
+              <span>
+                {shipping === 0 ? (
+                  <span style={{ color: 'var(--color-success)' }}>Ücretsiz</span>
+                ) : (
+                  formatPrice(shipping)
+                )}
+              </span>
             </div>
             {shipping > 0 ? (
               <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
                 {formatPrice(freeShippingThreshold)} ve üzeri siparişlerde kargo ücretsizdir.
               </p>
             ) : null}
-            {installmentDifference > 0 && quote ? (
-              <div className="flex justify-between" style={{ color: 'var(--color-muted-fg)' }}>
-                <span>Vade farkı ({quote.selected.installmentNumber} taksit)</span>
-                <span>{formatMoneyExact(installmentDifference)}</span>
-              </div>
-            ) : null}
             <Separator />
-            <div className="flex justify-between text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
-              <span>{paymentMethod === 'card' && quote ? 'Ödenecek Toplam' : 'Toplam'}</span>
-              <span>
-                {paymentMethod === 'card' && quote ? formatMoneyExact(total) : formatPrice(total)}
-              </span>
+            <div
+              className="flex justify-between text-base font-semibold"
+              style={{ color: 'var(--color-primary)' }}
+            >
+              <span>{paymentMethod === 'card' ? 'Peşin Sepet Toplamı' : 'Toplam'}</span>
+              <span>{formatMoneyExact(total)}</span>
             </div>
-            {paymentMethod === 'card' && quote && quote.selected.installmentNumber > 1 ? (
-              <p className="text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                {quote.selected.installmentNumber} × {formatMoneyExact(quote.selected.installmentPrice)}
+            {paymentMethod === 'card' ? (
+              <p className="text-xs">
+                Taksit farkı ve kesin ödeme toplamı iyzico alanında gösterilir.
               </p>
             ) : null}
           </div>
 
-          {(!hasAddress || legalLoading || legalError || (paymentMethod === 'card' && !quote)) ? (
-            <div className="mt-5 rounded-lg border p-4 text-xs" style={{ borderColor: 'var(--color-border)' }}>
+          {!hasAddress || legalLoading || legalError ? (
+            <div
+              className="mt-5 rounded-lg border p-4 text-xs"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
               {!hasAddress ? (
                 <p style={{ color: 'var(--color-muted-fg)' }}>
                   Siparişe özel sözleşmeleri görmek ve onaylamak için önce teslimat adresi seçin.
-                </p>
-              ) : paymentMethod === 'card' && !quote ? (
-                <p style={{ color: 'var(--color-muted-fg)' }}>
-                  Sözleşmeler, kart numaranıza göre seçtiğiniz taksit ve ödenecek toplamla hazırlanır.
                 </p>
               ) : legalLoading ? (
                 <div className="flex items-center gap-2" style={{ color: 'var(--color-muted-fg)' }}>
@@ -1379,51 +1316,49 @@ export function CheckoutPageClient({
             </div>
           ) : null}
 
-          <div className="mt-5 space-y-3">
-            <div className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                data-testid="checkout-accept-distance-sales"
-                className="mt-0.5 h-4 w-4 shrink-0 accent-current"
-                checked={acceptedMesafeliSatis}
+          <div className="mt-5 flex items-start gap-2">
+            <input
+              id="checkout-contracts"
+              type="checkbox"
+              data-testid="checkout-accept-contracts"
+              aria-label="Mesafeli Satış Sözleşmesi ve Ön Bilgilendirme Formu’nu kabul ediyorum"
+              className="mt-1 h-4 w-4 shrink-0"
+              checked={acceptedContracts}
+              disabled={!documentsReady}
+              onChange={(e) => {
+                setAcceptedContracts(e.target.checked)
+                setConsentWarning(false)
+                if (!e.target.checked) {
+                  invalidateSession()
+                  startKeyRef.current = newStartKey()
+                  sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
+                }
+              }}
+            />
+            <div className="text-xs leading-relaxed">
+              <LegalDocumentDialog
+                title="Mesafeli Satış Sözleşmesi"
+                html={legalPreview?.distanceSalesHtml ?? ''}
+                triggerLabel="Mesafeli Satış Sözleşmesi"
                 disabled={!documentsReady}
-                onChange={(event) => setAcceptedMesafeliSatis(event.target.checked)}
+                triggerClassName="h-auto px-0 py-0 text-xs underline"
               />
-              <div className="text-xs leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>
-                <LegalDocumentDialog
-                  title="Mesafeli Satış Sözleşmesi"
-                  description="Bu metin sipariş anındaki müşteri, teslimat adresi ve ödeme yöntemi bilgilerinize göre oluşturulur."
-                  html={legalPreview?.distanceSalesHtml ?? ''}
-                  triggerLabel="Mesafeli Satış Sözleşmesi"
-                  disabled={!documentsReady}
-                  triggerClassName="h-auto px-0 py-0 text-xs font-medium underline underline-offset-2"
-                />
-                {' '}metnini okudum, kabul ediyorum.
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                data-testid="checkout-accept-pre-information"
-                className="mt-0.5 h-4 w-4 shrink-0 accent-current"
-                checked={acceptedOnBilgilendirme}
+              {' ve '}
+              <LegalDocumentDialog
+                title="Ön Bilgilendirme Formu"
+                html={legalPreview?.preInformationHtml ?? ''}
+                triggerLabel="Ön Bilgilendirme Formu"
                 disabled={!documentsReady}
-                onChange={(event) => setAcceptedOnBilgilendirme(event.target.checked)}
+                triggerClassName="h-auto px-0 py-0 text-xs underline"
               />
-              <div className="text-xs leading-relaxed" style={{ color: 'var(--color-muted-fg)' }}>
-                <LegalDocumentDialog
-                  title="Ön Bilgilendirme Formu"
-                  description="Bu metin sipariş öncesi bilgilendirme yükümlülüğü kapsamında seçtiğiniz adres ve ödeme yöntemiyle hazırlanır."
-                  html={legalPreview?.preInformationHtml ?? ''}
-                  triggerLabel="Ön Bilgilendirme Formu"
-                  disabled={!documentsReady}
-                  triggerClassName="h-auto px-0 py-0 text-xs font-medium underline underline-offset-2"
-                />
-                {' '}metnini okudum, kabul ediyorum.
-              </div>
+              <label htmlFor="checkout-contracts">’nu okudum, kabul ediyorum.</label>
             </div>
           </div>
+          {consentWarning ? (
+            <p role="alert" className="mt-2 text-sm text-red-600">
+              Önce sözleşmeleri onaylayın.
+            </p>
+          ) : null}
 
           <div className="mt-auto w-full pt-6">
             <div data-testid="checkout-turnstile" className="w-full max-w-full">
@@ -1438,58 +1373,68 @@ export function CheckoutPageClient({
               />
             </div>
 
-            <Button
-              className="mt-4 w-full"
-              data-testid="checkout-submit"
-              size="lg"
-              onClick={placeOrder}
-              disabled={
-                submitting ||
-                retryBlocked ||
-                !documentsReady ||
-                !acceptedMesafeliSatis ||
-                !acceptedOnBilgilendirme ||
-                !turnstileToken
-              }
-            >
-              {submitting ? (
-                <span className="flex items-center gap-2">
-                  <Spinner className="h-4 w-4" />
-                  İşleniyor...
-                </span>
-              ) : paymentMethod === 'card' ? (
-                'Ödeme Yap'
-              ) : (
-                'Siparişi Tamamla'
-              )}
-            </Button>
+            {!checkoutSession ? (
+              <Button
+                className="mt-4 w-full"
+                data-testid="checkout-submit"
+                size="lg"
+                onClick={placeOrder}
+                aria-disabled={
+                  !acceptedContracts ||
+                  !documentsReady ||
+                  !turnstileToken ||
+                  submitting ||
+                  retryBlocked
+                }
+                style={
+                  !acceptedContracts ||
+                  !documentsReady ||
+                  !turnstileToken ||
+                  submitting ||
+                  retryBlocked
+                    ? { backgroundColor: '#d1d5db', color: '#4b5563', cursor: 'not-allowed' }
+                    : undefined
+                }
+              >
+                {submitting
+                  ? 'Ödeme alanı hazırlanıyor…'
+                  : paymentMethod === 'card'
+                    ? 'Öde'
+                    : 'Siparişi Tamamla'}
+              </Button>
+            ) : null}
 
-            <div data-testid="checkout-submit-note">
-              {!documentsReady ? (
-                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-destructive)' }}>
-                  Adres seçilip sözleşmeler hazırlanmadan sipariş onaylanamaz.
-                </p>
-              ) : !acceptedMesafeliSatis || !acceptedOnBilgilendirme ? (
-                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-destructive)' }}>
-                  Devam etmek için iki sözleşmeyi de onaylayın.
-                </p>
-              ) : !turnstileToken ? (
-                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-destructive)' }}>
-                  Siparişi tamamlamak için insan doğrulamasını tamamlayın.
-                </p>
-              ) : paymentMethod === 'eft' ? (
-                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                  Havale / EFT banka bilgileri sipariş oluşturulduktan sonra gösterilecektir.
-                </p>
-              ) : (
-                <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted-fg)' }}>
-                  Güvenli ödeme adımına yönlendirileceksiniz.
-                </p>
-              )}
+            <div data-testid="checkout-submit-note" className="mt-2 text-center text-xs">
+              {!documentsReady
+                ? 'Adres seçilip sözleşmeler hazırlanmadan ödeme başlatılamaz.'
+                : !acceptedContracts
+                  ? 'Devam etmek için sözleşmeleri onaylayın.'
+                  : !turnstileToken
+                    ? 'İnsan doğrulamasını tamamlayın.'
+                    : paymentMethod === 'eft'
+                      ? 'Banka bilgileri sipariş oluşturulduktan sonra gösterilir.'
+                      : 'Kart ve taksit bilgileri iyzico’nun güvenli alanında girilir.'}
             </div>
           </div>
         </div>
       </div>
+      {checkoutSession && paymentMethod === 'card' && acceptedContracts ? (
+        <section className="-mx-4 mt-8 sm:mx-0" aria-label="iyzico güvenli ödeme">
+          <iframe
+            ref={iframeRef}
+            src={checkoutSession.iframeUrl}
+            title="iyzico güvenli kart ödemesi"
+            className="h-[1200px] w-full scroll-mt-32 border-0 sm:h-[1000px]"
+            onLoad={() => {
+              if (scrolledAttemptRef.current === checkoutSession.attemptId) return
+              scrolledAttemptRef.current = checkoutSession.attemptId
+              iframeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }}
+            referrerPolicy="no-referrer"
+            allow="payment"
+          />
+        </section>
+      ) : null}
     </div>
   )
 }

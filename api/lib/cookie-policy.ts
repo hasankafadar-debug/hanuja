@@ -14,11 +14,11 @@
  * Pure data: imported by client components, so no Node-only APIs here.
  */
 
-export const COOKIE_POLICY_VERSION = '2026-09-28-v1'
-export const COOKIE_POLICY_UPDATED_AT = '28.09.2026'
+export const COOKIE_POLICY_VERSION = '2026-10-20-v2'
+export const COOKIE_POLICY_UPDATED_AT = '20.10.2026'
 
 /** sha256 of the base inventory — see tests/unit/cookie-policy.test.ts. */
-export const COOKIE_POLICY_FINGERPRINT = '45828135feca3bb7a0afb13f33c9a6d8f665bbabbd8283eb0d4a9dc98589da74'
+export const COOKIE_POLICY_FINGERPRINT = '5386e283c51f8fab8c5e9ab9f92c2932a5c6323526c2fc4e88d83a402a46047d'
 
 export const COOKIE_CATEGORIES = ['necessary', 'functional', 'analytics', 'marketing'] as const
 export type CookieCategory = (typeof COOKIE_CATEGORIES)[number]
@@ -51,7 +51,7 @@ export const COOKIE_CATEGORY_LABELS: Record<CookieCategory, { title: string; tab
 export const COOKIE_NOTICE_STORAGE_KEY = 'hanuja-cookie-notice'
 export const COOKIE_CONSENT_STORAGE_KEY = 'hanuja-cookie-consent'
 
-export type CookieStorageType = 'cookie' | 'localStorage'
+export type CookieStorageType = 'cookie' | 'localStorage' | 'sessionStorage'
 
 export interface CookieInventoryEntry {
   /** Name shown in the policy table. */
@@ -74,6 +74,20 @@ const SITE_DOMAIN = 'www.hanuja.com.tr (yalnız bu alan adı)'
 const HANUJA = 'Hanuja'
 
 const BASE_COOKIE_INVENTORY: readonly CookieInventoryEntry[] = [
+  {
+    key: 'hanuja:checkout-form:start', namePattern: '^hanuja:checkout-form:start$',
+    storage: 'sessionStorage', provider: HANUJA, domain: SITE_DOMAIN,
+    purpose: 'Sayfa yenileme veya bağlantı kesintisinde aynı ödeme isteğini bulur; çift siparişi önler. Kart bilgisi veya iyzico oturum anahtarı içermez.',
+    category: 'necessary', party: 'first', duration: 'Sekme kapatılana veya ödeme tamamlanana kadar',
+    legalBasis: 'KVKK m.5/2-c (talep edilen ödeme işleminin ifası)', trigger: 'Ödeme sayfası açıldığında',
+  },
+  {
+    key: 'hanuja:checkout-form:source', namePattern: '^hanuja:checkout-form:source$',
+    storage: 'sessionStorage', provider: HANUJA, domain: SITE_DOMAIN,
+    purpose: 'Ödeme koşulları değiştiğinde eski oturumun kullanılmasını önleyen tek yönlü özet. Adres, kimlik ve kart bilgisi içermez.',
+    category: 'necessary', party: 'first', duration: 'Sekme kapatılana kadar',
+    legalBasis: 'KVKK m.5/2-c (talep edilen ödeme işleminin ifası)', trigger: 'Kart ödemesi sözleşmesi hazırlandığında',
+  },
   {
     key: 'hanuja-csrf',
     namePattern: '^hanuja-csrf$',
@@ -231,6 +245,10 @@ export function getCookieNoticeMode(inventory: readonly CookieInventoryEntry[] =
  * audit and the E2E "no unexpected request" check — not a vendor list for the page.
  */
 export const EXPECTED_EXTERNAL_HOSTS: readonly { host: string; provider: string; where: string }[] = [
+  { host: 'cpp.iyzipay.com', provider: 'iyzico', where: 'Yalnız onay sonrası gömülü kart ödeme alanı' },
+  { host: 'sandbox-cpp.iyzipay.com', provider: 'iyzico sandbox', where: 'Yerel sandbox kart ödeme testi' },
+  { host: 'api.iyzipay.com', provider: 'iyzico', where: 'Kart ödeme alanı ve banka doğrulaması' },
+  { host: 'sandbox-api.iyzipay.com', provider: 'iyzico sandbox', where: 'Yerel sandbox banka doğrulaması' },
   { host: 'challenges.cloudflare.com', provider: 'Cloudflare Turnstile', where: '/giris, /kayit, /odeme' },
   // Seen in the 2026-09-28 production audit: Turnstile's widget also calls a challenge subdomain.
   { host: '*.challenges.cloudflare.com', provider: 'Cloudflare Turnstile', where: '/giris, /kayit, /odeme' },

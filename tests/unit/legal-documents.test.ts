@@ -92,8 +92,8 @@ describe('legal documents', () => {
     expect(bundle.preInformationHtml).toContain(
       `<strong>Belge Sürümü:</strong> ${PRE_INFORMATION_DOCUMENT_VERSION}`,
     )
-    expect(bundle.distanceSalesVersion).toBe('distance-sales-2026-10-13-v6')
-    expect(bundle.preInformationVersion).toBe('pre-information-2026-10-13-v6')
+    expect(bundle.distanceSalesVersion).toBe('distance-sales-2026-10-20-v7')
+    expect(bundle.preInformationVersion).toBe('pre-information-2026-10-20-v7')
     expect(bundle.distanceSalesVersion).not.toBe('distance-sales-2026-09-03-v3')
     expect(bundle.preInformationVersion).not.toBe('pre-information-2026-09-03-v3')
   })

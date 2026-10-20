@@ -136,16 +136,19 @@ Gerekçe: Iyzico canlı siteyi incelerken (başvuru/onay süreci) gerçek para h
 
 Iyzico incelemeyi tamamlayıp live API anahtarlarını teslim ettiğinde:
 
-1. Coolify panelinde **`web` ve `worker`** servislerinde (worker iade ve kart ödemesi mutabakatı için iyzico'yu
-   çağırır) aşağıdaki değişkenleri live değerlerle güncelleyin (değerleri yalnız iş sahibi girer):
+1. Coolify panelinde **`web`, `worker` ve `admin-panel`** servislerinde (worker iade/kart ödemesi,
+   admin ise belirsiz kart iadesi mutabakatı için iyzico'yu çağırır) aşağıdaki değişkenleri aynı live
+   hesapla, yalnız runtime olarak yapılandırın. Yeni değerleri iş sahibi girer; mevcut kayıtlı değerler
+   servisler arasında yalnız sunucu içinde eşitlenebilir, yerel ortama veya loga çıkarılmaz:
    - `IYZICO_API_KEY` → live key
    - `IYZICO_SECRET_KEY` → live secret
    - `IYZICO_BASE_URL` → `https://api.iyzipay.com`
    - `IYZICO_WEBHOOK_SECRET` artık kullanılmıyor; varsa silinebilir.
 2. iyzico'dan X-IYZ-SIGNATURE-V3 aktivasyonunu isteyin ve live webhook URL'ini
    `https://www.hanuja.com.tr/api/webhooks/iyzico` olarak kaydedin.
-   `IYZICO_CARD_PAYMENTS_ENABLED=true` yalnız `docs/05-security/payment-security.md` "Durum" bölümündeki canlıya
-   geçiş şartları tamamlandıktan sonra ve yalnız `web` serviste girilir.
+   `IYZICO_CARD_PAYMENTS_ENABLED=true` yalnız güncel [CheckoutForm yayın akışındaki](../06-engineering/iyzico-checkout-form.md)
+   kontroller ve sahip yayın onayı sonrasında, yalnız `web` serviste girilir. Payment Security belgesindeki
+   doğrudan kart API'sine ait tarihsel şartlar, yeni iframe akışının yayın kapısı değildir.
 3. `pnpm check-env --env=prod` tekrar çalıştırılıp placeholder/sandbox kalıntısı olmadığı doğrulanmalı.
 4. Servisi yeniden deploy edin (env değişikliği Coolify'da yeni bir deploy tetikler).
 5. Küçük tutarlı gerçek bir kart işlemiyle (varsa) veya Iyzico'nun sağladığı doğrulama akışıyla live bağlantı test edilmeli.

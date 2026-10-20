@@ -1,10 +1,10 @@
 /**
  * Kart ödemesi route işleyicileri (ince katman). İş mantığı card-payment.service'tedir.
  *
- * Kart verisi (numara, son kullanma, CVC, kart sahibi) yalnız startCardPayment gövdesinde bulunur;
- * hiçbir log, hata yanıtı veya kayda yazılmaz. Beklenmeyen hatalarda yalnız hata adı ve
- * (kart numarası maskelenmiş) mesaj loglanır.
+ * Yeni ödeme yalnız hosted CheckoutForm ile başlar. Eski kart başlangıç handler'ları
+ * dışarı açık değildir; geçmiş callback ve mutabakat kodu korunur. Hata nesneleri loglanmaz.
  */
+import crypto from 'node:crypto'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { z, ZodError } from 'zod'
@@ -21,6 +21,102 @@ function service() {
   return createCardPaymentService({ prisma: createPrismaForRoute() })
 }
 
+function privatePaymentResponse<T>(value: T) {
+  const response = ok(value)
+  response.headers.set('Cache-Control', 'private, no-store')
+  return response
+}
+
+export const startCheckoutFormSchema = z
+  .object({
+    previewId: z.string().min(1).max(100),
+    startKey: z.string().regex(/^[A-Za-z0-9_-]{16,80}$/),
+    identityNumber: z
+      .string()
+      .regex(/^\d{11}$/)
+      .optional(),
+    turnstileToken: z.string().min(1),
+    acceptedDistanceSales: z.literal(true),
+    acceptedPreInformation: z.literal(true),
+  })
+  .strict()
+
+export async function previewCheckoutForm(req: NextRequest, userId: string) {
+  try {
+    return privatePaymentResponse(
+      await service().previewCheckoutForm({
+        userId,
+        ...(req.nextUrl.searchParams.get('orderId')
+          ? { orderId: req.nextUrl.searchParams.get('orderId')! }
+          : {}),
+        ...(req.nextUrl.searchParams.get('addressId')
+          ? { addressId: req.nextUrl.searchParams.get('addressId')! }
+          : {}),
+        ...(req.nextUrl.searchParams.get('billingAddressId')
+          ? { billingAddressId: req.nextUrl.searchParams.get('billingAddressId')! }
+          : {}),
+      }),
+    )
+  } catch (error) {
+    return handleCardPaymentError(error)
+  }
+}
+
+export async function startCheckoutForm(
+  req: NextRequest,
+  userId: string,
+  body: z.infer<typeof startCheckoutFormSchema>,
+  callbackUrl: string,
+) {
+  try {
+    const prisma = createPrismaForRoute()
+    return privatePaymentResponse(
+      await createCardPaymentService({ prisma }).startCheckoutForm({
+        userId,
+        previewId: body.previewId,
+        startKey: body.startKey,
+        ...(body.identityNumber ? { identityNumber: body.identityNumber } : {}),
+        callbackUrl,
+        buyerIp: extractTrustedClientIp(req) ?? '127.0.0.1',
+        acceptance: await buildLegalAcceptanceEvidence({ prisma, req, userId }),
+      }),
+    )
+  } catch (error) {
+    return handleCardPaymentError(error)
+  }
+}
+
+export async function reuseCheckoutForm(userId: string, previewId: string, startKey: string) {
+  return service().reuseCheckoutForm(userId, previewId, startKey)
+}
+
+/** Token is only a lookup credential. Signed server results determine payment state. */
+export async function handleCheckoutFormCallback(req: NextRequest, appUrl: string) {
+  let path = '/odeme?hata=dogrulama'
+  try {
+    const token = new URLSearchParams(await req.text()).get('token')
+    if (token && token.length <= 512) {
+      const result = await service().handleCheckoutFormCallback(token)
+      path = callbackRedirectPath(result.orderId, result.outcome)
+    }
+  } catch {
+    /* Worker reconciles; never log callback tokens. */
+  }
+  const origin = new URL(appUrl).origin
+  const nonce = crypto.randomUUID().replace(/-/g, '')
+  return new NextResponse(
+    `<!doctype html><html lang="tr"><meta charset="utf-8"><title>Ödeme durumu</title><body><p>Ödeme durumunuz kontrol ediliyor.</p><a href="${path.replace(/&/g, '&amp;')}" target="_top">Hanuja’ya dön</a><script nonce="${nonce}">if(window.parent!==window){window.parent.postMessage({type:'hanuja:checkout-form-result'},${JSON.stringify(origin)})}else{window.location.replace(${JSON.stringify(path)})}</script></body></html>`,
+    {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Referrer-Policy': 'no-referrer',
+        'Content-Security-Policy': `default-src 'none'; script-src 'nonce-${nonce}'; frame-ancestors ${origin}; base-uri 'none'; form-action 'none'`,
+      },
+    },
+  )
+}
+
 function cardsDisabled() {
   return NextResponse.json(
     {
@@ -32,13 +128,11 @@ function cardsDisabled() {
   )
 }
 
-/** Kart verisi taşıyabilecek isteklerde: hata nesnesi değil, yalnız ad ve maskelenmiş mesaj loglanır. */
+/** Do not log request data, provider tokens, SDK errors or Prisma query arguments. */
 export function handleCardPaymentError(error: unknown): NextResponse {
   if (error instanceof DomainError || error instanceof ZodError) return handleError(error)
   const name = error instanceof Error ? error.name : 'UnknownError'
-  const message =
-    error instanceof Error ? error.message.replace(/\d{12,19}/g, '[kart]').slice(0, 300) : ''
-  console.error('[card-payment] unexpected error', { name, message })
+  console.error('[card-payment] unexpected error', { name })
   return NextResponse.json(
     { success: false, code: 'INTERNAL_ERROR', message: 'Ödeme işlemi sırasında bir hata oluştu.' },
     { status: 500 },
@@ -151,7 +245,7 @@ export async function getCardAttemptState(userId: string, startKey: string) {
     if (!state) {
       return NextResponse.json({ success: false, code: 'NOT_FOUND' }, { status: 404 })
     }
-    return ok(state)
+    return privatePaymentResponse(state)
   } catch (error) {
     return handleCardPaymentError(error)
   }
@@ -163,7 +257,7 @@ export async function getCardOrderPaymentState(userId: string, orderId: string) 
     if (!state) {
       return NextResponse.json({ success: false, code: 'NOT_FOUND' }, { status: 404 })
     }
-    return ok(state)
+    return privatePaymentResponse(state)
   } catch (error) {
     return handleCardPaymentError(error)
   }
@@ -251,7 +345,12 @@ export async function handleIyzicoWebhook(req: NextRequest) {
       data: {
         iyziReferenceCode: referenceCode,
         iyziEventType: text(payload.iyziEventType) ?? 'UNKNOWN',
-        paymentId: text(payload.paymentId),
+        paymentId: text(
+          payload.iyziEventType === 'CHECKOUT_FORM_AUTH'
+            ? payload.iyziPaymentId
+            : payload.paymentId,
+        ),
+        checkoutFormToken: text(payload.token),
         paymentConversationId: text(payload.paymentConversationId),
         status: text(payload.status),
         payload: payload as object,
@@ -268,7 +367,7 @@ export async function handleIyzicoWebhook(req: NextRequest) {
       return NextResponse.json({ received: true, duplicate: true })
     }
     console.error('[iyzico-webhook] bildirim kaydedilemedi', {
-      message: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
+      name: error instanceof Error ? error.name : 'unknown',
     })
     return NextResponse.json({ error: 'Geçici hata' }, { status: 503 })
   }

@@ -6,8 +6,8 @@ import { PLATFORM_LEGAL_INFO } from './platform-info'
 // v4 (2026-09-18): kupon / Havale-EFT indirim satırları, sipariş anındaki ürün
 // temel nitelikleri (renk, malzeme, ölçü, SKU/barkod), ürün bazlı sevk süresi
 // ve 30 günlük azami teslim süresinin özel üretim istisnası eklendi.
-export const DISTANCE_SALES_DOCUMENT_VERSION = 'distance-sales-2026-10-13-v6'
-export const PRE_INFORMATION_DOCUMENT_VERSION = 'pre-information-2026-10-13-v6'
+export const DISTANCE_SALES_DOCUMENT_VERSION = 'distance-sales-2026-10-20-v7'
+export const PRE_INFORMATION_DOCUMENT_VERSION = 'pre-information-2026-10-20-v7'
 
 export interface LegalBuyerSnapshot {
   fullName: string
@@ -61,6 +61,9 @@ export interface LegalContractContext {
   orderNumber?: string
   orderDate: Date
   paymentMethod: 'card' | 'eft'
+  cardPaymentFlow?: 'checkout_form'
+  /** Internal evidence hash; never rendered into either accepted document. */
+  checkoutSourceFingerprint?: string
   subtotalAmount: number
   /** Kupon indirimi (platform veya satıcı kuponu); 0 ise satır basılmaz. */
   couponCode: string | null
@@ -282,7 +285,7 @@ function renderOrderSummary(context: LegalContractContext) {
         <span>${formatCurrency(context.subtotalAmount)} (KDV Dahil)</span>
       </div>
       ${renderDiscountRows(context)}
-      <div class="summary-row"><strong>Taksit Farkı</strong><span>${context.installmentDifferenceAmount == null ? 'Taksit seçimi uygulanmıyor' : formatCurrency(context.installmentDifferenceAmount)}</span></div>
+      <div class="summary-row"><strong>Taksit Farkı</strong><span>${context.cardPaymentFlow === 'checkout_form' ? 'Kart ve taksit seçimine göre iyzico ödeme alanında gösterilir' : context.installmentDifferenceAmount == null ? 'Taksit seçimi uygulanmıyor' : formatCurrency(context.installmentDifferenceAmount)}</span></div>
       ${context.installmentCount ? '<p><strong>Taksit Sayısı:</strong> ' + context.installmentCount + '</p>' : ''}
 
       <div class="summary-row">
@@ -290,9 +293,10 @@ function renderOrderSummary(context: LegalContractContext) {
         <span>${formatCurrency(context.shippingAmount)}</span>
       </div>
       <div class="summary-row">
-        <strong>Toplam Sipariş Bedeli</strong>
+        <strong>${context.cardPaymentFlow === 'checkout_form' ? 'Peşin Sepet Toplamı' : 'Toplam Sipariş Bedeli'}</strong>
         <span>${formatCurrency(context.totalAmount)} (KDV Dahil)</span>
       </div>
+      ${context.cardPaymentFlow === 'checkout_form' ? '<p class="notice">Kart ve taksit seçimi iyzico ödeme alanında yapılır. Taksit farkını alıcı öder. Kesin tahsilat toplamı ve taksit planı ödeme onayından önce iyzico alanında gösterilir. Bu belge peşin sepet tutarını ve bu açıklamayı içerir; seçilen taksit ve doğrulanan tahsilat bilgileri ayrıca kaydedilir.</p>' : ''}
       <div class="summary-row">
         <strong>Taahhüt Edilen Sevk Süresi</strong>
         <span>${escapeHtml(formatOrderFulfillmentCommitment(context.items))}</span>

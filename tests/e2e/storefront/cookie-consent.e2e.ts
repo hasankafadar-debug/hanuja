@@ -25,6 +25,10 @@ const CONSENT_KEY = 'hanuja-cookie-consent'
  * keeps the two lists identical.
  */
 const EXPECTED_EXTERNAL_HOSTS = [
+  'cpp.iyzipay.com',
+  'sandbox-cpp.iyzipay.com',
+  'api.iyzipay.com',
+  'sandbox-api.iyzipay.com',
   'challenges.cloudflare.com',
   '*.challenges.cloudflare.com',
   'media.hanuja.tr',

@@ -1,9 +1,19 @@
-# Son güncelleme: 2026-10-17
-# Durum: taslak v2 — iyzico standart sanal POS, 3D Secure, taksit (kart satışı bayrakla kapalı)
+# Son güncelleme: 2026-10-20
+# Durum: gömülü CheckoutForm yerel doğrulaması tamamlandı; 20.10.2026 tarihinde sahip yayın onayı verdi
 
 # Payment Security
 
-## Durum (2026-10-16)
+## Güncel CheckoutForm akışı
+
+Yeni kart girişi, iyzico alan adındaki iframe’e taşınmıştır. Hanuja kart alanları ve doğrudan kart
+başlatma adresleri kapalıdır. Sunucu yalnız imzalı sonuçlarla sipariş onaylar; eski ödemelerin callback,
+mutabakat ve iadeleri korunur. Ayrıntılar ve yayın kapısı:
+[Gömülü CheckoutForm](../06-engineering/iyzico-checkout-form.md).
+
+Aşağıdaki doğrudan API akışı ve 17 Ekim kanıtları geçmiş işlemleri açıklayan arşivdir; yeni ödeme
+başlatma veya bugünkü yayın onayı sayılmaz.
+
+## Tarihsel durum (2026-10-16)
 
 Kart ödemesi iyzico **standart sanal POS** (pazaryeri değil) üzerinden, **3D Secure** ile ve **kendi
 `/odeme` formumuzla** çalışır; taksitte **vade farkını müşteri öder**. Kart satışı yalnız web servisinde
@@ -57,12 +67,12 @@ seller, or a payout to be computed, based on unverified payment state.
 - Payment confirmation comes only from a verified backend source: the signed iyzico v2 auth response, a signed
   payment query, or an admin action with audit log. Never from a browser redirect or a callback field alone.
 - Every amount is computed server-side. The customer chooses only the **number** of installments.
-- Card data is forwarded to iyzico in a single request and never stored, logged or returned.
+- New card data is entered only inside iyzico's hosted iframe. Hanuja does not receive or store it.
 - Network errors, timeouts and responses whose signature cannot be verified are never treated as "no money moved".
 
 ---
 
-## 2. Card Payment Flow (iyzico 3D Secure)
+## 2. Legacy Card Payment Flow (new starts retired; historical callbacks remain)
 
 Code: `api/services/card-payment.service.ts` (business logic), `api/lib/iyzico.ts` (adapter),
 `api/routes/card-payments.ts` (thin handlers), `apps/web/src/app/api/payment/*` and

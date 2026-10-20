@@ -30,10 +30,12 @@ import {
 } from '../../api/services/card-payment.service'
 import { createQuantityCancellationService } from '../../api/services/quantity-cancellation.service'
 import { createRefundExecutionService } from '../../api/services/refund-execution.service'
+import * as legalDocuments from '../../api/lib/legal-documents'
 import {
   computeIyzicoSignature,
   type IyzicoOutcome,
   type IyzicoPaymentDetail,
+  type PaymentReport,
 } from '../../api/lib/iyzico'
 
 process.env.IYZICO_CARD_PAYMENTS_ENABLED = 'true'
@@ -88,6 +90,7 @@ let paymentSequence = 22416000
 
 function createFakeIyzico() {
   const baskets = new Map<string, Basket>()
+  const cfTokens = new Map<string, string>()
   const state = {
     /** 3 taksitte müşteriye yansıyan vade farkı oranı */
     installmentRate: new Decimal('0.08'),
@@ -95,9 +98,17 @@ function createFakeIyzico() {
     authFraudStatus: 1,
     retrieveFraudStatus: 1,
     retrievePaymentStatus: 'SUCCESS',
+    cfStatus: 'INIT',
+    cfInstallment: 3,
+    cfThreeDS: true,
+    cfOverride: {} as Partial<IyzicoPaymentDetail>,
   }
 
-  function detailFor(basket: Basket, fraudStatus: number, paymentStatus: string): IyzicoPaymentDetail {
+  function detailFor(
+    basket: Basket,
+    fraudStatus: number,
+    paymentStatus: string,
+  ): IyzicoPaymentDetail {
     const price = new Decimal(basket.price)
     const paid = new Decimal(basket.paidPrice)
     // Gerçek iyzico gibi: taksitte kalem paidPrice oransal ve 8 ondalıklıdır (ör. 673.56752371);
@@ -135,6 +146,43 @@ function createFakeIyzico() {
   }
 
   const gateway = {
+    initializeCheckoutForm: vi.fn(
+      async (params: Parameters<NonNullable<CardPaymentGateway['initializeCheckoutForm']>>[0]) => {
+        const paymentId = String(paymentSequence++)
+        const token = `sandbox-${randomUUID()}`
+        cfTokens.set(token, paymentId)
+        baskets.set(paymentId, {
+          paymentId,
+          conversationId: params.conversationId,
+          basketId: params.basketId,
+          price: params.price,
+          paidPrice: new Decimal(params.price).mul(state.cfInstallment > 1 ? '1.08' : 1).toFixed(2),
+          installment: state.cfInstallment,
+          items: params.basketItems.map((item) => ({ id: item.id, price: item.price })),
+        })
+        return {
+          kind: 'success' as const,
+          data: {
+            token,
+            iframeUrl: `https://sandbox-cpp.iyzipay.com?token=${token}&iframe=true`,
+            expiresInSeconds: 1800,
+          },
+        }
+      },
+    ),
+    retrieveCheckoutForm: vi.fn(
+      async ({ token }: { token: string }): Promise<IyzicoOutcome<IyzicoPaymentDetail>> => {
+        const basket = baskets.get(cfTokens.get(token) ?? '')
+        if (!basket) return { kind: 'unknown', reason: 'not_found' }
+        return {
+          kind: 'success',
+          data: {
+            ...detailFor(basket, state.retrieveFraudStatus, state.cfStatus),
+            ...state.cfOverride,
+          },
+        }
+      },
+    ),
     getInstallmentOptions: vi.fn(async ({ price }: { price: string }) => {
       const base = new Decimal(price)
       const total3 = base.mul(new Decimal(1).add(state.installmentRate)).toDecimalPlaces(2)
@@ -148,7 +196,11 @@ function createFakeIyzico() {
           bankName: 'Halkbank',
           commercial: false,
           options: [
-            { installmentNumber: 1, installmentPrice: base.toFixed(2), totalPrice: base.toFixed(2) },
+            {
+              installmentNumber: 1,
+              installmentPrice: base.toFixed(2),
+              totalPrice: base.toFixed(2),
+            },
             {
               installmentNumber: 3,
               installmentPrice: total3.div(3).toDecimalPlaces(2).toFixed(2),
@@ -172,11 +224,15 @@ function createFakeIyzico() {
       return { kind: 'success' as const, data: { paymentId, htmlContent: '<form>3ds</form>' } }
     }),
     complete3DS: vi.fn(
-      async (params: Parameters<CardPaymentGateway['complete3DS']>[0]): Promise<
-        IyzicoOutcome<IyzicoPaymentDetail>
-      > => {
+      async (
+        params: Parameters<CardPaymentGateway['complete3DS']>[0],
+      ): Promise<IyzicoOutcome<IyzicoPaymentDetail>> => {
         const basket = baskets.get(params.paymentId)
-        if (!basket || basket.paidPrice !== params.paidPrice || basket.basketId !== params.basketId) {
+        if (
+          !basket ||
+          basket.paidPrice !== params.paidPrice ||
+          basket.basketId !== params.basketId
+        ) {
           return { kind: 'failure', errorCode: '10051', errorMessage: 'Tutar uyuşmazlığı' }
         }
         if (state.authOutcome === 'unknown') return { kind: 'unknown', reason: 'timeout' }
@@ -196,7 +252,28 @@ function createFakeIyzico() {
         }
       },
     ),
-    getPaymentReport: vi.fn(async () => ({ kind: 'success' as const, data: [] })),
+    getPaymentReport: vi.fn(
+      async (params: {
+        paymentConversationId: string
+      }): Promise<IyzicoOutcome<PaymentReport[]>> => ({
+        kind: 'success',
+        data: [...cfTokens.values()]
+          .map((id) => baskets.get(id)!)
+          .filter((b) => b.conversationId === params.paymentConversationId)
+          .map((b) => ({
+            paymentId: b.paymentId,
+            paymentStatus: 1,
+            refundStatus: null,
+            threeDS: state.cfThreeDS,
+            fraudStatus: state.retrieveFraudStatus,
+            price: b.price,
+            paidPrice: b.paidPrice,
+            installment: b.installment,
+            basketId: b.basketId,
+            refunds: [],
+          })),
+      }),
+    ),
     cancelPayment: vi.fn(async () => ({ kind: 'success' as const, data: { price: null } })),
     refundPayment: vi.fn(async () => ({ success: true, paymentTransactionId: 'refund-tx' })),
   } satisfies CardPaymentGateway
@@ -246,7 +323,12 @@ async function checkoutFixture(options: { coupon?: boolean; corporate?: boolean 
   })
   const sellerUser = await prisma.user.create({ data: { email: `seller-${tag}@example.test` } })
   const seller = await prisma.seller.create({
-    data: { userId: sellerUser.id, slug: `seller-${tag}`, displayName: 'Atölye Test', status: 'active' },
+    data: {
+      userId: sellerUser.id,
+      slug: `seller-${tag}`,
+      displayName: 'Atölye Test',
+      status: 'active',
+    },
   })
   const category = await prisma.category.create({ data: { slug: `sehpa-${tag}`, name: 'Sehpa' } })
   const product = (name: string, price: string) =>
@@ -336,7 +418,11 @@ async function startPayment(
   return { quote, started }
 }
 
-async function callback(h: Harness, attemptId: string, overrides: Record<string, string | null> = {}) {
+async function callback(
+  h: Harness,
+  attemptId: string,
+  overrides: Record<string, string | null> = {},
+) {
   const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: attemptId } })
   return h.service.handleCallback({
     status: 'success',
@@ -355,6 +441,369 @@ function sum(values: Array<Decimal | null>) {
 
 // ─── Testler ─────────────────────────────────────────────────────────────────
 
+async function startCF(
+  h: Harness,
+  f: Fixture,
+  options: { startKey?: string; orderId?: string } = {},
+) {
+  const preview = await h.service.previewCheckoutForm({
+    userId: f.customer.id,
+    ...(options.orderId ? { orderId: options.orderId } : { addressId: f.address.id }),
+  })
+  const params = {
+    userId: f.customer.id,
+    previewId: preview.previewId,
+    startKey: options.startKey ?? `cf-${randomUUID()}`,
+    acceptance: ACCEPTANCE,
+    buyerIp: '203.0.113.5',
+    callbackUrl: 'https://shop.example.test/api/payment/checkout-form/callback',
+  }
+  const session = await h.service.startCheckoutForm(params)
+  const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({
+    where: { id: session.attemptId },
+  })
+  return { session, attempt, params, preview }
+}
+
+describe('hosted CheckoutForm: server payment boundaries', () => {
+  it('copies the immutable preview even if the renderer changes before start or confirmation', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const preview = await h.service.previewCheckoutForm({
+      userId: f.customer.id,
+      addressId: f.address.id,
+    })
+    const render = legalDocuments.renderLegalDocuments
+    const spy = vi
+      .spyOn(legalDocuments, 'renderLegalDocuments')
+      .mockImplementation((context) => ({
+        ...render(context),
+        distanceSalesHtml: '<p>Changed after preview</p>',
+        preInformationHtml: '<p>Changed after preview</p>',
+      }))
+    try {
+      const session = await h.service.startCheckoutForm({
+        userId: f.customer.id,
+        previewId: preview.previewId,
+        startKey: `cf-${randomUUID()}`,
+        acceptance: ACCEPTANCE,
+        buyerIp: '203.0.113.5',
+        callbackUrl: 'https://shop.example.test/api/payment/checkout-form/callback',
+      })
+      const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({
+        where: { id: session.attemptId },
+      })
+      expect(attempt.distanceSalesHtml).toBe(preview.distanceSalesHtml)
+      h.state.cfStatus = 'SUCCESS'
+      await h.service.handleCheckoutFormCallback(attempt.checkoutFormToken!)
+      const snapshot = await prisma.orderLegalSnapshot.findUniqueOrThrow({
+        where: { orderId: session.orderId },
+      })
+      expect(snapshot.distanceSalesHtml).toBe(preview.distanceSalesHtml)
+      expect(snapshot.preInformationHtml).toBe(preview.preInformationHtml)
+      expect(snapshot.platformSnapshot).toEqual(preview.platformSnapshot)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('rejects an obsolete preview version before reserving an order', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const preview = await h.service.previewCheckoutForm({
+      userId: f.customer.id,
+      addressId: f.address.id,
+    })
+    await prisma.checkoutFormPreview.update({
+      where: { id: preview.previewId },
+      data: { documents: { ...preview, distanceSalesVersion: 'obsolete' } },
+    })
+    await expect(
+      h.service.startCheckoutForm({
+        userId: f.customer.id,
+        previewId: preview.previewId,
+        startKey: `cf-${randomUUID()}`,
+        acceptance: ACCEPTANCE,
+        buyerIp: '203.0.113.5',
+        callbackUrl: 'https://shop.example.test/api/payment/checkout-form/callback',
+      }),
+    ).rejects.toMatchObject({ code: 'CHECKOUT_FORM_PREVIEW_EXPIRED' })
+    expect(await prisma.order.count({ where: { customerId: f.customer.id } })).toBe(0)
+  })
+  it('closes the legacy bank form before a CF retry, so its later callback cannot authorize', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const { started } = await startPayment(h, f)
+    if (started.kind !== 'threeds') throw new Error('Legacy fixture did not initialize')
+    await startCF(h, f, { orderId: started.orderId })
+    expect((await callback(h, started.attemptId)).outcome).toBe('expired')
+    expect(h.gateway.complete3DS).not.toHaveBeenCalled()
+  })
+  it('reconciles a captured form before expiring its reservation', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const { session } = await startCF(h, f)
+    h.state.cfStatus = 'SUCCESS'
+    h.advance(32)
+    await h.service.runMaintenance()
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: session.orderId } })).status).toBe(
+      'seller_queue_ready',
+    )
+  })
+
+  it('holds an uncertain reservation when payment is captured but CF has not caught up', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const { session, attempt } = await startCF(h, f)
+    h.state.cfStatus = 'FAILURE'
+    h.state.retrievePaymentStatus = 'SUCCESS'
+    h.advance(32)
+    await h.service.runMaintenance()
+    expect(
+      (await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).status,
+    ).toBe('outcome_unknown')
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: session.orderId } })).status).toBe(
+      'payment_pending',
+    )
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: f.productA.id } })).stockQuantity,
+    ).toBe(4)
+  })
+  it('keeps the bank challenge alive when CF temporarily says FAILURE but signed payment detail says INIT_THREEDS', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const { attempt } = await startCF(h, f)
+    h.state.cfStatus = 'FAILURE'
+    h.state.retrievePaymentStatus = 'INIT_THREEDS'
+    expect((await h.service.handleCheckoutFormCallback(attempt.checkoutFormToken!)).outcome).toBe(
+      'pending',
+    )
+    expect(
+      (await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).status,
+    ).toBe('checkout_form_pending')
+    h.state.retrievePaymentStatus = 'CALLBACK_THREEDS'
+    h.state.cfOverride = { mdStatus: '0' }
+    expect((await h.service.handleCheckoutFormCallback(attempt.checkoutFormToken!)).outcome).toBe(
+      'failed',
+    )
+  })
+  it('keeps card/installment fields unknown and reuses one reservation on duplicate/reloaded intent', async () => {
+    const h = harness(),
+      f = await checkoutFixture({ coupon: true })
+    const { session, attempt, params, preview } = await startCF(h, f)
+    expect(attempt).toMatchObject({
+      flow: 'checkout_form',
+      quoteId: null,
+      installmentCount: null,
+      paidPrice: null,
+      binNumber: null,
+      status: 'checkout_form_pending',
+    })
+    expect(await h.service.startCheckoutForm(params)).toEqual(session)
+    expect(session.startKey).toBe(params.startKey)
+    const reloaded = await h.service.previewCheckoutForm({
+      userId: f.customer.id,
+      addressId: f.address.id,
+    })
+    expect(reloaded.previewId).toBe(preview.previewId)
+    const orderResume = await h.service.previewCheckoutForm({
+      userId: f.customer.id,
+      orderId: session.orderId,
+    })
+    expect(orderResume.previewId).toBe(preview.previewId)
+    expect(
+      await h.service.startCheckoutForm({ ...params, previewId: orderResume.previewId }),
+    ).toEqual(session)
+    expect(
+      await h.service.startCheckoutForm({
+        ...params,
+        previewId: reloaded.previewId,
+        startKey: `cf-${randomUUID()}`,
+      }),
+    ).toEqual(session)
+    expect(h.gateway.initializeCheckoutForm).toHaveBeenCalledTimes(1)
+    expect(await prisma.order.count({ where: { customerId: f.customer.id } })).toBe(1)
+    expect(await prisma.couponUsage.count({ where: { orderId: session.orderId } })).toBe(1)
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: f.productA.id } })).stockQuantity,
+    ).toBe(4)
+    expect(JSON.stringify(h.gateway.initializeCheckoutForm.mock.calls)).not.toContain('cardNumber')
+  })
+
+  it('serializes concurrent requests before writing stock or coupons', async () => {
+    const h = harness(),
+      f = await checkoutFixture({ coupon: true })
+    const preview = await h.service.previewCheckoutForm({
+      userId: f.customer.id,
+      addressId: f.address.id,
+    })
+    const params = {
+      userId: f.customer.id,
+      previewId: preview.previewId,
+      startKey: `cf-${randomUUID()}`,
+      acceptance: ACCEPTANCE,
+      buyerIp: '203.0.113.5',
+      callbackUrl: 'https://shop.example.test/api/payment/checkout-form/callback',
+    }
+    const outcomes = await Promise.allSettled([
+      h.service.startCheckoutForm(params),
+      h.service.startCheckoutForm(params),
+    ])
+    expect(outcomes.some((r) => r.status === 'fulfilled')).toBe(true)
+    expect(await prisma.order.count({ where: { customerId: f.customer.id } })).toBe(1)
+    expect(h.gateway.initializeCheckoutForm).toHaveBeenCalledTimes(1)
+  })
+
+  it('confirms signed installments without rewriting accepted documents or designer accrual', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const { session, attempt, preview } = await startCF(h, f)
+    h.state.cfStatus = 'SUCCESS'
+    expect(await h.service.handleCheckoutFormCallback(attempt.checkoutFormToken!)).toEqual({
+      orderId: session.orderId,
+      outcome: 'succeeded',
+    })
+    const order = await prisma.order.findUniqueOrThrow({
+      where: { id: session.orderId },
+      include: { legalSnapshot: true, lines: true },
+    })
+    expect(order.status).toBe('seller_queue_ready')
+    expect(order.totalAmount.toFixed(2)).toBe('1132.93')
+    expect(order.installmentCount).toBe(3)
+    expect(order.legalSnapshot?.distanceSalesHtml).toBe(preview.distanceSalesHtml)
+    expect(order.legalSnapshot?.preInformationHtml).toBe(preview.preInformationHtml)
+    expect(order.legalSnapshot?.distanceSalesHash).toBe(attempt.distanceSalesHash)
+    expect(sum(order.lines.map((l) => l.totalPrice))).toBe('950.01')
+    expect(
+      sum(
+        (
+          await prisma.sellerLedgerEntry.findMany({
+            where: { sellerId: f.seller.id, type: 'sale' },
+          })
+        ).map((l) => l.amount),
+      ),
+    ).toBe('950.01')
+    await h.service.handleCheckoutFormCallback(attempt.checkoutFormToken!)
+    expect(
+      await prisma.paymentEvent.count({
+        where: { paymentId: attempt.paymentId, eventType: 'card_payment_confirmed' },
+      }),
+    ).toBe(1)
+  })
+
+  it.each(['md', 'basket', 'currency', 'installment', 'items'] as const)(
+    'reverses an unusable captured result: %s',
+    async (failure) => {
+      const h = harness(),
+        f = await checkoutFixture()
+      const { session, attempt } = await startCF(h, f)
+      if (failure === 'md') h.state.cfThreeDS = false
+      if (failure === 'basket') h.state.cfOverride = { basketId: 'wrong' }
+      if (failure === 'currency') h.state.cfOverride = { currency: 'USD' }
+      if (failure === 'installment') h.state.cfOverride = { installment: 99 }
+      if (failure === 'items') h.state.cfOverride = { itemTransactions: [] }
+      h.state.cfStatus = 'SUCCESS'
+      expect((await h.service.handleCheckoutFormCallback(attempt.checkoutFormToken!)).outcome).toBe(
+        'failed',
+      )
+      expect(
+        (await prisma.order.findUniqueOrThrow({ where: { id: session.orderId } })).status,
+      ).toBe('payment_pending')
+      expect(await prisma.cardAttemptReversal.count({ where: { attemptId: attempt.id } })).toBe(1)
+    },
+  )
+
+  it('releases an abandoned reservation once and reverses a late capture', async () => {
+    const h = harness(),
+      f = await checkoutFixture({ coupon: true })
+    const { session, attempt } = await startCF(h, f)
+    await h.service.abandonCheckoutForm(f.customer.id, attempt.id)
+    await h.service.abandonCheckoutForm(f.customer.id, attempt.id)
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: session.orderId } })).status).toBe(
+      'payment_cancelled',
+    )
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: f.productA.id } })).stockQuantity,
+    ).toBe(5)
+    expect(await prisma.couponUsage.count({ where: { orderId: session.orderId } })).toBe(0)
+    h.state.cfStatus = 'SUCCESS'
+    expect((await h.service.handleCheckoutFormCallback(attempt.checkoutFormToken!)).outcome).toBe(
+      'failed',
+    )
+    expect(await prisma.cardAttemptReversal.count({ where: { attemptId: attempt.id } })).toBe(1)
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: session.orderId } })).status).toBe(
+      'payment_cancelled',
+    )
+  })
+
+  it('invalidates all older provider forms before releasing a retried order reservation', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const first = await startCF(h, f)
+    h.state.cfStatus = 'FAILURE'
+    h.state.retrievePaymentStatus = 'FAILURE'
+    await h.service.handleCheckoutFormCallback(first.attempt.checkoutFormToken!)
+    h.state.cfStatus = 'INIT'
+    const second = await startCF(h, f, { orderId: first.session.orderId })
+    await h.service.abandonCheckoutForm(f.customer.id, second.attempt.id)
+    expect(
+      (await prisma.order.findUniqueOrThrow({ where: { id: first.session.orderId } })).status,
+    ).toBe('payment_cancelled')
+    expect(
+      (await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: first.attempt.id } }))
+        .supersededAt,
+    ).not.toBeNull()
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: f.productA.id } })).stockQuantity,
+    ).toBe(5)
+  })
+
+  it('does not confirm unverified provider results and expires unpaid sessions with stock release', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const { session, attempt } = await startCF(h, f)
+    h.gateway.retrieveCheckoutForm.mockResolvedValueOnce({
+      kind: 'unknown',
+      reason: 'signature_mismatch',
+    })
+    expect((await h.service.handleCheckoutFormCallback(attempt.checkoutFormToken!)).outcome).toBe(
+      'pending',
+    )
+    h.advance(32)
+    await h.service.runMaintenance()
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: session.orderId } })).status).toBe(
+      'payment_cancelled',
+    )
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: f.productA.id } })).stockQuantity,
+    ).toBe(5)
+  })
+
+  it('rejects cart/address changes after preview before any reservation', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const preview = await h.service.previewCheckoutForm({
+      userId: f.customer.id,
+      addressId: f.address.id,
+    })
+    await prisma.address.update({
+      where: { id: f.address.id },
+      data: { addressLine1: 'Changed address' },
+    })
+    await expect(
+      h.service.startCheckoutForm({
+        userId: f.customer.id,
+        previewId: preview.previewId,
+        startKey: `cf-${randomUUID()}`,
+        acceptance: ACCEPTANCE,
+        buyerIp: '203.0.113.5',
+        callbackUrl: 'https://shop.example.test/api/payment/checkout-form/callback',
+      }),
+    ).rejects.toMatchObject({ code: 'CARD_CART_CHANGED' })
+    expect(await prisma.order.count({ where: { customerId: f.customer.id } })).toBe(0)
+  })
+})
+
 describe('kart ödemesi: teklif → 3DS → onay', () => {
   it('3 taksitte vade farkını müşteri öder; tasarımcı tahakkuku peşin tutarda kalır', async () => {
     const h = harness()
@@ -362,7 +811,11 @@ describe('kart ödemesi: teklif → 3DS → onay', () => {
     const { quote, started } = await startPayment(h, f)
 
     expect(quote.price).toBe('1049.01')
-    expect(quote.selected).toMatchObject({ installmentNumber: 3, totalPrice: '1132.93', differenceAmount: '83.92' })
+    expect(quote.selected).toMatchObject({
+      installmentNumber: 3,
+      totalPrice: '1132.93',
+      differenceAmount: '83.92',
+    })
     expect(quote.offers.map((offer) => offer.installmentNumber)).toEqual([1, 3])
     expect(started.kind).toBe('threeds')
     if (started.kind !== 'threeds') return
@@ -381,7 +834,10 @@ describe('kart ödemesi: teklif → 3DS → onay', () => {
       data: { cartId: f.cart.id, productId: f.productC.id, quantity: 1, unitPrice: '100.00' },
     })
 
-    expect(await callback(h, started.attemptId)).toEqual({ orderId: started.orderId, outcome: 'succeeded' })
+    expect(await callback(h, started.attemptId)).toEqual({
+      orderId: started.orderId,
+      outcome: 'succeeded',
+    })
 
     const order = await prisma.order.findUniqueOrThrow({
       where: { id: started.orderId },
@@ -394,7 +850,10 @@ describe('kart ödemesi: teklif → 3DS → onay', () => {
     expect(order.installmentTotalAmount!.toFixed(2)).toBe('1132.93')
     // Ürün ve kargo payları kuruşu kuruşuna tahsilata eşit.
     expect(
-      sum([...order.lines.map((line) => line.customerPaidProductAmount), order.customerPaidShippingAmount]),
+      sum([
+        ...order.lines.map((line) => line.customerPaidProductAmount),
+        order.customerPaidShippingAmount,
+      ]),
     ).toBe('1132.93')
     // Tasarımcı alanları değişmez.
     expect(sum(order.lines.map((line) => line.totalPrice))).toBe('950.01')
@@ -417,7 +876,10 @@ describe('kart ödemesi: teklif → 3DS → onay', () => {
     expect(cartItems.map((item) => item.productId)).toEqual([f.productC.id])
 
     // Tekrar gelen callback yeni etki üretmez.
-    expect(await callback(h, started.attemptId)).toEqual({ orderId: started.orderId, outcome: 'succeeded' })
+    expect(await callback(h, started.attemptId)).toEqual({
+      orderId: started.orderId,
+      outcome: 'succeeded',
+    })
     expect(h.gateway.complete3DS).toHaveBeenCalledTimes(1)
     expect(
       await prisma.paymentEvent.count({
@@ -508,7 +970,9 @@ describe('kart ödemesi: callback güvenliği ve başarısızlık', () => {
       outcome: 'invalid',
     })
     expect(h.gateway.complete3DS).not.toHaveBeenCalled()
-    const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: started.attemptId } })
+    const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({
+      where: { id: started.attemptId },
+    })
     expect(attempt.status).toBe('threeds_pending')
   })
 
@@ -517,7 +981,9 @@ describe('kart ödemesi: callback güvenliği ve başarısızlık', () => {
     const f = await checkoutFixture()
     const { started } = await startPayment(h, f)
     if (started.kind !== 'threeds') throw new Error('3DS bekleniyordu')
-    expect(await callback(h, started.attemptId, { mdStatus: '0', status: 'failure' })).toMatchObject({
+    expect(
+      await callback(h, started.attemptId, { mdStatus: '0', status: 'failure' }),
+    ).toMatchObject({
       outcome: 'failed',
     })
     expect(h.gateway.complete3DS).not.toHaveBeenCalled()
@@ -534,28 +1000,53 @@ describe('kart ödemesi: callback güvenliği ve başarısızlık', () => {
       const unsigned = await startPayment(h, await checkoutFixture())
       if (unsigned.started.kind !== 'threeds') throw new Error('3DS bekleniyordu')
       expect(
-        await callback(h, unsigned.started.attemptId, { status: 'failure', mdStatus: '0', paymentId: null }),
+        await callback(h, unsigned.started.attemptId, {
+          status: 'failure',
+          mdStatus: '0',
+          paymentId: null,
+        }),
       ).toMatchObject({ outcome: 'invalid' })
       expect(
-        (await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: unsigned.started.attemptId } })).status,
+        (
+          await prisma.cardPaymentAttempt.findUniqueOrThrow({
+            where: { id: unsigned.started.attemptId },
+          })
+        ).status,
       ).toBe('threeds_pending')
 
       const signed = await startPayment(h, await checkoutFixture())
       if (signed.started.kind !== 'threeds') throw new Error('3DS bekleniyordu')
-      const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: signed.started.attemptId } })
+      const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({
+        where: { id: signed.started.attemptId },
+      })
       const signature = computeIyzicoSignature(['', attempt.conversationId, '0', '', 'failure'])
       expect(
-        await callback(h, attempt.id, { status: 'failure', mdStatus: '0', paymentId: null, signature }),
+        await callback(h, attempt.id, {
+          status: 'failure',
+          mdStatus: '0',
+          paymentId: null,
+          signature,
+        }),
       ).toMatchObject({ outcome: 'failed' })
-      const failed = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: attempt.id } })
+      const failed = await prisma.cardPaymentAttempt.findUniqueOrThrow({
+        where: { id: attempt.id },
+      })
       expect(failed).toMatchObject({ status: 'failed', mdStatus: '0' })
       expect(h.gateway.complete3DS).not.toHaveBeenCalled()
 
       // Başarı bildiriminde paymentId eşleşmesi imza geçerli olsa da şarttır.
       const third = await startPayment(h, await checkoutFixture())
       if (third.started.kind !== 'threeds') throw new Error('3DS bekleniyordu')
-      const thirdAttempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: third.started.attemptId } })
-      const successSignature = computeIyzicoSignature(['', thirdAttempt.conversationId, '1', '', 'success'])
+      const thirdAttempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({
+        where: { id: third.started.attemptId },
+      })
+      const successSignature = computeIyzicoSignature([
+        '',
+        thirdAttempt.conversationId,
+        '1',
+        '',
+        'success',
+      ])
       expect(
         await callback(h, thirdAttempt.id, { paymentId: null, signature: successSignature }),
       ).toMatchObject({ outcome: 'invalid' })
@@ -574,7 +1065,9 @@ describe('kart ödemesi: callback güvenliği ve başarısızlık', () => {
     const second = await startPayment(h, f, { orderId: first.started.orderId, card: OTHER_CARD })
     if (second.started.kind !== 'threeds') throw new Error('3DS bekleniyordu')
 
-    const old = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: first.started.attemptId } })
+    const old = await prisma.cardPaymentAttempt.findUniqueOrThrow({
+      where: { id: first.started.attemptId },
+    })
     expect(old.status).toBe('expired')
     expect(await callback(h, first.started.attemptId)).toMatchObject({ outcome: 'expired' })
     expect(h.gateway.complete3DS).not.toHaveBeenCalled()
@@ -590,7 +1083,9 @@ describe('kart ödemesi: callback güvenliği ve başarısızlık', () => {
     if (started.kind !== 'threeds') throw new Error('3DS bekleniyordu')
     expect(quote.price).toBe('999.01')
     expect(await prisma.couponUsage.count({ where: { couponId: f.couponId! } })).toBe(1)
-    expect((await prisma.product.findUniqueOrThrow({ where: { id: f.productA.id } })).stockQuantity).toBe(4)
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: f.productA.id } })).stockQuantity,
+    ).toBe(4)
 
     h.advance(31)
     const summary = await h.service.runMaintenance()
@@ -603,9 +1098,13 @@ describe('kart ödemesi: callback güvenliği ve başarısızlık', () => {
     })
     expect(order.status).toBe('payment_cancelled')
     expect(order.payments[0]!.status).toBe('cancelled')
-    expect((await prisma.product.findUniqueOrThrow({ where: { id: f.productA.id } })).stockQuantity).toBe(5)
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: f.productA.id } })).stockQuantity,
+    ).toBe(5)
     expect(await prisma.couponUsage.count({ where: { couponId: f.couponId! } })).toBe(0)
-    expect((await prisma.coupon.findUniqueOrThrow({ where: { id: f.couponId! } })).usageCount).toBe(0)
+    expect((await prisma.coupon.findUniqueOrThrow({ where: { id: f.couponId! } })).usageCount).toBe(
+      0,
+    )
 
     expect(await callback(h, started.attemptId)).toMatchObject({ outcome: 'expired' })
     expect(h.gateway.complete3DS).not.toHaveBeenCalled()
@@ -622,7 +1121,8 @@ describe('kart ödemesi: sonucu belirsiz ve incelemedeki tahsilat', () => {
     h.state.authOutcome = 'unknown'
     expect(await callback(h, started.attemptId)).toMatchObject({ outcome: 'pending' })
     expect(
-      (await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: started.attemptId } })).status,
+      (await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: started.attemptId } }))
+        .status,
     ).toBe('outcome_unknown')
 
     h.advance(31)
@@ -665,7 +1165,9 @@ describe('kart ödemesi: sonucu belirsiz ve incelemedeki tahsilat', () => {
     if (started.kind !== 'threeds') throw new Error('3DS bekleniyordu')
     h.state.authOutcome = 'unknown'
     await callback(h, started.attemptId)
-    const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: started.attemptId } })
+    const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({
+      where: { id: started.attemptId },
+    })
     const event = await prisma.iyzicoWebhookEvent.create({
       data: {
         iyziReferenceCode: `ref-${randomUUID()}`,
@@ -677,7 +1179,9 @@ describe('kart ödemesi: sonucu belirsiz ve incelemedeki tahsilat', () => {
       },
     })
     await h.service.processWebhookEvent(event.id)
-    expect((await prisma.iyzicoWebhookEvent.findUniqueOrThrow({ where: { id: event.id } })).processedAt).not.toBeNull()
+    expect(
+      (await prisma.iyzicoWebhookEvent.findUniqueOrThrow({ where: { id: event.id } })).processedAt,
+    ).not.toBeNull()
     expect((await prisma.order.findUniqueOrThrow({ where: { id: started.orderId } })).status).toBe(
       'seller_queue_ready',
     )
@@ -693,7 +1197,10 @@ describe('kart ödemesi: siparişe bağlanamayan tahsilat geri ödenir', () => {
     h.state.authOutcome = 'unknown'
     await callback(h, started.attemptId)
     // Sipariş başka bir yoldan kapandı (ör. yönetici iptali).
-    await prisma.order.update({ where: { id: started.orderId }, data: { status: 'payment_cancelled' } })
+    await prisma.order.update({
+      where: { id: started.orderId },
+      data: { status: 'payment_cancelled' },
+    })
 
     expect(await h.service.reconcileAttempt(started.attemptId)).toBe('failed')
     expect(h.gateway.cancelPayment).toHaveBeenCalledTimes(1)
@@ -706,7 +1213,11 @@ describe('kart ödemesi: siparişe bağlanamayan tahsilat geri ödenir', () => {
       include: { reversal: true },
     })
     expect(attempt.status).toBe('voided')
-    expect(attempt.reversal).toMatchObject({ kind: 'cancel', status: 'completed', reason: 'late_capture' })
+    expect(attempt.reversal).toMatchObject({
+      kind: 'cancel',
+      status: 'completed',
+      reason: 'late_capture',
+    })
   })
 
   it('onaylı siparişe ikinci tahsilat gelirse deneme başına tek geri ödeme açılır', async () => {
@@ -716,7 +1227,9 @@ describe('kart ödemesi: siparişe bağlanamayan tahsilat geri ödenir', () => {
     if (started.kind !== 'threeds') throw new Error('3DS bekleniyordu')
     await callback(h, started.attemptId)
 
-    const first = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: started.attemptId } })
+    const first = await prisma.cardPaymentAttempt.findUniqueOrThrow({
+      where: { id: started.attemptId },
+    })
     const otherQuote = await prisma.cardPaymentQuote.create({
       data: {
         userId: f.customer.id,
@@ -774,7 +1287,9 @@ describe('kart ödemesi: siparişe bağlanamayan tahsilat geri ödenir', () => {
       expect.objectContaining({ reason: 'double_payment', description: 'duplicate_capture' }),
     )
 
-    const reversals = await prisma.cardAttemptReversal.findMany({ where: { attemptId: duplicate.id } })
+    const reversals = await prisma.cardAttemptReversal.findMany({
+      where: { attemptId: duplicate.id },
+    })
     expect(reversals).toHaveLength(1)
     expect(reversals[0]).toMatchObject({ reason: 'duplicate_capture', status: 'completed' })
     const order = await prisma.order.findUniqueOrThrow({
@@ -812,7 +1327,8 @@ describe('kart iadesi güvenilirliği', () => {
       where: { id: item.id },
       data: {
         status: 'manual_required',
-        failureReason: 'Önceki sağlayıcı çağrısının sonucu belirsiz; çift iadeyi önlemek için manuel mutabakat gerekli',
+        failureReason:
+          'Önceki sağlayıcı çağrısının sonucu belirsiz; çift iadeyi önlemek için manuel mutabakat gerekli',
         lastAttemptAt: new Date(Date.now() - 5 * 60_000),
       },
     })
@@ -847,7 +1363,9 @@ describe('kart iadesi güvenilirliği', () => {
     expect(await execution.reconcileCardRefund(refund.id)).toMatchObject({ completed: 1 })
 
     // Rapor, denemenin conversationId'siyle sorgulanır.
-    const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({ where: { id: started.attemptId } })
+    const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({
+      where: { id: started.attemptId },
+    })
     expect(getPaymentReport).toHaveBeenCalledWith(
       expect.objectContaining({ paymentConversationId: attempt.conversationId }),
     )
@@ -906,9 +1424,14 @@ describe('kart iadesi güvenilirliği', () => {
       ],
     }))
     const execution = createRefundExecutionService({ prisma, getPaymentReport })
-    expect(await execution.reconcileCardRefund(refund.id)).toMatchObject({ completed: 0, reopened: 0, unresolved: 1 })
+    expect(await execution.reconcileCardRefund(refund.id)).toMatchObject({
+      completed: 0,
+      reopened: 0,
+      unresolved: 1,
+    })
     expect(
-      (await prisma.refundTransactionItem.findUniqueOrThrow({ where: { id: refund.items[0]!.id } })).status,
+      (await prisma.refundTransactionItem.findUniqueOrThrow({ where: { id: refund.items[0]!.id } }))
+        .status,
     ).toBe('manual_required')
   })
 })

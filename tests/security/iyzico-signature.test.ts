@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createHmac } from 'node:crypto'
 import {
   computeIyzicoSignature,
+  checkoutFormIframeUrl,
   iyzicoAmountsEqual,
   toIyzicoPrice,
   toSignaturePrice,
@@ -64,6 +65,13 @@ describe('3DS callback imzası', () => {
 })
 
 describe('X-IYZ-SIGNATURE-V3 webhook imzası', () => {
+  it('CheckoutForm HPP imzasında iyziPaymentId ve token zorunludur', () => {
+    const body = { iyziEventType: 'CHECKOUT_FORM_AUTH', iyziPaymentId: 22416035, token: 'cf-secret-token', paymentConversationId: 'hnj-cf-1', status: 'SUCCESS' }
+    const signature = createHmac('sha256', secret).update(`${secret}CHECKOUT_FORM_AUTH22416035cf-secret-tokenhnj-cf-1SUCCESS`).digest('hex')
+    expect(verifyWebhookSignatureV3(signature, body)).toBe(true)
+    expect(verifyWebhookSignatureV3(signature, { ...body, token: 'changed' })).toBe(false)
+    expect(verifyWebhookSignatureV3(signature, { ...body, token: undefined, paymentId: body.iyziPaymentId })).toBe(false)
+  })
   const payload = {
     iyziEventType: 'THREE_DS_AUTH',
     paymentId: 22416035,
@@ -91,5 +99,13 @@ describe('X-IYZ-SIGNATURE-V3 webhook imzası', () => {
     vi.stubEnv('IYZICO_SECRET_KEY', '')
     vi.stubEnv('NODE_ENV', 'development')
     expect(verifyWebhookSignatureV3(valid, payload)).toBe(false)
+  })
+})
+
+describe('provider iframe boundary', () => {
+  it('allows only the configured environment and sets iframe=true', () => {
+    vi.stubEnv('IYZICO_BASE_URL', 'https://sandbox-api.iyzipay.com')
+    expect(checkoutFormIframeUrl('https://sandbox-cpp.iyzipay.com/?token=abc')).toBe('https://sandbox-cpp.iyzipay.com/?token=abc&iframe=true')
+    for (const url of ['javascript:alert(1)', 'https://sandbox-cpp.iyzipay.com.evil.test/?token=a', 'https://cpp.iyzipay.com/?token=a', 'http://sandbox-cpp.iyzipay.com/?token=a', 'https://user:pass@sandbox-cpp.iyzipay.com/?token=a', 'https://sandbox-cpp.iyzipay.com/']) expect(checkoutFormIframeUrl(url)).toBeNull()
   })
 })

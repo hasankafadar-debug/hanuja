@@ -32,6 +32,7 @@ import {
   hashLegalDocumentHtml,
   renderLegalDocuments,
   type LegalContractContext,
+  type LegalDocumentBundle,
 } from '../lib/legal-documents'
 import type { LegalAcceptanceEvidence } from '../lib/legal-acceptance'
 import {
@@ -58,6 +59,7 @@ import {
   splitFullName,
 } from './card-payment-support'
 import { formatOrderNumber } from '../lib/order-number'
+import { createCheckoutFormService, type CheckoutFormGateway } from './checkout-form.service'
 
 export type CardPaymentGateway = Pick<
   typeof iyzicoAdapter,
@@ -68,7 +70,10 @@ export type CardPaymentGateway = Pick<
   | 'getPaymentReport'
   | 'cancelPayment'
   | 'refundPayment'
->
+> &
+  Partial<CheckoutFormGateway>
+
+type CapturedAttempt = CardPaymentAttempt & { paidPrice: Decimal; installmentCount: number }
 
 const QUOTE_TTL_MS = 15 * 60_000
 /** Ödenmemiş kart siparişinin yeniden ödeme penceresi (iş kararı: 30 dk). */
@@ -130,6 +135,7 @@ function outcomeForStatus(status: CardPaymentAttempt['status']): CallbackOutcome
       return 'review'
     case 'authorizing':
     case 'outcome_unknown':
+    case 'checkout_form_pending':
       return 'pending'
     case 'expired':
       return 'expired'
@@ -148,6 +154,19 @@ export function createCardPaymentService({
   now = () => new Date(),
 }: CardPaymentServiceDeps) {
   const checkout = createCheckoutService({ prisma })
+  const checkoutForm = createCheckoutFormService({
+    prisma,
+    now,
+    processCapturedPayment,
+    expireOrder,
+    gateway: {
+      initializeCheckoutForm:
+        gateway.initializeCheckoutForm ?? iyzicoAdapter.initializeCheckoutForm,
+      retrieveCheckoutForm: gateway.retrieveCheckoutForm ?? iyzicoAdapter.retrieveCheckoutForm,
+      retrievePayment: gateway.retrievePayment,
+      getPaymentReport: gateway.getPaymentReport,
+    },
+  })
 
   async function appendEvent(
     client: Pick<Prisma.TransactionClient, 'paymentEvent'>,
@@ -372,10 +391,26 @@ export function createCardPaymentService({
     if (!attempt.providerPaymentId || detail.paymentId !== attempt.providerPaymentId) {
       return 'payment_id_mismatch'
     }
+    if (attempt.flow === 'checkout_form') {
+      if (!attempt.legalSnapshots) return 'legal_evidence_missing'
+      if (detail.basketId !== attempt.orderId) return 'basket_mismatch'
+      if (detail.currency !== 'TRY') return 'currency_mismatch'
+      if (detail.conversationId !== attempt.conversationId) return 'conversation_mismatch'
+      if (!detail.installment || !attempt.allowedInstallments.includes(detail.installment))
+        return 'installment_mismatch'
+      if (detail.mdStatus !== '1') return 'md_status_not_verified'
+      if (new Decimal(detail.paidPrice).lt(attempt.price)) return 'paid_price_mismatch'
+      if (detail.installment === 1 && !new Decimal(detail.paidPrice).eq(attempt.price))
+        return 'paid_price_mismatch'
+      if (!new Decimal(detail.price).eq(attempt.price)) return 'price_mismatch'
+      if (attempt.supersededAt) return 'superseded_capture'
+      return null
+    }
     if (detail.basketId !== null && detail.basketId !== attempt.orderId) return 'basket_mismatch'
     if (detail.currency !== null && detail.currency !== 'TRY') return 'currency_mismatch'
     if (!new Decimal(detail.price).eq(attempt.price)) return 'price_mismatch'
-    if (!new Decimal(detail.paidPrice).eq(attempt.paidPrice)) return 'paid_price_mismatch'
+    if (!attempt.paidPrice || !new Decimal(detail.paidPrice).eq(attempt.paidPrice))
+      return 'paid_price_mismatch'
     if (detail.installment !== null && detail.installment !== attempt.installmentCount) {
       return 'installment_mismatch'
     }
@@ -383,8 +418,15 @@ export function createCardPaymentService({
     return null
   }
 
-  function cardSummary(detail: IyzicoPaymentDetail): Prisma.CardPaymentAttemptUpdateInput {
+  function cardSummary(
+    detail: IyzicoPaymentDetail,
+    price: Decimal,
+  ): Prisma.CardPaymentAttemptUpdateInput {
     return {
+      paidPrice: new Decimal(detail.paidPrice),
+      installmentDifferenceAmount: new Decimal(detail.paidPrice).sub(price),
+      installmentCount: detail.installment,
+      ...(detail.binNumber ? { binNumber: detail.binNumber } : {}),
       ...(detail.lastFourDigits ? { lastFourDigits: detail.lastFourDigits } : {}),
       ...(detail.cardType ? { cardType: detail.cardType } : {}),
       ...(detail.cardAssociation ? { cardAssociation: detail.cardAssociation } : {}),
@@ -401,6 +443,7 @@ export function createCardPaymentService({
         ? { merchantPayoutAmount: new Decimal(detail.merchantPayoutAmount) }
         : {}),
       fraudStatus: detail.fraudStatus,
+      ...(detail.mdStatus !== null ? { mdStatus: detail.mdStatus } : {}),
       itemTransactions: detail.itemTransactions.map((item) => ({
         itemId: item.itemId,
         paymentTransactionId: item.paymentTransactionId,
@@ -423,8 +466,9 @@ export function createCardPaymentService({
     await tx.cardPaymentAttempt.update({
       where: { id: attempt.id },
       data: {
-        ...cardSummary(detail),
+        ...cardSummary(detail, attempt.price),
         status: 'succeeded',
+        installmentDifferenceAmount: new Decimal(detail.paidPrice).sub(attempt.price),
         completedAt: now(),
         errorCode: reason,
       },
@@ -461,7 +505,7 @@ export function createCardPaymentService({
 
   async function confirmInTransaction(
     tx: Prisma.TransactionClient,
-    attempt: CardPaymentAttempt,
+    attempt: CapturedAttempt,
     detail: IyzicoPaymentDetail,
   ): Promise<CallbackOutcome> {
     const order = await tx.order.findUniqueOrThrow({
@@ -576,22 +620,31 @@ export function createCardPaymentService({
     await tx.cardPaymentAttempt.update({
       where: { id: attempt.id },
       data: {
-        ...cardSummary(detail),
+        ...cardSummary(detail, attempt.price),
         status: 'succeeded',
         completedAt: confirmedAt,
+        installmentDifferenceAmount: attempt.paidPrice.sub(attempt.price),
       },
     })
 
     // Sözleşme: başarılı denemenin müşteriye gösterilen ve kabul edilen belgeleri.
-    const quote = await tx.cardPaymentQuote.findUniqueOrThrow({
-      where: { id: attempt.quoteId },
-    })
-    const bundle = renderLegalDocuments(
-      quoteContext(quote, {
-        orderNumber: formatOrderNumber(order.publicNumber, order.id),
-        orderDate: order.createdAt,
-      }),
-    )
+    const quote = attempt.quoteId
+      ? await tx.cardPaymentQuote.findUniqueOrThrow({
+          where: { id: attempt.quoteId },
+        })
+      : null
+    const bundle =
+      attempt.flow === 'checkout_form' && attempt.legalSnapshots
+        ? (attempt.legalSnapshots as unknown as Pick<
+            LegalDocumentBundle,
+            'buyerSnapshot' | 'sellerSnapshot' | 'platformSnapshot'
+          >)
+        : renderLegalDocuments(
+            quoteContext(quote!, {
+              orderNumber: formatOrderNumber(order.publicNumber, order.id),
+              orderDate: order.createdAt,
+            }),
+          )
     const existingSnapshot = await tx.orderLegalSnapshot.findUnique({
       where: { orderId: order.id },
     })
@@ -707,7 +760,8 @@ export function createCardPaymentService({
         await tx.cardPaymentAttempt.update({
           where: { id: attempt.id },
           data: {
-            ...cardSummary(detail),
+            ...cardSummary(detail, attempt.price),
+            installmentDifferenceAmount: new Decimal(detail.paidPrice).sub(attempt.price),
             status: 'failed',
             errorCode: 'fraud_rejected',
           },
@@ -723,7 +777,7 @@ export function createCardPaymentService({
         // 0 (inceleniyor) veya bilinmiyor: sipariş ilerlemez, tahakkuk yazılmaz.
         await tx.cardPaymentAttempt.update({
           where: { id: attempt.id },
-          data: { ...cardSummary(detail), status: 'fraud_review' },
+          data: { ...cardSummary(detail, attempt.price), status: 'fraud_review' },
         })
         if (attempt.status !== 'fraud_review') {
           await appendEvent(tx, attempt.paymentId, 'card_payment_fraud_review', {
@@ -734,7 +788,10 @@ export function createCardPaymentService({
         return 'review' as const
       }
 
-      return confirmInTransaction(tx, attempt, detail)
+      const paidPrice = new Decimal(detail.paidPrice)
+      const installmentCount = detail.installment ?? attempt.installmentCount
+      if (!installmentCount) return 'invalid' as const
+      return confirmInTransaction(tx, { ...attempt, paidPrice, installmentCount }, detail)
     })
 
     if (outcome === 'succeeded') await wakeStockSearchProjection()
@@ -999,6 +1056,7 @@ export function createCardPaymentService({
     const attempt = await prisma.cardPaymentAttempt.findUniqueOrThrow({
       where: { id: attemptId },
     })
+    if (attempt.flow === 'checkout_form') return checkoutForm.reconcile(attemptId)
     if (!(BLOCKING_STATUSES as readonly string[]).includes(attempt.status)) return null
     if (!attempt.providerPaymentId) return null
     if (
@@ -1081,11 +1139,20 @@ export function createCardPaymentService({
         where: { orderId, status: { in: [...PRE_AUTH_STATUSES] } },
         data: { status: 'expired', completedAt: now() },
       })
-      const blocking = order.cardPaymentAttempts.some((attempt) =>
-        (BLOCKING_STATUSES as readonly string[]).includes(attempt.status),
+      const blocking = order.cardPaymentAttempts.some(
+        (attempt) =>
+          !attempt.supersededAt &&
+          ((BLOCKING_STATUSES as readonly string[]).includes(attempt.status) ||
+            (attempt.flow === 'checkout_form' &&
+              !!attempt.checkoutFormExpiresAt &&
+              attempt.checkoutFormExpiresAt > now())),
       )
       const payment = order.payments.find((candidate) => candidate.method === 'card')
       if (blocking || !payment) return 'blocked' as const
+      await tx.cardPaymentAttempt.updateMany({
+        where: { orderId, flow: 'checkout_form', status: 'checkout_form_pending' },
+        data: { status: 'expired', completedAt: now() },
+      })
 
       const claimed = await tx.payment.updateMany({
         where: { id: payment.id, status: 'pending' },
@@ -1128,11 +1195,15 @@ export function createCardPaymentService({
     })
     if (!event || event.processedAt) return
     try {
-      const attempt = event.paymentConversationId
+      const attempt = event.checkoutFormToken
         ? await prisma.cardPaymentAttempt.findUnique({
-            where: { conversationId: event.paymentConversationId },
+            where: { checkoutFormToken: event.checkoutFormToken },
           })
-        : null
+        : event.paymentConversationId
+          ? await prisma.cardPaymentAttempt.findUnique({
+              where: { conversationId: event.paymentConversationId },
+            })
+          : null
       let note: string | null = null
       if (!attempt) {
         note = 'no_attempt'
@@ -1142,7 +1213,10 @@ export function createCardPaymentService({
         event.paymentId !== attempt.providerPaymentId
       ) {
         note = 'payment_id_mismatch'
-      } else if ((BLOCKING_STATUSES as readonly string[]).includes(attempt.status)) {
+      } else if (
+        attempt.flow === 'checkout_form' ||
+        (BLOCKING_STATUSES as readonly string[]).includes(attempt.status)
+      ) {
         // Bildirim yalnız tetikleyicidir; karar iyzico'nun imzalı sorgu yanıtıyla verilir.
         if (attempt.status === 'authorizing') {
           await transitionAttempt(attempt.id, ['authorizing'], {
@@ -1174,6 +1248,17 @@ export function createCardPaymentService({
   // ─── Public API ───────────────────────────────────────────────────────────
 
   return {
+    previewCheckoutForm: checkoutForm.preview,
+    startCheckoutForm: checkoutForm.start,
+    reuseCheckoutForm: checkoutForm.reuse,
+    abandonCheckoutForm: checkoutForm.abandon,
+    async handleCheckoutFormCallback(token: string) {
+      const attempt = await prisma.cardPaymentAttempt.findUnique({
+        where: { checkoutFormToken: token },
+      })
+      if (!attempt) return { orderId: null, outcome: 'invalid' as const }
+      return { orderId: attempt.orderId, outcome: await checkoutForm.reconcile(attempt.id) }
+    },
     async createQuote(params: {
       userId: string
       binNumber: string
@@ -1546,6 +1631,8 @@ export function createCardPaymentService({
       }
       if (created.createdOrder) await wakeStockSearchProjection()
       const attempt = created.attempt
+      if (!attempt.paidPrice || !attempt.installmentCount)
+        throw new ValidationError('Geçersiz doğrudan ödeme denemesi')
 
       const order = await prisma.order.findUniqueOrThrow({
         where: { id: attempt.orderId },
@@ -1803,6 +1890,8 @@ export function createCardPaymentService({
       const authorizing = await prisma.cardPaymentAttempt.findUniqueOrThrow({
         where: { id: attempt.id },
       })
+      if (attempt.flow !== 'direct_3ds' || !attempt.paidPrice)
+        return { orderId: attempt.orderId, outcome: 'invalid' }
       const outcome = await gateway.complete3DS({
         paymentId: attempt.providerPaymentId!,
         conversationId: attempt.conversationId,
@@ -1820,11 +1909,41 @@ export function createCardPaymentService({
         where: { startKey },
       })
       if (!attempt || attempt.userId !== userId) return null
+      if (
+        attempt.flow === 'checkout_form' &&
+        ['checkout_form_pending', 'outcome_unknown', 'fraud_review'].includes(attempt.status)
+      ) {
+        await checkoutForm.reconcile(attempt.id)
+        const current = await prisma.cardPaymentAttempt.findUniqueOrThrow({
+          where: { id: attempt.id },
+        })
+        return {
+          attemptId: current.id,
+          orderId: current.orderId,
+          status: current.status,
+          outcome: outcomeForStatus(current.status),
+          sourceHash: current.sourceHash,
+          startKey: current.startKey,
+          superseded: !!current.supersededAt,
+          ...(current.status === 'checkout_form_pending' &&
+          !current.supersededAt &&
+          current.checkoutFormExpiresAt &&
+          current.checkoutFormExpiresAt > now()
+            ? {
+                iframeUrl: current.checkoutFormUrl,
+                expiresAt: current.checkoutFormExpiresAt.toISOString(),
+              }
+            : {}),
+        }
+      }
       return {
         attemptId: attempt.id,
         orderId: attempt.orderId,
         status: attempt.status,
         outcome: outcomeForStatus(attempt.status),
+        ...(attempt.flow === 'checkout_form'
+          ? { sourceHash: attempt.sourceHash, superseded: !!attempt.supersededAt }
+          : {}),
       }
     },
 
@@ -1848,7 +1967,15 @@ export function createCardPaymentService({
         !!order.cardPaymentExpiresAt &&
         order.cardPaymentExpiresAt > now() &&
         !checking &&
-        order.cardPaymentAttempts.length < MAX_CARD_ATTEMPTS_PER_ORDER
+        (order.cardPaymentAttempts.length < MAX_CARD_ATTEMPTS_PER_ORDER ||
+          order.cardPaymentAttempts.some(
+            (attempt) =>
+              attempt.flow === 'checkout_form' &&
+              !attempt.supersededAt &&
+              attempt.status === 'checkout_form_pending' &&
+              attempt.checkoutFormExpiresAt &&
+              attempt.checkoutFormExpiresAt > now(),
+          ))
       return {
         orderId: order.id,
         status: order.status,
@@ -1856,6 +1983,9 @@ export function createCardPaymentService({
         checking,
         expiresAt: order.cardPaymentExpiresAt?.toISOString() ?? null,
         totalAmount: order.totalAmount.toFixed(2),
+        grossAmount: order.grossAmount.toFixed(2),
+        couponDiscountAmount: order.discountAmount.toFixed(2),
+        shippingAmount: order.shippingAmount.toFixed(2),
         attemptsLeft: Math.max(0, MAX_CARD_ATTEMPTS_PER_ORDER - order.cardPaymentAttempts.length),
       }
     },
@@ -1870,6 +2000,12 @@ export function createCardPaymentService({
 
     /** Worker: süresi dolan siparişler, belirsiz denemeler, yarım geri ödemeler, işlenmemiş webhook'lar. */
     async runMaintenance(limit = 50) {
+      await prisma.checkoutFormPreview.deleteMany({
+        where: { expiresAt: { lt: new Date(now().getTime() - 7 * 86400_000) } },
+      })
+      await prisma.checkoutFormPreview.deleteMany({
+        where: { expiresAt: { lt: new Date(now().getTime() - 7 * 86400_000) } },
+      })
       const summary = {
         expired: 0,
         blocked: 0,
@@ -1886,13 +2022,34 @@ export function createCardPaymentService({
         take: limit,
       })
       for (const order of dueOrders) {
+        const forms = await prisma.cardPaymentAttempt.findMany({
+          where: {
+            orderId: order.id,
+            flow: 'checkout_form',
+            checkoutFormToken: { not: null },
+            status: { in: ['checkout_form_pending', 'outcome_unknown', 'fraud_review'] },
+          },
+          select: { id: true },
+        })
+        for (const form of forms) await checkoutForm.reconcile(form.id)
         const result = await expireOrder(order.id)
         if (result === 'cancelled') summary.expired += 1
         if (result === 'blocked') summary.blocked += 1
       }
 
       const openAttempts = await prisma.cardPaymentAttempt.findMany({
-        where: { status: { in: [...BLOCKING_STATUSES] } },
+        where: {
+          OR: [
+            { status: { in: [...BLOCKING_STATUSES] } },
+            {
+              flow: 'checkout_form',
+              checkoutFormToken: { not: null },
+              status: { in: ['checkout_form_pending', 'expired', 'failed'] },
+              updatedAt: { lt: new Date(now().getTime() - 30_000) },
+              createdAt: { gt: new Date(now().getTime() - 7 * 86400_000) },
+            },
+          ],
+        },
         select: { id: true },
         orderBy: { updatedAt: 'asc' },
         take: limit,

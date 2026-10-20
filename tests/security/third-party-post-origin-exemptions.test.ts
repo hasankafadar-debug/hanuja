@@ -49,6 +49,7 @@ describe('web endpoints called by third-party servers', () => {
     ...routeFiles(join(webDir, 'src', 'app', 'api', 'webhooks')),
     ...routeFiles(join(webDir, 'src', 'app', 'api', 'inbound')),
     join(webDir, 'src', 'app', 'api', 'payment', 'callback', 'route.ts'),
+    join(webDir, 'src', 'app', 'api', 'payment', 'checkout-form', 'callback', 'route.ts'),
   ]
     .filter(exportsPost)
     .map((file) => apiPath(webDir, file))

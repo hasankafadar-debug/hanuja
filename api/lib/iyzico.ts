@@ -23,12 +23,11 @@ type IyzipayConstructor = new (opts: {
   uri: string
 }) => IyzipayInstance
 
-// iyzipay is CommonJS and triggers webpack warnings when statically analyzed.
-// Load it lazily only when a payment/refund action actually runs.
+// Keep the literal require traceable in Next.js standalone output. The storefront
+// and admin declare this runtime dependency; workers resolve it from the API package.
 function loadIyzipay(): IyzipayConstructor {
-  // eslint-disable-next-line no-eval
-  const runtimeRequire = eval('require') as NodeRequire
-  return runtimeRequire('iyzipay') as IyzipayConstructor
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('iyzipay') as IyzipayConstructor
 }
 
 // ─── Internal types for the iyzipay SDK ─────────────────────────────────────
@@ -44,6 +43,8 @@ interface IyzipayRetrievable {
 }
 
 interface IyzipayInstance {
+  checkoutFormInitialize: IyzipayCreatable
+  checkoutForm: IyzipayRetrievable
   threedsInitialize: IyzipayCreatable
   threedsV2Payment: IyzipayCreatable
   payment: IyzipayRetrievable
@@ -72,6 +73,9 @@ interface IyzicoRawItemTransaction {
 }
 
 interface IyzicoRawResult {
+  token?: string
+  paymentPageUrl?: string
+  tokenExpireTime?: number
   status?: string
   locale?: string
   systemTime?: number
@@ -217,6 +221,114 @@ export interface Initiate3DSParams {
 export interface Initiate3DSData {
   paymentId: string
   htmlContent: string
+}
+
+export type InitializeCheckoutFormParams = Omit<
+  Initiate3DSParams,
+  'paymentCard' | 'installment'
+> & { enabledInstallments: number[] }
+
+/** Only provider-owned HTTPS pages may host card entry. Never inject checkoutFormContent. */
+export function checkoutFormIframeUrl(value: string): string | null {
+  try {
+    const url = new URL(value)
+    const sandbox =
+      (process.env.IYZICO_BASE_URL ?? 'https://sandbox-api.iyzipay.com') ===
+      'https://sandbox-api.iyzipay.com'
+    const host = sandbox ? 'sandbox-cpp.iyzipay.com' : 'cpp.iyzipay.com'
+    if (
+      url.protocol !== 'https:' ||
+      url.hostname !== host ||
+      url.port ||
+      url.username ||
+      url.password ||
+      !url.searchParams.get('token')
+    )
+      return null
+    url.searchParams.set('iframe', 'true')
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
+export async function initializeCheckoutForm(params: InitializeCheckoutFormParams): Promise<
+  IyzicoOutcome<{
+    token: string
+    iframeUrl: string
+    expiresInSeconds: number
+  }>
+> {
+  try {
+    const client = createClient()
+    const result = await call(
+      client.checkoutFormInitialize.create.bind(client.checkoutFormInitialize),
+      {
+        ...params,
+        locale: 'tr',
+        currency: 'TRY',
+        paymentGroup: 'PRODUCT',
+        forceThreeDS: 1,
+      },
+    )
+    if (result.status !== 'success') return failureOf(result, 'Ödeme formu başlatılamadı')
+    if (
+      !result.token ||
+      result.conversationId !== params.conversationId ||
+      !verifySignature(result.signature, [result.conversationId, result.token])
+    ) {
+      return { kind: 'unknown', reason: 'checkout_form_initialize_signature' }
+    }
+    const iframeUrl = checkoutFormIframeUrl(result.paymentPageUrl ?? '')
+    const expires = result.tokenExpireTime
+    if (
+      !iframeUrl ||
+      new URL(iframeUrl).searchParams.get('token') !== result.token ||
+      !Number.isInteger(expires) ||
+      !expires ||
+      expires <= 0 ||
+      expires > 86400
+    ) {
+      return { kind: 'unknown', reason: 'checkout_form_initialize_invalid' }
+    }
+    return { kind: 'success', data: { token: result.token, iframeUrl, expiresInSeconds: expires } }
+  } catch {
+    return { kind: 'unknown', reason: 'checkout_form_initialize_transport' }
+  }
+}
+
+export async function retrieveCheckoutForm(params: {
+  token: string
+  conversationId: string
+}): Promise<IyzicoOutcome<IyzicoPaymentDetail>> {
+  try {
+    const client = createClient()
+    const result = await call(client.checkoutForm.retrieve.bind(client.checkoutForm), {
+      locale: 'tr',
+      ...params,
+    })
+    if (result.status !== 'success') return failureOf(result, 'Ödeme formunun sonucu alınamadı')
+    if (
+      result.token !== params.token ||
+      result.conversationId !== params.conversationId ||
+      !verifySignature(result.signature, [
+        result.paymentStatus,
+        result.paymentId,
+        result.currency,
+        result.basketId,
+        result.conversationId,
+        toSignaturePrice(result.paidPrice),
+        toSignaturePrice(result.price),
+        result.token,
+      ])
+    )
+      return { kind: 'unknown', reason: 'checkout_form_result_signature' }
+    if (!result.paymentId && result.paymentStatus === 'SUCCESS')
+      return { kind: 'unknown', reason: 'checkout_form_result_missing_payment' }
+    return { kind: 'success', data: mapPaymentDetail(result) }
+  } catch {
+    return { kind: 'unknown', reason: 'checkout_form_result_transport' }
+  }
 }
 
 export interface Complete3DSParams {
@@ -392,10 +504,18 @@ function call(
   request: object,
 ): Promise<IyzicoRawResult> {
   return new Promise((resolve, reject) => {
-    method(request, (err, result) => {
-      if (err) reject(err)
-      else resolve(result)
-    })
+    const timer = setTimeout(() => reject(new Error('IYZICO_REQUEST_TIMEOUT')), 20_000)
+    timer.unref()
+    try {
+      method(request, (err, result) => {
+        clearTimeout(timer)
+        if (err) reject(err)
+        else resolve(result)
+      })
+    } catch (error) {
+      clearTimeout(timer)
+      reject(error)
+    }
   })
 }
 
@@ -821,18 +941,31 @@ export function verifyWebhookSignatureV3(
   payload: {
     iyziEventType?: unknown
     paymentId?: unknown
+    iyziPaymentId?: unknown
+    token?: unknown
     paymentConversationId?: unknown
     status?: unknown
   },
 ): boolean {
   const key = process.env.IYZICO_SECRET_KEY
   if (!key || !signature) return false
-  const message =
-    key +
-    String(payload.iyziEventType ?? '') +
-    String(payload.paymentId ?? '') +
-    String(payload.paymentConversationId ?? '') +
-    String(payload.status ?? '')
+  const hpp = payload.iyziEventType === 'CHECKOUT_FORM_AUTH'
+  const fields = hpp
+    ? [
+        payload.iyziEventType,
+        payload.iyziPaymentId,
+        payload.token,
+        payload.paymentConversationId,
+        payload.status,
+      ]
+    : [payload.iyziEventType, payload.paymentId, payload.paymentConversationId, payload.status]
+  if (
+    fields.some(
+      (field) => !['string', 'number'].includes(typeof field) || String(field).length === 0,
+    )
+  )
+    return false
+  const message = key + fields.map(String).join('')
   const expected = crypto.createHmac('sha256', key).update(message).digest('hex')
   return safeEqualHex(signature, expected)
 }

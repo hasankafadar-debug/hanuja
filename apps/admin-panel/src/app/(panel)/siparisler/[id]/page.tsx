@@ -353,6 +353,7 @@ export default async function AdminOrderDetailPage({ params }: Props) {
   const CARD_ATTEMPT_STATUS_LABELS: Record<string, string> = {
     initialized: 'Başlatılıyor',
     threeds_pending: '3D Secure bekleniyor',
+    checkout_form_pending: 'iyzico ödeme alanında işlem bekleniyor',
     authorizing: 'Tahsilat sonucu bekleniyor',
     succeeded: 'Tahsil edildi',
     fraud_review: 'iyzico inceliyor',
@@ -676,10 +677,10 @@ export default async function AdminOrderDetailPage({ params }: Props) {
                       </span>
                     </div>
                     <p style={{ color: 'var(--color-muted-fg)' }}>
-                      {attempt.installmentCount === 1
+                      {attempt.installmentCount == null ? 'Taksit seçimi bekleniyor' : attempt.installmentCount === 1
                         ? 'Tek çekim'
                         : `${attempt.installmentCount} taksit`}{' '}
-                      · {formatMoney(moneyToNumber(attempt.paidPrice))}
+                      · {attempt.paidPrice == null ? 'Tahsilat bekleniyor' : formatMoney(moneyToNumber(attempt.paidPrice))}
                       {[attempt.bankName, attempt.cardFamily].filter(Boolean).length > 0
                         ? ` · ${[attempt.bankName, attempt.cardFamily].filter(Boolean).join(' / ')}`
                         : ''}

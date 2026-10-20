@@ -2,6 +2,7 @@
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 const SIGNED_WEB_ROUTES = new Set([
   '/api/payment/callback',
+  '/api/payment/checkout-form/callback',
   '/api/webhooks/iyzico',
   '/api/webhooks/resend',
   '/api/inbound/postmark/store-discount',

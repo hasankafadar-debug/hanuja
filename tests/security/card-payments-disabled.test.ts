@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   prisma: vi.fn(),
   service: vi.fn(),
   handleCallback: vi.fn(),
+  handleCheckoutFormCallback: vi.fn(),
 }))
 vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: mocks.session } } }))
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
@@ -19,15 +20,52 @@ vi.mock('@hanuja/api/lib/iyzico', () => ({
 }))
 vi.mock('@hanuja/api/lib/prisma', () => ({ createPrismaForRoute: mocks.prisma }))
 vi.mock('@hanuja/api/services/card-payment.service', () => ({
-  createCardPaymentService: () => ({ handleCallback: mocks.handleCallback }),
+  createCardPaymentService: () => ({
+    handleCallback: mocks.handleCallback,
+    handleCheckoutFormCallback: mocks.handleCheckoutFormCallback,
+  }),
 }))
 vi.mock('@hanuja/api/services/card-payment-queue', () => ({ enqueueIyzicoWebhookEvent: vi.fn() }))
 vi.mock('@hanuja/api/services/checkout.service', () => ({ createCheckoutService: mocks.service }))
 
 import { POST as start } from '../../apps/web/src/app/api/payment/start/route'
 import { POST as quote } from '../../apps/web/src/app/api/payment/quote/route'
+import { POST as checkoutFormStart } from '../../apps/web/src/app/api/payment/checkout-form/start/route'
+import { POST as checkoutFormCallback } from '../../apps/web/src/app/api/payment/checkout-form/callback/route'
 import { POST as callback } from '../../apps/web/src/app/api/payment/callback/route'
 import { POST as webhook } from '../../apps/web/src/app/api/webhooks/iyzico/route'
+import { startCheckoutFormSchema } from '../../api/routes/card-payments'
+
+it.each(['cardNumber', 'cardHolderName', 'cvc', 'expireMonth', 'price', 'paidPrice', 'iframeUrl'])(
+  'CF start rejects client-controlled %s',
+  (field) => {
+    const input = {
+      previewId: 'preview-1',
+      startKey: 'start-key-1234567890',
+      turnstileToken: 'captcha',
+      acceptedDistanceSales: true,
+      acceptedPreInformation: true,
+      [field]: 'untrusted',
+    }
+    expect(startCheckoutFormSchema.safeParse(input).success).toBe(false)
+  },
+)
+
+it.each(['acceptedDistanceSales', 'acceptedPreInformation'])(
+  'requires separate server evidence for %s',
+  (field) => {
+    expect(
+      startCheckoutFormSchema.safeParse({
+        previewId: 'preview-1',
+        startKey: 'start-key-1234567890',
+        turnstileToken: 'captcha',
+        acceptedDistanceSales: true,
+        acceptedPreInformation: true,
+        [field]: false,
+      }).success,
+    ).toBe(false)
+  },
+)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -35,12 +73,14 @@ beforeEach(() => {
   // Eski bayrak kart satışını açmaz.
   vi.stubEnv('CARD_PAYMENTS_ENABLED', 'true')
   vi.stubEnv('IYZICO_CARD_PAYMENTS_ENABLED', 'false')
+  vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://shop.example.test')
 })
 afterEach(() => vi.unstubAllEnvs())
 
 describe.each([
   ['start', start],
   ['quote', quote],
+  ['checkout-form/start', checkoutFormStart],
 ] as const)('kart kapalıyken %s', (_, handler) => {
   it.each(['', 'tampered payload', '{"cardNumber":"4111111111111111"}'])(
     '%j gövdesini okumadan ve hiçbir yan etki olmadan reddeder',
@@ -59,6 +99,22 @@ describe.each([
 })
 
 describe('kart kapalıyken başlamış ödemeler sahipsiz kalmaz', () => {
+  it('CheckoutForm callback also processes server-side results without a sales flag', async () => {
+    mocks.handleCheckoutFormCallback.mockResolvedValue({
+      orderId: 'order-cf',
+      outcome: 'succeeded',
+    })
+    const response = await checkoutFormCallback(
+      new NextRequest('https://shop.example.test/api/payment/checkout-form/callback', {
+        method: 'POST',
+        body: 'token=sandbox-callback-token',
+      }),
+    )
+    expect(response.status).toBe(200)
+    expect(mocks.handleCheckoutFormCallback).toHaveBeenCalledWith('sandbox-callback-token')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.text()).not.toContain('sandbox-callback-token')
+  })
   it('3DS callback yine işlenir', async () => {
     mocks.handleCallback.mockResolvedValue({ orderId: 'order-1', outcome: 'succeeded' })
     const response = await callback(
@@ -83,3 +139,22 @@ describe('kart kapalıyken başlamış ödemeler sahipsiz kalmaz', () => {
     expect(mocks.prisma).not.toHaveBeenCalled()
   })
 })
+
+it.each([start, quote])(
+  'retires legacy card-data entry even when new card sales are enabled',
+  async (handler) => {
+    vi.stubEnv('IYZICO_CARD_PAYMENTS_ENABLED', 'true')
+    expect(
+      (
+        await handler(
+          new NextRequest('https://shop.example.test/api/payment', {
+            method: 'POST',
+            body: 'invalid body',
+          }),
+        )
+      ).status,
+    ).toBe(410)
+    expect(mocks.session).not.toHaveBeenCalled()
+    expect(mocks.provider).not.toHaveBeenCalled()
+  },
+)

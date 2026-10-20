@@ -220,6 +220,8 @@ needs the full SMTP/`EMAIL_FROM_*` set even though it has no HTTP surface.
 
 The worker **needs** `IYZICO_API_KEY`, `IYZICO_SECRET_KEY` and `IYZICO_BASE_URL` (same values as web): card refunds, card payment reconciliation and the `card-payment` queue call iyzico. `IYZICO_CARD_PAYMENTS_ENABLED` is not needed on the worker. `IYZICO_WEBHOOK_SECRET` is no longer used.
 
+The admin panel also needs the same three live iyzico values for uncertain card refund reconciliation. Configure payment credentials on web, worker and admin as runtime-only (not build-time); only web uses the new-card-sales flag.
+
 ---
 
 ## BETTER_AUTH_SECRET

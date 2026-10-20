@@ -63,8 +63,8 @@ const TRACKER_PATTERNS: RegExp[] = [
 const STORAGE_ALLOWLIST: { pattern: RegExp; files: string[]; why: string }[] = [
   {
     pattern: /\b(localStorage|sessionStorage|indexedDB)\s*\./,
-    files: ['apps/web/src/lib/cookie-consent/browser.ts'],
-    why: 'cookie notice/consent keys (inventory: hanuja-cookie-notice, hanuja-cookie-consent)',
+    files: ['apps/web/src/lib/cookie-consent/browser.ts', 'apps/web/src/app/(storefront)/odeme/client-page.tsx'],
+    why: 'cookie preferences and strictly necessary CheckoutForm retry key/source hash (documented inventory; no card/token storage)',
   },
   {
     pattern: /document\.cookie\s*=(?!=)/,
