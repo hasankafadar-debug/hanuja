@@ -1,0 +1,41 @@
+{
+  "baseline": "designer-invitation-sha256.json",
+  "reason": "User-authorized scroll-linked hero and responsive full-motion revision; locally reviewed and production release approved on 2026-10-21",
+  "files": [
+    {
+      "path": "index.html",
+      "change": "modified",
+      "originalSha256": "12ea475a355432c1af23b79750d3afe4adb013fcf1962b641e4d34f0508833d9",
+      "bytes": 82428,
+      "sha256": "cac10bc8bbe0f455b05320016a3a297726ca78c4fc642473780e2d2b40031871"
+    },
+    {
+      "path": "assets/video/stage-16x9-scroll.mp4",
+      "change": "added",
+      "derivedFrom": "assets/video/stage-16x9.mp4",
+      "encoding": {
+        "codec": "H.264",
+        "crf": 21,
+        "keyframeIntervalFrames": 6,
+        "keyframeIntervalSeconds": 0.25,
+        "faststart": true
+      },
+      "bytes": 4363935,
+      "sha256": "a5a1cb691f4d35ed703ff4711e1c70a0ff8fa479b45e23e30741d107d6d783b4"
+    },
+    {
+      "path": "assets/video/stage-9x16-scroll.mp4",
+      "change": "added",
+      "derivedFrom": "assets/video/stage-9x16.mp4",
+      "encoding": {
+        "codec": "H.264",
+        "crf": 21,
+        "keyframeIntervalFrames": 6,
+        "keyframeIntervalSeconds": 0.25,
+        "faststart": true
+      },
+      "bytes": 3107525,
+      "sha256": "aa975689b98350c5940c90b36204d647d067cdb3b27caf49faba978f1a23ae87"
+    }
+  ]
+}
