@@ -651,3 +651,12 @@ These rules govern how Claude must behave while working in this repository, in a
 ### 16.6 Always respond to the user in Turkish
 - All chat responses to the user must be written in Turkish, regardless of the language of code, file contents, or this document.
 - Code, identifiers, commit messages, and file content follow their own existing language conventions (see rules above) — this rule is about the chat reply only.
+
+### 16.7 Verify first, then answer — no assumptions (strict rule)
+
+> "Varsayımla öneride bulunma veya iş yapma; önce doğrula, sonra cevapla."
+
+- Never give a recommendation, state a fact, or do work based on an assumption. Verify first, then answer.
+- Anything checkable — code, git and remote state, Coolify deploy state, the live site, test results — is checked before it is stated or acted on. This includes short status updates and closing summaries.
+- If something cannot be verified, say plainly that it is unverified and ask; never fill the gap with a guess.
+- Why: on 2026-10-21 a closing message said commit `05a2446` was not deployed to web, without checking Coolify; it had been deployed.
