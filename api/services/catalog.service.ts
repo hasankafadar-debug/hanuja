@@ -393,9 +393,10 @@ export function createCatalogService({ prisma }: CatalogServiceDeps) {
     }) {
       const publishedProducts = await products.listPublished(params)
       const pricedProducts = await applyEffectivePricingToProducts(publishedProducts)
-      // Bu metodun sonucu public JSON route'unda (GET /api/products) ham döner;
+      // Bu metodun sonucunu public JSON route'u (GET /api/products) kullanır; route
+      // yalnız izinli alanları yazar (api/lib/public-product-projection.ts).
       // discountSource internal bir zenginleştirme alanıdır (kural adı/id içerir)
-      // ve public payload'a sızmaması için burada çıkarılır.
+      // ve burada da çıkarılır.
       return pricedProducts.map(({ discountSource: _discountSource, ...item }) => item)
     },
 

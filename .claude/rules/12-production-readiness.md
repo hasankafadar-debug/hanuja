@@ -1187,6 +1187,34 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
   kontrolünden önce çalışır: yanıtı kaybolan isteğin tekrarı için müşteri yeni doğrulama yapar (ödeme sayfası
   hatadan sonra doğrulamayı zaten yeniler).
 
+### 49. Herkese açık ürün API'sinde satıcı komisyonu ve iç kayıt alanları (yeni — 2026-10-21)
+
+- **Belirti:** `GET /api/products` ve `GET /api/products/:slug` oturumsuz çağrılabiliyordu ve satıcının tüm
+  kaydını döndürüyordu: satıcıya özel komisyon oranı (`commissionRateOverride`), `userId`, `sellerNumber` ve
+  başvuru, belge, içe aktarma alanları. Yanıtta ürünün moderasyon bulguları (`moderationFindings`), red gerekçesi,
+  SKU ve barkodu da vardı. Detay ucu ayrıca kategorinin yönetim alanlarını döndürüyordu (`taxRate`,
+  `createdViaImportBy`, `templateCode`, `maxInstallmentCount`). 2026-10-21'de canlıda doğrulandı; rota ilk
+  commit'ten (2026-04-16) beri böyleydi.
+- **Kök neden:** rota servis sonucunu olduğu gibi JSON'a yazıyordu. Repository `seller: true` ile satıcının tüm
+  satırını yükler. Tek koruma, yalnız `modelCode`'u çıkaran bir yasak listesiydi.
+- **Düzeltme:** `api/lib/public-product-projection.ts` izin listesi (`toPublicProductSummary`,
+  `toPublicProductDetail`). Yalnız ürün sayfasında zaten gösterilen alanlar döner:
+  - satıcı `{ slug, displayName }`, kategori `{ id, slug, name }`
+  - varyant ve nitelikler yalnız görünen alanlarıyla
+  - fiyatlar etkin (indirimli) fiyattır; değerler aynen geçer
+  Kardeş uçlar (`/api/storefront/products`, `/api/storefront/store/[slug]/products`, `/api/search`) zaten izin
+  listesi kullanıyordu. Ürün sayfası alanları tek tek seçer.
+- **Migration YOK, env YOK.** Redeploy yalnız **web**. Admin-panel aynı dosyadan yalnız değişmeyen admin
+  fonksiyonlarını kullanır; seller-panel ve worker etkilenmez.
+- **Test:** `tests/unit/catalog-public-dto.test.ts`. Gerçek satır şeklindeki fikstürle liste ve detayda alan
+  kümesinin birebir eşleştiğini, iç alanların işaret değerlerinin JSON'da geçmediğini ve etkin ürün/varyant
+  fiyatının korunduğunu doğrular. Eski kodla iki test de kırmızıydı.
+- **Durum:** yerelde test edildi; deploy ve canlı doğrulama bekliyor.
+- **Açık uçlar (blocking değil):**
+  - Geçmişteki açığa çıkma geri alınamaz.
+  - Bu iki ucu repoda kullanan yok; kaldırılmaları ayrı bir karar.
+  - `docs/06-engineering/api-contracts.md` kategori satırları hâlâ var olmayan `/api/catalog/...` önekini taşıyor.
+
 ## Operasyonel Not
 
 Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:

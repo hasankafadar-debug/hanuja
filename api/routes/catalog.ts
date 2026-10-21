@@ -9,16 +9,10 @@ import { createPrismaForRoute } from '../lib/prisma'
 import { Decimal } from '@prisma/client/runtime/client'
 import { ValidationError } from '../lib/errors'
 import { requireModelCode } from '../domain/model-code'
+import { toPublicProductDetail, toPublicProductSummary } from '../lib/public-product-projection'
 
 function getCatalogService() {
   return createCatalogService({ prisma: createPrismaForRoute() })
-}
-
-// Storefront server rendering may use modelCode to join siblings, but the
-// seller's internal grouping value must never be part of the public JSON API.
-function withoutModelCode<T extends { modelCode?: unknown }>(product: T) {
-  const { modelCode: _modelCode, ...publicProduct } = product
-  return publicProduct
 }
 
 const createProductSchema = z.object({
@@ -37,7 +31,7 @@ export async function getProductBySlug(slug: string) {
   try {
     const svc = getCatalogService()
     const product = await svc.getProductBySlug(slug)
-    return ok(withoutModelCode(product))
+    return ok(toPublicProductDetail(product))
   } catch (err) {
     return handleError(err)
   }
@@ -56,7 +50,7 @@ export async function listProducts(req: NextRequest) {
       skip,
       take,
     })
-    return ok(products.map(withoutModelCode))
+    return ok(products.map((product) => toPublicProductSummary(product)))
   } catch (err) {
     return handleError(err)
   }

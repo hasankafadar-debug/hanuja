@@ -112,10 +112,12 @@ Tighter limits apply to: login, password reset, registration, coupon application
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/api/catalog/products` | None | List published products; supports `categorySlug`, `q`, `page`, `pageSize` query params |
-| GET | `/api/catalog/products/:slug` | None | Product detail by slug |
+| GET | `/api/products` | None | List published products; supports `categoryId`, `skip`, `take` query params |
+| GET | `/api/products/:slug` | None | Product detail by slug |
 | GET | `/api/catalog/categories` | None | Category tree |
 | GET | `/api/catalog/categories/:slug` | None | Single category with children |
+
+The two product endpoints are unauthenticated and serialize only public storefront fields, through the allowlist in `api/lib/public-product-projection.ts`. The seller appears only as `{ slug, displayName }`. Seller account and commission fields, moderation records, SKU/barcode, `modelCode` and category admin fields are never returned. Prices are the effective (discounted) price.
 
 Meilisearch is used for full-text search (`q`). PostgreSQL is authoritative for availability, price, and stock. Search results are never used for finance decisions.
 
