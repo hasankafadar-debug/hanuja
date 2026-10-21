@@ -1209,7 +1209,9 @@ Yeni feature veya sayfa eklerken production readiness varsayılanı şudur:
 - **Test:** `tests/unit/catalog-public-dto.test.ts`. Gerçek satır şeklindeki fikstürle liste ve detayda alan
   kümesinin birebir eşleştiğini, iç alanların işaret değerlerinin JSON'da geçmediğini ve etkin ürün/varyant
   fiyatının korunduğunu doğrular. Eski kodla iki test de kırmızıydı.
-- **Durum:** yerelde test edildi; deploy ve canlı doğrulama bekliyor.
+- **Durum:** 2026-10-21'de yalnız web deploy edildi (`cbbf7aa`; worker ve admin `7cd2a02`'de, seller `2560a75`'te
+  kaldı) ve canlıda doğrulandı. `/api/products` (20 ürün) ve 10 ürün detayında alan kümesi izin listesiyle birebir;
+  yasaklı alan yok. Canlıda varyantlı ürün denk gelmedi; varyant şekli yalnız birim testte doğrulandı.
 - **Açık uçlar (blocking değil):**
   - Geçmişteki açığa çıkma geri alınamaz.
   - Bu iki ucu repoda kullanan yok; kaldırılmaları ayrı bir karar.
