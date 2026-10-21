@@ -18,6 +18,98 @@ async function progress(page: Page, id: string, value: number) {
   await expect.poll(() => page.evaluate(id => (window as MotionWindow).ScrollTrigger.getAll().find(t => t.vars.id === id)!.progress, id)).toBeCloseTo(value, 1)
 }
 
+async function channelGeometry(page: Page) {
+  return page.evaluate(() => {
+    const track = document.querySelector<HTMLElement>('#chTrack')!
+    const clip = document.querySelector<HTMLElement>('.ch-scroller')!
+    const trigger = (window as MotionWindow).ScrollTrigger.getAll().find(t => t.vars.id === 'channels')!
+    const pin = trigger.pin!
+    const style = getComputedStyle(track)
+    const children = [...track.children].filter(el => getComputedStyle(el).display !== 'none')
+    // Sum every rendered child's box and the gaps, independently of the production last-edge calculation.
+    const childrenWidth = children.reduce((sum, el) => {
+      const childStyle = getComputedStyle(el)
+      return sum + el.getBoundingClientRect().width + parseFloat(childStyle.marginLeft) + parseFloat(childStyle.marginRight)
+    }, 0)
+    const contentWidth = childrenWidth + parseFloat(style.columnGap) * (children.length - 1)
+      + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+    const last = children.at(-1)!.getBoundingClientRect()
+    const viewport = clip.getBoundingClientRect()
+    const label = document.querySelector('#kazanc .eyebrow')!.getBoundingClientRect()
+    return {
+      start: trigger.start, end: trigger.end, distance: trigger.end - trigger.start,
+      expected: Math.max(0, Math.round(contentWidth) - clip.clientWidth),
+      contentWidth, padding: parseFloat(getComputedStyle(pin.parentElement!).paddingBottom),
+      spacerHeight: pin.parentElement!.getBoundingClientRect().height, pinHeight: pin.getBoundingClientRect().height,
+      x: new DOMMatrixReadOnly(style.transform).m41,
+      lastLeft: last.left, lastRight: last.right, viewportLeft: viewport.left,
+      expectedRight: viewport.right - parseFloat(style.paddingRight),
+      labelTop: label.top, labelBottom: label.bottom, height: innerHeight,
+      overflow: document.documentElement.scrollWidth - innerWidth,
+      pins: (window as MotionWindow).ScrollTrigger.getAll().filter(t => t.vars.id === 'channels').length,
+    }
+  })
+}
+
+test('horizontal pin ends at the actual cards, including WebKit intrinsic width and viewport changes', async ({ browser, browserName }, testInfo) => {
+  test.skip(browserName === 'firefox', 'Targeted Chromium baseline and WebKit layout regression; physical iOS acceptance is separate.')
+  test.setTimeout(120_000)
+  const results = []
+  const matrix = [[393, 852], [402, 874], [412, 915], [1440, 900], [1920, 1080]]
+  for (const [width, height] of matrix) {
+    const mobile = width! < 1000
+    const context = await browser.newContext({ viewport: { width: width!, height: height! }, isMobile: mobile, hasTouch: mobile, reducedMotion: 'no-preference' })
+    const page = await context.newPage()
+    try {
+      await page.goto(invitation)
+      await ready(page)
+      const initial = await channelGeometry(page)
+      expect(Math.abs(initial.distance - initial.expected)).toBeLessThanOrEqual(1)
+      expect(Math.abs(initial.padding - initial.expected)).toBeLessThanOrEqual(1)
+      expect(Math.abs(initial.spacerHeight - initial.pinHeight - initial.expected)).toBeLessThanOrEqual(1)
+      // These content dimensions preserve the approved Chromium mobile/desktop layout.
+      expect(Math.round(initial.contentWidth)).toBe(({ 393: 1444, 402: 1475, 412: 1509, 1440: 2415, 1920: 2460 } as Record<number, number>)[width!])
+      for (const value of [0.25, 0.5, 0.9, 1, 0.5, 1]) {
+        await progress(page, 'channels', value)
+        await expect.poll(async () => {
+          const state = await channelGeometry(page)
+          return Math.abs(state.x + state.expected * value)
+        }).toBeLessThanOrEqual(1)
+      }
+      const end = await channelGeometry(page)
+      expect(Math.abs(end.lastRight - end.expectedRight)).toBeLessThanOrEqual(1)
+      expect(end.lastLeft).toBeGreaterThanOrEqual(end.viewportLeft - 1)
+      if (mobile) {
+        await page.evaluate(y => scrollTo(0, y), end.end + end.height * 0.25)
+        await expect.poll(async () => (await channelGeometry(page)).labelBottom).toBeLessThanOrEqual(end.height)
+        expect((await channelGeometry(page)).labelTop).toBeGreaterThan(0)
+        for (const viewport of [{ width: width!, height: height! - 96 }, { width: width!, height: height! }, { width: height!, height: width! }, { width: width!, height: height! }]) {
+          await progress(page, 'channels', 0.5)
+          await page.setViewportSize(viewport)
+          await ready(page)
+          const resized = await channelGeometry(page)
+          expect(Math.abs(resized.distance - resized.expected)).toBeLessThanOrEqual(1)
+          expect(Math.abs(resized.padding - resized.expected)).toBeLessThanOrEqual(1)
+          expect(resized.pins).toBe(1)
+          expect(resized.overflow).toBeLessThanOrEqual(1)
+        }
+        await page.goto(invitation + '#kazanc')
+        await expect.poll(() => page.locator('#kazanc').evaluate(el => Math.abs(el.getBoundingClientRect().top))).toBeLessThan(2)
+        await page.goto(invitation + '#gorunurluk')
+        await page.goBack()
+        await ready(page)
+        await progress(page, 'channels', 1)
+        const restored = await channelGeometry(page)
+        expect(Math.abs(restored.lastRight - restored.expectedRight)).toBeLessThanOrEqual(1)
+      }
+      results.push({ width, height, initial, end, final: await channelGeometry(page) })
+    } finally {
+      await context.close()
+    }
+  }
+  await testInfo.attach('horizontal-pin-geometry', { body: JSON.stringify(results, null, 2), contentType: 'application/json' })
+})
+
 test('responsive motion geometry, full-frame screenshots and one effective motion mode', async ({ browser }, testInfo) => {
   test.setTimeout(90_000)
   const matrix = [[360, 800], [384, 832], [390, 844], [393, 873], [412, 915], [414, 896], [430, 932], [722, 874], [844, 390], [1440, 900], [1920, 1080]]

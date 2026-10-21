@@ -895,9 +895,9 @@ html:not([data-motion="full"]) .frame-view img, html:not([data-motion="full"]) .
     <p class="lead">Başvurunuzu yapın, mağazanızı birlikte kuralım.</p>
     <div class="hero-ctas">
       <a class="btn btn-brass" href="https://satici.hanuja.com.tr/basvuru" target="_blank" rel="noopener">Başvuruyu başlat <svg aria-hidden="true"><use href="#arrow"/></svg></a>
-      <a class="btn btn-line" href="mailto:admin@hanuja.com.tr?subject=Tasar%C4%B1mc%C4%B1%20daveti">Önce konuşalım</a>
     </div>
     <div class="mail">E-posta: <code id="mailAddr">admin@hanuja.com.tr</code> <button class="copy" id="copyMail" type="button">Kopyala</button></div>
+    <div class="mail">Telefon <a href="tel:+905555021862">+90 555 502 18 62</a></div>
   </div>
 </section>
 
@@ -1154,7 +1154,12 @@ html:not([data-motion="full"]) .frame-view img, html:not([data-motion="full"]) .
       var storyTop = function () { return Math.ceil(top.getBoundingClientRect().bottom) + 12; };
       pin.classList.add('is-horizontal');
       track.scrollLeft = 0;
-      var dist = function () { return Math.max(0, track.scrollWidth - scroller.clientWidth); };
+      var dist = function () {
+        // WebKit's max-content track can include empty intrinsic width beyond the cards.
+        var last = track.lastElementChild;
+        var contentWidth = last.getBoundingClientRect().right - track.getBoundingClientRect().left + parseFloat(getComputedStyle(track).paddingRight);
+        return Math.max(0, Math.round(contentWidth) - scroller.clientWidth);
+      };
       gsap.to(track, { x: function () { return -dist(); }, ease: 'none',
         scrollTrigger: { id: 'channels', trigger: pin, start: wide ? 'top top' : function () { return 'top ' + storyTop(); }, end: function () { return '+=' + dist(); }, pin: true, scrub: wide ? .35 : true, invalidateOnRefresh: true } });
       if (wide) {
