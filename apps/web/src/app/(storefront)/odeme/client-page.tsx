@@ -148,7 +148,6 @@ export function CheckoutPageClient({
   const [retryState, setRetryState] = useState<RetryState | null>(null)
   const retryCannotStart = Boolean(retryOrderId) && (!retryState || !retryState.payable)
   const [checkoutSession, setCheckoutSession] = useState<CheckoutFormSession | null>(null)
-  const [identityNumber, setIdentityNumber] = useState('')
   const [acceptedContracts, setAcceptedContracts] = useState(false)
   const [consentWarning, setConsentWarning] = useState(false)
   const [startNonce, setStartNonce] = useState(0)
@@ -324,7 +323,6 @@ export function CheckoutPageClient({
     selectedAddressId,
     selectedBillingAddressId,
     useDifferentBilling,
-    identityNumber,
     cartSummary,
     retryOrderId,
     addresses.filter(
@@ -505,11 +503,6 @@ export function CheckoutPageClient({
     }
   }
 
-  const billingAddress = addresses.find(
-    (a) => a.id === (useDifferentBilling ? selectedBillingAddressId : selectedAddressId),
-  )
-  const identityReady = Boolean(billingAddress?.tcNumber) || /^\d{11}$/.test(identityNumber)
-
   useEffect(() => {
     if (
       paymentMethod !== 'card' ||
@@ -519,7 +512,6 @@ export function CheckoutPageClient({
       !legalPreview?.previewId ||
       legalLoading ||
       !turnstileToken ||
-      !identityReady ||
       retryCannotStart ||
       (useDifferentBilling && !selectedBillingAddressId) ||
       checkoutSession ||
@@ -541,7 +533,6 @@ export function CheckoutPageClient({
           body: JSON.stringify({
             previewId: legalPreview.previewId,
             startKey: key,
-            ...(identityNumber ? { identityNumber } : {}),
             turnstileToken,
             acceptedDistanceSales: true,
             acceptedPreInformation: true,
@@ -621,8 +612,6 @@ export function CheckoutPageClient({
     legalPreview,
     legalLoading,
     turnstileToken,
-    identityReady,
-    identityNumber,
     checkoutSession,
     router,
     startNonce,
@@ -689,11 +678,7 @@ export function CheckoutPageClient({
     }
     if (paymentMethod === 'card') {
       setError(
-        !identityReady
-          ? 'Fatura için TC kimlik numaranızı tamamlayın.'
-          : !turnstileToken
-            ? 'İnsan doğrulamasını tamamlayın.'
-            : 'Ödeme alanı hazırlanıyor.',
+        !turnstileToken ? 'İnsan doğrulamasını tamamlayın.' : 'Ödeme alanı hazırlanıyor.',
       )
       return
     }
@@ -1175,23 +1160,6 @@ export function CheckoutPageClient({
                     <Lock className="h-4 w-4 shrink-0" />
                     Kart bilgilerinizi iyzico’nun güvenli alanında gireceksiniz.
                   </p>
-                  {!billingAddress?.tcNumber ? (
-                    <div>
-                      <label htmlFor="checkout-identity" className="text-sm">
-                        Fatura için TC Kimlik Numarası
-                      </label>
-                      <input
-                        id="checkout-identity"
-                        inputMode="numeric"
-                        maxLength={11}
-                        value={identityNumber}
-                        onChange={(e) =>
-                          setIdentityNumber(e.target.value.replace(/\D/g, '').slice(0, 11))
-                        }
-                        className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-                      />
-                    </div>
-                  ) : null}
                   <p className="text-xs">
                     Taksit seçimi, taksit farkı ve kesin ödeme toplamı iyzico alanında gösterilir.
                   </p>

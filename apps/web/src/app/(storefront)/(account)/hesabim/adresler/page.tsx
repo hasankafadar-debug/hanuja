@@ -304,10 +304,11 @@ export default function AddressesPage() {
 
             {form.isBillingAddress && form.invoiceType === 'individual' && (
               <div className="space-y-1.5">
-                <Label htmlFor="tcNumber">TC Kimlik No{form.isForeignNational ? '' : ' *'}</Label>
+                <Label htmlFor="tcNumber">TC Kimlik No (İsteğe Bağlı)</Label>
                 <Input
                   id="tcNumber"
-                  required={!form.isForeignNational}
+                  inputMode="numeric"
+                  pattern="[0-9]{11}"
                   maxLength={11}
                   placeholder="11 haneli TC Kimlik No"
                   value={form.tcNumber}

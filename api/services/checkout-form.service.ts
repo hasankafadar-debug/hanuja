@@ -15,6 +15,7 @@ import type { LegalAcceptanceEvidence } from '../lib/legal-acceptance'
 import { createCheckoutService } from './checkout.service'
 import {
   basketInstallmentLimit,
+  checkoutFormInstallments,
   resolveCategoryInstallmentLimit,
 } from '../domain/card-installments'
 import { lockOrderRow, normalizeTurkishGsm, splitFullName } from './card-payment-support'
@@ -368,15 +369,15 @@ export function createCheckoutFormService({
       where: { id: consent.billingAddressId ?? consent.addressId, userId: params.userId },
     })
     if (!billing) throw new NotFoundError('Fatura adresi', consent.addressId)
-    if (billing.invoiceType === 'corporate' || billing.isForeignNational)
-      throw new DomainError(
-        'Bu fatura profili için Havale / EFT seçin.',
-        'CARD_IDENTITY_UNSUPPORTED',
-        422,
-      )
-    const identityNumber = billing.tcNumber?.trim() || params.identityNumber?.trim()
-    if (!identityNumber || !/^\d{11}$/.test(identityNumber))
-      throw new DomainError('TC kimlik numarası 11 haneli olmalı.', 'CARD_IDENTITY_REQUIRED', 422)
+    // iyzico buyer identity is separate from optional customer invoice information.
+    // The unspecified identity fallback is sent only to the provider, never saved as a customer's TC.
+    const invoiceIdentity =
+      billing.invoiceType === 'corporate'
+        ? billing.taxNumber?.trim()
+        : billing.tcNumber?.trim() || params.identityNumber?.trim()
+    const identityNumber = /^\d{10,11}$/.test(invoiceIdentity ?? '')
+      ? invoiceIdentity!
+      : '11111111111'
 
     const created = await prisma.$transaction(
       async (tx) => {
@@ -496,10 +497,7 @@ export function createCheckoutFormService({
         const payment = await tx.payment.findFirstOrThrow({
           where: { orderId, method: 'card', status: 'pending' },
         })
-        const allowedInstallments = Array.from(
-          { length: Math.min(limit ?? 36, 36) },
-          (_, index) => index + 1,
-        )
+        const allowedInstallments = checkoutFormInstallments(limit)
         const attempt = await tx.cardPaymentAttempt.create({
           data: {
             orderId,

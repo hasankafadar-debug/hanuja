@@ -42,6 +42,11 @@ export function basketInstallmentLimit(limits: Array<number | null>): number | n
   return concrete.length > 0 ? Math.min(...concrete) : null
 }
 
+/** Hanuja işyerine açık seçenekler (21.10.2026) ∩ kategori sınırı; 1 tek çekimdir. */
+export function checkoutFormInstallments(limit: number | null): number[] {
+  return [1, 2, 3, 6, 9].filter((count) => count === 1 || limit === null || count <= limit)
+}
+
 export type InstallmentSelection =
   | { ok: true; offers: InstallmentOffer[] }
   | { ok: false; reason: 'single_payment_price_mismatch' | 'no_offer' }

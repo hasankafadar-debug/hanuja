@@ -47,7 +47,7 @@ const addAddressSchema = z
     // Fatura adresi alanları
     isBillingAddress: z.boolean().optional(),
     invoiceType: z.enum(['individual', 'corporate']).optional(),
-    tcNumber: z.string().max(11).optional(),
+    tcNumber: z.string().regex(/^(?:\d{11})?$/, 'TC Kimlik No 11 haneli olmalıdır').optional(),
     isForeignNational: z.boolean().optional(),
     companyName: z.string().max(200).optional(),
     taxOffice: z.string().max(100).optional(),
@@ -55,9 +55,6 @@ const addAddressSchema = z
   })
   .superRefine((data, ctx) => {
     if (!data.isBillingAddress) return
-    if (data.invoiceType === 'individual' && !data.isForeignNational && !data.tcNumber) {
-      ctx.addIssue({ code: 'custom', path: ['tcNumber'], message: 'TC Kimlik No zorunludur' })
-    }
     if (data.invoiceType === 'corporate') {
       if (!data.companyName) ctx.addIssue({ code: 'custom', path: ['companyName'], message: 'Unvan zorunludur' })
       if (!data.taxOffice) ctx.addIssue({ code: 'custom', path: ['taxOffice'], message: 'Vergi dairesi zorunludur' })

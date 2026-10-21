@@ -148,6 +148,13 @@ function createFakeIyzico() {
   const gateway = {
     initializeCheckoutForm: vi.fn(
       async (params: Parameters<NonNullable<CardPaymentGateway['initializeCheckoutForm']>>[0]) => {
+        if (params.enabledInstallments.length > 12) {
+          return {
+            kind: 'failure' as const,
+            errorCode: '5180',
+            errorMessage: 'enabledInstallments alanı için en fazla 12 seçenek gönderilebilir',
+          }
+        }
         const paymentId = String(paymentSequence++)
         const token = `sandbox-${randomUUID()}`
         cfTokens.set(token, paymentId)
@@ -466,6 +473,89 @@ async function startCF(
 }
 
 describe('hosted CheckoutForm: server payment boundaries', () => {
+  it.each([
+    [null, [1, 2, 3, 6, 9]],
+    [36, [1, 2, 3, 6, 9]],
+    [6, [1, 2, 3, 6]],
+    [3, [1, 2, 3]],
+    [1, [1]],
+  ] as const)(
+    'uses enabled merchant installments within category limit %s',
+    async (limit, expected) => {
+      const h = harness(),
+        f = await checkoutFixture()
+      await prisma.category.update({
+        where: { id: f.productA.categoryId! },
+        data: { maxInstallmentCount: limit },
+      })
+      const { attempt } = await startCF(h, f)
+      expect(attempt.allowedInstallments).toEqual(expected)
+      expect(h.gateway.initializeCheckoutForm.mock.calls[0]![0].enabledInstallments).toEqual(
+        expected,
+      )
+    },
+  )
+
+  it.each([null, ''])(
+    'starts without a customer TC (%s) and never stores the provider fallback as TC',
+    async (tcNumber) => {
+      const h = harness(),
+        f = await checkoutFixture()
+      await prisma.address.update({
+        where: { id: f.address.id },
+        data: { tcNumber },
+      })
+      const { attempt, session } = await startCF(h, f)
+      expect(h.gateway.initializeCheckoutForm.mock.calls[0]![0].buyer.identityNumber).toBe(
+        '11111111111',
+      )
+      expect(
+        (
+          await prisma.address.findUniqueOrThrow({
+            where: { id: f.address.id },
+          })
+        ).tcNumber,
+      ).toBe(tcNumber)
+      expect(JSON.stringify(attempt.legalSnapshots)).not.toContain('11111111111')
+      h.state.cfStatus = 'SUCCESS'
+      await h.service.handleCheckoutFormCallback(attempt.checkoutFormToken!)
+      expect(
+        (
+          await prisma.order.findUniqueOrThrow({
+            where: { id: session.orderId },
+          })
+        ).status,
+      ).toBe('seller_queue_ready')
+    },
+  )
+
+  it('keeps a supplied invoice identity and supports corporate and foreign billing', async () => {
+    const individual = harness(),
+      f = await checkoutFixture()
+    await startCF(individual, f)
+    expect(individual.gateway.initializeCheckoutForm.mock.calls[0]![0].buyer.identityNumber).toBe(
+      f.address.tcNumber,
+    )
+
+    const corporate = harness(),
+      company = await checkoutFixture({ corporate: true })
+    await startCF(corporate, company)
+    expect(corporate.gateway.initializeCheckoutForm.mock.calls[0]![0].buyer.identityNumber).toBe(
+      company.address.taxNumber,
+    )
+
+    const foreign = harness(),
+      visitor = await checkoutFixture()
+    await prisma.address.update({
+      where: { id: visitor.address.id },
+      data: { tcNumber: null, isForeignNational: true },
+    })
+    await startCF(foreign, visitor)
+    expect(foreign.gateway.initializeCheckoutForm.mock.calls[0]![0].buyer.identityNumber).toBe(
+      '11111111111',
+    )
+  })
+
   it('copies the immutable preview even if the renderer changes before start or confirmation', async () => {
     const h = harness(),
       f = await checkoutFixture()

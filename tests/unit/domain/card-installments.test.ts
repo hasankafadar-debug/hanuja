@@ -4,6 +4,7 @@ import {
   allocateCapturedItems,
   basketInstallmentLimit,
   buildCardBasket,
+  checkoutFormInstallments,
   resolveCategoryInstallmentLimit,
   roundCapturedPaidPrices,
   selectInstallmentOffers,
@@ -80,6 +81,24 @@ describe('taksit seçenekleri', () => {
       limit: null,
     })
     expect(result.ok && result.offers.some((offer) => offer.installmentNumber === 2)).toBe(false)
+  })
+})
+
+describe('CheckoutForm işyeri taksitleri', () => {
+  it.each([null, 36, 12, 9])(
+    'kategori sınırı %s iken yalnız açık işyeri seçeneklerini gönderir',
+    (limit) => {
+      expect(checkoutFormInstallments(limit)).toEqual([1, 2, 3, 6, 9])
+    },
+  )
+
+  it.each([
+    [6, [1, 2, 3, 6]],
+    [3, [1, 2, 3]],
+    [2, [1, 2]],
+    [1, [1]],
+  ])('kategori sınırı %s iken seçenekleri daraltır', (limit, expected) => {
+    expect(checkoutFormInstallments(limit as number)).toEqual(expected)
   })
 })
 
