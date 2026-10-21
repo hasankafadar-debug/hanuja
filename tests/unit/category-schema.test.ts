@@ -214,6 +214,42 @@ describe('stock-aware property filters', () => {
     )
     expect(buildPropertyFacets(products, new Map([['cat-1', profile]]))[0]?.kind).toBe('range')
   })
+  it('keeps alternative values available within an OR group while respecting other groups', () => {
+    const garment = schema('GIY-UST')
+    const products = [
+      {
+        categoryId: 'cat-1',
+        stockQuantity: 1,
+        properties: { beden: 'S', cinsiyet: 'kadin' },
+      },
+      {
+        categoryId: 'cat-1',
+        stockQuantity: 1,
+        properties: { beden: 'M', cinsiyet: 'kadin' },
+      },
+      {
+        categoryId: 'cat-1',
+        stockQuantity: 1,
+        properties: { beden: 'L', cinsiyet: 'erkek' },
+      },
+    ]
+    const filters = {
+      beden: { values: ['S'] },
+      cinsiyet: { values: ['kadin'] },
+    }
+    const facets = buildPropertyFacets(products, new Map([['cat-1', garment]]), filters)
+    expect(
+      facets.find((facet) => facet.key === 'beden')?.values.map((value) => value.value),
+    ).toEqual(['S', 'M'])
+    expect(
+      products.filter((product) =>
+        matchesPropertyFilters(filterValuesForProduct(product, garment), {
+          ...filters,
+          beden: { values: ['S', 'M'] },
+        }),
+      ),
+    ).toHaveLength(2)
+  })
   it('includes Unisex in women and men without duplicate product counts', () => {
     const garment = schema('GIY-UST')
     const p = {
@@ -234,6 +270,23 @@ describe('stock-aware property filters', () => {
         ?.values.find((v) => v.value === 'kadin')?.count,
     ).toBe(1)
   })
+  it('retains selected color labels when another group leaves no matching product', () => {
+    const garment = schema('GIY-UST')
+    const products = [
+      {
+        categoryId: 'cat-1',
+        stockQuantity: 1,
+        properties: { beden: 'S' },
+        attributeValues: [{ optionId: 'color-red', option: { type: 'color', label: 'Kırmızı' } }],
+      },
+    ]
+    const color = buildPropertyFacets(products, new Map([['cat-1', garment]]), {
+      color: { values: ['color-red'] },
+      beden: { values: ['M'] },
+    }).find((facet) => facet.key === 'color')
+    expect(color?.values).toEqual([{ value: 'color-red', label: 'Kırmızı', count: 0 }])
+  })
+
   it('keeps comma-containing sizes intact and rejects malformed filter keys', () => {
     expect(
       parsePropertyFilters(

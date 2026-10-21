@@ -2,8 +2,12 @@
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useCallback, useRef } from 'react'
-import { ChevronDown } from 'lucide-react'
-import { useState } from 'react'
+import { FilterSection } from '@/components/storefront/filter-section'
+import {
+  clearListingFilters,
+  countActiveListingFilters,
+  parseListingSearchParams,
+} from '@/lib/product-listing-query'
 
 export interface FilterSeller {
   id: string
@@ -30,43 +34,6 @@ interface CategoryFiltersProps {
   subcategories: FilterSubcategory[]
   /** Path from the page scope down to the selected category, for stepping back up. */
   categoryTrail?: FilterSubcategory[]
-}
-
-function AccordionSection({
-  title,
-  children,
-  defaultOpen = true,
-}: {
-  title: string
-  children: React.ReactNode
-  defaultOpen?: boolean
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-
-  return (
-    <div className="mb-5">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="mb-2 flex w-full items-center justify-between"
-      >
-        <p
-          className="text-xs font-semibold uppercase tracking-wider"
-          style={{ color: 'var(--color-muted-fg)' }}
-        >
-          {title}
-        </p>
-        <ChevronDown
-          className="h-3 w-3 transition-transform"
-          style={{
-            color: 'var(--color-muted-fg)',
-            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
-          }}
-        />
-      </button>
-      {open && children}
-    </div>
-  )
 }
 
 export function CategoryFilters({
@@ -117,7 +84,10 @@ export function CategoryFilters({
   }
 
   function handleSaleChange(checked: boolean) {
-    updateParams({ indirimli: checked ? '1' : null })
+    updateParams({
+      indirimli: checked ? '1' : null,
+      ...(!checked && searchParams.get('vitrin') === 'discounts' ? { vitrin: null } : {}),
+    })
   }
 
   function handleSellerChange(slug: string) {
@@ -134,18 +104,13 @@ export function CategoryFilters({
   }
 
   const hasActiveFilters =
-    minPrice !== undefined ||
-    maxPrice !== undefined ||
-    inStockOnly ||
-    onSaleOnly ||
-    activeSeller !== undefined ||
-    activeSubcategory !== undefined
+    countActiveListingFilters(parseListingSearchParams(Object.fromEntries(searchParams))) > 0
 
   return (
     <div>
       {/* Alt Kategori — steps down one level at a time until the leaf */}
       {(subcategories.length > 0 || categoryTrail.length > 0) && (
-        <AccordionSection title="Alt Kategori">
+        <FilterSection title="Alt Kategori">
           {categoryTrail.length > 0 && (
             <div className="mb-2 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
               <button
@@ -162,7 +127,12 @@ export function CategoryFilters({
                   <span key={step.id} className="flex items-center gap-1">
                     <span style={{ color: 'var(--color-muted-fg)' }}>›</span>
                     {isLast ? (
-                      <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
+                      <span
+                        style={{
+                          color: 'var(--color-primary)',
+                          fontWeight: 600,
+                        }}
+                      >
                         {step.name}
                       </span>
                     ) : (
@@ -191,13 +161,8 @@ export function CategoryFilters({
                     className="w-full rounded px-2 py-1 text-left text-sm transition-colors"
                     style={{
                       backgroundColor:
-                        activeSubcategory === sub.slug
-                          ? 'var(--color-accent)'
-                          : 'transparent',
-                      color:
-                        activeSubcategory === sub.slug
-                          ? '#fff'
-                          : 'var(--color-primary)',
+                        activeSubcategory === sub.slug ? 'var(--color-accent)' : 'transparent',
+                      color: activeSubcategory === sub.slug ? '#fff' : 'var(--color-primary)',
                       fontWeight: activeSubcategory === sub.slug ? 600 : 400,
                     }}
                   >
@@ -211,14 +176,16 @@ export function CategoryFilters({
               Bu en alt kategori.
             </p>
           )}
-        </AccordionSection>
+        </FilterSection>
       )}
 
       {/* Fiyat */}
-      <AccordionSection title="Fiyat Aralığı">
+      <FilterSection title="Fiyat Aralığı">
         <div className="flex items-center gap-2">
           <input
+            key={`min-${searchParams.toString()}`}
             ref={minRef}
+            aria-label="En düşük fiyat"
             type="number"
             min={0}
             defaultValue={minPrice ?? ''}
@@ -234,7 +201,9 @@ export function CategoryFilters({
             –
           </span>
           <input
+            key={`max-${searchParams.toString()}`}
             ref={maxRef}
+            aria-label="En yüksek fiyat"
             type="number"
             min={0}
             defaultValue={maxPrice ?? ''}
@@ -258,12 +227,18 @@ export function CategoryFilters({
         >
           Uygula
         </button>
-      </AccordionSection>
+      </FilterSection>
 
       {/* Tasarımcı */}
       {sellers.length > 0 && (
-        <AccordionSection title="Tasarımcı">
-          <ul className="max-h-52 space-y-1 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
+        <FilterSection title="Tasarımcı">
+          <ul
+            className="max-h-52 space-y-1 overflow-y-auto pr-1"
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'var(--color-border) transparent',
+            }}
+          >
             {sellers.map((seller) => (
               <li key={seller.id}>
                 <button
@@ -272,13 +247,8 @@ export function CategoryFilters({
                   className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm transition-colors"
                   style={{
                     backgroundColor:
-                      activeSeller === seller.slug
-                        ? 'var(--color-accent)'
-                        : 'transparent',
-                    color:
-                      activeSeller === seller.slug
-                        ? '#fff'
-                        : 'var(--color-primary)',
+                      activeSeller === seller.slug ? 'var(--color-accent)' : 'transparent',
+                    color: activeSeller === seller.slug ? '#fff' : 'var(--color-primary)',
                   }}
                 >
                   <span>{seller.displayName ?? seller.slug}</span>
@@ -297,11 +267,11 @@ export function CategoryFilters({
               </li>
             ))}
           </ul>
-        </AccordionSection>
+        </FilterSection>
       )}
 
       {/* Ürün Durumu */}
-      <AccordionSection title="Ürün Durumu" defaultOpen={true}>
+      <FilterSection title="Ürün Durumu">
         <div className="space-y-2">
           <label
             className="flex cursor-pointer items-center gap-2 text-sm"
@@ -328,22 +298,14 @@ export function CategoryFilters({
             Sadece stokta olanlar
           </label>
         </div>
-      </AccordionSection>
+      </FilterSection>
 
       {/* Sıfırla */}
       {hasActiveFilters && (
         <button
           type="button"
           onClick={() => {
-            const params = new URLSearchParams(searchParams.toString())
-            params.delete('fiyat')
-            params.delete('fiyatMin')
-            params.delete('fiyatMax')
-            params.delete('stokta')
-            params.delete('indirimli')
-            params.delete('tasarimci')
-            params.delete('alt')
-            params.delete('sayfa')
+            const params = clearListingFilters(new URLSearchParams(searchParams.toString()))
             router.push(`${pathname}?${params.toString()}`, { scroll: false })
           }}
           className="mt-1 text-xs underline"

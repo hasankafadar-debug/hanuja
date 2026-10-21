@@ -4,6 +4,8 @@ import {
   buildCuratedListOptions,
   buildListingQueryString,
   buildPaginationHrefs,
+  clearListingFilters,
+  countActiveListingFilters,
   collectCategoryIds,
   parseListingSearchParams,
   parsePriceParams,
@@ -29,6 +31,84 @@ const CATEGORIES: ListingCategoryNode[] = [
   { id: 'yan-sehpa', slug: 'yan-sehpa', name: 'Yan Sehpa', parentId: 'sehpa' },
   { id: 'ofis-mobilya', slug: 'ofis-mobilya', name: 'Ofis Mobilyası', parentId: 'ofis' },
 ]
+
+describe('listing filter state', () => {
+  it('counts each selected property value and the discount flag', () => {
+    expect(
+      countActiveListingFilters(
+        parseListingSearchParams({
+          'f.color': '["red","blue"]',
+          'f.material': '["wood"]',
+          indirimli: '1',
+        }),
+      ),
+    ).toBe(4)
+  })
+
+  it('counts numeric intervals once and ignores sorting and pagination', () => {
+    expect(
+      countActiveListingFilters(
+        parseListingSearchParams({
+          fiyatMin: '100',
+          fiyatMax: '200',
+          'r.hacim_ml.min': '0',
+          'r.hacim_ml.max': '50',
+          siralama: 'price-asc',
+          sayfa: '3',
+        }),
+      ),
+    ).toBe(2)
+    expect(countActiveListingFilters(parseListingSearchParams({}))).toBe(0)
+  })
+
+  it('does not double-count repeated values or empty selections', () => {
+    expect(
+      countActiveListingFilters(
+        parseListingSearchParams({
+          'f.color': '["red","red","blue"]',
+          'f.material': '[]',
+        }),
+      ),
+    ).toBe(2)
+  })
+
+  it('clears every filter and pagination while preserving scope and sorting', () => {
+    const params = new URLSearchParams({
+      fiyat: '100-200',
+      fiyatMin: '100',
+      fiyatMax: '200',
+      stokta: '1',
+      indirimli: '1',
+      tasarimci: 'atelier',
+      alt: 'sehpa',
+      'f.color': '["red"]',
+      'f.material': '["wood"]',
+      'r.hacim_ml.min': '10',
+      'r.hacim_ml.max': '50',
+      sayfa: '3',
+      page: '3',
+      kategori: 'mobilya',
+      siralama: 'price-desc',
+      vitrin: 'discounts',
+    })
+    expect(Object.fromEntries(clearListingFilters(params))).toEqual({
+      kategori: 'mobilya',
+      siralama: 'price-desc',
+    })
+    expect(params.has('f.color')).toBe(true)
+    expect(
+      countActiveListingFilters(
+        parseListingSearchParams(Object.fromEntries(clearListingFilters(params))),
+      ),
+    ).toBe(0)
+  })
+
+  it('preserves shelves that only select an ordering', () => {
+    expect(
+      clearListingFilters(new URLSearchParams({ vitrin: 'favorited', stokta: '1' })).get('vitrin'),
+    ).toBe('favorited')
+  })
+})
 
 describe('parsePriceParams', () => {
   it('prefers fiyatMin/fiyatMax over the legacy fiyat param', () => {

@@ -25,7 +25,10 @@ export interface FilterProduct {
   stockQuantity: number
   properties?: unknown
   variants?: Array<{ stockQuantity: number; properties?: unknown }>
-  attributeValues?: Array<{ optionId: string; option?: { type: string; label: string } }>
+  attributeValues?: Array<{
+    optionId: string
+    option?: { type: string; label: string }
+  }>
 }
 export type FilterValues = Record<string, Array<string | number | boolean>>
 
@@ -142,8 +145,17 @@ export function buildPropertyFacets(
   ])) {
     const counts = new Map<string, number>(),
       labels = new Map<string, string>()
-    const other = filters
+    // Keep alternative values in this OR group available after a selection.
+    const other = Object.fromEntries(
+      Object.entries(filters).filter(([filterKey]) => filterKey !== key),
+    )
     for (const row of projected) {
+      // Retain labels even when another group excludes a selected option.
+      if (key === 'color' || key === 'material') {
+        for (const attribute of row.product.attributeValues ?? []) {
+          if (attribute.option?.type === key) labels.set(attribute.optionId, attribute.option.label)
+        }
+      }
       if (!matchesPropertyFilters(row.values, other)) continue
       const values = (row.values[key] ?? []).flatMap((v) =>
         key === 'cinsiyet' && v === 'unisex' ? ['kadin', 'erkek', 'unisex'] : [v],
@@ -176,7 +188,9 @@ export function buildPropertyFacets(
       if (!values.some((v) => v.value === String(selected)))
         values.push({
           value: String(selected),
-          label: definition ? propertyLabel(definition, selected) : String(selected),
+          label:
+            labels.get(String(selected)) ??
+            (definition ? propertyLabel(definition, selected) : String(selected)),
           count: 0,
         })
     if (!values.length) continue

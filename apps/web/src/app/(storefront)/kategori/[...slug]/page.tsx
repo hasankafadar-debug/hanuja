@@ -22,6 +22,7 @@ import {
   buildCuratedListOptions,
   buildListingQueryString,
   buildPaginationHrefs,
+  countActiveListingFilters,
   parseListingSearchParams,
   resolveCategoryDrilldown,
   resolveListingCategoryIds,
@@ -198,6 +199,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
         propertyFacets={catalogResult.propertyFacets}
         listingQuery={listingQuery}
         initialPage={filters.page}
+        activeFilterCount={countActiveListingFilters(filters)}
         paginationHrefs={buildPaginationHrefs({
           basePath: `/kategori/${categoryPath}`,
           search: sp,
@@ -270,6 +272,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
       propertyFacets={catalogResult.propertyFacets}
       listingQuery={listingQuery}
       initialPage={filters.page}
+      activeFilterCount={countActiveListingFilters(filters)}
       paginationHrefs={buildPaginationHrefs({
         basePath: `/kategori/${categoryPath}`,
         search: sp,
@@ -294,6 +297,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 // ── Shared layout ────────────────────────────────────────────────────────────
 
 interface CategoryLayoutProps {
+  activeFilterCount: number
   propertyFacets?: PropertyFacet[] | undefined
   breadcrumbJsonLd: object
   breadcrumbs: Array<{ label: string; href?: string }>
@@ -316,6 +320,7 @@ interface CategoryLayoutProps {
 }
 
 function CategoryLayout({
+  activeFilterCount,
   propertyFacets = [],
   breadcrumbJsonLd,
   breadcrumbs,
@@ -336,15 +341,6 @@ function CategoryLayout({
   activeSubcategory,
   currentSort,
 }: CategoryLayoutProps) {
-  const activeFilterCount = [
-    minPrice !== undefined,
-    maxPrice !== undefined,
-    inStockOnly,
-    onSaleOnly,
-    activeSeller !== undefined,
-    activeSubcategory !== undefined,
-  ].filter(Boolean).length
-
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
       <JsonLd data={breadcrumbJsonLd} />

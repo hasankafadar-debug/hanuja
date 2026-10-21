@@ -54,6 +54,52 @@ export interface ListingFilters {
   vitrin?: string
 }
 
+/** Count selected values, with each numeric interval represented once. */
+export function countActiveListingFilters(filters: ListingFilters): number {
+  const standardCount = [
+    filters.minPrice !== undefined || filters.maxPrice !== undefined,
+    filters.inStockOnly,
+    filters.onSaleOnly,
+    Boolean(filters.sellerSlug),
+    Boolean(filters.subcategorySlug),
+  ].filter(Boolean).length
+
+  return Object.values(filters.propertyFilters ?? {}).reduce(
+    (count, filter) =>
+      count +
+      new Set((filter.values ?? []).map(String)).size +
+      Number(filter.min !== undefined || filter.max !== undefined),
+    standardCount,
+  )
+}
+
+/** Preserve sorting and page scope while removing every listing filter. */
+export function clearListingFilters(search: URLSearchParams): URLSearchParams {
+  const params = new URLSearchParams(search)
+  for (const key of Array.from(params.keys())) {
+    if (
+      [
+        'fiyat',
+        'fiyatMin',
+        'fiyatMax',
+        'stokta',
+        'indirimli',
+        'tasarimci',
+        'alt',
+        'sayfa',
+        'page',
+      ].includes(key) ||
+      key.startsWith('f.') ||
+      key.startsWith('r.')
+    ) {
+      params.delete(key)
+    }
+  }
+  // This shelf also implies onSaleOnly; keeping it would immediately restore the filter.
+  if (params.get('vitrin') === 'discounts') params.delete('vitrin')
+  return params
+}
+
 export interface ListingCategoryNode {
   id: string
   slug: string
@@ -359,7 +405,10 @@ export function toGridProduct(product: {
     imageUrl: product.images?.[0]?.url ?? null,
     imageUrls: product.images?.map((img) => img.url) ?? [],
     ...(product.seller
-      ? { sellerName: product.seller.displayName, sellerSlug: product.seller.slug }
+      ? {
+          sellerName: product.seller.displayName,
+          sellerSlug: product.seller.slug,
+        }
       : {}),
   }
 }

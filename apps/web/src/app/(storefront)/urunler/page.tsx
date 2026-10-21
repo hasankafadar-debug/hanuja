@@ -4,7 +4,10 @@ import { buildBreadcrumbStructuredData, buildCategoryMetadata, JsonLd } from '@h
 import { createCatalogService } from '@hanuja/api/services/catalog.service'
 import { createPrismaForRoute } from '@hanuja/api/lib/prisma'
 import { createSellerRepository } from '@hanuja/api/repositories/seller.repository'
-import { CategoryFilters, type FilterSeller } from '../kategori/[...slug]/_components/category-filters'
+import {
+  CategoryFilters,
+  type FilterSeller,
+} from '../kategori/[...slug]/_components/category-filters'
 import { CategoryPageBody } from '../kategori/[...slug]/_components/category-page-body'
 import { CategorySort } from '../kategori/[...slug]/_components/category-sort'
 import { getCustomerVisibleCategories } from '@/lib/customer-visible-categories'
@@ -13,6 +16,7 @@ import {
   buildCuratedListOptions,
   buildListingQueryString,
   buildPaginationHrefs,
+  countActiveListingFilters,
   parseListingSearchParams,
   resolveCategoryDrilldown,
   resolveListingCategoryIds,
@@ -83,14 +87,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     { name: pageTitle, url: '/urunler' },
   ])
   const breadcrumbs = [{ label: 'Ana Sayfa', href: '/' }, { label: pageTitle }]
-  const activeFilterCount = [
-    filters.minPrice !== undefined,
-    filters.maxPrice !== undefined,
-    filters.inStockOnly,
-    filters.onSaleOnly,
-    filters.sellerSlug !== undefined,
-    filters.subcategorySlug !== undefined,
-  ].filter(Boolean).length
+  const activeFilterCount = countActiveListingFilters(filters)
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>

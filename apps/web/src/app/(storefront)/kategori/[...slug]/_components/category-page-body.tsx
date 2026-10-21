@@ -7,6 +7,7 @@ import { EmptyState } from '@hanuja/ui'
 import { type StorefrontGridProduct } from '@/components/storefront/storefront-product-grid'
 import ProductsInfiniteGrid from '@/components/storefront/products-infinite-grid'
 import { SeoPaginationLinks } from './category-pagination'
+import { clearListingFilters } from '@/lib/product-listing-query'
 
 interface CategoryPageBodyProps {
   filterContent: ReactNode
@@ -43,15 +44,7 @@ export function CategoryPageBody({
   const containerRef = useRef<HTMLDivElement>(null)
 
   const onClearFilters = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete('fiyat')
-    params.delete('fiyatMin')
-    params.delete('fiyatMax')
-    params.delete('stokta')
-    params.delete('indirimli')
-    params.delete('tasarimci')
-    params.delete('alt')
-    params.delete('sayfa')
+    const params = clearListingFilters(new URLSearchParams(searchParams.toString()))
     router.push(`${pathname}?${params.toString()}`, { scroll: false })
   }, [router, pathname, searchParams])
 
@@ -85,6 +78,7 @@ export function CategoryPageBody({
         <div ref={containerRef} className="relative">
           <button
             type="button"
+            aria-expanded={isFilterOpen}
             onClick={() => setIsFilterOpen((v) => !v)}
             className="flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors"
             style={{
@@ -117,13 +111,8 @@ export function CategoryPageBody({
                 backgroundColor: 'var(--color-surface)',
               }}
             >
-              <div className="max-h-[70vh] overflow-y-auto p-4">
-                {filterContent}
-              </div>
-              <div
-                className="border-t px-4 py-3"
-                style={{ borderColor: 'var(--color-border)' }}
-              >
+              <div className="max-h-[70vh] overflow-y-auto p-4">{filterContent}</div>
+              <div className="border-t px-4 py-3" style={{ borderColor: 'var(--color-border)' }}>
                 <button
                   type="button"
                   onClick={() => setIsFilterOpen(false)}
