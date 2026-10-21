@@ -88,6 +88,7 @@ function prismaFor(rules: Array<ReturnType<typeof rule>>, cartVariantId: string)
     discountRule: { findMany: vi.fn(async () => rules) },
     category: { findMany: vi.fn(async () => [{ id: 'cat-1', parentId: null, taxRate: new Decimal(0.2) }]) },
     platformSettings: { upsert: vi.fn(async () => SETTINGS) },
+    order: { findFirst: vi.fn(async () => null) },
     cart: {
       findUnique: vi.fn(async () => ({
         id: 'cart-1',

@@ -18,6 +18,7 @@ import { applyEffectivePricing } from '../domain/effective-price'
 import { createCouponService } from './coupon.service'
 import { createProductAnalyticsService } from './product-analytics.service'
 import { roundMoney } from '@hanuja/security/money'
+import { getCartCardCheckout } from './cart-card-checkout'
 
 interface CartServiceDeps {
   prisma: PrismaClient
@@ -142,6 +143,7 @@ export function createCartService({ prisma }: CartServiceDeps) {
           itemCount: 0,
           subtotal: new Decimal(0),
           taxAmount: new Decimal(0),
+          cardCheckout: null,
           freeShippingThresholdTry: settings.freeShippingThresholdTry,
           flatShippingFeeTry: settings.flatShippingFeeTry,
         }
@@ -156,6 +158,7 @@ export function createCartService({ prisma }: CartServiceDeps) {
 
       return {
         ...cart,
+        cardCheckout: cart.items.length ? await getCartCardCheckout(prisma, userId) : null,
         items: context.enrichedItems.map((item) => ({
           ...item,
           unitPrice: item.unitPrice,

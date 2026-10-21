@@ -28,6 +28,27 @@ V3 webhook doğrudan formatı korunur; `CHECKOUT_FORM_AUTH` için HPP sırası `
 
 ## Yerel test ve yayın
 
+### Müşterinin sipariş geçmişi (21.10.2026)
+
+Form açılırken oluşturulan kart siparişi stok/kupon ve ödeme kanıtı için dahili rezervasyondur.
+Müşterinin sipariş listesi, sayfalama öncesinde `Order.paymentConfirmedAt` veya
+`Payment.confirmedAt` bulunan kart kayıtlarını seçer. Sonradan iptal/iade edilmiş ödenmiş
+siparişler görünür kalır; Havale/EFT'nin ödeme bekleme ve banka bilgileri akışı korunur.
+Ödenmemiş kart detay bağlantıları `/odeme?siparis=...` ödeme akışına döner.
+
+`GET /api/cart`, güncel sepet/adres kanıtıyla eşleşen son kart denemesi için
+`cardCheckout: {orderId, state, checkoutUrl} | null` döndürür. `state` değerleri
+`pending`, `failed`, `checking`, `expired` olur. Bu okuma sağlayıcı çağrısı yapmaz,
+ödeme başlatmaz veya rezervasyon değiştirmez. Belirsiz sonuçta `checkoutUrl=null` olur;
+kesinleşmeden yeni tahsilata izin verilmez. Geçerli oturum/başarısız deneme aynı siparişe
+bağlanır; süresi dolmuş oturum ödeme ekranında mevcut kapatma işlemiyle çözülür.
+Sepet/adres değişikliği eski koşullarla yeniden ödemeyi engeller.
+
+Yalnız iyzico sunucu doğrulaması başarılı olduğunda aynı veritabanı işleminde tahsilat
+onayı ve satın alınan ürün/varyant adetlerinin sepetten düşülmesi gerçekleşir. Tekrarlanan
+bildirim ikinci kez düşmez; ödeme sırasında eklenen diğer ürün/adetler korunur. Arayüz
+başarılı sonuçta ve sekme tekrar odaklandığında sepeti/sayacı yeniler.
+
 Yerel test yardımcıları `.tmp/` altında; yalnız localhost `hanuja_dev` ve sandbox endpoint’i kabul eder. SMTP kapalıdır. Mevcut geliştirme Turnstile belirteci yerel arayüz testinde kullanılır; üretimin doğrulama kuralları değiştirilmez. Geçici HTTPS geçidi yalnız callback ve imzalı webhook POST yollarını kabul eder; diğer yollar 404 döner. Anahtar/token değerleri rapor veya ekran çıktısına yazılmaz.
 
 Canlı iyzico API/secret/base URL ayarları web ve worker yanında adminin kart iadesi mutabakat uçlarında da gerekir; üç serviste aynı canlı hesap, yalnız runtime olarak yapılandırılır. Yeni kart satışı bayrağı yalnız webdedir.

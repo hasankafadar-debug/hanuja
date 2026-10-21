@@ -80,6 +80,10 @@ export default async function OrderDetailPage({ params }: Props) {
   }
 
   if (!order) notFound()
+  const hasConfirmedPayment = !!order.paymentConfirmedAt ||
+    order.payments.some((payment) => !!payment.confirmedAt)
+  if (!hasConfirmedPayment && order.payments.some((payment) => payment.method === 'card'))
+    redirect('/odeme?siparis=' + encodeURIComponent(order.id))
 
   let pendingCustomerExtensionRequest: {
     id: string

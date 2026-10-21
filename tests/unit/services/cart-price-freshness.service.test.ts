@@ -60,6 +60,7 @@ function buildPrisma(options: {
   const cartItems = options.cartItems ?? []
 
   const prisma = {
+    order: { findFirst: vi.fn().mockResolvedValue(null) },
     $queryRaw: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(async (run: (tx: unknown) => Promise<unknown>) => run(prisma)),
     platformSettings: { upsert: vi.fn().mockResolvedValue(SETTINGS_ROW) },

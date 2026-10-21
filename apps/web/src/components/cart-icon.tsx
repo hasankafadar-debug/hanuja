@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { ShoppingCart } from 'lucide-react'
 import {
   CART_BADGE_POP_MS,
@@ -18,6 +19,7 @@ type CartCountResponse = {
 }
 
 export default function CartIcon() {
+  const pathname = usePathname()
   const [count, setCount] = useState(0)
   // Bumped after an add-to-cart confirmation lands; replays the icon/badge animation.
   const [landingCount, setLandingCount] = useState(0)
@@ -41,6 +43,9 @@ export default function CartIcon() {
 
   useEffect(() => {
     void loadCount()
+  }, [loadCount, pathname])
+
+  useEffect(() => {
 
     const handleCartChanged = (event: Event) => {
       const reason = (event as CustomEvent<CartChangedDetail | null>).detail?.reason
@@ -50,7 +55,18 @@ export default function CartIcon() {
     }
 
     window.addEventListener(CART_CHANGED_EVENT, handleCartChanged)
-    return () => window.removeEventListener(CART_CHANGED_EVENT, handleCartChanged)
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadCount()
+    }
+    window.addEventListener('focus', refresh)
+    window.addEventListener('pageshow', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.removeEventListener(CART_CHANGED_EVENT, handleCartChanged)
+      window.removeEventListener('focus', refresh)
+      window.removeEventListener('pageshow', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
   }, [loadCount])
 
   useEffect(() => {

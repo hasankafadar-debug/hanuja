@@ -15,6 +15,7 @@ import {
 import { Trash2, ShoppingCart, Plus, Minus, AlertTriangle } from 'lucide-react'
 import { csrfFetch } from '@/lib/csrf-fetch'
 import CouponForm from './_components/coupon-form'
+import type { CartCardCheckout } from '@hanuja/api/services/cart-card-checkout'
 
 interface CartItem {
   id: string
@@ -41,6 +42,7 @@ interface Cart {
   couponDiscount?: string
   shipping?: string
   total?: string
+  cardCheckout?: CartCardCheckout | null
   freeShippingThresholdTry?: string
   flatShippingFeeTry?: string
 }
@@ -63,7 +65,7 @@ export default function CartPage() {
 
   const fetchCart = useCallback(async () => {
     try {
-      const res = await fetch('/api/cart')
+      const res = await fetch('/api/cart', { cache: 'no-store' })
       if (res.status === 401) {
         router.push('/giris?callbackUrl=/sepet')
         return
@@ -80,7 +82,29 @@ export default function CartPage() {
 
   useEffect(() => {
     void fetchCart()
+    const refresh = () => {
+      if (document.visibilityState === 'visible' && !mutating.current) void fetchCart()
+    }
+    window.addEventListener('focus', refresh)
+    window.addEventListener('pageshow', refresh)
+    window.addEventListener('hanuja:cart-changed', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      window.removeEventListener('pageshow', refresh)
+      window.removeEventListener('hanuja:cart-changed', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
   }, [fetchCart])
+
+  const checkoutState = cart?.cardCheckout?.state
+  useEffect(() => {
+    if (checkoutState !== 'pending' && checkoutState !== 'checking') return
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible' && !mutating.current) void fetchCart()
+    }, 8000)
+    return () => clearInterval(timer)
+  }, [checkoutState, fetchCart])
 
   async function updateQuantity(itemId: string, delta: number, currentQty: number) {
     if (mutating.current) return
@@ -181,6 +205,24 @@ export default function CartPage() {
           </button>
         </div>
       )}
+
+      {cart.cardCheckout ? (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="cart-card-checkout"
+          className="mb-6 rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
+        >
+          {cart.cardCheckout.state === 'failed'
+            ? 'Ödemeniz onaylanmadı. Ürünleriniz sepetinizde duruyor.'
+            : cart.cardCheckout.state === 'checking'
+              ? 'Ödeme sonucu kontrol ediliyor. Sonuç netleşmeden yeni ödeme başlatılamaz.'
+              : cart.cardCheckout.state === 'expired'
+                ? 'Ödeme oturumunuz sona erdi. Ürünleriniz sepetinizde duruyor.'
+                : 'Ödemeniz henüz tamamlanmadı. Ürünleriniz sepetinizde duruyor.'}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
@@ -366,12 +408,15 @@ export default function CartPage() {
             data-testid="cart-checkout"
             className="mt-6 w-full"
             size="lg"
-            disabled={updating !== null}
+            disabled={updating !== null || cart.cardCheckout?.state === 'checking'}
             onClick={() => {
-              if (!mutating.current) router.push('/odeme')
+              if (!mutating.current && cart.cardCheckout?.state !== 'checking')
+                router.push(cart.cardCheckout?.checkoutUrl ?? '/odeme')
             }}
           >
-            Ödemeye Geç
+            {cart.cardCheckout?.state === 'pending' ? 'Ödemeye devam et'
+              : cart.cardCheckout?.state === 'checking' ? 'Ödeme kontrol ediliyor'
+                : cart.cardCheckout ? 'Tekrar dene' : 'Ödemeye Geç'}
           </Button>
           <Link href="/">
             <Button variant="ghost" className="mt-2 w-full" size="sm">

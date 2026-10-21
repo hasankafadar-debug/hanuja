@@ -83,12 +83,15 @@ interface RetryState {
   couponDiscountAmount?: string
   shippingAmount?: string
   attemptsLeft: number
+  confirmed: boolean
+  attemptId: string | null
+  attemptStatus: string | null
 }
 
 const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
   reddedildi:
     'Bankanız ödemeyi onaylamadı. Kart bilgilerinizi kontrol edip farklı bir kartla tekrar deneyebilirsiniz.',
-  sure: 'Ödeme süresi doldu. Sepetinizden yeni bir sipariş oluşturabilirsiniz.',
+  sure: 'Ödeme oturumunuz sona erdi. Ürünleriniz sepetinizde; tekrar deneyebilirsiniz.',
   dogrulama: 'Ödeme doğrulanamadı. Lütfen tekrar deneyin.',
   sistem:
     'Ödeme sırasında bir hata oluştu. Kartınızdan çekim yapılmışsa sipariş sayfanızda görünecektir.',
@@ -97,6 +100,12 @@ const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
 /** "Ödemeyi tamamla" niyeti başına bir anahtar; ağ tekrarlarında aynı anahtar gönderilir. */
 function newStartKey() {
   return `start-${crypto.randomUUID()}`
+}
+
+function paymentConfirmedInBrowser() {
+  sessionStorage.removeItem('hanuja:checkout-form:start')
+  sessionStorage.removeItem('hanuja:checkout-form:source')
+  window.dispatchEvent(new CustomEvent('hanuja:cart-changed'))
 }
 
 /**
@@ -221,6 +230,11 @@ export function CheckoutPageClient({
       const { data: cart } = await cartRes.json()
       const { data: addrs } = await addrRes.json()
 
+      if (!retryOrderId && cart.cardCheckout?.state === 'checking') {
+        router.replace('/odeme?siparis=' + encodeURIComponent(cart.cardCheckout.orderId))
+        return
+      }
+
       if (savedAttemptRes?.ok) {
         const { data: saved } = await savedAttemptRes.json()
         if (
@@ -232,12 +246,13 @@ export function CheckoutPageClient({
           sessionStorage.removeItem('hanuja:checkout-form:source')
         }
         if (saved.status === 'succeeded') {
-          sessionStorage.removeItem('hanuja:checkout-form:start')
+          paymentConfirmedInBrowser()
           router.push('/siparis/' + encodeURIComponent(saved.orderId) + '?yeni=1')
           return
         }
         if (
           !saved.superseded &&
+          cart.cardCheckout?.orderId === saved.orderId &&
           ['failed', 'outcome_unknown', 'authorizing', 'fraud_review'].includes(saved.status)
         ) {
           if (saved.status === 'failed') {
@@ -251,10 +266,29 @@ export function CheckoutPageClient({
 
       if (retryRes) {
         if (!retryRes.ok) {
-          router.push('/siparis')
+          router.push('/sepet')
           return
         }
         const { data: state } = await retryRes.json()
+        if (state.confirmed) {
+          paymentConfirmedInBrowser()
+          router.replace('/siparis/' + encodeURIComponent(state.orderId) + '?yeni=1')
+          return
+        }
+        if (!state.payable && !state.checking) {
+          if (state.attemptId) {
+            const closed = await csrfFetch('/api/payment/checkout-form/session', {
+              method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ attemptId: state.attemptId }),
+            })
+            if (!closed.ok) throw new Error('Önceki ödeme oturumu kapatılamadı.')
+          }
+          startKeyRef.current = newStartKey()
+          sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
+          sessionStorage.removeItem('hanuja:checkout-form:source')
+          router.replace('/odeme?hata=sure')
+          return
+        }
         setRetryState(state as RetryState)
       } else if ((!cart?.itemCount || cart.itemCount === 0) && !sessionRef.current) {
         router.push('/sepet')
@@ -298,6 +332,12 @@ export function CheckoutPageClient({
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (!retryState?.checking) return
+    const timer = setInterval(() => void loadData(), 8000)
+    return () => clearInterval(timer)
+  }, [retryState?.checking, loadData])
 
   useEffect(() => {
     const refresh = () => {
@@ -360,12 +400,16 @@ export function CheckoutPageClient({
         )
         if (res.ok) {
           const { data } = await res.json()
-          const closed = await csrfFetch('/api/payment/checkout-form/session', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ attemptId: data.attemptId }),
-          })
-          if (!closed.ok) throw new Error('Önceki ödeme oturumu kapatılamadı.')
+          // Retrying the same order changes its preview hash, not its reservation.
+          // Closing it here would cancel the order we are about to retry.
+          if (data.orderId !== retryOrderId) {
+            const closed = await csrfFetch('/api/payment/checkout-form/session', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ attemptId: data.attemptId }),
+            })
+            if (!closed.ok) throw new Error('Önceki ödeme oturumu kapatılamadı.')
+          }
         }
         if (cancelled) return
         startKeyRef.current = newStartKey()
@@ -380,7 +424,7 @@ export function CheckoutPageClient({
     return () => {
       cancelled = true
     }
-  }, [legalPreview?.sourceHash, paymentMethod])
+  }, [legalPreview?.sourceHash, paymentMethod, retryOrderId])
 
   useEffect(() => {
     const previewUrl = retryOrderId
@@ -428,6 +472,11 @@ export function CheckoutPageClient({
             if (!cancelled) {
               startKeyRef.current = newStartKey()
               sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
+              if (retryOrderId) {
+                sessionStorage.removeItem('hanuja:checkout-form:source')
+                router.replace('/odeme')
+                return
+              }
               setStartNonce((v) => v + 1)
             }
             return
@@ -577,7 +626,7 @@ export function CheckoutPageClient({
           return
         }
         if (state?.status === 'succeeded') {
-          sessionStorage.removeItem('hanuja:checkout-form:start')
+          paymentConfirmedInBrowser()
           router.push('/siparis/' + state.orderId + '?yeni=1')
           return
         }
@@ -590,7 +639,7 @@ export function CheckoutPageClient({
           setCheckoutSession(state)
           return
         }
-        if (state?.orderId && ['failed', 'expired'].includes(state.status)) {
+        if (state?.orderId && ['failed', 'expired', 'authorizing', 'outcome_unknown', 'fraud_review'].includes(state.status)) {
           startKeyRef.current = newStartKey()
           sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
           router.replace('/odeme?siparis=' + encodeURIComponent(state.orderId))
@@ -636,7 +685,7 @@ export function CheckoutPageClient({
         if (!res.ok || stopped) return
         const { data } = await res.json()
         if (data.status === 'succeeded') {
-          sessionStorage.removeItem('hanuja:checkout-form:start')
+          paymentConfirmedInBrowser()
           router.push('/siparis/' + data.orderId + '?yeni=1')
         } else if (['failed', 'expired', 'voided', 'refunded'].includes(data.status)) {
           sessionRef.current = null
@@ -644,8 +693,9 @@ export function CheckoutPageClient({
           setAcceptedContracts(false)
           startKeyRef.current = newStartKey()
           sessionStorage.setItem('hanuja:checkout-form:start', startKeyRef.current)
-          setError('Ödeme tamamlanmadı. Yeniden deneyebilirsiniz.')
-          router.replace('/odeme?siparis=' + encodeURIComponent(data.orderId) + '&hata=reddedildi')
+          const failed = data.status === 'failed'
+          setError(failed ? 'Ödemeniz onaylanmadı. Tekrar deneyebilirsiniz.' : CALLBACK_ERROR_MESSAGES.sure!)
+          router.replace('/odeme?siparis=' + encodeURIComponent(data.orderId) + '&hata=' + (failed ? 'reddedildi' : 'sure'))
           setStartNonce((v) => v + 1)
         }
       } catch {
@@ -812,16 +862,18 @@ export function CheckoutPageClient({
             <p>Ödemeniz kontrol ediliyor. Sonuç netleşmeden yeni ödeme başlatılamaz.</p>
           ) : retryState.payable ? (
             <p>
-              Siparişiniz için ödeme bekleniyor.
+              {retryState.attemptStatus === 'failed' && !checkoutSession
+                ? 'Ödemeniz onaylanmadı. Tekrar deneyebilirsiniz.'
+                : 'Ödemeniz henüz tamamlanmadı. Ödemeye devam edebilirsiniz.'}
               {retryState.expiresAt
                 ? ` ${new Date(retryState.expiresAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} saatine kadar farklı bir kartla tekrar deneyebilirsiniz.`
                 : ''}
             </p>
           ) : (
-            <p>Bu sipariş artık ödemeye açık değil.</p>
+            <p>Bu ödeme oturumu sona erdi.</p>
           )}
-          <a className="mt-1 inline-block text-xs underline" href={`/siparis/${retryOrderId}`}>
-            Sipariş detayına git
+          <a className="mt-1 inline-block text-xs underline" href="/sepet">
+            Sepete dön
           </a>
         </div>
       ) : null}

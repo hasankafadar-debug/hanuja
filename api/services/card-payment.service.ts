@@ -1961,11 +1961,18 @@ export function createCardPaymentService({
         (BLOCKING_STATUSES as readonly string[]).includes(attempt.status),
       )
       const cardPayment = order.payments.find((payment) => payment.method === 'card')
+      const currentForm = order.cardPaymentAttempts.find(
+        (attempt) => !attempt.supersededAt && attempt.flow === 'checkout_form' &&
+          attempt.status === 'checkout_form_pending',
+      )
+      const formExpired = !!currentForm && (!currentForm.checkoutFormExpiresAt ||
+        currentForm.checkoutFormExpiresAt <= now())
       const payable =
         order.status === 'payment_pending' &&
         cardPayment?.status === 'pending' &&
         !!order.cardPaymentExpiresAt &&
         order.cardPaymentExpiresAt > now() &&
+        !formExpired &&
         !checking &&
         (order.cardPaymentAttempts.length < MAX_CARD_ATTEMPTS_PER_ORDER ||
           order.cardPaymentAttempts.some(
@@ -1979,6 +1986,9 @@ export function createCardPaymentService({
       return {
         orderId: order.id,
         status: order.status,
+        confirmed: !!order.paymentConfirmedAt || order.payments.some((payment) => !!payment.confirmedAt),
+        attemptId: order.cardPaymentAttempts[0]?.id ?? null,
+        attemptStatus: order.cardPaymentAttempts[0]?.status ?? null,
         payable,
         checking,
         expiresAt: order.cardPaymentExpiresAt?.toISOString() ?? null,

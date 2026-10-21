@@ -30,6 +30,10 @@ import {
 } from '../../api/services/card-payment.service'
 import { createQuantityCancellationService } from '../../api/services/quantity-cancellation.service'
 import { createRefundExecutionService } from '../../api/services/refund-execution.service'
+import { createOrderRepository } from '../../api/repositories/order.repository'
+import { getCartCardCheckout } from '../../api/services/cart-card-checkout'
+import { createCartService } from '../../api/services/cart.service'
+import { createCheckoutService } from '../../api/services/checkout.service'
 import * as legalDocuments from '../../api/lib/legal-documents'
 import {
   computeIyzicoSignature,
@@ -473,6 +477,279 @@ async function startCF(
 }
 
 describe('hosted CheckoutForm: server payment boundaries', () => {
+  it('keeps an opened form out of customer history and exposes a read-only cart resume state', async () => {
+    const h = harness(),
+      f = await checkoutFixture({ coupon: true })
+    const { session } = await startCF(h, f)
+    expect(
+      await createOrderRepository(prisma).listByCustomer({ customerId: f.customer.id }),
+    ).toEqual([])
+    const attemptsBefore = await prisma.cardPaymentAttempt.count({
+      where: { userId: f.customer.id },
+    })
+    const state = {
+      orderId: session.orderId,
+      state: 'pending',
+      checkoutUrl: `/odeme?siparis=${session.orderId}`,
+    }
+    expect(await getCartCardCheckout(prisma, f.customer.id, h.clock.now)).toEqual(state)
+    expect((await createCartService({ prisma }).getCart(f.customer.id)).cardCheckout).toEqual(state)
+    expect(await getCartCardCheckout(prisma, f.customer.id, h.clock.now)).toEqual(state)
+    expect(await prisma.cardPaymentAttempt.count({ where: { userId: f.customer.id } })).toBe(
+      attemptsBefore,
+    )
+    expect(await prisma.order.count({ where: { customerId: f.customer.id } })).toBe(1)
+    expect(await prisma.cartItem.count({ where: { cartId: f.cart.id } })).toBe(2)
+    expect((await prisma.coupon.findUniqueOrThrow({ where: { id: f.couponId! } })).usageCount).toBe(
+      1,
+    )
+    expect(h.gateway.initializeCheckoutForm).toHaveBeenCalledTimes(1)
+    expect(h.gateway.retrieveCheckoutForm).not.toHaveBeenCalled()
+  })
+
+  it('offers a failed payment retry on the same order and coupon reservation', async () => {
+    const h = harness(),
+      f = await checkoutFixture({ coupon: true })
+    const first = await startCF(h, f)
+    h.state.cfStatus = 'FAILURE'
+    h.state.retrievePaymentStatus = 'FAILURE'
+    expect(
+      (await h.service.handleCheckoutFormCallback(first.attempt.checkoutFormToken!)).outcome,
+    ).toBe('failed')
+    expect(await getCartCardCheckout(prisma, f.customer.id, h.clock.now)).toMatchObject({
+      state: 'failed',
+      orderId: first.session.orderId,
+    })
+    expect(
+      await createOrderRepository(prisma).listByCustomer({ customerId: f.customer.id }),
+    ).toEqual([])
+    expect(await prisma.cartItem.count({ where: { cartId: f.cart.id } })).toBe(2)
+    h.state.cfStatus = 'INIT'
+    const retry = await startCF(h, f, { orderId: first.session.orderId })
+    expect(retry.session.orderId).toBe(first.session.orderId)
+    expect(await getCartCardCheckout(prisma, f.customer.id, h.clock.now)).toMatchObject({
+      state: 'pending',
+      orderId: first.session.orderId,
+    })
+    expect(await prisma.order.count({ where: { customerId: f.customer.id } })).toBe(1)
+    expect((await prisma.coupon.findUniqueOrThrow({ where: { id: f.couponId! } })).usageCount).toBe(
+      1,
+    )
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: f.productA.id } })).stockQuantity,
+    ).toBe(4)
+  })
+
+  it.each(['authorizing', 'outcome_unknown', 'fraud_review'] as const)(
+    'hides %s from history and prevents another cart payment',
+    async (status) => {
+      const h = harness(),
+        f = await checkoutFixture()
+      const { attempt } = await startCF(h, f)
+      await prisma.cardPaymentAttempt.update({ where: { id: attempt.id }, data: { status } })
+      expect(
+        await createOrderRepository(prisma).listByCustomer({ customerId: f.customer.id }),
+      ).toEqual([])
+      expect(await getCartCardCheckout(prisma, f.customer.id, h.clock.now)).toMatchObject({
+        state: 'checking',
+        checkoutUrl: null,
+      })
+      expect(await h.service.getOrderPaymentState(f.customer.id, attempt.orderId)).toMatchObject({
+        checking: true,
+        payable: false,
+        confirmed: false,
+      })
+      expect(await prisma.cartItem.count({ where: { cartId: f.cart.id } })).toBe(2)
+      await prisma.cartItem.create({
+        data: {
+          cartId: f.cart.id,
+          productId: f.productC.id,
+          quantity: 1,
+          unitPrice: f.productC.price,
+        },
+      })
+      const newPreview = await h.service.previewCheckoutForm({
+        userId: f.customer.id,
+        addressId: f.address.id,
+      })
+      await expect(
+        h.service.startCheckoutForm({
+          userId: f.customer.id,
+          previewId: newPreview.previewId,
+          startKey: `cf-${randomUUID()}`,
+          acceptance: ACCEPTANCE,
+          buyerIp: '203.0.113.5',
+          callbackUrl: 'https://shop.example.test/api/payment/checkout-form/callback',
+        }),
+      ).rejects.toMatchObject({ code: 'CARD_PAYMENT_CHECKING' })
+      expect(await prisma.order.count({ where: { customerId: f.customer.id } })).toBe(1)
+      expect(h.gateway.initializeCheckoutForm).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('hides an expired form and releases stock/coupon without clearing the cart', async () => {
+    const h = harness(),
+      f = await checkoutFixture({ coupon: true })
+    const { attempt } = await startCF(h, f)
+    h.advance(32)
+    expect(await getCartCardCheckout(prisma, f.customer.id, h.clock.now)).toMatchObject({
+      state: 'expired',
+    })
+    await h.service.abandonCheckoutForm(f.customer.id, attempt.id)
+    expect(
+      await createOrderRepository(prisma).listByCustomer({ customerId: f.customer.id }),
+    ).toEqual([])
+    expect(await getCartCardCheckout(prisma, f.customer.id, h.clock.now)).toMatchObject({
+      state: 'expired',
+    })
+    expect(await prisma.cartItem.count({ where: { cartId: f.cart.id } })).toBe(2)
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: f.productA.id } })).stockQuantity,
+    ).toBe(5)
+    expect((await prisma.coupon.findUniqueOrThrow({ where: { id: f.couponId! } })).usageCount).toBe(
+      0,
+    )
+  })
+
+  it('treats an expired iframe as closed during the order expiry grace period', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const { session } = await startCF(h, f)
+    h.advance(30.25)
+    const order = await prisma.order.findUniqueOrThrow({ where: { id: session.orderId } })
+    expect(order.cardPaymentExpiresAt!.getTime()).toBeGreaterThan(h.clock.now.getTime())
+    expect(await getCartCardCheckout(prisma, f.customer.id, h.clock.now)).toMatchObject({
+      state: 'expired',
+    })
+    expect(await h.service.getOrderPaymentState(f.customer.id, session.orderId)).toMatchObject({
+      payable: false,
+      checking: false,
+    })
+  })
+
+  it.each(['cart', 'address'] as const)('does not resume stale %s conditions', async (change) => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const { session } = await startCF(h, f)
+    if (change === 'cart')
+      await prisma.cartItem.updateMany({
+        where: { cartId: f.cart.id, productId: f.productA.id },
+        data: { quantity: 2 },
+      })
+    else
+      await prisma.address.update({
+        where: { id: f.address.id },
+        data: { addressLine1: 'Yeni adres No 2' },
+      })
+    expect(await getCartCardCheckout(prisma, f.customer.id, h.clock.now)).toBeNull()
+    await expect(
+      h.service.previewCheckoutForm({ userId: f.customer.id, orderId: session.orderId }),
+    ).rejects.toMatchObject({ code: 'CHECKOUT_FORM_CONTEXT_CHANGED' })
+    expect(h.gateway.initializeCheckoutForm).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a server-confirmed order once and removes only purchased quantities, even on repeated callbacks', async () => {
+    const h = harness(),
+      f = await checkoutFixture()
+    const { attempt } = await startCF(h, f)
+    await prisma.cartItem.updateMany({
+      where: { cartId: f.cart.id, productId: f.productA.id },
+      data: { quantity: 3 },
+    })
+    await prisma.cartItem.create({
+      data: {
+        cartId: f.cart.id,
+        productId: f.productC.id,
+        quantity: 1,
+        unitPrice: f.productC.price,
+      },
+    })
+    h.state.cfStatus = 'SUCCESS'
+    await h.service.handleCheckoutFormCallback(attempt.checkoutFormToken!)
+    await h.service.handleCheckoutFormCallback(attempt.checkoutFormToken!)
+    const visible = await createOrderRepository(prisma).listByCustomer({
+      customerId: f.customer.id,
+    })
+    expect(visible.map((order) => order.id)).toEqual([attempt.orderId])
+    const remaining = await prisma.cartItem.findMany({ where: { cartId: f.cart.id } })
+    expect(remaining.map((item) => [item.productId, item.quantity]).sort()).toEqual(
+      [
+        [f.productA.id, 2],
+        [f.productC.id, 1],
+      ].sort(),
+    )
+    expect(await getCartCardCheckout(prisma, f.customer.id, h.clock.now)).toBeNull()
+    expect(
+      await prisma.paymentEvent.count({
+        where: { paymentId: attempt.paymentId, eventType: 'card_payment_confirmed' },
+      }),
+    ).toBe(1)
+    for (const status of ['refund_completed', 'cancelled_by_customer'] as const) {
+      await prisma.order.update({ where: { id: attempt.orderId }, data: { status } })
+      expect(
+        (await createOrderRepository(prisma).listByCustomer({ customerId: f.customer.id })).map(
+          (order) => order.id,
+        ),
+      ).toEqual([attempt.orderId])
+    }
+  })
+
+  it('filters unpaid card records before pagination while preserving pending EFT and historical payment evidence', async () => {
+    const f = await checkoutFixture()
+    const repo = createOrderRepository(prisma)
+    const paid = await prisma.order.create({
+      data: {
+        customerId: f.customer.id,
+        grossAmount: 10,
+        totalAmount: 10,
+        status: 'refund_completed',
+        payments: {
+          create: {
+            method: 'card',
+            provider: 'iyzico',
+            amount: 10,
+            status: 'refunded',
+            confirmedAt: new Date(),
+          },
+        },
+      },
+    })
+    const eft = await createCheckoutService({ prisma }).createOrder({
+      userId: f.customer.id,
+      addressId: f.address.id,
+      paymentMethod: 'eft',
+      idempotencyKey: `eft-${randomUUID()}`,
+      legalAcceptance: ACCEPTANCE,
+    })
+    for (const status of [
+      'payment_pending',
+      'payment_failed',
+      'payment_cancelled',
+      'cancelled_by_customer',
+    ] as const)
+      await prisma.order.create({
+        data: {
+          customerId: f.customer.id,
+          grossAmount: 10,
+          totalAmount: 10,
+          status,
+          createdAt: new Date(Date.now() + 60_000),
+          payments: {
+            create: { method: 'card', provider: 'iyzico', amount: 10, status: 'pending' },
+          },
+        },
+      })
+    expect(
+      (await repo.listByCustomer({ customerId: f.customer.id, take: 1 })).map((order) => order.id),
+    ).toEqual([eft.order.id])
+    expect(
+      (await repo.listByCustomer({ customerId: f.customer.id, skip: 1, take: 1 })).map(
+        (order) => order.id,
+      ),
+    ).toEqual([paid.id])
+    expect(await getCartCardCheckout(prisma, f.customer.id)).toBeNull()
+  })
+
   it.each([
     [null, [1, 2, 3, 6, 9]],
     [36, [1, 2, 3, 6, 9]],

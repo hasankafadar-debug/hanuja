@@ -42,6 +42,14 @@ export const SELLER_VISIBLE_PAYMENT_WHERE = {
   ],
 } satisfies Prisma.OrderWhereInput
 
+/** Unpaid card reservations are checkout records, not customer order history. */
+export const CUSTOMER_VISIBLE_PAYMENT_WHERE = {
+  OR: [
+    ...SELLER_VISIBLE_PAYMENT_WHERE.OR,
+    { payments: { none: { method: 'card' } } },
+  ],
+} satisfies Prisma.OrderWhereInput
+
 const sellerVisibleLegalSnapshotSelect = {
   distanceSalesHtml: true,
   preInformationHtml: true,
@@ -175,6 +183,7 @@ export function createOrderRepository(prisma: PrismaClient) {
       return prisma.order.findMany({
         where: {
           customerId: params.customerId,
+          AND: [CUSTOMER_VISIBLE_PAYMENT_WHERE],
           ...(params.status !== undefined ? { status: params.status } : {}),
         },
         include: {

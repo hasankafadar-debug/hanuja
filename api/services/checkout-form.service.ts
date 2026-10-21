@@ -21,6 +21,7 @@ import {
 import { lockOrderRow, normalizeTurkishGsm, splitFullName } from './card-payment-support'
 import { wakeStockSearchProjection } from './product-stock-sync'
 import type { CallbackOutcome } from './card-payment.service'
+import { checkoutSourceFingerprint, matchesCheckoutSource } from './checkout-source-fingerprint'
 
 export type CheckoutFormGateway = Pick<
   typeof iyzico,
@@ -100,7 +101,11 @@ export function createCheckoutFormService({
           checkoutFormExpiresAt: { gt: now() },
         },
         orderBy: { createdAt: 'desc' },
+        include: { order: { include: { cardPaymentAttempts: true } } },
       })
+      if (active && (await matchesCheckoutSource(prisma, active.order)) === false)
+        throw new DomainError('Sepet veya adres değişti; önceki ödeme oturumunu kapatın.',
+          'CHECKOUT_FORM_CONTEXT_CHANGED', 409, { attemptId: active.id })
       if (active?.legalContext && active.checkoutFormPreviewId)
         return {
           ...(active.legalSnapshots as unknown as Pick<
@@ -115,35 +120,7 @@ export function createCheckoutFormService({
           sourceHash: active.sourceHash!,
         }
     }
-    const [cart, addresses] = await Promise.all([
-      prisma.cart.findUnique({
-        where: { userId: params.userId },
-        select: {
-          couponCode: true,
-          items: {
-            orderBy: { id: 'asc' },
-            select: {
-              productId: true,
-              variantId: true,
-              quantity: true,
-              unitPrice: true,
-              updatedAt: true,
-            },
-          },
-        },
-      }),
-      prisma.address.findMany({
-        where: {
-          userId: params.userId,
-          id: { in: [params.addressId ?? '', params.billingAddressId ?? ''] },
-        },
-        orderBy: { id: 'asc' },
-      }),
-    ])
-    const fingerprint = crypto
-      .createHash('sha256')
-      .update(JSON.stringify({ cart, addresses }))
-      .digest('hex')
+    const fingerprint = await checkoutSourceFingerprint(prisma, params)
     // Recover the frozen reservation before revalidating coupons/available stock: this order
     // already owns those resources. A reload must not count its coupon as a second use.
     if (!params.orderId) {
@@ -191,7 +168,7 @@ export function createCheckoutFormService({
       const order = await prisma.order.findFirst({
         where: { id: params.orderId, customerId: params.userId },
         include: {
-          cardPaymentAttempts: { orderBy: { createdAt: 'desc' }, take: 1 },
+          cardPaymentAttempts: { orderBy: { createdAt: 'desc' } },
           cardPaymentQuotes: { orderBy: { createdAt: 'asc' }, take: 1 },
         },
       })
@@ -202,6 +179,9 @@ export function createCheckoutFormService({
         order.cardPaymentExpiresAt <= now()
       )
         throw new DomainError('Sipariş ödemeye açık değil.', 'CARD_ORDER_NOT_PAYABLE', 409)
+      if ((await matchesCheckoutSource(prisma, order)) === false)
+        throw new DomainError('Sepet veya adres değişti; önceki ödeme oturumunu kapatın.',
+          'CHECKOUT_FORM_CONTEXT_CHANGED', 409, { attemptId: order.cardPaymentAttempts[0]?.id })
       const json =
         order.cardPaymentAttempts[0]?.legalContext ?? order.cardPaymentQuotes[0]?.legalContext
       if (!json)
@@ -395,6 +375,13 @@ export function createCheckoutFormService({
             )
           return { attempt: replay, replay: true }
         }
+        const unresolved = await tx.cardPaymentAttempt.findFirst({
+          where: { userId: params.userId, supersededAt: null,
+            status: { in: ['authorizing', 'outcome_unknown', 'fraud_review'] } },
+        })
+        if (unresolved)
+          throw new DomainError('Ödeme sonucu kontrol ediliyor. Sonuç netleşmeden yeni ödeme başlatılamaz.',
+            'CARD_PAYMENT_CHECKING', 409, { orderId: unresolved.orderId })
         let orderId = consent.orderId
         let limit: number | null
         if (!orderId) {
@@ -459,6 +446,9 @@ export function createCheckoutFormService({
             order.cardPaymentExpiresAt <= now()
           )
             throw new DomainError('Sipariş ödemeye açık değil.', 'CARD_ORDER_NOT_PAYABLE', 409)
+          if ((await matchesCheckoutSource(tx, order)) === false)
+            throw new DomainError('Sepet veya adres değişti; önceki ödeme oturumunu kapatın.',
+              'CHECKOUT_FORM_CONTEXT_CHANGED', 409, { attemptId: order.cardPaymentAttempts[0]?.id })
           const active = order.cardPaymentAttempts.find(
             (a) =>
               !a.supersededAt &&
