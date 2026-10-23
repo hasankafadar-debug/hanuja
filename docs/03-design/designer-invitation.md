@@ -20,6 +20,7 @@ The previous React route (`apps/web/src/app/tasarimci-daveti/`) and its dedicate
 - The storefront does not currently impose a Content-Security-Policy. This integration introduces no broader CSP relaxation. Inline styles/scripts, same-origin vendor/fonts and MP4/WebM must remain usable if a future policy is added.
 - No immutable cache header is added: filenames are not fingerprinted. The HTML receives no custom long-lived cache policy.
 - Application CTAs use the supplied `https://satici.hanuja.com.tr/basvuru`; the application workflow is unchanged.
+- On 2026-10-23, the user authorized removing the opening hero's “Başvuruyu başlat” and “Davetiyeyi incele” buttons. The header's “Başvur” and final application button remain unchanged.
 - The final contact revision removes the final “Önce konuşalım” mail button and places `Telefon +90 555 502 18 62` below the existing email address, linked to `tel:+905555021862`.
 
 ## Motion behavior and verification

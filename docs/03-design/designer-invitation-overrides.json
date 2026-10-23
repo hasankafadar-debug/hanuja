@@ -1,13 +1,13 @@
 {
   "baseline": "designer-invitation-sha256.json",
-  "reason": "User-authorized scroll-linked hero and responsive full-motion revision; locally reviewed and production release approved on 2026-10-21. The user also approved production deployment of the subsequent WebKit horizontal-distance and final contact revision on 2026-10-21.",
+  "reason": "User-authorized scroll-linked hero and responsive full-motion revision; locally reviewed and production release approved on 2026-10-21. The user also approved production deployment of the subsequent WebKit horizontal-distance and final contact revision on 2026-10-21. The user authorized removing only the opening hero CTA pair and publishing that change on 2026-10-23; header and final application CTAs remain.",
   "files": [
     {
       "path": "index.html",
       "change": "modified",
       "originalSha256": "12ea475a355432c1af23b79750d3afe4adb013fcf1962b641e4d34f0508833d9",
-      "bytes": 82696,
-      "sha256": "164aa1adf70a0f673b9f608247b082145bf8d87d70fec6518227f91c81c47477"
+      "bytes": 82387,
+      "sha256": "a0f252b84711c7c839fd35442daafb352ae541d9ef6b0bdb3406768fc5456879"
     },
     {
       "path": "assets/video/stage-16x9-scroll.mp4",
