@@ -51,8 +51,9 @@ interface PublishedPolicy {
 /** The names and version actually published on /cerez-politikasi — what visitors are told. */
 async function readPublishedPolicy(page: Page): Promise<PublishedPolicy> {
   await page.goto('/cerez-politikasi', { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('main table tbody tr td:first-child code').first()).toBeVisible()
   const names = await page.locator('main table tbody tr td:first-child code').allInnerTexts()
-  const versionText = await page.getByText(/^Metin sürümü:/).innerText()
+  const versionText = await page.getByRole('main').getByText(/^Metin sürümü:/).innerText()
   return { version: versionText.replace('Metin sürümü:', '').trim(), names: new Set(names.map((name) => name.trim())) }
 }
 
@@ -151,7 +152,7 @@ test.describe('cookie consent — production configuration', () => {
     await gotoHome(page)
     const unexpected = requests
       .map((request) => new URL(request.url()))
-      .filter((url) => url.protocol.startsWith('http') && url.hostname !== 'localhost')
+      .filter((url) => url.protocol.startsWith('http') && url.hostname !== new URL(page.url()).hostname)
       .filter((url) => !isExpectedExternalHost(url.hostname))
       .map((url) => url.hostname)
     expect(unexpected).toEqual([])
