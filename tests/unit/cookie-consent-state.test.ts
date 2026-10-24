@@ -78,8 +78,12 @@ describe('script gating', () => {
     expect(resolveScriptsToLoad({ ...NO_OPTIONAL_CONSENT, analytics: true }, SCRIPTS).map((s) => s.id)).toEqual(['a'])
   })
 
-  it('has no optional script in production', () => {
-    expect(getConsentScripts()).toEqual([])
+  it('loads GA4 only for an analytics grant, with both cookies removable', () => {
+    expect(resolveScriptsToLoad(NO_OPTIONAL_CONSENT)).toEqual([])
+    expect(resolveScriptsToLoad({ ...NO_OPTIONAL_CONSENT, marketing: true })).toEqual([])
+    const scripts = resolveScriptsToLoad({ ...NO_OPTIONAL_CONSENT, analytics: true })
+    expect(scripts.map((script) => script.id)).toEqual(['google-analytics'])
+    expect(scripts[0]?.cleanup.cookies).toEqual(['_ga', '_ga_79EPBQSRW2'])
   })
 })
 
@@ -101,7 +105,6 @@ describe('computeWithdrawalCleanup', () => {
 
 describe('consent scripts and inventory stay in sync', () => {
   it('lists every cookie a consent script creates in the inventory under the same category', () => {
-    vi.stubEnv('NEXT_PUBLIC_COOKIE_CONSENT_E2E_FIXTURE', '1')
     const inventory = getCookieInventory()
     const scripts = getConsentScripts()
     expect(scripts.length).toBeGreaterThan(0)
@@ -112,5 +115,10 @@ describe('consent scripts and inventory stay in sync', () => {
         expect(entry?.category).toBe(script.category)
       }
     }
+  })
+
+  it('still uses only fixture scripts when the E2E fixture is enabled', () => {
+    vi.stubEnv('NEXT_PUBLIC_COOKIE_CONSENT_E2E_FIXTURE', '1')
+    expect(getConsentScripts().map((script) => script.id)).toEqual(['e2e-analytics', 'e2e-marketing'])
   })
 })

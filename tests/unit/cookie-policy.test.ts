@@ -92,16 +92,16 @@ describe('cookie inventory', () => {
   })
 
   it('does not match unrelated names', () => {
-    expect(matches('_ga')).toBe(false)
+    expect(matches('_ga_other_property')).toBe(false)
     expect(matches('better-auth.session_tokenx')).toBe(false)
   })
 })
 
 describe('notice mode', () => {
-  it('is info mode while every real entry is strictly necessary', () => {
-    expect(getBaseCookieInventory().every((entry) => entry.category === 'necessary')).toBe(true)
-    expect(getActiveOptionalCategories()).toEqual([])
-    expect(getCookieNoticeMode()).toBe('info')
+  it('uses consent mode for GA4 and retains info mode for a necessary-only inventory', () => {
+    expect(getActiveOptionalCategories()).toEqual(['analytics'])
+    expect(getCookieNoticeMode()).toBe('consent')
+    expect(getCookieNoticeMode(getBaseCookieInventory().filter((entry) => entry.category === 'necessary'))).toBe('info')
   })
 
   it('switches to consent mode as soon as a non-necessary entry exists', () => {
@@ -130,7 +130,8 @@ describe('expected external hosts', () => {
     expect(isExpectedExternalHost('challenges.cloudflare.com')).toBe(true)
     expect(isExpectedExternalHost('brunhild.challenges.cloudflare.com')).toBe(true)
     expect(isExpectedExternalHost('abc123.r2.cloudflarestorage.com')).toBe(true)
-    expect(isExpectedExternalHost('www.googletagmanager.com')).toBe(false)
+    expect(isExpectedExternalHost('www.googletagmanager.com')).toBe(true)
+    expect(isExpectedExternalHost('www.googletagmanager.com.example')).toBe(false)
     expect(isExpectedExternalHost('evil-r2.cloudflarestorage.com.example')).toBe(false)
   })
 })

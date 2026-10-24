@@ -84,7 +84,17 @@ export default function CookiePolicyPage() {
         güncel tutulur. Kullanılmayan veya tahmini çerez adları tabloya eklenmez.
       </p>
 
-      <p>Mevcut envanterde zorunlu olmayan analitik veya pazarlama çerezi bulunmamaktadır.</p>
+      <p>
+        Google Analytics 4, yalnız analitik tercihinizi kabul ettikten sonra sayfa görüntülemelerini
+        ve oturumları ölçmek için çalışır. Analitik tanımlayıcısı, tarayıcı ve cihaz bilgileri ile
+        sorgu parametreleri çıkarılmış sayfa adresleri Google’a iletilir. Hesap ve sipariş adreslerindeki
+        kayıt numaraları gönderilmez. Google Signals ve reklam kişiselleştirmesi kapalıdır.
+        Google hizmetleri nedeniyle veriler yurt dışında işlenebilir. Ayrıntılar için{' '}
+        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">
+          Google Gizlilik Politikası
+        </a>{' '}
+        incelenebilir. Tercihinizi aşağıdaki düğmeden her zaman değiştirebilir veya geri alabilirsiniz.
+      </p>
       <CookiePreferencesButton className="font-semibold underline underline-offset-2">
         Çerez Tercihleri
       </CookiePreferencesButton>

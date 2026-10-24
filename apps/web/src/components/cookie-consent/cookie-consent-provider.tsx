@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import {
   COOKIE_POLICY_VERSION,
   getActiveOptionalCategories,
@@ -22,6 +23,7 @@ import {
   readStoredConsent,
   writeNoticeAcknowledged,
   writeStoredConsent,
+  trackAnalyticsPageView,
 } from '@/lib/cookie-consent/browser'
 import { CookieConsentContext, type CookieConsentContextValue, type CookieConsentDecision } from './context'
 import { CookieBanner } from './cookie-banner'
@@ -55,6 +57,7 @@ function flagsForDecision(
  * Scrolling, navigating or closing a dialog never counts as consent.
  */
 export function CookieConsentProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const mode = getCookieNoticeMode()
   const activeCategories = useMemo(() => getActiveOptionalCategories(), [])
   const [ready, setReady] = useState(false)
@@ -80,7 +83,8 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
       injectConsentScript(script)
       loadedScripts.current.add(script.id)
     }
-  }, [ready, flags])
+    if (flags.analytics) trackAnalyticsPageView(pathname)
+  }, [ready, flags, pathname])
 
   const acknowledgeNotice = useCallback(() => {
     writeNoticeAcknowledged()

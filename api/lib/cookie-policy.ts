@@ -14,11 +14,11 @@
  * Pure data: imported by client components, so no Node-only APIs here.
  */
 
-export const COOKIE_POLICY_VERSION = '2026-10-20-v2'
-export const COOKIE_POLICY_UPDATED_AT = '20.10.2026'
+export const COOKIE_POLICY_VERSION = '2026-10-25-v1'
+export const COOKIE_POLICY_UPDATED_AT = '25.10.2026'
 
 /** sha256 of the base inventory — see tests/unit/cookie-policy.test.ts. */
-export const COOKIE_POLICY_FINGERPRINT = '5386e283c51f8fab8c5e9ab9f92c2932a5c6323526c2fc4e88d83a402a46047d'
+export const COOKIE_POLICY_FINGERPRINT = '360a8a37e3b2af41811047c7d7500a86b8280177f7d677f12982c7b968b8c6cc'
 
 export const COOKIE_CATEGORIES = ['necessary', 'functional', 'analytics', 'marketing'] as const
 export type CookieCategory = (typeof COOKIE_CATEGORIES)[number]
@@ -74,6 +74,20 @@ const SITE_DOMAIN = 'www.hanuja.com.tr (yalnız bu alan adı)'
 const HANUJA = 'Hanuja'
 
 const BASE_COOKIE_INVENTORY: readonly CookieInventoryEntry[] = [
+  {
+    key: '_ga', namePattern: '^_ga$', storage: 'cookie',
+    provider: 'Google Analytics 4', domain: SITE_DOMAIN,
+    purpose: 'İzin veren ziyaretçileri rastgele bir tanımlayıcıyla ayırt ederek site kullanımını ölçer.',
+    category: 'analytics', party: 'first', duration: 'En fazla 2 yıl',
+    legalBasis: 'KVKK m.5/1 (açık rıza)', trigger: 'Yalnız analitik izni kaydedildikten sonra',
+  },
+  {
+    key: '_ga_79EPBQSRW2', namePattern: '^_ga_79EPBQSRW2$', storage: 'cookie',
+    provider: 'Google Analytics 4', domain: SITE_DOMAIN,
+    purpose: 'Hanuja Web akışındaki oturumları ve sayfa görüntülemelerini ölçer.',
+    category: 'analytics', party: 'first', duration: 'En fazla 2 yıl',
+    legalBasis: 'KVKK m.5/1 (açık rıza)', trigger: 'Yalnız analitik izni kaydedildikten sonra',
+  },
   {
     key: 'hanuja:checkout-form:start', namePattern: '^hanuja:checkout-form:start$',
     storage: 'sessionStorage', provider: HANUJA, domain: SITE_DOMAIN,
@@ -245,6 +259,9 @@ export function getCookieNoticeMode(inventory: readonly CookieInventoryEntry[] =
  * audit and the E2E "no unexpected request" check — not a vendor list for the page.
  */
 export const EXPECTED_EXTERNAL_HOSTS: readonly { host: string; provider: string; where: string }[] = [
+  { host: 'www.googletagmanager.com', provider: 'Google Analytics 4', where: 'Yalnız analitik izninden sonra' },
+  { host: 'www.google-analytics.com', provider: 'Google Analytics 4', where: 'Yalnız analitik izninden sonra' },
+  { host: 'region1.google-analytics.com', provider: 'Google Analytics 4', where: 'Yalnız analitik izninden sonra' },
   { host: 'cpp.iyzipay.com', provider: 'iyzico', where: 'Yalnız onay sonrası gömülü kart ödeme alanı' },
   { host: 'sandbox-cpp.iyzipay.com', provider: 'iyzico sandbox', where: 'Yerel sandbox kart ödeme testi' },
   { host: 'api.iyzipay.com', provider: 'iyzico', where: 'Kart ödeme alanı ve banka doğrulaması' },

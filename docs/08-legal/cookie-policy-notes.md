@@ -1,7 +1,24 @@
 # Çerez Aydınlatması ve Rıza Sistemi — Çalışma Notu
 
-Son güncelleme: 2026-09-28 · Çerez metni sürümü: `2026-09-28-v1`
-Durum: yayın öncesi. Tablo yerel denetimle ve 2026-09-28 canlı denetimle (aşağıda) doğrulandı.
+Son güncelleme: 2026-10-25 · Çerez metni sürümü: `2026-10-25-v1`
+Durum: GA4 analitik iznine bağlı olarak etkinleştirildi. Önceki denetim kayıtları aşağıda korunur.
+
+## Google Analytics 4 (2026-10-25)
+
+- Hanuja Web, mülk `560604998`, akış `16196094156`, public ölçüm kimliği `G-79EPBQSRW2`.
+- Envanterdeki `_ga` ve `_ga_79EPBQSRW2` analitik çerezleri yalnız sunucuya kaydedilmiş izin
+  sonrasında oluşur; Google etiketi izin öncesinde yüklenmez, cookieless ping de gönderilmez.
+- `cookie_domain=none` ile çerezler yalnız mağaza hostunda tutulur. Geri alma iki çerezi temizler,
+  `ga-disable` bayrağıyla gönderimi durdurur ve sayfayı yeniden yükler.
+- Reklam depolaması, reklam kullanıcı verisi, kişiselleştirme ve Google Signals kapalıdır.
+- Sayfa görüntülemelerini Next.js gezinmelerinde izin sağlayıcısı gönderir. GA panelinde
+  geliştirilmiş ölçüm **kapalı kalmalıdır**; açılması çift sayım ve ek otomatik veri toplanması doğurabilir.
+- Sayfa URL'lerinden sorgu/fragment, hesap ve sipariş yollarından kayıt numaraları çıkarılır.
+  Dış referans yalnız origin olarak gönderilir. Form alanları ve e-ticaret olayları gönderilmez.
+- Yerel/önizleme hostları production Analytics'e veri göndermez; yalnız `www.hanuja.com.tr` ve
+  `hanuja.com.tr` izinlidir. Yeni env veya migration yok; yalnız `hanuja-web` deploy edilir.
+- Google'a veri aktarımı çerez metninde açıklanır; bu teknik kurulum KVKK m.9 aktarım
+  mekanizmasının hukuki değerlendirmesini veya tamamlandığını teyit etmez.
 
 ## Dayanak
 
@@ -20,7 +37,7 @@ metin sürümünü saklar.
 | Dosya | Görev |
 |---|---|
 | `api/lib/cookie-policy.ts` | Envanter, kategoriler, `COOKIE_POLICY_VERSION`, parmak izi, mod, beklenen dış hostlar |
-| `apps/web/src/lib/cookie-consent/scripts.ts` | Rızaya bağlı script kaydı (bugün boş) |
+| `apps/web/src/lib/cookie-consent/scripts.ts` | Rızaya bağlı GA4 script kaydı |
 | `apps/web/src/lib/cookie-consent/browser.ts` | Tarayıcı depolamasına ve `document.cookie`'ye yazan tek dosya |
 | `apps/web/src/components/cookie-consent/*` | Bildirim (tasarım C, "küçük baloncuk"), tercih paneli, footer düğmesi |
 | `api/services/cookie-consent.service.ts` + `POST /api/cookie-consent` | Rıza ispat kaydı |
@@ -30,7 +47,7 @@ metin sürümünü saklar.
 
 ## Mod kuralı
 
-- **Bilgilendirme modu (bugün):** envanterdeki her kalem `necessary`. Altta küçük bir hap
+- **Bilgilendirme modu (yalnız zorunlu envanter varsa):** envanterdeki her kalem `necessary`. Altta küçük bir hap
   gösterilir: "Yalnızca zorunlu çerezler kullanıyoruz · Ayrıntılar" ve "Anladım". Rıza sorulmaz ve
   `POST /api/cookie-consent` 409 (`CONSENT_NOT_REQUIRED`) döner.
 - **Rıza modu:** envantere zorunlu olmayan ilk kalem eklendiği anda kendiliğinden açılır.

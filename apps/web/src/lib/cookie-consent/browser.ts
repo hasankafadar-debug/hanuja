@@ -13,6 +13,76 @@ import {
 } from '@hanuja/api/lib/cookie-policy'
 import { isNoticeAcknowledged, parseStoredConsent, type StoredConsent } from './state'
 import type { ConsentScript, WithdrawalCleanup } from './scripts'
+import { analyticsPagePath, GOOGLE_ANALYTICS_MEASUREMENT_ID } from '@hanuja/api/lib/storefront-analytics'
+
+type AnalyticsWindow = Window & {
+  dataLayer?: unknown[]
+  gtag?: (...args: unknown[]) => void
+} & { [key in `ga-disable-${typeof GOOGLE_ANALYTICS_MEASUREMENT_ID}`]?: boolean }
+
+function isAnalyticsHost(): boolean {
+  return window.location.hostname === 'www.hanuja.com.tr' || window.location.hostname === 'hanuja.com.tr'
+}
+
+function analyticsLocation(pathname: string): string {
+  return `${window.location.origin}${analyticsPagePath(pathname)}`
+}
+
+function initializeGoogleAnalytics(): void {
+  const target = window as AnalyticsWindow
+  target.dataLayer ??= []
+  target.gtag ??= function () {
+    // eslint-disable-next-line prefer-rest-params -- Google's gtag command queue uses Arguments objects.
+    target.dataLayer?.push(arguments)
+  }
+  target[`ga-disable-${GOOGLE_ANALYTICS_MEASUREMENT_ID}`] = false
+  target.gtag('consent', 'default', {
+    analytics_storage: 'granted',
+    ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+  })
+  target.gtag('js', new Date())
+  target.gtag('set', {
+    page_location: analyticsLocation(window.location.pathname),
+    page_referrer: safeReferrer(document.referrer),
+    page_title: 'Hanuja',
+  })
+  target.gtag('config', GOOGLE_ANALYTICS_MEASUREMENT_ID, {
+    send_page_view: false,
+    allow_google_signals: false,
+    allow_ad_personalization_signals: false,
+    cookie_domain: 'none',
+    cookie_flags: 'SameSite=Lax;Secure',
+  })
+}
+
+function safeReferrer(referrer: string): string {
+  if (!referrer) return ''
+  try {
+    const url = new URL(referrer)
+    return url.origin === window.location.origin ? `${url.origin}${analyticsPagePath(url.pathname)}` : url.origin
+  } catch {
+    return ''
+  }
+}
+
+let lastAnalyticsPage: string | null = null
+
+/** Called only after the consent provider has applied a recorded analytics grant. */
+export function trackAnalyticsPageView(pathname: string): void {
+  if (!isAnalyticsHost()) return
+  const target = window as AnalyticsWindow
+  if (!target.gtag || target[`ga-disable-${GOOGLE_ANALYTICS_MEASUREMENT_ID}`]) return
+  const location = analyticsLocation(pathname)
+  if (location === lastAnalyticsPage) return
+  const context = {
+    page_location: location,
+    page_referrer: lastAnalyticsPage ?? safeReferrer(document.referrer),
+    page_title: 'Hanuja',
+  }
+  target.gtag('set', context)
+  target.gtag('event', 'page_view', { ...context, send_to: GOOGLE_ANALYTICS_MEASUREMENT_ID })
+  lastAnalyticsPage = location
+}
 
 function readLocal(key: string): string | null {
   try {
@@ -56,6 +126,11 @@ function cookieDomains(hostname: string): (string | null)[] {
 }
 
 export function applyWithdrawalCleanup(cleanup: WithdrawalCleanup): void {
+  if (cleanup.scriptIds.includes('google-analytics')) {
+    // Stop queued/unload events before deleting the cookies and reloading the page.
+    ;(window as AnalyticsWindow)[`ga-disable-${GOOGLE_ANALYTICS_MEASUREMENT_ID}`] = true
+    lastAnalyticsPage = null
+  }
   for (const name of cleanup.cookies) {
     for (const domain of cookieDomains(window.location.hostname)) {
       document.cookie = `${name}=; Max-Age=0; path=/${domain ? `; domain=${domain}` : ''}`
@@ -73,6 +148,11 @@ export function applyWithdrawalCleanup(cleanup: WithdrawalCleanup): void {
 
 export function injectConsentScript(script: ConsentScript): void {
   if (document.querySelector(`script[data-consent-script="${script.id}"]`)) return
+  if (script.id === 'google-analytics') {
+    // Local development and preview hosts must never pollute production analytics.
+    if (!isAnalyticsHost()) return
+    initializeGoogleAnalytics()
+  }
   const element = document.createElement('script')
   element.src = script.src
   element.async = true

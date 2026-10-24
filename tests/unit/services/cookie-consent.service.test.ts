@@ -64,13 +64,12 @@ describe('createCookieConsentService.record', () => {
     vi.unstubAllEnvs()
   })
 
-  it('refuses to record anything while the site only uses necessary cookies', async () => {
+  it('records the real analytics grant without enabling inactive marketing or functional categories', async () => {
     const { prisma, create } = fakePrisma()
     const service = createCookieConsentService(prisma)
-    await expect(
-      service.record({ decision: 'accept_all', policyVersion: COOKIE_POLICY_VERSION, ...OFF, userId: null }),
-    ).rejects.toMatchObject({ code: 'CONSENT_NOT_REQUIRED' })
-    expect(create).not.toHaveBeenCalled()
+    const result = await service.record({ decision: 'accept_all', policyVersion: COOKIE_POLICY_VERSION, ...OFF, userId: null })
+    expect(result).toMatchObject({ action: 'accept_all', analytics: true, functional: false, marketing: false })
+    expect(create).toHaveBeenCalledOnce()
   })
 
   describe('in consent mode', () => {

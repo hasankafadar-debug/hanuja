@@ -4,6 +4,7 @@ import {
   type OptionalCookieCategory,
 } from '@hanuja/api/lib/cookie-policy'
 import type { ConsentFlags } from './state'
+import { GOOGLE_ANALYTICS_COOKIE_NAMES, GOOGLE_ANALYTICS_MEASUREMENT_ID } from '@hanuja/api/lib/storefront-analytics'
 
 /**
  * Every non-necessary script the storefront may load. A script is only injected after
@@ -34,7 +35,12 @@ const E2E_FIXTURE_SCRIPTS: readonly ConsentScript[] = [
 ]
 
 export function getConsentScripts(): readonly ConsentScript[] {
-  return isCookieConsentE2EFixtureEnabled() ? E2E_FIXTURE_SCRIPTS : []
+  return isCookieConsentE2EFixtureEnabled() ? E2E_FIXTURE_SCRIPTS : [{
+    id: 'google-analytics',
+    category: 'analytics',
+    src: `https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ANALYTICS_MEASUREMENT_ID}`,
+    cleanup: { cookies: GOOGLE_ANALYTICS_COOKIE_NAMES, storageKeys: [] },
+  }]
 }
 
 export function resolveScriptsToLoad(

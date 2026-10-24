@@ -1,14 +1,13 @@
 /**
  * E2E — storefront cookie notice and consent (docs/08-legal/cookie-policy-notes.md).
  *
- * Production has only strictly necessary cookies, so the site runs in info mode. Consent
- * mode is exercised with the E2E fixture, which adds fake analytics/marketing entries and
- * scripts. The fixture scripts are served by `page.route`, never from `public/`.
+ * Production uses consent-gated GA4. Local hosts never load the production Google tag.
+ * The E2E fixture also exercises script loading/withdrawal without contacting Google.
  *
  * Run against a local dev server (the storefront project has no webServer):
- *   info mode:     pnpm --filter web dev
+ *   GA4 consent:   pnpm --filter web dev
  *                  pnpm exec playwright test -c tests/e2e/playwright.config.ts --project=storefront cookie-consent
- *   consent mode:  set NEXT_PUBLIC_COOKIE_CONSENT_E2E_FIXTURE=1 for BOTH the dev server and the test run.
+ *   fixture mode:  set NEXT_PUBLIC_COOKIE_CONSENT_E2E_FIXTURE=1 for BOTH the dev server and the test run.
  */
 import { test, expect, type BrowserContext, type Page, type Request } from '@playwright/test'
 import { trackHydrationErrors } from '../helpers/hydration'
@@ -16,7 +15,6 @@ import { trackHydrationErrors } from '../helpers/hydration'
 const CONSENT_MODE = process.env['NEXT_PUBLIC_COOKIE_CONSENT_E2E_FIXTURE'] === '1'
 const DEV_ONLY_COOKIES = new Set(['__next_hmr_refresh_hash__'])
 const FIXTURE_PATH = '/__cookie-consent-fixture/'
-const NOTICE_KEY = 'hanuja-cookie-notice'
 const CONSENT_KEY = 'hanuja-cookie-consent'
 
 /**
@@ -25,6 +23,9 @@ const CONSENT_KEY = 'hanuja-cookie-consent'
  * keeps the two lists identical.
  */
 const EXPECTED_EXTERNAL_HOSTS = [
+  'www.googletagmanager.com',
+  'www.google-analytics.com',
+  'region1.google-analytics.com',
   'cpp.iyzipay.com',
   'sandbox-cpp.iyzipay.com',
   'api.iyzipay.com',
@@ -92,16 +93,16 @@ test.beforeAll(async ({ browser }) => {
   expect(published.names.size).toBeGreaterThan(0)
 })
 
-test.describe('cookie notice — info mode (production today)', () => {
+test.describe('cookie consent — production configuration', () => {
   test.skip(CONSENT_MODE, 'runs without the consent fixture')
 
-  test('A/B/K: first visit shows the notice and sets only inventoried storage', async ({ page, context }) => {
+  test('A/B/K: first visit asks for consent and sets only necessary storage', async ({ page, context }) => {
     const hydration = trackHydrationErrors(page)
     await gotoHome(page)
 
-    const notice = page.getByRole('region', { name: 'Çerez bildirimi' })
+    const notice = page.getByRole('region', { name: 'Çerez tercihleriniz' })
     await expect(notice).toBeVisible()
-    await expect(notice).toContainText('Yalnızca zorunlu çerezler')
+    await expect(notice.getByRole('button', { name: 'Tümünü reddet' })).toBeVisible()
     await expect(notice.getByRole('link', { name: /Çerez Aydınlatma Metni/ })).toHaveAttribute('href', '/cerez-politikasi')
 
     for (const name of await cookieNames(context)) expect(published.names.has(publishedNameFor(name)), name).toBe(true)
@@ -109,19 +110,19 @@ test.describe('cookie notice — info mode (production today)', () => {
     await hydration.expectNone()
   })
 
-  test('B: "Anladım" is not consent — it only stores the notice version, locally', async ({ page }) => {
+  test('B: refusal persists and does not load Google Analytics', async ({ page }) => {
     const requests = recordRequests(page)
     await gotoHome(page)
-    await page.getByRole('button', { name: 'Anladım' }).click()
+    await page.getByRole('button', { name: 'Tümünü reddet' }).click()
 
-    await expect(page.getByRole('region', { name: 'Çerez bildirimi' })).toHaveCount(0)
-    expect(published.names.has(NOTICE_KEY)).toBe(true)
-    expect((await storageSnapshot(page)).local).toEqual({ [NOTICE_KEY]: published.version })
-    expect(requests.filter((request) => request.url().includes('/api/cookie-consent'))).toEqual([])
+    await expect(page.getByRole('region', { name: 'Çerez tercihleriniz' })).toHaveCount(0)
+    const stored = JSON.parse((await storageSnapshot(page)).local[CONSENT_KEY] ?? 'null')
+    expect(stored).toMatchObject({ policyVersion: published.version, analytics: false, marketing: false })
 
     await page.reload()
     await page.waitForLoadState('networkidle').catch(() => undefined)
-    await expect(page.getByRole('region', { name: 'Çerez bildirimi' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Çerez tercihleriniz' })).toHaveCount(0)
+    expect(requests.filter((request) => /google-analytics\.com|googletagmanager\.com/.test(request.url()))).toEqual([])
   })
 
   test('G/J: footer "Çerez Tercihleri" opens the panel by keyboard and returns focus', async ({ page }) => {
@@ -130,15 +131,15 @@ test.describe('cookie notice — info mode (production today)', () => {
     await footerButton.focus()
     await page.keyboard.press('Enter')
 
-    const dialog = page.getByRole('dialog', { name: 'Çerezler Hakkında' })
+    const dialog = page.getByRole('dialog', { name: 'Çerez Tercihleriniz' })
     await expect(dialog).toBeVisible()
     await expect(dialog).toContainText('Her Zaman Etkin')
     const switches = dialog.getByRole('switch')
     await expect(switches).toHaveCount(3)
-    for (const toggle of await switches.all()) {
-      await expect(toggle).toBeDisabled()
-      await expect(toggle).toHaveAttribute('aria-checked', 'false')
-    }
+    await expect(dialog.getByRole('switch', { name: 'İşlevsel Çerezler' })).toBeDisabled()
+    await expect(dialog.getByRole('switch', { name: 'Reklam ve Pazarlama Çerezleri' })).toBeDisabled()
+    await expect(dialog.getByRole('switch', { name: 'Analitik ve Performans Çerezleri' })).toBeEnabled()
+    for (const toggle of await switches.all()) await expect(toggle).toHaveAttribute('aria-checked', 'false')
 
     await page.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
@@ -158,13 +159,13 @@ test.describe('cookie notice — info mode (production today)', () => {
   })
 })
 
-test.describe('cookie notice — info mode on a phone', () => {
+test.describe('cookie consent — production configuration on a phone', () => {
   test.skip(CONSENT_MODE, 'runs without the consent fixture')
   test.use({ viewport: { width: 375, height: 812 } })
 
   test('I: the notice fits the screen without horizontal scroll', async ({ page }) => {
     await gotoHome(page)
-    const box = await page.getByRole('region', { name: 'Çerez bildirimi' }).locator('> div').boundingBox()
+    const box = await page.getByRole('region', { name: 'Çerez tercihleriniz' }).locator('> div').boundingBox()
     expect(box).not.toBeNull()
     expect(box!.x).toBeGreaterThanOrEqual(0)
     expect(box!.x + box!.width).toBeLessThanOrEqual(375)

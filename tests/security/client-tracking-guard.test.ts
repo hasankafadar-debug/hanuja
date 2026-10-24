@@ -2,8 +2,7 @@
  * Security/privacy guard — no tracking or new browser storage may reach the storefront
  * without going through the cookie consent system.
  *
- * The storefront currently uses only strictly necessary cookies, so the cookie notice runs
- * in info mode and asks for no consent. That is only true while nothing optional is loaded.
+ * GA4 is loaded only through the consent registry and its browser adapter.
  * This test fails the moment a tracker, a `next/script` tag, or a new cookie/storage write
  * appears outside the allowlisted files, so the addition has to go through
  * api/lib/cookie-policy.ts (inventory + version) and apps/web/src/lib/cookie-consent/scripts.ts
@@ -89,9 +88,10 @@ const STORAGE_ALLOWLIST: { pattern: RegExp; files: string[]; why: string }[] = [
 ]
 
 describe('storefront client tracking guard', () => {
-  it('contains no analytics, advertising or tracking code', async () => {
+  it('keeps analytics and tracking code inside the consent registry and browser adapter', async () => {
     const offenders: string[] = []
     for (const { file, source } of await scannedFiles()) {
+      if (file === 'apps/web/src/lib/cookie-consent/scripts.ts' || file === 'apps/web/src/lib/cookie-consent/browser.ts') continue
       for (const pattern of TRACKER_PATTERNS) {
         if (pattern.test(source)) offenders.push(`${file}: ${pattern}`)
       }
